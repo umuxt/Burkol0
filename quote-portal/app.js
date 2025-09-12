@@ -65,6 +65,86 @@
       a_detail: 'Detay',
       a_close: 'Kapat',
       a_none: 'Kayıt bulunamadı',
+      // Common UI
+      select: 'Seçiniz',
+      refresh: 'Yenile',
+      download: 'İndir',
+      info: 'Bilgi',
+      confirm_delete: 'Silmek istediğinizden emin misiniz?'
+        ,
+      // Admin table headers
+      th_date: 'Tarih',
+      th_customer: 'Müşteri',
+      th_project: 'Proje',
+      th_material: 'Malzeme',
+      th_process: 'Süreç',
+      th_qty: 'Adet',
+      th_thickness: 'Kalınlık (mm)',
+      th_due: 'Termin',
+      th_actions: 'İşlemler',
+      // Extra field labels
+      f_qty_tiers: 'Adet Kademeleri',
+      f_tolerance_std: 'Tolerans Standardı',
+      f_tolerance_crit: 'Kritik Toleranslar',
+      f_surface_ra: 'Yüzey Pürüzlülüğü (Ra)',
+      f_bend_count: 'Büküm Sayısı',
+      f_weld_method: 'Kaynak Yöntemi',
+      // Placeholders
+      ph_name: 'Örn. Ahmet Yılmaz',
+      ph_company: 'Şirket adı',
+      ph_email: 'ornek@firma.com',
+      ph_phone_local: '5xx xxx xx xx',
+      ph_city: 'Şehir',
+      ph_proj: 'Proje/Parça adı',
+      ph_grade: 'Örn. S235 / 304 / 5754',
+      ph_thickness: 'Örn. 3.0 (mm)',
+      ph_qty: 'Adet',
+      ph_qty_t1: 'Örn. 10',
+      ph_qty_t2: 'Örn. 50',
+      ph_qty_t3: 'Örn. 100',
+      ph_tolcrit: 'Örn. H7 delikler, +/-0.05mm yüzey',
+      ph_finish_ral: 'RAL Kodu (örn. RAL 9005)'
+      ,
+      ph_desc: 'Teknik detaylar, özel istekler, termin vb.'
+      ,
+      ph_bend_count: 'Örn. 2'
+      ,
+      ph_budget_amount: 'Tutar'
+      ,
+      ph_address_optional: 'Opsiyonel'
+      ,
+      // Dropdown option labels
+      opt_process: {
+        'Lazer Kesim': 'Lazer Kesim',
+        'Abkant Büküm': 'Abkant Büküm',
+        'Kaynak': 'Kaynak',
+        'CNC İşleme': 'CNC İşleme',
+        'Montaj': 'Montaj',
+        'Toz Boya': 'Toz Boya',
+        'Galvaniz': 'Galvaniz',
+        'Anodize': 'Anodize',
+      },
+      opt_material: {
+        'Mild Steel (S235/S355)': 'Yumuşak Çelik (S235/S355)',
+        'Stainless Steel (304/316)': 'Paslanmaz Çelik (304/316)',
+        'Aluminum (5052/6061/6082)': 'Alüminyum (5052/6061/6082)',
+        'Galvanized Steel': 'Galvanizli Çelik',
+        'Copper/Brass': 'Bakır/Pirinç',
+        'Other': 'Diğer',
+      },
+      opt_finish: {
+        'Ham': 'Ham',
+        'Zımpara': 'Zımpara',
+        'Toz Boya': 'Toz Boya',
+        'Galvaniz': 'Galvaniz',
+        'Anodize': 'Anodize',
+        'Diğer': 'Diğer',
+      },
+      repeat_one: 'Tek Seferlik',
+      repeat_recurrent: 'Süreklilik',
+      anodize_clear: 'Şeffaf',
+      anodize_black: 'Siyah',
+      anodize_colored: 'Renkli',
     },
     en: {
       nav_quote: 'Request Quote',
@@ -123,14 +203,101 @@
       a_detail: 'Detail',
       a_close: 'Close',
       a_none: 'No records found',
+      // Common UI
+      select: 'Select',
+      refresh: 'Refresh',
+      download: 'Download',
+      info: 'Info',
+      confirm_delete: 'Are you sure you want to delete?'
+        ,
+      // Admin table headers
+      th_date: 'Date',
+      th_customer: 'Customer',
+      th_project: 'Project',
+      th_material: 'Material',
+      th_process: 'Process',
+      th_qty: 'Qty',
+      th_thickness: 'Thickness (mm)',
+      th_due: 'Due',
+      th_actions: 'Actions',
+      // Extra field labels
+      f_qty_tiers: 'Quantity Tiers',
+      f_tolerance_std: 'Tolerance Standard',
+      f_tolerance_crit: 'Critical Tolerances',
+      f_surface_ra: 'Surface Roughness (Ra)',
+      f_bend_count: 'Bend Count',
+      f_weld_method: 'Weld Method',
+      // Placeholders
+      ph_name: 'e.g., John Smith',
+      ph_company: 'Company name',
+      ph_email: 'example@company.com',
+      ph_phone_local: 'e.g., 555 123 45 67',
+      ph_city: 'City',
+      ph_proj: 'Project/Part name',
+      ph_grade: 'e.g., S235 / 304 / 5754',
+      ph_thickness: 'e.g., 3.0 (mm)',
+      ph_qty: 'Quantity',
+      ph_qty_t1: 'e.g., 10',
+      ph_qty_t2: 'e.g., 50',
+      ph_qty_t3: 'e.g., 100',
+      ph_tolcrit: 'e.g., H7 holes, +/-0.05mm surface',
+      ph_finish_ral: 'RAL Code (e.g., RAL 9005)'
+      ,
+      ph_desc: 'Technical details, special requests, delivery, etc.'
+      ,
+      ph_bend_count: 'e.g., 2'
+      ,
+      ph_budget_amount: 'Amount'
+      ,
+      ph_address_optional: 'Optional'
+      ,
+      // Dropdown option labels
+      opt_process: {
+        'Lazer Kesim': 'Laser Cutting',
+        'Abkant Büküm': 'Bending',
+        'Kaynak': 'Welding',
+        'CNC İşleme': 'CNC Machining',
+        'Montaj': 'Assembly',
+        'Toz Boya': 'Powder Coating',
+        'Galvaniz': 'Galvanization',
+        'Anodize': 'Anodizing',
+      },
+      opt_material: {
+        'Mild Steel (S235/S355)': 'Mild Steel (S235/S355)',
+        'Stainless Steel (304/316)': 'Stainless Steel (304/316)',
+        'Aluminum (5052/6061/6082)': 'Aluminum (5052/6061/6082)',
+        'Galvanized Steel': 'Galvanized Steel',
+        'Copper/Brass': 'Copper/Brass',
+        'Other': 'Other',
+      },
+      opt_finish: {
+        'Ham': 'As-machined',
+        'Zımpara': 'Sanded',
+        'Toz Boya': 'Powder Coating',
+        'Galvaniz': 'Galvanized',
+        'Anodize': 'Anodized',
+        'Diğer': 'Other',
+      },
+      repeat_one: 'One-off',
+      repeat_recurrent: 'Recurrent',
+      anodize_clear: 'Clear',
+      anodize_black: 'Black',
+      anodize_colored: 'Colored',
     },
   }
+
+  function procLabel(p, t) { return (t.opt_process && t.opt_process[p]) || p }
+  function materialLabel(m, t) { return (t.opt_material && t.opt_material[m]) || m }
+  function finishLabel(f, t) { return (t.opt_finish && t.opt_finish[f]) || f }
 
   const initialLang = (localStorage.getItem('bk_lang') || 'tr')
 
   function useI18n() {
     const [lang, setLang] = useState(initialLang)
-    useEffect(() => localStorage.setItem('bk_lang', lang), [lang])
+    useEffect(() => {
+      localStorage.setItem('bk_lang', lang)
+      try { document.documentElement.setAttribute('lang', lang) } catch {}
+    }, [lang])
     const t = useMemo(() => dict[lang] || dict.tr, [lang])
     return { t, lang, setLang }
   }
@@ -460,15 +627,15 @@
         React.createElement('div', { className: 'grid three' },
           React.createElement(Field, { label: t.f_name },
             React.createElement('input', {
-              value: form.name, onChange: (e) => setF('name', e.target.value), placeholder: 'Örn. Ahmet Yılmaz',
+              value: form.name, onChange: (e) => setF('name', e.target.value), placeholder: t.ph_name,
             }), errors.name ? React.createElement('div', { className: 'help' }, errors.name) : null
           ),
           React.createElement(Field, { label: t.f_company },
-            React.createElement('input', { value: form.company, onChange: (e) => setF('company', e.target.value), placeholder: 'Şirket adı' })
+            React.createElement('input', { value: form.company, onChange: (e) => setF('company', e.target.value), placeholder: t.ph_company })
           ),
 
           React.createElement(Field, { label: t.f_email },
-            React.createElement('input', { type: 'email', value: form.email, onChange: (e) => setF('email', e.target.value), placeholder: 'ornek@firma.com' }),
+            React.createElement('input', { type: 'email', value: form.email, onChange: (e) => setF('email', e.target.value), placeholder: t.ph_email }),
             errors.email ? React.createElement('div', { className: 'help' }, errors.email) : null
           ),
           React.createElement(Field, { label: t.f_phone },
@@ -479,7 +646,7 @@
               },
                 COUNTRY_OPTIONS.map(c => React.createElement('option', { key: c.code, value: c.dial || '' }, `${c.name} ${c.dial}`))
               ),
-              React.createElement('input', { value: form.phoneLocal, onChange: (e) => setF('phoneLocal', e.target.value), placeholder: '5xx xxx xx xx' })
+              React.createElement('input', { value: form.phoneLocal, onChange: (e) => setF('phoneLocal', e.target.value), placeholder: t.ph_phone_local })
             ),
             errors.phone ? React.createElement('div', { className: 'help' }, errors.phone) : null
           ),
@@ -496,16 +663,16 @@
           React.createElement(Field, { label: t.f_city },
             form.country === 'TR' ? (
               React.createElement('select', { value: form.city, onChange: (e) => setF('city', e.target.value) },
-                React.createElement('option', { value: '' }, 'Seçiniz'),
-                TR_CITIES.map(c => React.createElement('option', { key: c, value: c }, c))
+              React.createElement('option', { value: '' }, t.select),
+              TR_CITIES.map(c => React.createElement('option', { key: c, value: c }, c))
               )
             ) : (
-              React.createElement('input', { value: form.city, onChange: (e) => setF('city', e.target.value), placeholder: 'Şehir' })
+              React.createElement('input', { value: form.city, onChange: (e) => setF('city', e.target.value), placeholder: t.ph_city })
             )
           ),
 
           React.createElement(Field, { label: t.f_proj },
-            React.createElement('input', { value: form.proj, onChange: (e) => setF('proj', e.target.value), placeholder: 'Proje/Parça adı' }),
+            React.createElement('input', { value: form.proj, onChange: (e) => setF('proj', e.target.value), placeholder: t.ph_proj }),
             errors.proj ? React.createElement('div', { className: 'help' }, errors.proj) : null
           ),
           React.createElement(Field, { label: t.f_process, className: 'span-3' },
@@ -519,7 +686,7 @@
                       setForm((s) => ({ ...s, process: checked ? [...s.process, p] : s.process.filter((x) => x !== p) }))
                     }
                   }),
-                  React.createElement('span', null, p)
+                  React.createElement('span', null, procLabel(p, t))
                 )
               ))
             )
@@ -527,13 +694,13 @@
 
           React.createElement(Field, { label: t.f_material },
             React.createElement('select', { value: form.material, onChange: (e) => { const v=e.target.value; setForm(s=>({ ...s, material: v, thickness: '' })) } },
-              React.createElement('option', { value: '' }, 'Seçiniz'),
-              materialOptions.map((m) => React.createElement('option', { key: m, value: m }, m))
+              React.createElement('option', { value: '' }, t.select),
+              materialOptions.map((m) => React.createElement('option', { key: m, value: m }, materialLabel(m, t)))
             ),
             errors.material ? React.createElement('div', { className: 'help' }, errors.material) : null
           ),
           React.createElement(Field, { label: t.f_grade },
-            React.createElement('input', { value: form.grade, onChange: (e) => setF('grade', e.target.value), placeholder: 'Örn. S235 / 304 / 5754' })
+            React.createElement('input', { value: form.grade, onChange: (e) => setF('grade', e.target.value), placeholder: t.ph_grade })
           ),
 
           React.createElement(Field, { label: t.f_thickness },
@@ -544,19 +711,19 @@
               React.createElement('div', { className: 'tile ' + (!(thicknessMap[form.material]||[]).length ? 'active' : ''), onClick: () => {} }, 'Diğer')
             ),
             React.createElement('div', { className: 'row', style: { marginTop: 8 } },
-              React.createElement('input', { type: 'number', min: 0, step: '0.1', value: form.thickness, onChange: (e) => setF('thickness', e.target.value), placeholder: 'Örn. 3.0 (mm)' })
+              React.createElement('input', { type: 'number', min: 0, step: '0.1', value: form.thickness, onChange: (e) => setF('thickness', e.target.value), placeholder: t.ph_thickness })
             ),
             errors.thickness ? React.createElement('div', { className: 'help' }, errors.thickness) : null
           ),
           React.createElement(Field, { label: t.f_qty },
-            React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qty, onChange: (e) => setF('qty', e.target.value), placeholder: 'Adet' }),
+            React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qty, onChange: (e) => setF('qty', e.target.value), placeholder: t.ph_qty }),
             errors.qty ? React.createElement('div', { className: 'help' }, errors.qty) : null
           ),
-          React.createElement(Field, { label: 'Adet Kademeleri' },
+          React.createElement(Field, { label: t.f_qty_tiers },
             React.createElement('div', { className: 'row' },
-              React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qtyT1, onChange: (e) => setF('qtyT1', e.target.value), placeholder: 'Örn. 10' }),
-              React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qtyT2, onChange: (e) => setF('qtyT2', e.target.value), placeholder: 'Örn. 50' }),
-              React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qtyT3, onChange: (e) => setF('qtyT3', e.target.value), placeholder: 'Örn. 100' })
+              React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qtyT1, onChange: (e) => setF('qtyT1', e.target.value), placeholder: t.ph_qty_t1 }),
+              React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qtyT2, onChange: (e) => setF('qtyT2', e.target.value), placeholder: t.ph_qty_t2 }),
+              React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qtyT3, onChange: (e) => setF('qtyT3', e.target.value), placeholder: t.ph_qty_t3 })
             )
           ),
 
@@ -569,26 +736,26 @@
               React.createElement('input', { type: 'number', min: 0, step: '0.1', value: form.dimsH, onChange: (e) => setF('dimsH', e.target.value), placeholder: 'H' })
             )
           ),
-          React.createElement(Field, { label: 'Tolerans Standardı' },
+          React.createElement(Field, { label: t.f_tolerance_std },
             React.createElement('select', { value: form.toleranceStd, onChange: (e) => setF('toleranceStd', e.target.value) },
               ['ISO 2768-f', 'ISO 2768-m', 'ISO 2768-c'].map((opt) => React.createElement('option', { key: opt, value: opt }, opt))
             )
           ),
-          React.createElement(Field, { label: 'Kritik Toleranslar' },
-            React.createElement('input', { value: form.toleranceCrit, onChange: (e) => setF('toleranceCrit', e.target.value), placeholder: 'Örn. H7 delikler, +/-0.05mm yüzey' })
+          React.createElement(Field, { label: t.f_tolerance_crit },
+            React.createElement('input', { value: form.toleranceCrit, onChange: (e) => setF('toleranceCrit', e.target.value), placeholder: t.ph_tolcrit })
           ),
 
           React.createElement(Field, { label: t.f_finish },
             React.createElement('select', { value: form.finish, onChange: (e) => setF('finish', e.target.value) },
-              React.createElement('option', { value: '' }, 'Seçiniz'),
-              finishOptions.map((m) => React.createElement('option', { key: m, value: m }, m))
+              React.createElement('option', { value: '' }, t.select),
+              finishOptions.map((m) => React.createElement('option', { key: m, value: m }, finishLabel(m, t)))
             ),
             form.finish === 'Toz Boya' ? React.createElement('div', { className: 'row', style: { marginTop: 6 } },
-              React.createElement('input', { value: form.finishRal, onChange: (e) => setF('finishRal', e.target.value), placeholder: 'RAL Kodu (örn. RAL 9005)' })
+              React.createElement('input', { value: form.finishRal, onChange: (e) => setF('finishRal', e.target.value), placeholder: t.ph_finish_ral })
             ) : null,
             form.finish === 'Anodize' ? React.createElement('div', { className: 'row', style: { marginTop: 6 } },
               React.createElement('select', { value: form.anodizeType, onChange: (e) => setF('anodizeType', e.target.value) },
-                ['Clear', 'Black', 'Colored'].map((x) => React.createElement('option', { key: x, value: x }, x))
+                ['Clear', 'Black', 'Colored'].map((x) => React.createElement('option', { key: x, value: x }, x === 'Clear' ? t.anodize_clear : x === 'Black' ? t.anodize_black : t.anodize_colored))
               )
             ) : null
           ),
@@ -597,15 +764,15 @@
           ),
 
           // Process-specific minimal fields
-          form.process.includes('Abkant Büküm') ? React.createElement(Field, { label: 'Büküm Sayısı' },
-            React.createElement('input', { type: 'number', min: 0, step: '1', value: form.bendCount, onChange: (e) => setF('bendCount', e.target.value), placeholder: 'Örn. 2' })
+          form.process.includes('Abkant Büküm') ? React.createElement(Field, { label: t.f_bend_count },
+            React.createElement('input', { type: 'number', min: 0, step: '1', value: form.bendCount, onChange: (e) => setF('bendCount', e.target.value), placeholder: t.ph_bend_count })
           ) : null,
-          form.process.includes('Kaynak') ? React.createElement(Field, { label: 'Kaynak Yöntemi' },
+          form.process.includes('Kaynak') ? React.createElement(Field, { label: t.f_weld_method },
             React.createElement('select', { value: form.weldMethod, onChange: (e) => setF('weldMethod', e.target.value) },
               ['MIG', 'TIG'].map(x => React.createElement('option', { key: x, value: x }, x))
             )
           ) : null,
-          form.process.includes('CNC İşleme') ? React.createElement(Field, { label: 'Yüzey Pürüzlülüğü (Ra)' },
+          form.process.includes('CNC İşleme') ? React.createElement(Field, { label: t.f_surface_ra },
             React.createElement('select', { value: form.surfaceRa, onChange: (e) => setF('surfaceRa', e.target.value) },
               ['Ra 3.2', 'Ra 1.6', 'Ra 0.8'].map(x => React.createElement('option', { key: x, value: x }, x))
             )
@@ -613,8 +780,8 @@
 
           React.createElement(Field, { label: t.f_repeat },
             React.createElement('select', { value: form.repeat, onChange: (e) => setF('repeat', e.target.value) },
-              React.createElement('option', { value: 'one' }, 'Tek Seferlik'),
-              React.createElement('option', { value: 'recurrent' }, 'Süreklilik')
+              React.createElement('option', { value: 'one' }, t.repeat_one),
+              React.createElement('option', { value: 'recurrent' }, t.repeat_recurrent)
             )
           ),
           React.createElement(Field, { label: t.f_budget },
@@ -622,12 +789,12 @@
               React.createElement('select', { value: form.budgetCurrency, onChange: (e) => setF('budgetCurrency', e.target.value) },
                 CURRENCIES.map((c) => React.createElement('option', { key: c, value: c }, c))
               ),
-              React.createElement('input', { type: 'number', min: 0, step: '0.01', value: form.budgetAmount, onChange: (e) => setF('budgetAmount', e.target.value), placeholder: 'Tutar' })
+              React.createElement('input', { type: 'number', min: 0, step: '0.01', value: form.budgetAmount, onChange: (e) => setF('budgetAmount', e.target.value), placeholder: t.ph_budget_amount })
             )
           ),
 
           React.createElement(Field, { label: t.f_address, className: 'span-3' },
-            React.createElement('textarea', { value: form.address, onChange: (e) => setF('address', e.target.value), placeholder: 'Opsiyonel' })
+            React.createElement('textarea', { value: form.address, onChange: (e) => setF('address', e.target.value), placeholder: t.ph_address_optional })
           ),
           React.createElement(Field, { label: t.f_drawing, className: 'span-3' },
             React.createElement('div', { className: 'grid', style: { gap: 10 } },
@@ -661,7 +828,7 @@
           ),
 
           React.createElement(Field, { label: t.f_desc, className: 'span-3' },
-            React.createElement('textarea', { value: form.desc, onChange: (e) => setF('desc', e.target.value), placeholder: 'Teknik detaylar, özel istekler, termin vb.' })
+            React.createElement('textarea', { value: form.desc, onChange: (e) => setF('desc', e.target.value), placeholder: t.ph_desc })
           ),
 
           
@@ -744,7 +911,7 @@
             React.createElement('option', { value: 'not' }, t.s_not),
             React.createElement('option', { value: 'quoted' }, t.s_quoted),
           ),
-          React.createElement('button', { className: 'btn', onClick: () => refresh() }, 'Yenile'),
+          React.createElement('button', { className: 'btn', onClick: () => refresh() }, t.refresh),
           React.createElement('button', { className: 'btn', onClick: exportCSV }, t.a_export_csv)
         )
       ),
@@ -756,16 +923,16 @@
             React.createElement('table', { className: 'table' },
               React.createElement('thead', null,
                 React.createElement('tr', null,
-                  React.createElement('th', null, 'Tarih'),
-                  React.createElement('th', null, 'Müşteri'),
-                  React.createElement('th', null, 'Proje'),
-                  React.createElement('th', null, 'Malzeme'),
-                  React.createElement('th', null, 'Süreç'),
-                  React.createElement('th', null, 'Adet'),
-                  React.createElement('th', null, 'Kalınlık (mm)'),
-                  React.createElement('th', null, 'Termin'),
+                  React.createElement('th', null, t.th_date),
+                  React.createElement('th', null, t.th_customer),
+                  React.createElement('th', null, t.th_project),
+                  React.createElement('th', null, t.th_material),
+                  React.createElement('th', null, t.th_process),
+                  React.createElement('th', null, t.th_qty),
+                  React.createElement('th', null, t.th_thickness),
+                  React.createElement('th', null, t.th_due),
                   React.createElement('th', null, t.a_status),
-                  React.createElement('th', null, 'İşlemler'),
+                  React.createElement('th', null, t.th_actions),
                 )
               ),
               React.createElement('tbody', null,
@@ -788,7 +955,7 @@
                         React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); setItemStatus(it.id, 'not') } }, t.s_not),
                         React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); setItemStatus(it.id, 'quoted') } }, t.s_quoted),
                         React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); API.downloadTxt(it.id, it) } }, 'TXT'),
-                        React.createElement('button', { type: 'button', className: 'btn danger', onClick: (e) => { e.stopPropagation(); if (confirm('Silmek istediğinizden emin misiniz?')) remove(it.id) } }, t.a_delete),
+                        React.createElement('button', { type: 'button', className: 'btn danger', onClick: (e) => { e.stopPropagation(); if (confirm(t.confirm_delete)) remove(it.id) } }, t.a_delete),
                       )
                     )
                   )
@@ -808,19 +975,19 @@
     React.useEffect(() => { setCurrStatus(item.status) }, [item.id, item.status])
     return React.createElement('div', { style: {
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
-    } },
-      React.createElement('div', { className: 'card', style: { width: 'min(680px, 96vw)', maxHeight: '85vh', overflowY: 'auto', position: 'relative', padding: 12, fontSize: 13 } },
+    }, onClick: onClose },
+      React.createElement('div', { className: 'card', style: { width: 'min(680px, 96vw)', maxHeight: '85vh', overflowY: 'auto', position: 'relative', padding: 12, fontSize: 13 }, onClick: (e) => e.stopPropagation() },
         React.createElement('button', { className: 'btn', onClick: onClose, style: { position: 'absolute', top: 8, right: 8, padding: '6px 8px', fontSize: 12 } }, '×'),
         React.createElement('div', { className: 'row', style: { justifyContent: 'flex-start', marginBottom: 6 } },
           React.createElement('h3', { style: { margin: 0, fontSize: 16 } }, t.a_detail)
         ),
         React.createElement('div', { className: 'grid two', style: { gap: 8 } },
-          info('ID', item.id), info('Tarih', (item.createdAt||'').replace('T',' ').slice(0,16)), info('Durum', currStatus), info('Ad Soyad', item.name),
-          info('Firma', item.company), info('E‑posta', item.email), info('Telefon', item.phone), info('Ülke/Şehir', `${item.country} / ${item.city}`),
-          info('Proje', item.proj), info('Süreç', (item.process||[]).join(', ')), info('Malzeme', item.material), info('Kalite', item.grade),
-          info('Kalınlık', item.thickness + ' mm'), info('Adet', item.qty), info('Boyut', item.dims), info('Tolerans', item.tolerance),
-          info('Yüzey', item.finish), info('Termin', item.due), info('Sıklık', item.repeat), info('Bütçe', item.budget),
-          info('Çizim', item.drawing), info('Adres', item.address), info('Açıklama', item.desc)
+          info('ID', item.id), info(t.th_date, (item.createdAt||'').replace('T',' ').slice(0,16)), info(t.a_status, currStatus), info(t.f_name, item.name),
+          info(t.f_company, item.company), info(t.f_email, item.email), info(t.f_phone, item.phone), info(t.f_country + '/' + t.f_city, `${item.country} / ${item.city}`),
+          info(t.f_proj, item.proj), info(t.f_process, (item.process||[]).join(', ')), info(t.f_material, item.material), info(t.f_grade, item.grade),
+          info(t.f_thickness, item.thickness + ' mm'), info(t.f_qty, item.qty), info(t.f_dims, item.dims), info(t.f_tolerance, item.tolerance),
+          info(t.f_finish, item.finish), info(t.f_due, item.due), info(t.f_repeat, item.repeat === 'recurrent' ? t.repeat_recurrent : t.repeat_one), info(t.f_budget, item.budget),
+          info(t.f_drawing, item.drawing), info(t.f_address, item.address), info(t.f_desc, item.desc)
         ),
         React.createElement('div', { style: { height: 10 } }),
         React.createElement('div', { className: 'row wrap' },
@@ -835,15 +1002,15 @@
             React.createElement('div', null, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
             f.type.startsWith('image/') || ['png','jpg','jpeg'].includes((f.type||'').toLowerCase()) ? (
               React.createElement('img', { className: 'preview-img', src: f.dataUrl, alt: f.name })
-            ) : React.createElement('a', { className: 'btn', href: f.dataUrl, download: f.name }, 'İndir')
+            ) : React.createElement('a', { className: 'btn', href: f.dataUrl, download: f.name }, t.download)
           ))
         ) : null,
         React.createElement('div', { style: { height: 10 } }),
         React.createElement('div', { className: 'grid two', style: { gap: 8 } },
-          info('Tolerans Std.', item.toleranceStd), info('Kritik Tolerans', item.toleranceCrit),
-          info('Büküm Sayısı', item.bendCount), info('Kaynak Yöntemi', item.weldMethod),
-          info('Yüzey Ra', item.surfaceRa), info('RAL', item.finishRal),
-          info('Anodize', item.anodizeType), info('Adet Kademeleri', (item.qtyTiers||[]).join(' | '))
+          info(t.f_tolerance_std, item.toleranceStd), info(t.f_tolerance_crit, item.toleranceCrit),
+          info(t.f_bend_count, item.bendCount), info(t.f_weld_method, item.weldMethod),
+          info('Ra', item.surfaceRa), info('RAL', item.finishRal),
+          info('Anodize', item.anodizeType), info(t.f_qty_tiers, (item.qtyTiers||[]).join(' | '))
         )
       )
     )
@@ -858,11 +1025,12 @@
 
   // Simple modal
   function Modal({ title, children, onClose }) {
+    const { t } = useI18n()
     return React.createElement('div', { style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 } },
       React.createElement('div', { className: 'card', style: { width: 'min(420px, 96vw)' } },
         React.createElement('div', { className: 'row', style: { justifyContent: 'space-between' } },
-          React.createElement('h3', null, title || 'Bilgi'),
-          React.createElement('button', { className: 'btn', onClick: onClose }, 'Kapat')
+          React.createElement('h3', null, title || t.info),
+          React.createElement('button', { className: 'btn', onClick: onClose }, t.a_close)
         ),
         React.createElement('div', null, children)
       )
