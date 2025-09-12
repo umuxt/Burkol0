@@ -145,6 +145,26 @@
       anodize_clear: 'Şeffaf',
       anodize_black: 'Siyah',
       anodize_colored: 'Renkli',
+      // Stepper
+      next: 'Devam',
+      back: 'Geri',
+      resume: 'Kaldığın yerden devam et',
+      fill_required: 'Lütfen gerekli alanları doldurun.'
+      ,
+      confirm_optional_title: 'Gönderimi Onayla',
+      confirm_optional_text: 'Tüm zorunlu alanları doldurdunuz. Ek detayları doldurmak istemediğinizden emin misiniz?',
+      btn_continue: 'Devam Et',
+      btn_submit: 'Gönder'
+      ,
+      // Validation
+      invalid_email: 'Geçerli bir e‑posta girin.',
+      invalid_phone: 'Geçerli bir telefon girin (sadece rakam).',
+      phone_tr_len: 'Türkiye numarası 10 haneli olmalıdır.',
+      only_numbers: 'Sadece sayı girin.',
+      must_be_positive: 'Pozitif bir değer girin.',
+      integer_required: 'Tam sayı girin.',
+      invalid_ral: 'RAL formatı "RAL 9005" şeklinde olmalı.',
+      invalid_date: 'Geçerli bir tarih seçin.'
     },
     en: {
       nav_quote: 'Request Quote',
@@ -283,6 +303,26 @@
       anodize_clear: 'Clear',
       anodize_black: 'Black',
       anodize_colored: 'Colored',
+      // Stepper
+      next: 'Next',
+      back: 'Back',
+      resume: 'Resume from where you left',
+      fill_required: 'Please fill the required fields.'
+      ,
+      confirm_optional_title: 'Confirm Submission',
+      confirm_optional_text: 'You filled all required fields. Are you sure you want to skip optional details?',
+      btn_continue: 'Continue Filling',
+      btn_submit: 'Submit'
+      ,
+      // Validation
+      invalid_email: 'Enter a valid email.',
+      invalid_phone: 'Enter a valid phone (digits only).',
+      phone_tr_len: 'Turkish phone must be 10 digits.',
+      only_numbers: 'Numbers only.',
+      must_be_positive: 'Enter a positive value.',
+      integer_required: 'Enter an integer.',
+      invalid_ral: 'RAL format should be like "RAL 9005".',
+      invalid_date: 'Select a valid date.'
     },
   }
 
@@ -490,6 +530,19 @@
     const [popup, setPopup] = useState(null)
     const [errors, setErrors] = useState({})
     const [files, setFiles] = useState([]) // {name, type, size, dataUrl}
+    // Stepper state
+    const [step, setStep] = useState(0)
+    const [furthest, setFurthest] = useState(0)
+    const [missingHighlight, setMissingHighlight] = useState(new Set())
+    const stepRefs = useRef([])
+    function stepRef(ix) { return (el) => { if (el) stepRefs.current[ix] = el } }
+    useEffect(() => {
+      const el = stepRefs.current[step]
+      if (el && typeof el.focus === 'function') {
+        // Small delay to ensure element is in DOM
+        setTimeout(() => { try { el.focus() } catch {} }, 0)
+      }
+    }, [step])
 
     const [form, setForm] = useState({
       name: '', company: '', email: '', phone: '', phoneCode: '+90', phoneLocal: '', country: 'TR', city: '',
@@ -500,17 +553,160 @@
 
     function setF(k, v) { setForm((s) => ({ ...s, [k]: v })) }
 
+    // Input helpers to constrain values
+    function sanitizeInteger(val) {
+      const s = String(val ?? '').replace(/\D/g, '')
+      return s
+    }
+    function sanitizeNumber(val) {
+      let s = String(val ?? '').replace(/[^\d\.]/g, '')
+      const parts = s.split('.')
+      if (parts.length > 2) s = parts[0] + '.' + parts.slice(1).join('')
+      return s
+    }
+    function setInt(k, val) { setF(k, sanitizeInteger(val)) }
+    function setNum(k, val) { setF(k, sanitizeNumber(val)) }
+    function setPhoneLocal(val) {
+      let digits = sanitizeInteger(val)
+      const isTR = form.country === 'TR' || form.phoneCode === '+90'
+      if (isTR) digits = digits.slice(0, 10)
+      setF('phoneLocal', digits)
+    }
+
     function validate() {
       const e = {}
+      // Requireds
       if (!form.name.trim()) e.name = t.required
       if (!form.email.trim()) e.email = t.required
       if (!form.phoneLocal.trim()) e.phone = t.required
       if (!form.proj.trim()) e.proj = t.required
+      if (!form.city.trim()) e.city = t.required
       if (!form.material.trim()) e.material = t.required
       if (!form.qty && !form.qtyT1 && !form.qtyT2 && !form.qtyT3) e.qty = t.required
       if (!form.thickness) e.thickness = t.required
+
+      // Email format
+      if (form.email && !/^\S+@\S+\.\S+$/.test(form.email)) e.email = t.invalid_email
+
+      // Phone: digits only; TR must be 10 digits
+      if (form.phoneLocal && /\D/.test(form.phoneLocal)) e.phone = t.invalid_phone
+      const isTR = form.country === 'TR' || form.phoneCode === '+90'
+      if (isTR && form.phoneLocal && form.phoneLocal.replace(/\D/g, '').length !== 10) e.phone = t.phone_tr_len
+
+      // Numbers: thickness positive number
+      if (form.thickness !== '' && Number(form.thickness) <= 0) e.thickness = t.must_be_positive
+      // Qty and tiers: integers > 0 when provided
+      const intFields = [
+        ['qty', form.qty], ['qtyT1', form.qtyT1], ['qtyT2', form.qtyT2], ['qtyT3', form.qtyT3], ['bendCount', form.bendCount]
+      ]
+      for (const [k, v] of intFields) {
+        if (v !== '' && v != null) {
+          if (!/^\d+$/.test(String(v))) e[k] = t.integer_required
+          else if (Number(v) <= 0) e[k] = t.must_be_positive
+        }
+      }
+      // Dimensions: numeric >= 0 when provided
+      const numFields = [ ['dimsL', form.dimsL], ['dimsW', form.dimsW], ['dimsH', form.dimsH] ]
+      for (const [k, v] of numFields) {
+        if (v !== '' && v != null) {
+          if (!/^\d*(?:\.\d+)?$/.test(String(v))) e[k] = t.only_numbers
+          else if (Number(v) < 0) e[k] = t.must_be_positive
+        }
+      }
+      // Budget amount: number >= 0
+      if (form.budgetAmount !== '' && form.budgetAmount != null) {
+        if (!/^\d*(?:\.\d+)?$/.test(String(form.budgetAmount))) e.budgetAmount = t.only_numbers
+      }
+      // RAL code when powder coat
+      if (form.finish === 'Toz Boya' && form.finishRal) {
+        if (!/^RAL\s*\d{3,4}$/i.test(form.finishRal.trim())) e.finishRal = t.invalid_ral
+      }
+      // Due date basic validity
+      if (form.due) {
+        const d = new Date(form.due)
+        if (isNaN(d.getTime())) e.due = t.invalid_date
+      }
       return e
     }
+
+    // Step definitions and required keys per step
+    const steps = [
+      { id: 'name', label: t.f_name, required: ['name'], fields: ['name'] },
+      { id: 'company', label: t.f_company, required: [], fields: ['company'] },
+      { id: 'email', label: t.f_email, required: ['email'], fields: ['email'] },
+      // phone is validated via errors.phone; use phoneLocal for field presence
+      { id: 'phone', label: t.f_phone, required: ['phone'], fields: ['phoneLocal'] },
+      { id: 'countryCity', label: t.f_country + ' / ' + t.f_city, required: ['country','city'], fields: ['country','city'] },
+      { id: 'proj', label: t.f_proj, required: ['proj'], fields: ['proj'] },
+      { id: 'process', label: t.f_process, required: [], fields: ['process'] },
+      { id: 'material', label: t.f_material, required: ['material'], fields: ['material'] },
+      { id: 'grade', label: t.f_grade, required: [], fields: ['grade'] },
+      { id: 'thickness', label: t.f_thickness, required: ['thickness'], fields: ['thickness'] },
+      { id: 'qty', label: t.f_qty, required: ['qty'], fields: ['qty','qtyT1','qtyT2','qtyT3'] },
+      { id: 'dims', label: t.f_dims, required: [], fields: ['dimsL','dimsW','dimsH'] },
+      { id: 'tolStd', label: t.f_tolerance_std, required: [], fields: ['toleranceStd'] },
+      { id: 'tolCrit', label: t.f_tolerance_crit, required: [], fields: ['toleranceCrit'] },
+      { id: 'finish', label: t.f_finish, required: [], fields: ['finish','finishRal','anodizeType'] },
+      { id: 'due', label: t.f_due, required: [], fields: ['due'] },
+      { id: 'repeat', label: t.f_repeat, required: [], fields: ['repeat'] },
+      { id: 'budget', label: t.f_budget, required: [], fields: ['budgetAmount','budgetCurrency'] },
+      { id: 'address', label: t.f_address, required: [], fields: ['address'] },
+      { id: 'drawing', label: t.f_drawing, required: [], fields: ['drawing','files'] },
+      { id: 'desc', label: t.f_desc, required: [], fields: ['desc'] },
+    ]
+
+    function stepHasErrors(ix) {
+      const all = validate()
+      const req = steps[ix].required
+      for (const k of req) { if (all[k]) return true }
+      const fields = steps[ix].fields || []
+      for (const k of fields) { if (all[k]) return true }
+      return false
+    }
+
+    function goNext() {
+      if (stepHasErrors(step)) { setMessage(t.fill_required); return }
+      const ns = Math.min(step + 1, steps.length - 1)
+      setStep(ns)
+      setFurthest((f) => Math.max(f, ns))
+      setMessage('')
+      // Recompute highlights if active
+      if (missingHighlight.size) setMissingHighlight(computeMissing())
+    }
+
+    function goBack() {
+      setStep((s) => Math.max(0, s - 1))
+      setMessage('')
+    }
+
+    function resumeProgress() {
+      setStep(furthest)
+      setMessage('')
+    }
+
+    function isEmptyField(k, v) {
+      if (Array.isArray(v)) return v.length === 0
+      return v == null || String(v).trim() === ''
+    }
+    function computeMissing() {
+      const set = new Set()
+      const errs = validate()
+      for (let i = 0; i < steps.length; i++) {
+        const req = steps[i].required || []
+        const flds = steps[i].fields || []
+        if (req.length) {
+          // For required steps, only highlight if there is an error on required keys
+          if (req.some((k) => errs[k])) set.add(i)
+        } else {
+          // For optional steps, highlight if fields are empty (user skipped)
+          if (flds.some((k) => isEmptyField(k, k === 'files' ? files : form[k]))) set.add(i)
+        }
+      }
+      return set
+    }
+    useEffect(() => {
+      if (missingHighlight.size) setMissingHighlight(computeMissing())
+    }, [form, files])
 
     async function onFilesChanged(fileList) {
       const arr = Array.from(fileList)
@@ -536,8 +732,7 @@
       setFiles((prev) => prev.filter((_, i) => i !== ix))
     }
 
-    async function onSubmit(e) {
-      e.preventDefault()
+    async function actualSubmit() {
       const eMap = validate()
       setErrors(eMap)
       if (Object.keys(eMap).length) return
@@ -572,11 +767,41 @@
         })
         setFiles([])
         setErrors({})
+        setStep(0)
+        setFurthest(0)
+        setMissingHighlight(new Set())
       } catch (err) {
         console.error(err)
         setMessage('Kaydedilemedi. Sunucuya erişilemiyor olabilir.')
       } finally {
         setSubmitting(false)
+      }
+    }
+
+    function preSubmit() {
+      const eMap = validate()
+      setErrors(eMap)
+      if (Object.keys(eMap).length) { setMessage(t.fill_required); return }
+      const content = React.createElement('div', null,
+        React.createElement('p', null, t.confirm_optional_text || 'Tüm zorunlu alanları doldurdunuz. Ek detayları doldurmak istemediğinizden emin misiniz?'),
+        React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', gap: 8 } },
+          React.createElement('button', { className: 'btn', onClick: () => { setPopup(null); setMissingHighlight(computeMissing()); resumeProgress() } }, t.btn_continue || 'Devam Et'),
+          React.createElement('button', { className: 'btn accent', onClick: async () => { setPopup(null); await actualSubmit() } }, t.btn_submit || t.submit)
+        )
+      )
+      setPopup({ title: t.confirm_optional_title || t.info, text: content })
+    }
+
+    function handleFormKeyDown(e) {
+      if (e.key === 'Enter') {
+        const tag = (e.target && e.target.tagName || '').toLowerCase()
+        if (tag === 'textarea') return
+        e.preventDefault()
+        if (step < steps.length - 1) {
+          goNext()
+        } else {
+          preSubmit()
+        }
       }
     }
 
@@ -623,22 +848,33 @@
 
       message ? React.createElement('div', { className: 'notice', style: { marginBottom: 12 } }, message) : null,
 
-      React.createElement('form', { onSubmit },
-        React.createElement('div', { className: 'grid three' },
-          React.createElement(Field, { label: t.f_name },
-            React.createElement('input', {
-              value: form.name, onChange: (e) => setF('name', e.target.value), placeholder: t.ph_name,
-            }), errors.name ? React.createElement('div', { className: 'help' }, errors.name) : null
-          ),
-          React.createElement(Field, { label: t.f_company },
-            React.createElement('input', { value: form.company, onChange: (e) => setF('company', e.target.value), placeholder: t.ph_company })
-          ),
+      // Stepper sandwich: completed (top), current (middle), remaining (bottom)
+      (furthest > 0 ? React.createElement('div', { className: 'card', style: { marginBottom: 12 } },
+        steps.slice(0, step).map((st, ix) => (
+          React.createElement('div', {
+            key: st.id,
+            onClick: () => setStep(ix),
+            style: { cursor: 'pointer', padding: '4px 0', opacity: 0.5, paddingLeft: 8, background: missingHighlight.has(ix) ? 'rgba(255,193,7,0.25)' : 'transparent' }
+          }, `${ix + 1}. ${st.label}`)
+        ))
+      ) : null),
 
-          React.createElement(Field, { label: t.f_email },
-            React.createElement('input', { type: 'email', value: form.email, onChange: (e) => setF('email', e.target.value), placeholder: t.ph_email }),
+      React.createElement('form', { onSubmit: (e) => { e.preventDefault(); preSubmit() }, onKeyDown: handleFormKeyDown },
+        React.createElement('div', { className: 'grid three' },
+          step === 0 ? React.createElement(Field, { label: t.f_name },
+            React.createElement('input', {
+              ref: stepRef(0), value: form.name, onChange: (e) => setF('name', e.target.value), placeholder: t.ph_name,
+            }), errors.name ? React.createElement('div', { className: 'help' }, errors.name) : null
+          ) : null,
+          step === 1 ? React.createElement(Field, { label: t.f_company },
+            React.createElement('input', { ref: stepRef(1), value: form.company, onChange: (e) => setF('company', e.target.value), placeholder: t.ph_company })
+          ) : null,
+
+          step === 2 ? React.createElement(Field, { label: t.f_email },
+            React.createElement('input', { ref: stepRef(2), type: 'email', value: form.email, onChange: (e) => setF('email', e.target.value), placeholder: t.ph_email }),
             errors.email ? React.createElement('div', { className: 'help' }, errors.email) : null
-          ),
-          React.createElement(Field, { label: t.f_phone },
+          ) : null,
+          step === 3 ? React.createElement(Field, { label: t.f_phone },
             React.createElement('div', { className: 'row' },
               React.createElement('select', {
                 value: form.phoneCode,
@@ -646,36 +882,36 @@
               },
                 COUNTRY_OPTIONS.map(c => React.createElement('option', { key: c.code, value: c.dial || '' }, `${c.name} ${c.dial}`))
               ),
-              React.createElement('input', { value: form.phoneLocal, onChange: (e) => setF('phoneLocal', e.target.value), placeholder: t.ph_phone_local })
+              React.createElement('input', { ref: stepRef(3), value: form.phoneLocal, onChange: (e) => setPhoneLocal(e.target.value), placeholder: t.ph_phone_local, inputMode: 'numeric' })
             ),
             errors.phone ? React.createElement('div', { className: 'help' }, errors.phone) : null
-          ),
+          ) : null,
 
-          React.createElement(Field, { label: t.f_country },
-            React.createElement('select', { value: form.country, onChange: (e) => {
+          step === 4 ? React.createElement(Field, { label: t.f_country },
+            React.createElement('select', { ref: stepRef(4), value: form.country, onChange: (e) => {
               const newCountry = e.target.value
               const found = COUNTRY_OPTIONS.find(c => c.code === newCountry)
               setForm((s) => ({ ...s, country: newCountry, phoneCode: found && found.dial ? found.dial : s.phoneCode, city: '' }))
             } },
               COUNTRY_OPTIONS.map(c => React.createElement('option', { key: c.code, value: c.code }, c.name))
             )
-          ),
-          React.createElement(Field, { label: t.f_city },
+          ) : null,
+          step === 4 ? React.createElement(Field, { label: t.f_city },
             form.country === 'TR' ? (
-              React.createElement('select', { value: form.city, onChange: (e) => setF('city', e.target.value) },
-              React.createElement('option', { value: '' }, t.select),
-              TR_CITIES.map(c => React.createElement('option', { key: c, value: c }, c))
+              React.createElement('select', { ref: stepRef(5), value: form.city, onChange: (e) => setF('city', e.target.value) },
+                React.createElement('option', { value: '' }, t.select),
+                TR_CITIES.map(c => React.createElement('option', { key: c, value: c }, c))
               )
             ) : (
-              React.createElement('input', { value: form.city, onChange: (e) => setF('city', e.target.value), placeholder: t.ph_city })
+              React.createElement('input', { ref: stepRef(5), value: form.city, onChange: (e) => setF('city', e.target.value), placeholder: t.ph_city })
             )
-          ),
+          ) : null,
 
-          React.createElement(Field, { label: t.f_proj },
-            React.createElement('input', { value: form.proj, onChange: (e) => setF('proj', e.target.value), placeholder: t.ph_proj }),
+          step === 5 ? React.createElement(Field, { label: t.f_proj },
+            React.createElement('input', { ref: stepRef(6), value: form.proj, onChange: (e) => setF('proj', e.target.value), placeholder: t.ph_proj }),
             errors.proj ? React.createElement('div', { className: 'help' }, errors.proj) : null
-          ),
-          React.createElement(Field, { label: t.f_process, className: 'span-3' },
+          ) : null,
+          step === 6 ? React.createElement(Field, { label: t.f_process, className: 'span-3' },
             React.createElement('div', { className: 'proc-grid' },
               procOptions.map((p) => (
                 React.createElement('label', { key: p, className: 'proc-item' },
@@ -690,20 +926,20 @@
                 )
               ))
             )
-          ),
+          ) : null,
 
-          React.createElement(Field, { label: t.f_material },
-            React.createElement('select', { value: form.material, onChange: (e) => { const v=e.target.value; setForm(s=>({ ...s, material: v, thickness: '' })) } },
+          step === 7 ? React.createElement(Field, { label: t.f_material },
+            React.createElement('select', { ref: stepRef(7), value: form.material, onChange: (e) => { const v=e.target.value; setForm(s=>({ ...s, material: v, thickness: '' })) } },
               React.createElement('option', { value: '' }, t.select),
               materialOptions.map((m) => React.createElement('option', { key: m, value: m }, materialLabel(m, t)))
             ),
             errors.material ? React.createElement('div', { className: 'help' }, errors.material) : null
-          ),
-          React.createElement(Field, { label: t.f_grade },
-            React.createElement('input', { value: form.grade, onChange: (e) => setF('grade', e.target.value), placeholder: t.ph_grade })
-          ),
+          ) : null,
+          step === 8 ? React.createElement(Field, { label: t.f_grade },
+            React.createElement('input', { ref: stepRef(8), value: form.grade, onChange: (e) => setF('grade', e.target.value), placeholder: t.ph_grade })
+          ) : null,
 
-          React.createElement(Field, { label: t.f_thickness },
+          step === 9 ? React.createElement(Field, { label: t.f_thickness },
             React.createElement('div', { className: 'tile-grid' },
               (thicknessMap[form.material] || []).map((mm) => (
                 React.createElement('div', { key: mm, className: 'tile ' + (Number(form.thickness) === mm ? 'active' : ''), onClick: () => setF('thickness', mm) }, `${mm} mm`)
@@ -711,96 +947,99 @@
               React.createElement('div', { className: 'tile ' + (!(thicknessMap[form.material]||[]).length ? 'active' : ''), onClick: () => {} }, 'Diğer')
             ),
             React.createElement('div', { className: 'row', style: { marginTop: 8 } },
-              React.createElement('input', { type: 'number', min: 0, step: '0.1', value: form.thickness, onChange: (e) => setF('thickness', e.target.value), placeholder: t.ph_thickness })
+              React.createElement('input', { ref: stepRef(9), type: 'text', inputMode: 'decimal', value: form.thickness, onChange: (e) => setNum('thickness', e.target.value), placeholder: t.ph_thickness })
             ),
             errors.thickness ? React.createElement('div', { className: 'help' }, errors.thickness) : null
-          ),
-          React.createElement(Field, { label: t.f_qty },
-            React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qty, onChange: (e) => setF('qty', e.target.value), placeholder: t.ph_qty }),
+          ) : null,
+          step === 10 ? React.createElement(Field, { label: t.f_qty },
+            React.createElement('input', { ref: stepRef(10), type: 'text', inputMode: 'numeric', value: form.qty, onChange: (e) => setInt('qty', e.target.value), placeholder: t.ph_qty }),
             errors.qty ? React.createElement('div', { className: 'help' }, errors.qty) : null
-          ),
-          React.createElement(Field, { label: t.f_qty_tiers },
+          ) : null,
+          step === 10 ? React.createElement(Field, { label: t.f_qty_tiers },
             React.createElement('div', { className: 'row' },
-              React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qtyT1, onChange: (e) => setF('qtyT1', e.target.value), placeholder: t.ph_qty_t1 }),
-              React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qtyT2, onChange: (e) => setF('qtyT2', e.target.value), placeholder: t.ph_qty_t2 }),
-              React.createElement('input', { type: 'number', min: 1, step: '1', value: form.qtyT3, onChange: (e) => setF('qtyT3', e.target.value), placeholder: t.ph_qty_t3 })
+              React.createElement('input', { type: 'text', inputMode: 'numeric', value: form.qtyT1, onChange: (e) => setInt('qtyT1', e.target.value), placeholder: t.ph_qty_t1 }),
+              React.createElement('input', { type: 'text', inputMode: 'numeric', value: form.qtyT2, onChange: (e) => setInt('qtyT2', e.target.value), placeholder: t.ph_qty_t2 }),
+              React.createElement('input', { type: 'text', inputMode: 'numeric', value: form.qtyT3, onChange: (e) => setInt('qtyT3', e.target.value), placeholder: t.ph_qty_t3 })
             )
-          ),
+          ) : null,
 
-          React.createElement(Field, { label: t.f_dims },
+          step === 11 ? React.createElement(Field, { label: t.f_dims },
             React.createElement('div', { className: 'dims-row' },
-              React.createElement('input', { type: 'number', min: 0, step: '0.1', value: form.dimsL, onChange: (e) => setF('dimsL', e.target.value), placeholder: 'L' }),
+              React.createElement('input', { ref: stepRef(11), type: 'text', inputMode: 'decimal', value: form.dimsL, onChange: (e) => setNum('dimsL', e.target.value), placeholder: 'L' }),
               React.createElement('span', { className: 'x' }, 'x'),
-              React.createElement('input', { type: 'number', min: 0, step: '0.1', value: form.dimsW, onChange: (e) => setF('dimsW', e.target.value), placeholder: 'W' }),
+              React.createElement('input', { type: 'text', inputMode: 'decimal', value: form.dimsW, onChange: (e) => setNum('dimsW', e.target.value), placeholder: 'W' }),
               React.createElement('span', { className: 'x' }, 'x'),
-              React.createElement('input', { type: 'number', min: 0, step: '0.1', value: form.dimsH, onChange: (e) => setF('dimsH', e.target.value), placeholder: 'H' })
-            )
-          ),
-          React.createElement(Field, { label: t.f_tolerance_std },
-            React.createElement('select', { value: form.toleranceStd, onChange: (e) => setF('toleranceStd', e.target.value) },
+              React.createElement('input', { type: 'text', inputMode: 'decimal', value: form.dimsH, onChange: (e) => setNum('dimsH', e.target.value), placeholder: 'H' })
+            ),
+            (errors.dimsL || errors.dimsW || errors.dimsH) ? React.createElement('div', { className: 'help' }, errors.dimsL || errors.dimsW || errors.dimsH) : null
+          ) : null,
+          step === 12 ? React.createElement(Field, { label: t.f_tolerance_std },
+            React.createElement('select', { ref: stepRef(12), value: form.toleranceStd, onChange: (e) => setF('toleranceStd', e.target.value) },
               ['ISO 2768-f', 'ISO 2768-m', 'ISO 2768-c'].map((opt) => React.createElement('option', { key: opt, value: opt }, opt))
             )
-          ),
-          React.createElement(Field, { label: t.f_tolerance_crit },
-            React.createElement('input', { value: form.toleranceCrit, onChange: (e) => setF('toleranceCrit', e.target.value), placeholder: t.ph_tolcrit })
-          ),
+          ) : null,
+          step === 13 ? React.createElement(Field, { label: t.f_tolerance_crit },
+            React.createElement('input', { ref: stepRef(13), value: form.toleranceCrit, onChange: (e) => setF('toleranceCrit', e.target.value), placeholder: t.ph_tolcrit })
+          ) : null,
 
-          React.createElement(Field, { label: t.f_finish },
-            React.createElement('select', { value: form.finish, onChange: (e) => setF('finish', e.target.value) },
+          step === 14 ? React.createElement(Field, { label: t.f_finish },
+            React.createElement('select', { ref: stepRef(14), value: form.finish, onChange: (e) => setF('finish', e.target.value) },
               React.createElement('option', { value: '' }, t.select),
               finishOptions.map((m) => React.createElement('option', { key: m, value: m }, finishLabel(m, t)))
             ),
             form.finish === 'Toz Boya' ? React.createElement('div', { className: 'row', style: { marginTop: 6 } },
-              React.createElement('input', { value: form.finishRal, onChange: (e) => setF('finishRal', e.target.value), placeholder: t.ph_finish_ral })
+              React.createElement('input', { value: form.finishRal, onChange: (e) => setF('finishRal', e.target.value), placeholder: t.ph_finish_ral }),
+              errors.finishRal ? React.createElement('div', { className: 'help' }, errors.finishRal) : null
             ) : null,
             form.finish === 'Anodize' ? React.createElement('div', { className: 'row', style: { marginTop: 6 } },
               React.createElement('select', { value: form.anodizeType, onChange: (e) => setF('anodizeType', e.target.value) },
                 ['Clear', 'Black', 'Colored'].map((x) => React.createElement('option', { key: x, value: x }, x === 'Clear' ? t.anodize_clear : x === 'Black' ? t.anodize_black : t.anodize_colored))
               )
             ) : null
-          ),
-          React.createElement(Field, { label: t.f_due },
-            React.createElement('input', { type: 'date', value: form.due, onChange: (e) => setF('due', e.target.value) })
-          ),
+          ) : null,
+          step === 15 ? React.createElement(Field, { label: t.f_due },
+            React.createElement('input', { ref: stepRef(15), type: 'date', value: form.due, onChange: (e) => setF('due', e.target.value) })
+          ) : null,
 
           // Process-specific minimal fields
-          form.process.includes('Abkant Büküm') ? React.createElement(Field, { label: t.f_bend_count },
-            React.createElement('input', { type: 'number', min: 0, step: '1', value: form.bendCount, onChange: (e) => setF('bendCount', e.target.value), placeholder: t.ph_bend_count })
+          step === 14 && form.process.includes('Abkant Büküm') ? React.createElement(Field, { label: t.f_bend_count },
+            React.createElement('input', { type: 'text', inputMode: 'numeric', value: form.bendCount, onChange: (e) => setInt('bendCount', e.target.value), placeholder: t.ph_bend_count })
           ) : null,
-          form.process.includes('Kaynak') ? React.createElement(Field, { label: t.f_weld_method },
+          step === 14 && form.process.includes('Kaynak') ? React.createElement(Field, { label: t.f_weld_method },
             React.createElement('select', { value: form.weldMethod, onChange: (e) => setF('weldMethod', e.target.value) },
               ['MIG', 'TIG'].map(x => React.createElement('option', { key: x, value: x }, x))
             )
           ) : null,
-          form.process.includes('CNC İşleme') ? React.createElement(Field, { label: t.f_surface_ra },
+          step === 14 && form.process.includes('CNC İşleme') ? React.createElement(Field, { label: t.f_surface_ra },
             React.createElement('select', { value: form.surfaceRa, onChange: (e) => setF('surfaceRa', e.target.value) },
               ['Ra 3.2', 'Ra 1.6', 'Ra 0.8'].map(x => React.createElement('option', { key: x, value: x }, x))
             )
           ) : null,
 
-          React.createElement(Field, { label: t.f_repeat },
-            React.createElement('select', { value: form.repeat, onChange: (e) => setF('repeat', e.target.value) },
+          step === 16 ? React.createElement(Field, { label: t.f_repeat },
+            React.createElement('select', { ref: stepRef(16), value: form.repeat, onChange: (e) => setF('repeat', e.target.value) },
               React.createElement('option', { value: 'one' }, t.repeat_one),
               React.createElement('option', { value: 'recurrent' }, t.repeat_recurrent)
             )
-          ),
-          React.createElement(Field, { label: t.f_budget },
+          ) : null,
+          step === 17 ? React.createElement(Field, { label: t.f_budget },
             React.createElement('div', { className: 'row' },
               React.createElement('select', { value: form.budgetCurrency, onChange: (e) => setF('budgetCurrency', e.target.value) },
                 CURRENCIES.map((c) => React.createElement('option', { key: c, value: c }, c))
               ),
-              React.createElement('input', { type: 'number', min: 0, step: '0.01', value: form.budgetAmount, onChange: (e) => setF('budgetAmount', e.target.value), placeholder: t.ph_budget_amount })
-            )
-          ),
+              React.createElement('input', { ref: stepRef(17), type: 'text', inputMode: 'decimal', value: form.budgetAmount, onChange: (e) => setNum('budgetAmount', e.target.value), placeholder: t.ph_budget_amount })
+            ),
+            errors.budgetAmount ? React.createElement('div', { className: 'help' }, errors.budgetAmount) : null
+          ) : null,
 
-          React.createElement(Field, { label: t.f_address, className: 'span-3' },
-            React.createElement('textarea', { value: form.address, onChange: (e) => setF('address', e.target.value), placeholder: t.ph_address_optional })
-          ),
-          React.createElement(Field, { label: t.f_drawing, className: 'span-3' },
+          step === 18 ? React.createElement(Field, { label: t.f_address, className: 'span-3' },
+            React.createElement('textarea', { ref: stepRef(18), value: form.address, onChange: (e) => setF('address', e.target.value), placeholder: t.ph_address_optional })
+          ) : null,
+          step === 19 ? React.createElement(Field, { label: t.f_drawing, className: 'span-3' },
             React.createElement('div', { className: 'grid', style: { gap: 10 } },
               React.createElement('div', { className: 'row' },
                 React.createElement('label', { className: 'chip' },
-                  React.createElement('input', { type: 'radio', name: 'drawing', checked: form.drawing === 'yes', onChange: () => setF('drawing', 'yes') }),
+                  React.createElement('input', { ref: stepRef(19), type: 'radio', name: 'drawing', checked: form.drawing === 'yes', onChange: () => setF('drawing', 'yes') }),
                   React.createElement('span', null, t.yes)
                 ),
                 React.createElement('label', { className: 'chip' },
@@ -825,17 +1064,36 @@
                 ) : null
               ) : null
             )
-          ),
+          ) : null,
 
-          React.createElement(Field, { label: t.f_desc, className: 'span-3' },
-            React.createElement('textarea', { value: form.desc, onChange: (e) => setF('desc', e.target.value), placeholder: t.ph_desc })
-          ),
+          step === 20 ? React.createElement(Field, { label: t.f_desc, className: 'span-3' },
+            React.createElement('textarea', { ref: stepRef(20), value: form.desc, onChange: (e) => setF('desc', e.target.value), placeholder: t.ph_desc })
+          ) : null,
 
           
         ),
 
-        React.createElement('div', { style: { height: 10 } }),
-        React.createElement('button', { className: 'btn accent', disabled: submitting }, t.submit)
+        React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', marginTop: 10 } },
+          React.createElement('div', { className: 'row' },
+            React.createElement('button', { type: 'button', className: 'btn', onClick: goBack, disabled: step === 0 }, t.back),
+            (step < furthest ? React.createElement('button', { type: 'button', className: 'btn accent', onClick: resumeProgress, style: { marginLeft: 6 } }, t.resume) : null)
+          ),
+          React.createElement('div', { className: 'row' },
+            step < steps.length - 1 ? React.createElement('button', { type: 'button', className: 'btn accent', onClick: goNext }, t.next) : null,
+            React.createElement('button', { type: 'button', className: 'btn accent', onClick: preSubmit, disabled: submitting || Object.keys(validate()).length > 0 }, t.submit)
+          )
+        )
+      ),
+
+      React.createElement('div', { className: 'card', style: { marginTop: 12 } },
+        steps.slice(step + 1).map((st, off) => {
+          const ix = step + 1 + off
+          return React.createElement('div', {
+            key: st.id,
+            onClick: () => setStep(ix),
+            style: { cursor: 'pointer', padding: '4px 0', opacity: 0.5, paddingLeft: 8, background: missingHighlight.has(ix) ? 'rgba(255,193,7,0.25)' : 'transparent' }
+          }, `${ix + 1}. ${st.label}`)
+        })
       ),
       popup ? React.createElement(Modal, { title: popup.title, onClose: () => setPopup(null) }, popup.text) : null
     )
