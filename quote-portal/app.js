@@ -50,6 +50,7 @@
       no: 'Hayır',
       // Admin
       a_filters: 'Filtreler',
+      a_filters_search: 'Arama',
       a_search: 'Ara…',
       a_phone_search: 'Telefon ile ara…',
       a_status: 'Durum',
@@ -250,6 +251,7 @@
       yes: 'Yes',
       no: 'No',
       a_filters: 'Filters',
+      a_filters_search: 'Search',
       a_search: 'Search…',
       a_phone_search: 'Search by phone…',
       a_status: 'Status',
