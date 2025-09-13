@@ -44,11 +44,15 @@
       f_desc: 'Teknik Açıklama / Notlar',
       f_drawing: 'Teknik çizim mevcut mu?',
       f_upload: 'Dosya Yükle (max 2)',
+      f_prodimg: 'Ürün görselleri mevcut mu?',
+      f_prod_upload: 'Ürün Görselleri (max 5)',
       yes: 'Evet',
       no: 'Hayır',
       // Admin
       a_filters: 'Filtreler',
+      a_filters_search: 'Arama',
       a_search: 'Ara…',
+      a_phone_search: 'Telefon ile ara…',
       a_status: 'Durum',
       a_all: 'Tümü',
       s_new: 'Yeni',
@@ -56,6 +60,7 @@
       s_feasible: 'Uygun',
       s_not: 'Uygun Değil',
       s_quoted: 'Teklif Verildi',
+      s_approved: 'Onaylandı',
       a_update: 'Güncelle',
       a_delete: 'Sil',
       a_export_json: 'JSON Dışa Aktar',
@@ -63,6 +68,7 @@
       a_stats: 'Analitik',
       a_list: 'Gelen Talepler',
       a_detail: 'Detay',
+      a_files: 'Dosyalar',
       a_close: 'Kapat',
       a_none: 'Kayıt bulunamadı',
       // Common UI
@@ -81,6 +87,9 @@
       th_qty: 'Adet',
       th_thickness: 'Kalınlık (mm)',
       th_due: 'Termin',
+      th_days_to_due: 'Termine Kalan (Gün)',
+      th_est_price: 'Tahmini Fiyat',
+      th_est_lead: 'Tahmini Üretim Süresi (Gün)',
       th_actions: 'İşlemler',
       // Extra field labels
       f_qty_tiers: 'Adet Kademeleri',
@@ -165,6 +174,40 @@
       integer_required: 'Tam sayı girin.',
       invalid_ral: 'RAL formatı "RAL 9005" şeklinde olmalı.',
       invalid_date: 'Geçerli bir tarih seçin.'
+      ,
+      // Charts / Pivot
+      a_charts: 'Analitik Gösterge',
+      a_metric: 'Metri̇k',
+      a_dimension: 'Boyut',
+      a_chart_type: 'Grafik Türü',
+      metric_count: 'Kayıt Sayısı',
+      dim_status: 'Durum',
+      dim_process: 'Süreç',
+      dim_material: 'Malzeme',
+      dim_day: 'Gün',
+      chart_bar: 'Bar',
+      chart_line: 'Çizgi',
+      empty_data: 'Veri yok'
+      ,
+      // Tooltips (Admin)
+      tt_refresh: 'Listeyi yenileyin',
+      tt_export_csv: 'Kayıtları CSV olarak dışa aktarın',
+      tt_detail: 'Kaydı inceleyin',
+      tt_change_status: 'Teklif durumunu güncelleyin',
+      tt_download_txt: 'TXT özetini indirin',
+      tt_delete: 'Bu kaydı kalıcı olarak silin',
+      tt_close: 'Pencereyi kapatın',
+      tt_status_review: 'Durumu “İncelemede” olarak ayarlayın',
+      tt_status_feasible: 'Durumu “Uygun” olarak ayarlayın',
+      tt_status_not: 'Durumu “Uygun Değil” olarak ayarlayın',
+      tt_status_quoted: 'Durumu “Teklif Verildi” olarak ayarlayın'
+      ,
+      // Edit in details
+      edit: 'Düzenle',
+      save: 'Kaydet',
+      cancel: 'İptal',
+      add_tech_file: 'Teknik Resim / Dosya Ekle',
+      add_prod_image: 'Ürün Görseli Ekle'
     },
     en: {
       nav_quote: 'Request Quote',
@@ -203,10 +246,14 @@
       f_desc: 'Technical Description / Notes',
       f_drawing: 'Has technical drawing?',
       f_upload: 'Upload Files (max 2)',
+      f_prodimg: 'Has product images?',
+      f_prod_upload: 'Product Images (max 5)',
       yes: 'Yes',
       no: 'No',
       a_filters: 'Filters',
+      a_filters_search: 'Search',
       a_search: 'Search…',
+      a_phone_search: 'Search by phone…',
       a_status: 'Status',
       a_all: 'All',
       s_new: 'New',
@@ -214,6 +261,7 @@
       s_feasible: 'Feasible',
       s_not: 'Not Feasible',
       s_quoted: 'Quoted',
+      s_approved: 'Approved',
       a_update: 'Update',
       a_delete: 'Delete',
       a_export_json: 'Export JSON',
@@ -221,6 +269,7 @@
       a_stats: 'Analytics',
       a_list: 'Submissions',
       a_detail: 'Detail',
+      a_files: 'Files',
       a_close: 'Close',
       a_none: 'No records found',
       // Common UI
@@ -239,6 +288,9 @@
       th_qty: 'Qty',
       th_thickness: 'Thickness (mm)',
       th_due: 'Due',
+      th_days_to_due: 'Days to Due',
+      th_est_price: 'Est. Price',
+      th_est_lead: 'Est. Lead Time (Days)',
       th_actions: 'Actions',
       // Extra field labels
       f_qty_tiers: 'Quantity Tiers',
@@ -323,12 +375,66 @@
       integer_required: 'Enter an integer.',
       invalid_ral: 'RAL format should be like "RAL 9005".',
       invalid_date: 'Select a valid date.'
+      ,
+      // Charts / Pivot
+      a_charts: 'Analytics Chart',
+      a_metric: 'Metric',
+      a_dimension: 'Dimension',
+      a_chart_type: 'Chart Type',
+      metric_count: 'Record Count',
+      dim_status: 'Status',
+      dim_process: 'Process',
+      dim_material: 'Material',
+      dim_day: 'Day',
+      chart_bar: 'Bar',
+      chart_line: 'Line',
+      empty_data: 'No data'
+      ,
+      // Tooltips (Admin)
+      tt_refresh: 'Refresh the list',
+      tt_export_csv: 'Export records as CSV',
+      tt_detail: 'Inspect the record',
+      tt_change_status: 'Update the quote status',
+      tt_download_txt: 'Download TXT summary',
+      tt_delete: 'Permanently delete this record',
+      tt_close: 'Close the dialog',
+      tt_status_review: 'Set status to “In Review”',
+      tt_status_feasible: 'Set status to “Feasible”',
+      tt_status_not: 'Set status to “Not Feasible”',
+      tt_status_quoted: 'Set status to “Quoted”'
+      ,
+      // Edit in details
+      edit: 'Edit',
+      save: 'Save',
+      cancel: 'Cancel',
+      add_tech_file: 'Add Technical File(s)',
+      add_prod_image: 'Add Product Image(s)'
     },
   }
 
   function procLabel(p, t) { return (t.opt_process && t.opt_process[p]) || p }
   function materialLabel(m, t) { return (t.opt_material && t.opt_material[m]) || m }
   function finishLabel(f, t) { return (t.opt_finish && t.opt_finish[f]) || f }
+  function tFor(lang) { return dict[lang] || dict.tr }
+  function statusLabel(s, t) {
+    if (s === 'new') return t.s_new
+    if (s === 'review') return t.s_review
+    if (s === 'feasible') return t.s_feasible
+    if (s === 'not') return t.s_not
+    if (s === 'quoted') return t.s_quoted
+    if (s === 'approved') return t.s_approved || 'Approved'
+    return String(s || '')
+  }
+  function mapStatusKeys(obj, t) {
+    const out = {}
+    for (const [k, v] of Object.entries(obj || {})) out[statusLabel(k, t)] = v
+    return out
+  }
+  function mapMaterialKeys(obj, t) {
+    const out = {}
+    for (const [k, v] of Object.entries(obj || {})) out[materialLabel(k, t)] = v
+    return out
+  }
 
   const initialLang = (localStorage.getItem('bk_lang') || 'tr')
 
@@ -391,6 +497,16 @@
         return { ok: true, local: true }
       }
     },
+    async updateQuote(id, patch) {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
+        if (!res.ok) throw new Error('update failed')
+        return await res.json()
+      } catch (e) {
+        lsUpdate(id, patch)
+        return { ok: true, local: true }
+      }
+    },
     async remove(id) {
       try {
         const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'DELETE' })
@@ -420,7 +536,13 @@
         lines.push(`ID: ${q.id}`)
         lines.push('')
         lines.push('[Genel]')
-        lines.push(`Durum: ${q.status || ''}`)
+        try {
+          const lang = (localStorage.getItem('bk_lang') || 'tr')
+          const t = tFor(lang)
+          lines.push(`Durum: ${statusLabel(q.status, t)}`)
+        } catch {
+          lines.push(`Durum: ${q.status || ''}`)
+        }
         lines.push(`Proje: ${q.proj || ''}`)
         lines.push(`Süreç: ${(q.process || []).join(', ')}`)
         lines.push(`Açıklama: ${q.desc || ''}`)
@@ -443,10 +565,20 @@
         lines.push(`Termin: ${q.due || ''}`)
         lines.push(`Tekrarlılık: ${q.repeat || ''}`)
         lines.push(`Bütçe: ${q.budget || ''}`)
+        if (q.status === 'approved' && q.due) {
+          const days = Math.ceil((new Date(q.due).getTime() - Date.now()) / (1000*60*60*24))
+          lines.push(`Termine Kalan (Gün): ${days}`)
+        }
+        lines.push(`Tahmini Fiyat: ₺ 16`)
+        lines.push(`Tahmini Üretim Süresi: 16`)
         lines.push('')
         const files = q.files || []
         lines.push('[Dosyalar]')
         if (!files.length) { lines.push('—') } else { files.forEach((f, i) => lines.push(`${i + 1}. ${f.name} (${Math.round((f.size || 0) / 1024)} KB)`)) }
+        lines.push('')
+        const pimgs = q.productImages || []
+        lines.push('[Ürün Görselleri]')
+        if (!pimgs.length) { lines.push('—') } else { pimgs.forEach((f, i) => lines.push(`${i + 1}. ${f.name} (${Math.round((f.size || 0) / 1024)} KB)`)) }
         const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
         const a = document.createElement('a'); const dl = URL.createObjectURL(blob)
         a.href = dl; a.download = `burkol_quote_${id}.txt`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(dl)
@@ -455,11 +587,19 @@
   }
 
   function uid() { return 'q_' + Math.random().toString(36).slice(2) + Date.now().toString(36) }
+  function downloadDataUrl(name, dataUrl) {
+    try {
+      const a = document.createElement('a')
+      a.href = dataUrl; a.download = name || 'download'
+      document.body.appendChild(a); a.click(); a.remove()
+    } catch {}
+  }
 
   // Allowed file types and size
   const ACCEPT_EXT = ['pdf', 'png', 'jpg', 'jpeg', 'dxf', 'dwg', 'step', 'stp', 'iges', 'igs']
   const MAX_FILES = 2
   const MAX_FILE_MB = 1.5
+  const MAX_PRODUCT_FILES = 5
 
   function extOf(name) {
     const i = name.lastIndexOf('.')
@@ -473,6 +613,10 @@
       fr.onerror = reject
       fr.readAsDataURL(file)
     })
+  }
+  function isImageExt(extOrMime) {
+    const e = (extOrMime || '').toLowerCase()
+    return e.startsWith('image/') || ['png','jpg','jpeg'].includes(e)
   }
 
   // Simple Hash router
@@ -530,6 +674,7 @@
     const [popup, setPopup] = useState(null)
     const [errors, setErrors] = useState({})
     const [files, setFiles] = useState([]) // {name, type, size, dataUrl}
+    const [prodFiles, setProdFiles] = useState([]) // product images
     // Stepper state
     const [step, setStep] = useState(0)
     const [furthest, setFurthest] = useState(0)
@@ -548,7 +693,7 @@
       name: '', company: '', email: '', phone: '', phoneCode: '+90', phoneLocal: '', country: 'TR', city: '',
       proj: '', process: [], material: '', grade: '', thickness: '', qty: '',
       dims: '', dimsL: '', dimsW: '', dimsH: '', tolerance: '', toleranceStd: 'ISO 2768-m', toleranceCrit: '', finish: '', finishRal: '', anodizeType: '', due: '', repeat: 'one', budget: '', budgetCurrency: 'TRY', budgetAmount: '', address: '',
-      drawing: 'no', desc: '', bendCount: '', weldMethod: '', surfaceRa: '', qtyT1: '', qtyT2: '', qtyT3: ''
+      drawing: 'no', productPics: 'no', desc: '', bendCount: '', weldMethod: '', surfaceRa: '', qtyT1: '', qtyT2: '', qtyT3: ''
     })
 
     function setF(k, v) { setForm((s) => ({ ...s, [k]: v })) }
@@ -652,6 +797,7 @@
       { id: 'budget', label: t.f_budget, required: [], fields: ['budgetAmount','budgetCurrency'] },
       { id: 'address', label: t.f_address, required: [], fields: ['address'] },
       { id: 'drawing', label: t.f_drawing, required: [], fields: ['drawing','files'] },
+      { id: 'prodImages', label: t.f_prodimg, required: [], fields: ['productPics','productImages'] },
       { id: 'desc', label: t.f_desc, required: [], fields: ['desc'] },
     ]
 
@@ -699,7 +845,7 @@
           if (req.some((k) => errs[k])) set.add(i)
         } else {
           // For optional steps, highlight if fields are empty (user skipped)
-          if (flds.some((k) => isEmptyField(k, k === 'files' ? files : form[k]))) set.add(i)
+          if (flds.some((k) => isEmptyField(k, k === 'files' ? files : (k === 'productImages' ? prodFiles : form[k])))) set.add(i)
         }
       }
       return set
@@ -732,6 +878,24 @@
       setFiles((prev) => prev.filter((_, i) => i !== ix))
     }
 
+    async function onProdFilesChanged(fileList) {
+      const arr = Array.from(fileList)
+      const combined = prodFiles.concat(arr)
+      if (combined.length > MAX_PRODUCT_FILES) { setMessage(`Max ${MAX_PRODUCT_FILES} images`); return }
+      const parsed = []
+      for (const f of arr) {
+        const sizeMb = f.size / (1024 * 1024)
+        if (sizeMb > MAX_FILE_MB) { setMessage(t.file_too_big); continue }
+        const ext = extOf(f.name)
+        if (!isImageExt(ext) && !isImageExt(f.type)) { setMessage(t.file_type_bad); continue }
+        const dataUrl = await readFileAsDataUrl(f)
+        parsed.push({ name: f.name, type: f.type || ext, size: f.size, dataUrl })
+      }
+      setProdFiles((prev) => prev.concat(parsed).slice(0, MAX_PRODUCT_FILES))
+    }
+
+    function removeProdFile(ix) { setProdFiles((prev) => prev.filter((_, i) => i !== ix)) }
+
     async function actualSubmit() {
       const eMap = validate()
       setErrors(eMap)
@@ -755,6 +919,7 @@
           budget: budgetStr,
           qtyTiers,
           files,
+          productImages: prodFiles,
         }
         await API.createQuote(payload)
         setPopup({ title: 'Başarılı', text: t.saved })
@@ -766,6 +931,7 @@
           drawing: 'no', desc: '', bendCount: '', weldMethod: '', surfaceRa: '', qtyT1: '', qtyT2: '', qtyT3: ''
         })
         setFiles([])
+        setProdFiles([])
         setErrors({})
         setStep(0)
         setFurthest(0)
@@ -1066,8 +1232,39 @@
             )
           ) : null,
 
-          step === 20 ? React.createElement(Field, { label: t.f_desc, className: 'span-3' },
-            React.createElement('textarea', { ref: stepRef(20), value: form.desc, onChange: (e) => setF('desc', e.target.value), placeholder: t.ph_desc })
+          step === 20 ? React.createElement(Field, { label: t.f_prodimg, className: 'span-3' },
+            React.createElement('div', { className: 'grid', style: { gap: 10 } },
+              React.createElement('div', { className: 'row' },
+                React.createElement('label', { className: 'chip' },
+                  React.createElement('input', { type: 'radio', name: 'productPics', checked: form.productPics === 'yes', onChange: () => setF('productPics', 'yes') }),
+                  React.createElement('span', null, t.yes)
+                ),
+                React.createElement('label', { className: 'chip' },
+                  React.createElement('input', { type: 'radio', name: 'productPics', checked: form.productPics === 'no', onChange: () => setF('productPics', 'no') }),
+                  React.createElement('span', null, t.no)
+                )
+              ),
+              form.productPics === 'yes' ? React.createElement('div', null,
+                React.createElement('input', {
+                  type: 'file', multiple: true,
+                  accept: '.png,.jpg,.jpeg,image/png,image/jpeg,image/jpg',
+                  onChange: (e) => onProdFilesChanged(e.target.files)
+                }),
+                React.createElement('div', { className: 'help', style: { marginTop: 6 } }, `${t.f_prod_upload}. Limit: ${MAX_PRODUCT_FILES}, her biri ≤ ${MAX_FILE_MB}MB`),
+                prodFiles.length ? React.createElement('div', { style: { marginTop: 10 } },
+                  prodFiles.map((f, i) => (
+                    React.createElement('div', { key: i, className: 'row', style: { justifyContent: 'space-between' } },
+                      React.createElement('div', null, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
+                      React.createElement('button', { type: 'button', className: 'btn danger', onClick: () => removeProdFile(i) }, 'Kaldır')
+                    )
+                  ))
+                ) : null
+              ) : null
+            )
+          ) : null,
+
+          step === 21 ? React.createElement(Field, { label: t.f_desc, className: 'span-3' },
+            React.createElement('textarea', { ref: stepRef(21), value: form.desc, onChange: (e) => setF('desc', e.target.value), placeholder: t.ph_desc })
           ) : null,
 
           
@@ -1085,7 +1282,7 @@
         )
       ),
 
-      React.createElement('div', { className: 'card', style: { marginTop: 12 } },
+      (steps.length > step + 1 ? React.createElement('div', { className: 'card', style: { marginTop: 12 } },
         steps.slice(step + 1).map((st, off) => {
           const ix = step + 1 + off
           return React.createElement('div', {
@@ -1094,7 +1291,7 @@
             style: { cursor: 'pointer', padding: '4px 0', opacity: 0.5, paddingLeft: 8, background: missingHighlight.has(ix) ? 'rgba(255,193,7,0.25)' : 'transparent' }
           }, `${ix + 1}. ${st.label}`)
         })
-      ),
+      ) : null),
       popup ? React.createElement(Modal, { title: popup.title, onClose: () => setPopup(null) }, popup.text) : null
     )
   }
@@ -1102,31 +1299,119 @@
   function Admin({ t }) {
     const [list, setList] = useState([])
     const [q, setQ] = useState('')
-    const [status, setStatus] = useState('all')
+    const [phoneQ, setPhoneQ] = useState('')
+    const [statuses, setStatuses] = useState([]) // array of selected status keys
     const [detail, setDetail] = useState(null)
+    const [selected, setSelected] = useState(new Set())
+    const [filterOpen, setFilterOpen] = useState('') // one of: qty, thickness, due, days, price, lead, status
+    const [opDue, setOpDue] = useState('')
+    const [dueMode, setDueMode] = useState('') // '' | 'single' | 'range'
+    const [dueStart, setDueStart] = useState('')
+    const [dueEnd, setDueEnd] = useState('')
+    // Advanced filters
+    const [statusSel, setStatusSel] = useState('')
+    const [opQty, setOpQty] = useState('')
+    const [qtyVal, setQtyVal] = useState('')
+    const [opThk, setOpThk] = useState('')
+    const [thkVal, setThkVal] = useState('')
+    const [opDays, setOpDays] = useState('')
+    const [daysVal, setDaysVal] = useState('')
+    const [opPrice, setOpPrice] = useState('')
+    const [priceVal, setPriceVal] = useState('')
+    const [opLead, setOpLead] = useState('')
+    const [leadVal, setLeadVal] = useState('')
 
     useEffect(() => { refresh() }, [])
     async function refresh() {
       try { setList(await API.listQuotes()) } catch (e) { console.error(e) }
     }
 
+    function blobForSearch(it) {
+      const arr = []
+      arr.push(it.id, it.createdAt, it.status)
+      arr.push(it.name, it.company, it.email, it.phone, it.country, it.city)
+      arr.push(it.proj, it.material, it.grade, it.thickness, it.qty, it.dims, it.tolerance, it.finish, it.due, it.repeat, it.budget)
+      arr.push(it.address, it.drawing, it.productPics, it.desc)
+      ;(it.process||[]).forEach(v=>arr.push(v))
+      ;(it.files||[]).forEach(f=>arr.push(f.name))
+      ;(it.productImages||[]).forEach(f=>arr.push(f.name))
+      return arr.filter(Boolean).join(' ').toLowerCase()
+    }
+    function cmp(op, a, b) {
+      if (!op || b === '' || b === null || b === undefined) return true
+      const na = Number(a), nb = Number(b)
+      if (isNaN(na) || isNaN(nb)) return false
+      if (op === '<') return na < nb
+      if (op === '<=') return na <= nb
+      if (op === '=') return na === nb
+      if (op === '>=') return na >= nb
+      if (op === '>') return na > nb
+      return true
+    }
     const filtered = useMemo(() => {
+      const ql = (q || '').toLowerCase()
       return list.filter((it) => {
-        const matchStatus = status === 'all' || it.status === status
-        const text = (
-          (it.name || '') + ' ' + (it.company || '') + ' ' + (it.proj || '') + ' ' + (it.material || '') + ' ' + (it.process || []).join(' ')
-        ).toLowerCase()
-        const matchQ = !q || text.includes(q.toLowerCase())
-        return matchStatus && matchQ
+        const matchStatus = statuses.length === 0 || statuses.includes(it.status)
+        const text = blobForSearch(it)
+        const matchQ = !ql || text.includes(ql)
+        const norm = (s) => String(s||'').replace(/\D/g, '')
+        const matchPhone = !phoneQ || norm(it.phone).includes(norm(phoneQ))
+        // Derived fields
+        const daysToDue = (it.status === 'approved' && it.due) ? Math.ceil((new Date(it.due).getTime() - Date.now()) / (1000*60*60*24)) : null
+        const dueTs = it.due ? new Date(it.due).setHours(0,0,0,0) : NaN
+        const startTs = dueStart ? new Date(dueStart).setHours(0,0,0,0) : NaN
+        const endTs = dueEnd ? new Date(dueEnd).setHours(0,0,0,0) : NaN
+        const estPrice = 16
+        const estLead = 16
+        // Advanced field filters
+        const matchStatusSel = !statusSel || it.status === statusSel
+        const matchQty = cmp(opQty, it.qty, qtyVal)
+        const matchThk = cmp(opThk, it.thickness, thkVal)
+        let matchDue = true
+        if (dueMode === 'single' && opDue && !isNaN(startTs)) matchDue = cmp(opDue, dueTs, startTs)
+        if (dueMode === 'range' && !isNaN(startTs) && !isNaN(endTs)) matchDue = (dueTs >= startTs && dueTs <= endTs)
+        const matchDays = cmp(opDays, daysToDue ?? NaN, daysVal)
+        const matchPrice = cmp(opPrice, estPrice, priceVal)
+        const matchLead = cmp(opLead, estLead, leadVal)
+        return matchStatus && matchQ && matchPhone && matchStatusSel && matchQty && matchThk && matchDue && matchDays && matchPrice && matchLead
       })
-    }, [list, q, status])
+    }, [list, q, phoneQ, statuses, statusSel, opQty, qtyVal, opThk, thkVal, opDue, dueMode, dueStart, dueEnd, opDays, daysVal, opPrice, priceVal, opLead, leadVal])
 
     async function setItemStatus(id, st) { await API.updateStatus(id, st); refresh() }
     async function remove(id) { await API.remove(id); refresh() }
+    function toggleOne(id, checked) {
+      setSelected((prev) => {
+        const n = new Set(prev)
+        if (checked) n.add(id); else n.delete(id)
+        return n
+      })
+    }
+    function toggleAll(e) {
+      const checked = e.target.checked
+      if (checked) {
+        setSelected(new Set(filtered.map(it => it.id)))
+      } else {
+        setSelected(new Set())
+      }
+    }
+    async function bulkDelete() {
+      if (!selected.size) return
+      if (!confirm(t.confirm_delete)) return
+      for (const id of Array.from(selected)) {
+        await API.remove(id)
+      }
+      setSelected(new Set())
+      refresh()
+    }
 
     function exportCSV() {
-      const headers = ['id','createdAt','status','name','company','email','phone','country','city','proj','process','material','grade','thickness','qty','dims','tolerance','finish','due','repeat','budget','address','drawing','desc','files']
-      const rows = list.map((it) => [ it.id, it.createdAt, it.status, it.name, it.company, it.email, it.phone, it.country, it.city, it.proj, (it.process||[]).join('|'), it.material, it.grade, it.thickness, it.qty, it.dims, it.tolerance, it.finish, it.due, it.repeat, it.budget, (it.address||'').replace(/\n/g, ' '), it.drawing, (it.desc||'').replace(/\n/g, ' '), (it.files||[]).map(f=>f.name).join('|') ])
+      const headers = ['id','createdAt','status','name','company','email','phone','country','city','proj','process','material','grade','thickness','qty','dims','tolerance','finish','due','daysToDue','estPrice','estLead','repeat','budget','address','drawing','productPics','desc','files','productImages']
+      const rows = list.map((it) => {
+        const daysToDue = (it.status === 'approved' && it.due) ? Math.ceil((new Date(it.due).getTime() - Date.now()) / (1000*60*60*24)) : ''
+        const estPrice = '₺ 16'
+        const estLead = '16'
+        return [ it.id, it.createdAt, statusLabel(it.status, t), it.name, it.company, it.email, it.phone, it.country, it.city, it.proj, (it.process||[]).join('|'), it.material, it.grade, it.thickness, it.qty, it.dims, it.tolerance, it.finish, it.due, daysToDue, estPrice, estLead, it.repeat, it.budget, (it.address||'').replace(/\n/g, ' '), it.drawing, it.productPics, (it.desc||'').replace(/\n/g, ' '), (it.files||[]).map(f=>f.name).join('|'), (it.productImages||[]).map(f=>f.name).join('|') ]
+      })
       const csvBody = [headers.join(','), ...rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g,'""') + '"').join(','))].join('\n')
       const csvWithBOM = '\ufeff' + csvBody
       const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' })
@@ -1137,12 +1422,13 @@
     }
 
     // Stats
-    const stats = useMemo(() => {
+    const statsAll = useMemo(() => {
+      const src = list
       const byStatus = {}
       const byProcess = {}
       const byMaterial = {}
       const byDay = {}
-      for (const it of list) {
+      for (const it of src) {
         byStatus[it.status] = (byStatus[it.status] || 0) + 1
         for (const p of it.process || []) byProcess[p] = (byProcess[p] || 0) + 1
         const m = it.material || 'Diğer'
@@ -1153,34 +1439,128 @@
       return { byStatus, byProcess, byMaterial, byDay }
     }, [list])
 
+    function metricLabel() { return t.metric_count }
+
+    function sortEntriesGeneric(obj, byKeyAlpha) {
+      const entries = Object.entries(obj || {})
+      if (byKeyAlpha) return entries.sort((a,b) => a[0].localeCompare(b[0]))
+      return entries.sort((a,b) => b[1]-a[1])
+    }
+
+    function BarChart({ data, xLabel, yLabel, byKeyAlpha }) {
+      const entries = sortEntriesGeneric(data, byKeyAlpha)
+      if (!entries.length) return React.createElement('div', { className: 'help' }, t.empty_data)
+      const w = 420, h = 200, ml = 46, mr = 8, mt = 8, mb = 34
+      const cw = w - ml - mr, ch = h - mt - mb
+      const max = Math.max(1, ...entries.map(e => e[1]))
+      const barW = cw / entries.length * 0.7
+      const xStep = cw / entries.length
+      return React.createElement('svg', { width: '100%', viewBox: `0 0 ${w} ${h}` },
+        // axes
+        React.createElement('line', { x1: ml, y1: h - mb, x2: w - mr, y2: h - mb, stroke: '#999' }),
+        React.createElement('line', { x1: ml, y1: mt, x2: ml, y2: h - mb, stroke: '#999' }),
+        // y ticks
+        [0, 0.25, 0.5, 0.75, 1].map((tck, i) => {
+          const y = h - mb - tck * ch
+          const val = Math.round(tck * max)
+          return React.createElement(React.Fragment, { key: i },
+            React.createElement('line', { x1: ml, y1: y, x2: w - mr, y2: y, stroke: '#eee' }),
+            React.createElement('text', { x: ml - 8, y: y + 4, fontSize: 10, textAnchor: 'end', fill: '#666' }, String(val))
+          )
+        }),
+        // bars + x labels
+        entries.map(([k, v], i) => {
+          const x = ml + i * xStep + (xStep - barW) / 2
+          const bh = (v / max) * ch
+          const y = h - mb - bh
+          return React.createElement(React.Fragment, { key: k },
+            React.createElement('rect', { x, y, width: barW, height: bh, fill: '#0a84ff', rx: 3 }),
+            React.createElement('text', { x: ml + i * xStep + xStep / 2, y: h - mb + 14, fontSize: 10, textAnchor: 'middle', fill: '#444' }, k)
+          )
+        }),
+        // axis titles
+        React.createElement('text', { x: ml + cw / 2, y: h - 6, fontSize: 12, textAnchor: 'middle', fill: '#fff' }, xLabel || ''),
+        React.createElement('text', { x: 12, y: mt + ch / 2, fontSize: 12, textAnchor: 'middle', fill: '#fff', transform: `rotate(-90 12 ${mt + ch / 2})` }, yLabel || metricLabel())
+      )
+    }
+
+    function LineChart({ data, xLabel, yLabel, byKeyAlpha }) {
+      const entries = sortEntriesGeneric(data, byKeyAlpha)
+      const w = 520, h = 240, ml = 50, mr = 10, mt = 10, mb = 40
+      const cw = w - ml - mr, ch = h - mt - mb
+      const max = Math.max(1, ...entries.map(e => e[1]))
+      if (!entries.length) return React.createElement('div', { className: 'help' }, t.empty_data)
+      const pts = entries.map((e, i) => {
+        const x = ml + (i * cw) / Math.max(1, entries.length - 1)
+        const y = h - mb - (e[1] / max) * ch
+        return `${x},${y}`
+      }).join(' ')
+      return React.createElement('svg', { width: '100%', viewBox: `0 0 ${w} ${h}` },
+        // axes
+        React.createElement('line', { x1: ml, y1: h - mb, x2: w - mr, y2: h - mb, stroke: '#999' }),
+        React.createElement('line', { x1: ml, y1: mt, x2: ml, y2: h - mb, stroke: '#999' }),
+        // y ticks
+        [0, 0.25, 0.5, 0.75, 1].map((tck, i) => {
+          const y = h - mb - tck * ch
+          const val = Math.round(tck * max)
+          return React.createElement(React.Fragment, { key: i },
+            React.createElement('line', { x1: ml, y1: y, x2: w - mr, y2: y, stroke: '#eee' }),
+            React.createElement('text', { x: ml - 8, y: y + 4, fontSize: 10, textAnchor: 'end', fill: '#666' }, String(val))
+          )
+        }),
+        // x labels
+        entries.map((e, i) => React.createElement('text', { key: i, x: ml + (i * cw) / Math.max(1, entries.length - 1), y: h - mb + 14, fontSize: 10, textAnchor: 'middle', fill: '#444' }, e[0])),
+        // line
+        React.createElement('polyline', { fill: 'none', stroke: '#0a84ff', strokeWidth: 2, points: pts }),
+        // axis titles
+        React.createElement('text', { x: ml + cw / 2, y: h - 6, fontSize: 12, textAnchor: 'middle', fill: '#333' }, xLabel || ''),
+        React.createElement('text', { x: 12, y: mt + ch / 2, fontSize: 12, textAnchor: 'middle', fill: '#333', transform: `rotate(-90 12 ${mt + ch / 2})` }, yLabel || metricLabel())
+      )
+    }
+
     return React.createElement('div', { className: 'container' },
       React.createElement('h1', { className: 'page-title' }, t.title_admin),
       React.createElement('p', { className: 'page-sub' }, t.sub_admin),
-
-      React.createElement('div', { className: 'card' },
-        React.createElement('label', null, t.a_filters),
-        React.createElement('div', { className: 'row wrap', style: { gap: 10, marginTop: 6 } },
-          React.createElement('input', { placeholder: t.a_search, value: q, onChange: (e) => setQ(e.target.value), style: { flex: 1 } }),
-          React.createElement('select', { value: status, onChange: (e) => setStatus(e.target.value) },
-            React.createElement('option', { value: 'all' }, t.a_all),
-            React.createElement('option', { value: 'new' }, t.s_new),
-            React.createElement('option', { value: 'review' }, t.s_review),
-            React.createElement('option', { value: 'feasible' }, t.s_feasible),
-            React.createElement('option', { value: 'not' }, t.s_not),
-            React.createElement('option', { value: 'quoted' }, t.s_quoted),
+      // Default multi-charts (unfiltered)
+      React.createElement('div', { className: 'card', style: { marginBottom: 12 } },
+        React.createElement('label', null, t.a_charts),
+        React.createElement('div', { className: 'row wrap', style: { gap: 12, marginTop: 6 } },
+          React.createElement('div', { style: { flex: '1 1 300px', minWidth: 280 } },
+            React.createElement(BarChart, { data: mapStatusKeys(statsAll.byStatus, t), xLabel: t.dim_status, yLabel: metricLabel(), byKeyAlpha: false })
           ),
-          React.createElement('button', { className: 'btn', onClick: () => refresh() }, t.refresh),
-          React.createElement('button', { className: 'btn', onClick: exportCSV }, t.a_export_csv)
+          React.createElement('div', { style: { flex: '1 1 300px', minWidth: 280 } },
+            React.createElement(BarChart, { data: statsAll.byProcess, xLabel: t.dim_process, yLabel: metricLabel(), byKeyAlpha: false })
+          ),
+          React.createElement('div', { style: { flex: '1 1 300px', minWidth: 280 } },
+            React.createElement(BarChart, { data: mapMaterialKeys(statsAll.byMaterial, t), xLabel: t.dim_material, yLabel: metricLabel(), byKeyAlpha: false })
+          ),
+        )
+      ),
+      React.createElement('div', { className: 'card filters-card' },
+        React.createElement('label', null, t.a_filters_search),
+        React.createElement('div', { className: 'row wrap', style: { gap: 8, marginTop: 6 } },
+          React.createElement('input', { placeholder: t.a_search, value: q, onChange: (e) => setQ(e.target.value), style: { flex: 1, padding: '8px 10px', fontSize: 12 } }),
+          React.createElement('input', { placeholder: t.a_phone_search, value: phoneQ, onChange: (e) => setPhoneQ(e.target.value), style: { width: 260, padding: '8px 10px', fontSize: 12 } })
         )
       ),
 
       React.createElement('div', { className: 'card', style: { marginTop: 16 } },
-        React.createElement('label', null, t.a_list),
+        React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center' } },
+          React.createElement('label', null, t.a_list),
+          React.createElement('div', { className: 'row', style: { gap: 6 } },
+            React.createElement('button', { className: 'btn', onClick: () => refresh(), title: t.tt_refresh, style: { padding: '6px 10px', fontSize: 12 } }, t.refresh),
+            React.createElement('button', { className: 'btn danger', onClick: bulkDelete, title: t.tt_delete, disabled: selected.size === 0, style: { padding: '6px 10px', fontSize: 12 } }, t.a_delete),
+            React.createElement('button', { className: 'btn', onClick: exportCSV, title: t.tt_export_csv, style: { padding: '6px 10px', fontSize: 12 } }, t.a_export_csv)
+          )
+        ),
         filtered.length === 0 ? React.createElement('div', { className: 'notice' }, t.a_none) : (
           React.createElement('div', { style: { overflowX: 'auto' } },
             React.createElement('table', { className: 'table' },
               React.createElement('thead', null,
                 React.createElement('tr', null,
+                  React.createElement('th', null,
+                    React.createElement('input', { type: 'checkbox', onChange: toggleAll, checked: filtered.length > 0 && selected.size === filtered.length })
+                  ),
                   React.createElement('th', null, t.th_date),
                   React.createElement('th', null, t.th_customer),
                   React.createElement('th', null, t.th_project),
@@ -1189,13 +1569,49 @@
                   React.createElement('th', null, t.th_qty),
                   React.createElement('th', null, t.th_thickness),
                   React.createElement('th', null, t.th_due),
+                  React.createElement('th', null, t.th_days_to_due),
+                  React.createElement('th', null, t.th_est_price),
+                  React.createElement('th', null, t.th_est_lead),
                   React.createElement('th', null, t.a_status),
                   React.createElement('th', null, t.th_actions),
+                ),
+                React.createElement('tr', null,
+                  React.createElement('th', null),
+                  React.createElement('th', null),
+                  React.createElement('th', null),
+                  React.createElement('th', null),
+                  React.createElement('th', null),
+                  React.createElement('th', null),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((opQty && String(qtyVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'qty' ? '' : 'qty') }, ((opQty && String(qtyVal).length) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((opThk && String(thkVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'thickness' ? '' : 'thickness') }, ((opThk && String(thkVal).length) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((dueMode && (dueStart || dueEnd)) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'due' ? '' : 'due') }, ((dueMode && (dueStart || dueEnd)) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((opDays && String(daysVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'days' ? '' : 'days') }, ((opDays && String(daysVal).length) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((opPrice && String(priceVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'price' ? '' : 'price') }, ((opPrice && String(priceVal).length) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((opLead && String(leadVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'lead' ? '' : 'lead') }, ((opLead && String(leadVal).length) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + (statusSel ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'status' ? '' : 'status') }, (statusSel ? '●' : '○'))
+                  ),
+                  React.createElement('th', null)
                 )
               ),
               React.createElement('tbody', null,
                 filtered.map((it) => (
                   React.createElement('tr', { key: it.id },
+                    React.createElement('td', null,
+                      React.createElement('input', { type: 'checkbox', checked: selected.has(it.id), onChange: (e) => toggleOne(it.id, e.target.checked) })
+                    ),
                     React.createElement('td', null, (it.createdAt||'').replace('T',' ').slice(0,16)),
                     React.createElement('td', null, (it.name || '') + (it.company ? ' — ' + it.company : '')),
                     React.createElement('td', null, it.proj || ''),
@@ -1204,16 +1620,37 @@
                     React.createElement('td', null, String(it.qty ?? '')),
                     React.createElement('td', null, String(it.thickness ?? '')),
                     React.createElement('td', null, it.due || ''),
-                    React.createElement('td', null, React.createElement('span', { className: 'status ' + (it.status === 'new' ? 'new' : it.status === 'review' ? 'review' : it.status === 'feasible' ? 'feasible' : it.status === 'quoted' ? 'quoted' : 'not') }, it.status)),
+                    React.createElement('td', null, (() => {
+                      if (!(it.status === 'approved' && it.due)) return ''
+                      const days = Math.ceil((new Date(it.due).getTime() - Date.now()) / (1000*60*60*24))
+                      const style = days <= 3 ? { color: '#ff6b6b', fontWeight: 600 } : {}
+                      return React.createElement('span', { style }, String(days))
+                    })()),
+                    React.createElement('td', null, '₺ 16'),
+                    React.createElement('td', null, '16'),
+                    React.createElement('td', null, React.createElement('span', { className: 'status ' + (it.status === 'new' ? 'new' : it.status === 'review' ? 'review' : it.status === 'feasible' ? 'feasible' : it.status === 'quoted' ? 'quoted' : it.status === 'approved' ? 'approved' : 'not') }, statusLabel(it.status, t))),
                     React.createElement('td', null,
-                      React.createElement('div', { className: 'row wrap' },
-                        React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); setDetail(it) } }, t.a_detail),
-                        React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); setItemStatus(it.id, 'review') } }, t.s_review),
-                        React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); setItemStatus(it.id, 'feasible') } }, t.s_feasible),
-                        React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); setItemStatus(it.id, 'not') } }, t.s_not),
-                        React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); setItemStatus(it.id, 'quoted') } }, t.s_quoted),
-                        React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); API.downloadTxt(it.id, it) } }, 'TXT'),
-                        React.createElement('button', { type: 'button', className: 'btn danger', onClick: (e) => { e.stopPropagation(); if (confirm(t.confirm_delete)) remove(it.id) } }, t.a_delete),
+                      React.createElement('div', { className: 'row actions-row', style: { gap: 8 } },
+                        React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); setDetail(it) }, title: t.tt_detail }, t.a_detail),
+                        React.createElement('div', { className: 'tt-wrap' },
+                          React.createElement('select', {
+                            value: it.status,
+                            onChange: (e) => { e.stopPropagation(); setItemStatus(it.id, e.target.value) },
+                            className: 'btn',
+                            style: { padding: '10px 14px', borderRadius: 10 },
+                            title: t.tt_change_status
+                          },
+                            React.createElement('option', { value: 'new' }, t.s_new),
+                            React.createElement('option', { value: 'review' }, t.s_review),
+                            React.createElement('option', { value: 'feasible' }, t.s_feasible),
+                            React.createElement('option', { value: 'not' }, t.s_not),
+                          React.createElement('option', { value: 'quoted' }, t.s_quoted),
+                          React.createElement('option', { value: 'approved' }, t.s_approved),
+                        ),
+                          React.createElement('span', { className: 'tt' }, t.tt_change_status)
+                        ),
+                        React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); API.downloadTxt(it.id, it) }, title: t.tt_download_txt }, 'TXT'),
+                        React.createElement('button', { type: 'button', className: 'btn danger', onClick: (e) => { e.stopPropagation(); if (confirm(t.confirm_delete)) remove(it.id) }, title: t.tt_delete }, t.a_delete),
                       )
                     )
                   )
@@ -1223,44 +1660,235 @@
           )
         )
       ),
+      filterOpen ? React.createElement('div', { style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80 }, onClick: () => setFilterOpen('') },
+        React.createElement('div', { className: 'card', style: { minWidth: 280, maxWidth: '90vw' }, onClick: (e) => e.stopPropagation() },
+          React.createElement('div', { className: 'row', style: { justifyContent: 'space-between' } },
+            React.createElement('strong', null, (filterOpen === 'qty' ? t.th_qty : filterOpen === 'thickness' ? t.th_thickness : filterOpen === 'days' ? t.th_days_to_due : filterOpen === 'price' ? t.th_est_price : filterOpen === 'lead' ? t.th_est_lead : t.a_status)),
+            React.createElement('button', { className: 'btn', onClick: () => setFilterOpen('') }, '×')
+          ),
+          (filterOpen === 'status') ? (
+            React.createElement('div', { className: 'grid', style: { gap: 8, marginTop: 8 } },
+              React.createElement('select', { value: statusSel, onChange: (e) => setStatusSel(e.target.value) },
+                React.createElement('option', { value: '' }, t.a_all),
+                React.createElement('option', { value: 'new' }, t.s_new),
+                React.createElement('option', { value: 'review' }, t.s_review),
+                React.createElement('option', { value: 'feasible' }, t.s_feasible),
+                React.createElement('option', { value: 'not' }, t.s_not),
+                React.createElement('option', { value: 'quoted' }, t.s_quoted),
+                React.createElement('option', { value: 'approved' }, t.s_approved)
+              ),
+              React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', gap: 6 } },
+                React.createElement('button', { className: 'btn', onClick: () => { setStatusSel(''); setFilterOpen('') } }, t.cancel),
+                React.createElement('button', { className: 'btn accent', onClick: () => setFilterOpen('') }, t.save)
+              )
+            )
+          ) : (filterOpen === 'due') ? (
+            React.createElement('div', { className: 'grid', style: { gap: 8, marginTop: 8 } },
+              React.createElement('div', { className: 'row', style: { gap: 8 } },
+                React.createElement('label', { className: 'chip' },
+                  React.createElement('input', { type: 'radio', name: 'dueMode', checked: dueMode === 'single', onChange: () => setDueMode('single') }),
+                  React.createElement('span', null, 'Tek tarih')
+                ),
+                React.createElement('label', { className: 'chip' },
+                  React.createElement('input', { type: 'radio', name: 'dueMode', checked: dueMode === 'range', onChange: () => setDueMode('range') }),
+                  React.createElement('span', null, 'Tarih aralığı')
+                )
+              ),
+              (dueMode === 'range') ? (
+                React.createElement('div', { className: 'row', style: { gap: 8 } },
+                  React.createElement('input', { type: 'date', value: dueStart, onChange: (e) => setDueStart(e.target.value) }),
+                  React.createElement('span', null, '—'),
+                  React.createElement('input', { type: 'date', value: dueEnd, onChange: (e) => setDueEnd(e.target.value) })
+                )
+              ) : (
+                React.createElement('div', { className: 'row', style: { gap: 8 } },
+                  React.createElement('select', { value: opDue, onChange: (e) => setOpDue(e.target.value), style: { width: 100 } },
+                    React.createElement('option', { value: '' }, '—'),
+                    ['<','<=','=','>=','>'].map(o => React.createElement('option', { key: o, value: o }, o))
+                  ),
+                  React.createElement('input', { type: 'date', value: dueStart, onChange: (e) => setDueStart(e.target.value) })
+                )
+              ),
+              React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', gap: 6 } },
+                React.createElement('button', { className: 'btn', onClick: () => { setOpDue(''); setDueMode(''); setDueStart(''); setDueEnd(''); setFilterOpen('') } }, t.cancel),
+                React.createElement('button', { className: 'btn accent', onClick: () => setFilterOpen('') }, t.save)
+              )
+            )
+          ) : (
+            React.createElement(NumericFilter, {
+              t,
+              op: (filterOpen === 'qty' ? opQty : filterOpen === 'thickness' ? opThk : filterOpen === 'days' ? opDays : filterOpen === 'price' ? opPrice : opLead),
+              setOp: (v) => {
+                if (filterOpen === 'qty') setOpQty(v); else if (filterOpen === 'thickness') setOpThk(v); else if (filterOpen === 'days') setOpDays(v); else if (filterOpen === 'price') setOpPrice(v); else setOpLead(v)
+              },
+              val: (filterOpen === 'qty' ? qtyVal : filterOpen === 'thickness' ? thkVal : filterOpen === 'days' ? daysVal : filterOpen === 'price' ? priceVal : leadVal),
+              setVal: (v) => {
+                if (filterOpen === 'qty') setQtyVal(v); else if (filterOpen === 'thickness') setThkVal(v); else if (filterOpen === 'days') setDaysVal(v); else if (filterOpen === 'price') setPriceVal(v); else setLeadVal(v)
+              },
+              onClose: () => setFilterOpen('')
+            })
+          )
+        )
+      ) : null,
 
-      detail ? React.createElement(DetailModal, { item: detail, onClose: () => setDetail(null), setItemStatus, t }) : null
+      detail ? React.createElement(DetailModal, { item: detail, onClose: () => setDetail(null), setItemStatus, onSaved: refresh, t }) : null
     )
   }
 
-  function DetailModal({ item, onClose, setItemStatus, t }) {
+  function FilesModal({ item, onClose, t }) {
+    return React.createElement('div', { style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 } },
+      React.createElement('div', { className: 'card', style: { width: 'min(900px, 96vw)', maxHeight: '85vh', overflowY: 'auto', position: 'relative', padding: 12 } },
+        React.createElement('div', { className: 'row', style: { justifyContent: 'space-between' } },
+          React.createElement('h3', null, t.a_files),
+          React.createElement('button', { className: 'btn', onClick: onClose }, t.a_close)
+        ),
+        React.createElement('div', { className: 'grid two', style: { gap: 8 } },
+          (item.files||[]).map((f, i) => React.createElement('div', { key: 'tf'+i, className: 'card', style: { padding: 10 } },
+            React.createElement('div', null, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
+            (f.type||'').toLowerCase().includes('image') || ['png','jpg','jpeg'].includes((f.type||'').toLowerCase()) ? (
+              React.createElement('img', { className: 'preview-img', src: f.dataUrl, alt: f.name })
+            ) : React.createElement('a', { className: 'btn', href: f.dataUrl, download: f.name, title: t.tt_download_txt }, t.download)
+          )),
+          (item.productImages||[]).map((f, i) => React.createElement('div', { key: 'pi'+i, className: 'card', style: { padding: 10 } },
+            React.createElement('div', null, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
+            (f.type||'').toLowerCase().includes('image') || ['png','jpg','jpeg'].includes((f.type||'').toLowerCase()) ? (
+              React.createElement('img', { className: 'preview-img', src: f.dataUrl, alt: f.name })
+            ) : React.createElement('a', { className: 'btn', href: f.dataUrl, download: f.name, title: t.tt_download_txt }, t.download)
+          ))
+        )
+      )
+    )
+  }
+
+  function DetailModal({ item, onClose, setItemStatus, onSaved, t }) {
     const [currStatus, setCurrStatus] = React.useState(item.status)
-    React.useEffect(() => { setCurrStatus(item.status) }, [item.id, item.status])
+    const [editing, setEditing] = React.useState(false)
+    const [form, setForm] = React.useState({})
+    const [techFiles, setTechFiles] = React.useState(item.files || [])
+    const [prodImgs, setProdImgs] = React.useState(item.productImages || [])
+    React.useEffect(() => {
+      setCurrStatus(item.status)
+      setForm({
+        name: item.name || '', company: item.company || '', email: item.email || '', phone: item.phone || '', country: item.country || '', city: item.city || '',
+        proj: item.proj || '', process: (item.process || []).join(', '), material: item.material || '', grade: item.grade || '', thickness: item.thickness || '', qty: item.qty || '', dims: item.dims || '', tolerance: item.tolerance || '', finish: item.finish || '', due: item.due || '', repeat: item.repeat || '', budget: item.budget || '', address: item.address || '', drawing: item.drawing || 'no', productPics: item.productPics || 'no', desc: item.desc || '',
+      })
+      setTechFiles(item.files || [])
+      setProdImgs(item.productImages || [])
+    }, [item.id])
+    function setF(k, v) { setForm((s) => ({ ...s, [k]: v })) }
+    async function onAddTech(filesList) {
+      const arr = Array.from(filesList)
+      const parsed = []
+      for (const f of arr) {
+        const sizeMb = f.size / (1024*1024)
+        if (sizeMb > MAX_FILE_MB) continue
+        const ext = extOf(f.name)
+        if (!ACCEPT_EXT.includes(ext)) continue
+        const dataUrl = await readFileAsDataUrl(f)
+        parsed.push({ name: f.name, type: f.type || ext, size: f.size, dataUrl })
+      }
+      setTechFiles((p) => p.concat(parsed).slice(0, MAX_FILES))
+    }
+    async function onAddProd(filesList) {
+      const arr = Array.from(filesList)
+      const parsed = []
+      for (const f of arr) {
+        const sizeMb = f.size / (1024*1024)
+        if (sizeMb > MAX_FILE_MB) continue
+        const ext = extOf(f.name)
+        if (!isImageExt(ext) && !isImageExt(f.type)) continue
+        const dataUrl = await readFileAsDataUrl(f)
+        parsed.push({ name: f.name, type: f.type || ext, size: f.size, dataUrl })
+      }
+      setProdImgs((p) => p.concat(parsed).slice(0, MAX_PRODUCT_FILES))
+    }
+    async function onSave() {
+      const patch = {
+        status: currStatus,
+        name: form.name, company: form.company, email: form.email, phone: form.phone, country: form.country, city: form.city,
+        proj: form.proj, process: form.process.split(',').map(s=>s.trim()).filter(Boolean), material: form.material, grade: form.grade,
+        thickness: form.thickness, qty: form.qty, dims: form.dims, tolerance: form.tolerance, finish: form.finish, due: form.due,
+        repeat: form.repeat, budget: form.budget, address: form.address, drawing: form.drawing, productPics: form.productPics, desc: form.desc,
+        files: techFiles, productImages: prodImgs,
+      }
+      await API.updateQuote(item.id, patch)
+      setEditing(false)
+      try { if (typeof onSaved === 'function') await onSaved() } catch {}
+      onClose()
+    }
     return React.createElement('div', { style: {
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
     }, onClick: onClose },
       React.createElement('div', { className: 'card', style: { width: 'min(680px, 96vw)', maxHeight: '85vh', overflowY: 'auto', position: 'relative', padding: 12, fontSize: 13 }, onClick: (e) => e.stopPropagation() },
-        React.createElement('button', { className: 'btn', onClick: onClose, style: { position: 'absolute', top: 8, right: 8, padding: '6px 8px', fontSize: 12 } }, '×'),
-        React.createElement('div', { className: 'row', style: { justifyContent: 'flex-start', marginBottom: 6 } },
-          React.createElement('h3', { style: { margin: 0, fontSize: 16 } }, t.a_detail)
+        React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, position: 'sticky', top: 0, zIndex: 5, background: 'linear-gradient(180deg, #0f1e2c, #0c1924)', padding: '8px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)' } },
+          React.createElement('h3', { style: { margin: 0, fontSize: 16 } }, t.a_detail),
+          React.createElement('div', { className: 'row' },
+            !editing ? React.createElement('button', { className: 'btn', onClick: () => setEditing(true) }, t.edit) : React.createElement(React.Fragment, null,
+              React.createElement('button', { className: 'btn accent', onClick: onSave }, t.save),
+              React.createElement('button', { className: 'btn', onClick: () => setEditing(false) }, t.cancel)
+            ),
+            React.createElement('button', { className: 'btn', onClick: onClose, title: t.tt_close }, '×')
+          )
         ),
-        React.createElement('div', { className: 'grid two', style: { gap: 8 } },
-          info('ID', item.id), info(t.th_date, (item.createdAt||'').replace('T',' ').slice(0,16)), info(t.a_status, currStatus), info(t.f_name, item.name),
+        !editing ? React.createElement('div', { className: 'grid two', style: { gap: 8 } },
+          info('ID', item.id), info(t.th_date, (item.createdAt||'').replace('T',' ').slice(0,16)), info(t.a_status, statusLabel(currStatus, t)), info(t.f_name, item.name),
           info(t.f_company, item.company), info(t.f_email, item.email), info(t.f_phone, item.phone), info(t.f_country + '/' + t.f_city, `${item.country} / ${item.city}`),
           info(t.f_proj, item.proj), info(t.f_process, (item.process||[]).join(', ')), info(t.f_material, item.material), info(t.f_grade, item.grade),
           info(t.f_thickness, item.thickness + ' mm'), info(t.f_qty, item.qty), info(t.f_dims, item.dims), info(t.f_tolerance, item.tolerance),
           info(t.f_finish, item.finish), info(t.f_due, item.due), info(t.f_repeat, item.repeat === 'recurrent' ? t.repeat_recurrent : t.repeat_one), info(t.f_budget, item.budget),
           info(t.f_drawing, item.drawing), info(t.f_address, item.address), info(t.f_desc, item.desc)
+        ) : React.createElement('div', { className: 'grid two', style: { gap: 8 } },
+          editField(t.f_name, 'name'), editField(t.f_company, 'company'), editField(t.f_email, 'email'), editField(t.f_phone, 'phone'),
+          editField(t.f_country, 'country'), editField(t.f_city, 'city'), editField(t.f_proj, 'proj'), editField(t.f_process, 'process'),
+          editField(t.f_material, 'material'), editField(t.f_grade, 'grade'), editField(t.f_thickness, 'thickness'), editField(t.f_qty, 'qty'),
+          editField(t.f_dims, 'dims'), editField(t.f_tolerance, 'tolerance'), editField(t.f_finish, 'finish'), editField(t.f_due, 'due'),
+          editField(t.f_repeat, 'repeat'), editField(t.f_budget, 'budget'), editArea(t.f_address, 'address'), editRadio(t.f_drawing, 'drawing'), editRadio(t.f_prodimg, 'productPics'), editArea(t.f_desc, 'desc')
         ),
         React.createElement('div', { style: { height: 10 } }),
         React.createElement('div', { className: 'row wrap' },
-          React.createElement('button', { className: (currStatus === 'review' ? 'btn accent' : 'btn'), onClick: () => { setCurrStatus('review'); setItemStatus(item.id, 'review') }, style: { padding: '6px 10px', fontSize: 12 } }, t.s_review),
-          React.createElement('button', { className: (currStatus === 'feasible' ? 'btn accent' : 'btn'), onClick: () => { setCurrStatus('feasible'); setItemStatus(item.id, 'feasible') }, style: { padding: '6px 10px', fontSize: 12 } }, t.s_feasible),
-          React.createElement('button', { className: (currStatus === 'not' ? 'btn accent' : 'btn'), onClick: () => { setCurrStatus('not'); setItemStatus(item.id, 'not') }, style: { padding: '6px 10px', fontSize: 12 } }, t.s_not),
-          React.createElement('button', { className: (currStatus === 'quoted' ? 'btn accent' : 'btn'), onClick: () => { setCurrStatus('quoted'); setItemStatus(item.id, 'quoted') }, style: { padding: '6px 10px', fontSize: 12 } }, t.s_quoted)
+          React.createElement('button', { className: (currStatus === 'review' ? 'btn accent' : 'btn'), onClick: () => { setCurrStatus('review'); setItemStatus(item.id, 'review') }, style: { padding: '6px 10px', fontSize: 12 }, title: t.tt_status_review }, t.s_review),
+          React.createElement('button', { className: (currStatus === 'feasible' ? 'btn accent' : 'btn'), onClick: () => { setCurrStatus('feasible'); setItemStatus(item.id, 'feasible') }, style: { padding: '6px 10px', fontSize: 12 }, title: t.tt_status_feasible }, t.s_feasible),
+          React.createElement('button', { className: (currStatus === 'not' ? 'btn accent' : 'btn'), onClick: () => { setCurrStatus('not'); setItemStatus(item.id, 'not') }, style: { padding: '6px 10px', fontSize: 12 }, title: t.tt_status_not }, t.s_not),
+          React.createElement('button', { className: (currStatus === 'quoted' ? 'btn accent' : 'btn'), onClick: () => { setCurrStatus('quoted'); setItemStatus(item.id, 'quoted') }, style: { padding: '6px 10px', fontSize: 12 }, title: t.tt_status_quoted }, t.s_quoted),
+          React.createElement('button', { className: (currStatus === 'approved' ? 'btn accent' : 'btn'), onClick: () => { setCurrStatus('approved'); setItemStatus(item.id, 'approved') }, style: { padding: '6px 10px', fontSize: 12 } }, t.s_approved)
         ),
         React.createElement('div', { style: { height: 10 } }),
-        (item.files||[]).length ? React.createElement('div', { className: 'grid two', style: { gap: 8 } },
-          item.files.map((f, i) => React.createElement('div', { key: i, className: 'card', style: { padding: 10 } },
-            React.createElement('div', null, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
-            f.type.startsWith('image/') || ['png','jpg','jpeg'].includes((f.type||'').toLowerCase()) ? (
-              React.createElement('img', { className: 'preview-img', src: f.dataUrl, alt: f.name })
-            ) : React.createElement('a', { className: 'btn', href: f.dataUrl, download: f.name }, t.download)
+        (editing ? React.createElement('div', { className: 'grid two', style: { gap: 8, marginBottom: 6 } },
+          React.createElement('div', { className: 'card', style: { padding: 10 } },
+            React.createElement('div', { className: 'help', style: { marginBottom: 6 } }, t.add_tech_file),
+            React.createElement('input', { type: 'file', multiple: true, accept: '.pdf,.png,.jpg,.jpeg,.dxf,.dwg,.step,.stp,.iges,.igs,application/pdf,image/png,image/jpeg,image/jpg', onChange: (e) => onAddTech(e.target.files) })
+          ),
+          React.createElement('div', { className: 'card', style: { padding: 10 } },
+            React.createElement('div', { className: 'help', style: { marginBottom: 6 } }, t.add_prod_image),
+            React.createElement('input', { type: 'file', multiple: true, accept: '.png,.jpg,.jpeg,image/png,image/jpeg,image/jpg', onChange: (e) => onAddProd(e.target.files) })
+          )
+        ) : null),
+        (techFiles||[]).length ? React.createElement('div', { className: 'grid two', style: { gap: 8 } },
+          techFiles.map((f, i) => React.createElement('div', { key: i, className: 'card file-card', style: { padding: 10, position: 'relative' } },
+            React.createElement('div', { style: { marginBottom: 6 } }, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
+            ((f.type||'').toLowerCase().includes('image') || ['png','jpg','jpeg'].includes((f.type||'').toLowerCase()))
+              ? React.createElement('img', { className: 'preview-img', src: f.dataUrl, alt: f.name })
+              : React.createElement('div', { className: 'file-thumb' }, 'Preview not available'),
+            editing
+              ? React.createElement('div', { className: 'dl-group' },
+                  React.createElement('button', { className: 'btn icon-btn', title: t.tt_download_txt, onClick: () => downloadDataUrl(f.name, f.dataUrl) }, '⬇'),
+                  React.createElement('button', { className: 'btn icon-btn danger', title: t.a_delete, onClick: () => setTechFiles((p)=>p.filter((_,ix)=>ix!==i)) }, '🗑️')
+                )
+              : React.createElement('button', { className: 'btn icon-btn dl-center', title: t.tt_download_txt, onClick: () => downloadDataUrl(f.name, f.dataUrl) }, '⬇')
+          ))
+        ) : null,
+        (prodImgs||[]).length ? React.createElement('div', { className: 'grid two', style: { gap: 8, marginTop: 10 } },
+          prodImgs.map((f, i) => React.createElement('div', { key: i, className: 'card file-card', style: { padding: 10, position: 'relative' } },
+            React.createElement('div', { style: { marginBottom: 6 } }, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
+            ((f.type||'').toLowerCase().includes('image') || ['png','jpg','jpeg'].includes((f.type||'').toLowerCase()))
+              ? React.createElement('img', { className: 'preview-img', src: f.dataUrl, alt: f.name })
+              : React.createElement('div', { className: 'file-thumb' }, 'Preview not available'),
+            editing
+              ? React.createElement('div', { className: 'dl-group' },
+                  React.createElement('button', { className: 'btn icon-btn', title: t.tt_download_txt, onClick: () => downloadDataUrl(f.name, f.dataUrl) }, '⬇'),
+                  React.createElement('button', { className: 'btn icon-btn danger', title: t.a_delete, onClick: () => setProdImgs((p)=>p.filter((_,ix)=>ix!==i)) }, '🗑️')
+                )
+              : React.createElement('button', { className: 'btn icon-btn dl-center', title: t.tt_download_txt, onClick: () => downloadDataUrl(f.name, f.dataUrl) }, '⬇')
           ))
         ) : null,
         React.createElement('div', { style: { height: 10 } }),
@@ -1279,6 +1907,33 @@
         React.createElement('div', null, String(v || '—'))
       )
     }
+    function editField(label, key) {
+      return React.createElement('div', { className: 'card', style: { padding: 10 } },
+        React.createElement('div', { className: 'help', style: { fontSize: 11 } }, label),
+        React.createElement('input', { value: form[key] ?? '', onChange: (e) => setF(key, e.target.value) })
+      )
+    }
+    function editArea(label, key) {
+      return React.createElement('div', { className: 'card', style: { padding: 10 } },
+        React.createElement('div', { className: 'help', style: { fontSize: 11 } }, label),
+        React.createElement('textarea', { value: form[key] ?? '', onChange: (e) => setF(key, e.target.value) })
+      )
+    }
+    function editRadio(label, key) {
+      return React.createElement('div', { className: 'card', style: { padding: 10 } },
+        React.createElement('div', { className: 'help', style: { fontSize: 11, marginBottom: 6 } }, label),
+        React.createElement('div', { className: 'row' },
+          React.createElement('label', { className: 'chip' },
+            React.createElement('input', { type: 'radio', name: key, checked: (form[key]||'') === 'yes', onChange: () => setF(key, 'yes') }),
+            React.createElement('span', null, t.yes)
+          ),
+          React.createElement('label', { className: 'chip' },
+            React.createElement('input', { type: 'radio', name: key, checked: (form[key]||'') === 'no', onChange: () => setF(key, 'no') }),
+            React.createElement('span', null, t.no)
+          )
+        )
+      )
+    }
   }
 
   // Simple modal
@@ -1291,6 +1946,23 @@
           React.createElement('button', { className: 'btn', onClick: onClose }, t.a_close)
         ),
         React.createElement('div', null, children)
+      )
+    )
+  }
+
+  function NumericFilter({ t, op, setOp, val, setVal, onClose }) {
+    const ops = ['<','<=','=','>=','>']
+    return React.createElement('div', { className: 'grid', style: { gap: 8, marginTop: 8 } },
+      React.createElement('div', { className: 'row', style: { gap: 8 } },
+        React.createElement('select', { value: op, onChange: (e) => setOp(e.target.value), style: { width: 100 } },
+          React.createElement('option', { value: '' }, '—'),
+          ops.map(o => React.createElement('option', { key: o, value: o }, o))
+        ),
+        React.createElement('input', { type: 'number', value: val, onChange: (e) => setVal(e.target.value), placeholder: '0' })
+      ),
+      React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', gap: 6 } },
+        React.createElement('button', { className: 'btn', onClick: () => { setOp(''); setVal(''); onClose() } }, t.cancel),
+        React.createElement('button', { className: 'btn accent', onClick: onClose }, t.save)
       )
     )
   }

@@ -51,6 +51,45 @@ body {
 
 label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
 input, select, textarea { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.03); color: var(--text); }
+/* Keep selects styled as buttons when used as actions */
+select.btn { width: auto; }
+/* In tables' actions cell ensure inline layout */
+.table .actions-row select.btn { width: auto; }
+
+/* Make status dropdown look like buttons */
+select.btn {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text);
+  border-radius: 10px;
+  cursor: pointer;
+  /* fixed paddings for text and arrow gap */
+  padding-left: 14px;
+  padding-right: 48px; /* fixed gap between text and arrow */
+  line-height: 1.2;
+  height: 38px;
+  /* custom arrow */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23eaf2f8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 10px 6px;
+  white-space: nowrap; /* keep single line */
+  width: auto; /* adapt to content */
+}
+/* Hide legacy default arrow on IE/Edge */
+select.btn::-ms-expand { display: none; }
+select.btn:focus { outline: none; box-shadow: 0 0 0 2px rgba(212,175,55,0.15); }
+/* Tooltip fallback for selects, since pseudo-elements often don't render */
+.tt-wrap { position: relative; display: inline-flex; }
+.tt-wrap .tt {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.85); color: #fff; padding: 6px 8px; border-radius: 6px;
+  font-size: 11px; white-space: nowrap; z-index: 100; opacity: 0; visibility: hidden; transition: opacity .12s ease;
+}
+.tt-wrap:hover .tt { opacity: 1; visibility: visible; }
 textarea { min-height: 90px; resize: vertical; }
 
 .row { display: flex; gap: 12px; align-items: center; }
@@ -80,12 +119,16 @@ textarea { min-height: 90px; resize: vertical; }
 .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 11px; padding: 1px 6px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); }
 
 .chip { display: inline-flex; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 999px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); font-size: 11px; }
+.chip { white-space: nowrap; max-width: 100%; overflow: hidden; }
+.chip span { display: inline-block; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.chip input { margin: 0; }
 .status { font-weight: 600; }
 .status.new { color: #93c5fd; }
 .status.review { color: #fcd34d; }
 .status.feasible { color: #86efac; }
 .status.not { color: #fca5a5; }
 .status.quoted { color: #c4b5fd; }
+.status.approved { color: #4ade80; }
 
 .table { width: 100%; border-collapse: collapse; }
 .table th, .table td { padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.06); text-align: left; font-size: 13px; }
@@ -97,5 +140,22 @@ textarea { min-height: 90px; resize: vertical; }
 .notice { padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.12); font-size: 12px; color: var(--muted); }
 
 .preview-img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); }
+
+/* File/Image card hover download button */
+.file-card { position: relative; }
+.file-card .dl { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity .12s ease; padding: 6px 8px; font-size: 12px; }
+.file-card:hover .dl { opacity: 1; }
+/* Centered download icon button */
+.icon-btn { width: 44px; height: 44px; padding: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; 
+  background: linear-gradient(180deg, #2b2b23, #211f10); border: 1px solid rgba(212,175,55,0.5); color: #ffe9a6; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+.icon-btn:hover { filter: brightness(1.05); }
+.file-card .dl-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0; transition: opacity .15s ease; z-index: 2; }
+.file-card:hover .dl-center { opacity: 1; }
+.file-card:hover .preview-img { filter: brightness(0.7) saturate(0.9); }
+/* Grouped center controls (download + delete in edit mode) */
+.file-card .dl-group { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; gap: 8px; opacity: 0; transition: opacity .15s ease; z-index: 2; }
+.file-card:hover .dl-group { opacity: 1; }
+.file-thumb { display: flex; align-items: center; justify-content: center; height: 120px; border: 1px dashed rgba(255,255,255,0.12); border-radius: 8px; background: rgba(255,255,255,0.03); font-size: 12px; color: var(--muted); }
 
 .footer { margin-top: 24px; padding: 16px 0; color: var(--muted); font-size: 12px; border-top: 1px solid rgba(255,255,255,0.06); }
