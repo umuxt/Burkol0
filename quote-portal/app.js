@@ -50,6 +50,7 @@
       no: 'Hayır',
       // Admin
       a_filters: 'Filtreler',
+      a_filters_search: 'Arama',
       a_search: 'Ara…',
       a_phone_search: 'Telefon ile ara…',
       a_status: 'Durum',
@@ -250,6 +251,7 @@
       yes: 'Yes',
       no: 'No',
       a_filters: 'Filters',
+      a_filters_search: 'Search',
       a_search: 'Search…',
       a_phone_search: 'Search by phone…',
       a_status: 'Status',
@@ -1301,6 +1303,23 @@
     const [statuses, setStatuses] = useState([]) // array of selected status keys
     const [detail, setDetail] = useState(null)
     const [selected, setSelected] = useState(new Set())
+    const [filterOpen, setFilterOpen] = useState('') // one of: qty, thickness, due, days, price, lead, status
+    const [opDue, setOpDue] = useState('')
+    const [dueMode, setDueMode] = useState('') // '' | 'single' | 'range'
+    const [dueStart, setDueStart] = useState('')
+    const [dueEnd, setDueEnd] = useState('')
+    // Advanced filters
+    const [statusSel, setStatusSel] = useState('')
+    const [opQty, setOpQty] = useState('')
+    const [qtyVal, setQtyVal] = useState('')
+    const [opThk, setOpThk] = useState('')
+    const [thkVal, setThkVal] = useState('')
+    const [opDays, setOpDays] = useState('')
+    const [daysVal, setDaysVal] = useState('')
+    const [opPrice, setOpPrice] = useState('')
+    const [priceVal, setPriceVal] = useState('')
+    const [opLead, setOpLead] = useState('')
+    const [leadVal, setLeadVal] = useState('')
 
     useEffect(() => { refresh() }, [])
     async function refresh() {
@@ -1318,6 +1337,17 @@
       ;(it.productImages||[]).forEach(f=>arr.push(f.name))
       return arr.filter(Boolean).join(' ').toLowerCase()
     }
+    function cmp(op, a, b) {
+      if (!op || b === '' || b === null || b === undefined) return true
+      const na = Number(a), nb = Number(b)
+      if (isNaN(na) || isNaN(nb)) return false
+      if (op === '<') return na < nb
+      if (op === '<=') return na <= nb
+      if (op === '=') return na === nb
+      if (op === '>=') return na >= nb
+      if (op === '>') return na > nb
+      return true
+    }
     const filtered = useMemo(() => {
       const ql = (q || '').toLowerCase()
       return list.filter((it) => {
@@ -1326,9 +1356,26 @@
         const matchQ = !ql || text.includes(ql)
         const norm = (s) => String(s||'').replace(/\D/g, '')
         const matchPhone = !phoneQ || norm(it.phone).includes(norm(phoneQ))
-        return matchStatus && matchQ && matchPhone
+        // Derived fields
+        const daysToDue = (it.status === 'approved' && it.due) ? Math.ceil((new Date(it.due).getTime() - Date.now()) / (1000*60*60*24)) : null
+        const dueTs = it.due ? new Date(it.due).setHours(0,0,0,0) : NaN
+        const startTs = dueStart ? new Date(dueStart).setHours(0,0,0,0) : NaN
+        const endTs = dueEnd ? new Date(dueEnd).setHours(0,0,0,0) : NaN
+        const estPrice = 16
+        const estLead = 16
+        // Advanced field filters
+        const matchStatusSel = !statusSel || it.status === statusSel
+        const matchQty = cmp(opQty, it.qty, qtyVal)
+        const matchThk = cmp(opThk, it.thickness, thkVal)
+        let matchDue = true
+        if (dueMode === 'single' && opDue && !isNaN(startTs)) matchDue = cmp(opDue, dueTs, startTs)
+        if (dueMode === 'range' && !isNaN(startTs) && !isNaN(endTs)) matchDue = (dueTs >= startTs && dueTs <= endTs)
+        const matchDays = cmp(opDays, daysToDue ?? NaN, daysVal)
+        const matchPrice = cmp(opPrice, estPrice, priceVal)
+        const matchLead = cmp(opLead, estLead, leadVal)
+        return matchStatus && matchQ && matchPhone && matchStatusSel && matchQty && matchThk && matchDue && matchDays && matchPrice && matchLead
       })
-    }, [list, q, phoneQ, statuses])
+    }, [list, q, phoneQ, statuses, statusSel, opQty, qtyVal, opThk, thkVal, opDue, dueMode, dueStart, dueEnd, opDays, daysVal, opPrice, priceVal, opLead, leadVal])
 
     async function setItemStatus(id, st) { await API.updateStatus(id, st); refresh() }
     async function remove(id) { await API.remove(id); refresh() }
@@ -1489,49 +1536,23 @@
           ),
         )
       ),
-      React.createElement('div', { className: 'card' },
-        React.createElement('label', null, t.a_filters),
-        React.createElement('div', { className: 'grid three', style: { gap: 8, marginTop: 6 } },
-          // Col 1: phone and generic search stacked
-          React.createElement('div', { className: 'grid', style: { gap: 6 } },
-            React.createElement('input', { placeholder: t.a_phone_search, value: phoneQ, onChange: (e) => setPhoneQ(e.target.value), style: { padding: '8px 10px', fontSize: 12 } }),
-            React.createElement('input', { placeholder: t.a_search, value: q, onChange: (e) => setQ(e.target.value), style: { padding: '8px 10px', fontSize: 12 } })
-          ),
-          // Col 2: multi-select statuses (checkbox chips) in responsive grid
-          React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 8, alignItems: 'center' } },
-            ['new','review','feasible','not','quoted','approved'].map((key) => (
-              React.createElement('label', { key, className: 'chip' },
-                React.createElement('input', {
-                  type: 'checkbox',
-                  checked: statuses.includes(key),
-                  onChange: (e) => {
-                    const checked = e.target.checked
-                    setStatuses((prev) => {
-                      const set = new Set(prev)
-                      if (checked) set.add(key); else set.delete(key)
-                      return Array.from(set)
-                    })
-                  }
-                }),
-                React.createElement('span', null, statusLabel(key, t))
-              )
-            ))
-          ),
-          // Col 3: top row refresh/delete, bottom export
-          React.createElement('div', null,
-            React.createElement('div', { className: 'row', style: { gap: 6, marginBottom: 6, justifyContent: 'flex-end' } },
-              React.createElement('button', { className: 'btn', onClick: () => refresh(), title: t.tt_refresh, style: { padding: '6px 10px', fontSize: 12 } }, t.refresh),
-              React.createElement('button', { className: 'btn danger', onClick: bulkDelete, title: t.tt_delete, disabled: selected.size === 0, style: { padding: '6px 10px', fontSize: 12 } }, t.a_delete)
-            ),
-            React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end' } },
-              React.createElement('button', { className: 'btn', onClick: exportCSV, title: t.tt_export_csv, style: { padding: '6px 10px', fontSize: 12 } }, t.a_export_csv)
-            )
-          )
+      React.createElement('div', { className: 'card filters-card' },
+        React.createElement('label', null, t.a_filters_search),
+        React.createElement('div', { className: 'row wrap', style: { gap: 8, marginTop: 6 } },
+          React.createElement('input', { placeholder: t.a_search, value: q, onChange: (e) => setQ(e.target.value), style: { flex: 1, padding: '8px 10px', fontSize: 12 } }),
+          React.createElement('input', { placeholder: t.a_phone_search, value: phoneQ, onChange: (e) => setPhoneQ(e.target.value), style: { width: 260, padding: '8px 10px', fontSize: 12 } })
         )
       ),
 
       React.createElement('div', { className: 'card', style: { marginTop: 16 } },
-        React.createElement('label', null, t.a_list),
+        React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center' } },
+          React.createElement('label', null, t.a_list),
+          React.createElement('div', { className: 'row', style: { gap: 6 } },
+            React.createElement('button', { className: 'btn', onClick: () => refresh(), title: t.tt_refresh, style: { padding: '6px 10px', fontSize: 12 } }, t.refresh),
+            React.createElement('button', { className: 'btn danger', onClick: bulkDelete, title: t.tt_delete, disabled: selected.size === 0, style: { padding: '6px 10px', fontSize: 12 } }, t.a_delete),
+            React.createElement('button', { className: 'btn', onClick: exportCSV, title: t.tt_export_csv, style: { padding: '6px 10px', fontSize: 12 } }, t.a_export_csv)
+          )
+        ),
         filtered.length === 0 ? React.createElement('div', { className: 'notice' }, t.a_none) : (
           React.createElement('div', { style: { overflowX: 'auto' } },
             React.createElement('table', { className: 'table' },
@@ -1553,6 +1574,36 @@
                   React.createElement('th', null, t.th_est_lead),
                   React.createElement('th', null, t.a_status),
                   React.createElement('th', null, t.th_actions),
+                ),
+                React.createElement('tr', null,
+                  React.createElement('th', null),
+                  React.createElement('th', null),
+                  React.createElement('th', null),
+                  React.createElement('th', null),
+                  React.createElement('th', null),
+                  React.createElement('th', null),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((opQty && String(qtyVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'qty' ? '' : 'qty') }, ((opQty && String(qtyVal).length) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((opThk && String(thkVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'thickness' ? '' : 'thickness') }, ((opThk && String(thkVal).length) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((dueMode && (dueStart || dueEnd)) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'due' ? '' : 'due') }, ((dueMode && (dueStart || dueEnd)) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((opDays && String(daysVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'days' ? '' : 'days') }, ((opDays && String(daysVal).length) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((opPrice && String(priceVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'price' ? '' : 'price') }, ((opPrice && String(priceVal).length) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + ((opLead && String(leadVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'lead' ? '' : 'lead') }, ((opLead && String(leadVal).length) ? '●' : '○'))
+                  ),
+                  React.createElement('th', { style: { textAlign: 'center' } },
+                    React.createElement('button', { className: 'filter-btn ' + (statusSel ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'status' ? '' : 'status') }, (statusSel ? '●' : '○'))
+                  ),
+                  React.createElement('th', null)
                 )
               ),
               React.createElement('tbody', null,
@@ -1609,6 +1660,76 @@
           )
         )
       ),
+      filterOpen ? React.createElement('div', { style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80 }, onClick: () => setFilterOpen('') },
+        React.createElement('div', { className: 'card', style: { minWidth: 280, maxWidth: '90vw' }, onClick: (e) => e.stopPropagation() },
+          React.createElement('div', { className: 'row', style: { justifyContent: 'space-between' } },
+            React.createElement('strong', null, (filterOpen === 'qty' ? t.th_qty : filterOpen === 'thickness' ? t.th_thickness : filterOpen === 'days' ? t.th_days_to_due : filterOpen === 'price' ? t.th_est_price : filterOpen === 'lead' ? t.th_est_lead : t.a_status)),
+            React.createElement('button', { className: 'btn', onClick: () => setFilterOpen('') }, '×')
+          ),
+          (filterOpen === 'status') ? (
+            React.createElement('div', { className: 'grid', style: { gap: 8, marginTop: 8 } },
+              React.createElement('select', { value: statusSel, onChange: (e) => setStatusSel(e.target.value) },
+                React.createElement('option', { value: '' }, t.a_all),
+                React.createElement('option', { value: 'new' }, t.s_new),
+                React.createElement('option', { value: 'review' }, t.s_review),
+                React.createElement('option', { value: 'feasible' }, t.s_feasible),
+                React.createElement('option', { value: 'not' }, t.s_not),
+                React.createElement('option', { value: 'quoted' }, t.s_quoted),
+                React.createElement('option', { value: 'approved' }, t.s_approved)
+              ),
+              React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', gap: 6 } },
+                React.createElement('button', { className: 'btn', onClick: () => { setStatusSel(''); setFilterOpen('') } }, t.cancel),
+                React.createElement('button', { className: 'btn accent', onClick: () => setFilterOpen('') }, t.save)
+              )
+            )
+          ) : (filterOpen === 'due') ? (
+            React.createElement('div', { className: 'grid', style: { gap: 8, marginTop: 8 } },
+              React.createElement('div', { className: 'row', style: { gap: 8 } },
+                React.createElement('label', { className: 'chip' },
+                  React.createElement('input', { type: 'radio', name: 'dueMode', checked: dueMode === 'single', onChange: () => setDueMode('single') }),
+                  React.createElement('span', null, 'Tek tarih')
+                ),
+                React.createElement('label', { className: 'chip' },
+                  React.createElement('input', { type: 'radio', name: 'dueMode', checked: dueMode === 'range', onChange: () => setDueMode('range') }),
+                  React.createElement('span', null, 'Tarih aralığı')
+                )
+              ),
+              (dueMode === 'range') ? (
+                React.createElement('div', { className: 'row', style: { gap: 8 } },
+                  React.createElement('input', { type: 'date', value: dueStart, onChange: (e) => setDueStart(e.target.value) }),
+                  React.createElement('span', null, '—'),
+                  React.createElement('input', { type: 'date', value: dueEnd, onChange: (e) => setDueEnd(e.target.value) })
+                )
+              ) : (
+                React.createElement('div', { className: 'row', style: { gap: 8 } },
+                  React.createElement('select', { value: opDue, onChange: (e) => setOpDue(e.target.value), style: { width: 100 } },
+                    React.createElement('option', { value: '' }, '—'),
+                    ['<','<=','=','>=','>'].map(o => React.createElement('option', { key: o, value: o }, o))
+                  ),
+                  React.createElement('input', { type: 'date', value: dueStart, onChange: (e) => setDueStart(e.target.value) })
+                )
+              ),
+              React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', gap: 6 } },
+                React.createElement('button', { className: 'btn', onClick: () => { setOpDue(''); setDueMode(''); setDueStart(''); setDueEnd(''); setFilterOpen('') } }, t.cancel),
+                React.createElement('button', { className: 'btn accent', onClick: () => setFilterOpen('') }, t.save)
+              )
+            )
+          ) : (
+            React.createElement(NumericFilter, {
+              t,
+              op: (filterOpen === 'qty' ? opQty : filterOpen === 'thickness' ? opThk : filterOpen === 'days' ? opDays : filterOpen === 'price' ? opPrice : opLead),
+              setOp: (v) => {
+                if (filterOpen === 'qty') setOpQty(v); else if (filterOpen === 'thickness') setOpThk(v); else if (filterOpen === 'days') setOpDays(v); else if (filterOpen === 'price') setOpPrice(v); else setOpLead(v)
+              },
+              val: (filterOpen === 'qty' ? qtyVal : filterOpen === 'thickness' ? thkVal : filterOpen === 'days' ? daysVal : filterOpen === 'price' ? priceVal : leadVal),
+              setVal: (v) => {
+                if (filterOpen === 'qty') setQtyVal(v); else if (filterOpen === 'thickness') setThkVal(v); else if (filterOpen === 'days') setDaysVal(v); else if (filterOpen === 'price') setPriceVal(v); else setLeadVal(v)
+              },
+              onClose: () => setFilterOpen('')
+            })
+          )
+        )
+      ) : null,
 
       detail ? React.createElement(DetailModal, { item: detail, onClose: () => setDetail(null), setItemStatus, onSaved: refresh, t }) : null
     )
@@ -1825,6 +1946,23 @@
           React.createElement('button', { className: 'btn', onClick: onClose }, t.a_close)
         ),
         React.createElement('div', null, children)
+      )
+    )
+  }
+
+  function NumericFilter({ t, op, setOp, val, setVal, onClose }) {
+    const ops = ['<','<=','=','>=','>']
+    return React.createElement('div', { className: 'grid', style: { gap: 8, marginTop: 8 } },
+      React.createElement('div', { className: 'row', style: { gap: 8 } },
+        React.createElement('select', { value: op, onChange: (e) => setOp(e.target.value), style: { width: 100 } },
+          React.createElement('option', { value: '' }, '—'),
+          ops.map(o => React.createElement('option', { key: o, value: o }, o))
+        ),
+        React.createElement('input', { type: 'number', value: val, onChange: (e) => setVal(e.target.value), placeholder: '0' })
+      ),
+      React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', gap: 6 } },
+        React.createElement('button', { className: 'btn', onClick: () => { setOp(''); setVal(''); onClose() } }, t.cancel),
+        React.createElement('button', { className: 'btn accent', onClick: onClose }, t.save)
       )
     )
   }
