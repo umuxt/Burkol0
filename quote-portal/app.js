@@ -1,10 +1,16 @@
 // Burkol Quote SPA (React 18) + backend API
 // Hash routes: #/teklif and #/admin
 
+import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from './i18n/index.js'
+import API from './lib/api.js'
+import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from './lib/utils.js'
+import Field from './components/Field.js'
+import Modal from './components/Modal.js'
+
 ;(function () {
   const { useState, useEffect, useMemo, useRef } = React
 
-  // i18n (TR + EN baseline). UI strings, inputs accept all unicode.
+  // i18n moved to i18n.js
   const dict = {
     tr: {
       nav_quote: 'Teklif Ver',
@@ -49,12 +55,7 @@
       yes: 'Evet',
       no: 'Hayır',
       // Admin
-      a_filters: 'Filtreler',
-      a_filters_search: 'Arama',
-      a_search: 'Ara…',
-      a_phone_search: 'Telefon ile ara…',
       a_status: 'Durum',
-      a_all: 'Tümü',
       s_new: 'Yeni',
       s_review: 'İncelemede',
       s_feasible: 'Uygun',
@@ -250,12 +251,7 @@
       f_prod_upload: 'Product Images (max 5)',
       yes: 'Yes',
       no: 'No',
-      a_filters: 'Filters',
-      a_filters_search: 'Search',
-      a_search: 'Search…',
-      a_phone_search: 'Search by phone…',
       a_status: 'Status',
-      a_all: 'All',
       s_new: 'New',
       s_review: 'In Review',
       s_feasible: 'Feasible',
@@ -412,19 +408,7 @@
     },
   }
 
-  function procLabel(p, t) { return (t.opt_process && t.opt_process[p]) || p }
-  function materialLabel(m, t) { return (t.opt_material && t.opt_material[m]) || m }
-  function finishLabel(f, t) { return (t.opt_finish && t.opt_finish[f]) || f }
-  function tFor(lang) { return dict[lang] || dict.tr }
-  function statusLabel(s, t) {
-    if (s === 'new') return t.s_new
-    if (s === 'review') return t.s_review
-    if (s === 'feasible') return t.s_feasible
-    if (s === 'not') return t.s_not
-    if (s === 'quoted') return t.s_quoted
-    if (s === 'approved') return t.s_approved || 'Approved'
-    return String(s || '')
-  }
+  // label helpers moved to i18n.js
   function mapStatusKeys(obj, t) {
     const out = {}
     for (const [k, v] of Object.entries(obj || {})) out[statusLabel(k, t)] = v
@@ -436,188 +420,7 @@
     return out
   }
 
-  const initialLang = (localStorage.getItem('bk_lang') || 'tr')
-
-  function useI18n() {
-    const [lang, setLang] = useState(initialLang)
-    useEffect(() => {
-      localStorage.setItem('bk_lang', lang)
-      try { document.documentElement.setAttribute('lang', lang) } catch {}
-    }, [lang])
-    const t = useMemo(() => dict[lang] || dict.tr, [lang])
-    return { t, lang, setLang }
-  }
-
-  // LocalStorage fallback + Backend API helpers
-  const LS_KEY = 'bk_quotes_v1'
-  function lsLoad() {
-    try { const raw = localStorage.getItem(LS_KEY); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : [] } catch { return [] }
-  }
-  function lsSave(arr) { localStorage.setItem(LS_KEY, JSON.stringify(arr)) }
-  function lsAdd(q) { const arr = lsLoad(); arr.unshift(q); lsSave(arr) }
-  function lsUpdate(id, patch) { const arr = lsLoad().map(x => x.id === id ? { ...x, ...patch } : x); lsSave(arr) }
-  function lsDelete(id) { const arr = lsLoad().filter(x => x.id !== id); lsSave(arr) }
-
-  async function fetchWithTimeout(url, options={}, timeoutMs=4000) {
-    return await Promise.race([
-      fetch(url, options),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
-    ])
-  }
-  
-  // Backend API with graceful fallback to localStorage when unreachable
-  const API_BASE = (window.BURKOL_API || 'http://localhost:3001')
-  const API = {
-    async listQuotes() {
-      try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/quotes`)
-        if (!res.ok) throw new Error('list failed')
-        return await res.json()
-      } catch (e) {
-        return lsLoad()
-      }
-    },
-    async createQuote(payload) {
-      try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-        if (!res.ok) throw new Error('create failed')
-        return await res.json()
-      } catch (e) {
-        lsAdd(payload)
-        return { ok: true, id: payload.id, local: true }
-      }
-    },
-    async updateStatus(id, status) {
-      try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
-        if (!res.ok) throw new Error('update failed')
-        return await res.json()
-      } catch (e) {
-        lsUpdate(id, { status })
-        return { ok: true, local: true }
-      }
-    },
-    async updateQuote(id, patch) {
-      try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
-        if (!res.ok) throw new Error('update failed')
-        return await res.json()
-      } catch (e) {
-        lsUpdate(id, patch)
-        return { ok: true, local: true }
-      }
-    },
-    async remove(id) {
-      try {
-        const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'DELETE' })
-        if (!res.ok) throw new Error('delete failed')
-        return await res.json()
-      } catch (e) {
-        lsDelete(id)
-        return { ok: true, local: true }
-      }
-    },
-    downloadTxt(id, data) {
-      // Try backend; if fails, generate client-side from provided data
-      const url = `${API_BASE}/api/quotes/${id}/txt`
-      fetchWithTimeout(url, {}, 2500).then((res) => {
-        if (res && res.ok) {
-          const a = document.createElement('a')
-          a.href = url
-          a.download = `burkol_quote_${id}.txt`
-          document.body.appendChild(a); a.click(); a.remove()
-        } else { throw new Error('backend txt not ok') }
-      }).catch(() => {
-        const q = data || lsLoad().find(x => x.id === id)
-        if (!q) return
-        const lines = []
-        lines.push('Burkol Metal — Teklif Özeti')
-        lines.push(`Tarih: ${new Date(q.createdAt || Date.now()).toLocaleString()}`)
-        lines.push(`ID: ${q.id}`)
-        lines.push('')
-        lines.push('[Genel]')
-        try {
-          const lang = (localStorage.getItem('bk_lang') || 'tr')
-          const t = tFor(lang)
-          lines.push(`Durum: ${statusLabel(q.status, t)}`)
-        } catch {
-          lines.push(`Durum: ${q.status || ''}`)
-        }
-        lines.push(`Proje: ${q.proj || ''}`)
-        lines.push(`Süreç: ${(q.process || []).join(', ')}`)
-        lines.push(`Açıklama: ${q.desc || ''}`)
-        lines.push('')
-        lines.push('[Müşteri]')
-        lines.push(`Ad Soyad: ${q.name || ''}`)
-        lines.push(`Firma: ${q.company || ''}`)
-        lines.push(`E‑posta: ${q.email || ''}`)
-        lines.push(`Telefon: ${q.phone || ''}`)
-        lines.push(`Ülke/Şehir: ${(q.country || '')} / ${(q.city || '')}`)
-        lines.push('')
-        lines.push('[Teknik]')
-        lines.push(`Malzeme: ${q.material || ''}`)
-        lines.push(`Kalite/Alaşım: ${q.grade || ''}`)
-        lines.push(`Kalınlık: ${q.thickness || ''} mm`)
-        lines.push(`Adet: ${q.qty || ''}`)
-        lines.push(`Boyut: ${q.dims || ''}`)
-        lines.push(`Tolerans: ${q.tolerance || ''}`)
-        lines.push(`Yüzey: ${q.finish || ''}`)
-        lines.push(`Termin: ${q.due || ''}`)
-        lines.push(`Tekrarlılık: ${q.repeat || ''}`)
-        lines.push(`Bütçe: ${q.budget || ''}`)
-        if (q.status === 'approved' && q.due) {
-          const days = Math.ceil((new Date(q.due).getTime() - Date.now()) / (1000*60*60*24))
-          lines.push(`Termine Kalan (Gün): ${days}`)
-        }
-        lines.push(`Tahmini Fiyat: ₺ 16`)
-        lines.push(`Tahmini Üretim Süresi: 16`)
-        lines.push('')
-        const files = q.files || []
-        lines.push('[Dosyalar]')
-        if (!files.length) { lines.push('—') } else { files.forEach((f, i) => lines.push(`${i + 1}. ${f.name} (${Math.round((f.size || 0) / 1024)} KB)`)) }
-        lines.push('')
-        const pimgs = q.productImages || []
-        lines.push('[Ürün Görselleri]')
-        if (!pimgs.length) { lines.push('—') } else { pimgs.forEach((f, i) => lines.push(`${i + 1}. ${f.name} (${Math.round((f.size || 0) / 1024)} KB)`)) }
-        const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
-        const a = document.createElement('a'); const dl = URL.createObjectURL(blob)
-        a.href = dl; a.download = `burkol_quote_${id}.txt`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(dl)
-      })
-    }
-  }
-
-  function uid() { return 'q_' + Math.random().toString(36).slice(2) + Date.now().toString(36) }
-  function downloadDataUrl(name, dataUrl) {
-    try {
-      const a = document.createElement('a')
-      a.href = dataUrl; a.download = name || 'download'
-      document.body.appendChild(a); a.click(); a.remove()
-    } catch {}
-  }
-
-  // Allowed file types and size
-  const ACCEPT_EXT = ['pdf', 'png', 'jpg', 'jpeg', 'dxf', 'dwg', 'step', 'stp', 'iges', 'igs']
-  const MAX_FILES = 2
-  const MAX_FILE_MB = 1.5
-  const MAX_PRODUCT_FILES = 5
-
-  function extOf(name) {
-    const i = name.lastIndexOf('.')
-    return i >= 0 ? name.slice(i + 1).toLowerCase() : ''
-  }
-
-  function readFileAsDataUrl(file) {
-    return new Promise((resolve, reject) => {
-      const fr = new FileReader()
-      fr.onload = () => resolve(fr.result)
-      fr.onerror = reject
-      fr.readAsDataURL(file)
-    })
-  }
-  function isImageExt(extOrMime) {
-    const e = (extOrMime || '').toLowerCase()
-    return e.startsWith('image/') || ['png','jpg','jpeg'].includes(e)
-  }
+  // API and utils moved to modules (api.js, utils.js)
 
   // Simple Hash router
   function useHashRoute() {
@@ -659,14 +462,7 @@
     )
   }
 
-  function Field({ label, children, help, className, style }) {
-    const cls = ['card', className].filter(Boolean).join(' ')
-    return React.createElement('div', { className: cls, style },
-      React.createElement('label', null, label),
-      children,
-      help ? React.createElement('div', { className: 'help', style: { marginTop: 6 } }, help) : null
-    )
-  }
+  // Field moved to components/Field.js
 
   function QuoteForm({ t }) {
     const [submitting, setSubmitting] = useState(false)
@@ -1298,84 +1094,19 @@
 
   function Admin({ t }) {
     const [list, setList] = useState([])
-    const [q, setQ] = useState('')
-    const [phoneQ, setPhoneQ] = useState('')
-    const [statuses, setStatuses] = useState([]) // array of selected status keys
     const [detail, setDetail] = useState(null)
+    const [creating, setCreating] = useState(false)
     const [selected, setSelected] = useState(new Set())
-    const [filterOpen, setFilterOpen] = useState('') // one of: qty, thickness, due, days, price, lead, status
-    const [opDue, setOpDue] = useState('')
-    const [dueMode, setDueMode] = useState('') // '' | 'single' | 'range'
-    const [dueStart, setDueStart] = useState('')
-    const [dueEnd, setDueEnd] = useState('')
-    // Advanced filters
-    const [statusSel, setStatusSel] = useState('')
-    const [opQty, setOpQty] = useState('')
-    const [qtyVal, setQtyVal] = useState('')
-    const [opThk, setOpThk] = useState('')
-    const [thkVal, setThkVal] = useState('')
-    const [opDays, setOpDays] = useState('')
-    const [daysVal, setDaysVal] = useState('')
-    const [opPrice, setOpPrice] = useState('')
-    const [priceVal, setPriceVal] = useState('')
-    const [opLead, setOpLead] = useState('')
-    const [leadVal, setLeadVal] = useState('')
 
     useEffect(() => { refresh() }, [])
     async function refresh() {
       try { setList(await API.listQuotes()) } catch (e) { console.error(e) }
     }
 
-    function blobForSearch(it) {
-      const arr = []
-      arr.push(it.id, it.createdAt, it.status)
-      arr.push(it.name, it.company, it.email, it.phone, it.country, it.city)
-      arr.push(it.proj, it.material, it.grade, it.thickness, it.qty, it.dims, it.tolerance, it.finish, it.due, it.repeat, it.budget)
-      arr.push(it.address, it.drawing, it.productPics, it.desc)
-      ;(it.process||[]).forEach(v=>arr.push(v))
-      ;(it.files||[]).forEach(f=>arr.push(f.name))
-      ;(it.productImages||[]).forEach(f=>arr.push(f.name))
-      return arr.filter(Boolean).join(' ').toLowerCase()
-    }
-    function cmp(op, a, b) {
-      if (!op || b === '' || b === null || b === undefined) return true
-      const na = Number(a), nb = Number(b)
-      if (isNaN(na) || isNaN(nb)) return false
-      if (op === '<') return na < nb
-      if (op === '<=') return na <= nb
-      if (op === '=') return na === nb
-      if (op === '>=') return na >= nb
-      if (op === '>') return na > nb
-      return true
-    }
     const filtered = useMemo(() => {
-      const ql = (q || '').toLowerCase()
-      return list.filter((it) => {
-        const matchStatus = statuses.length === 0 || statuses.includes(it.status)
-        const text = blobForSearch(it)
-        const matchQ = !ql || text.includes(ql)
-        const norm = (s) => String(s||'').replace(/\D/g, '')
-        const matchPhone = !phoneQ || norm(it.phone).includes(norm(phoneQ))
-        // Derived fields
-        const daysToDue = (it.status === 'approved' && it.due) ? Math.ceil((new Date(it.due).getTime() - Date.now()) / (1000*60*60*24)) : null
-        const dueTs = it.due ? new Date(it.due).setHours(0,0,0,0) : NaN
-        const startTs = dueStart ? new Date(dueStart).setHours(0,0,0,0) : NaN
-        const endTs = dueEnd ? new Date(dueEnd).setHours(0,0,0,0) : NaN
-        const estPrice = 16
-        const estLead = 16
-        // Advanced field filters
-        const matchStatusSel = !statusSel || it.status === statusSel
-        const matchQty = cmp(opQty, it.qty, qtyVal)
-        const matchThk = cmp(opThk, it.thickness, thkVal)
-        let matchDue = true
-        if (dueMode === 'single' && opDue && !isNaN(startTs)) matchDue = cmp(opDue, dueTs, startTs)
-        if (dueMode === 'range' && !isNaN(startTs) && !isNaN(endTs)) matchDue = (dueTs >= startTs && dueTs <= endTs)
-        const matchDays = cmp(opDays, daysToDue ?? NaN, daysVal)
-        const matchPrice = cmp(opPrice, estPrice, priceVal)
-        const matchLead = cmp(opLead, estLead, leadVal)
-        return matchStatus && matchQ && matchPhone && matchStatusSel && matchQty && matchThk && matchDue && matchDays && matchPrice && matchLead
-      })
-    }, [list, q, phoneQ, statuses, statusSel, opQty, qtyVal, opThk, thkVal, opDue, dueMode, dueStart, dueEnd, opDays, daysVal, opPrice, priceVal, opLead, leadVal])
+      // Filters removed: always show full list
+      return list
+    }, [list])
 
     async function setItemStatus(id, st) { await API.updateStatus(id, st); refresh() }
     async function remove(id) { await API.remove(id); refresh() }
@@ -1536,19 +1267,14 @@
           ),
         )
       ),
-      React.createElement('div', { className: 'card filters-card' },
-        React.createElement('label', null, t.a_filters_search),
-        React.createElement('div', { className: 'row wrap', style: { gap: 8, marginTop: 6 } },
-          React.createElement('input', { placeholder: t.a_search, value: q, onChange: (e) => setQ(e.target.value), style: { flex: 1, padding: '8px 10px', fontSize: 12 } }),
-          React.createElement('input', { placeholder: t.a_phone_search, value: phoneQ, onChange: (e) => setPhoneQ(e.target.value), style: { width: 260, padding: '8px 10px', fontSize: 12 } })
-        )
-      ),
+      // Filters removed
 
       React.createElement('div', { className: 'card', style: { marginTop: 16 } },
         React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center' } },
           React.createElement('label', null, t.a_list),
           React.createElement('div', { className: 'row', style: { gap: 6 } },
             React.createElement('button', { className: 'btn', onClick: () => refresh(), title: t.tt_refresh, style: { padding: '6px 10px', fontSize: 12 } }, t.refresh),
+            React.createElement('button', { className: 'btn', onClick: () => setCreating(true), title: t.a_add, style: { padding: '6px 10px', fontSize: 12 } }, t.a_add),
             React.createElement('button', { className: 'btn danger', onClick: bulkDelete, title: t.tt_delete, disabled: selected.size === 0, style: { padding: '6px 10px', fontSize: 12 } }, t.a_delete),
             React.createElement('button', { className: 'btn', onClick: exportCSV, title: t.tt_export_csv, style: { padding: '6px 10px', fontSize: 12 } }, t.a_export_csv)
           )
@@ -1575,36 +1301,7 @@
                   React.createElement('th', null, t.a_status),
                   React.createElement('th', null, t.th_actions),
                 ),
-                React.createElement('tr', null,
-                  React.createElement('th', null),
-                  React.createElement('th', null),
-                  React.createElement('th', null),
-                  React.createElement('th', null),
-                  React.createElement('th', null),
-                  React.createElement('th', null),
-                  React.createElement('th', { style: { textAlign: 'center' } },
-                    React.createElement('button', { className: 'filter-btn ' + ((opQty && String(qtyVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'qty' ? '' : 'qty') }, ((opQty && String(qtyVal).length) ? '●' : '○'))
-                  ),
-                  React.createElement('th', { style: { textAlign: 'center' } },
-                    React.createElement('button', { className: 'filter-btn ' + ((opThk && String(thkVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'thickness' ? '' : 'thickness') }, ((opThk && String(thkVal).length) ? '●' : '○'))
-                  ),
-                  React.createElement('th', { style: { textAlign: 'center' } },
-                    React.createElement('button', { className: 'filter-btn ' + ((dueMode && (dueStart || dueEnd)) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'due' ? '' : 'due') }, ((dueMode && (dueStart || dueEnd)) ? '●' : '○'))
-                  ),
-                  React.createElement('th', { style: { textAlign: 'center' } },
-                    React.createElement('button', { className: 'filter-btn ' + ((opDays && String(daysVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'days' ? '' : 'days') }, ((opDays && String(daysVal).length) ? '●' : '○'))
-                  ),
-                  React.createElement('th', { style: { textAlign: 'center' } },
-                    React.createElement('button', { className: 'filter-btn ' + ((opPrice && String(priceVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'price' ? '' : 'price') }, ((opPrice && String(priceVal).length) ? '●' : '○'))
-                  ),
-                  React.createElement('th', { style: { textAlign: 'center' } },
-                    React.createElement('button', { className: 'filter-btn ' + ((opLead && String(leadVal).length) ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'lead' ? '' : 'lead') }, ((opLead && String(leadVal).length) ? '●' : '○'))
-                  ),
-                  React.createElement('th', { style: { textAlign: 'center' } },
-                    React.createElement('button', { className: 'filter-btn ' + (statusSel ? 'active' : ''), onClick: () => setFilterOpen(filterOpen === 'status' ? '' : 'status') }, (statusSel ? '●' : '○'))
-                  ),
-                  React.createElement('th', null)
-                )
+                // Filter row removed
               ),
               React.createElement('tbody', null,
                 filtered.map((it) => (
@@ -1660,78 +1357,10 @@
           )
         )
       ),
-      filterOpen ? React.createElement('div', { style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80 }, onClick: () => setFilterOpen('') },
-        React.createElement('div', { className: 'card', style: { minWidth: 280, maxWidth: '90vw' }, onClick: (e) => e.stopPropagation() },
-          React.createElement('div', { className: 'row', style: { justifyContent: 'space-between' } },
-            React.createElement('strong', null, (filterOpen === 'qty' ? t.th_qty : filterOpen === 'thickness' ? t.th_thickness : filterOpen === 'days' ? t.th_days_to_due : filterOpen === 'price' ? t.th_est_price : filterOpen === 'lead' ? t.th_est_lead : t.a_status)),
-            React.createElement('button', { className: 'btn', onClick: () => setFilterOpen('') }, '×')
-          ),
-          (filterOpen === 'status') ? (
-            React.createElement('div', { className: 'grid', style: { gap: 8, marginTop: 8 } },
-              React.createElement('select', { value: statusSel, onChange: (e) => setStatusSel(e.target.value) },
-                React.createElement('option', { value: '' }, t.a_all),
-                React.createElement('option', { value: 'new' }, t.s_new),
-                React.createElement('option', { value: 'review' }, t.s_review),
-                React.createElement('option', { value: 'feasible' }, t.s_feasible),
-                React.createElement('option', { value: 'not' }, t.s_not),
-                React.createElement('option', { value: 'quoted' }, t.s_quoted),
-                React.createElement('option', { value: 'approved' }, t.s_approved)
-              ),
-              React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', gap: 6 } },
-                React.createElement('button', { className: 'btn', onClick: () => { setStatusSel(''); setFilterOpen('') } }, t.cancel),
-                React.createElement('button', { className: 'btn accent', onClick: () => setFilterOpen('') }, t.save)
-              )
-            )
-          ) : (filterOpen === 'due') ? (
-            React.createElement('div', { className: 'grid', style: { gap: 8, marginTop: 8 } },
-              React.createElement('div', { className: 'row', style: { gap: 8 } },
-                React.createElement('label', { className: 'chip' },
-                  React.createElement('input', { type: 'radio', name: 'dueMode', checked: dueMode === 'single', onChange: () => setDueMode('single') }),
-                  React.createElement('span', null, 'Tek tarih')
-                ),
-                React.createElement('label', { className: 'chip' },
-                  React.createElement('input', { type: 'radio', name: 'dueMode', checked: dueMode === 'range', onChange: () => setDueMode('range') }),
-                  React.createElement('span', null, 'Tarih aralığı')
-                )
-              ),
-              (dueMode === 'range') ? (
-                React.createElement('div', { className: 'row', style: { gap: 8 } },
-                  React.createElement('input', { type: 'date', value: dueStart, onChange: (e) => setDueStart(e.target.value) }),
-                  React.createElement('span', null, '—'),
-                  React.createElement('input', { type: 'date', value: dueEnd, onChange: (e) => setDueEnd(e.target.value) })
-                )
-              ) : (
-                React.createElement('div', { className: 'row', style: { gap: 8 } },
-                  React.createElement('select', { value: opDue, onChange: (e) => setOpDue(e.target.value), style: { width: 100 } },
-                    React.createElement('option', { value: '' }, '—'),
-                    ['<','<=','=','>=','>'].map(o => React.createElement('option', { key: o, value: o }, o))
-                  ),
-                  React.createElement('input', { type: 'date', value: dueStart, onChange: (e) => setDueStart(e.target.value) })
-                )
-              ),
-              React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', gap: 6 } },
-                React.createElement('button', { className: 'btn', onClick: () => { setOpDue(''); setDueMode(''); setDueStart(''); setDueEnd(''); setFilterOpen('') } }, t.cancel),
-                React.createElement('button', { className: 'btn accent', onClick: () => setFilterOpen('') }, t.save)
-              )
-            )
-          ) : (
-            React.createElement(NumericFilter, {
-              t,
-              op: (filterOpen === 'qty' ? opQty : filterOpen === 'thickness' ? opThk : filterOpen === 'days' ? opDays : filterOpen === 'price' ? opPrice : opLead),
-              setOp: (v) => {
-                if (filterOpen === 'qty') setOpQty(v); else if (filterOpen === 'thickness') setOpThk(v); else if (filterOpen === 'days') setOpDays(v); else if (filterOpen === 'price') setOpPrice(v); else setOpLead(v)
-              },
-              val: (filterOpen === 'qty' ? qtyVal : filterOpen === 'thickness' ? thkVal : filterOpen === 'days' ? daysVal : filterOpen === 'price' ? priceVal : leadVal),
-              setVal: (v) => {
-                if (filterOpen === 'qty') setQtyVal(v); else if (filterOpen === 'thickness') setThkVal(v); else if (filterOpen === 'days') setDaysVal(v); else if (filterOpen === 'price') setPriceVal(v); else setLeadVal(v)
-              },
-              onClose: () => setFilterOpen('')
-            })
-          )
-        )
-      ) : null,
+      // Filter overlay removed
 
-      detail ? React.createElement(DetailModal, { item: detail, onClose: () => setDetail(null), setItemStatus, onSaved: refresh, t }) : null
+      detail ? React.createElement(DetailModal, { item: detail, onClose: () => setDetail(null), setItemStatus, onSaved: refresh, t }) : null,
+      creating ? React.createElement(DetailModal, { item: {}, isNew: true, onClose: () => setCreating(false), onSaved: () => { setCreating(false); refresh() }, t }) : null
     )
   }
 
@@ -1760,14 +1389,14 @@
     )
   }
 
-  function DetailModal({ item, onClose, setItemStatus, onSaved, t }) {
-    const [currStatus, setCurrStatus] = React.useState(item.status)
-    const [editing, setEditing] = React.useState(false)
+  function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew }) {
+    const [currStatus, setCurrStatus] = React.useState(item.status || 'new')
+    const [editing, setEditing] = React.useState(!!isNew)
     const [form, setForm] = React.useState({})
     const [techFiles, setTechFiles] = React.useState(item.files || [])
     const [prodImgs, setProdImgs] = React.useState(item.productImages || [])
     React.useEffect(() => {
-      setCurrStatus(item.status)
+      setCurrStatus(item.status || 'new')
       setForm({
         name: item.name || '', company: item.company || '', email: item.email || '', phone: item.phone || '', country: item.country || '', city: item.city || '',
         proj: item.proj || '', process: (item.process || []).join(', '), material: item.material || '', grade: item.grade || '', thickness: item.thickness || '', qty: item.qty || '', dims: item.dims || '', tolerance: item.tolerance || '', finish: item.finish || '', due: item.due || '', repeat: item.repeat || '', budget: item.budget || '', address: item.address || '', drawing: item.drawing || 'no', productPics: item.productPics || 'no', desc: item.desc || '',
@@ -1803,15 +1432,29 @@
       setProdImgs((p) => p.concat(parsed).slice(0, MAX_PRODUCT_FILES))
     }
     async function onSave() {
-      const patch = {
-        status: currStatus,
-        name: form.name, company: form.company, email: form.email, phone: form.phone, country: form.country, city: form.city,
-        proj: form.proj, process: form.process.split(',').map(s=>s.trim()).filter(Boolean), material: form.material, grade: form.grade,
-        thickness: form.thickness, qty: form.qty, dims: form.dims, tolerance: form.tolerance, finish: form.finish, due: form.due,
-        repeat: form.repeat, budget: form.budget, address: form.address, drawing: form.drawing, productPics: form.productPics, desc: form.desc,
-        files: techFiles, productImages: prodImgs,
+      if (isNew) {
+        const payload = {
+          id: uid(),
+          createdAt: new Date().toISOString(),
+          status: currStatus,
+          name: form.name, company: form.company, email: form.email, phone: form.phone, country: form.country, city: form.city,
+          proj: form.proj, process: form.process.split(',').map(s=>s.trim()).filter(Boolean), material: form.material, grade: form.grade,
+          thickness: form.thickness, qty: form.qty, dims: form.dims, tolerance: form.tolerance, finish: form.finish, due: form.due,
+          repeat: form.repeat, budget: form.budget, address: form.address, drawing: form.drawing, productPics: form.productPics, desc: form.desc,
+          files: techFiles, productImages: prodImgs,
+        }
+        await API.createQuote(payload)
+      } else {
+        const patch = {
+          status: currStatus,
+          name: form.name, company: form.company, email: form.email, phone: form.phone, country: form.country, city: form.city,
+          proj: form.proj, process: form.process.split(',').map(s=>s.trim()).filter(Boolean), material: form.material, grade: form.grade,
+          thickness: form.thickness, qty: form.qty, dims: form.dims, tolerance: form.tolerance, finish: form.finish, due: form.due,
+          repeat: form.repeat, budget: form.budget, address: form.address, drawing: form.drawing, productPics: form.productPics, desc: form.desc,
+          files: techFiles, productImages: prodImgs,
+        }
+        await API.updateQuote(item.id, patch)
       }
-      await API.updateQuote(item.id, patch)
       setEditing(false)
       try { if (typeof onSaved === 'function') await onSaved() } catch {}
       onClose()
@@ -1822,15 +1465,15 @@
       React.createElement('div', { className: 'card', style: { width: 'min(680px, 96vw)', maxHeight: '85vh', overflowY: 'auto', position: 'relative', padding: 12, fontSize: 13 }, onClick: (e) => e.stopPropagation() },
         React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, position: 'sticky', top: 0, zIndex: 5, background: 'linear-gradient(180deg, #0f1e2c, #0c1924)', padding: '8px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)' } },
           React.createElement('h3', { style: { margin: 0, fontSize: 16 } }, t.a_detail),
-          React.createElement('div', { className: 'row' },
-            !editing ? React.createElement('button', { className: 'btn', onClick: () => setEditing(true) }, t.edit) : React.createElement(React.Fragment, null,
+        React.createElement('div', { className: 'row' },
+            (!editing && !isNew) ? React.createElement('button', { className: 'btn', onClick: () => setEditing(true) }, t.edit) : React.createElement(React.Fragment, null,
               React.createElement('button', { className: 'btn accent', onClick: onSave }, t.save),
               React.createElement('button', { className: 'btn', onClick: () => setEditing(false) }, t.cancel)
             ),
             React.createElement('button', { className: 'btn', onClick: onClose, title: t.tt_close }, '×')
           )
         ),
-        !editing ? React.createElement('div', { className: 'grid two', style: { gap: 8 } },
+        (!editing && !isNew) ? React.createElement('div', { className: 'grid two', style: { gap: 8 } },
           info('ID', item.id), info(t.th_date, (item.createdAt||'').replace('T',' ').slice(0,16)), info(t.a_status, statusLabel(currStatus, t)), info(t.f_name, item.name),
           info(t.f_company, item.company), info(t.f_email, item.email), info(t.f_phone, item.phone), info(t.f_country + '/' + t.f_city, `${item.country} / ${item.city}`),
           info(t.f_proj, item.proj), info(t.f_process, (item.process||[]).join(', ')), info(t.f_material, item.material), info(t.f_grade, item.grade),
@@ -1936,36 +1579,9 @@
     }
   }
 
-  // Simple modal
-  function Modal({ title, children, onClose }) {
-    const { t } = useI18n()
-    return React.createElement('div', { style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 } },
-      React.createElement('div', { className: 'card', style: { width: 'min(420px, 96vw)' } },
-        React.createElement('div', { className: 'row', style: { justifyContent: 'space-between' } },
-          React.createElement('h3', null, title || t.info),
-          React.createElement('button', { className: 'btn', onClick: onClose }, t.a_close)
-        ),
-        React.createElement('div', null, children)
-      )
-    )
-  }
+  // Modal moved to components/Modal.js
 
-  function NumericFilter({ t, op, setOp, val, setVal, onClose }) {
-    const ops = ['<','<=','=','>=','>']
-    return React.createElement('div', { className: 'grid', style: { gap: 8, marginTop: 8 } },
-      React.createElement('div', { className: 'row', style: { gap: 8 } },
-        React.createElement('select', { value: op, onChange: (e) => setOp(e.target.value), style: { width: 100 } },
-          React.createElement('option', { value: '' }, '—'),
-          ops.map(o => React.createElement('option', { key: o, value: o }, o))
-        ),
-        React.createElement('input', { type: 'number', value: val, onChange: (e) => setVal(e.target.value), placeholder: '0' })
-      ),
-      React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', gap: 6 } },
-        React.createElement('button', { className: 'btn', onClick: () => { setOp(''); setVal(''); onClose() } }, t.cancel),
-        React.createElement('button', { className: 'btn accent', onClick: onClose }, t.save)
-      )
-    )
-  }
+  // NumericFilter removed (unused)
 
   function App() {
     const route = useHashRoute()

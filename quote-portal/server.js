@@ -1,10 +1,9 @@
 // Minimal Express backend for Burkol Quote Portal
-// - Stores quotes in a JSON file
-// - Generates simple PDF per quote
+// - In-memory storage for quotes
+// - TXT export endpoint
 
 const express = require('express')
 const path = require('path')
-const PDFDocument = require('pdfkit')
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -62,73 +61,6 @@ app.delete('/api/quotes/:id', (req, res) => {
   return res.json({ ok: true })
 })
 
-// Simple PDF generation
-app.get('/api/quotes/:id/pdf', (req, res) => {
-  const { id } = req.params
-  const list = readAll()
-  const q = list.find((x) => x.id === id)
-  if (!q) return res.status(404).send('Not found')
-
-  res.setHeader('Content-Type', 'application/pdf')
-  res.setHeader('Content-Disposition', `attachment; filename="burkol_quote_${id}.pdf"`)
-
-  const doc = new PDFDocument({ size: 'A4', margin: 50 })
-  doc.pipe(res)
-
-  doc.fontSize(18).text('Burkol Metal — Teklif Özeti', { align: 'left' })
-  doc.moveDown(0.5)
-  doc.fontSize(10).fillColor('#666').text(new Date(q.createdAt || Date.now()).toLocaleString())
-  doc.moveDown()
-
-  const sections = [
-    ['Genel', [
-      ['Durum', q.status],
-      ['Proje', q.proj],
-      ['Süreç', (q.process || []).join(', ')],
-      ['Açıklama', q.desc]
-    ]],
-    ['Müşteri', [
-      ['Ad Soyad', q.name],
-      ['Firma', q.company],
-      ['E‑posta', q.email],
-      ['Telefon', q.phone],
-      ['Ülke/Şehir', `${q.country || ''} / ${q.city || ''}`]
-    ]],
-    ['Teknik', [
-      ['Malzeme', q.material],
-      ['Kalite/Alaşım', q.grade],
-      ['Kalınlık', `${q.thickness} mm`],
-      ['Adet', `${q.qty}`],
-      ['Boyut', q.dims],
-      ['Tolerans', q.tolerance],
-      ['Yüzey', q.finish],
-      ['Termin', q.due],
-      ['Tekrarlılık', q.repeat],
-      ['Bütçe', q.budget]
-    ]]
-  ]
-
-  sections.forEach(([title, rows]) => {
-    doc.fillColor('#000').fontSize(12).text(title, { underline: true })
-    doc.moveDown(0.3)
-    rows.forEach(([k, v]) => {
-      doc.fontSize(10).fillColor('#111').text(`${k}: `, { continued: true })
-      doc.fillColor('#333').text(String(v || '—'))
-    })
-    doc.moveDown(0.6)
-  })
-
-  const files = q.files || []
-  if (files.length) {
-    doc.fillColor('#000').fontSize(12).text('Dosyalar', { underline: true })
-    doc.moveDown(0.3)
-    files.forEach((f) => {
-      doc.fontSize(10).fillColor('#333').text(`${f.name} (${Math.round((f.size||0)/1024)} KB)`) 
-    })
-  }
-
-  doc.end()
-})
 
 // Plain text export
 app.get('/api/quotes/:id/txt', (req, res) => {
