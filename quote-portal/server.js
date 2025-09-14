@@ -77,13 +77,23 @@ function createUser(email, password, role = 'admin') {
   jsondb.upsertUser({ email, pw_salt: salt, pw_hash: hash, role, createdAt: new Date().toISOString() })
 }
 function verifyUser(email, password) {
+  console.log('Debug - Login attempt:', { email, password: password.length + ' chars' })
   const rowRaw = jsondb.getUser(email)
+  console.log('Debug - User from DB:', rowRaw ? 'found' : 'not found')
   const row = rowRaw ? { email: rowRaw.email, salt: rowRaw.pw_salt, hash: rowRaw.pw_hash, role: rowRaw.role } : null
-  if (!row) return null
+  if (!row) {
+    console.log('Debug - No user found for email:', email)
+    return null
+  }
   const { hash } = hashPassword(password, row.salt)
+  console.log('Debug - Generated hash length:', hash.length)
+  console.log('Debug - Stored hash length:', row.hash.length)
+  console.log('Debug - Hashes match:', hash === row.hash)
   if (crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(row.hash))) {
+    console.log('Debug - Login successful')
     return { email: row.email, role: row.role }
   }
+  console.log('Debug - Login failed - password mismatch')
   return null
 }
 function newToken() { return crypto.randomBytes(32).toString('base64url') }
@@ -413,4 +423,20 @@ app.delete('/api/auth/users/:email', requireAuth, async (req, res) => {
   }
 })
 
-app.listen(PORT, () => console.log(`Burkol Quote server on http://localhost:${PORT}`))
+app.listen(PORT, () => {
+  console.log(`Burkol Quote server on http://localhost:${PORT}`)
+  
+  // Test: Create user if it doesn't exist
+  const testUser = jsondb.getUser('umutyalcin8@gmail.com')
+  if (!testUser) {
+    console.log('Creating test user...')
+    createUser('umutyalcin8@gmail.com', 'burkol123', 'admin')
+    console.log('Test user created: umutyalcin8@gmail.com / burkol123')
+  } else {
+    console.log('Test user already exists: umutyalcin8@gmail.com')
+    // Let's recreate to ensure password is correct
+    console.log('Recreating user with fresh password hash...')
+    createUser('umutyalcin8@gmail.com', 'burkol123', 'admin')
+    console.log('User recreated with password: burkol123')
+  }
+})

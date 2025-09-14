@@ -680,7 +680,7 @@ import Modal from './components/Modal.js'
     )
   }
 
-  function Admin({ t }) {
+  function Admin({ t, onLogout }) {
     const [list, setList] = useState([])
     const [detail, setDetail] = useState(null)
     const [creating, setCreating] = useState(false)
@@ -689,6 +689,17 @@ import Modal from './components/Modal.js'
     useEffect(() => { refresh() }, [])
     async function refresh() {
       try { setList(await API.listQuotes()) } catch (e) { console.error(e) }
+    }
+
+    async function handleLogout() {
+      try {
+        await API.logout()
+        onLogout()
+      } catch (e) {
+        console.error('Logout error:', e)
+        // Even if logout fails on server, clear local session
+        onLogout()
+      }
     }
 
     const filtered = useMemo(() => {
@@ -842,8 +853,24 @@ import Modal from './components/Modal.js'
     }
 
     return React.createElement('div', { className: 'container' },
-      React.createElement('h1', { className: 'page-title' }, t.title_admin),
-      React.createElement('p', { className: 'page-sub' }, t.sub_admin),
+      React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
+        React.createElement('div', null,
+          React.createElement('h1', { className: 'page-title', style: { margin: 0 } }, t.title_admin),
+          React.createElement('p', { className: 'page-sub', style: { margin: 0 } }, t.sub_admin)
+        ),
+        React.createElement('button', { 
+          onClick: handleLogout, 
+          className: 'btn', 
+          style: { 
+            backgroundColor: '#ff3b30', 
+            color: 'white', 
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: '6px',
+            cursor: 'pointer'
+          } 
+        }, t.logout_btn || 'Çıkış Yap')
+      ),
       // Default multi-charts (unfiltered)
       React.createElement('div', { className: 'card', style: { marginBottom: 12 } },
         React.createElement('label', null, t.a_charts),
@@ -1211,11 +1238,15 @@ import Modal from './components/Modal.js'
       setLoggedIn(true)
     }
 
+    function handleLogout() {
+      setLoggedIn(false)
+    }
+
     return (
       React.createElement(React.Fragment, null,
         React.createElement(Nav, { onLang: setLang, lang, t }),
         PAGE === 'admin'
-          ? (loggedIn ? React.createElement(Admin, { t }) : React.createElement(AdminGate, { onLogin: handleLogin, t }))
+          ? (loggedIn ? React.createElement(Admin, { t, onLogout: handleLogout }) : React.createElement(AdminGate, { onLogin: handleLogin, t }))
           : React.createElement(QuoteForm, { t })
       )
     )

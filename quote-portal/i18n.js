@@ -191,7 +191,8 @@ export const dict = {
     add_prod_image: 'Ürün Görseli Ekle',
     // Login
     remember_me: 'Beni hatırla',
-    login_btn: 'Giriş Yap'
+    login_btn: 'Giriş Yap',
+    logout_btn: 'Çıkış Yap'
   },
   en: {
     nav_quote: 'Request Quote',
@@ -380,7 +381,8 @@ export const dict = {
     add_prod_image: 'Add Product Image(s)',
     // Login
     remember_me: 'Remember me',
-    login_btn: 'Login'
+    login_btn: 'Login',
+    logout_btn: 'Logout'
   },
 }
 

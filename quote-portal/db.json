@@ -3,11 +3,18 @@
   "users": {
     "umutyalcin8@gmail.com": {
       "email": "umutyalcin8@gmail.com",
-      "pw_salt": "bVaLDCk7wdLiCeI91ps2wA==",
-      "pw_hash": "JmJE94JcHAd6KMeYrEMVLGk7gm07JsyjJRS9Mvg/dMmivmwjZiDaTy1J13ljCvEIfPlAOcCWUj9LT4IqZpyKPQ==",
+      "pw_salt": "IzQQ9bXRJSVW4ws6aMWrKg==",
+      "pw_hash": "sXSRX7o5vc4E+tBHyUT4qLgxoo44rTa/7Ya3QDWIxtOL5EIpPzyhoaDUeEYFjpwW+Edcc4FtEyfAkW7f3tuKtA==",
       "role": "admin",
-      "createdAt": "2025-09-14T14:27:06.052Z"
+      "createdAt": "2025-09-14T20:32:31.855Z"
     }
   },
-  "sessions": {}
+  "sessions": {
+    "92SapmremSuJE-pSH81DTOZkVdX4TVfqxUqWET6C3eQ": {
+      "token": "92SapmremSuJE-pSH81DTOZkVdX4TVfqxUqWET6C3eQ",
+      "email": "umutyalcin8@gmail.com",
+      "createdAt": "2025-09-14T20:33:11.097Z",
+      "expiresAt": "2025-10-14T20:33:11.097Z"
+    }
+  }
 }
