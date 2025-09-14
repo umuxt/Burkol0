@@ -1088,24 +1088,38 @@ import Modal from './components/Modal.js'
           )
         ),
         
-        // Results Info
-        React.createElement('div', { 
-          style: { 
-            padding: '8px 12px', 
-            backgroundColor: '#e3f2fd', 
-            borderRadius: '4px', 
-            margin: '12px 0 8px 0',
-            fontSize: '14px',
-            color: '#1565c0'
-          } 
-        }, 
-          `${filtered.length} kayıt gösteriliyor` + 
-          (filtered.length !== list.length ? ` (toplam ${list.length} kayıttan filtrelendi)` : '')
-        ),
+        // Results Info - only show when filtering/searching
+        (() => {
+          const hasActiveFilters = globalSearch.trim() !== '' || 
+                                   fieldSearch.trim() !== '' ||
+                                   filters.status !== '' ||
+                                   filters.material !== '' ||
+                                   filters.process.length > 0 ||
+                                   filters.dateRange.start !== '' ||
+                                   filters.dateRange.end !== '' ||
+                                   filters.quantityRange.min !== '' ||
+                                   filters.quantityRange.max !== ''
+          
+          if (!hasActiveFilters) return null
+          
+          return React.createElement('div', { 
+            style: { 
+              padding: '8px 12px', 
+              backgroundColor: '#e3f2fd', 
+              borderRadius: '4px', 
+              margin: '12px 0 8px 0',
+              fontSize: '14px',
+              color: '#1565c0'
+            } 
+          }, 
+            `${filtered.length} kayıt gösteriliyor` + 
+            (filtered.length !== list.length ? ` (toplam ${list.length} kayıttan filtrelendi)` : '')
+          )
+        })(),
         
         filtered.length === 0 ? React.createElement('div', { className: 'notice' }, `${t.a_none} ${list.length > 0 ? '(filtrelenmiş)' : ''}`) : (
-          React.createElement('div', { style: { overflowX: 'auto' } },
-            React.createElement('table', { className: 'table' },
+          React.createElement('div', { style: { overflowX: 'auto', width: '100%' } },
+            React.createElement('table', { className: 'table', style: { minWidth: '1200px' } },
               React.createElement('thead', null,
                 React.createElement('tr', null,
                   React.createElement('th', null,
@@ -1115,9 +1129,7 @@ import Modal from './components/Modal.js'
                   React.createElement('th', null, t.th_customer),
                   React.createElement('th', null, t.th_project),
                   React.createElement('th', null, t.th_material),
-                  React.createElement('th', null, t.th_process),
                   React.createElement('th', null, t.th_qty),
-                  React.createElement('th', null, t.th_thickness),
                   React.createElement('th', null, t.th_due),
                   React.createElement('th', null, t.th_days_to_due),
                   React.createElement('th', null, t.th_est_price),
@@ -1132,20 +1144,18 @@ import Modal from './components/Modal.js'
                   React.createElement('tr', { 
                     key: it.id,
                     style: {
-                      backgroundColor: index % 2 === 1 ? '#596F80' : 'transparent',
-                      color: index % 2 === 1 ? 'white' : 'inherit'
-                    }
+                      cursor: 'pointer'
+                    },
+                    onClick: () => setDetailItem(it)
                   },
                     React.createElement('td', null,
                       React.createElement('input', { type: 'checkbox', checked: selected.has(it.id), onChange: (e) => toggleOne(it.id, e.target.checked) })
                     ),
-                    React.createElement('td', null, (it.createdAt||'').replace('T',' ').slice(0,16)),
-                    React.createElement('td', null, (it.name || '') + (it.company ? ' — ' + it.company : '')),
-                    React.createElement('td', null, it.proj || ''),
+                    React.createElement('td', { style: { whiteSpace: 'nowrap' } }, (it.createdAt||'').slice(0,10)),
+                    React.createElement('td', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' } }, (it.name || '') + (it.company ? ' — ' + it.company : '')),
+                    React.createElement('td', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' } }, (it.proj || '').length > 15 ? (it.proj || '').substring(0, 15) + '...' : (it.proj || '')),
                     React.createElement('td', null, it.material || ''),
-                    React.createElement('td', null, (it.process||[]).join(', ')),
                     React.createElement('td', null, String(it.qty ?? '')),
-                    React.createElement('td', null, String(it.thickness ?? '')),
                     React.createElement('td', null, it.due || ''),
                     React.createElement('td', null, (() => {
                       if (!(it.status === 'approved' && it.due)) return ''
@@ -1170,6 +1180,7 @@ import Modal from './components/Modal.js'
                             color: 'white',
                             border: 'none',
                             fontSize: '12px',
+                            height: '28px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -1182,7 +1193,7 @@ import Modal from './components/Modal.js'
                             value: it.status,
                             onChange: (e) => { e.stopPropagation(); setItemStatus(it.id, e.target.value) },
                             className: 'btn',
-                            style: { padding: '4px 6px', borderRadius: 6, fontSize: '11px' },
+                            style: { padding: '4px 6px', borderRadius: 6, fontSize: '11px', height: '28px' },
                             title: t.tt_change_status
                           },
                             React.createElement('option', { value: 'new' }, t.s_new),
@@ -1199,14 +1210,14 @@ import Modal from './components/Modal.js'
                           className: 'btn', 
                           onClick: (e) => { e.stopPropagation(); API.downloadTxt(it.id, it) }, 
                           title: t.tt_download_txt,
-                          style: { padding: '4px 6px', fontSize: '11px', borderRadius: '4px' }
+                          style: { padding: '4px 6px', fontSize: '11px', borderRadius: '4px', height: '28px' }
                         }, 'TXT'),
                         React.createElement('button', { 
                           type: 'button', 
                           className: 'btn danger', 
                           onClick: (e) => { e.stopPropagation(); if (confirm(t.confirm_delete)) remove(it.id) }, 
                           title: t.tt_delete,
-                          style: { padding: '4px 6px', fontSize: '11px', borderRadius: '4px' }
+                          style: { padding: '4px 6px', fontSize: '11px', borderRadius: '4px', height: '28px' }
                         }, t.a_delete),
                       )
                     )
