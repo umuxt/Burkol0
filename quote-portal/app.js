@@ -703,8 +703,13 @@ import Modal from './components/Modal.js'
     }
 
     const filtered = useMemo(() => {
-      // Filters removed: always show full list
-      return list
+      // Sort by createdAt descending (newest first), then by id as fallback
+      return [...list].sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0).getTime()
+        const dateB = new Date(b.createdAt || 0).getTime()
+        if (dateB !== dateA) return dateB - dateA
+        return (b.id || '').localeCompare(a.id || '')
+      })
     }, [list])
 
     async function setItemStatus(id, st) { await API.updateStatus(id, st); refresh() }
@@ -923,8 +928,14 @@ import Modal from './components/Modal.js'
                 // Filter row removed
               ),
               React.createElement('tbody', null,
-                filtered.map((it) => (
-                  React.createElement('tr', { key: it.id },
+                filtered.map((it, index) => (
+                  React.createElement('tr', { 
+                    key: it.id,
+                    style: {
+                      backgroundColor: index % 2 === 1 ? '#596F80' : 'transparent',
+                      color: index % 2 === 1 ? 'white' : 'inherit'
+                    }
+                  },
                     React.createElement('td', null,
                       React.createElement('input', { type: 'checkbox', checked: selected.has(it.id), onChange: (e) => toggleOne(it.id, e.target.checked) })
                     ),
