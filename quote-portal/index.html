@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Burkol | Teklif ve Admin</title>
+    <title>Burkol | Teklif</title>
     <meta name="description" content="Burkol Metal - Özel üretim teklif formu ve admin paneli" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -15,6 +15,11 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.BURKOL_APP = 'quote';
+      // Default API to same origin (works on VPS + local). Fallback to localhost for file:// usage.
+      window.BURKOL_API = window.BURKOL_API || (location.origin && location.origin !== 'null' ? location.origin : 'http://localhost:3001');
+    </script>
     <script type="module" src="./app.js"></script>
   </body>
   </html>

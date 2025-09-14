@@ -19,15 +19,46 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
 
 export const API_BASE = (window.BURKOL_API || 'http://localhost:3001')
 
+function getToken() { try { return localStorage.getItem('bk_admin_token') || '' } catch { return '' } }
+function setToken(t) { try { if (t) localStorage.setItem('bk_admin_token', t); else localStorage.removeItem('bk_admin_token') } catch {} }
+
+function withAuth(headers = {}) {
+  const token = getToken()
+  if (token) return { ...headers, Authorization: `Bearer ${token}` }
+  return headers
+}
+
 export const API = {
   async listQuotes() {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/quotes`)
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, { headers: withAuth() })
+      if (res.status === 401) throw new Error('unauthorized')
       if (!res.ok) throw new Error('list failed')
       return await res.json()
     } catch (e) {
+      // If unauthorized, bubble up to show login
+      if ((e && e.message && /401|unauthorized/i.test(e.message))) throw e
       return lsLoad()
     }
+  },
+  async addUser(email, password, role = 'admin') {
+    const res = await fetchWithTimeout(`${API_BASE}/api/auth/users`, {
+      method: 'POST',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ email, password, role })
+    })
+    if (!res.ok) throw new Error('add_user_failed')
+    return await res.json()
+  },
+  async listUsers() {
+    const res = await fetchWithTimeout(`${API_BASE}/api/auth/users`, { headers: withAuth() })
+    if (!res.ok) throw new Error('list_users_failed')
+    return await res.json()
+  },
+  async deleteUser(email) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/auth/users/${encodeURIComponent(email)}`, { method: 'DELETE', headers: withAuth() })
+    if (!res.ok) throw new Error('delete_user_failed')
+    return await res.json()
   },
   async createQuote(payload) {
     try {
@@ -41,7 +72,7 @@ export const API = {
   },
   async updateStatus(id, status) {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'PATCH', headers: withAuth({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status }) })
       if (!res.ok) throw new Error('update failed')
       return await res.json()
     } catch (e) {
@@ -51,7 +82,7 @@ export const API = {
   },
   async updateQuote(id, patch) {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) })
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'PATCH', headers: withAuth({ 'Content-Type': 'application/json' }), body: JSON.stringify(patch) })
       if (!res.ok) throw new Error('update failed')
       return await res.json()
     } catch (e) {
@@ -61,7 +92,7 @@ export const API = {
   },
   async remove(id) {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'DELETE' })
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'DELETE', headers: withAuth() })
       if (!res.ok) throw new Error('delete failed')
       return await res.json()
     } catch (e) {
@@ -71,12 +102,14 @@ export const API = {
   },
   downloadTxt(id, data) {
     const url = `${API_BASE}/api/quotes/${id}/txt`
-    fetchWithTimeout(url, {}, 2500).then((res) => {
+    fetchWithTimeout(url, { headers: withAuth() }, 2500).then((res) => {
       if (res && res.ok) {
         const a = document.createElement('a')
         a.href = url
         a.download = `burkol_quote_${id}.txt`
         document.body.appendChild(a); a.click(); a.remove()
+      } else if (res && res.status === 401) {
+        throw new Error('unauthorized')
       } else { throw new Error('backend txt not ok') }
     }).catch(() => {
       const q = data || lsLoad().find(x => x.id === id)
@@ -128,6 +161,29 @@ export const API = {
       const a = document.createElement('a'); const dl = URL.createObjectURL(blob)
       a.href = dl; a.download = `burkol_quote_${id}.txt`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(dl)
     })
+  },
+  // Auth
+  async login(email, password, remember) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, remember }) })
+      if (res.status === 401) throw new Error('unauthorized')
+      if (!res.ok) throw new Error('server_error')
+      const data = await res.json()
+      if (data && data.token) setToken(data.token)
+      return data
+    } catch (e) {
+      if (e && e.message) throw e
+      throw new Error('network_error')
+    }
+  },
+  async me() {
+    const res = await fetchWithTimeout(`${API_BASE}/api/auth/me`, { headers: withAuth() })
+    if (!res.ok) throw new Error('unauthorized')
+    return await res.json()
+  },
+  async logout() {
+    try { await fetchWithTimeout(`${API_BASE}/api/auth/logout`, { method: 'POST', headers: withAuth() }) } catch {}
+    setToken('')
   }
 }
 

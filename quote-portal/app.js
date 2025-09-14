@@ -1,8 +1,8 @@
-// Burkol Quote SPA (React 18) + backend API
-// Hash routes: #/teklif and #/admin
+// Burkol Quote/Admin (React 18) + backend API
+// Separate pages: index.html (quote) and admin.html (admin)
 
 import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from './i18n/index.js'
-import API from './lib/api.js'
+import API, { API_BASE } from './lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from './lib/utils.js'
 import Field from './components/Field.js'
 import Modal from './components/Modal.js'
@@ -422,30 +422,24 @@ import Modal from './components/Modal.js'
 
   // API and utils moved to modules (api.js, utils.js)
 
-  // Simple Hash router
-  function useHashRoute() {
-    const [route, setRoute] = useState(() => location.hash || '#/teklif')
-    useEffect(() => {
-      const onHash = () => setRoute(location.hash || '#/teklif')
-      window.addEventListener('hashchange', onHash)
-      return () => window.removeEventListener('hashchange', onHash)
-    }, [])
-    return route
-  }
+  // Determine page type from global (set in HTML)
+  const PAGE = (typeof window !== 'undefined' && window.BURKOL_APP) ? window.BURKOL_APP : 'quote'
 
-  function Nav({ route, onLang, lang, t }) {
-    const active = (r) => (route === r ? 'tab active' : 'tab')
+  function Nav({ onLang, lang, t }) {
+    const isAdmin = PAGE === 'admin'
+    const otherHref = isAdmin ? './index.html' : './admin.html'
+    const otherLabel = isAdmin ? (t.nav_quote || 'Teklif Ver') : (t.nav_admin || 'Admin')
     return (
       React.createElement('div', { className: 'nav' },
         React.createElement('div', { className: 'nav-inner container' },
           React.createElement('div', { className: 'brand' },
             React.createElement('div', { className: 'dot' }),
-            React.createElement('a', { href: '#/teklif' }, 'BURKOL')
+            React.createElement('a', { href: isAdmin ? './admin.html' : './index.html' }, 'BURKOL')
           ),
           React.createElement('div', { className: 'row wrap' },
             React.createElement('div', { className: 'tabs' },
-              React.createElement('a', { href: '#/teklif', className: active('#/teklif') }, t.nav_quote),
-              React.createElement('a', { href: '#/admin', className: active('#/admin') }, t.nav_admin)
+              // Single link to other page for quick switching during development
+              React.createElement('a', { href: otherHref, className: 'tab' }, otherLabel)
             ),
             React.createElement('div', { style: { width: 12 } }),
             React.createElement('select', {
@@ -1365,6 +1359,13 @@ import Modal from './components/Modal.js'
   }
 
   function FilesModal({ item, onClose, t }) {
+    function srcOf(f) {
+      if (!f) return ''
+      if (f.dataUrl) return f.dataUrl
+      const u = f.url || ''
+      if (!u) return ''
+      return /^https?:/i.test(u) ? u : (API_BASE.replace(/\/$/, '') + u)
+    }
     return React.createElement('div', { style: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 } },
       React.createElement('div', { className: 'card', style: { width: 'min(900px, 96vw)', maxHeight: '85vh', overflowY: 'auto', position: 'relative', padding: 12 } },
         React.createElement('div', { className: 'row', style: { justifyContent: 'space-between' } },
@@ -1375,14 +1376,14 @@ import Modal from './components/Modal.js'
           (item.files||[]).map((f, i) => React.createElement('div', { key: 'tf'+i, className: 'card', style: { padding: 10 } },
             React.createElement('div', null, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
             (f.type||'').toLowerCase().includes('image') || ['png','jpg','jpeg'].includes((f.type||'').toLowerCase()) ? (
-              React.createElement('img', { className: 'preview-img', src: f.dataUrl, alt: f.name })
-            ) : React.createElement('a', { className: 'btn', href: f.dataUrl, download: f.name, title: t.tt_download_txt }, t.download)
+              React.createElement('img', { className: 'preview-img', src: srcOf(f), alt: f.name })
+            ) : React.createElement('a', { className: 'btn', href: srcOf(f), download: f.name, title: t.tt_download_txt }, t.download)
           )),
           (item.productImages||[]).map((f, i) => React.createElement('div', { key: 'pi'+i, className: 'card', style: { padding: 10 } },
             React.createElement('div', null, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
             (f.type||'').toLowerCase().includes('image') || ['png','jpg','jpeg'].includes((f.type||'').toLowerCase()) ? (
-              React.createElement('img', { className: 'preview-img', src: f.dataUrl, alt: f.name })
-            ) : React.createElement('a', { className: 'btn', href: f.dataUrl, download: f.name, title: t.tt_download_txt }, t.download)
+              React.createElement('img', { className: 'preview-img', src: srcOf(f), alt: f.name })
+            ) : React.createElement('a', { className: 'btn', href: srcOf(f), download: f.name, title: t.tt_download_txt }, t.download)
           ))
         )
       )
@@ -1510,28 +1511,28 @@ import Modal from './components/Modal.js'
           techFiles.map((f, i) => React.createElement('div', { key: i, className: 'card file-card', style: { padding: 10, position: 'relative' } },
             React.createElement('div', { style: { marginBottom: 6 } }, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
             ((f.type||'').toLowerCase().includes('image') || ['png','jpg','jpeg'].includes((f.type||'').toLowerCase()))
-              ? React.createElement('img', { className: 'preview-img', src: f.dataUrl, alt: f.name })
+              ? React.createElement('img', { className: 'preview-img', src: (function(){const u=(f.dataUrl||'')||(f.url||''); return /^https?:/i.test(u)?u:(u?API_BASE.replace(/\/$/,'')+u:'')})(), alt: f.name })
               : React.createElement('div', { className: 'file-thumb' }, 'Preview not available'),
             editing
               ? React.createElement('div', { className: 'dl-group' },
-                  React.createElement('button', { className: 'btn icon-btn', title: t.tt_download_txt, onClick: () => downloadDataUrl(f.name, f.dataUrl) }, '⬇'),
+                  React.createElement('button', { className: 'btn icon-btn', title: t.tt_download_txt, onClick: () => { if (f.dataUrl) downloadDataUrl(f.name, f.dataUrl); else window.open(f.url, '_blank') } }, '⬇'),
                   React.createElement('button', { className: 'btn icon-btn danger', title: t.a_delete, onClick: () => setTechFiles((p)=>p.filter((_,ix)=>ix!==i)) }, '🗑️')
                 )
-              : React.createElement('button', { className: 'btn icon-btn dl-center', title: t.tt_download_txt, onClick: () => downloadDataUrl(f.name, f.dataUrl) }, '⬇')
+              : React.createElement('button', { className: 'btn icon-btn dl-center', title: t.tt_download_txt, onClick: () => { if (f.dataUrl) downloadDataUrl(f.name, f.dataUrl); else { const u=f.url||''; window.open(/^https?:/i.test(u)?u:(API_BASE.replace(/\/$/,'')+u), '_blank') } } }, '⬇')
           ))
         ) : null,
         (prodImgs||[]).length ? React.createElement('div', { className: 'grid two', style: { gap: 8, marginTop: 10 } },
           prodImgs.map((f, i) => React.createElement('div', { key: i, className: 'card file-card', style: { padding: 10, position: 'relative' } },
             React.createElement('div', { style: { marginBottom: 6 } }, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
             ((f.type||'').toLowerCase().includes('image') || ['png','jpg','jpeg'].includes((f.type||'').toLowerCase()))
-              ? React.createElement('img', { className: 'preview-img', src: f.dataUrl, alt: f.name })
+              ? React.createElement('img', { className: 'preview-img', src: (function(){const u=(f.dataUrl||'')||(f.url||''); return /^https?:/i.test(u)?u:(u?API_BASE.replace(/\/$/,'')+u:'')})(), alt: f.name })
               : React.createElement('div', { className: 'file-thumb' }, 'Preview not available'),
             editing
               ? React.createElement('div', { className: 'dl-group' },
-                  React.createElement('button', { className: 'btn icon-btn', title: t.tt_download_txt, onClick: () => downloadDataUrl(f.name, f.dataUrl) }, '⬇'),
+                  React.createElement('button', { className: 'btn icon-btn', title: t.tt_download_txt, onClick: () => { if (f.dataUrl) downloadDataUrl(f.name, f.dataUrl); else window.open(f.url, '_blank') } }, '⬇'),
                   React.createElement('button', { className: 'btn icon-btn danger', title: t.a_delete, onClick: () => setProdImgs((p)=>p.filter((_,ix)=>ix!==i)) }, '🗑️')
                 )
-              : React.createElement('button', { className: 'btn icon-btn dl-center', title: t.tt_download_txt, onClick: () => downloadDataUrl(f.name, f.dataUrl) }, '⬇')
+              : React.createElement('button', { className: 'btn icon-btn dl-center', title: t.tt_download_txt, onClick: () => { if (f.dataUrl) downloadDataUrl(f.name, f.dataUrl); else { const u=f.url||''; window.open(/^https?:/i.test(u)?u:(API_BASE.replace(/\/$/,'')+u), '_blank') } } }, '⬇')
           ))
         ) : null,
         React.createElement('div', { style: { height: 10 } }),
@@ -1584,14 +1585,138 @@ import Modal from './components/Modal.js'
   // NumericFilter removed (unused)
 
   function App() {
-    const route = useHashRoute()
     const { t, lang, setLang } = useI18n()
-    useEffect(() => { if (!location.hash) location.hash = '#/teklif' }, [])
     return (
       React.createElement(React.Fragment, null,
-        React.createElement(Nav, { route, onLang: setLang, lang, t }),
-        route === '#/admin' ? React.createElement(Admin, { t }) : React.createElement(QuoteForm, { t })
+        React.createElement(Nav, { onLang: setLang, lang, t }),
+        PAGE === 'admin' ? React.createElement(AdminGate, { t }) : React.createElement(QuoteForm, { t })
       )
+    )
+  }
+
+  function AdminGate({ t }) {
+    const [auth, setAuth] = React.useState({ loading: true, user: null, error: '' })
+    const [users, setUsers] = React.useState([])
+    const [usersErr, setUsersErr] = React.useState('')
+    React.useEffect(() => { (async () => {
+      try { const me = await API.me(); setAuth({ loading: false, user: me.user, error: '' }) }
+      catch { setAuth({ loading: false, user: null, error: '' }) }
+    })() }, [])
+
+    React.useEffect(() => { if (auth.user) loadUsers() }, [auth.user])
+    async function loadUsers() {
+      try { const res = await API.listUsers(); setUsers(res.users || []); setUsersErr('') } catch { setUsersErr('Kullanıcılar yüklenemedi') }
+    }
+
+    async function onSubmit(e) {
+      e.preventDefault()
+      const form = new FormData(e.currentTarget)
+      const email = String(form.get('email') || '')
+      const password = String(form.get('password') || '')
+      const remember = form.get('remember') === 'on'
+      try {
+        await API.login(email, password, remember)
+        const me = await API.me()
+        setAuth({ loading: false, user: me.user, error: '' })
+      } catch (err) {
+        let msg = 'Giriş başarısız. '
+        if (err && /unauthorized/i.test(err.message||'')) msg += 'E‑posta veya şifre hatalı.'
+        else if (err && /server_error/i.test(err.message||'')) msg += 'Sunucu hatası.'
+        else msg += 'Sunucuya ulaşılamıyor.'
+        setAuth((s)=>({ ...s, error: msg }))
+      }
+    }
+
+    async function onLogout() {
+      await API.logout()
+      setAuth({ loading: false, user: null, error: '' })
+    }
+
+    if (auth.loading) return React.createElement('div', { className: 'container' }, 'Yükleniyor...')
+    if (!auth.user) {
+      return React.createElement('div', { className: 'container', style: { maxWidth: 420 } },
+        React.createElement('h1', { className: 'page-title' }, 'Admin Girişi'),
+        React.createElement('p', { className: 'page-sub' }, 'E‑posta ve şifrenizle giriş yapın.'),
+        auth.error ? React.createElement('div', { className: 'notice' }, auth.error) : null,
+        React.createElement('form', { className: 'card', onSubmit: onSubmit, style: { padding: 12 } },
+          React.createElement('label', null, 'E‑posta'),
+          React.createElement('input', { type: 'email', name: 'email', placeholder: 'email@domain.com', required: true }),
+          React.createElement('div', { style: { height: 8 } }),
+          React.createElement('label', null, 'Şifre'),
+          React.createElement('input', { type: 'password', name: 'password', placeholder: 'Şifre', required: true }),
+          React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginTop: 8 } },
+            React.createElement('label', { className: 'chip' },
+              React.createElement('input', { type: 'checkbox', name: 'remember' }),
+              React.createElement('span', null, 'Beni hatırla')
+            ),
+            React.createElement('button', { className: 'btn accent', type: 'submit' }, 'Giriş Yap')
+          )
+        )
+      )
+    }
+    return React.createElement(React.Fragment, null,
+      React.createElement('div', { className: 'container', style: { marginBottom: 8 } },
+        React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end' } },
+          React.createElement('button', { className: 'btn', onClick: onLogout }, 'Çıkış Yap')
+        )
+      ),
+      React.createElement('div', { className: 'container' },
+        React.createElement('div', { className: 'card', style: { marginBottom: 12, padding: 12 } },
+          React.createElement('h3', null, 'Kullanıcı Ekle'),
+          React.createElement('form', { onSubmit: async (e) => {
+            e.preventDefault()
+            const fd = new FormData(e.currentTarget)
+            const email = String(fd.get('u_email')||'')
+            const password = String(fd.get('u_password')||'')
+            const role = String(fd.get('u_role')||'admin')
+            try { await API.addUser(email, password, role); e.currentTarget.reset(); await loadUsers(); alert('Kullanıcı eklendi') } catch { alert('Kullanıcı eklenemedi') }
+          } },
+            React.createElement('div', { className: 'grid three' },
+              React.createElement('div', { className: 'field' },
+                React.createElement('label', null, 'E‑posta'),
+                React.createElement('input', { type: 'email', name: 'u_email', required: true, placeholder: 'email@domain.com' })
+              ),
+              React.createElement('div', { className: 'field' },
+                React.createElement('label', null, 'Şifre'),
+                React.createElement('input', { type: 'password', name: 'u_password', required: true, placeholder: 'Şifre' })
+              ),
+              React.createElement('div', { className: 'field' },
+                React.createElement('label', null, 'Rol'),
+                React.createElement('select', { name: 'u_role', defaultValue: 'admin' },
+                  React.createElement('option', { value: 'admin' }, 'Admin')
+                )
+              )
+            ),
+            React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', marginTop: 8 } },
+              React.createElement('button', { className: 'btn accent', type: 'submit' }, 'Ekle')
+            )
+          )
+        )
+      ),
+      React.createElement('div', { className: 'container' },
+        React.createElement('div', { className: 'card', style: { marginBottom: 12, padding: 12 } },
+          React.createElement('h3', null, 'Kullanıcılar'),
+          usersErr ? React.createElement('div', { className: 'notice' }, usersErr) : null,
+          users.length === 0 ? React.createElement('div', { className: 'help' }, 'Kayıt bulunamadı') :
+          React.createElement('div', { className: 'table' },
+            React.createElement('div', { className: 'row', style: { fontWeight: 600 } },
+              React.createElement('div', { style: { flex: 2 } }, 'E‑posta'),
+              React.createElement('div', { style: { flex: 1 } }, 'Rol'),
+              React.createElement('div', { style: { flex: 1 } }, 'Kayıt'),
+              React.createElement('div', { style: { width: 80 } }, 'İşlem')
+            ),
+            users.map(u => React.createElement('div', { key: u.email, className: 'row', style: { alignItems: 'center' } },
+              React.createElement('div', { style: { flex: 2 } }, u.email),
+              React.createElement('div', { style: { flex: 1 } }, u.role || 'admin'),
+              React.createElement('div', { style: { flex: 1 } }, (u.createdAt||'').replace('T',' ').slice(0,19)),
+              React.createElement('div', { style: { width: 80 } },
+                React.createElement('button', { className: 'btn danger', onClick: async () => { if (confirm('Silmek istediğinize emin misiniz?')) { try { await API.deleteUser(u.email); await loadUsers() } catch { alert('Silinemedi') } } }, style: { padding: '6px 10px', fontSize: 12 } }, 'Sil')
+              )
+            ))
+          )
+        )
+      ),
+      React.createElement(Admin, { t })
     )
   }
 
