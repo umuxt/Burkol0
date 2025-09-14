@@ -18,14 +18,17 @@ const ROOT = __dirname
 app.use(express.json({ limit: '5mb' }))
 // CORS configuration
 app.use((req, res, next) => {
-  // Only allow specific origins in production
+  // Allow all origins for now to support VPS access
   const allowedOrigins = process.env.NODE_ENV === 'production' 
-    ? ['https://burkol.com', 'https://admin.burkol.com'] 
+    ? ['https://burkol.com', 'https://admin.burkol.com', `http://${req.get('host')}`, '*'] 
     : [req.headers.origin || 'http://localhost:3000']
 
   const origin = req.headers.origin
   if (origin && allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin)
+  } else {
+    // Allow all origins for VPS access
+    res.header('Access-Control-Allow-Origin', '*')
   }
 
   // Security headers
@@ -423,8 +426,9 @@ app.delete('/api/auth/users/:email', requireAuth, async (req, res) => {
   }
 })
 
-app.listen(PORT, () => {
-  console.log(`Burkol Quote server on http://localhost:${PORT}`)
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Burkol Quote server on http://0.0.0.0:${PORT}`)
+  console.log(`External access: http://136.244.86.113:${PORT}`)
   
   // Test: Create user if it doesn't exist
   const testUser = jsondb.getUser('umutyalcin8@gmail.com')
