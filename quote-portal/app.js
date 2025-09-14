@@ -335,8 +335,20 @@ import Modal from './components/Modal.js'
       const content = React.createElement('div', null,
         React.createElement('p', null, t.confirm_optional_text || 'Tüm zorunlu alanları doldurdunuz. Ek detayları doldurmak istemediğinizden emin misiniz?'),
         React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', gap: 8 } },
-          React.createElement('button', { className: 'btn', onClick: () => { setPopup(null); setMissingHighlight(computeMissing()); resumeProgress() } }, t.btn_continue || 'Devam Et'),
-          React.createElement('button', { className: 'btn accent', onClick: async () => { setPopup(null); await actualSubmit() } }, t.btn_submit || t.submit)
+          React.createElement('button', { 
+            className: 'btn', 
+            onClick: () => { setPopup(null); setMissingHighlight(computeMissing()); resumeProgress() },
+            onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
+            onMouseOut: (e) => e.target.style.backgroundColor = '',
+            style: { transition: 'all 0.2s ease' }
+          }, t.btn_continue || 'Devam Et'),
+          React.createElement('button', { 
+            className: 'btn accent', 
+            onClick: async () => { setPopup(null); await actualSubmit() },
+            onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
+            onMouseOut: (e) => e.target.style.backgroundColor = '',
+            style: { transition: 'all 0.2s ease' }
+          }, t.btn_submit || t.submit)
         )
       )
       setPopup({ title: t.confirm_optional_title || t.info, text: content })
@@ -608,7 +620,14 @@ import Modal from './components/Modal.js'
                   files.map((f, i) => (
                     React.createElement('div', { key: i, className: 'row', style: { justifyContent: 'space-between' } },
                       React.createElement('div', null, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
-                      React.createElement('button', { type: 'button', className: 'btn danger', onClick: () => removeFile(i) }, 'Kaldır')
+                      React.createElement('button', { 
+                        type: 'button', 
+                        className: 'btn danger', 
+                        onClick: () => removeFile(i),
+                        onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
+                        onMouseOut: (e) => e.target.style.backgroundColor = '',
+                        style: { transition: 'all 0.2s ease' }
+                      }, 'Kaldır')
                     )
                   ))
                 ) : null
@@ -639,7 +658,14 @@ import Modal from './components/Modal.js'
                   prodFiles.map((f, i) => (
                     React.createElement('div', { key: i, className: 'row', style: { justifyContent: 'space-between' } },
                       React.createElement('div', null, `${f.name} (${(f.size/1024).toFixed(0)} KB)`),
-                      React.createElement('button', { type: 'button', className: 'btn danger', onClick: () => removeProdFile(i) }, 'Kaldır')
+                      React.createElement('button', { 
+                        type: 'button', 
+                        className: 'btn danger', 
+                        onClick: () => removeProdFile(i),
+                        onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
+                        onMouseOut: (e) => e.target.style.backgroundColor = '',
+                        style: { transition: 'all 0.2s ease' }
+                      }, 'Kaldır')
                     )
                   ))
                 ) : null
@@ -656,12 +682,42 @@ import Modal from './components/Modal.js'
 
         React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', marginTop: 10 } },
           React.createElement('div', { className: 'row' },
-            React.createElement('button', { type: 'button', className: 'btn', onClick: goBack, disabled: step === 0 }, t.back),
-            (step < furthest ? React.createElement('button', { type: 'button', className: 'btn accent', onClick: resumeProgress, style: { marginLeft: 6 } }, t.resume) : null)
+            React.createElement('button', { 
+              type: 'button', 
+              className: 'btn', 
+              onClick: goBack, 
+              disabled: step === 0,
+              onMouseOver: (e) => !e.target.disabled && (e.target.style.backgroundColor = 'rgba(0,0,0,0.1)'),
+              onMouseOut: (e) => e.target.style.backgroundColor = '',
+              style: { transition: 'all 0.2s ease' }
+            }, t.back),
+            (step < furthest ? React.createElement('button', { 
+              type: 'button', 
+              className: 'btn accent', 
+              onClick: resumeProgress, 
+              style: { marginLeft: 6, transition: 'all 0.2s ease' },
+              onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
+              onMouseOut: (e) => e.target.style.backgroundColor = ''
+            }, t.resume) : null)
           ),
           React.createElement('div', { className: 'row' },
-            step < steps.length - 1 ? React.createElement('button', { type: 'button', className: 'btn accent', onClick: goNext }, t.next) : null,
-            React.createElement('button', { type: 'button', className: 'btn accent', onClick: preSubmit, disabled: submitting || Object.keys(validate()).length > 0 }, t.submit)
+            step < steps.length - 1 ? React.createElement('button', { 
+              type: 'button', 
+              className: 'btn accent', 
+              onClick: goNext,
+              onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
+              onMouseOut: (e) => e.target.style.backgroundColor = '',
+              style: { transition: 'all 0.2s ease' }
+            }, t.next) : null,
+            React.createElement('button', { 
+              type: 'button', 
+              className: 'btn accent', 
+              onClick: preSubmit, 
+              disabled: submitting || Object.keys(validate()).length > 0,
+              onMouseOver: (e) => !e.target.disabled && (e.target.style.backgroundColor = 'rgba(255,255,255,0.2)'),
+              onMouseOut: (e) => e.target.style.backgroundColor = '',
+              style: { transition: 'all 0.2s ease' }
+            }, t.submit)
           )
         )
       ),
@@ -1060,17 +1116,49 @@ import Modal from './components/Modal.js'
                 border: 'none', 
                 borderRadius: '4px', 
                 cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }
+                whiteSpace: 'nowrap',
+                transition: 'all 0.2s ease'
+              },
+              onMouseOver: (e) => e.target.style.backgroundColor = '#5a6268',
+              onMouseOut: (e) => e.target.style.backgroundColor = '#6c757d'
             }, '✕')
           ),
           
           // Action Buttons
           React.createElement('div', { className: 'row', style: { gap: 6, flexShrink: 0 } },
-            React.createElement('button', { className: 'btn', onClick: () => refresh(), title: t.tt_refresh, style: { padding: '6px 10px', fontSize: 12 } }, t.refresh),
-            React.createElement('button', { className: 'btn', onClick: () => setCreating(true), title: t.a_add, style: { padding: '6px 10px', fontSize: 12 } }, t.a_add),
-            React.createElement('button', { className: 'btn danger', onClick: bulkDelete, title: t.tt_delete, disabled: selected.size === 0, style: { padding: '6px 10px', fontSize: 12 } }, t.a_delete),
-            React.createElement('button', { className: 'btn', onClick: exportCSV, title: t.tt_export_csv, style: { padding: '6px 10px', fontSize: 12 } }, t.a_export_csv)
+            React.createElement('button', { 
+              className: 'btn', 
+              onClick: () => refresh(), 
+              title: t.tt_refresh, 
+              style: { padding: '6px 10px', fontSize: 12, transition: 'all 0.2s ease' },
+              onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
+              onMouseOut: (e) => e.target.style.backgroundColor = ''
+            }, t.refresh),
+            React.createElement('button', { 
+              className: 'btn', 
+              onClick: () => setCreating(true), 
+              title: t.a_add, 
+              style: { padding: '6px 10px', fontSize: 12, transition: 'all 0.2s ease' },
+              onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
+              onMouseOut: (e) => e.target.style.backgroundColor = ''
+            }, t.a_add),
+            React.createElement('button', { 
+              className: 'btn danger', 
+              onClick: bulkDelete, 
+              title: t.tt_delete, 
+              disabled: selected.size === 0, 
+              style: { padding: '6px 10px', fontSize: 12, transition: 'all 0.2s ease' },
+              onMouseOver: (e) => !e.target.disabled && (e.target.style.backgroundColor = 'rgba(255,255,255,0.2)'),
+              onMouseOut: (e) => e.target.style.backgroundColor = ''
+            }, t.a_delete),
+            React.createElement('button', { 
+              className: 'btn', 
+              onClick: exportCSV, 
+              title: t.tt_export_csv, 
+              style: { padding: '6px 10px', fontSize: 12, transition: 'all 0.2s ease' },
+              onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
+              onMouseOut: (e) => e.target.style.backgroundColor = ''
+            }, t.a_export_csv)
           )
         ),
         
@@ -1088,35 +1176,6 @@ import Modal from './components/Modal.js'
           )
         ),
         
-        // Results Info - only show when filtering/searching
-        (() => {
-          const hasActiveFilters = globalSearch.trim() !== '' || 
-                                   fieldSearch.trim() !== '' ||
-                                   filters.status !== '' ||
-                                   filters.material !== '' ||
-                                   filters.process.length > 0 ||
-                                   filters.dateRange.start !== '' ||
-                                   filters.dateRange.end !== '' ||
-                                   filters.quantityRange.min !== '' ||
-                                   filters.quantityRange.max !== ''
-          
-          if (!hasActiveFilters) return null
-          
-          return React.createElement('div', { 
-            style: { 
-              padding: '8px 12px', 
-              backgroundColor: '#e3f2fd', 
-              borderRadius: '4px', 
-              margin: '12px 0 8px 0',
-              fontSize: '14px',
-              color: '#1565c0'
-            } 
-          }, 
-            `${filtered.length} kayıt gösteriliyor` + 
-            (filtered.length !== list.length ? ` (toplam ${list.length} kayıttan filtrelendi)` : '')
-          )
-        })(),
-        
         filtered.length === 0 ? React.createElement('div', { className: 'notice' }, `${t.a_none} ${list.length > 0 ? '(filtrelenmiş)' : ''}`) : (
           React.createElement('div', { style: { overflowX: 'auto', width: '100%' } },
             React.createElement('table', { className: 'table', style: { minWidth: '1200px' } },
@@ -1125,16 +1184,16 @@ import Modal from './components/Modal.js'
                   React.createElement('th', null,
                     React.createElement('input', { type: 'checkbox', onChange: toggleAll, checked: filtered.length > 0 && selected.size === filtered.length })
                   ),
-                  React.createElement('th', null, t.th_date),
-                  React.createElement('th', null, t.th_customer),
-                  React.createElement('th', null, t.th_project),
-                  React.createElement('th', null, t.th_material),
-                  React.createElement('th', null, t.th_qty),
-                  React.createElement('th', null, t.th_due),
+                  React.createElement('th', null, t.th_date, ' ', React.createElement('span', { style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, title: 'Tarih filtresi' }, '⌦')),
+                  React.createElement('th', null, t.th_customer, ' ', React.createElement('span', { style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, title: 'Müşteri filtresi' }, '⌦')),
+                  React.createElement('th', null, t.th_project, ' ', React.createElement('span', { style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, title: 'Proje filtresi' }, '⌦')),
+                  React.createElement('th', null, t.th_material, ' ', React.createElement('span', { style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, title: 'Malzeme filtresi' }, '⌦')),
+                  React.createElement('th', null, t.th_qty, ' ', React.createElement('span', { style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, title: 'Miktar filtresi' }, '⌦')),
+                  React.createElement('th', null, t.th_due, ' ', React.createElement('span', { style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, title: 'Teslim tarihi filtresi' }, '⌦')),
                   React.createElement('th', null, t.th_days_to_due),
                   React.createElement('th', null, t.th_est_price),
                   React.createElement('th', null, t.th_est_lead),
-                  React.createElement('th', null, t.a_status),
+                  React.createElement('th', null, t.a_status, ' ', React.createElement('span', { style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, title: 'Durum filtresi' }, '⌦')),
                   React.createElement('th', null, t.th_actions),
                 ),
                 // Filter row removed
@@ -1174,26 +1233,33 @@ import Modal from './components/Modal.js'
                           onClick: (e) => { e.stopPropagation(); setDetail(it) }, 
                           title: t.tt_detail,
                           style: { 
-                            padding: '4px 6px', 
-                            borderRadius: '6px',
-                            backgroundColor: '#17a2b8',
+                            padding: '0',
+                            borderRadius: '50%',
+                            backgroundColor: 'transparent',
+                            border: '2px solid white',
                             color: 'white',
-                            border: 'none',
-                            fontSize: '12px',
+                            fontSize: '14px',
                             height: '28px',
+                            width: '28px',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            minWidth: '24px',
-                            height: '24px'
-                          }
-                        }, 'ℹ'),
+                            fontWeight: 'bold',
+                            fontFamily: 'Arial, sans-serif',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          },
+                          onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
+                          onMouseOut: (e) => e.target.style.backgroundColor = 'transparent'
+                        }, 'i'),
                         React.createElement('div', { className: 'tt-wrap' },
                           React.createElement('select', {
                             value: it.status,
                             onChange: (e) => { e.stopPropagation(); setItemStatus(it.id, e.target.value) },
                             className: 'btn',
-                            style: { padding: '4px 6px', borderRadius: 6, fontSize: '11px', height: '28px' },
+                            style: { padding: '4px 6px', borderRadius: 6, fontSize: '11px', height: '28px', transition: 'all 0.2s ease' },
+                            onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.1)',
+                            onMouseOut: (e) => e.target.style.backgroundColor = '',
                             title: t.tt_change_status
                           },
                             React.createElement('option', { value: 'new' }, t.s_new),
@@ -1210,14 +1276,18 @@ import Modal from './components/Modal.js'
                           className: 'btn', 
                           onClick: (e) => { e.stopPropagation(); API.downloadTxt(it.id, it) }, 
                           title: t.tt_download_txt,
-                          style: { padding: '4px 6px', fontSize: '11px', borderRadius: '4px', height: '28px' }
+                          style: { padding: '4px 6px', fontSize: '11px', borderRadius: '4px', height: '28px', transition: 'all 0.2s ease' },
+                          onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
+                          onMouseOut: (e) => e.target.style.backgroundColor = ''
                         }, 'TXT'),
                         React.createElement('button', { 
                           type: 'button', 
                           className: 'btn danger', 
                           onClick: (e) => { e.stopPropagation(); if (confirm(t.confirm_delete)) remove(it.id) }, 
                           title: t.tt_delete,
-                          style: { padding: '4px 6px', fontSize: '11px', borderRadius: '4px', height: '28px' }
+                          style: { padding: '4px 6px', fontSize: '11px', borderRadius: '4px', height: '28px', transition: 'all 0.2s ease' },
+                          onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
+                          onMouseOut: (e) => e.target.style.backgroundColor = ''
                         }, t.a_delete),
                       )
                     )
@@ -1247,7 +1317,13 @@ import Modal from './components/Modal.js'
       React.createElement('div', { className: 'card', style: { width: 'min(900px, 96vw)', maxHeight: '85vh', overflowY: 'auto', position: 'relative', padding: 12 } },
         React.createElement('div', { className: 'row', style: { justifyContent: 'space-between' } },
           React.createElement('h3', null, t.a_files),
-          React.createElement('button', { className: 'btn', onClick: onClose }, t.a_close)
+          React.createElement('button', { 
+            className: 'btn', 
+            onClick: onClose,
+            onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
+            onMouseOut: (e) => e.target.style.backgroundColor = '',
+            style: { transition: 'all 0.2s ease' }
+          }, t.a_close)
         ),
         React.createElement('div', { className: 'grid two', style: { gap: 8 } },
           (item.files||[]).map((f, i) => React.createElement('div', { key: 'tf'+i, className: 'card', style: { padding: 10 } },
@@ -1345,11 +1421,36 @@ import Modal from './components/Modal.js'
         React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, position: 'sticky', top: 0, zIndex: 5, background: 'linear-gradient(180deg, #0f1e2c, #0c1924)', padding: '8px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)' } },
           React.createElement('h3', { style: { margin: 0, fontSize: 16 } }, t.a_detail),
         React.createElement('div', { className: 'row' },
-            (!editing && !isNew) ? React.createElement('button', { className: 'btn', onClick: () => setEditing(true) }, t.edit) : React.createElement(React.Fragment, null,
-              React.createElement('button', { className: 'btn accent', onClick: onSave }, t.save),
-              React.createElement('button', { className: 'btn', onClick: () => setEditing(false) }, t.cancel)
+            (!editing && !isNew) ? React.createElement('button', { 
+              className: 'btn', 
+              onClick: () => setEditing(true),
+              onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
+              onMouseOut: (e) => e.target.style.backgroundColor = '',
+              style: { transition: 'all 0.2s ease' }
+            }, t.edit) : React.createElement(React.Fragment, null,
+              React.createElement('button', { 
+                className: 'btn accent', 
+                onClick: onSave,
+                onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
+                onMouseOut: (e) => e.target.style.backgroundColor = '',
+                style: { transition: 'all 0.2s ease' }
+              }, t.save),
+              React.createElement('button', { 
+                className: 'btn', 
+                onClick: () => setEditing(false),
+                onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
+                onMouseOut: (e) => e.target.style.backgroundColor = '',
+                style: { transition: 'all 0.2s ease' }
+              }, t.cancel)
             ),
-            React.createElement('button', { className: 'btn', onClick: onClose, title: t.tt_close }, '×')
+            React.createElement('button', { 
+              className: 'btn', 
+              onClick: onClose, 
+              title: t.tt_close,
+              onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
+              onMouseOut: (e) => e.target.style.backgroundColor = '',
+              style: { transition: 'all 0.2s ease' }
+            }, '×')
           )
         ),
         (!editing && !isNew) ? React.createElement('div', { className: 'grid two', style: { gap: 8 } },
@@ -1558,7 +1659,13 @@ import Modal from './components/Modal.js'
             React.createElement('input', { type: 'checkbox', checked: remember, onChange: (e) => setRemember(e.target.checked) }),
             React.createElement('span', { style: { color: 'white' } }, t.remember_me || 'Beni hatırla')
           ),
-          React.createElement('button', { type: 'submit', className: 'btn accent' }, t.login_btn || 'Giriş Yap')
+          React.createElement('button', { 
+            type: 'submit', 
+            className: 'btn accent',
+            onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
+            onMouseOut: (e) => e.target.style.backgroundColor = '',
+            style: { transition: 'all 0.2s ease' }
+          }, t.login_btn || 'Giriş Yap')
         )
       )
     )
