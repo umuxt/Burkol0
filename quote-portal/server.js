@@ -1,41 +1,19 @@
 // Minimal Express backend for Burkol Quote Portal
-// - Persistent storage via SQLite (better-sqlite3)
+// - Persistent storage via JSON file (lib/jsondb.js)
 // - TXT export endpoint
 
 const express = require('express')
 const path = require('path')
-const Database = require('better-sqlite3')
 const fs = require('fs')
 const fsp = require('fs').promises
 const crypto = require('crypto')
+const jsondb = require('./lib/jsondb')
 
 const app = express()
 const PORT = process.env.PORT || 3001
 const ROOT = __dirname
 
-// SQLite setup
-const DB_PATH = path.join(ROOT, 'data.sqlite')
-const db = new Database(DB_PATH)
-db.pragma('journal_mode = WAL')
-db.prepare(`CREATE TABLE IF NOT EXISTS quotes (
-  id TEXT PRIMARY KEY,
-  createdAt TEXT,
-  status TEXT,
-  payload TEXT NOT NULL
-)`).run()
-db.prepare(`CREATE TABLE IF NOT EXISTS users (
-  email TEXT PRIMARY KEY,
-  pw_salt TEXT NOT NULL,
-  pw_hash TEXT NOT NULL,
-  role TEXT DEFAULT 'admin',
-  createdAt TEXT
-)`).run()
-db.prepare(`CREATE TABLE IF NOT EXISTS sessions (
-  token TEXT PRIMARY KEY,
-  email TEXT NOT NULL,
-  createdAt TEXT,
-  expiresAt TEXT
-)`).run()
+// JSON storage file is managed by lib/jsondb (see BURKOL_DATA env)
 
 app.use(express.json({ limit: '5mb' }))
 // Simple CORS for local dev (e.g., 127.0.0.1:5500)
@@ -51,33 +29,20 @@ app.use(express.static(ROOT))
 // Explicitly serve uploads for clarity
 app.use('/uploads', express.static(path.join(ROOT, 'uploads')))
 
-function rowToObj(row) {
-  try { return JSON.parse(row.payload) } catch { return null }
-}
 function readAll() {
-  const rows = db.prepare('SELECT payload FROM quotes ORDER BY datetime(createdAt) DESC').all()
-  return rows.map(rowToObj).filter(Boolean)
+  return jsondb.listQuotes()
 }
 function readOne(id) {
-  const row = db.prepare('SELECT payload FROM quotes WHERE id = ?').get(id)
-  return row ? rowToObj(row) : null
+  return jsondb.getQuote(id)
 }
 function insertOne(obj) {
-  db.prepare('INSERT INTO quotes (id, createdAt, status, payload) VALUES (?, ?, ?, ?)').run(
-    obj.id, obj.createdAt || new Date().toISOString(), obj.status || 'new', JSON.stringify(obj)
-  )
+  jsondb.putQuote({ ...obj, createdAt: obj.createdAt || new Date().toISOString(), status: obj.status || 'new' })
 }
 function updateOne(id, patch) {
-  const current = readOne(id)
-  if (!current) return false
-  const merged = { ...current, ...patch }
-  db.prepare('UPDATE quotes SET status = ?, payload = ?, createdAt = COALESCE(createdAt, ?) WHERE id = ?').run(
-    merged.status || current.status || 'new', JSON.stringify(merged), current.createdAt || merged.createdAt || new Date().toISOString(), id
-  )
-  return true
+  return jsondb.patchQuote(id, patch)
 }
 function deleteOne(id) {
-  db.prepare('DELETE FROM quotes WHERE id = ?').run(id)
+  jsondb.removeQuote(id)
 }
 
 // --- Auth helpers ---
@@ -89,12 +54,11 @@ function hashPassword(password, salt) {
 }
 function createUser(email, password, role = 'admin') {
   const { salt, hash } = hashPassword(password)
-  db.prepare('INSERT OR REPLACE INTO users (email, pw_salt, pw_hash, role, createdAt) VALUES (?, ?, ?, ?, ?)').run(
-    email, salt, hash, role, new Date().toISOString()
-  )
+  jsondb.upsertUser({ email, pw_salt: salt, pw_hash: hash, role, createdAt: new Date().toISOString() })
 }
 function verifyUser(email, password) {
-  const row = db.prepare('SELECT email, pw_salt AS salt, pw_hash AS hash, role FROM users WHERE email = ?').get(email)
+  const rowRaw = jsondb.getUser(email)
+  const row = rowRaw ? { email: rowRaw.email, salt: rowRaw.pw_salt, hash: rowRaw.pw_hash, role: rowRaw.role } : null
   if (!row) return null
   const { hash } = hashPassword(password, row.salt)
   if (crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(row.hash))) {
@@ -107,19 +71,18 @@ function createSession(email, days = 30) {
   const token = newToken()
   const now = new Date()
   const exp = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
-  db.prepare('INSERT INTO sessions (token, email, createdAt, expiresAt) VALUES (?, ?, ?, ?)').run(
-    token, email, now.toISOString(), exp.toISOString()
-  )
-  return { token, email, expiresAt: exp.toISOString() }
+  const sess = { token, email, createdAt: now.toISOString(), expiresAt: exp.toISOString() }
+  jsondb.putSession(sess)
+  return { token, email, expiresAt: sess.expiresAt }
 }
 function getSession(token) {
   if (!token) return null
-  const row = db.prepare('SELECT token, email, createdAt, expiresAt FROM sessions WHERE token = ?').get(token)
+  const row = jsondb.getSession(token)
   if (!row) return null
-  if (new Date(row.expiresAt).getTime() < Date.now()) { db.prepare('DELETE FROM sessions WHERE token = ?').run(token); return null }
+  if (new Date(row.expiresAt).getTime() < Date.now()) { jsondb.deleteSession(token); return null }
   return row
 }
-function deleteSession(token) { if (token) db.prepare('DELETE FROM sessions WHERE token = ?').run(token) }
+function deleteSession(token) { if (token) jsondb.deleteSession(token) }
 function requireAuth(req, res, next) {
   const h = req.headers['authorization'] || ''
   const m = /^Bearer\s+(.+)$/.exec(h)
@@ -132,7 +95,8 @@ function requireAuth(req, res, next) {
 
 // Seed initial admin user if not exists
 (() => {
-  const count = db.prepare('SELECT COUNT(*) AS c FROM users').get().c
+  const users = jsondb.listUsersRaw()
+  const count = Array.isArray(users) ? users.length : 0
   if (count === 0) {
     createUser('umutyalcin8@gmail.com', '123456789', 'admin')
     console.log('Seeded default admin user: umutyalcin8@gmail.com / 123456789')
@@ -312,13 +276,13 @@ app.post('/api/auth/users', requireAuth, (req, res) => {
   try { createUser(email, password, role || 'admin'); return res.json({ ok: true }) } catch (e) { return res.status(500).json({ error: 'save_failed' }) }
 })
 app.get('/api/auth/users', requireAuth, (req, res) => {
-  const rows = db.prepare('SELECT email, role, createdAt FROM users ORDER BY datetime(createdAt) DESC').all()
+  const rows = (jsondb.listUsersRaw() || []).map(u => ({ email: u.email, role: u.role, createdAt: u.createdAt }))
   return res.json({ ok: true, users: rows })
 })
 app.delete('/api/auth/users/:email', requireAuth, (req, res) => {
   const email = req.params.email
   if (!email) return res.status(400).json({ error: 'missing' })
-  db.prepare('DELETE FROM users WHERE email = ?').run(email)
+  jsondb.deleteUser(email)
   return res.json({ ok: true })
 })
 

@@ -10,7 +10,6 @@
     "pm2:logs": "pm2 logs burkol"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "better-sqlite3": "^9.4.0"
+    "express": "^4.19.2"
   }
 }
