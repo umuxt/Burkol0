@@ -1184,10 +1184,38 @@ import Modal from './components/Modal.js'
 
   function App() {
     const { t, lang, setLang } = useI18n()
+    const [loggedIn, setLoggedIn] = useState(false)
+
+    // Check for existing token on initial load
+    useEffect(() => {
+      async function checkLogin() {
+        try {
+          const token = localStorage.getItem('bk_admin_token')
+          if (token) {
+            await API.me() // This will throw if token is invalid
+            setLoggedIn(true)
+          }
+        } catch (e) {
+          // Token is invalid or expired, ensure logged out state
+          localStorage.removeItem('bk_admin_token')
+          setLoggedIn(false)
+        }
+      }
+      if (PAGE === 'admin') {
+        checkLogin()
+      }
+    }, [])
+
+    function handleLogin() {
+      setLoggedIn(true)
+    }
+
     return (
       React.createElement(React.Fragment, null,
         React.createElement(Nav, { onLang: setLang, lang, t }),
-        PAGE === 'admin' ? React.createElement(AdminGate, { t }) : React.createElement(QuoteForm, { t })
+        PAGE === 'admin'
+          ? (loggedIn ? React.createElement(Admin, { t }) : React.createElement(AdminGate, { onLogin: handleLogin, t }))
+          : React.createElement(QuoteForm, { t })
       )
     )
   }
