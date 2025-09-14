@@ -1271,7 +1271,7 @@ import Modal from './components/Modal.js'
           })
         ),
         React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginTop: 10,  } },
-          React.createElement('label', { className: 'chip' },
+          React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: '8px', color: 'white', fontSize: '14px' } },
             React.createElement('input', { type: 'checkbox', checked: remember, onChange: (e) => setRemember(e.target.checked) }),
             React.createElement('span', { style: { color: 'white' } }, t.remember_me || 'Beni hatırla')
           ),
