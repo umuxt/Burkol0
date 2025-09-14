@@ -166,9 +166,11 @@ export const API = {
   async login(email, password, remember) {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, remember }) })
-      if (res.status === 401) throw new Error('unauthorized')
-      if (!res.ok) throw new Error('server_error')
-      const data = await res.json()
+      const data = await res.json() // Always parse JSON body
+      if (!res.ok) {
+        // Throw an error with the message from the server's JSON response
+        throw new Error(data.error || (res.status === 401 ? 'unauthorized' : 'server_error'))
+      }
       if (data && data.token) setToken(data.token)
       return data
     } catch (e) {

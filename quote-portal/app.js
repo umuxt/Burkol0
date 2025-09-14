@@ -1192,129 +1192,63 @@ import Modal from './components/Modal.js'
     )
   }
 
-  function AdminGate({ t }) {
-    const [auth, setAuth] = React.useState({ loading: true, user: null, error: '' })
-    const [users, setUsers] = React.useState([])
-    const [usersErr, setUsersErr] = React.useState('')
-    React.useEffect(() => { (async () => {
-      try { const me = await API.me(); setAuth({ loading: false, user: me.user, error: '' }) }
-      catch { setAuth({ loading: false, user: null, error: '' }) }
-    })() }, [])
-
-    React.useEffect(() => { if (auth.user) loadUsers() }, [auth.user])
-    async function loadUsers() {
-      try { const res = await API.listUsers(); setUsers(res.users || []); setUsersErr('') } catch { setUsersErr('Kullanıcılar yüklenemedi') }
-    }
+  function AdminGate({ onLogin, t }) {
+    const [email, setEmail] = useState('')
+    const [password, setPassword] = useState('')
+    const [remember, setRemember] = useState(true)
+    const [error, setError] = useState('')
+    const [loading, setLoading] = useState(false)
 
     async function onSubmit(e) {
       e.preventDefault()
-      const form = new FormData(e.currentTarget)
-      const email = String(form.get('email') || '')
-      const password = String(form.get('password') || '')
-      const remember = form.get('remember') === 'on'
+      if (!email || !password) { setError('E-posta ve şifre gerekli'); return }
+      setLoading(true)
+      setError('')
       try {
-        await API.login(email, password, remember)
-        const me = await API.me()
-        setAuth({ loading: false, user: me.user, error: '' })
+        const res = await API.login(email, password, remember)
+        if (res && res.ok) {
+          onLogin()
+        } else {
+          // This branch may not be hit if API.login always throws on error, but as a fallback:
+          setError((res && res.error) || 'Giriş başarısız. Lütfen tekrar deneyin.')
+        }
       } catch (err) {
-        let msg = 'Giriş başarısız. '
-        if (err && /unauthorized/i.test(err.message||'')) msg += 'E‑posta veya şifre hatalı.'
-        else if (err && /server_error/i.test(err.message||'')) msg += 'Sunucu hatası.'
-        else msg += 'Sunucuya ulaşılamıyor.'
-        setAuth((s)=>({ ...s, error: msg }))
+        console.error(err)
+        // The custom error from API.login will be caught here.
+        setError(err.message || 'Giriş başarısız. Sunucu hatası.')
+      } finally {
+        setLoading(false)
       }
     }
 
-    async function onLogout() {
-      await API.logout()
-      setAuth({ loading: false, user: null, error: '' })
-    }
-
-    if (auth.loading) return React.createElement('div', { className: 'container' }, 'Yükleniyor...')
-    if (!auth.user) {
-      return React.createElement('div', { className: 'container', style: { maxWidth: 420 } },
-        React.createElement('h1', { className: 'page-title' }, 'Admin Girişi'),
-        React.createElement('p', { className: 'page-sub' }, 'E‑posta ve şifrenizle giriş yapın.'),
-        auth.error ? React.createElement('div', { className: 'notice' }, auth.error) : null,
-        React.createElement('form', { className: 'card', onSubmit: onSubmit, style: { padding: 12 } },
-          React.createElement('label', null, 'E‑posta'),
-          React.createElement('input', { type: 'email', name: 'email', placeholder: 'email@domain.com', required: true }),
-          React.createElement('div', { style: { height: 8 } }),
-          React.createElement('label', null, 'Şifre'),
-          React.createElement('input', { type: 'password', name: 'password', placeholder: 'Şifre', required: true }),
-          React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginTop: 8 } },
-            React.createElement('label', { className: 'chip' },
-              React.createElement('input', { type: 'checkbox', name: 'remember' }),
-              React.createElement('span', null, 'Beni hatırla')
-            ),
-            React.createElement('button', { className: 'btn accent', type: 'submit' }, 'Giriş Yap')
-          )
+    return React.createElement('div', { className: 'gate' },
+      React.createElement('form', { className: 'card', onSubmit: onSubmit, style: { maxWidth: 400, width: '100%', margin: '0 auto', padding: 16, borderRadius: 8, boxShadow: '0 4px 8px rgba(0,0,0,0.1)' } },
+        React.createElement('h2', { className: 'title', style: { marginBottom: 16, fontSize: 18, textAlign: 'center' } }, 'Admin Girişi'),
+        error ? React.createElement('div', { className: 'notice', style: { marginBottom: 12 } }, error) : null,
+        React.createElement('div', { className: 'field', style: { marginBottom: 12 } },
+          React.createElement('label', { style: { marginBottom: 4 } }, 'E-posta'),
+          React.createElement('input', {
+            type: 'email', name: 'email', required: true,
+            value: email, onChange: (e) => setEmail(e.target.value),
+            style: { padding: 10, borderRadius: 4, border: '1px solid #ccc', fontSize: 14, width: '100%' }
+          })
+        ),
+        React.createElement('div', { className: 'field', style: { marginBottom: 16 } },
+          React.createElement('label', { style: { marginBottom: 4 } }, 'Şifre'),
+          React.createElement('input', {
+            type: 'password', name: 'password', required: true,
+            value: password, onChange: (e) => setPassword(e.target.value),
+            style: { padding: 10, borderRadius: 4, border: '1px solid #ccc', fontSize: 14, width: '100%' }
+          })
+        ),
+        React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginTop: 8 } },
+          React.createElement('label', { className: 'chip' },
+            React.createElement('input', { type: 'checkbox', name: 'remember', checked: remember, onChange: (e) => setRemember(e.target.checked) }),
+            React.createElement('span', null, 'Beni hatırla')
+          ),
+          React.createElement('button', { className: 'btn accent', type: 'submit', disabled: loading, style: { padding: '10px 16px', fontSize: 14 } }, loading ? 'Yükleniyor...' : 'Giriş Yap')
         )
       )
-    }
-    return React.createElement(React.Fragment, null,
-      React.createElement('div', { className: 'container', style: { marginBottom: 8 } },
-        React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end' } },
-          React.createElement('button', { className: 'btn', onClick: onLogout }, 'Çıkış Yap')
-        )
-      ),
-      React.createElement('div', { className: 'container' },
-        React.createElement('div', { className: 'card', style: { marginBottom: 12, padding: 12 } },
-          React.createElement('h3', null, 'Kullanıcı Ekle'),
-          React.createElement('form', { onSubmit: async (e) => {
-            e.preventDefault()
-            const fd = new FormData(e.currentTarget)
-            const email = String(fd.get('u_email')||'')
-            const password = String(fd.get('u_password')||'')
-            const role = String(fd.get('u_role')||'admin')
-            try { await API.addUser(email, password, role); e.currentTarget.reset(); await loadUsers(); alert('Kullanıcı eklendi') } catch { alert('Kullanıcı eklenemedi') }
-          } },
-            React.createElement('div', { className: 'grid three' },
-              React.createElement('div', { className: 'field' },
-                React.createElement('label', null, 'E‑posta'),
-                React.createElement('input', { type: 'email', name: 'u_email', required: true, placeholder: 'email@domain.com' })
-              ),
-              React.createElement('div', { className: 'field' },
-                React.createElement('label', null, 'Şifre'),
-                React.createElement('input', { type: 'password', name: 'u_password', required: true, placeholder: 'Şifre' })
-              ),
-              React.createElement('div', { className: 'field' },
-                React.createElement('label', null, 'Rol'),
-                React.createElement('select', { name: 'u_role', defaultValue: 'admin' },
-                  React.createElement('option', { value: 'admin' }, 'Admin')
-                )
-              )
-            ),
-            React.createElement('div', { className: 'row', style: { justifyContent: 'flex-end', marginTop: 8 } },
-              React.createElement('button', { className: 'btn accent', type: 'submit' }, 'Ekle')
-            )
-          )
-        )
-      ),
-      React.createElement('div', { className: 'container' },
-        React.createElement('div', { className: 'card', style: { marginBottom: 12, padding: 12 } },
-          React.createElement('h3', null, 'Kullanıcılar'),
-          usersErr ? React.createElement('div', { className: 'notice' }, usersErr) : null,
-          users.length === 0 ? React.createElement('div', { className: 'help' }, 'Kayıt bulunamadı') :
-          React.createElement('div', { className: 'table' },
-            React.createElement('div', { className: 'row', style: { fontWeight: 600 } },
-              React.createElement('div', { style: { flex: 2 } }, 'E‑posta'),
-              React.createElement('div', { style: { flex: 1 } }, 'Rol'),
-              React.createElement('div', { style: { flex: 1 } }, 'Kayıt'),
-              React.createElement('div', { style: { width: 80 } }, 'İşlem')
-            ),
-            users.map(u => React.createElement('div', { key: u.email, className: 'row', style: { alignItems: 'center' } },
-              React.createElement('div', { style: { flex: 2 } }, u.email),
-              React.createElement('div', { style: { flex: 1 } }, u.role || 'admin'),
-              React.createElement('div', { style: { flex: 1 } }, (u.createdAt||'').replace('T',' ').slice(0,19)),
-              React.createElement('div', { style: { width: 80 } },
-                React.createElement('button', { className: 'btn danger', onClick: async () => { if (confirm('Silmek istediğinize emin misiniz?')) { try { await API.deleteUser(u.email); await loadUsers() } catch { alert('Silinemedi') } } }, style: { padding: '6px 10px', fontSize: 12 } }, 'Sil')
-              )
-            ))
-          )
-        )
-      ),
-      React.createElement(Admin, { t })
     )
   }
 
