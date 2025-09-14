@@ -188,7 +188,10 @@ export const dict = {
     save: 'Kaydet',
     cancel: 'İptal',
     add_tech_file: 'Teknik Resim / Dosya Ekle',
-    add_prod_image: 'Ürün Görseli Ekle'
+    add_prod_image: 'Ürün Görseli Ekle',
+    // Login
+    remember_me: 'Beni hatırla',
+    login_btn: 'Giriş Yap'
   },
   en: {
     nav_quote: 'Request Quote',
@@ -374,7 +377,10 @@ export const dict = {
     save: 'Save',
     cancel: 'Cancel',
     add_tech_file: 'Add Technical File(s)',
-    add_prod_image: 'Add Product Image(s)'
+    add_prod_image: 'Add Product Image(s)',
+    // Login
+    remember_me: 'Remember me',
+    login_btn: 'Login'
   },
 }
 
