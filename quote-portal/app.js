@@ -28,12 +28,12 @@ import Modal from './components/Modal.js'
         React.createElement('div', { className: 'nav-inner container' },
           React.createElement('div', { className: 'brand' },
             React.createElement('div', { className: 'dot' }),
-            React.createElement('a', { href: isAdmin ? './admin.html' : './index.html' }, 'BURKOL')
+            React.createElement('a', { href: isAdmin ? './panel-gizli.html' : './index.html' }, 'BURKOL')
           ),
           React.createElement('div', { className: 'row wrap' },
             React.createElement('div', { className: 'tabs' },
-              // Single link to other page for quick switching during development
-              React.createElement('a', { href: otherHref, className: 'tab' }, otherLabel)
+              // Link to other page removed for production
+              // React.createElement('a', { href: otherHref, className: 'tab' }, otherLabel)
             ),
             React.createElement('div', { style: { width: 12 } }),
             React.createElement('select', {
