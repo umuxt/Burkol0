@@ -1056,6 +1056,7 @@ import Modal from './components/Modal.js'
       }
       setEditing(false)
       try { if (typeof onSaved === 'function') await onSaved() } catch {}
+     
       onClose()
     }
     return React.createElement('div', { style: {
@@ -1269,12 +1270,12 @@ import Modal from './components/Modal.js'
             style: { padding: 10, borderRadius: 4, border: '1px solid #ccc', fontSize: 14, width: '100%' }
           })
         ),
-        React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginTop: 8 } },
+        React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginTop: 10 } },
           React.createElement('label', { className: 'chip' },
-            React.createElement('input', { type: 'checkbox', name: 'remember', checked: remember, onChange: (e) => setRemember(e.target.checked) }),
-            React.createElement('span', null, 'Beni hatırla')
+            React.createElement('input', { type: 'checkbox', checked: remember, onChange: (e) => setRemember(e.target.checked) }),
+            React.createElement('span', null, t.remember_me || 'Beni hatırla')
           ),
-          React.createElement('button', { className: 'btn accent', type: 'submit', disabled: loading, style: { padding: '10px 16px', fontSize: 14 } }, loading ? 'Yükleniyor...' : 'Giriş Yap')
+          React.createElement('button', { type: 'submit', className: 'btn accent' }, t.login_btn || 'Giriş Yap')
         )
       )
     )
