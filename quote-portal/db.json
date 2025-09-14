@@ -1,0 +1,13 @@
+{
+  "quotes": {},
+  "users": {
+    "umutyalcin8@gmail.com": {
+      "email": "umutyalcin8@gmail.com",
+      "pw_salt": "bVaLDCk7wdLiCeI91ps2wA==",
+      "pw_hash": "JmJE94JcHAd6KMeYrEMVLGk7gm07JsyjJRS9Mvg/dMmivmwjZiDaTy1J13ljCvEIfPlAOcCWUj9LT4IqZpyKPQ==",
+      "role": "admin",
+      "createdAt": "2025-09-14T14:27:06.052Z"
+    }
+  },
+  "sessions": {}
+}

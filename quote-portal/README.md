@@ -1,4 +1,4 @@
-# Burkol Quote Portal
+cd /opt/burkol/Burkol0/quote-portal# Burkol Quote Portal
 
 Standalone React (CDN) + minimal Node backend with in-memory storage and TXT export.
 
