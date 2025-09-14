@@ -685,6 +685,18 @@ import Modal from './components/Modal.js'
     const [detail, setDetail] = useState(null)
     const [creating, setCreating] = useState(false)
     const [selected, setSelected] = useState(new Set())
+    
+    // Search and Filter States
+    const [globalSearch, setGlobalSearch] = useState('')
+    const [fieldSearch, setFieldSearch] = useState('')
+    const [filters, setFilters] = useState({
+      status: [],
+      material: [],
+      process: [],
+      dateRange: { from: '', to: '' },
+      qtyRange: { min: '', max: '' },
+      country: []
+    })
 
     useEffect(() => { refresh() }, [])
     async function refresh() {
@@ -703,13 +715,133 @@ import Modal from './components/Modal.js'
     }
 
     const filtered = useMemo(() => {
+      let result = [...list]
+      
+      // Global search - searches across all fields
+      if (globalSearch.trim()) {
+        const searchTerm = globalSearch.toLowerCase().trim()
+        result = result.filter(item => {
+          const searchableText = [
+            item.name, item.company, item.email, item.phone, item.country, item.city,
+            item.proj, item.material, item.grade, item.desc, item.finish, item.toleranceStd,
+            item.toleranceCrit, item.weldMethod, item.anodizeType, item.finishRal,
+            item.id, item.status, item.dims, item.tolerance, item.due, item.repeat,
+            ...(Array.isArray(item.process) ? item.process : [])
+          ].filter(Boolean).join(' ').toLowerCase()
+          
+          return searchableText.includes(searchTerm)
+        })
+      }
+      
+      // Field-specific search (if implemented later)
+      if (fieldSearch.trim()) {
+        const searchTerm = fieldSearch.toLowerCase().trim()
+        result = result.filter(item => {
+          // Add specific field search logic here if needed
+          return (item.name || '').toLowerCase().includes(searchTerm) ||
+                 (item.company || '').toLowerCase().includes(searchTerm) ||
+                 (item.proj || '').toLowerCase().includes(searchTerm)
+        })
+      }
+      
+      // Status filter
+      if (filters.status.length > 0) {
+        result = result.filter(item => filters.status.includes(item.status))
+      }
+      
+      // Material filter
+      if (filters.material.length > 0) {
+        result = result.filter(item => filters.material.includes(item.material))
+      }
+      
+      // Process filter
+      if (filters.process.length > 0) {
+        result = result.filter(item => {
+          if (!Array.isArray(item.process)) return false
+          return filters.process.some(filterProcess => item.process.includes(filterProcess))
+        })
+      }
+      
+      // Date range filter
+      if (filters.dateRange.from || filters.dateRange.to) {
+        result = result.filter(item => {
+          if (!item.createdAt) return false
+          const itemDate = new Date(item.createdAt)
+          const fromDate = filters.dateRange.from ? new Date(filters.dateRange.from) : null
+          const toDate = filters.dateRange.to ? new Date(filters.dateRange.to) : null
+          
+          if (fromDate && itemDate < fromDate) return false
+          if (toDate && itemDate > toDate) return false
+          return true
+        })
+      }
+      
+      // Quantity range filter
+      if (filters.qtyRange.min || filters.qtyRange.max) {
+        result = result.filter(item => {
+          const qty = Number(item.qty) || 0
+          const min = Number(filters.qtyRange.min) || 0
+          const max = Number(filters.qtyRange.max) || Infinity
+          return qty >= min && qty <= max
+        })
+      }
+      
+      // Country filter
+      if (filters.country.length > 0) {
+        result = result.filter(item => filters.country.includes(item.country))
+      }
+      
       // Sort by createdAt descending (newest first), then by id as fallback
-      return [...list].sort((a, b) => {
+      return result.sort((a, b) => {
         const dateA = new Date(a.createdAt || 0).getTime()
         const dateB = new Date(b.createdAt || 0).getTime()
         if (dateB !== dateA) return dateB - dateA
         return (b.id || '').localeCompare(a.id || '')
       })
+    }, [list, globalSearch, fieldSearch, filters])
+
+    // Helper functions for filters
+    function updateFilter(category, value, action = 'toggle') {
+      setFilters(prev => {
+        const newFilters = { ...prev }
+        if (action === 'toggle') {
+          if (Array.isArray(newFilters[category])) {
+            const index = newFilters[category].indexOf(value)
+            if (index > -1) {
+              newFilters[category] = newFilters[category].filter(v => v !== value)
+            } else {
+              newFilters[category] = [...newFilters[category], value]
+            }
+          }
+        } else if (action === 'set') {
+          newFilters[category] = value
+        }
+        return newFilters
+      })
+    }
+
+    function clearFilters() {
+      setFilters({
+        status: [],
+        material: [],
+        process: [],
+        dateRange: { from: '', to: '' },
+        qtyRange: { min: '', max: '' },
+        country: []
+      })
+      setGlobalSearch('')
+      setFieldSearch('')
+    }
+
+    // Get unique values for filter options
+    const filterOptions = useMemo(() => {
+      const options = {
+        status: [...new Set(list.map(item => item.status).filter(Boolean))],
+        material: [...new Set(list.map(item => item.material).filter(Boolean))],
+        process: [...new Set(list.flatMap(item => Array.isArray(item.process) ? item.process : []).filter(Boolean))],
+        country: [...new Set(list.map(item => item.country).filter(Boolean))]
+      }
+      return options
     }, [list])
 
     async function setItemStatus(id, st) { await API.updateStatus(id, st); refresh() }
@@ -894,16 +1026,84 @@ import Modal from './components/Modal.js'
       // Filters removed
 
       React.createElement('div', { className: 'card', style: { marginTop: 16 } },
-        React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center' } },
-          React.createElement('label', null, t.a_list),
-          React.createElement('div', { className: 'row', style: { gap: 6 } },
+        React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' } },
+          React.createElement('label', { style: { fontSize: '16px', fontWeight: '600', margin: 0, minWidth: '120px' } }, t.a_list),
+          
+          // Search Section
+          React.createElement('div', { className: 'row', style: { gap: '8px', flex: '1 1 400px', minWidth: '300px', maxWidth: '500px' } },
+            React.createElement('input', {
+              type: 'text',
+              placeholder: 'Genel arama (isim, firma, email, tel, proje...)',
+              value: globalSearch,
+              onChange: (e) => setGlobalSearch(e.target.value),
+              style: { 
+                flex: 1,
+                padding: '6px 10px', 
+                border: '1px solid #ced4da', 
+                borderRadius: '4px', 
+                fontSize: '12px',
+                minWidth: '200px'
+              }
+            }),
+            React.createElement('button', {
+              onClick: () => {
+                setGlobalSearch('')
+                setFieldSearch('')
+                clearFilters()
+              },
+              title: 'Aramaları temizle',
+              style: { 
+                padding: '6px 8px', 
+                fontSize: '12px', 
+                backgroundColor: '#6c757d', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '4px', 
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }
+            }, '✕')
+          ),
+          
+          // Action Buttons
+          React.createElement('div', { className: 'row', style: { gap: 6, flexShrink: 0 } },
             React.createElement('button', { className: 'btn', onClick: () => refresh(), title: t.tt_refresh, style: { padding: '6px 10px', fontSize: 12 } }, t.refresh),
             React.createElement('button', { className: 'btn', onClick: () => setCreating(true), title: t.a_add, style: { padding: '6px 10px', fontSize: 12 } }, t.a_add),
             React.createElement('button', { className: 'btn danger', onClick: bulkDelete, title: t.tt_delete, disabled: selected.size === 0, style: { padding: '6px 10px', fontSize: 12 } }, t.a_delete),
             React.createElement('button', { className: 'btn', onClick: exportCSV, title: t.tt_export_csv, style: { padding: '6px 10px', fontSize: 12 } }, t.a_export_csv)
           )
         ),
-        filtered.length === 0 ? React.createElement('div', { className: 'notice' }, t.a_none) : (
+        
+        // Compact filter bar (optional - can be added later)
+        React.createElement('div', { style: { margin: '8px 0', fontSize: '12px', color: '#6c757d' } },
+          // Active filters display (if any)
+          (filters.status.length > 0 || filters.material.length > 0 || filters.process.length > 0 || filters.dateRange.from || filters.dateRange.to || filters.qtyRange.min || filters.qtyRange.max) &&
+          React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' } },
+            React.createElement('span', { style: { fontWeight: '500' } }, 'Aktif filtreler: '),
+            filters.status.length > 0 && React.createElement('span', { style: { backgroundColor: '#007bff', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Durum: ${filters.status.join(', ')}`),
+            filters.material.length > 0 && React.createElement('span', { style: { backgroundColor: '#28a745', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Malzeme: ${filters.material.join(', ')}`),
+            filters.process.length > 0 && React.createElement('span', { style: { backgroundColor: '#ffc107', color: '#212529', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `İşlem: ${filters.process.join(', ')}`),
+            (filters.dateRange.from || filters.dateRange.to) && React.createElement('span', { style: { backgroundColor: '#6c757d', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Tarih: ${filters.dateRange.from || '?'} - ${filters.dateRange.to || '?'}`),
+            (filters.qtyRange.min || filters.qtyRange.max) && React.createElement('span', { style: { backgroundColor: '#17a2b8', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Miktar: ${filters.qtyRange.min || '0'} - ${filters.qtyRange.max || '∞'}`)
+          )
+        ),
+        
+        // Results Info
+        React.createElement('div', { 
+          style: { 
+            padding: '8px 12px', 
+            backgroundColor: '#e3f2fd', 
+            borderRadius: '4px', 
+            margin: '12px 0 8px 0',
+            fontSize: '14px',
+            color: '#1565c0'
+          } 
+        }, 
+          `${filtered.length} kayıt gösteriliyor` + 
+          (filtered.length !== list.length ? ` (toplam ${list.length} kayıttan filtrelendi)` : '')
+        ),
+        
+        filtered.length === 0 ? React.createElement('div', { className: 'notice' }, `${t.a_none} ${list.length > 0 ? '(filtrelenmiş)' : ''}`) : (
           React.createElement('div', { style: { overflowX: 'auto' } },
             React.createElement('table', { className: 'table' },
               React.createElement('thead', null,
@@ -958,13 +1158,31 @@ import Modal from './components/Modal.js'
                     React.createElement('td', null, React.createElement('span', { className: 'status ' + (it.status === 'new' ? 'new' : it.status === 'review' ? 'review' : it.status === 'feasible' ? 'feasible' : it.status === 'quoted' ? 'quoted' : it.status === 'approved' ? 'approved' : 'not') }, statusLabel(it.status, t))),
                     React.createElement('td', null,
                       React.createElement('div', { className: 'row actions-row', style: { gap: 8 } },
-                        React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); setDetail(it) }, title: t.tt_detail }, t.a_detail),
+                        React.createElement('button', { 
+                          type: 'button', 
+                          className: 'btn', 
+                          onClick: (e) => { e.stopPropagation(); setDetail(it) }, 
+                          title: t.tt_detail,
+                          style: { 
+                            padding: '4px 6px', 
+                            borderRadius: '6px',
+                            backgroundColor: '#17a2b8',
+                            color: 'white',
+                            border: 'none',
+                            fontSize: '12px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            minWidth: '24px',
+                            height: '24px'
+                          }
+                        }, 'ℹ'),
                         React.createElement('div', { className: 'tt-wrap' },
                           React.createElement('select', {
                             value: it.status,
                             onChange: (e) => { e.stopPropagation(); setItemStatus(it.id, e.target.value) },
                             className: 'btn',
-                            style: { padding: '10px 14px', borderRadius: 10 },
+                            style: { padding: '4px 6px', borderRadius: 6, fontSize: '11px' },
                             title: t.tt_change_status
                           },
                             React.createElement('option', { value: 'new' }, t.s_new),
@@ -976,8 +1194,20 @@ import Modal from './components/Modal.js'
                         ),
                           React.createElement('span', { className: 'tt' }, t.tt_change_status)
                         ),
-                        React.createElement('button', { type: 'button', className: 'btn', onClick: (e) => { e.stopPropagation(); API.downloadTxt(it.id, it) }, title: t.tt_download_txt }, 'TXT'),
-                        React.createElement('button', { type: 'button', className: 'btn danger', onClick: (e) => { e.stopPropagation(); if (confirm(t.confirm_delete)) remove(it.id) }, title: t.tt_delete }, t.a_delete),
+                        React.createElement('button', { 
+                          type: 'button', 
+                          className: 'btn', 
+                          onClick: (e) => { e.stopPropagation(); API.downloadTxt(it.id, it) }, 
+                          title: t.tt_download_txt,
+                          style: { padding: '4px 6px', fontSize: '11px', borderRadius: '4px' }
+                        }, 'TXT'),
+                        React.createElement('button', { 
+                          type: 'button', 
+                          className: 'btn danger', 
+                          onClick: (e) => { e.stopPropagation(); if (confirm(t.confirm_delete)) remove(it.id) }, 
+                          title: t.tt_delete,
+                          style: { padding: '4px 6px', fontSize: '11px', borderRadius: '4px' }
+                        }, t.a_delete),
                       )
                     )
                   )
