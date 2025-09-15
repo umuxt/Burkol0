@@ -78,16 +78,31 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
           } else if (param.formField === 'thickness') {
             value = parseFloat(quote.thickness) || 0
           } else if (param.formField === 'dimensions') {
-            // Calculate area from dimensions
-            const dims = quote.dimensions || ''
-            const match = dims.match(/(\d+)\s*[x×]\s*(\d+)/)
-            if (match) {
-              value = (parseFloat(match[1]) || 0) * (parseFloat(match[2]) || 0)
+            // Calculate area from numeric dims if present; fallback to parsing string
+            const l = parseFloat(quote.dimsL)
+            const w = parseFloat(quote.dimsW)
+            if (!isNaN(l) && !isNaN(w)) {
+              value = l * w
+            } else {
+              const dims = quote.dims || ''
+              const match = String(dims).match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i)
+              if (match) {
+                value = (parseFloat(match[1]) || 0) * (parseFloat(match[2]) || 0)
+              }
             }
           } else {
-            // For fields with lookup table
-            if (param.lookupTable && param.lookupTable.length > 0) {
-              const fieldValue = quote[param.formField]
+            // For fields with lookup table or arrays
+            const fieldValue = quote[param.formField]
+            if (Array.isArray(fieldValue)) {
+              if (param.lookupTable && param.lookupTable.length > 0) {
+                value = fieldValue.reduce((sum, opt) => {
+                  const found = param.lookupTable.find(item => item.option === opt)
+                  return sum + (found ? (parseFloat(found.value) || 0) : 0)
+                }, 0)
+              } else {
+                value = fieldValue.length || 0
+              }
+            } else if (param.lookupTable && param.lookupTable.length > 0) {
               const lookupItem = param.lookupTable.find(item => item.option === fieldValue)
               value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
             } else {
@@ -120,16 +135,35 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     }
   }
 
-  // Check if calculated price differs from stored price
+  // Check if calculated price differs from stored price or settings changed
   function needsPriceUpdate(quote) {
     if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
       return false
     }
-    
     const calculatedPrice = calculatePrice(quote)
     const storedPrice = parseFloat(quote.price) || 0
-    
-    return Math.abs(calculatedPrice - storedPrice) > 0.01 // 1 cent tolerance
+    const priceDiffers = Math.abs(calculatedPrice - storedPrice) > 0.01
+    const settingsChanged = !!(priceSettings.lastUpdated && (!quote.priceSettingsStamp || priceSettings.lastUpdated !== quote.priceSettingsStamp))
+    return priceDiffers || settingsChanged
+  }
+
+  // Popup for price update
+  const [priceReview, setPriceReview] = useState(null) // { item, newPrice }
+  async function applyNewPrice(item) {
+    try {
+      const newPrice = calculatePrice(item)
+      await API.updateQuote(item.id, { 
+        price: Number(newPrice), 
+        priceUpdatedAt: new Date().toISOString(), 
+        priceSettingsStamp: priceSettings && priceSettings.lastUpdated ? priceSettings.lastUpdated : null 
+      })
+      showNotification && showNotification('Fiyat güncellendi', 'success')
+      setPriceReview(null)
+      refresh()
+    } catch (e) {
+      console.error(e)
+      showNotification && showNotification('Fiyat güncellenemedi', 'error')
+    }
   }
 
   const filtered = useMemo(() => {
@@ -637,12 +671,14 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
                   React.createElement('td', null, (() => {
                     const needsUpdate = needsPriceUpdate(it)
                     return React.createElement('div', { 
-                      style: { display: 'flex', alignItems: 'center', gap: '4px' } 
+                      style: { display: 'flex', alignItems: 'center', gap: '6px' } 
                     },
                       React.createElement('span', null, `₺ ${(it.price || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`),
-                      needsUpdate && React.createElement('span', { 
-                        style: { color: '#ff6b6b', fontSize: '14px' },
-                        title: `Formül değişti! Yeni fiyat: ₺ ${calculatePrice(it).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                      needsUpdate && React.createElement('button', { 
+                        className: 'btn danger',
+                        style: { padding: '0 6px', fontSize: '12px', lineHeight: '20px', height: '22px' },
+                        title: `Formül değişti!` ,
+                        onClick: (e) => { e.stopPropagation(); setPriceReview({ item: it, newPrice: calculatePrice(it) }) }
                       }, '❗')
                     )
                   })()),
@@ -737,7 +773,23 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
       onSettingsUpdated: loadPriceSettings,
       t: t,
       showNotification: showNotification
-    }) : null
+    }) : null,
+    priceReview ? (function () {
+      const pr = priceReview
+      const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)' }
+      const box = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#111', color: '#fff', padding: 16, borderRadius: 8, width: 320 }
+      return React.createElement(React.Fragment, null,
+        React.createElement('div', { style: overlay, onClick: () => setPriceReview(null) }),
+        React.createElement('div', { style: box },
+          React.createElement('h3', { style: { marginTop: 0 } }, 'Yeni fiyat önerisi'),
+          React.createElement('div', { style: { margin: '8px 0 16px' } }, `Hesaplanan: ₺ ${Number(pr.newPrice || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
+          React.createElement('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+            React.createElement('button', { className: 'btn', onClick: () => setPriceReview(null) }, 'Kapat'),
+            React.createElement('button', { className: 'btn accent', onClick: () => applyNewPrice(pr.item) }, 'Fiyatı Güncelle')
+          )
+        )
+      )
+    })() : null
   )
 }
 

@@ -153,6 +153,71 @@ function requireAuth(req, res, next) {
 const UPLOAD_DIR = path.join(ROOT, 'uploads')
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true })
 
+// --- Pricing helper (server-side) ---
+function calculatePriceServer(quote, settings) {
+  try {
+    const params = settings.parameters || []
+    const paramValues = {}
+
+    for (const param of params) {
+      if (param.type === 'fixed') {
+        paramValues[param.id] = parseFloat(param.value) || 0
+        continue
+      }
+      if (param.type === 'form') {
+        let value = 0
+        const field = param.formField
+        if (field === 'qty') {
+          value = parseFloat(quote.qty) || 0
+        } else if (field === 'thickness') {
+          value = parseFloat(quote.thickness) || 0
+        } else if (field === 'dimensions') {
+          // Prefer numeric dimsL x dimsW (area). Fallback to parsing dims string "LxW[xH]".
+          const l = parseFloat(quote.dimsL)
+          const w = parseFloat(quote.dimsW)
+          if (!isNaN(l) && !isNaN(w)) {
+            value = l * w
+          } else if (quote.dims) {
+            const m = String(quote.dims).match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i)
+            if (m) value = (parseFloat(m[1]) || 0) * (parseFloat(m[2]) || 0)
+          }
+        } else {
+          const fv = quote[field]
+          if (Array.isArray(fv)) {
+            // Sum values from lookup table for each option in array fields (e.g. process)
+            if (param.lookupTable && param.lookupTable.length) {
+              value = fv.reduce((sum, opt) => {
+                const found = param.lookupTable.find(r => r.option === opt)
+                return sum + (found ? (parseFloat(found.value) || 0) : 0)
+              }, 0)
+            } else {
+              value = fv.length || 0
+            }
+          } else if (param.lookupTable && param.lookupTable.length) {
+            const item = param.lookupTable.find(r => r.option === fv)
+            value = item ? (parseFloat(item.value) || 0) : 0
+          } else {
+            value = parseFloat(fv) || 0
+          }
+        }
+        paramValues[param.id] = value
+      }
+    }
+
+    let formula = String(settings.formula || '').replace(/^=/, '')
+    Object.keys(paramValues).forEach(id => {
+      const re = new RegExp(`\\b${id}\\b`, 'g')
+      formula = formula.replace(re, String(paramValues[id]))
+    })
+    // Evaluate safely-ish
+    const result = Function('"use strict"; return (' + formula + ')')()
+    return Number(result)
+  } catch (e) {
+    console.error('calculatePriceServer failed:', e)
+    return Number(quote.price) || 0
+  }
+}
+
 function safeName(name) {
   const base = String(name || 'file').replace(/[^a-zA-Z0-9._-]+/g, '_')
   return base.slice(0, 128)
@@ -202,6 +267,21 @@ app.post('/api/quotes', async (req, res) => {
     }
     if (Array.isArray(q.productImages)) {
       q.productImages = await persistFilesForQuote(q.id, q.productImages)
+    }
+
+    // Apply server-side price calculation using saved settings
+    try {
+      const settings = jsondb.getSettings()
+      if (settings && settings.parameters && settings.formula) {
+        const price = calculatePriceServer(q, settings)
+        if (!isNaN(price)) {
+          q.price = Number(price)
+          q.priceSettingsStamp = settings.lastUpdated || null
+          q.priceCalculatedAt = new Date().toISOString()
+        }
+      }
+    } catch (e) {
+      console.error('Server price calc error:', e)
     }
 
     insertOne(q)
