@@ -99,9 +99,47 @@ function getSession(token) {
   const db = loadRaw()
   return (db.sessions && db.sessions[token]) || null
 }
-function deleteSession(token) {
+function deleteSession(sessionId) {
   const db = loadRaw()
-  if (db.sessions && db.sessions[token]) { delete db.sessions[token]; saveRaw(db) }
+  if (db.sessions && db.sessions[sessionId]) {
+    delete db.sessions[sessionId]
+    saveRaw(db)
+  }
+}
+
+// Settings ops
+function getSettings() {
+  const db = loadRaw()
+  return db.settings || null
+}
+function putSettings(obj) {
+  const db = loadRaw()
+  if (!db.settings) db.settings = {}
+  db.settings = { ...obj }
+  saveRaw(db)
+}
+
+module.exports = {
+  // quotes
+  listQuotes,
+  getQuote,
+  putQuote,
+  patchQuote,
+  removeQuote,
+  // users
+  getUser,
+  upsertUser,
+  listUsersRaw,
+  deleteUser,
+  // sessions
+  putSession,
+  getSession,
+  deleteSession,
+  // settings
+  getSettings,
+  putSettings,
+  // utils
+  DATA_FILE,
 }
 
 module.exports = {

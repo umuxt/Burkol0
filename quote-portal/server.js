@@ -465,6 +465,49 @@ app.post('/api/migrate/ids', requireAuth, async (req, res) => {
   }
 })
 
+// Settings endpoints for pricing formula
+app.get('/api/settings', requireAuth, async (req, res) => {
+  try {
+    const settings = jsondb.getSettings() || {
+      parameters: [],
+      formula: '',
+      lastUpdated: null
+    }
+    res.json(settings)
+  } catch (error) {
+    console.error('Get settings error:', error)
+    res.status(500).json({ 
+      error: 'get_settings_failed', 
+      message: error.message 
+    })
+  }
+})
+
+app.post('/api/settings', requireAuth, async (req, res) => {
+  try {
+    const { parameters, formula } = req.body
+    const settings = {
+      parameters: parameters || [],
+      formula: formula || '',
+      lastUpdated: new Date().toISOString()
+    }
+    
+    jsondb.putSettings(settings)
+    
+    res.json({ 
+      ok: true, 
+      message: 'Settings saved successfully',
+      settings: settings
+    })
+  } catch (error) {
+    console.error('Save settings error:', error)
+    res.status(500).json({ 
+      error: 'save_settings_failed', 
+      message: error.message 
+    })
+  }
+})
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Burkol Quote server on http://0.0.0.0:${PORT}`)
   console.log(`External access: http://136.244.86.113:${PORT}`)

@@ -942,10 +942,11 @@ import Modal from './components/Modal.js'
                       cursor: 'pointer',
                       padding: '6px 8px',
                       borderRadius: '4px',
-                      transition: 'background-color 0.2s'
+                      transition: 'background-color 0.2s',
+                      width: '100%'
                     },
-                    onMouseOver: (e) => e.target.style.backgroundColor = '#f8f9fa',
-                    onMouseOut: (e) => e.target.style.backgroundColor = 'transparent'
+                    onMouseOver: (e) => e.currentTarget.style.backgroundColor = '#f8f9fa',
+                    onMouseOut: (e) => e.currentTarget.style.backgroundColor = 'transparent'
                   },
                     React.createElement('input', {
                       type: 'checkbox',
@@ -956,11 +957,11 @@ import Modal from './components/Modal.js'
                     React.createElement('span', { 
                       style: { 
                         fontSize: '14px', 
-                        flex: 1,
+                        flex: '1',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        maxWidth: 'calc(100% - 30px)'
+                        minWidth: '0'
                       } 
                     }, option)
                   )
@@ -1013,6 +1014,8 @@ import Modal from './components/Modal.js'
     const [detail, setDetail] = useState(null)
     const [creating, setCreating] = useState(false)
     const [selected, setSelected] = useState(new Set())
+    const [settingsModal, setSettingsModal] = useState(false)
+    const [priceSettings, setPriceSettings] = useState(null)
     
     // Search and Filter States
     const [globalSearch, setGlobalSearch] = useState('')
@@ -1027,9 +1030,22 @@ import Modal from './components/Modal.js'
       country: []
     })
 
-    useEffect(() => { refresh() }, [])
+    useEffect(() => { 
+      refresh()
+      loadPriceSettings()
+    }, [])
+    
     async function refresh() {
       try { setList(await API.listQuotes()) } catch (e) { console.error(e) }
+    }
+
+    async function loadPriceSettings() {
+      try {
+        const settings = await API.getSettings()
+        setPriceSettings(settings)
+      } catch (e) {
+        console.error('Settings load error:', e)
+      }
     }
 
     async function handleLogout() {
@@ -1041,6 +1057,78 @@ import Modal from './components/Modal.js'
         // Even if logout fails on server, clear local session
         onLogout()
       }
+    }
+
+    // Calculate price using formula and parameters
+    function calculatePrice(quote) {
+      if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
+        return quote.price || 0
+      }
+
+      try {
+        // Create parameter values map
+        const paramValues = {}
+        
+        priceSettings.parameters.forEach(param => {
+          if (param.type === 'fixed') {
+            paramValues[param.id] = parseFloat(param.value) || 0
+          } else if (param.type === 'form') {
+            let value = 0
+            
+            if (param.formField === 'qty') {
+              value = parseFloat(quote.qty) || 0
+            } else if (param.formField === 'thickness') {
+              value = parseFloat(quote.thickness) || 0
+            } else if (param.formField === 'material') {
+              // For material, check if it matches the specified material type
+              if (param.materialType && quote.material === param.materialType) {
+                value = 1 // Boolean-like value when material matches
+              } else {
+                value = 0
+              }
+            } else if (param.formField === 'size') {
+              // Calculate area from dimensions
+              const dims = quote.dimensions || ''
+              const match = dims.match(/(\d+)\s*[x×]\s*(\d+)/)
+              if (match) {
+                value = (parseFloat(match[1]) || 0) * (parseFloat(match[2]) || 0)
+              }
+            }
+            
+            paramValues[param.id] = value
+          }
+        })
+
+        // Evaluate formula (simple Excel-like evaluation)
+        let formula = priceSettings.formula.replace(/^=/, '') // Remove leading =
+        
+        // Replace parameter IDs with actual values
+        Object.keys(paramValues).forEach(paramId => {
+          const regex = new RegExp(`\\b${paramId}\\b`, 'g')
+          formula = formula.replace(regex, paramValues[paramId])
+        })
+
+        // Basic mathematical evaluation (be careful with eval in production!)
+        // This is a simplified version - in production, use a proper formula parser
+        const result = Function('"use strict"; return (' + formula + ')')()
+        return isNaN(result) ? (quote.price || 0) : result
+        
+      } catch (e) {
+        console.error('Price calculation error:', e)
+        return quote.price || 0
+      }
+    }
+
+    // Check if calculated price differs from stored price
+    function needsPriceUpdate(quote) {
+      if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
+        return false
+      }
+      
+      const calculatedPrice = calculatePrice(quote)
+      const storedPrice = parseFloat(quote.price) || 0
+      
+      return Math.abs(calculatedPrice - storedPrice) > 0.01 // 1 cent tolerance
     }
 
     const filtered = useMemo(() => {
@@ -1329,18 +1417,37 @@ import Modal from './components/Modal.js'
           React.createElement('h1', { className: 'page-title', style: { margin: 0 } }, t.title_admin),
           React.createElement('p', { className: 'page-sub', style: { margin: 0 } }, t.sub_admin)
         ),
-        React.createElement('button', { 
-          onClick: handleLogout, 
-          className: 'btn', 
-          style: { 
-            backgroundColor: '#ff3b30', 
-            color: 'white', 
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '6px',
-            cursor: 'pointer'
-          } 
-        }, t.logout_btn || 'Çıkış Yap')
+        React.createElement('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+          React.createElement('button', { 
+            onClick: () => setSettingsModal(true), 
+            className: 'btn', 
+            style: { 
+              backgroundColor: '#007bff', 
+              color: 'white', 
+              border: 'none',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              transition: 'all 0.2s ease'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#0056b3',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#007bff',
+            title: 'Ayarlar'
+          }, '⚙️'),
+          React.createElement('button', { 
+            onClick: handleLogout, 
+            className: 'btn', 
+            style: { 
+              backgroundColor: '#ff3b30', 
+              color: 'white', 
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            } 
+          }, t.logout_btn || 'Çıkış Yap')
+        )
       ),
       // Default multi-charts (unfiltered)
       React.createElement('div', { className: 'card', style: { marginBottom: 12 } },
@@ -1436,7 +1543,23 @@ import Modal from './components/Modal.js'
               style: { padding: '6px 10px', fontSize: 12, transition: 'all 0.2s ease' },
               onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
               onMouseOut: (e) => e.target.style.backgroundColor = ''
-            }, t.a_export_csv)
+            }, t.a_export_csv),
+            React.createElement('button', { 
+              className: 'btn accent', 
+              onClick: async () => {
+                try {
+                  const result = await API.migrateIds()
+                  showNotification(`${result.migrated} kayıt yeni ID formatına dönüştürüldü!`, 'success')
+                  refresh()
+                } catch (e) {
+                  showNotification('ID migration hatası: ' + e.message, 'error')
+                }
+              }, 
+              title: 'ID formatını güncelle', 
+              style: { padding: '6px 10px', fontSize: 12, transition: 'all 0.2s ease' },
+              onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
+              onMouseOut: (e) => e.target.style.backgroundColor = ''
+            }, '🔄 ID Güncelle')
           )
         ),
         
@@ -1528,7 +1651,18 @@ import Modal from './components/Modal.js'
                       const style = days <= 3 ? { color: '#ff6b6b', fontWeight: 600 } : {}
                       return React.createElement('span', { style }, String(days))
                     })()),
-                    React.createElement('td', null, '₺ 16'),
+                    React.createElement('td', null, (() => {
+                      const needsUpdate = needsPriceUpdate(it)
+                      return React.createElement('div', { 
+                        style: { display: 'flex', alignItems: 'center', gap: '4px' } 
+                      },
+                        React.createElement('span', null, `₺ ${(it.price || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`),
+                        needsUpdate && React.createElement('span', { 
+                          style: { color: '#ff6b6b', fontSize: '14px' },
+                          title: `Formül değişti! Yeni fiyat: ₺ ${calculatePrice(it).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
+                        }, '❗')
+                      )
+                    })()),
                     React.createElement('td', null, '16'),
                     React.createElement('td', null, React.createElement('span', { className: 'status ' + (it.status === 'new' ? 'new' : it.status === 'review' ? 'review' : it.status === 'feasible' ? 'feasible' : it.status === 'quoted' ? 'quoted' : it.status === 'approved' ? 'approved' : 'not') }, statusLabel(it.status, t))),
                     React.createElement('td', null,
@@ -1615,6 +1749,12 @@ import Modal from './components/Modal.js'
         onClose: () => setFilterPopup(null), 
         onUpdateFilter: updateFilter, 
         t: t 
+      }) : null,
+      settingsModal ? React.createElement(SettingsModal, { 
+        onClose: () => setSettingsModal(false), 
+        onSettingsUpdated: loadPriceSettings,
+        t: t,
+        showNotification: showNotification
       }) : null
     )
   }
@@ -1652,6 +1792,328 @@ import Modal from './components/Modal.js'
               React.createElement('img', { className: 'preview-img', src: srcOf(f), alt: f.name })
             ) : React.createElement('a', { className: 'btn', href: srcOf(f), download: f.name, title: t.tt_download_txt }, t.download)
           ))
+        )
+      )
+    )
+  }
+
+  function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
+    const [parameters, setParameters] = useState([])
+    const [formula, setFormula] = useState('')
+    const [newParam, setNewParam] = useState({ 
+      name: '', 
+      value: '', 
+      type: 'fixed',
+      formField: '',
+      materialType: ''
+    })
+    
+    // Form fields available for selection
+    const formFields = [
+      { value: 'qty', label: 'Adet' },
+      { value: 'thickness', label: 'Kalınlık (mm)' },
+      { value: 'material', label: 'Malzeme' },
+      { value: 'dims', label: 'Boyutlar' },
+      { value: 'grade', label: 'Kalite/Alaşım' },
+      { value: 'finish', label: 'Yüzey İşlemi' },
+      { value: 'tolerance', label: 'Tolerans' }
+    ]
+    
+    // Material types for material selection
+    const materialTypes = [
+      'Alüminyum', 'Çelik', 'Paslanmaz Çelik', 'Bakır', 'Pirinç', 'Titanyum'
+    ]
+
+    React.useEffect(() => {
+      // Load settings from API
+      loadSettings()
+    }, [])
+
+    async function loadSettings() {
+      try {
+        const settings = await API.getSettings()
+        setParameters(settings.parameters || [])
+        setFormula(settings.formula || '')
+      } catch (e) {
+        console.log('Settings not found, using defaults')
+      }
+    }
+
+    function addParameter() {
+      if (!newParam.name || (!newParam.value && newParam.type === 'fixed')) return
+      if (newParam.type === 'form' && !newParam.formField) return
+      if (newParam.formField === 'material' && !newParam.materialType) return
+      
+      const newId = String.fromCharCode(65 + parameters.length) // A,B,C,D...
+      const param = { 
+        id: newId, 
+        name: newParam.name, 
+        value: newParam.value || '1', 
+        type: newParam.type,
+        formField: newParam.formField,
+        materialType: newParam.materialType
+      }
+      
+      setParameters(prev => [...prev, param])
+      setNewParam({ name: '', value: '', type: 'fixed', formField: '', materialType: '' })
+    }
+
+    function removeParameter(id) {
+      setParameters(prev => prev.filter(p => p.id !== id))
+    }
+
+    function updateParameter(id, field, value) {
+      setParameters(prev => prev.map(p => 
+        p.id === id ? { ...p, [field]: value } : p
+      ))
+    }
+
+    async function saveSettings() {
+      try {
+        const settings = { parameters, formula }
+        await API.saveSettings(settings)
+        showNotification('Fiyat hesaplama ayarları kaydedildi!', 'success')
+        if (onSettingsUpdated) onSettingsUpdated()
+        onClose()
+      } catch (e) {
+        showNotification('Ayarlar kaydedilemedi: ' + e.message, 'error')
+      }
+    }
+
+    const overlayStyle = {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      backdropFilter: 'blur(4px)',
+      zIndex: 1002
+    }
+
+    const modalStyle = {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      backgroundColor: 'white',
+      border: '1px solid #ddd',
+      borderRadius: '12px',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+      padding: '24px',
+      minWidth: '600px',
+      maxWidth: '800px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      zIndex: 1003
+    }
+
+    return React.createElement('div', null,
+      React.createElement('div', { style: overlayStyle, onClick: onClose }),
+      React.createElement('div', { style: modalStyle },
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' } },
+          React.createElement('h2', { style: { margin: 0, fontSize: '20px', fontWeight: '600', color: '#1a1a1a' } }, 'Fiyat Hesaplama Ayarları'),
+          React.createElement('button', { 
+            onClick: onClose,
+            style: { 
+              background: 'none', 
+              border: 'none', 
+              fontSize: '24px', 
+              cursor: 'pointer',
+              padding: '4px 8px',
+              lineHeight: '1',
+              color: '#666',
+              borderRadius: '4px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#f5f5f5',
+            onMouseOut: (e) => e.target.style.backgroundColor = 'transparent'
+          }, '×')
+        ),
+
+        // Parameters section
+        React.createElement('div', { style: { marginBottom: '24px' } },
+          React.createElement('h3', { style: { marginBottom: '16px', fontSize: '16px', color: '#333' } }, 'Parametreler'),
+          React.createElement('div', { style: { overflowX: 'auto' } },
+            React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse' } },
+              React.createElement('thead', null,
+                React.createElement('tr', null,
+                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa' } }, 'ID'),
+                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa' } }, 'Parametre Adı'),
+                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa' } }, 'Değer/Katsayı'),
+                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa' } }, 'Tip'),
+                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa' } }, 'İşlemler')
+                )
+              ),
+              React.createElement('tbody', null,
+                parameters.map(param => 
+                  React.createElement('tr', { key: param.id },
+                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' } }, param.id),
+                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px' } },
+                      React.createElement('input', {
+                        type: 'text',
+                        value: param.name,
+                        onChange: (e) => updateParameter(param.id, 'name', e.target.value),
+                        style: { width: '100%', border: 'none', background: 'transparent' }
+                      })
+                    ),
+                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px' } },
+                      React.createElement('input', {
+                        type: 'text',
+                        value: param.value,
+                        onChange: (e) => updateParameter(param.id, 'value', e.target.value),
+                        style: { width: '100%', border: 'none', background: 'transparent' }
+                      })
+                    ),
+                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px' } },
+                      React.createElement('select', {
+                        value: param.type,
+                        onChange: (e) => updateParameter(param.id, 'type', e.target.value),
+                        style: { width: '100%', border: 'none', background: 'transparent' }
+                      },
+                        React.createElement('option', { value: 'form' }, 'Form Verisi'),
+                        React.createElement('option', { value: 'fixed' }, 'Sabit Değer')
+                      )
+                    ),
+                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', textAlign: 'center' } },
+                      React.createElement('button', {
+                        onClick: () => removeParameter(param.id),
+                        style: { background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }
+                      }, '🗑️')
+                    )
+                  )
+                )
+              )
+            )
+          ),
+          
+          // Add new parameter
+          React.createElement('div', { style: { marginTop: '16px', padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '8px' } },
+            React.createElement('h4', { style: { margin: '0 0 12px 0', fontSize: '14px' } }, 'Yeni Parametre Ekle'),
+            React.createElement('div', { style: { display: 'grid', gridTemplateColumns: newParam.type === 'form' ? '2fr 1fr 1fr auto' : '2fr 1fr 1fr auto', gap: '8px', alignItems: 'end' } },
+              React.createElement('div', null,
+                React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px' } }, 'Parametre Adı'),
+                React.createElement('input', {
+                  type: 'text',
+                  value: newParam.name,
+                  onChange: (e) => setNewParam(prev => ({ ...prev, name: e.target.value })),
+                  placeholder: 'örn: Malzeme Katsayısı',
+                  style: { width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }
+                })
+              ),
+              newParam.type === 'fixed' ? React.createElement('div', null,
+                React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px' } }, 'Sabit Değer'),
+                React.createElement('input', {
+                  type: 'text',
+                  value: newParam.value,
+                  onChange: (e) => setNewParam(prev => ({ ...prev, value: e.target.value })),
+                  placeholder: '1.5',
+                  style: { width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }
+                })
+              ) : React.createElement('div', null,
+                React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px' } }, 'Form Alanı'),
+                React.createElement('select', {
+                  value: newParam.formField,
+                  onChange: (e) => setNewParam(prev => ({ ...prev, formField: e.target.value })),
+                  style: { width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }
+                },
+                  React.createElement('option', { value: '' }, 'Seçiniz'),
+                  formFields.map(field => 
+                    React.createElement('option', { key: field.value, value: field.value }, field.label)
+                  )
+                )
+              ),
+              React.createElement('div', null,
+                React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px' } }, 'Tip'),
+                React.createElement('select', {
+                  value: newParam.type,
+                  onChange: (e) => setNewParam(prev => ({ ...prev, type: e.target.value, formField: '', materialType: '' })),
+                  style: { width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }
+                },
+                  React.createElement('option', { value: 'fixed' }, 'Sabit'),
+                  React.createElement('option', { value: 'form' }, 'Form')
+                )
+              ),
+              React.createElement('button', {
+                onClick: addParameter,
+                disabled: !newParam.name || (newParam.type === 'fixed' && !newParam.value) || (newParam.type === 'form' && !newParam.formField),
+                style: { 
+                  padding: '6px 12px', 
+                  backgroundColor: '#28a745', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: 'pointer',
+                  opacity: (!newParam.name || (newParam.type === 'fixed' && !newParam.value) || (newParam.type === 'form' && !newParam.formField)) ? 0.5 : 1
+                }
+              }, '➕')
+            ),
+            // Material type selection for material field
+            newParam.type === 'form' && newParam.formField === 'material' && React.createElement('div', { style: { marginTop: '8px' } },
+              React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px' } }, 'Malzeme Türü'),
+              React.createElement('select', {
+                value: newParam.materialType,
+                onChange: (e) => setNewParam(prev => ({ ...prev, materialType: e.target.value })),
+                style: { width: '200px', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }
+              },
+                React.createElement('option', { value: '' }, 'Seçiniz'),
+                materialTypes.map(material => 
+                  React.createElement('option', { key: material, value: material }, material)
+                )
+              )
+            )
+          )
+        ),
+
+        // Formula section
+        React.createElement('div', { style: { marginBottom: '24px' } },
+          React.createElement('h3', { style: { marginBottom: '16px', fontSize: '16px', color: '#333' } }, 'Fiyat Hesaplama Formülü'),
+          React.createElement('div', { style: { marginBottom: '12px' } },
+            React.createElement('textarea', {
+              value: formula,
+              onChange: (e) => setFormula(e.target.value),
+              placeholder: 'Excel formülü yazın (örn: =A*B*C+D)',
+              style: { 
+                width: '100%', 
+                padding: '12px', 
+                border: '1px solid #ddd', 
+                borderRadius: '4px', 
+                minHeight: '80px',
+                fontFamily: 'monospace',
+                fontSize: '14px'
+              }
+            })
+          ),
+          React.createElement('div', { style: { fontSize: '12px', color: '#666' } },
+            'Excel formül formatında yazın. Parametreleri A, B, C... şeklinde kullanın. Örnek: =A*B*SQRT(C)+D^2'
+          )
+        ),
+
+        // Action buttons
+        React.createElement('div', { style: { display: 'flex', gap: '12px', justifyContent: 'flex-end' } },
+          React.createElement('button', {
+            onClick: onClose,
+            style: { 
+              padding: '10px 20px', 
+              backgroundColor: '#6c757d', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }
+          }, 'İptal'),
+          React.createElement('button', {
+            onClick: saveSettings,
+            style: { 
+              padding: '10px 20px', 
+              backgroundColor: '#007bff', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '14px'
+            }
+          }, 'Kaydet')
         )
       )
     )
@@ -1731,7 +2193,7 @@ import Modal from './components/Modal.js'
       onClose()
     }
     return React.createElement('div', { style: {
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
     }, onClick: onClose },
       React.createElement('div', { className: 'card', style: { width: 'min(680px, 96vw)', maxHeight: '85vh', overflowY: 'auto', position: 'relative', padding: 12, fontSize: 13 }, onClick: (e) => e.stopPropagation() },
         React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, position: 'sticky', top: 0, zIndex: 5, background: 'linear-gradient(180deg, #0f1e2c, #0c1924)', padding: '8px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)' } },
