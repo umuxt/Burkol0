@@ -1543,23 +1543,7 @@ import Modal from './components/Modal.js'
               style: { padding: '6px 10px', fontSize: 12, transition: 'all 0.2s ease' },
               onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
               onMouseOut: (e) => e.target.style.backgroundColor = ''
-            }, t.a_export_csv),
-            React.createElement('button', { 
-              className: 'btn accent', 
-              onClick: async () => {
-                try {
-                  const result = await API.migrateIds()
-                  showNotification(`${result.migrated} kayıt yeni ID formatına dönüştürüldü!`, 'success')
-                  refresh()
-                } catch (e) {
-                  showNotification('ID migration hatası: ' + e.message, 'error')
-                }
-              }, 
-              title: 'ID formatını güncelle', 
-              style: { padding: '6px 10px', fontSize: 12, transition: 'all 0.2s ease' },
-              onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
-              onMouseOut: (e) => e.target.style.backgroundColor = ''
-            }, '🔄 ID Güncelle')
+            }, t.a_export_csv)
           )
         ),
         
@@ -1800,24 +1784,30 @@ import Modal from './components/Modal.js'
   function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
     const [parameters, setParameters] = useState([])
     const [formula, setFormula] = useState('')
-    const [newParam, setNewParam] = useState({ 
-      name: '', 
-      value: '', 
-      type: 'fixed',
-      formField: '',
-      materialType: ''
-    })
+    const [parameterType, setParameterType] = useState('') // '' | 'fixed' | 'form'
+    const [parameterName, setParameterName] = useState('')
+    const [fixedValue, setFixedValue] = useState('')
+    const [selectedFormField, setSelectedFormField] = useState('')
+    const [selectedFormValue, setSelectedFormValue] = useState('')
     
     // Form fields available for selection
     const formFields = [
       { value: 'qty', label: 'Adet' },
       { value: 'thickness', label: 'Kalınlık (mm)' },
       { value: 'material', label: 'Malzeme' },
-      { value: 'dims', label: 'Boyutlar' },
+      { value: 'dimensions', label: 'Boyutlar' },
       { value: 'grade', label: 'Kalite/Alaşım' },
       { value: 'finish', label: 'Yüzey İşlemi' },
       { value: 'tolerance', label: 'Tolerans' }
     ]
+    
+    // Sample form data values for each field
+    const formFieldValues = {
+      material: ['Aluminum', 'Steel', 'Stainless Steel', 'Brass', 'Copper', 'Iron', 'Titanium', 'Plastic'],
+      grade: ['304', '316', '316L', '6061-T6', 'A36', 'C1018'],
+      finish: ['Mill Finish', 'Anodized', 'Powder Coated', 'Galvanized', 'Chrome Plated'],
+      tolerance: ['±0.1mm', '±0.5mm', '±1.0mm', '±2.0mm']
+    }
     
     // Material types for material selection
     const materialTypes = [
@@ -1840,32 +1830,36 @@ import Modal from './components/Modal.js'
     }
 
     function addParameter() {
-      if (!newParam.name || (!newParam.value && newParam.type === 'fixed')) return
-      if (newParam.type === 'form' && !newParam.formField) return
-      if (newParam.formField === 'material' && !newParam.materialType) return
+      if (!parameterName || !parameterType) return
+      if (parameterType === 'fixed' && !fixedValue) return
+      if (parameterType === 'form' && (!selectedFormField || !selectedFormValue)) return
       
       const newId = String.fromCharCode(65 + parameters.length) // A,B,C,D...
       const param = { 
         id: newId, 
-        name: newParam.name, 
-        value: newParam.value || '1', 
-        type: newParam.type,
-        formField: newParam.formField,
-        materialType: newParam.materialType
+        name: parameterName,
+        type: parameterType
+      }
+      
+      if (parameterType === 'fixed') {
+        param.value = fixedValue
+      } else if (parameterType === 'form') {
+        param.formField = selectedFormField
+        param.formValue = selectedFormValue
       }
       
       setParameters(prev => [...prev, param])
-      setNewParam({ name: '', value: '', type: 'fixed', formField: '', materialType: '' })
+      
+      // Reset form
+      setParameterType('')
+      setParameterName('')
+      setFixedValue('')
+      setSelectedFormField('')
+      setSelectedFormValue('')
     }
 
     function removeParameter(id) {
       setParameters(prev => prev.filter(p => p.id !== id))
-    }
-
-    function updateParameter(id, field, value) {
-      setParameters(prev => prev.map(p => 
-        p.id === id ? { ...p, [field]: value } : p
-      ))
     }
 
     async function saveSettings() {
@@ -1937,48 +1931,35 @@ import Modal from './components/Modal.js'
             React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse' } },
               React.createElement('thead', null,
                 React.createElement('tr', null,
-                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa' } }, 'ID'),
-                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa' } }, 'Parametre Adı'),
-                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa' } }, 'Değer/Katsayı'),
-                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa' } }, 'Tip'),
-                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa' } }, 'İşlemler')
+                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', color: '#333' } }, 'ID'),
+                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', color: '#333' } }, 'Parametre Adı'),
+                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', color: '#333' } }, 'Değer/Tip'),
+                  React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', color: '#333' } }, 'İşlemler')
                 )
               ),
               React.createElement('tbody', null,
                 parameters.map(param => 
                   React.createElement('tr', { key: param.id },
-                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold' } }, param.id),
-                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px' } },
-                      React.createElement('input', {
-                        type: 'text',
-                        value: param.name,
-                        onChange: (e) => updateParameter(param.id, 'name', e.target.value),
-                        style: { width: '100%', border: 'none', background: 'transparent' }
-                      })
-                    ),
-                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px' } },
-                      React.createElement('input', {
-                        type: 'text',
-                        value: param.value,
-                        onChange: (e) => updateParameter(param.id, 'value', e.target.value),
-                        style: { width: '100%', border: 'none', background: 'transparent' }
-                      })
-                    ),
-                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px' } },
-                      React.createElement('select', {
-                        value: param.type,
-                        onChange: (e) => updateParameter(param.id, 'type', e.target.value),
-                        style: { width: '100%', border: 'none', background: 'transparent' }
-                      },
-                        React.createElement('option', { value: 'form' }, 'Form Verisi'),
-                        React.createElement('option', { value: 'fixed' }, 'Sabit Değer')
-                      )
+                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold', color: '#333' } }, param.id),
+                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', color: '#333' } }, param.name),
+                    React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', color: '#333' } },
+                      param.type === 'fixed' 
+                        ? `Sabit: ${param.value}`
+                        : `Form: ${formFields.find(f => f.value === param.formField)?.label || param.formField}${param.formValue ? ` = ${param.formValue}` : ''}`
                     ),
                     React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', textAlign: 'center' } },
                       React.createElement('button', {
                         onClick: () => removeParameter(param.id),
-                        style: { background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer' }
-                      }, '🗑️')
+                        style: { 
+                          padding: '4px 8px', 
+                          backgroundColor: '#dc3545', 
+                          color: 'white', 
+                          border: 'none', 
+                          borderRadius: '3px', 
+                          cursor: 'pointer',
+                          fontSize: '12px'
+                        }
+                      }, 'Sil')
                     )
                   )
                 )
@@ -1988,76 +1969,134 @@ import Modal from './components/Modal.js'
           
           // Add new parameter
           React.createElement('div', { style: { marginTop: '16px', padding: '16px', backgroundColor: '#f8f9fa', borderRadius: '8px' } },
-            React.createElement('h4', { style: { margin: '0 0 12px 0', fontSize: '14px' } }, 'Yeni Parametre Ekle'),
-            React.createElement('div', { style: { display: 'grid', gridTemplateColumns: newParam.type === 'form' ? '2fr 1fr 1fr auto' : '2fr 1fr 1fr auto', gap: '8px', alignItems: 'end' } },
-              React.createElement('div', null,
-                React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px' } }, 'Parametre Adı'),
-                React.createElement('input', {
-                  type: 'text',
-                  value: newParam.name,
-                  onChange: (e) => setNewParam(prev => ({ ...prev, name: e.target.value })),
-                  placeholder: 'örn: Malzeme Katsayısı',
-                  style: { width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }
-                })
-              ),
-              newParam.type === 'fixed' ? React.createElement('div', null,
-                React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px' } }, 'Sabit Değer'),
-                React.createElement('input', {
-                  type: 'text',
-                  value: newParam.value,
-                  onChange: (e) => setNewParam(prev => ({ ...prev, value: e.target.value })),
-                  placeholder: '1.5',
-                  style: { width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }
-                })
-              ) : React.createElement('div', null,
-                React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px' } }, 'Form Alanı'),
-                React.createElement('select', {
-                  value: newParam.formField,
-                  onChange: (e) => setNewParam(prev => ({ ...prev, formField: e.target.value })),
-                  style: { width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }
-                },
-                  React.createElement('option', { value: '' }, 'Seçiniz'),
-                  formFields.map(field => 
-                    React.createElement('option', { key: field.value, value: field.value }, field.label)
-                  )
-                )
-              ),
-              React.createElement('div', null,
-                React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px' } }, 'Tip'),
-                React.createElement('select', {
-                  value: newParam.type,
-                  onChange: (e) => setNewParam(prev => ({ ...prev, type: e.target.value, formField: '', materialType: '' })),
-                  style: { width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }
-                },
-                  React.createElement('option', { value: 'fixed' }, 'Sabit'),
-                  React.createElement('option', { value: 'form' }, 'Form')
-                )
-              ),
-              React.createElement('button', {
-                onClick: addParameter,
-                disabled: !newParam.name || (newParam.type === 'fixed' && !newParam.value) || (newParam.type === 'form' && !newParam.formField),
-                style: { 
-                  padding: '6px 12px', 
-                  backgroundColor: '#28a745', 
-                  color: 'white', 
-                  border: 'none', 
-                  borderRadius: '4px', 
-                  cursor: 'pointer',
-                  opacity: (!newParam.name || (newParam.type === 'fixed' && !newParam.value) || (newParam.type === 'form' && !newParam.formField)) ? 0.5 : 1
-                }
-              }, '➕')
+            React.createElement('h4', { style: { margin: '0 0 12px 0', fontSize: '14px', color: '#333' } }, 'Yeni Parametre Ekle'),
+            
+            // Step 1: Parameter Type Selection
+            !parameterType && React.createElement('div', { style: { marginBottom: '12px' } },
+              React.createElement('p', { style: { margin: '0 0 8px 0', fontSize: '13px', color: '#333' } }, 'Parametre tipi seçin:'),
+              React.createElement('div', { style: { display: 'flex', gap: '8px' } },
+                React.createElement('button', {
+                  onClick: () => setParameterType('fixed'),
+                  style: { 
+                    padding: '8px 16px', 
+                    backgroundColor: '#007bff', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: 'pointer' 
+                  }
+                }, 'Sabit Değer'),
+                React.createElement('button', {
+                  onClick: () => setParameterType('form'),
+                  style: { 
+                    padding: '8px 16px', 
+                    backgroundColor: '#28a745', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: 'pointer' 
+                  }
+                }, 'Form Verisi')
+              )
             ),
-            // Material type selection for material field
-            newParam.type === 'form' && newParam.formField === 'material' && React.createElement('div', { style: { marginTop: '8px' } },
-              React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px' } }, 'Malzeme Türü'),
-              React.createElement('select', {
-                value: newParam.materialType,
-                onChange: (e) => setNewParam(prev => ({ ...prev, materialType: e.target.value })),
-                style: { width: '200px', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }
-              },
-                React.createElement('option', { value: '' }, 'Seçiniz'),
-                materialTypes.map(material => 
-                  React.createElement('option', { key: material, value: material }, material)
+            
+            // Step 2: Parameter Configuration
+            parameterType && React.createElement('div', null,
+              React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' } },
+                React.createElement('span', { style: { fontSize: '13px', color: '#666' } }, `Tip: ${parameterType === 'fixed' ? 'Sabit Değer' : 'Form Verisi'}`),
+                React.createElement('button', {
+                  onClick: () => {
+                    setParameterType('')
+                    setParameterName('')
+                    setFixedValue('')
+                    setSelectedFormField('')
+                    setSelectedFormValue('')
+                  },
+                  style: { 
+                    padding: '2px 6px', 
+                    backgroundColor: '#6c757d', 
+                    color: 'white', 
+                    border: 'none', 
+                    borderRadius: '3px', 
+                    cursor: 'pointer',
+                    fontSize: '11px'
+                  }
+                }, 'Değiştir')
+              ),
+              
+              React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr', gap: '8px' } },
+                // Parameter Name
+                React.createElement('div', null,
+                  React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px', color: '#333' } }, 'Parametre Adı:'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: parameterName,
+                    onChange: (e) => setParameterName(e.target.value),
+                    placeholder: 'örn: Malzeme Katsayısı',
+                    style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#333' }
+                  })
+                ),
+                
+                // Fixed Value Input
+                parameterType === 'fixed' && React.createElement('div', null,
+                  React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px', color: '#333' } }, 'Sabit Değer:'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: fixedValue,
+                    onChange: (e) => setFixedValue(e.target.value),
+                    placeholder: '1.5',
+                    style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#333' }
+                  })
+                ),
+                
+                // Form Field Selection
+                parameterType === 'form' && React.createElement('div', null,
+                  React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px', color: '#333' } }, 'Form Alanı:'),
+                  React.createElement('select', {
+                    value: selectedFormField,
+                    onChange: (e) => {
+                      setSelectedFormField(e.target.value)
+                      setSelectedFormValue('')
+                    },
+                    style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#333' }
+                  },
+                    React.createElement('option', { value: '' }, 'Alan seçiniz...'),
+                    formFields.map(field => 
+                      React.createElement('option', { key: field.value, value: field.value }, field.label)
+                    )
+                  )
+                ),
+                
+                // Form Value Selection (if field has predefined values)
+                parameterType === 'form' && selectedFormField && formFieldValues[selectedFormField] && React.createElement('div', null,
+                  React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px', color: '#333' } }, 'Değer:'),
+                  React.createElement('select', {
+                    value: selectedFormValue,
+                    onChange: (e) => setSelectedFormValue(e.target.value),
+                    style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#333' }
+                  },
+                    React.createElement('option', { value: '' }, 'Değer seçiniz...'),
+                    formFieldValues[selectedFormField].map(value => 
+                      React.createElement('option', { key: value, value: value }, value)
+                    )
+                  )
+                ),
+                
+                // Add Parameter Button
+                React.createElement('div', { style: { marginTop: '8px' } },
+                  React.createElement('button', {
+                    onClick: addParameter,
+                    disabled: !parameterName || (parameterType === 'fixed' && !fixedValue) || (parameterType === 'form' && (!selectedFormField || (formFieldValues[selectedFormField] && !selectedFormValue))),
+                    style: { 
+                      padding: '8px 16px', 
+                      backgroundColor: '#28a745', 
+                      color: 'white', 
+                      border: 'none', 
+                      borderRadius: '4px', 
+                      cursor: 'pointer',
+                      opacity: (!parameterName || (parameterType === 'fixed' && !fixedValue) || (parameterType === 'form' && (!selectedFormField || (formFieldValues[selectedFormField] && !selectedFormValue)))) ? 0.5 : 1
+                    }
+                  }, '+ Parametre Ekle')
                 )
               )
             )
@@ -2079,7 +2118,8 @@ import Modal from './components/Modal.js'
                 borderRadius: '4px', 
                 minHeight: '80px',
                 fontFamily: 'monospace',
-                fontSize: '14px'
+                fontSize: '14px',
+                color: '#333'
               }
             })
           ),
