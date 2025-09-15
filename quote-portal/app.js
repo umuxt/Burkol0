@@ -1072,7 +1072,7 @@ import Modal from './components/Modal.js'
         priceSettings.parameters.forEach(param => {
           if (param.type === 'fixed') {
             paramValues[param.id] = parseFloat(param.value) || 0
-          } else if (param.type === 'form') {
+          } else if (param.type === 'form' || param.type === 'form-lookup') {
             let value = 0
             
             if (param.formField === 'qty') {
@@ -1080,11 +1080,49 @@ import Modal from './components/Modal.js'
             } else if (param.formField === 'thickness') {
               value = parseFloat(quote.thickness) || 0
             } else if (param.formField === 'material') {
-              // For material, check if it matches the specified material type
-              if (param.materialType && quote.material === param.materialType) {
+              if (param.lookupTable && param.lookupTable.length > 0) {
+                // Use lookup table to find value for material
+                const lookupItem = param.lookupTable.find(item => item.option === quote.material)
+                value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
+              } else if (param.materialType && quote.material === param.materialType) {
                 value = 1 // Boolean-like value when material matches
               } else {
                 value = 0
+              }
+            } else if (param.formField === 'process') {
+              if (param.lookupTable && param.lookupTable.length > 0) {
+                const lookupItem = param.lookupTable.find(item => item.option === quote.process)
+                value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
+              }
+            } else if (param.formField === 'finish') {
+              if (param.lookupTable && param.lookupTable.length > 0) {
+                const lookupItem = param.lookupTable.find(item => item.option === quote.finish)
+                value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
+              }
+            } else if (param.formField === 'country') {
+              if (param.lookupTable && param.lookupTable.length > 0) {
+                const lookupItem = param.lookupTable.find(item => item.option === quote.country)
+                value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
+              }
+            } else if (param.formField === 'weldMethod') {
+              if (param.lookupTable && param.lookupTable.length > 0) {
+                const lookupItem = param.lookupTable.find(item => item.option === quote.weldMethod)
+                value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
+              }
+            } else if (param.formField === 'surfaceRa') {
+              if (param.lookupTable && param.lookupTable.length > 0) {
+                const lookupItem = param.lookupTable.find(item => item.option === quote.surfaceRa)
+                value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
+              }
+            } else if (param.formField === 'repeat') {
+              if (param.lookupTable && param.lookupTable.length > 0) {
+                const lookupItem = param.lookupTable.find(item => item.option === quote.repeat)
+                value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
+              }
+            } else if (param.formField === 'budgetCurrency') {
+              if (param.lookupTable && param.lookupTable.length > 0) {
+                const lookupItem = param.lookupTable.find(item => item.option === quote.budgetCurrency)
+                value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
               }
             } else if (param.formField === 'size') {
               // Calculate area from dimensions
@@ -1784,29 +1822,66 @@ import Modal from './components/Modal.js'
   function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
     const [parameters, setParameters] = useState([])
     const [formula, setFormula] = useState('')
-    const [parameterType, setParameterType] = useState('') // '' | 'fixed' | 'form'
+    const [parameterType, setParameterType] = useState('') // '' | 'fixed' | 'form' | 'form-lookup'
     const [parameterName, setParameterName] = useState('')
     const [fixedValue, setFixedValue] = useState('')
     const [selectedFormField, setSelectedFormField] = useState('')
     const [selectedFormValue, setSelectedFormValue] = useState('')
+    const [lookupFormField, setLookupFormField] = useState('')
+    const [lookupTable, setLookupTable] = useState([]) // For dropdown fields with lookup values
+    const [newLookupOption, setNewLookupOption] = useState('')
+    const [newLookupValue, setNewLookupValue] = useState('')
     
-    // Form fields available for selection
+    // Form fields available for selection (from user form)
     const formFields = [
-      { value: 'qty', label: 'Adet' },
-      { value: 'thickness', label: 'Kalınlık (mm)' },
-      { value: 'material', label: 'Malzeme' },
-      { value: 'dimensions', label: 'Boyutlar' },
-      { value: 'grade', label: 'Kalite/Alaşım' },
-      { value: 'finish', label: 'Yüzey İşlemi' },
-      { value: 'tolerance', label: 'Tolerans' }
+      { value: 'qty', label: 'Adet', hasLookup: false },
+      { value: 'thickness', label: 'Kalınlık (mm)', hasLookup: false },
+      { value: 'dimensions', label: 'Boyutlar', hasLookup: false },
+      { value: 'material', label: 'Malzeme', hasLookup: true },
+      { value: 'process', label: 'İşlem Türü', hasLookup: true },
+      { value: 'finish', label: 'Yüzey İşlemi', hasLookup: true },
+      { value: 'toleranceStd', label: 'Tolerans Standardı', hasLookup: true },
+      { value: 'weldMethod', label: 'Kaynak Yöntemi', hasLookup: true },
+      { value: 'surfaceRa', label: 'Yüzey Pürüzlülüğü', hasLookup: true },
+      { value: 'repeat', label: 'Tekrar Durumu', hasLookup: true },
+      { value: 'budgetCurrency', label: 'Para Birimi', hasLookup: true },
+      { value: 'country', label: 'Ülke', hasLookup: true }
     ]
     
-    // Sample form data values for each field
+    // Get dropdown options for each field
+    const getFieldOptions = (fieldValue) => {
+      switch(fieldValue) {
+        case 'material':
+          return ['Mild Steel (S235/S355)', 'Stainless Steel (304/316)', 'Aluminum (5052/6061/6082)', 'Galvanized Steel', 'Copper/Brass', 'Other']
+        case 'process':
+          return ['Lazer Kesim', 'Abkant Büküm', 'Kaynak', 'CNC İşleme', 'Montaj', 'Toz Boya', 'Galvaniz', 'Anodize']
+        case 'finish':
+          return ['Ham', 'Zımpara', 'Toz Boya', 'Galvaniz', 'Anodize', 'Diğer']
+        case 'weldMethod':
+          return ['MIG', 'TIG']
+        case 'surfaceRa':
+          return ['Ra 3.2', 'Ra 1.6', 'Ra 0.8']
+        case 'repeat':
+          return ['one', 'recurrent']
+        case 'budgetCurrency':
+          return ['TRY', 'USD', 'EUR', 'GBP']
+        case 'country':
+          return ['TR', 'US', 'DE', 'GB', 'FR', 'NL'] // simplified
+        default:
+          return []
+      }
+    }
+
+    // Form field values for fields that have predefined options
     const formFieldValues = {
-      material: ['Aluminum', 'Steel', 'Stainless Steel', 'Brass', 'Copper', 'Iron', 'Titanium', 'Plastic'],
-      grade: ['304', '316', '316L', '6061-T6', 'A36', 'C1018'],
-      finish: ['Mill Finish', 'Anodized', 'Powder Coated', 'Galvanized', 'Chrome Plated'],
-      tolerance: ['±0.1mm', '±0.5mm', '±1.0mm', '±2.0mm']
+      material: getFieldOptions('material'),
+      process: getFieldOptions('process'),
+      finish: getFieldOptions('finish'),
+      weldMethod: getFieldOptions('weldMethod'),
+      surfaceRa: getFieldOptions('surfaceRa'),
+      repeat: getFieldOptions('repeat'),
+      budgetCurrency: getFieldOptions('budgetCurrency'),
+      country: getFieldOptions('country')
     }
     
     // Material types for material selection
@@ -1830,22 +1905,41 @@ import Modal from './components/Modal.js'
     }
 
     function addParameter() {
-      if (!parameterName || !parameterType) return
-      if (parameterType === 'fixed' && !fixedValue) return
-      if (parameterType === 'form' && (!selectedFormField || !selectedFormValue)) return
+      if (!parameterType) return
+      
+      // For fixed parameters, need name and value
+      if (parameterType === 'fixed' && (!parameterName || !fixedValue)) return
+      
+      // For form parameters, need field selection
+      if (parameterType === 'form' && !selectedFormField) return
+      
+      // For form-lookup parameters, need field and lookup table
+      if (parameterType === 'form-lookup' && (!lookupFormField || lookupTable.length === 0)) return
+      
+      // If form field has lookup capability and lookup table is required but empty
+      const field = formFields.find(f => f.value === selectedFormField)
+      if (parameterType === 'form' && field && field.hasLookup && lookupTable.length === 0) return
       
       const newId = String.fromCharCode(65 + parameters.length) // A,B,C,D...
       const param = { 
-        id: newId, 
-        name: parameterName,
+        id: newId,
         type: parameterType
       }
       
       if (parameterType === 'fixed') {
+        param.name = parameterName
         param.value = fixedValue
       } else if (parameterType === 'form') {
+        param.name = field.label // Use field label as name
         param.formField = selectedFormField
-        param.formValue = selectedFormValue
+        if (field.hasLookup) {
+          param.lookupTable = [...lookupTable]
+        }
+      } else if (parameterType === 'form-lookup') {
+        const lookupField = formFields.find(f => f.value === lookupFormField)
+        param.name = lookupField.label // Use field label as name
+        param.formField = lookupFormField
+        param.lookupTable = [...lookupTable]
       }
       
       setParameters(prev => [...prev, param])
@@ -1856,6 +1950,32 @@ import Modal from './components/Modal.js'
       setFixedValue('')
       setSelectedFormField('')
       setSelectedFormValue('')
+      setLookupFormField('')
+      setLookupTable([])
+      setNewLookupOption('')
+      setNewLookupValue('')
+    }
+
+    function addLookupRow() {
+      const options = getFieldOptions(selectedFormField)
+      if (options.length > 0) {
+        // Add row with first unused option
+        const usedOptions = lookupTable.map(row => row.option)
+        const availableOption = options.find(opt => !usedOptions.includes(opt))
+        if (availableOption) {
+          setLookupTable(prev => [...prev, { option: availableOption, value: '' }])
+        }
+      }
+    }
+
+    function updateLookupRow(index, field, value) {
+      setLookupTable(prev => prev.map((row, i) => 
+        i === index ? { ...row, [field]: value } : row
+      ))
+    }
+
+    function removeLookupRow(index) {
+      setLookupTable(prev => prev.filter((_, i) => i !== index))
     }
 
     function removeParameter(id) {
@@ -1945,7 +2065,9 @@ import Modal from './components/Modal.js'
                     React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', color: '#333' } },
                       param.type === 'fixed' 
                         ? `Sabit: ${param.value}`
-                        : `Form: ${formFields.find(f => f.value === param.formField)?.label || param.formField}${param.formValue ? ` = ${param.formValue}` : ''}`
+                        : param.lookupTable 
+                          ? `Lookup: ${param.formField} (${param.lookupTable.length} değer)`
+                          : `Form: ${param.name}`
                     ),
                     React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', textAlign: 'center' } },
                       React.createElement('button', {
@@ -1996,14 +2118,25 @@ import Modal from './components/Modal.js'
                     borderRadius: '4px', 
                     cursor: 'pointer' 
                   }
-                }, 'Form Verisi')
+                }, 'Form Verisi'),
+                React.createElement('button', {
+                  onClick: () => setParameterType('form-lookup'),
+                  style: { 
+                    padding: '8px 16px', 
+                    backgroundColor: '#ffc107', 
+                    color: 'black', 
+                    border: 'none', 
+                    borderRadius: '4px', 
+                    cursor: 'pointer' 
+                  }
+                }, 'Lookup Tablo')
               )
             ),
             
             // Step 2: Parameter Configuration
             parameterType && React.createElement('div', null,
               React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' } },
-                React.createElement('span', { style: { fontSize: '13px', color: '#666' } }, `Tip: ${parameterType === 'fixed' ? 'Sabit Değer' : 'Form Verisi'}`),
+                React.createElement('span', { style: { fontSize: '13px', color: '#666' } }, `Tip: ${parameterType === 'fixed' ? 'Sabit Değer' : parameterType === 'form' ? 'Form Verisi' : 'Lookup Tablo'}`),
                 React.createElement('button', {
                   onClick: () => {
                     setParameterType('')
@@ -2011,6 +2144,10 @@ import Modal from './components/Modal.js'
                     setFixedValue('')
                     setSelectedFormField('')
                     setSelectedFormValue('')
+                    setLookupFormField('')
+                    setLookupTable([])
+                    setNewLookupOption('')
+                    setNewLookupValue('')
                   },
                   style: { 
                     padding: '2px 6px', 
@@ -2082,11 +2219,88 @@ import Modal from './components/Modal.js'
                   )
                 ),
                 
+                // Lookup Table UI
+                parameterType === 'form-lookup' && React.createElement('div', { style: { marginTop: '15px', border: '1px solid #ddd', borderRadius: '5px', padding: '15px', backgroundColor: '#f9f9f9' } },
+                  React.createElement('h4', { style: { color: '#333', marginBottom: '10px', fontSize: '14px' } }, 'Lookup Tablosu Oluştur'),
+                  React.createElement('div', { style: { marginBottom: '10px' } },
+                    React.createElement('label', { style: { display: 'block', marginBottom: '5px', color: '#333', fontSize: '12px' } }, 'Form Alanı:'),
+                    React.createElement('select', { 
+                      value: lookupFormField, 
+                      onChange: (e) => setLookupFormField(e.target.value),
+                      style: { width: '100%', padding: '8px', borderRadius: '5px', border: '1px solid #ccc' }
+                    }, [
+                      React.createElement('option', { key: '', value: '' }, 'Seçiniz...'),
+                      ...formFields.map(field => 
+                        React.createElement('option', { key: field.value, value: field.value }, field.label)
+                      )
+                    ])
+                  ),
+                  lookupFormField && React.createElement('div', null,
+                    React.createElement('h5', { style: { color: '#333', marginBottom: '10px', fontSize: '13px' } }, 'Değer Eşleştirmeleri:'),
+                    React.createElement('div', { style: { maxHeight: '150px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '3px', padding: '5px', marginBottom: '10px' } },
+                      lookupTable.map((item, index) => 
+                        React.createElement('div', { key: index, style: { display: 'flex', alignItems: 'center', marginBottom: '5px', padding: '5px', backgroundColor: '#fff', borderRadius: '3px' } },
+                          React.createElement('span', { style: { flex: 1, color: '#333', fontSize: '12px' } }, `${item.option} = ${item.value}`),
+                          React.createElement('button', {
+                            type: 'button',
+                            onClick: () => setLookupTable(lookupTable.filter((_, i) => i !== index)),
+                            style: { marginLeft: '10px', padding: '2px 8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px' }
+                          }, '×')
+                        )
+                      )
+                    ),
+                    getFieldOptions(lookupFormField).length > 0 && React.createElement('div', null,
+                      React.createElement('h6', { style: { color: '#333', marginBottom: '5px', fontSize: '12px' } }, 'Yeni Eşleştirme Ekle:'),
+                      React.createElement('div', { style: { display: 'flex', gap: '10px', alignItems: 'end' } },
+                        React.createElement('div', { style: { flex: 1 } },
+                          React.createElement('label', { style: { display: 'block', marginBottom: '3px', color: '#333', fontSize: '11px' } }, 'Seçenek:'),
+                          React.createElement('select', {
+                            value: newLookupOption,
+                            onChange: (e) => setNewLookupOption(e.target.value),
+                            style: { width: '100%', padding: '5px', borderRadius: '3px', border: '1px solid #ccc', fontSize: '12px' }
+                          }, [
+                            React.createElement('option', { key: '', value: '' }, 'Seçiniz...'),
+                            ...getFieldOptions(lookupFormField).filter(option => 
+                              !lookupTable.some(item => item.option === option)
+                            ).map(option => 
+                              React.createElement('option', { key: option, value: option }, option)
+                            )
+                          ])
+                        ),
+                        React.createElement('div', { style: { flex: 1 } },
+                          React.createElement('label', { style: { display: 'block', marginBottom: '3px', color: '#333', fontSize: '11px' } }, 'Değer:'),
+                          React.createElement('input', {
+                            type: 'number',
+                            step: 'any',
+                            value: newLookupValue,
+                            onChange: (e) => setNewLookupValue(e.target.value),
+                            style: { width: '100%', padding: '5px', borderRadius: '3px', border: '1px solid #ccc', fontSize: '12px' }
+                          })
+                        ),
+                        React.createElement('button', {
+                          type: 'button',
+                          onClick: () => {
+                            if (newLookupOption && newLookupValue !== '') {
+                              setLookupTable([...lookupTable, { option: newLookupOption, value: parseFloat(newLookupValue) }]);
+                              setNewLookupOption('');
+                              setNewLookupValue('');
+                            }
+                          },
+                          style: { padding: '5px 10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px' }
+                        }, 'Ekle')
+                      )
+                    )
+                  )
+                ),
+                
                 // Add Parameter Button
                 React.createElement('div', { style: { marginTop: '8px' } },
                   React.createElement('button', {
                     onClick: addParameter,
-                    disabled: !parameterName || (parameterType === 'fixed' && !fixedValue) || (parameterType === 'form' && (!selectedFormField || (formFieldValues[selectedFormField] && !selectedFormValue))),
+                    disabled: !parameterName || 
+                      (parameterType === 'fixed' && !fixedValue) || 
+                      (parameterType === 'form' && (!selectedFormField || (formFieldValues[selectedFormField] && !selectedFormValue))) ||
+                      (parameterType === 'form-lookup' && (!lookupFormField || lookupTable.length === 0)),
                     style: { 
                       padding: '8px 16px', 
                       backgroundColor: '#28a745', 
@@ -2094,7 +2308,10 @@ import Modal from './components/Modal.js'
                       border: 'none', 
                       borderRadius: '4px', 
                       cursor: 'pointer',
-                      opacity: (!parameterName || (parameterType === 'fixed' && !fixedValue) || (parameterType === 'form' && (!selectedFormField || (formFieldValues[selectedFormField] && !selectedFormValue)))) ? 0.5 : 1
+                      opacity: (!parameterName || 
+                        (parameterType === 'fixed' && !fixedValue) || 
+                        (parameterType === 'form' && (!selectedFormField || (formFieldValues[selectedFormField] && !selectedFormValue))) ||
+                        (parameterType === 'form-lookup' && (!lookupFormField || lookupTable.length === 0))) ? 0.5 : 1
                     }
                   }, '+ Parametre Ekle')
                 )
