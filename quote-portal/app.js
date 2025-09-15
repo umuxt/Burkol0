@@ -1393,107 +1393,44 @@ import Modal from './components/Modal.js'
                   React.createElement('th', null,
                     React.createElement('input', { type: 'checkbox', onChange: toggleAll, checked: filtered.length > 0 && selected.size === filtered.length })
                   ),
-                  React.createElement('th', null, t.th_date, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { 
-                      width: '14px', 
-                      height: '14px', 
-                      opacity: 0.7, 
-                      cursor: 'pointer',
-                      marginLeft: '4px',
-                      verticalAlign: 'middle'
-                    }, 
+                  React.createElement('th', null, t.th_date, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
                     title: 'Tarih filtresi',
                     onClick: (e) => { e.stopPropagation(); console.log('Filter clicked: dateRange'); setFilterPopup('dateRange') }
-                  })),
-                  React.createElement('th', null, t.th_customer, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { 
-                      width: '14px', 
-                      height: '14px', 
-                      opacity: 0.7, 
-                      cursor: 'pointer',
-                      marginLeft: '4px',
-                      verticalAlign: 'middle'
-                    }, 
+                  }, '⌦')),
+                  React.createElement('th', null, t.th_customer, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
                     title: 'Ülke filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('country') }
-                  })),
-                  React.createElement('th', null, t.th_project, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { 
-                      width: '14px', 
-                      height: '14px', 
-                      opacity: 0.7, 
-                      cursor: 'pointer',
-                      marginLeft: '4px',
-                      verticalAlign: 'middle'
-                    }, 
+                  }, '⌦')),
+                  React.createElement('th', null, t.th_project, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
                     title: 'İşlem filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('process') }
-                  })),
-                  React.createElement('th', null, t.th_material, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { 
-                      width: '14px', 
-                      height: '14px', 
-                      opacity: 0.7, 
-                      cursor: 'pointer',
-                      marginLeft: '4px',
-                      verticalAlign: 'middle'
-                    }, 
+                  }, '⌦')),
+                  React.createElement('th', null, t.th_material, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
                     title: 'Malzeme filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('material') }
-                  })),
-                  React.createElement('th', null, t.th_qty, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { 
-                      width: '14px', 
-                      height: '14px', 
-                      opacity: 0.7, 
-                      cursor: 'pointer',
-                      marginLeft: '4px',
-                      verticalAlign: 'middle'
-                    }, 
+                  }, '⌦')),
+                  React.createElement('th', null, t.th_qty, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
                     title: 'Miktar filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('qtyRange') }
-                  })),
-                  React.createElement('th', null, t.th_due, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { 
-                      width: '14px', 
-                      height: '14px', 
-                      opacity: 0.7, 
-                      cursor: 'pointer',
-                      marginLeft: '4px',
-                      verticalAlign: 'middle'
-                    }, 
+                  }, '⌦')),
+                  React.createElement('th', null, t.th_due, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
                     title: 'Teslim tarihi filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('dateRange') }
-                  })),
+                  }, '⌦')),
                   React.createElement('th', null, t.th_days_to_due),
                   React.createElement('th', null, t.th_est_price),
                   React.createElement('th', null, t.th_est_lead),
-                  React.createElement('th', null, t.a_status, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { 
-                      width: '14px', 
-                      height: '14px', 
-                      opacity: 0.7, 
-                      cursor: 'pointer',
-                      marginLeft: '4px',
-                      verticalAlign: 'middle'
-                    }, 
+                  React.createElement('th', null, t.a_status, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
                     title: 'Durum filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('status') }
-                  })),
+                  }, '⌦')),
                   React.createElement('th', null, t.th_actions),
                 ),
                 // Filter row removed
