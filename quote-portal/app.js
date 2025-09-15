@@ -737,6 +737,7 @@ import Modal from './components/Modal.js'
   }
 
   function FilterPopup({ type, filters, filterOptions, onClose, onUpdateFilter, t }) {
+    console.log('FilterPopup rendered with type:', type);
     if (!type) return null
 
     const [tempFilters, setTempFilters] = useState({
@@ -1404,7 +1405,7 @@ import Modal from './components/Modal.js'
                       verticalAlign: 'middle'
                     }, 
                     title: 'Tarih filtresi',
-                    onClick: (e) => { e.stopPropagation(); setFilterPopup('dateRange') }
+                    onClick: (e) => { e.stopPropagation(); console.log('Filter clicked: dateRange'); setFilterPopup('dateRange') }
                   })),
                   React.createElement('th', null, t.th_customer, ' ', React.createElement('img', { 
                     src: './img/filter-icon.png',
