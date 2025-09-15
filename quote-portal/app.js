@@ -737,16 +737,20 @@ import Modal from './components/Modal.js'
   }
 
   function FilterPopup({ type, filters, filterOptions, onClose, onUpdateFilter, t }) {
-    console.log('FilterPopup rendered with type:', type);
     if (!type) return null
 
-    const [tempFilters, setTempFilters] = useState({
-      status: [...(filters.status || [])],
-      material: [...(filters.material || [])],
-      process: [...(filters.process || [])],
-      dateRange: { ...filters.dateRange },
-      qtyRange: { ...filters.qtyRange },
-      country: [...(filters.country || [])]
+    const [tempFilters, setTempFilters] = useState(() => {
+      const result = {}
+      if (type === 'dateRange') {
+        result[type] = filters[type] || { from: '', to: '' }
+      } else if (type === 'qtyRange') {
+        result[type] = filters[type] || { min: '', max: '' }
+      } else {
+        // Eğer hiç seçim yoksa, tüm seçenekleri seç
+        const currentSelection = filters[type] || []
+        result[type] = currentSelection.length === 0 ? [...(filterOptions[type] || [])] : currentSelection
+      }
+      return result
     })
 
     function handleApply() {
@@ -779,6 +783,17 @@ import Modal from './components/Modal.js'
       })
     }
 
+    function toggleAll() {
+      const allOptions = filterOptions[type] || []
+      const currentSelection = tempFilters[type] || []
+      const allSelected = allOptions.length > 0 && currentSelection.length === allOptions.length
+      
+      setTempFilters(prev => ({
+        ...prev,
+        [type]: allSelected ? [] : [...allOptions]
+      }))
+    }
+
     function updateRange(field, value) {
       setTempFilters(prev => ({
         ...prev,
@@ -793,14 +808,14 @@ import Modal from './components/Modal.js'
       transform: 'translate(-50%, -50%)',
       backgroundColor: 'white',
       border: '1px solid #ddd',
-      borderRadius: '8px',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-      padding: '20px',
-      minWidth: '300px',
-      maxWidth: '400px',
-      maxHeight: '70vh',
+      borderRadius: '12px',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+      padding: '24px',
+      minWidth: '320px',
+      maxWidth: '420px',
+      maxHeight: '75vh',
       overflowY: 'auto',
-      zIndex: 1000
+      zIndex: 1001
     }
 
     const overlayStyle = {
@@ -809,8 +824,9 @@ import Modal from './components/Modal.js'
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      zIndex: 999
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      backdropFilter: 'blur(4px)',
+      zIndex: 1000
     }
 
     const getTitleByType = () => {
@@ -828,18 +844,22 @@ import Modal from './components/Modal.js'
     return React.createElement('div', null,
       React.createElement('div', { style: overlayStyle, onClick: onClose }),
       React.createElement('div', { style: popupStyle },
-        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' } },
-          React.createElement('h3', { style: { margin: 0, fontSize: '16px', fontWeight: '600' } }, getTitleByType()),
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' } },
+          React.createElement('h3', { style: { margin: 0, fontSize: '18px', fontWeight: '600', color: '#1a1a1a' } }, getTitleByType()),
           React.createElement('button', { 
             onClick: onClose,
             style: { 
               background: 'none', 
               border: 'none', 
-              fontSize: '20px', 
+              fontSize: '24px', 
               cursor: 'pointer',
-              padding: '0 4px',
-              lineHeight: '1'
-            }
+              padding: '4px 8px',
+              lineHeight: '1',
+              color: '#666',
+              borderRadius: '4px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#f5f5f5',
+            onMouseOut: (e) => e.target.style.backgroundColor = 'transparent'
           }, '×')
         ),
 
@@ -886,58 +906,92 @@ import Modal from './components/Modal.js'
           )
         ) : React.createElement('div', { style: { marginBottom: '16px' } },
           (filterOptions[type] || []).length === 0 ? 
-            React.createElement('div', { style: { color: '#6c757d', fontStyle: 'italic' } }, 'Henüz seçenek bulunmuyor') :
-            (filterOptions[type] || []).map(option => 
-              React.createElement('label', { 
-                key: option,
-                style: { 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  marginBottom: '8px',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  borderRadius: '4px',
-                  transition: 'background-color 0.2s'
+            React.createElement('div', { style: { color: '#6c757d', fontStyle: 'italic', textAlign: 'center', padding: '20px' } }, 'Henüz seçenek bulunmuyor') :
+            React.createElement('div', null,
+              // Tümünü Seç butonu
+              React.createElement('div', { style: { marginBottom: '12px', padding: '8px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px solid #e9ecef' } },
+                React.createElement('label', { 
+                  style: { 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    fontSize: '14px',
+                    color: '#495057'
+                  }
                 },
-                onMouseOver: (e) => e.target.style.backgroundColor = '#f8f9fa',
-                onMouseOut: (e) => e.target.style.backgroundColor = 'transparent'
-              },
-                React.createElement('input', {
-                  type: 'checkbox',
-                  checked: (tempFilters[type] || []).includes(option),
-                  onChange: () => toggleOption(option),
-                  style: { marginRight: '8px' }
-                }),
-                React.createElement('span', { style: { fontSize: '14px' } }, option)
+                  React.createElement('input', {
+                    type: 'checkbox',
+                    checked: (filterOptions[type] || []).length > 0 && (tempFilters[type] || []).length === (filterOptions[type] || []).length,
+                    onChange: toggleAll,
+                    style: { marginRight: '8px' }
+                  }),
+                  React.createElement('span', null, 'Tümünü Seç/Bırak')
+                )
+              ),
+              // Seçenekler
+              React.createElement('div', { style: { maxHeight: '200px', overflowY: 'auto', padding: '4px' } },
+                (filterOptions[type] || []).map(option => 
+                  React.createElement('label', { 
+                    key: option,
+                    style: { 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      marginBottom: '6px',
+                      cursor: 'pointer',
+                      padding: '6px 8px',
+                      borderRadius: '4px',
+                      transition: 'background-color 0.2s'
+                    },
+                    onMouseOver: (e) => e.target.style.backgroundColor = '#f8f9fa',
+                    onMouseOut: (e) => e.target.style.backgroundColor = 'transparent'
+                  },
+                    React.createElement('input', {
+                      type: 'checkbox',
+                      checked: (tempFilters[type] || []).includes(option),
+                      onChange: () => toggleOption(option),
+                      style: { marginRight: '10px' }
+                    }),
+                    React.createElement('span', { style: { fontSize: '14px', flex: 1 } }, option)
+                  )
+                )
               )
             )
         ),
 
         // Buttons
-        React.createElement('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+        React.createElement('div', { style: { display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e9ecef' } },
           React.createElement('button', {
             onClick: handleClear,
             style: { 
-              padding: '8px 16px', 
+              padding: '10px 20px', 
               backgroundColor: '#6c757d', 
               color: 'white', 
               border: 'none', 
-              borderRadius: '4px',
+              borderRadius: '6px',
               cursor: 'pointer',
-              fontSize: '14px'
-            }
+              fontSize: '14px',
+              fontWeight: '500',
+              transition: 'all 0.2s ease'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#5a6268',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#6c757d'
           }, 'Temizle'),
           React.createElement('button', {
             onClick: handleApply,
             style: { 
-              padding: '8px 16px', 
+              padding: '10px 20px', 
               backgroundColor: '#007bff', 
               color: 'white', 
               border: 'none', 
-              borderRadius: '4px',
+              borderRadius: '6px',
               cursor: 'pointer',
-              fontSize: '14px'
-            }
+              fontSize: '14px',
+              fontWeight: '500',
+              transition: 'all 0.2s ease'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#0056b3',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#007bff'
           }, 'Uygula')
         )
       )
@@ -1393,44 +1447,58 @@ import Modal from './components/Modal.js'
                   React.createElement('th', null,
                     React.createElement('input', { type: 'checkbox', onChange: toggleAll, checked: filtered.length > 0 && selected.size === filtered.length })
                   ),
-                  React.createElement('th', null, t.th_date, ' ', React.createElement('span', { 
-                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
+                  React.createElement('th', null, t.th_date, ' ', React.createElement('img', { 
+                    src: './img/filter-icon.png',
+                    alt: 'Filtre',
+                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
                     title: 'Tarih filtresi',
-                    onClick: (e) => { e.stopPropagation(); console.log('Filter clicked: dateRange'); setFilterPopup('dateRange') }
-                  }, '⌦')),
-                  React.createElement('th', null, t.th_customer, ' ', React.createElement('span', { 
-                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
+                    onClick: (e) => { e.stopPropagation(); setFilterPopup('dateRange') }
+                  })),
+                  React.createElement('th', null, t.th_customer, ' ', React.createElement('img', { 
+                    src: './img/filter-icon.png',
+                    alt: 'Filtre',
+                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
                     title: 'Ülke filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('country') }
-                  }, '⌦')),
-                  React.createElement('th', null, t.th_project, ' ', React.createElement('span', { 
-                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
+                  })),
+                  React.createElement('th', null, t.th_project, ' ', React.createElement('img', { 
+                    src: './img/filter-icon.png',
+                    alt: 'Filtre',
+                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
                     title: 'İşlem filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('process') }
-                  }, '⌦')),
-                  React.createElement('th', null, t.th_material, ' ', React.createElement('span', { 
-                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
+                  })),
+                  React.createElement('th', null, t.th_material, ' ', React.createElement('img', { 
+                    src: './img/filter-icon.png',
+                    alt: 'Filtre',
+                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
                     title: 'Malzeme filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('material') }
-                  }, '⌦')),
-                  React.createElement('th', null, t.th_qty, ' ', React.createElement('span', { 
-                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
+                  })),
+                  React.createElement('th', null, t.th_qty, ' ', React.createElement('img', { 
+                    src: './img/filter-icon.png',
+                    alt: 'Filtre',
+                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
                     title: 'Miktar filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('qtyRange') }
-                  }, '⌦')),
-                  React.createElement('th', null, t.th_due, ' ', React.createElement('span', { 
-                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
+                  })),
+                  React.createElement('th', null, t.th_due, ' ', React.createElement('img', { 
+                    src: './img/filter-icon.png',
+                    alt: 'Filtre',
+                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
                     title: 'Teslim tarihi filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('dateRange') }
-                  }, '⌦')),
+                  })),
                   React.createElement('th', null, t.th_days_to_due),
                   React.createElement('th', null, t.th_est_price),
                   React.createElement('th', null, t.th_est_lead),
-                  React.createElement('th', null, t.a_status, ' ', React.createElement('span', { 
-                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer' }, 
+                  React.createElement('th', null, t.a_status, ' ', React.createElement('img', { 
+                    src: './img/filter-icon.png',
+                    alt: 'Filtre',
+                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
                     title: 'Durum filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('status') }
-                  }, '⌦')),
+                  })),
                   React.createElement('th', null, t.th_actions),
                 ),
                 // Filter row removed
