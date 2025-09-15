@@ -1886,7 +1886,7 @@ import Modal from './components/Modal.js'
       
       setParameters(prev => [...prev, param])
       
-      // Reset form
+      // Reset form  
       setParameterType('')
       setParameterName('')
       setFixedValue('')
@@ -1925,11 +1925,13 @@ import Modal from './components/Modal.js'
     async function saveSettings() {
       try {
         const settings = { parameters, formula }
+        console.log('Saving settings:', settings)
         await API.saveSettings(settings)
         showNotification('Fiyat hesaplama ayarları kaydedildi!', 'success')
         if (onSettingsUpdated) onSettingsUpdated()
         onClose()
       } catch (e) {
+        console.error('Save settings error:', e)
         showNotification('Ayarlar kaydedilemedi: ' + e.message, 'error')
       }
     }
@@ -2093,8 +2095,8 @@ import Modal from './components/Modal.js'
               ),
               
               React.createElement('div', { style: { display: 'grid', gridTemplateColumns: '1fr', gap: '8px' } },
-                // Parameter Name
-                React.createElement('div', null,
+                // Parameter Name (only for fixed type)
+                parameterType === 'fixed' && React.createElement('div', null,
                   React.createElement('label', { style: { display: 'block', marginBottom: '4px', fontSize: '12px', color: '#333' } }, 'Parametre Adı:'),
                   React.createElement('input', {
                     type: 'text',
@@ -2138,57 +2140,40 @@ import Modal from './components/Modal.js'
                 // Lookup Table for fields with options
                 parameterType === 'form' && selectedFormField && formFields.find(f => f.value === selectedFormField)?.hasOptions && React.createElement('div', { style: { marginTop: '15px', border: '1px solid #ddd', borderRadius: '5px', padding: '15px', backgroundColor: '#f9f9f9' } },
                   React.createElement('h4', { style: { color: '#333', marginBottom: '10px', fontSize: '14px' } }, 'Değer Eşleştirmeleri'),
-                  React.createElement('div', { style: { maxHeight: '150px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '3px', padding: '5px', marginBottom: '10px' } },
-                    lookupTable.map((item, index) => 
-                      React.createElement('div', { key: index, style: { display: 'flex', alignItems: 'center', marginBottom: '5px', padding: '5px', backgroundColor: '#fff', borderRadius: '3px' } },
-                        React.createElement('span', { style: { flex: 1, color: '#333', fontSize: '12px' } }, `${item.option} = ${item.value}`),
-                        React.createElement('button', {
-                          type: 'button',
-                          onClick: () => setLookupTable(lookupTable.filter((_, i) => i !== index)),
-                          style: { marginLeft: '10px', padding: '2px 8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px' }
-                        }, '×')
-                      )
-                    )
-                  ),
-                  React.createElement('div', null,
-                    React.createElement('h6', { style: { color: '#333', marginBottom: '5px', fontSize: '12px' } }, 'Yeni Eşleştirme Ekle:'),
-                    React.createElement('div', { style: { display: 'flex', gap: '10px', alignItems: 'end' } },
-                      React.createElement('div', { style: { flex: 1 } },
-                        React.createElement('label', { style: { display: 'block', marginBottom: '3px', color: '#333', fontSize: '11px' } }, 'Seçenek:'),
-                        React.createElement('select', {
-                          value: newLookupOption,
-                          onChange: (e) => setNewLookupOption(e.target.value),
-                          style: { width: '100%', padding: '5px', borderRadius: '3px', border: '1px solid #ccc', fontSize: '12px' }
-                        }, [
-                          React.createElement('option', { key: '', value: '' }, 'Seçiniz...'),
-                          ...getFieldOptions(selectedFormField).filter(option => 
-                            !lookupTable.some(item => item.option === option)
-                          ).map(option => 
-                            React.createElement('option', { key: option, value: option }, option)
+                  React.createElement('div', { style: { border: '1px solid #ddd', borderRadius: '3px', backgroundColor: '#fff' } },
+                    React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse' } },
+                      React.createElement('thead', null,
+                        React.createElement('tr', null,
+                          React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', fontSize: '12px', textAlign: 'left' } }, 'Seçenek'),
+                          React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', fontSize: '12px', textAlign: 'left' } }, 'Değer')
+                        )
+                      ),
+                      React.createElement('tbody', null,
+                        getFieldOptions(selectedFormField).map(option => {
+                          const existingValue = lookupTable.find(item => item.option === option)?.value || ''
+                          return React.createElement('tr', { key: option },
+                            React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', fontSize: '12px' } }, option),
+                            React.createElement('td', { style: { border: '1px solid #ddd', padding: '4px' } },
+                              React.createElement('input', {
+                                type: 'number',
+                                step: 'any',
+                                value: existingValue,
+                                onChange: (e) => {
+                                  const value = e.target.value
+                                  setLookupTable(prev => {
+                                    const filtered = prev.filter(item => item.option !== option)
+                                    if (value !== '') {
+                                      return [...filtered, { option, value: parseFloat(value) || 0 }]
+                                    }
+                                    return filtered
+                                  })
+                                },
+                                style: { width: '100%', padding: '4px', border: '1px solid #ccc', borderRadius: '3px', fontSize: '12px' }
+                              })
+                            )
                           )
-                        ])
-                      ),
-                      React.createElement('div', { style: { flex: 1 } },
-                        React.createElement('label', { style: { display: 'block', marginBottom: '3px', color: '#333', fontSize: '11px' } }, 'Değer:'),
-                        React.createElement('input', {
-                          type: 'number',
-                          step: 'any',
-                          value: newLookupValue,
-                          onChange: (e) => setNewLookupValue(e.target.value),
-                          style: { width: '100%', padding: '5px', borderRadius: '3px', border: '1px solid #ccc', fontSize: '12px' }
                         })
-                      ),
-                      React.createElement('button', {
-                        type: 'button',
-                        onClick: () => {
-                          if (newLookupOption && newLookupValue !== '') {
-                            setLookupTable([...lookupTable, { option: newLookupOption, value: parseFloat(newLookupValue) }]);
-                            setNewLookupOption('');
-                            setNewLookupValue('');
-                          }
-                        },
-                        style: { padding: '5px 10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px' }
-                      }, 'Ekle')
+                      )
                     )
                   )
                 ),
@@ -2197,8 +2182,7 @@ import Modal from './components/Modal.js'
                 React.createElement('div', { style: { marginTop: '8px' } },
                   React.createElement('button', {
                     onClick: addParameter,
-                    disabled: !parameterName || 
-                      (parameterType === 'fixed' && !fixedValue) || 
+                    disabled: (parameterType === 'fixed' && (!parameterName || !fixedValue)) || 
                       (parameterType === 'form' && !selectedFormField),
                     style: { 
                       padding: '8px 16px', 
@@ -2207,8 +2191,7 @@ import Modal from './components/Modal.js'
                       border: 'none', 
                       borderRadius: '4px', 
                       cursor: 'pointer',
-                      opacity: (!parameterName || 
-                        (parameterType === 'fixed' && !fixedValue) || 
+                      opacity: ((parameterType === 'fixed' && (!parameterName || !fixedValue)) || 
                         (parameterType === 'form' && !selectedFormField)) ? 0.5 : 1
                     }
                   }, '+ Parametre Ekle')
@@ -2224,7 +2207,14 @@ import Modal from './components/Modal.js'
           React.createElement('div', { style: { marginBottom: '12px' } },
             React.createElement('textarea', {
               value: formula,
-              onChange: (e) => setFormula(e.target.value),
+              onChange: (e) => {
+                let value = e.target.value
+                // Ensure formula starts with =
+                if (value && !value.startsWith('=')) {
+                  value = '=' + value
+                }
+                setFormula(value)
+              },
               placeholder: 'Excel formülü yazın (örn: =A*B*C+D)',
               style: { 
                 width: '100%', 
