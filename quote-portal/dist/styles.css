@@ -1,0 +1,207 @@
+:root {
+  --bg: #0b1621;
+  --surface: #0f1e2c;
+  --muted: #6b8ba3;
+  --text: #eaf2f8;
+  --accent: #d4af37; /* gold-like accent to suggest metal */
+  --danger: #ff6b6b;
+  --ok: #34d399;
+}
+
+/* Toast Animation */
+@keyframes slideInDown {
+  from {
+    transform: translate(-50%, -100%);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: linear-gradient(180deg, var(--bg), #091119);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+.nav {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(10, 18, 28, 0.7);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.nav-inner { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; }
+.brand { display: flex; gap: 10px; align-items: center; font-weight: 700; letter-spacing: 0.3px; }
+.brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px rgba(212,175,55,0.5); }
+.brand a { color: var(--text); text-decoration: none; }
+
+.tabs { display: flex; gap: 10px; }
+.tab { color: var(--muted); text-decoration: none; padding: 10px 12px; border-radius: 8px; border: 1px solid transparent; }
+.tab.active { color: var(--text); border-color: rgba(255,255,255,0.08); background: rgba(255,255,255,0.02); }
+
+.page-title { margin: 28px 0 10px; font-size: 22px; font-weight: 700; }
+.page-sub { margin: 0 0 20px; color: var(--muted); font-size: 12px; }
+
+.grid { display: grid; gap: 16px; }
+.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid.three .span-2 { grid-column: span 2; }
+.grid.three .span-3 { grid-column: 1 / -1; }
+@media (max-width: 900px) {
+  .grid.two, .grid.three { grid-template-columns: 1fr; }
+}
+
+.card { background: linear-gradient(180deg, var(--surface), #0c1924); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px; }
+
+label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+input, select, textarea { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.03); color: var(--text); }
+/* Keep selects styled as buttons when used as actions */
+select.btn { width: auto; }
+/* In tables' actions cell ensure inline layout */
+.table .actions-row select.btn { width: auto; }
+
+/* Make status dropdown look like buttons */
+select.btn {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text);
+  border-radius: 10px;
+  cursor: pointer;
+  /* fixed paddings for text and arrow gap */
+  padding-left: 14px;
+  padding-right: 48px; /* fixed gap between text and arrow */
+  line-height: 1.2;
+  height: 38px;
+  /* custom arrow */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23eaf2f8' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 10px 6px;
+  white-space: nowrap; /* keep single line */
+  width: auto; /* adapt to content */
+}
+/* Hide legacy default arrow on IE/Edge */
+select.btn::-ms-expand { display: none; }
+select.btn:focus { outline: none; box-shadow: 0 0 0 2px rgba(212,175,55,0.15); }
+/* Tooltip fallback for selects, since pseudo-elements often don't render */
+.tt-wrap { position: relative; display: inline-flex; }
+.tt-wrap .tt {
+  position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.85); color: #fff; padding: 6px 8px; border-radius: 6px;
+  font-size: 11px; white-space: nowrap; z-index: 100; opacity: 0; visibility: hidden; transition: opacity .12s ease;
+}
+.tt-wrap:hover .tt { opacity: 1; visibility: visible; }
+textarea { min-height: 90px; resize: vertical; }
+
+.row { display: flex; gap: 12px; align-items: center; }
+.row.wrap { flex-wrap: wrap; }
+
+/* Processes grid */
+.proc-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.proc-item { display: flex; gap: 8px; align-items: center; padding: 5px 6px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); font-size: 13px; }
+.proc-item input { width: 16px; height: 16px; }
+
+/* Dimensions row */
+.dims-row { display: flex; gap: 8px; align-items: center; }
+.dims-row .x { color: var(--muted); font-weight: 700; }
+
+/* Tile selectors */
+.tile-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.tile { padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); cursor: pointer; font-size: 13px; }
+.tile.active { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(212,175,55,0.4) inset; color: #ffe9a6; }
+
+.btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.12); color: var(--text); background: rgba(255,255,255,0.05); cursor: pointer; }
+.btn.primary { background: linear-gradient(180deg, #1a2d40, #152536); border-color: rgba(255,255,255,0.16); }
+.btn.accent { background: linear-gradient(180deg, #2b2b23, #211f10); border-color: rgba(212,175,55,0.4); color: #ffe9a6; }
+.btn.danger { background: linear-gradient(180deg, #3a1515, #2a1111); border-color: rgba(255,107,107,0.4); color: #ffd2d2; }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.help { color: var(--muted); font-size: 11px; }
+/* .kbd removed (unused) */
+
+.chip { display: inline-flex; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 999px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); font-size: 11px; }
+.chip { white-space: nowrap; max-width: 100%; overflow: hidden; }
+.chip span { display: inline-block; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.chip input { margin: 0; }
+.status { font-weight: 600; }
+.status.new { color: #93c5fd; }
+.status.review { color: #fcd34d; }
+.status.feasible { color: #86efac; }
+.status.not { color: #fca5a5; }
+.status.quoted { color: #c4b5fd; }
+.status.approved { color: #4ade80; }
+
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { padding: 10px 8px; border-bottom: 1px solid rgba(255,255,255,0.06); text-align: left; font-size: 13px; }
+.table th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; }
+.table tr:hover { background: rgba(255,255,255,0.03); }
+
+/* .pill removed (unused) */
+
+.notice { padding: 8px 12px; border-radius: 10px; background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.12); font-size: 12px; color: var(--muted); }
+
+.preview-img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); }
+
+/* File/Image card hover download button */
+.file-card { position: relative; }
+.file-card .dl { position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity .12s ease; padding: 6px 8px; font-size: 12px; }
+.file-card:hover .dl { opacity: 1; }
+/* Centered download icon button */
+.icon-btn { width: 44px; height: 44px; padding: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; 
+  background: linear-gradient(180deg, #2b2b23, #211f10); border: 1px solid rgba(212,175,55,0.5); color: #ffe9a6; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+}
+.icon-btn:hover { filter: brightness(1.05); }
+.file-card .dl-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0; transition: opacity .15s ease; z-index: 2; }
+.file-card:hover .dl-center { opacity: 1; }
+.file-card:hover .preview-img { filter: brightness(0.7) saturate(0.9); }
+/* Grouped center controls (download + delete in edit mode) */
+.file-card .dl-group { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; gap: 8px; opacity: 0; transition: opacity .15s ease; z-index: 2; }
+.file-card:hover .dl-group { opacity: 1; }
+.file-thumb { display: flex; align-items: center; justify-content: center; height: 120px; border: 1px dashed rgba(255,255,255,0.12); border-radius: 8px; background: rgba(255,255,255,0.03); font-size: 12px; color: var(--muted); }
+
+/* .footer removed (unused) */
+
+/* Filter icon hover effects */
+th img[alt="Filtre"] {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+th img[alt="Filtre"]:hover {
+  opacity: 1 !important;
+  transform: scale(1.1);
+}
+
+/* Filter popup improvements */
+.filter-popup-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; }
+.filter-popup { 
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: var(--surface); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3); padding: 20px; min-width: 300px; max-width: 400px;
+  max-height: 70vh; overflow-y: auto; z-index: 1000;
+}
+.filter-popup h3 { color: var(--text); margin: 0 0 16px; font-size: 16px; font-weight: 600; }
+.filter-popup label { display: flex; align-items: center; margin-bottom: 8px; cursor: pointer; padding: 4px; border-radius: 4px; transition: background-color 0.2s; }
+.filter-popup label:hover { background: rgba(255,255,255,0.05); }
+.filter-popup input[type="checkbox"] { margin-right: 8px; }
+.filter-popup input[type="text"], .filter-popup input[type="date"], .filter-popup input[type="number"] { 
+  width: 100%; padding: 8px; background: var(--bg); border: 1px solid rgba(255,255,255,0.1); 
+  border-radius: 4px; color: var(--text); font-size: 14px;
+}
+.filter-popup input[type="text"]:focus, .filter-popup input[type="date"]:focus, .filter-popup input[type="number"]:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(212,175,55,0.2);
+}
+.filter-popup button { 
+  padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s ease;
+}
+.filter-popup button:hover { transform: translateY(-1px); }
