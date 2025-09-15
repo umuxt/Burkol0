@@ -142,23 +142,3 @@ module.exports = {
   DATA_FILE,
 }
 
-module.exports = {
-  // quotes
-  listQuotes,
-  getQuote,
-  putQuote,
-  patchQuote,
-  removeQuote,
-  // users
-  getUser,
-  upsertUser,
-  listUsersRaw,
-  deleteUser,
-  // sessions
-  putSession,
-  getSession,
-  deleteSession,
-  // utils
-  DATA_FILE,
-}
-
