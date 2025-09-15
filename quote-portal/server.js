@@ -426,6 +426,45 @@ app.delete('/api/auth/users/:email', requireAuth, async (req, res) => {
   }
 })
 
+// Migration endpoint for ID format update
+app.post('/api/migrate/ids', requireAuth, async (req, res) => {
+  try {
+    const quotes = readAll()
+    let migrated = 0
+    
+    quotes.forEach(quote => {
+      // Check if ID is in old format (starts with 'q_')
+      if (quote.id && quote.id.startsWith('q_')) {
+        const createdAt = new Date(quote.createdAt || Date.now())
+        const year = createdAt.getFullYear()
+        const month = String(createdAt.getMonth() + 1).padStart(2, '0')
+        
+        // Generate new sequential ID based on creation date
+        const newId = `BK${year}${month}${String(migrated + 1).padStart(5, '0')}`
+        
+        // Update the quote with new ID
+        deleteOne(quote.id) // Remove old
+        quote.id = newId
+        insertOne(quote) // Insert with new ID
+        
+        migrated++
+      }
+    })
+    
+    res.json({ 
+      ok: true, 
+      migrated: migrated,
+      message: `${migrated} records migrated to new ID format` 
+    })
+  } catch (error) {
+    console.error('Migration error:', error)
+    res.status(500).json({ 
+      error: 'migration_failed', 
+      message: error.message 
+    })
+  }
+})
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Burkol Quote server on http://0.0.0.0:${PORT}`)
   console.log(`External access: http://136.244.86.113:${PORT}`)

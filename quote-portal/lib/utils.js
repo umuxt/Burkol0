@@ -1,7 +1,27 @@
 // Shared utilities and constants (ES module)
 
 export function uid() {
-  return 'q_' + Math.random().toString(36).slice(2) + Date.now().toString(36)
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  
+  // Get current counter from localStorage or start from 1
+  const counterKey = `bk_id_counter_${year}${month}`
+  let counter = 1
+  try {
+    const stored = localStorage.getItem(counterKey)
+    if (stored) {
+      counter = parseInt(stored, 10) + 1
+    }
+  } catch {}
+  
+  // Store updated counter
+  try {
+    localStorage.setItem(counterKey, counter.toString())
+  } catch {}
+  
+  const sequence = String(counter).padStart(5, '0')
+  return `BK${year}${month}${sequence}`
 }
 
 export function downloadDataUrl(name, dataUrl) {

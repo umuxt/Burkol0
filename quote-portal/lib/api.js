@@ -100,14 +100,19 @@ export const API = {
       return { ok: true, local: true }
     }
   },
-  downloadTxt(id, data) {
+  downloadTxt(id, data, showNotification) {
     const url = `${API_BASE}/api/quotes/${id}/txt`
-    fetchWithTimeout(url, { headers: withAuth() }, 2500).then((res) => {
+    fetchWithTimeout(url, { headers: withAuth() }, 2500).then(async (res) => {
       if (res && res.ok) {
+        const textContent = await res.text()
+        const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' })
         const a = document.createElement('a')
-        a.href = url
+        const downloadUrl = URL.createObjectURL(blob)
+        a.href = downloadUrl
         a.download = `burkol_quote_${id}.txt`
         document.body.appendChild(a); a.click(); a.remove()
+        URL.revokeObjectURL(downloadUrl)
+        if (showNotification) showNotification('TXT dosyası başarıyla indirildi!', 'success')
       } else if (res && res.status === 401) {
         throw new Error('unauthorized')
       } else { throw new Error('backend txt not ok') }
@@ -160,6 +165,7 @@ export const API = {
       const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
       const a = document.createElement('a'); const dl = URL.createObjectURL(blob)
       a.href = dl; a.download = `burkol_quote_${id}.txt`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(dl)
+      if (showNotification) showNotification('TXT dosyası başarıyla indirildi!', 'success')
     })
   },
   // Auth
@@ -186,6 +192,15 @@ export const API = {
   async logout() {
     try { await fetchWithTimeout(`${API_BASE}/api/auth/logout`, { method: 'POST', headers: withAuth() }) } catch {}
     setToken('')
+  },
+  async migrateIds() {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/migrate/ids`, { method: 'POST', headers: withAuth() })
+      if (!res.ok) throw new Error('migration failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
   }
 }
 

@@ -52,7 +52,7 @@ import Modal from './components/Modal.js'
 
   // Field moved to components/Field.js
 
-  function QuoteForm({ t }) {
+  function QuoteForm({ t, showNotification }) {
     const [submitting, setSubmitting] = useState(false)
     const [message, setMessage] = useState('')
     const [popup, setPopup] = useState(null)
@@ -306,6 +306,7 @@ import Modal from './components/Modal.js'
           productImages: prodFiles,
         }
         await API.createQuote(payload)
+        showNotification('Teklif başarıyla kaydedildi!', 'success')
         setPopup({ title: 'Başarılı', text: t.saved })
         // reset
         setForm({
@@ -810,9 +811,9 @@ import Modal from './components/Modal.js'
       border: '1px solid #ddd',
       borderRadius: '12px',
       boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
-      padding: '24px',
-      minWidth: '320px',
-      maxWidth: '420px',
+      padding: '20px',
+      minWidth: '280px',
+      maxWidth: '350px',
       maxHeight: '75vh',
       overflowY: 'auto',
       zIndex: 1001
@@ -952,7 +953,16 @@ import Modal from './components/Modal.js'
                       onChange: () => toggleOption(option),
                       style: { marginRight: '10px' }
                     }),
-                    React.createElement('span', { style: { fontSize: '14px', flex: 1 } }, option)
+                    React.createElement('span', { 
+                      style: { 
+                        fontSize: '14px', 
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: 'calc(100% - 30px)'
+                      } 
+                    }, option)
                   )
                 )
               )
@@ -998,7 +1008,7 @@ import Modal from './components/Modal.js'
     )
   }
 
-  function Admin({ t, onLogout }) {
+  function Admin({ t, onLogout, showNotification }) {
     const [list, setList] = useState([])
     const [detail, setDetail] = useState(null)
     const [creating, setCreating] = useState(false)
@@ -1163,7 +1173,11 @@ import Modal from './components/Modal.js'
       return options
     }, [list])
 
-    async function setItemStatus(id, st) { await API.updateStatus(id, st); refresh() }
+    async function setItemStatus(id, st) { 
+      await API.updateStatus(id, st)
+      refresh()
+      showNotification('Kayıt durumu güncellendi!', 'success')
+    }
     async function remove(id) { await API.remove(id); refresh() }
     function toggleOne(id, checked) {
       setSelected((prev) => {
@@ -1205,6 +1219,7 @@ import Modal from './components/Modal.js'
       const a = document.createElement('a')
       a.href = url; a.download = 'burkol_quotes.csv'; a.click()
       URL.revokeObjectURL(url)
+      showNotification('CSV dosyası başarıyla indirildi!', 'success')
     }
 
     // Stats
@@ -1447,58 +1462,44 @@ import Modal from './components/Modal.js'
                   React.createElement('th', null,
                     React.createElement('input', { type: 'checkbox', onChange: toggleAll, checked: filtered.length > 0 && selected.size === filtered.length })
                   ),
-                  React.createElement('th', null, t.th_date, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
+                  React.createElement('th', null, t.th_date, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
                     title: 'Tarih filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('dateRange') }
-                  })),
-                  React.createElement('th', null, t.th_customer, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
+                  }, '🔽')),
+                  React.createElement('th', null, t.th_customer, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
                     title: 'Ülke filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('country') }
-                  })),
-                  React.createElement('th', null, t.th_project, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
+                  }, '🔽')),
+                  React.createElement('th', null, t.th_project, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
                     title: 'İşlem filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('process') }
-                  })),
-                  React.createElement('th', null, t.th_material, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
+                  }, '🔽')),
+                  React.createElement('th', null, t.th_material, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
                     title: 'Malzeme filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('material') }
-                  })),
-                  React.createElement('th', null, t.th_qty, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
+                  }, '🔽')),
+                  React.createElement('th', null, t.th_qty, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
                     title: 'Miktar filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('qtyRange') }
-                  })),
-                  React.createElement('th', null, t.th_due, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
+                  }, '🔽')),
+                  React.createElement('th', null, t.th_due, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
                     title: 'Teslim tarihi filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('dateRange') }
-                  })),
+                  }, '🔽')),
                   React.createElement('th', null, t.th_days_to_due),
                   React.createElement('th', null, t.th_est_price),
                   React.createElement('th', null, t.th_est_lead),
-                  React.createElement('th', null, t.a_status, ' ', React.createElement('img', { 
-                    src: './img/filter-icon.png',
-                    alt: 'Filtre',
-                    style: { width: '14px', height: '14px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px' }, 
+                  React.createElement('th', null, t.a_status, ' ', React.createElement('span', { 
+                    style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
                     title: 'Durum filtresi',
                     onClick: (e) => { e.stopPropagation(); setFilterPopup('status') }
-                  })),
+                  }, '🔽')),
                   React.createElement('th', null, t.th_actions),
                 ),
                 // Filter row removed
@@ -1579,7 +1580,7 @@ import Modal from './components/Modal.js'
                         React.createElement('button', { 
                           type: 'button', 
                           className: 'btn', 
-                          onClick: (e) => { e.stopPropagation(); API.downloadTxt(it.id, it) }, 
+                          onClick: (e) => { e.stopPropagation(); API.downloadTxt(it.id, it, showNotification) }, 
                           title: t.tt_download_txt,
                           style: { padding: '4px 6px', fontSize: '11px', borderRadius: '4px', height: '28px', transition: 'all 0.2s ease' },
                           onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.2)',
@@ -1605,8 +1606,8 @@ import Modal from './components/Modal.js'
       ),
       // Filter overlay removed
 
-      detail ? React.createElement(DetailModal, { item: detail, onClose: () => setDetail(null), setItemStatus, onSaved: refresh, t }) : null,
-      creating ? React.createElement(DetailModal, { item: {}, isNew: true, onClose: () => setCreating(false), onSaved: () => { setCreating(false); refresh() }, t }) : null,
+      detail ? React.createElement(DetailModal, { item: detail, onClose: () => setDetail(null), setItemStatus, onSaved: refresh, t, showNotification }) : null,
+      creating ? React.createElement(DetailModal, { item: {}, isNew: true, onClose: () => setCreating(false), onSaved: () => { setCreating(false); refresh() }, t, showNotification }) : null,
       filterPopup ? React.createElement(FilterPopup, { 
         type: filterPopup, 
         filters: filters, 
@@ -1656,7 +1657,7 @@ import Modal from './components/Modal.js'
     )
   }
 
-  function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew }) {
+  function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, showNotification }) {
     const [currStatus, setCurrStatus] = React.useState(item.status || 'new')
     const [editing, setEditing] = React.useState(!!isNew)
     const [form, setForm] = React.useState({})
@@ -1711,6 +1712,7 @@ import Modal from './components/Modal.js'
           files: techFiles, productImages: prodImgs,
         }
         await API.createQuote(payload)
+        showNotification('Yeni kayıt başarıyla oluşturuldu!', 'success')
       } else {
         const patch = {
           status: currStatus,
@@ -1721,6 +1723,7 @@ import Modal from './components/Modal.js'
           files: techFiles, productImages: prodImgs,
         }
         await API.updateQuote(item.id, patch)
+        showNotification('Kayıt başarıyla güncellendi!', 'success')
       }
       setEditing(false)
       try { if (typeof onSaved === 'function') await onSaved() } catch {}
@@ -1876,9 +1879,76 @@ import Modal from './components/Modal.js'
 
   // NumericFilter removed (unused)
 
+  // Notification system
+  function ToastNotification({ message, type = 'success', onClose }) {
+    const toastStyle = {
+      position: 'fixed',
+      top: '20px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      backgroundColor: type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : type === 'warning' ? '#ffc107' : '#17a2b8',
+      color: type === 'warning' ? '#212529' : 'white',
+      padding: '12px 20px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+      zIndex: 9999,
+      minWidth: '300px',
+      maxWidth: '500px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      fontSize: '14px',
+      fontWeight: '500',
+      animation: 'slideInDown 0.3s ease-out'
+    }
+
+    return React.createElement('div', { style: toastStyle },
+      React.createElement('span', null, message),
+      React.createElement('button', {
+        onClick: onClose,
+        style: {
+          background: 'none',
+          border: 'none',
+          color: 'inherit',
+          fontSize: '16px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          marginLeft: '12px',
+          padding: '0 4px',
+          opacity: 0.8
+        },
+        onMouseOver: (e) => e.target.style.opacity = '1',
+        onMouseOut: (e) => e.target.style.opacity = '0.8'
+      }, '×')
+    )
+  }
+
+  function useNotifications() {
+    const [notifications, setNotifications] = useState([])
+
+    const showNotification = (message, type = 'success', duration = 4000) => {
+      const id = Date.now() + Math.random()
+      const notification = { id, message, type }
+      
+      setNotifications(prev => [...prev, notification])
+      
+      // Auto-remove after duration
+      setTimeout(() => {
+        setNotifications(prev => prev.filter(n => n.id !== id))
+      }, duration)
+    }
+
+    const removeNotification = (id) => {
+      setNotifications(prev => prev.filter(n => n.id !== id))
+    }
+
+    return { notifications, showNotification, removeNotification }
+  }
+
   function App() {
     const { t, lang, setLang } = useI18n()
     const [loggedIn, setLoggedIn] = useState(false)
+    const { notifications, showNotification, removeNotification } = useNotifications()
 
     // Check for existing token on initial load
     useEffect(() => {
@@ -1910,10 +1980,19 @@ import Modal from './components/Modal.js'
 
     return (
       React.createElement(React.Fragment, null,
+        // Notifications at the top
+        notifications.map(notification => 
+          React.createElement(ToastNotification, {
+            key: notification.id,
+            message: notification.message,
+            type: notification.type,
+            onClose: () => removeNotification(notification.id)
+          })
+        ),
         React.createElement(Nav, { onLang: setLang, lang, t }),
         PAGE === 'admin'
-          ? (loggedIn ? React.createElement(Admin, { t, onLogout: handleLogout }) : React.createElement(AdminGate, { onLogin: handleLogin, t }))
-          : React.createElement(QuoteForm, { t })
+          ? (loggedIn ? React.createElement(Admin, { t, onLogout: handleLogout, showNotification }) : React.createElement(AdminGate, { onLogin: handleLogin, t }))
+          : React.createElement(QuoteForm, { t, showNotification })
       )
     )
   }

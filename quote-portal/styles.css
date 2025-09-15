@@ -8,6 +8,18 @@
   --ok: #34d399;
 }
 
+/* Toast Animation */
+@keyframes slideInDown {
+  from {
+    transform: translate(-50%, -100%);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
