@@ -1,6 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react'
 import API from '../../lib/api.js'
 import { statusLabel, procLabel, materialLabel } from '../../lib/utils.js'
+
+const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
+if (!ReactGlobal) {
+  throw new Error('React global not found. Ensure React CDN script loads before admin module.')
+}
+const { useState, useEffect, useMemo } = ReactGlobal
 
 function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, FilterPopup }) {
   const [list, setList] = useState([])

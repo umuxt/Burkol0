@@ -1,8 +1,8 @@
-import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../i18n/index.js'
-import API from '../lib/api.js'
-import { uid, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../lib/utils.js'
-import Field from './Field.js'
-import Modal from './Modal.js'
+import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../i18n/index.js'
+import API from '../../lib/api.js'
+import { uid, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../lib/utils.js'
+import Field from '../Field.js'
+import Modal from '../Modal.js'
 
 const { useState, useEffect, useRef } = React
 
