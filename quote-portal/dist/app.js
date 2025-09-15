@@ -1,6 +1,8 @@
 // Burkol Quote/Admin (React 18) + backend API
 // Separate pages: index.html (quote) and admin.html (admin)
 
+import React from 'react'
+import ReactDOM from 'react-dom/client'
 import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from './i18n/index.js'
 import API, { API_BASE } from './lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from './lib/utils.js'
