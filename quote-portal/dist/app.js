@@ -1,6 +1,16 @@
 // Burkol Quote/Admin (React 18) + backend API
 // Separate pages: index.html (quote) and admin.html (admin)
 
+// Check React availability
+if (typeof window !== 'undefined' && !window.React) {
+  console.error('React is not loaded! Check CDN scripts in HTML.')
+  throw new Error('React is required but not found')
+}
+if (typeof window !== 'undefined' && !window.ReactDOM) {
+  console.error('ReactDOM is not loaded! Check CDN scripts in HTML.')  
+  throw new Error('ReactDOM is required but not found')
+}
+
 import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from './i18n/index.js'
 import API, { API_BASE } from './lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from './lib/utils.js'
