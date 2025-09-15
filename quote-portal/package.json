@@ -2,7 +2,7 @@
   "name": "burkol-quote-portal",
   "version": "0.1.0",
   "private": true,
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "start": "node server.js",
     "build": "node build.js",

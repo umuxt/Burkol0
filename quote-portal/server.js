@@ -2,12 +2,16 @@
 // - Persistent storage via JSON file (lib/jsondb.js)
 // - TXT export endpoint
 
-const express = require('express')
-const path = require('path')
-const fs = require('fs')
-const fsp = require('fs').promises
-const crypto = require('crypto')
-const jsondb = require('./lib/jsondb')
+import express from 'express'
+import path from 'path'
+import fs from 'fs'
+import fsp from 'fs/promises'
+import crypto from 'crypto'
+import { fileURLToPath } from 'url'
+import jsondb from './lib/jsondb.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -48,7 +52,16 @@ app.use((req, res, next) => {
   next()
 })
 // Optional: serve static for direct access; harmless if unused
-app.use(express.static(ROOT))
+app.use(express.static(ROOT, {
+  setHeaders: (res, path) => {
+    // Force reload for JS modules after deployment
+    if (path.endsWith('.js')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+      res.setHeader('Pragma', 'no-cache')
+      res.setHeader('Expires', '0')
+    }
+  }
+}))
 // Explicitly serve uploads for clarity
 app.use('/uploads', express.static(path.join(ROOT, 'uploads')))
 

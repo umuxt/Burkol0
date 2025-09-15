@@ -1,10 +1,13 @@
-const fs = require('fs')
-const path = require('path')
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 // Very small JSON store for quotes/users/sessions
 // Single-process friendly; writes atomically via tmp+rename.
 
-const ROOT = __dirname ? path.join(__dirname, '..') : process.cwd()
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const ROOT = path.join(__dirname, '..')
 const DATA_FILE = process.env.BURKOL_DATA || path.join(ROOT, 'db.json')
 
 function ensureDir(p) {
@@ -119,7 +122,7 @@ function putSettings(obj) {
   saveRaw(db)
 }
 
-module.exports = {
+export default {
   // quotes
   listQuotes,
   getQuote,
