@@ -69,12 +69,12 @@ export default function QuoteForm({ t, showNotification }) {
     if (!form.thickness) e.thickness = t.required
 
     // Email format
-    if (form.email && !/^\\S+@\\S+\\.\\S+$/.test(form.email)) e.email = t.invalid_email
+    if (form.email && !/^\S+@\S+\.\S+$/.test(form.email)) e.email = t.invalid_email
 
     // Phone: digits only; TR must be 10 digits
-    if (form.phoneLocal && /\\D/.test(form.phoneLocal)) e.phone = t.invalid_phone
+    if (form.phoneLocal && /\D/.test(form.phoneLocal)) e.phone = t.invalid_phone
     const isTR = form.country === 'TR' || form.phoneCode === '+90'
-    if (isTR && form.phoneLocal && form.phoneLocal.replace(/\\D/g, '').length !== 10) e.phone = t.phone_tr_len
+    if (isTR && form.phoneLocal && form.phoneLocal.replace(/\D/g, '').length !== 10) e.phone = t.phone_tr_len
 
     // Numbers: thickness positive number
     if (form.thickness !== '' && Number(form.thickness) <= 0) e.thickness = t.must_be_positive
