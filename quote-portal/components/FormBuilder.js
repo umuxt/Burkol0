@@ -53,8 +53,8 @@ export default function FormBuilder({ onClose, showNotification, t }) {
       setFormConfig(config.formConfig)
       setFields(config.formConfig.fields || [])
       setMigrationStatus({
-        pricingConfigured: config.pricingConfig.isConfigured,
-        migrationStatus: config.migrationStatus
+        pricingConfigured: config.pricingConfig?.isConfigured || false,
+        migrationStatus: config.migrationStatus || 'pending'
       })
     } catch (error) {
       console.error('Load form config error:', error)

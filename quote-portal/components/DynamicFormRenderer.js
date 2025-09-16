@@ -350,9 +350,48 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
     return React.createElement('div', { className: 'error' }, 'Form konfigürasyonu bulunamadı')
   }
 
+  // Fixed default fields that admin cannot modify
+  const fixedDefaultFields = [
+    {
+      id: 'name',
+      label: 'Müşteri Adı',
+      type: 'text',
+      required: true,
+      display: { formOrder: 1 }
+    },
+    {
+      id: 'company',
+      label: 'Şirket',
+      type: 'text',
+      required: false,
+      display: { formOrder: 2 }
+    },
+    {
+      id: 'proj',
+      label: 'Proje Adı',
+      type: 'text',
+      required: true,
+      display: { formOrder: 3 }
+    },
+    {
+      id: 'phone',
+      label: 'Telefon',
+      type: 'phone',
+      required: true,
+      display: { formOrder: 4 }
+    },
+    {
+      id: 'email',
+      label: 'E-posta',
+      type: 'email',
+      required: true,
+      display: { formOrder: 5 }
+    }
+  ]
+
   // Sort fields by form order
   const allFields = [
-    ...(formConfig.defaultFields || []),
+    ...fixedDefaultFields,
     ...(formConfig.fields || [])
   ].sort((a, b) => (a.display?.formOrder || 0) - (b.display?.formOrder || 0))
 

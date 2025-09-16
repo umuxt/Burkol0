@@ -59,29 +59,46 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     }
   }
 
-  // Get table columns based on form configuration
+  // Get table columns - fixed columns that admin cannot modify
   function getTableColumns() {
-    if (!formConfig) return []
-    
-    const allFields = [
-      ...(formConfig.defaultFields || []),
-      ...(formConfig.fields || [])
+    // Fixed columns that always appear in the table
+    const fixedColumns = [
+      { id: 'date', label: 'Tarih', type: 'date' },
+      { id: 'name', label: 'Müşteri', type: 'text' },
+      { id: 'company', label: 'Şirket', type: 'text' },
+      { id: 'proj', label: 'Proje', type: 'text' },
+      { id: 'phone', label: 'Telefon', type: 'phone' },
+      { id: 'email', label: 'E-posta', type: 'email' }
     ]
     
-    // Filter fields that should show in table and sort by table order
-    return allFields
+    // Add dynamic fields from form config if any
+    const dynamicFields = (formConfig?.fields || [])
       .filter(field => field.display?.showInTable)
       .sort((a, b) => (a.display?.tableOrder || 0) - (b.display?.tableOrder || 0))
+    
+    // Add fixed end columns
+    const endColumns = [
+      { id: 'price', label: 'Tahmini Fiyat', type: 'currency' },
+      { id: 'due', label: 'Termine Kalan', type: 'text' },
+      { id: 'status', label: 'Durum', type: 'text' }
+    ]
+    
+    return [...fixedColumns, ...dynamicFields, ...endColumns]
   }
 
   // Get value from quote for a specific field
-  function getFieldValue(quote, field) {
-    const isCustomField = !(formConfig?.defaultFields?.some(df => df.id === field.id))
+  function getFieldValue(quote, fieldId) {
+    // Fixed fields are directly on the quote object
+    const fixedFields = ['date', 'name', 'company', 'proj', 'phone', 'email', 'price', 'due', 'status']
     
-    if (isCustomField) {
-      return quote.customFields?.[field.id] || ''
+    if (fixedFields.includes(fieldId)) {
+      if (fieldId === 'date') {
+        return quote.createdAt || quote.date || ''
+      }
+      return quote[fieldId] || ''
     } else {
-      return quote[field.id] || ''
+      // Dynamic fields are in customFields
+      return quote.customFields?.[fieldId] || ''
     }
   }
 
