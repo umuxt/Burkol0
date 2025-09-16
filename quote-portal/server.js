@@ -204,6 +204,12 @@ function calculatePriceServer(quote, settings) {
       }
     }
 
+    // Add quote fields to parameter values for formula context
+    paramValues.qty = parseFloat(quote.qty) || 0
+    paramValues.thickness = parseFloat(quote.thickness) || 0
+    paramValues.material = quote.material || ''
+    paramValues.process = quote.process || ''
+    
     let formula = String(settings.formula || '').replace(/^=/, '')
     Object.keys(paramValues).forEach(id => {
       const re = new RegExp(`\\b${id}\\b`, 'g')
