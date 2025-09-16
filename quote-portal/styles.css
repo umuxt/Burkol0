@@ -1,4 +1,5 @@
 :root {
+  /* Ana Renkler */
   --bg: #0b1621;
   --surface: #0f1e2c;
   --muted: #6b8ba3;
@@ -6,6 +7,44 @@
   --accent: #d4af37; /* gold-like accent to suggest metal */
   --danger: #ff6b6b;
   --ok: #34d399;
+  
+  /* Modal ve Panel Renkleri */
+  --modal-bg: #111;
+  --modal-overlay: rgba(0,0,0,0.5);
+  --modal-border: #333;
+  --modal-header: #222;
+  
+  /* Form Renkleri */
+  --form-bg: #222;
+  --form-border: #333;
+  --form-focus: #007bff;
+  --form-error: #ff6b6b;
+  --form-success: #51cf66;
+  
+  /* Buton Renkleri */
+  --btn-primary: #007bff;
+  --btn-secondary: #6c757d;
+  --btn-danger: #dc3545;
+  --btn-warning: #ffa500;
+  --btn-success: #28a745;
+  
+  /* Tablo Renkleri */
+  --table-header: #1a1a1a;
+  --table-row-hover: rgba(255,255,255,0.05);
+  --table-border: #333;
+  
+  /* Price Review Modal Renkleri */
+  --price-increase: #ff6b6b;
+  --price-decrease: #51cf66;
+  --price-neutral: #6c757d;
+  --change-detail-bg: #333;
+  --change-detail-border: #007bff;
+  
+  /* Status Renkleri */
+  --status-new: #17a2b8;
+  --status-pending: #ffc107;
+  --status-approved: #28a745;
+  --status-rejected: #dc3545;
 }
 
 /* Toast Animation */
@@ -67,15 +106,17 @@ input, select, textarea {
   padding: 10px 12px; 
   border-radius: 8px; 
   border: 1px solid rgba(255,255,255,0.12); 
-  background: rgba(255,255,255,0.03); 
-  color: #333; /* FIXED: Changed from var(--text) to dark color for better readability */
+  background: rgba(255,255,255,0.05); 
+  color: var(--text); /* FIXED: Use theme text color for dark mode visibility */
 }
 input::placeholder, textarea::placeholder {
-  color: #666; /* FIXED: Dark placeholder text */
+  color: var(--muted); /* FIXED: Use theme muted color for placeholders */
 }
 input:focus, select:focus, textarea:focus {
-  color: #222; /* FIXED: Even darker color when focused */
-  background: rgba(255,255,255,0.9);
+  color: var(--text); /* FIXED: Keep theme text color when focused */
+  background: rgba(255,255,255,0.08);
+  border-color: var(--accent);
+  outline: none;
 }
 /* Keep selects styled as buttons when used as actions */
 select.btn { width: auto; }

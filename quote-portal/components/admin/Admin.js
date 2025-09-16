@@ -461,7 +461,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         changes.push({
           field: 'Hesaplanan Fiyat',
           from: `₺${item.originalPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`,
-          to: `₺${item.calculatedPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`
+          to: `₺${item.calculatedPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`,
+          reason: 'Formül hesaplaması sonucu fiyat değişikliği'
         })
       }
     }
@@ -471,11 +472,26 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
       changes.push({
         field: 'Formül/Parametreler',
         from: 'Önceki değerler',
-        to: 'Güncellenmiş değerler'
+        to: 'Güncellenmiş değerler',
+        reason: 'Fiyat hesaplama formülü veya parametreleri değiştirildi'
       })
     }
     
     return changes
+  }
+
+  // Function to get change reason explanation
+  function getChangeReason(item) {
+    if (item.formulaChanged) {
+      return 'Fiyat hesaplama formülü değiştirildi'
+    }
+    if (item.parametersChanged) {
+      return 'Hesaplama parametreleri güncellendi'
+    }
+    if (item.needsPriceUpdate) {
+      return 'Sistem ayarları değişikliği nedeniyle fiyat güncellemesi gerekiyor'
+    }
+    return 'Manuel fiyat güncelleme talebi'
   }
   const [priceReview, setPriceReview] = useState(null) // { item, newPrice }
   async function applyNewPrice(item) {
@@ -1248,39 +1264,23 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     }) : null,
     priceReview ? (function () {
       const pr = priceReview
-      const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)' }
-      const box = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#111', color: '#fff', padding: 20, borderRadius: 12, width: 450, maxHeight: '80vh', overflowY: 'auto' }
+      const overlay = { position: 'fixed', inset: 0, background: 'var(--modal-overlay)' }
+      const box = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--modal-bg)', color: 'var(--text)', padding: 20, borderRadius: 12, width: 450, maxHeight: '80vh', overflowY: 'auto' }
       const originalPrice = pr.originalPrice || 0
       const newPrice = pr.newPrice || 0
       const difference = newPrice - originalPrice
       const isIncrease = difference > 0
       const changes = getChanges(pr.item)
+      const changeReason = getChangeReason(pr.item)
       
       return React.createElement(React.Fragment, null,
         React.createElement('div', { style: overlay, onClick: () => setPriceReview(null) }),
         React.createElement('div', { style: box },
-          React.createElement('h3', { style: { marginTop: 0, marginBottom: 20, fontSize: '20px' } }, 'Fiyat Güncelleme'),
+          React.createElement('h3', { style: { marginTop: 0, marginBottom: 20, fontSize: '20px', color: 'var(--text)' } }, 'Fiyat Güncelleme'),
           
-          // Price comparison section
-          React.createElement('div', { style: { margin: '16px 0', padding: '16px', backgroundColor: '#222', borderRadius: '8px' } }, 
-            React.createElement('h4', { style: { margin: '0 0 12px 0', fontSize: '16px', color: '#ccc' } }, 'Fiyat Karşılaştırması'),
-            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
-              React.createElement('span', null, 'Mevcut fiyat:'),
-              React.createElement('span', null, `₺ ${originalPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-            ),
-            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
-              React.createElement('span', null, 'Yeni fiyat:'),
-              React.createElement('span', { style: { fontWeight: 'bold' } }, `₺ ${newPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-            ),
-            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', color: isIncrease ? '#ff6b6b' : '#51cf66', borderTop: '1px solid #333', paddingTop: 8 } },
-              React.createElement('span', { style: { fontWeight: 'bold' } }, 'Fark:'),
-              React.createElement('span', { style: { fontWeight: 'bold' } }, `${isIncrease ? '+' : ''}₺ ${Math.abs(difference).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-            )
-          ),
-          
-          // Changes details section
-          changes.length > 0 && React.createElement('div', { style: { margin: '16px 0', padding: '16px', backgroundColor: '#222', borderRadius: '8px' } },
-            React.createElement('h4', { style: { margin: '0 0 12px 0', fontSize: '16px', color: '#ccc' } }, 'Değişiklik Detayları'),
+          // Changes details section (moved to top)
+          changes.length > 0 && React.createElement('div', { style: { margin: '0 0 20px 0', padding: '16px', backgroundColor: 'var(--form-bg)', borderRadius: '8px' } },
+            React.createElement('h4', { style: { margin: '0 0 12px 0', fontSize: '16px', color: 'var(--text)' } }, 'Değişiklik Detayları'),
             React.createElement('div', { style: { fontSize: '14px' } },
               changes.map((change, index) => 
                 React.createElement('div', { 
@@ -1288,32 +1288,38 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
                   style: { 
                     marginBottom: '8px', 
                     padding: '8px', 
-                    backgroundColor: '#333',
+                    backgroundColor: 'var(--change-detail-bg)',
                     borderRadius: '4px',
-                    borderLeft: '3px solid #007bff'
+                    borderLeft: '3px solid var(--change-detail-border)'
                   } 
                 },
-                  React.createElement('div', { style: { fontWeight: 'bold', marginBottom: '4px', color: '#fff' } }, change.field),
+                  React.createElement('div', { style: { fontWeight: 'bold', marginBottom: '4px', color: 'var(--text)' } }, change.field),
                   React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' } },
-                    React.createElement('span', { style: { color: '#ff6b6b' } }, change.from),
-                    React.createElement('span', { style: { color: '#ccc' } }, '→'),
-                    React.createElement('span', { style: { color: '#51cf66' } }, change.to)
+                    React.createElement('span', { style: { color: 'var(--price-increase)' } }, change.from),
+                    React.createElement('span', { style: { color: 'var(--muted)' } }, '→'),
+                    React.createElement('span', { style: { color: 'var(--price-decrease)' } }, change.to)
                   )
                 )
               )
             )
           ),
           
-          React.createElement('div', { style: { display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20, paddingTop: 16, borderTop: '1px solid #333' } },
+          // Change reason section
+          React.createElement('div', { style: { margin: '0 0 20px 0', padding: '16px', backgroundColor: 'var(--form-bg)', borderRadius: '8px' } },
+            React.createElement('h4', { style: { margin: '0 0 8px 0', fontSize: '16px', color: 'var(--text)' } }, 'Değişiklik Sebebi'),
+            React.createElement('p', { style: { margin: 0, fontSize: '14px', color: 'var(--muted)', lineHeight: '1.4' } }, changeReason)
+          ),
+          
+          React.createElement('div', { style: { display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--modal-border)' } },
             React.createElement('button', { 
               className: 'btn', 
               onClick: () => setPriceReview(null),
-              style: { padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }
+              style: { padding: '10px 20px', backgroundColor: 'var(--btn-secondary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }
             }, 'Kapat'),
             React.createElement('button', { 
               className: 'btn accent', 
               onClick: () => applyNewPrice(pr.item),
-              style: { padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }
+              style: { padding: '10px 20px', backgroundColor: 'var(--btn-primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }
             }, 'Fiyatı Güncelle')
           )
         )

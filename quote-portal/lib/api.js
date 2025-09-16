@@ -283,6 +283,55 @@ export const API = {
     } catch (e) {
       throw e
     }
+  },
+
+  // Version History API
+  async saveQuoteVersion(id, reason = 'Admin modification') {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/save-version`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ reason })
+      })
+      if (!res.ok) throw new Error('save version failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+
+  async getQuoteVersions(id) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/versions`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      if (!res.ok) throw new Error('get versions failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+
+  async restoreQuoteVersion(id, versionIndex) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/restore-version`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ versionIndex })
+      })
+      if (!res.ok) throw new Error('restore version failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
   }
 }
 

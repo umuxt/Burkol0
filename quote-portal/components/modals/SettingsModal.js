@@ -19,6 +19,7 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
   const [parameterName, setParameterName] = useState('')
   const [fixedValue, setFixedValue] = useState('')
   const [selectedFormField, setSelectedFormField] = useState('')
+  const [selectedFormValue, setSelectedFormValue] = useState('') // Missing state for form value selection
   const [lookupTable, setLookupTable] = useState([]) // For dropdown fields with lookup values
   const [newLookupOption, setNewLookupOption] = useState('')
   const [newLookupValue, setNewLookupValue] = useState('')
