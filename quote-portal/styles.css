@@ -112,6 +112,10 @@ input, select, textarea {
 input::placeholder, textarea::placeholder {
   color: var(--muted); /* FIXED: Use theme muted color for placeholders */
 }
+.field input::placeholder, 
+.field textarea::placeholder {
+  color: var(--muted) !important;
+}
 input:focus, select:focus, textarea:focus {
   color: var(--text); /* FIXED: Keep theme text color when focused */
   background: rgba(255,255,255,0.08);
@@ -571,21 +575,23 @@ th img[alt="Filtre"]:hover {
 .field input,
 .field textarea,
 .field select {
-  padding: 12px;
-  background: var(--bg);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 6px;
-  color: var(--text);
-  font-size: 14px;
-  transition: all 0.2s ease;
+  padding: 12px !important;
+  background: var(--bg) !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 6px !important;
+  color: var(--text) !important;
+  font-size: 14px !important;
+  transition: all 0.2s ease !important;
+  width: 100% !important;
 }
 
 .field input:focus,
 .field textarea:focus,
 .field select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(212,175,55,0.2);
+  outline: none !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(212,175,55,0.2) !important;
+  background: var(--bg) !important;
 }
 
 .field input.error,
