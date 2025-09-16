@@ -41,6 +41,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     try {
       const settings = await API.getSettings()
       setPriceSettings(settings)
+      // Refresh quote list when settings change to show updated price warnings
+      await refresh()
     } catch (e) {
       console.error('Settings load error:', e)
     }
@@ -115,7 +117,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         }
       })
 
-      // Evaluate formula (simple Excel-like evaluation)
+      // Evaluate formula with comprehensive math functions
       let formula = priceSettings.formula.replace(/^=/, '') // Remove leading =
       
       // Replace parameter IDs with actual values
@@ -124,9 +126,84 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         formula = formula.replace(regex, paramValues[paramId])
       })
 
-      // Basic mathematical evaluation (be careful with eval in production!)
-      // This is a simplified version - in production, use a proper formula parser
-      const result = Function('"use strict"; return (' + formula + ')')()
+      // Create comprehensive math context matching server-side
+      const mathContext = {
+        // Basic Math Functions
+        SQRT: Math.sqrt,
+        ROUND: Math.round,
+        MAX: Math.max,
+        MIN: Math.min,
+        ABS: Math.abs,
+        POWER: Math.pow,
+        POW: Math.pow,
+        EXP: Math.exp,
+        LN: Math.log,
+        LOG: Math.log10,
+        LOG10: Math.log10,
+        
+        // Trigonometric Functions
+        SIN: Math.sin,
+        COS: Math.cos,
+        TAN: Math.tan,
+        ASIN: Math.asin,
+        ACOS: Math.acos,
+        ATAN: Math.atan,
+        ATAN2: Math.atan2,
+        
+        // Rounding Functions
+        CEILING: Math.ceil,
+        CEIL: Math.ceil,
+        FLOOR: Math.floor,
+        TRUNC: Math.trunc,
+        ROUNDUP: (num, digits = 0) => Math.ceil(num * Math.pow(10, digits)) / Math.pow(10, digits),
+        ROUNDDOWN: (num, digits = 0) => Math.floor(num * Math.pow(10, digits)) / Math.pow(10, digits),
+        
+        // Statistical Functions
+        AVERAGE: (...args) => args.reduce((a, b) => a + b, 0) / args.length,
+        SUM: (...args) => args.reduce((a, b) => a + b, 0),
+        COUNT: (...args) => args.filter(x => typeof x === 'number' && !isNaN(x)).length,
+        COUNTA: (...args) => args.filter(x => x != null && x !== '').length,
+        
+        // Logical Functions
+        IF: (condition, trueValue, falseValue) => condition ? trueValue : falseValue,
+        AND: (...args) => args.every(arg => Boolean(arg)),
+        OR: (...args) => args.some(arg => Boolean(arg)),
+        NOT: (value) => !Boolean(value),
+        
+        // Text Functions
+        LEN: (text) => String(text || '').length,
+        LEFT: (text, num) => String(text || '').substring(0, num),
+        RIGHT: (text, num) => String(text || '').substring(String(text || '').length - num),
+        MID: (text, start, num) => String(text || '').substring(start - 1, start - 1 + num),
+        UPPER: (text) => String(text || '').toUpperCase(),
+        LOWER: (text) => String(text || '').toLowerCase(),
+        
+        // Constants
+        PI: Math.PI,
+        E: Math.E,
+        
+        // Custom Functions for Business Logic
+        MARGIN: (cost, markup) => cost * (1 + markup / 100),
+        DISCOUNT: (price, discountPercent) => price * (1 - discountPercent / 100),
+        VAT: (amount, vatRate) => amount * (1 + vatRate / 100),
+        MARKUP: (cost, marginPercent) => cost / (1 - marginPercent / 100),
+        
+        // Range/Array Functions (simplified)
+        SUMPRODUCT: (...pairs) => {
+          if (pairs.length % 2 !== 0) return 0;
+          let sum = 0;
+          for (let i = 0; i < pairs.length; i += 2) {
+            sum += pairs[i] * pairs[i + 1];
+          }
+          return sum;
+        }
+      }
+
+      // Add math functions to formula context
+      let evalCode = Object.keys(mathContext).map(key => `const ${key} = ${mathContext[key]};`).join(' ')
+      evalCode += `return (${formula});`
+      
+      const result = Function('"use strict"; ' + evalCode)()
       return isNaN(result) ? (quote.price || 0) : result
       
     } catch (e) {
@@ -142,24 +219,37 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     }
     
     try {
+      // Check if settings have been updated after quote was last calculated
+      const settingsUpdated = priceSettings.lastUpdated || null
+      const quoteCalculated = quote.priceCalculatedAt || quote.createdAt || null
+      
+      // If settings were updated after quote calculation, show update warning
+      const settingsNewer = settingsUpdated && quoteCalculated && 
+        new Date(settingsUpdated).getTime() > new Date(quoteCalculated).getTime()
+      
       const calculatedPrice = calculatePrice(quote)
       const storedPrice = parseFloat(quote.price) || 0
       
-      // Only show warning if there's a significant price difference (>1%)
+      // Only show warning if there's a significant price difference (>1%) OR settings are newer
       const priceThreshold = Math.max(storedPrice * 0.01, 0.5) // 1% or minimum 0.5 TL
       const priceDiffers = Math.abs(calculatedPrice - storedPrice) > priceThreshold
       
+      const needsUpdate = priceDiffers || settingsNewer
+      
       // Log for debugging (remove in production)
-      if (priceDiffers) {
-        console.log(`Significant price change for quote ${quote.id}:`, {
+      if (needsUpdate) {
+        console.log(`Price update needed for quote ${quote.id}:`, {
           calculatedPrice: calculatedPrice.toFixed(2),
           storedPrice: storedPrice.toFixed(2),
           difference: (calculatedPrice - storedPrice).toFixed(2),
-          threshold: priceThreshold.toFixed(2)
+          threshold: priceThreshold.toFixed(2),
+          settingsNewer,
+          settingsUpdated,
+          quoteCalculated
         })
       }
       
-      return priceDiffers
+      return needsUpdate
       
     } catch (e) {
       console.error('Price calculation error for needsPriceUpdate:', e)

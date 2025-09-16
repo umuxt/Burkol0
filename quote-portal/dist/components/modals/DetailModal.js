@@ -34,6 +34,17 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       drawing: item.drawing || 'no', 
       productPics: item.productPics || 'no', 
       desc: item.desc || '',
+      // Additional technical fields
+      toleranceStd: item.toleranceStd || '',
+      criticalTolerance: item.toleranceCrit || '',
+      bendCount: item.bendCount || '',
+      weldMethod: item.weldMethod || '',
+      surfaceRa: item.surfaceRa || '',
+      finishRal: item.finishRal || '',
+      anodizing: item.anodizeType || '',
+      qtyT1: item.qtyT1 || '',
+      qtyT2: item.qtyT2 || '',
+      qtyT3: item.qtyT3 || '',
     })
     setTechFiles(item.files || [])
     setProdImgs(item.productImages || [])
@@ -82,6 +93,12 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
         thickness: form.thickness, qty: form.qty, dims: form.dims, tolerance: form.tolerance, finish: form.finish, due: form.due,
         repeat: form.repeat, budget: form.budget, address: form.address, drawing: form.drawing, productPics: form.productPics, desc: form.desc,
         files: techFiles, productImages: prodImgs,
+        // Additional technical fields
+        toleranceStd: form.toleranceStd, criticalTolerance: form.criticalTolerance, bendCount: form.bendCount,
+        weldMethod: form.weldMethod, surfaceRa: form.surfaceRa, finishRal: form.finishRal, anodizing: form.anodizing,
+        qtyT1: form.qtyT1, qtyT2: form.qtyT2, qtyT3: form.qtyT3,
+        // Map to original field names for compatibility
+        toleranceCrit: form.criticalTolerance, anodizeType: form.anodizing,
       }
       await API.createQuote(payload)
       showNotification('Yeni kayıt başarıyla oluşturuldu!', 'success')
@@ -93,6 +110,12 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
         thickness: form.thickness, qty: form.qty, dims: form.dims, tolerance: form.tolerance, finish: form.finish, due: form.due,
         repeat: form.repeat, budget: form.budget, address: form.address, drawing: form.drawing, productPics: form.productPics, desc: form.desc,
         files: techFiles, productImages: prodImgs,
+        // Additional technical fields
+        toleranceStd: form.toleranceStd, criticalTolerance: form.criticalTolerance, bendCount: form.bendCount,
+        weldMethod: form.weldMethod, surfaceRa: form.surfaceRa, finishRal: form.finishRal, anodizing: form.anodizing,
+        qtyT1: form.qtyT1, qtyT2: form.qtyT2, qtyT3: form.qtyT3,
+        // Map to original field names for compatibility
+        toleranceCrit: form.criticalTolerance, anodizeType: form.anodizing,
       }
       await API.updateQuote(item.id, patch)
       showNotification('Kayıt başarıyla güncellendi!', 'success')
@@ -148,13 +171,21 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
         info(t.f_proj, item.proj), info(t.f_process, (item.process||[]).join(', ')), info(t.f_material, item.material), info(t.f_grade, item.grade),
         info(t.f_thickness, item.thickness + ' mm'), info(t.f_qty, item.qty), info(t.f_dims, item.dims), info(t.f_tolerance, item.tolerance),
         info(t.f_finish, item.finish), info(t.f_due, item.due), info(t.f_repeat, item.repeat === 'recurrent' ? t.repeat_recurrent : t.repeat_one), info(t.f_budget, item.budget),
-        info(t.f_drawing, item.drawing), info(t.f_address, item.address), info(t.f_desc, item.desc)
+        info(t.f_drawing, item.drawing), info(t.f_address, item.address), info(t.f_desc, item.desc),
+        // Additional technical fields
+        info('Tolerans Standardı', item.toleranceStd), info('Kritik Toleranslar', item.toleranceCrit), info('Büküm Sayısı', item.bendCount),
+        info('Kaynak Yöntemi', item.weldMethod), info('Ra', item.surfaceRa), info('RAL', item.finishRal), info('Anodize', item.anodizeType),
+        info('Adet Kademeleri', `T1:${item.qtyT1||''} T2:${item.qtyT2||''} T3:${item.qtyT3||''}`)
       ) : React.createElement('div', { className: 'grid two', style: { gap: 8 } },
         editField(t.f_name, 'name'), editField(t.f_company, 'company'), editField(t.f_email, 'email'), editField(t.f_phone, 'phone'),
         editField(t.f_country, 'country'), editField(t.f_city, 'city'), editField(t.f_proj, 'proj'), editField(t.f_process, 'process'),
         editField(t.f_material, 'material'), editField(t.f_grade, 'grade'), editField(t.f_thickness, 'thickness'), editField(t.f_qty, 'qty'),
         editField(t.f_dims, 'dims'), editField(t.f_tolerance, 'tolerance'), editField(t.f_finish, 'finish'), editField(t.f_due, 'due'),
-        editField(t.f_repeat, 'repeat'), editField(t.f_budget, 'budget'), editArea(t.f_address, 'address'), editRadio(t.f_drawing, 'drawing'), editRadio(t.f_prodimg, 'productPics'), editArea(t.f_desc, 'desc')
+        editField(t.f_repeat, 'repeat'), editField(t.f_budget, 'budget'), editArea(t.f_address, 'address'), editRadio(t.f_drawing, 'drawing'), editRadio(t.f_prodimg, 'productPics'), editArea(t.f_desc, 'desc'),
+        // Additional technical fields
+        editField('Tolerans Standardı', 'toleranceStd'), editField('Kritik Toleranslar', 'criticalTolerance'), editField('Büküm Sayısı', 'bendCount'),
+        editField('Kaynak Yöntemi', 'weldMethod'), editField('Ra', 'surfaceRa'), editField('RAL', 'finishRal'), editField('Anodize', 'anodizing'),
+        editField('Adet T1', 'qtyT1'), editField('Adet T2', 'qtyT2'), editField('Adet T3', 'qtyT3')
       ),
       React.createElement('div', { style: { height: 10 } }),
       React.createElement('div', { className: 'row wrap' },

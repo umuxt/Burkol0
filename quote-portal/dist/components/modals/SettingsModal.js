@@ -26,6 +26,9 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
   const [formulaValidation, setFormulaValidation] = useState(null)
   const [isFormulaValid, setIsFormulaValid] = useState(true)
   
+  // Formula info popup state
+  const [showFormulaInfo, setShowFormulaInfo] = useState(false)
+  
   // Form fields available for selection (from user form)
   const formFields = [
     { value: 'qty', label: 'Adet', hasOptions: false },
@@ -640,15 +643,15 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                   React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse' } },
                     React.createElement('thead', null,
                       React.createElement('tr', null,
-                        React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', fontSize: '12px', textAlign: 'left' } }, 'Seçenek'),
-                        React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', fontSize: '12px', textAlign: 'left' } }, 'Değer')
+                        React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', fontSize: '12px', textAlign: 'left', color: '#333' } }, 'Seçenek'),
+                        React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', fontSize: '12px', textAlign: 'left', color: '#333' } }, 'Değer')
                       )
                     ),
                     React.createElement('tbody', null,
                       getFieldOptions(selectedFormField).map(option => {
                         const existingValue = lookupTable.find(item => item.option === option)?.value || ''
                         return React.createElement('tr', { key: option },
-                          React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', fontSize: '12px' } }, option),
+                          React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', fontSize: '12px', color: '#333' } }, option),
                           React.createElement('td', { style: { border: '1px solid #ddd', padding: '4px' } },
                             React.createElement('input', {
                               type: 'number',
@@ -664,7 +667,7 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                                   return filtered
                                 })
                               },
-                              style: { width: '100%', padding: '4px', border: '1px solid #ccc', borderRadius: '3px', fontSize: '12px' }
+                              style: { width: '100%', padding: '4px', border: '1px solid #ccc', borderRadius: '3px', fontSize: '12px', color: '#333' }
                             })
                           )
                         )
@@ -699,7 +702,28 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
 
       // Formula section
       React.createElement('div', { style: { marginBottom: '24px' } },
-        React.createElement('h3', { style: { marginBottom: '16px', fontSize: '16px', color: '#333' } }, 'Fiyat Hesaplama Formülü'),
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', marginBottom: '16px' } },
+          React.createElement('h3', { style: { margin: 0, fontSize: '16px', color: '#333', flex: 1 } }, 'Fiyat Hesaplama Formülü'),
+          React.createElement('button', {
+            type: 'button',
+            onClick: () => setShowFormulaInfo(!showFormulaInfo),
+            style: {
+              padding: '6px 8px',
+              background: '#f0f8ff',
+              border: '1px solid #4a90e2',
+              borderRadius: '4px',
+              color: '#4a90e2',
+              fontSize: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }
+          },
+            React.createElement('span', { style: { fontSize: '14px' } }, 'ℹ️'),
+            'Fonksiyon Listesi'
+          )
+        ),
         React.createElement('div', { style: { marginBottom: '12px' } },
           React.createElement('textarea', {
             value: formula,
@@ -732,7 +756,95 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
           formula: formula,
           parameters: parameters,
           onValidation: handleFormulaValidation
-        })
+        }),
+        
+        // Formula Info Popup
+        showFormulaInfo && React.createElement('div', {
+          style: {
+            marginTop: '16px',
+            padding: '16px',
+            backgroundColor: '#f8f9fa',
+            border: '1px solid #dee2e6',
+            borderRadius: '8px',
+            fontSize: '12px',
+            color: '#333'
+          }
+        },
+          React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' } },
+            React.createElement('h4', { style: { margin: 0, fontSize: '14px', color: '#495057' } }, 'Kullanılabilir Excel Fonksiyonları'),
+            React.createElement('button', {
+              onClick: () => setShowFormulaInfo(false),
+              style: {
+                background: 'none',
+                border: 'none',
+                fontSize: '16px',
+                cursor: 'pointer',
+                color: '#6c757d',
+                padding: '0',
+                width: '20px',
+                height: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }
+            }, '×')
+          ),
+          React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' } },
+            React.createElement('div', null,
+              React.createElement('strong', null, 'Temel Matematik:'),
+              React.createElement('div', null, 'SQRT(C) → Karekök için'),
+              React.createElement('div', null, 'SQRT(16) → 4'),
+              React.createElement('div', null, 'ROUND(A*3.7) → Yuvarla'),
+              React.createElement('div', null, 'MAX(A,B,C) → En büyük'),
+              React.createElement('div', null, 'MIN(A,B,C) → En küçük'),
+              React.createElement('div', null, 'ABS(-5) → 5 (mutlak değer)'),
+              React.createElement('div', null, 'POWER(A,2) → A\'nın karesi')
+            ),
+            React.createElement('div', null,
+              React.createElement('strong', null, 'İstatistik:'),
+              React.createElement('div', null, 'AVERAGE(A,B,C) → Ortalama'),
+              React.createElement('div', null, 'SUM(A,B,C) → Toplam'),
+              React.createElement('div', null, 'COUNT(A,B,C) → Sayı adedi'),
+              React.createElement('div', null, 'COUNTA(A,B,C) → Boş olmayan')
+            ),
+            React.createElement('div', null,
+              React.createElement('strong', null, 'Mantık:'),
+              React.createElement('div', null, 'IF(A>10, B, C) → Koşul'),
+              React.createElement('div', null, 'AND(A>5, B<10) → Ve'),
+              React.createElement('div', null, 'OR(A>5, B<10) → Veya'),
+              React.createElement('div', null, 'NOT(A>5) → Değil')
+            ),
+            React.createElement('div', null,
+              React.createElement('strong', null, 'Yuvarlama:'),
+              React.createElement('div', null, 'CEILING(3.2) → 4'),
+              React.createElement('div', null, 'FLOOR(3.8) → 3'),
+              React.createElement('div', null, 'ROUNDUP(3.2, 1) → 3.2'),
+              React.createElement('div', null, 'ROUNDDOWN(3.8, 0) → 3')
+            ),
+            React.createElement('div', null,
+              React.createElement('strong', null, 'İş Fonksiyonları:'),
+              React.createElement('div', null, 'MARGIN(100, 20) → %20 kar'),
+              React.createElement('div', null, 'VAT(100, 18) → %18 KDV'),
+              React.createElement('div', null, 'DISCOUNT(100, 10) → %10 indirim')
+            ),
+            React.createElement('div', null,
+              React.createElement('strong', null, 'Trigonometri:'),
+              React.createElement('div', null, 'SIN(PI/2) → 1'),
+              React.createElement('div', null, 'COS(0) → 1'),
+              React.createElement('div', null, 'TAN(PI/4) → 1'),
+              React.createElement('div', null, 'PI → 3.14159...'),
+              React.createElement('div', null, 'E → 2.71828...')
+            )
+          ),
+          React.createElement('div', { style: { marginTop: '12px', padding: '8px', backgroundColor: '#e7f3ff', borderRadius: '4px' } },
+            React.createElement('strong', null, 'Örnek Formüller:'),
+            React.createElement('div', null, '=A*B*SQRT(C)+D (A×B×C\'nin karekökü+D)'),
+            React.createElement('div', null, '=SQRT(C) karekök için (C değerinin karekökü)'),
+            React.createElement('div', null, '=IF(A>100, B*1.2, B*1.1) (A>100 ise B×1.2, değilse B×1.1)'),
+            React.createElement('div', null, '=VAT(MARGIN(A*B, 25), 18) (Kar marjı %25, KDV %18)'),
+            React.createElement('div', null, '=ROUND(AVERAGE(A,B,C)*D, 2) (A,B,C ortalaması×D, 2 haneli)')
+          )
+        )
       ),
 
       // Action buttons

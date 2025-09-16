@@ -792,12 +792,13 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
           React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' } },
             React.createElement('div', null,
               React.createElement('strong', null, 'Temel Matematik:'),
+              React.createElement('div', null, 'SQRT(C) → Karekök için'),
               React.createElement('div', null, 'SQRT(16) → 4'),
-              React.createElement('div', null, 'ROUND(3.7) → 4'),
+              React.createElement('div', null, 'ROUND(A*3.7) → Yuvarla'),
               React.createElement('div', null, 'MAX(A,B,C) → En büyük'),
               React.createElement('div', null, 'MIN(A,B,C) → En küçük'),
-              React.createElement('div', null, 'ABS(-5) → 5'),
-              React.createElement('div', null, 'POWER(2,3) → 8')
+              React.createElement('div', null, 'ABS(-5) → 5 (mutlak değer)'),
+              React.createElement('div', null, 'POWER(A,2) → A\'nın karesi')
             ),
             React.createElement('div', null,
               React.createElement('strong', null, 'İstatistik:'),
@@ -837,10 +838,11 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
           ),
           React.createElement('div', { style: { marginTop: '12px', padding: '8px', backgroundColor: '#e7f3ff', borderRadius: '4px' } },
             React.createElement('strong', null, 'Örnek Formüller:'),
-            React.createElement('div', null, '=A*B*SQRT(C)+D (Temel hesaplama)'),
-            React.createElement('div', null, '=IF(A>100, B*1.2, B*1.1) (Koşullu fiyatlandırma)'),
-            React.createElement('div', null, '=VAT(MARGIN(A*B, 25), 18) (Kar+KDV)'),
-            React.createElement('div', null, '=ROUND(AVERAGE(A,B,C)*D, 2) (Ortalama ile hesaplama)')
+            React.createElement('div', null, '=A*B*SQRT(C)+D (A×B×C\'nin karekökü+D)'),
+            React.createElement('div', null, '=SQRT(C) karekök için (C değerinin karekökü)'),
+            React.createElement('div', null, '=IF(A>100, B*1.2, B*1.1) (A>100 ise B×1.2, değilse B×1.1)'),
+            React.createElement('div', null, '=VAT(MARGIN(A*B, 25), 18) (Kar marjı %25, KDV %18)'),
+            React.createElement('div', null, '=ROUND(AVERAGE(A,B,C)*D, 2) (A,B,C ortalaması×D, 2 haneli)')
           )
         )
       ),

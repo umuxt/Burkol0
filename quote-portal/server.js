@@ -381,6 +381,31 @@ app.patch('/api/quotes/:id', requireAuth, async (req, res) => {
       patch.productImages = await persistFilesForQuote(id, patch.productImages)
     }
 
+    // If price-related fields are being updated, recalculate price and add timestamp
+    const priceFields = ['thickness', 'width', 'length', 'weight', 'area', 'diameter', 'height', 'qty']
+    const hasPriceField = priceFields.some(field => patch.hasOwnProperty(field))
+    
+    if (hasPriceField || patch.hasOwnProperty('price')) {
+      try {
+        const settings = jsondb.getSettings()
+        if (settings && settings.parameters && settings.formula) {
+          // Get current quote data to merge with patch
+          const currentQuote = readOne(id)
+          if (currentQuote) {
+            const updatedQuote = { ...currentQuote, ...patch }
+            const price = calculatePriceServer(updatedQuote, settings)
+            if (!isNaN(price)) {
+              patch.price = Number(price)
+              patch.priceSettingsStamp = settings.lastUpdated || null
+              patch.priceCalculatedAt = new Date().toISOString()
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Server price calc error during update:', e)
+      }
+    }
+
     const ok = updateOne(id, patch)
     if (!ok) {
       return res.status(404).json({ error: 'not found' })

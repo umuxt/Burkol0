@@ -36,12 +36,12 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       desc: item.desc || '',
       // Additional technical fields
       toleranceStd: item.toleranceStd || '',
-      criticalTolerance: item.criticalTolerance || '',
+      criticalTolerance: item.toleranceCrit || '',
       bendCount: item.bendCount || '',
       weldMethod: item.weldMethod || '',
       surfaceRa: item.surfaceRa || '',
       finishRal: item.finishRal || '',
-      anodizing: item.anodizing || '',
+      anodizing: item.anodizeType || '',
       qtyT1: item.qtyT1 || '',
       qtyT2: item.qtyT2 || '',
       qtyT3: item.qtyT3 || '',
@@ -97,6 +97,8 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
         toleranceStd: form.toleranceStd, criticalTolerance: form.criticalTolerance, bendCount: form.bendCount,
         weldMethod: form.weldMethod, surfaceRa: form.surfaceRa, finishRal: form.finishRal, anodizing: form.anodizing,
         qtyT1: form.qtyT1, qtyT2: form.qtyT2, qtyT3: form.qtyT3,
+        // Map to original field names for compatibility
+        toleranceCrit: form.criticalTolerance, anodizeType: form.anodizing,
       }
       await API.createQuote(payload)
       showNotification('Yeni kayıt başarıyla oluşturuldu!', 'success')
@@ -112,6 +114,8 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
         toleranceStd: form.toleranceStd, criticalTolerance: form.criticalTolerance, bendCount: form.bendCount,
         weldMethod: form.weldMethod, surfaceRa: form.surfaceRa, finishRal: form.finishRal, anodizing: form.anodizing,
         qtyT1: form.qtyT1, qtyT2: form.qtyT2, qtyT3: form.qtyT3,
+        // Map to original field names for compatibility
+        toleranceCrit: form.criticalTolerance, anodizeType: form.anodizing,
       }
       await API.updateQuote(item.id, patch)
       showNotification('Kayıt başarıyla güncellendi!', 'success')
@@ -169,8 +173,8 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
         info(t.f_finish, item.finish), info(t.f_due, item.due), info(t.f_repeat, item.repeat === 'recurrent' ? t.repeat_recurrent : t.repeat_one), info(t.f_budget, item.budget),
         info(t.f_drawing, item.drawing), info(t.f_address, item.address), info(t.f_desc, item.desc),
         // Additional technical fields
-        info('Tolerans Standardı', item.toleranceStd), info('Kritik Toleranslar', item.criticalTolerance), info('Büküm Sayısı', item.bendCount),
-        info('Kaynak Yöntemi', item.weldMethod), info('Ra', item.surfaceRa), info('RAL', item.finishRal), info('Anodize', item.anodizing),
+        info('Tolerans Standardı', item.toleranceStd), info('Kritik Toleranslar', item.toleranceCrit), info('Büküm Sayısı', item.bendCount),
+        info('Kaynak Yöntemi', item.weldMethod), info('Ra', item.surfaceRa), info('RAL', item.finishRal), info('Anodize', item.anodizeType),
         info('Adet Kademeleri', `T1:${item.qtyT1||''} T2:${item.qtyT2||''} T3:${item.qtyT3||''}`)
       ) : React.createElement('div', { className: 'grid two', style: { gap: 8 } },
         editField(t.f_name, 'name'), editField(t.f_company, 'company'), editField(t.f_email, 'email'), editField(t.f_phone, 'phone'),
