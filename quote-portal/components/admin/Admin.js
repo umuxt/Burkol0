@@ -135,7 +135,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     }
   }
 
-  // Check if calculated price differs from stored price or settings changed - ENHANCED
+  // Check if calculated price differs significantly from stored price - OPTIMIZED
   function needsPriceUpdate(quote) {
     if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
       return false
@@ -145,41 +145,25 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
       const calculatedPrice = calculatePrice(quote)
       const storedPrice = parseFloat(quote.price) || 0
       
-      // Enhanced price difference detection with more precision
-      const priceDiffers = Math.abs(calculatedPrice - storedPrice) > 0.005
-      
-      // Enhanced settings change detection
-      const settingsChanged = !!(priceSettings.lastUpdated && 
-        (!quote.priceSettingsStamp || priceSettings.lastUpdated !== quote.priceSettingsStamp))
-      
-      // Additional checks for formula or parameter changes
-      const hasValidFormula = priceSettings.formula && priceSettings.formula.trim() !== ''
-      const hasValidParameters = priceSettings.parameters && priceSettings.parameters.length > 0
-      
-      // If no valid formula/parameters but quote has a price, something changed
-      const formulaInvalid = !hasValidFormula && storedPrice > 0
-      const parametersInvalid = !hasValidParameters && storedPrice > 0
+      // Only show warning if there's a significant price difference (>1%)
+      const priceThreshold = Math.max(storedPrice * 0.01, 0.5) // 1% or minimum 0.5 TL
+      const priceDiffers = Math.abs(calculatedPrice - storedPrice) > priceThreshold
       
       // Log for debugging (remove in production)
-      if (priceDiffers || settingsChanged || formulaInvalid || parametersInvalid) {
-        console.log(`Price update needed for quote ${quote.id}:`, {
-          priceDiffers,
-          settingsChanged, 
-          formulaInvalid,
-          parametersInvalid,
-          calculatedPrice,
-          storedPrice,
-          settingsStamp: quote.priceSettingsStamp,
-          lastUpdated: priceSettings.lastUpdated
+      if (priceDiffers) {
+        console.log(`Significant price change for quote ${quote.id}:`, {
+          calculatedPrice: calculatedPrice.toFixed(2),
+          storedPrice: storedPrice.toFixed(2),
+          difference: (calculatedPrice - storedPrice).toFixed(2),
+          threshold: priceThreshold.toFixed(2)
         })
       }
       
-      return priceDiffers || settingsChanged || formulaInvalid || parametersInvalid
+      return priceDiffers
       
     } catch (e) {
-      console.error('Error checking price update need:', e)
-      // If there's an error calculating, assume update is needed to investigate
-      return true
+      console.error('Price calculation error for needsPriceUpdate:', e)
+      return false
     }
   }
 
