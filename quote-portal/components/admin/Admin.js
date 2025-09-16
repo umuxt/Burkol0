@@ -204,7 +204,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
       let evalCode = Object.keys(mathContext).map(key => `const ${key} = ${mathContext[key]};`).join(' ')
       evalCode += `return (${formula});`
       
-      const result = Function('"use strict"; ' + evalCode)()
+      const result = Function(evalCode)()
       return isNaN(result) ? (quote.calculatedPrice || quote.price || 0) : result
       
     } catch (e) {
@@ -228,6 +228,25 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     
     // Legacy fallback: if no versioning data, don't show update
     return false
+  }
+
+  // Enhanced price change detection
+  function getPriceChangeType(quote) {
+    const currentPrice = quote.price || 0
+    const calculatedPrice = calculatePrice(quote)
+    const priceDifference = Math.abs(calculatedPrice - currentPrice)
+    
+    // If there's a server flag indicating changes but price is same
+    if (quote.needsPriceUpdate === true && priceDifference <= 0.01) {
+      return 'formula-changed' // Formula/params changed but price stayed same
+    }
+    
+    // If price actually changed
+    if (priceDifference > 0.01) {
+      return 'price-changed' // Price actually changed
+    }
+    
+    return 'no-change' // No changes
   }
 
   // Popup for price update
@@ -761,12 +780,33 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
                     return React.createElement('span', { style }, String(days))
                   })()),
                   React.createElement('td', null, (() => {
-                    const needsUpdate = needsPriceUpdate(it)
+                    const changeType = getPriceChangeType(it)
                     return React.createElement('div', { 
                       style: { display: 'flex', alignItems: 'center', gap: '6px' } 
                     },
                       React.createElement('span', null, `₺ ${(it.price || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`),
-                      needsUpdate && React.createElement('button', { 
+                      changeType === 'formula-changed' && React.createElement('button', { 
+                        className: 'btn warning',
+                        style: { 
+                          padding: '2px 8px', 
+                          fontSize: '11px', 
+                          lineHeight: '18px', 
+                          height: '22px',
+                          backgroundColor: '#ffa500',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontWeight: 'bold',
+                          animation: 'pulse 1.5s infinite',
+                          boxShadow: '0 2px 4px rgba(255,165,0,0.3)'
+                        },
+                        title: `Formül veya parametreler değişti ama fiyat aynı kaldı. Formülü kontrol edin.`,
+                        onClick: (e) => { 
+                          e.stopPropagation(); 
+                          setSettingsModal(true); // Open formula settings
+                        }
+                      }, '📋 FORMÜLÜ GÖR'),
+                      changeType === 'price-changed' && React.createElement('button', { 
                         className: 'btn danger',
                         style: { 
                           padding: '2px 8px', 
