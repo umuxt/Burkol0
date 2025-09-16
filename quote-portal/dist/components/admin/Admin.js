@@ -62,21 +62,28 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   // Calculate price using formula and parameters
   function calculatePrice(quote) {
     if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
+      console.log('❌ calculatePrice: Missing settings or formula')
       return quote.price || 0
     }
 
     try {
+      console.log('🧮 Client-side price calculation DEBUG:')
+      console.log('Quote data:', { id: quote.id, qty: quote.qty, material: quote.material })
+      console.log('Settings:', priceSettings)
+
       // Create parameter values map
       const paramValues = {}
       
       priceSettings.parameters.forEach(param => {
         if (param.type === 'fixed') {
           paramValues[param.id] = parseFloat(param.value) || 0
+          console.log(`Fixed param ${param.id}: ${paramValues[param.id]}`)
         } else if (param.type === 'form') {
           let value = 0
           
           if (param.formField === 'qty') {
             value = parseFloat(quote.qty) || 0
+            console.log(`Qty field: ${quote.qty} -> ${value}`)
           } else if (param.formField === 'thickness') {
             value = parseFloat(quote.thickness) || 0
           } else if (param.formField === 'dimensions') {
@@ -95,6 +102,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
           } else {
             // For fields with lookup table or arrays
             const fieldValue = quote[param.formField]
+            console.log(`Field '${param.formField}' raw value:`, fieldValue)
+            
             if (Array.isArray(fieldValue)) {
               if (param.lookupTable && param.lookupTable.length > 0) {
                 value = fieldValue.reduce((sum, opt) => {
@@ -107,6 +116,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
             } else if (param.lookupTable && param.lookupTable.length > 0) {
               const lookupItem = param.lookupTable.find(item => item.option === fieldValue)
               value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
+              console.log(`Lookup for '${fieldValue}': ${value}`)
             } else {
               // Direct form value for fields without lookup
               value = parseFloat(quote[param.formField]) || 0
@@ -114,17 +124,26 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
           }
           
           paramValues[param.id] = value
+          console.log(`Final param ${param.id}: ${value}`)
         }
       })
 
+      console.log('All param values:', paramValues)
+
       // Evaluate formula with comprehensive math functions
       let formula = priceSettings.formula.replace(/^=/, '') // Remove leading =
+      console.log('Original formula:', priceSettings.formula)
+      console.log('Cleaned formula:', formula)
       
       // Replace parameter IDs with actual values
       Object.keys(paramValues).forEach(paramId => {
         const regex = new RegExp(`\\b${paramId}\\b`, 'g')
+        const oldFormula = formula
         formula = formula.replace(regex, paramValues[paramId])
+        console.log(`Replace ${paramId} with ${paramValues[paramId]}: ${oldFormula} -> ${formula}`)
       })
+
+      console.log('Final formula:', formula)
 
       // Create comprehensive math context matching server-side
       const mathContext = {
@@ -204,7 +223,12 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
       evalCode += `return (${formula});`
       
       const result = Function('"use strict"; ' + evalCode)()
-      return isNaN(result) ? (quote.price || 0) : result
+      const finalResult = isNaN(result) ? (quote.price || 0) : result
+      
+      console.log('Client calculation result:', result, '-> final:', finalResult)
+      console.log('🧮 Client price calculation DEBUG END\n')
+      
+      return finalResult
       
     } catch (e) {
       console.error('Price calculation error:', e)
