@@ -264,7 +264,38 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     return 'no-change' // No changes - no button
   }
 
-  // Popup for price update
+  // Function to detect what changed for price update
+  function getChanges(item) {
+    const changes = []
+    
+    // Check if item has changeHistory from server
+    if (item.changeHistory && Array.isArray(item.changeHistory)) {
+      return item.changeHistory
+    }
+    
+    // Fallback: try to detect basic changes
+    if (item.originalPrice !== undefined && item.calculatedPrice !== undefined) {
+      const priceDiff = Math.abs(item.calculatedPrice - item.originalPrice)
+      if (priceDiff > 0.01) {
+        changes.push({
+          field: 'Hesaplanan Fiyat',
+          from: `₺${item.originalPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`,
+          to: `₺${item.calculatedPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`
+        })
+      }
+    }
+    
+    // If we can't detect specific changes, show generic message
+    if (changes.length === 0 && item.needsPriceUpdate) {
+      changes.push({
+        field: 'Formül/Parametreler',
+        from: 'Önceki değerler',
+        to: 'Güncellenmiş değerler'
+      })
+    }
+    
+    return changes
+  }
   const [priceReview, setPriceReview] = useState(null) // { item, newPrice }
   async function applyNewPrice(item) {
     try {
@@ -407,6 +438,21 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     })
     setGlobalSearch('')
     setFieldSearch('')
+  }
+
+  // Clear specific filter category
+  function clearSpecificFilter(category) {
+    setFilters(prev => {
+      const newFilters = { ...prev }
+      if (category === 'dateRange') {
+        newFilters[category] = { from: '', to: '' }
+      } else if (category === 'qtyRange') {
+        newFilters[category] = { min: '', max: '' }
+      } else {
+        newFilters[category] = []
+      }
+      return newFilters
+    })
   }
 
   // Get unique values for filter options
@@ -705,17 +751,162 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         )
       ),
       
-      // Compact filter bar (optional - can be added later)
+      // Enhanced Active filters display  
       React.createElement('div', { style: { margin: '8px 0', fontSize: '12px', color: '#6c757d' } },
         // Active filters display (if any)
         (filters.status.length > 0 || filters.material.length > 0 || filters.process.length > 0 || filters.dateRange.from || filters.dateRange.to || filters.qtyRange.min || filters.qtyRange.max) &&
-        React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' } },
-          React.createElement('span', { style: { fontWeight: '500' } }, 'Aktif filtreler: '),
-          filters.status.length > 0 && React.createElement('span', { style: { backgroundColor: '#007bff', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Durum: ${filters.status.join(', ')}`),
-          filters.material.length > 0 && React.createElement('span', { style: { backgroundColor: '#28a745', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Malzeme: ${filters.material.join(', ')}`),
-          filters.process.length > 0 && React.createElement('span', { style: { backgroundColor: '#ffc107', color: '#212529', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `İşlem: ${filters.process.join(', ')}`),
-          (filters.dateRange.from || filters.dateRange.to) && React.createElement('span', { style: { backgroundColor: '#6c757d', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Tarih: ${filters.dateRange.from || '?'} - ${filters.dateRange.to || '?'}`),
-          (filters.qtyRange.min || filters.qtyRange.max) && React.createElement('span', { style: { backgroundColor: '#17a2b8', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Miktar: ${filters.qtyRange.min || '0'} - ${filters.qtyRange.max || '∞'}`)
+        React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' } },
+          React.createElement('span', { style: { fontWeight: '500', marginRight: '8px' } }, 'Aktif filtreler: '),
+          filters.status.length > 0 && React.createElement('span', { 
+            style: { 
+              backgroundColor: '#007bff', 
+              color: 'white', 
+              padding: '4px 8px', 
+              borderRadius: '16px', 
+              fontSize: '11px',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              paddingRight: '20px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#0056b3',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#007bff',
+            title: 'Durum filtresini kaldır'
+          }, 
+            `Durum: ${filters.status.join(', ')}`,
+            React.createElement('span', {
+              style: {
+                position: 'absolute',
+                right: '4px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px'
+              },
+              onClick: (e) => { e.stopPropagation(); clearSpecificFilter('status') }
+            }, '×')
+          ),
+          filters.material.length > 0 && React.createElement('span', { 
+            style: { 
+              backgroundColor: '#28a745', 
+              color: 'white', 
+              padding: '4px 8px', 
+              borderRadius: '16px', 
+              fontSize: '11px',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              paddingRight: '20px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#1e7e34',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#28a745',
+            title: 'Malzeme filtresini kaldır'
+          }, 
+            `Malzeme: ${filters.material.join(', ')}`,
+            React.createElement('span', {
+              style: {
+                position: 'absolute',
+                right: '4px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px'
+              },
+              onClick: (e) => { e.stopPropagation(); clearSpecificFilter('material') }
+            }, '×')
+          ),
+          filters.process.length > 0 && React.createElement('span', { 
+            style: { 
+              backgroundColor: '#ffc107', 
+              color: '#212529', 
+              padding: '4px 8px', 
+              borderRadius: '16px', 
+              fontSize: '11px',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              paddingRight: '20px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#e0a800',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#ffc107',
+            title: 'İşlem filtresini kaldır'
+          }, 
+            `İşlem: ${filters.process.join(', ')}`,
+            React.createElement('span', {
+              style: {
+                position: 'absolute',
+                right: '4px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px'
+              },
+              onClick: (e) => { e.stopPropagation(); clearSpecificFilter('process') }
+            }, '×')
+          ),
+          (filters.dateRange.from || filters.dateRange.to) && React.createElement('span', { 
+            style: { 
+              backgroundColor: '#6c757d', 
+              color: 'white', 
+              padding: '4px 8px', 
+              borderRadius: '16px', 
+              fontSize: '11px',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              paddingRight: '20px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#545b62',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#6c757d',
+            title: 'Tarih filtresini kaldır'
+          }, 
+            `Tarih: ${filters.dateRange.from || '?'} - ${filters.dateRange.to || '?'}`,
+            React.createElement('span', {
+              style: {
+                position: 'absolute',
+                right: '4px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px'
+              },
+              onClick: (e) => { e.stopPropagation(); clearSpecificFilter('dateRange') }
+            }, '×')
+          ),
+          (filters.qtyRange.min || filters.qtyRange.max) && React.createElement('span', { 
+            style: { 
+              backgroundColor: '#17a2b8', 
+              color: 'white', 
+              padding: '4px 8px', 
+              borderRadius: '16px', 
+              fontSize: '11px',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              paddingRight: '20px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#117a8b',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#17a2b8',
+            title: 'Miktar filtresini kaldır'
+          }, 
+            `Miktar: ${filters.qtyRange.min || '0'} - ${filters.qtyRange.max || '∞'}`,
+            React.createElement('span', {
+              style: {
+                position: 'absolute',
+                right: '4px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px'
+              },
+              onClick: (e) => { e.stopPropagation(); clearSpecificFilter('qtyRange') }
+            }, '×')
+          )
         )
       ),
       
@@ -732,16 +923,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
                   title: 'Tarih filtresi',
                   onClick: (e) => { e.stopPropagation(); setFilterPopup('dateRange') }
                 }, '🔽')),
-                React.createElement('th', null, t.th_customer, ' ', React.createElement('span', { 
-                  style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
-                  title: 'Ülke filtresi',
-                  onClick: (e) => { e.stopPropagation(); setFilterPopup('country') }
-                }, '🔽')),
-                React.createElement('th', null, t.th_project, ' ', React.createElement('span', { 
-                  style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
-                  title: 'İşlem filtresi',
-                  onClick: (e) => { e.stopPropagation(); setFilterPopup('process') }
-                }, '🔽')),
+                React.createElement('th', null, t.th_customer),
+                React.createElement('th', null, t.th_project),
                 React.createElement('th', null, t.th_material, ' ', React.createElement('span', { 
                   style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
                   title: 'Malzeme filtresi',
@@ -943,33 +1126,72 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     priceReview ? (function () {
       const pr = priceReview
       const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)' }
-      const box = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#111', color: '#fff', padding: 16, borderRadius: 8, width: 380 }
+      const box = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#111', color: '#fff', padding: 20, borderRadius: 12, width: 450, maxHeight: '80vh', overflowY: 'auto' }
       const originalPrice = pr.originalPrice || 0
       const newPrice = pr.newPrice || 0
       const difference = newPrice - originalPrice
       const isIncrease = difference > 0
+      const changes = getChanges(pr.item)
       
       return React.createElement(React.Fragment, null,
         React.createElement('div', { style: overlay, onClick: () => setPriceReview(null) }),
         React.createElement('div', { style: box },
-          React.createElement('h3', { style: { marginTop: 0 } }, 'Fiyat Güncelleme'),
-          React.createElement('div', { style: { margin: '8px 0' } }, 
-            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 } },
+          React.createElement('h3', { style: { marginTop: 0, marginBottom: 20, fontSize: '20px' } }, 'Fiyat Güncelleme'),
+          
+          // Price comparison section
+          React.createElement('div', { style: { margin: '16px 0', padding: '16px', backgroundColor: '#222', borderRadius: '8px' } }, 
+            React.createElement('h4', { style: { margin: '0 0 12px 0', fontSize: '16px', color: '#ccc' } }, 'Fiyat Karşılaştırması'),
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
               React.createElement('span', null, 'Mevcut fiyat:'),
               React.createElement('span', null, `₺ ${originalPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
             ),
-            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 } },
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 8 } },
               React.createElement('span', null, 'Yeni fiyat:'),
               React.createElement('span', { style: { fontWeight: 'bold' } }, `₺ ${newPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
             ),
-            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', color: isIncrease ? '#ff6b6b' : '#51cf66' } },
-              React.createElement('span', null, 'Fark:'),
-              React.createElement('span', { style: { fontWeight: 'bold' } }, `${isIncrease ? '+' : ''}₺ ${difference.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', color: isIncrease ? '#ff6b6b' : '#51cf66', borderTop: '1px solid #333', paddingTop: 8 } },
+              React.createElement('span', { style: { fontWeight: 'bold' } }, 'Fark:'),
+              React.createElement('span', { style: { fontWeight: 'bold' } }, `${isIncrease ? '+' : ''}₺ ${Math.abs(difference).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
             )
           ),
-          React.createElement('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 } },
-            React.createElement('button', { className: 'btn', onClick: () => setPriceReview(null) }, 'Kapat'),
-            React.createElement('button', { className: 'btn accent', onClick: () => applyNewPrice(pr.item) }, 'Fiyatı Güncelle')
+          
+          // Changes details section
+          changes.length > 0 && React.createElement('div', { style: { margin: '16px 0', padding: '16px', backgroundColor: '#222', borderRadius: '8px' } },
+            React.createElement('h4', { style: { margin: '0 0 12px 0', fontSize: '16px', color: '#ccc' } }, 'Değişiklik Detayları'),
+            React.createElement('div', { style: { fontSize: '14px' } },
+              changes.map((change, index) => 
+                React.createElement('div', { 
+                  key: index,
+                  style: { 
+                    marginBottom: '8px', 
+                    padding: '8px', 
+                    backgroundColor: '#333',
+                    borderRadius: '4px',
+                    borderLeft: '3px solid #007bff'
+                  } 
+                },
+                  React.createElement('div', { style: { fontWeight: 'bold', marginBottom: '4px', color: '#fff' } }, change.field),
+                  React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' } },
+                    React.createElement('span', { style: { color: '#ff6b6b' } }, change.from),
+                    React.createElement('span', { style: { color: '#ccc' } }, '→'),
+                    React.createElement('span', { style: { color: '#51cf66' } }, change.to)
+                  )
+                )
+              )
+            )
+          ),
+          
+          React.createElement('div', { style: { display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20, paddingTop: 16, borderTop: '1px solid #333' } },
+            React.createElement('button', { 
+              className: 'btn', 
+              onClick: () => setPriceReview(null),
+              style: { padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }
+            }, 'Kapat'),
+            React.createElement('button', { 
+              className: 'btn accent', 
+              onClick: () => applyNewPrice(pr.item),
+              style: { padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }
+            }, 'Fiyatı Güncelle')
           )
         )
       )
