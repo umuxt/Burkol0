@@ -122,6 +122,170 @@ function putSettings(obj) {
   saveRaw(db)
 }
 
+// Form Config ops
+function getSystemConfig() {
+  const db = loadRaw()
+  return db.systemConfig || getDefaultSystemConfig()
+}
+
+function putSystemConfig(obj) {
+  const db = loadRaw()
+  db.systemConfig = {
+    ...obj,
+    version: (db.systemConfig?.version || 0) + 1,
+    lastModified: nowISO()
+  }
+  saveRaw(db)
+}
+
+function getFormConfig() {
+  const systemConfig = getSystemConfig()
+  return systemConfig.formConfig
+}
+
+function putFormConfig(formConfig) {
+  const systemConfig = getSystemConfig()
+  
+  // Form config güncellendiğinde pricing config'i sıfırla
+  const newSystemConfig = {
+    ...systemConfig,
+    formConfig: {
+      ...formConfig,
+      version: (systemConfig.formConfig?.version || 0) + 1,
+      lastModified: nowISO()
+    },
+    pricingConfig: {
+      version: 1,
+      isConfigured: false,
+      parameters: [],
+      formula: "",
+      lastUpdated: nowISO(),
+      resetReason: "Form configuration updated"
+    },
+    migrationStatus: "pending"
+  }
+  
+  putSystemConfig(newSystemConfig)
+}
+
+function resetPricingConfig() {
+  const systemConfig = getSystemConfig()
+  const newSystemConfig = {
+    ...systemConfig,
+    pricingConfig: {
+      version: 1,
+      isConfigured: false,
+      parameters: [],
+      formula: "",
+      lastUpdated: nowISO(),
+      resetReason: "Manual reset"
+    }
+  }
+  putSystemConfig(newSystemConfig)
+}
+
+function getDefaultSystemConfig() {
+  return {
+    version: 1,
+    lastModified: nowISO(),
+    migrationStatus: "completed",
+    
+    formConfig: {
+      version: 1,
+      lastModified: nowISO(),
+      fields: [],
+      defaultFields: [
+        {
+          id: "name",
+          label: "Müşteri Adı",
+          type: "text",
+          required: true,
+          deletable: false,
+          display: {
+            showInTable: true,
+            showInFilter: false,
+            tableOrder: 1,
+            formOrder: 1
+          }
+        },
+        {
+          id: "company",
+          label: "Şirket",
+          type: "text",
+          required: false,
+          deletable: false,
+          display: {
+            showInTable: false,
+            showInFilter: false,
+            tableOrder: 0,
+            formOrder: 2
+          }
+        },
+        {
+          id: "email",
+          label: "E-posta",
+          type: "email",
+          required: true,
+          deletable: false,
+          display: {
+            showInTable: false,
+            showInFilter: false,
+            tableOrder: 0,
+            formOrder: 3
+          }
+        },
+        {
+          id: "phone",
+          label: "Telefon",
+          type: "phone",
+          required: true,
+          deletable: false,
+          display: {
+            showInTable: false,
+            showInFilter: false,
+            tableOrder: 0,
+            formOrder: 4
+          }
+        },
+        {
+          id: "proj",
+          label: "Proje",
+          type: "text",
+          required: true,
+          deletable: false,
+          display: {
+            showInTable: true,
+            showInFilter: true,
+            tableOrder: 3,
+            formOrder: 5
+          }
+        },
+        {
+          id: "createdAt",
+          label: "Tarih",
+          type: "date",
+          required: true,
+          deletable: false,
+          display: {
+            showInTable: true,
+            showInFilter: true,
+            tableOrder: 2,
+            formOrder: 0
+          }
+        }
+      ]
+    },
+    
+    pricingConfig: {
+      version: 1,
+      isConfigured: false,
+      parameters: [],
+      formula: "",
+      lastUpdated: nowISO()
+    }
+  }
+}
+
 export default {
   // quotes
   listQuotes,
@@ -141,6 +305,13 @@ export default {
   // settings
   getSettings,
   putSettings,
+  // form config
+  getSystemConfig,
+  putSystemConfig,
+  getFormConfig,
+  putFormConfig,
+  resetPricingConfig,
+  getDefaultSystemConfig,
   // utils
   DATA_FILE,
 }

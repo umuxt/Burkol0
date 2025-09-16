@@ -710,6 +710,182 @@ app.post('/api/migrate/ids', requireAuth, async (req, res) => {
   }
 })
 
+// Form Configuration endpoints
+app.get('/api/form-config', requireAuth, async (req, res) => {
+  try {
+    const systemConfig = jsondb.getSystemConfig()
+    res.json({
+      formConfig: systemConfig.formConfig,
+      pricingConfig: {
+        isConfigured: systemConfig.pricingConfig.isConfigured,
+        version: systemConfig.pricingConfig.version
+      },
+      migrationStatus: systemConfig.migrationStatus || 'completed'
+    })
+  } catch (error) {
+    console.error('Get form config error:', error)
+    res.status(500).json({ 
+      error: 'get_form_config_failed', 
+      message: error.message 
+    })
+  }
+})
+
+app.post('/api/form-config', requireAuth, async (req, res) => {
+  try {
+    const { fields } = req.body
+    
+    if (!Array.isArray(fields)) {
+      return res.status(400).json({ 
+        error: 'invalid_fields', 
+        message: 'Fields must be an array' 
+      })
+    }
+
+    // Validate field structure
+    for (const field of fields) {
+      if (!field.id || !field.label || !field.type) {
+        return res.status(400).json({ 
+          error: 'invalid_field', 
+          message: 'Each field must have id, label, and type' 
+        })
+      }
+    }
+
+    const systemConfig = jsondb.getSystemConfig()
+    const newFormConfig = {
+      ...systemConfig.formConfig,
+      fields: fields,
+      lastModified: new Date().toISOString()
+    }
+
+    // Bu işlem pricing config'i sıfırlar
+    jsondb.putFormConfig(newFormConfig)
+
+    res.json({ 
+      ok: true, 
+      message: 'Form configuration updated. Pricing configuration has been reset.',
+      formConfig: newFormConfig,
+      pricingReset: true
+    })
+  } catch (error) {
+    console.error('Update form config error:', error)
+    res.status(500).json({ 
+      error: 'update_form_config_failed', 
+      message: error.message 
+    })
+  }
+})
+
+app.post('/api/form-config/preview', requireAuth, async (req, res) => {
+  try {
+    const { fields } = req.body
+    
+    // Validate without saving
+    if (!Array.isArray(fields)) {
+      return res.status(400).json({ 
+        error: 'invalid_fields', 
+        message: 'Fields must be an array' 
+      })
+    }
+
+    const systemConfig = jsondb.getSystemConfig()
+    const previewConfig = {
+      ...systemConfig.formConfig,
+      fields: fields
+    }
+
+    res.json({ 
+      ok: true, 
+      preview: previewConfig,
+      warnings: [] // Add validation warnings if needed
+    })
+  } catch (error) {
+    console.error('Preview form config error:', error)
+    res.status(500).json({ 
+      error: 'preview_form_config_failed', 
+      message: error.message 
+    })
+  }
+})
+
+// Migration endpoints
+app.get('/api/migration/status', requireAuth, async (req, res) => {
+  try {
+    const systemConfig = jsondb.getSystemConfig()
+    const allQuotes = jsondb.listQuotes()
+    
+    const legacyQuotes = allQuotes.filter(q => !q.configVersion || q.configVersion < systemConfig.formConfig.version)
+    const currentQuotes = allQuotes.filter(q => q.configVersion === systemConfig.formConfig.version)
+    
+    res.json({
+      systemVersion: systemConfig.formConfig.version,
+      migrationStatus: systemConfig.migrationStatus,
+      totalQuotes: allQuotes.length,
+      legacyQuotes: legacyQuotes.length,
+      currentQuotes: currentQuotes.length,
+      pricingConfigured: systemConfig.pricingConfig.isConfigured
+    })
+  } catch (error) {
+    console.error('Migration status error:', error)
+    res.status(500).json({ 
+      error: 'migration_status_failed', 
+      message: error.message 
+    })
+  }
+})
+
+app.post('/api/migration/quotes/:id/price', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params
+    const quote = jsondb.getQuote(id)
+    
+    if (!quote) {
+      return res.status(404).json({ error: 'Quote not found' })
+    }
+
+    const systemConfig = jsondb.getSystemConfig()
+    
+    if (!systemConfig.pricingConfig.isConfigured) {
+      return res.status(400).json({ 
+        error: 'pricing_not_configured', 
+        message: 'Pricing configuration is not set up' 
+      })
+    }
+
+    // Recalculate price with new config
+    const newPrice = calculatePriceServer(quote, systemConfig.pricingConfig)
+    
+    const updatedQuote = {
+      ...quote,
+      pricing: {
+        calculatedPrice: newPrice,
+        configVersion: systemConfig.formConfig.version,
+        isLegacy: false,
+        needsUpdate: false,
+        pricingError: false,
+        lastCalculated: new Date().toISOString()
+      },
+      configVersion: systemConfig.formConfig.version
+    }
+
+    jsondb.putQuote(updatedQuote)
+
+    res.json({ 
+      ok: true, 
+      message: 'Quote price updated successfully',
+      oldPrice: quote.pricing?.calculatedPrice || 0,
+      newPrice: newPrice
+    })
+  } catch (error) {
+    console.error('Quote price update error:', error)
+    res.status(500).json({ 
+      error: 'quote_price_update_failed', 
+      message: error.message 
+    })
+  }
+})
+
 // Settings endpoints for pricing formula
 app.get('/api/settings', requireAuth, async (req, res) => {
   try {
