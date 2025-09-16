@@ -135,17 +135,55 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     }
   }
 
-  // Check if calculated price differs from stored price or settings changed
+  // Check if calculated price differs from stored price or settings changed - ENHANCED
   function needsPriceUpdate(quote) {
     if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
       return false
     }
-    const calculatedPrice = calculatePrice(quote)
-    const storedPrice = parseFloat(quote.price) || 0
-    const priceDiffers = Math.abs(calculatedPrice - storedPrice) > 0.01
-    const settingsChanged = !!(priceSettings.lastUpdated && (!quote.priceSettingsStamp || priceSettings.lastUpdated !== quote.priceSettingsStamp))
-    return priceDiffers || settingsChanged
+    
+    try {
+      const calculatedPrice = calculatePrice(quote)
+      const storedPrice = parseFloat(quote.price) || 0
+      
+      // Enhanced price difference detection with more precision
+      const priceDiffers = Math.abs(calculatedPrice - storedPrice) > 0.005
+      
+      // Enhanced settings change detection
+      const settingsChanged = !!(priceSettings.lastUpdated && 
+        (!quote.priceSettingsStamp || priceSettings.lastUpdated !== quote.priceSettingsStamp))
+      
+      // Additional checks for formula or parameter changes
+      const hasValidFormula = priceSettings.formula && priceSettings.formula.trim() !== ''
+      const hasValidParameters = priceSettings.parameters && priceSettings.parameters.length > 0
+      
+      // If no valid formula/parameters but quote has a price, something changed
+      const formulaInvalid = !hasValidFormula && storedPrice > 0
+      const parametersInvalid = !hasValidParameters && storedPrice > 0
+      
+      // Log for debugging (remove in production)
+      if (priceDiffers || settingsChanged || formulaInvalid || parametersInvalid) {
+        console.log(`Price update needed for quote ${quote.id}:`, {
+          priceDiffers,
+          settingsChanged, 
+          formulaInvalid,
+          parametersInvalid,
+          calculatedPrice,
+          storedPrice,
+          settingsStamp: quote.priceSettingsStamp,
+          lastUpdated: priceSettings.lastUpdated
+        })
+      }
+      
+      return priceDiffers || settingsChanged || formulaInvalid || parametersInvalid
+      
+    } catch (e) {
+      console.error('Error checking price update need:', e)
+      // If there's an error calculating, assume update is needed to investigate
+      return true
+    }
   }
+
+  // Popup for price update
   const [priceReview, setPriceReview] = useState(null) // { item, newPrice }
   async function applyNewPrice(item) {
     try {
@@ -674,10 +712,22 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
                       React.createElement('span', null, `₺ ${(it.price || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`),
                       needsUpdate && React.createElement('button', { 
                         className: 'btn danger',
-                        style: { padding: '0 6px', fontSize: '12px', lineHeight: '20px', height: '22px' },
-                        title: `Formül değişti!` ,
+                        style: { 
+                          padding: '2px 8px', 
+                          fontSize: '11px', 
+                          lineHeight: '18px', 
+                          height: '22px',
+                          backgroundColor: '#ff4444',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontWeight: 'bold',
+                          animation: 'pulse 1.5s infinite',
+                          boxShadow: '0 2px 4px rgba(255,68,68,0.3)'
+                        },
+                        title: `Fiyat güncellenmeli! Formül veya parametreler değişti.` ,
                         onClick: (e) => { e.stopPropagation(); setPriceReview({ item: it, newPrice: calculatePrice(it) }) }
-                      }, '❗')
+                      }, '⚠ GÜNCELLE')
                     )
                   })()),
                   React.createElement('td', null, '16'),

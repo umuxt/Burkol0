@@ -17,6 +17,10 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
   const [newLookupOption, setNewLookupOption] = useState('')
   const [newLookupValue, setNewLookupValue] = useState('')
   
+  // Editing states for each parameter
+  const [editingParams, setEditingParams] = useState({}) // { paramId: true/false }
+  const [editingValues, setEditingValues] = useState({}) // { paramId: { name, value, lookupTable } }
+  
   // Form fields available for selection (from user form)
   const formFields = [
     { value: 'qty', label: 'Adet', hasOptions: false },
@@ -75,6 +79,80 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
     } catch (e) {
       console.log('Settings not found, using defaults')
     }
+  }
+
+  // Parameter editing functions
+  function startEditingParameter(param) {
+    setEditingParams(prev => ({ ...prev, [param.id]: true }))
+    setEditingValues(prev => ({
+      ...prev,
+      [param.id]: {
+        name: param.name,
+        value: param.value || '',
+        lookupTable: param.lookupTable ? [...param.lookupTable] : []
+      }
+    }))
+  }
+
+  function cancelEditingParameter(paramId) {
+    setEditingParams(prev => ({ ...prev, [paramId]: false }))
+    setEditingValues(prev => {
+      const newValues = { ...prev }
+      delete newValues[paramId]
+      return newValues
+    })
+  }
+
+  async function saveEditingParameter(paramId) {
+    try {
+      const editValues = editingValues[paramId]
+      if (!editValues) return
+
+      const updatedParameters = parameters.map(param => {
+        if (param.id === paramId) {
+          return {
+            ...param,
+            name: editValues.name,
+            ...(param.type === 'fixed' ? { value: editValues.value } : {}),
+            ...(param.lookupTable ? { lookupTable: editValues.lookupTable } : {})
+          }
+        }
+        return param
+      })
+
+      setParameters(updatedParameters)
+      setEditingParams(prev => ({ ...prev, [paramId]: false }))
+      setEditingValues(prev => {
+        const newValues = { ...prev }
+        delete newValues[paramId]
+        return newValues
+      })
+
+      showNotification('Parametre güncellendi!', 'success')
+    } catch (e) {
+      console.error('Save parameter error:', e)
+      showNotification('Parametre güncellenemedi: ' + e.message, 'error')
+    }
+  }
+
+  function updateEditingValue(paramId, field, value) {
+    setEditingValues(prev => ({
+      ...prev,
+      [paramId]: {
+        ...prev[paramId],
+        [field]: value
+      }
+    }))
+  }
+
+  function updateLookupItem(paramId, index, field, value) {
+    setEditingValues(prev => {
+      const newValues = { ...prev }
+      const newLookupTable = [...newValues[paramId].lookupTable]
+      newLookupTable[index] = { ...newLookupTable[index], [field]: value }
+      newValues[paramId] = { ...newValues[paramId], lookupTable: newLookupTable }
+      return newValues
+    })
   }
 
   function addParameter() {
@@ -222,37 +300,168 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
               )
             ),
             React.createElement('tbody', null,
-              parameters.map(param => 
-                React.createElement('tr', { key: param.id },
+              parameters.map(param => {
+                const isEditing = editingParams[param.id]
+                const editValues = editingValues[param.id] || {}
+                
+                return React.createElement('tr', { key: param.id },
                   React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', textAlign: 'center', fontWeight: 'bold', color: '#333' } }, param.id),
-                  React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', color: '#333' } }, param.name),
+                  
+                  // Parameter Name (editable for all types)
                   React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', color: '#333' } },
-                    param.type === 'fixed' 
-                      ? `${param.value}`
-                      : param.lookupTable && param.lookupTable.length > 0
-                        ? React.createElement('div', null,
-                            param.lookupTable.map((item, idx) => 
-                              React.createElement('div', { key: idx, style: { fontSize: '11px' } }, `${item.option}: ${item.value}`)
-                            )
-                          )
-                        : 'Form Değeri'
+                    isEditing 
+                      ? React.createElement('input', {
+                          type: 'text',
+                          value: editValues.name || '',
+                          onChange: (e) => updateEditingValue(param.id, 'name', e.target.value),
+                          style: { 
+                            width: '100%', 
+                            padding: '4px', 
+                            border: '1px solid #ccc', 
+                            borderRadius: '3px',
+                            fontSize: '13px'
+                          }
+                        })
+                      : param.name
                   ),
-                  React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', textAlign: 'center' } },
-                    React.createElement('button', {
-                      onClick: () => removeParameter(param.id),
-                      style: { 
-                        padding: '4px 8px', 
-                        backgroundColor: '#dc3545', 
-                        color: 'white', 
-                        border: 'none', 
-                        borderRadius: '3px', 
-                        cursor: 'pointer',
-                        fontSize: '12px'
+                  
+                  // Parameter Value/Type (different editing based on type)
+                  React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', color: '#333' } },
+                    (() => {
+                      if (param.type === 'fixed') {
+                        return isEditing 
+                          ? React.createElement('input', {
+                              type: 'number',
+                              step: '0.01',
+                              value: editValues.value || '',
+                              onChange: (e) => updateEditingValue(param.id, 'value', e.target.value),
+                              style: { 
+                                width: '100%', 
+                                padding: '4px', 
+                                border: '1px solid #ccc', 
+                                borderRadius: '3px',
+                                fontSize: '13px'
+                              }
+                            })
+                          : `${param.value}`
+                      } else if (param.lookupTable && param.lookupTable.length > 0) {
+                        return isEditing 
+                          ? React.createElement('div', null,
+                              (editValues.lookupTable || []).map((item, idx) => 
+                                React.createElement('div', { 
+                                  key: idx, 
+                                  style: { 
+                                    display: 'flex', 
+                                    gap: '4px', 
+                                    marginBottom: '4px',
+                                    alignItems: 'center'
+                                  } 
+                                },
+                                  React.createElement('span', { 
+                                    style: { 
+                                      fontSize: '11px', 
+                                      minWidth: '80px',
+                                      color: '#333'  // FIXED: Changed from white to #333 for visibility
+                                    } 
+                                  }, `${item.option}:`),
+                                  React.createElement('input', {
+                                    type: 'number',
+                                    step: '0.01',
+                                    value: item.value || '',
+                                    onChange: (e) => updateLookupItem(param.id, idx, 'value', e.target.value),
+                                    style: { 
+                                      width: '60px', 
+                                      padding: '2px 4px', 
+                                      border: '1px solid #ccc', 
+                                      borderRadius: '2px',
+                                      fontSize: '11px'
+                                    }
+                                  })
+                                )
+                              )
+                            )
+                          : React.createElement('div', null,
+                              param.lookupTable.map((item, idx) => 
+                                React.createElement('div', { 
+                                  key: idx, 
+                                  style: { 
+                                    fontSize: '11px',
+                                    color: '#333',  // FIXED: Changed from default (white) to #333 for visibility
+                                    backgroundColor: 'transparent'  // FIXED: Ensure transparent background
+                                  } 
+                                }, `${item.option}: ${item.value}`)
+                              )
+                            )
+                      } else {
+                        return 'Form Değeri'
                       }
-                    }, 'Sil')
+                    })()
+                  ),
+                  
+                  // Actions (Edit/Save/Cancel/Delete)
+                  React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', textAlign: 'center' } },
+                    React.createElement('div', { style: { display: 'flex', gap: '4px', justifyContent: 'center' } },
+                      isEditing 
+                        ? [
+                            React.createElement('button', {
+                              key: 'save',
+                              onClick: () => saveEditingParameter(param.id),
+                              style: { 
+                                padding: '4px 8px', 
+                                backgroundColor: '#28a745', 
+                                color: 'white', 
+                                border: 'none', 
+                                borderRadius: '3px', 
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                              }
+                            }, 'Kaydet'),
+                            React.createElement('button', {
+                              key: 'cancel',
+                              onClick: () => cancelEditingParameter(param.id),
+                              style: { 
+                                padding: '4px 8px', 
+                                backgroundColor: '#6c757d', 
+                                color: 'white', 
+                                border: 'none', 
+                                borderRadius: '3px', 
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                              }
+                            }, 'İptal')
+                          ]
+                        : [
+                            React.createElement('button', {
+                              key: 'edit',
+                              onClick: () => startEditingParameter(param),
+                              style: { 
+                                padding: '4px 8px', 
+                                backgroundColor: '#007bff', 
+                                color: 'white', 
+                                border: 'none', 
+                                borderRadius: '3px', 
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                              }
+                            }, 'Düzenle'),
+                            React.createElement('button', {
+                              key: 'delete',
+                              onClick: () => removeParameter(param.id),
+                              style: { 
+                                padding: '4px 8px', 
+                                backgroundColor: '#dc3545', 
+                                color: 'white', 
+                                border: 'none', 
+                                borderRadius: '3px', 
+                                cursor: 'pointer',
+                                fontSize: '12px'
+                              }
+                            }, 'Sil')
+                          ]
+                    )
                   )
                 )
-              )
+              })
             )
           )
         ),

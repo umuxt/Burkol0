@@ -205,3 +205,19 @@ th img[alt="Filtre"]:hover {
   padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s ease;
 }
 .filter-popup button:hover { transform: translateY(-1px); }
+
+/* Price Update Alert Animation */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 2px 4px rgba(255,68,68,0.3);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 4px 8px rgba(255,68,68,0.6);
+    transform: scale(1.02);
+  }
+  100% {
+    box-shadow: 0 2px 4px rgba(255,68,68,0.3);
+    transform: scale(1);
+  }
+}
