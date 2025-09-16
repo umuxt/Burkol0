@@ -1,5 +1,6 @@
 import API from '../../lib/api.js'
 import FormulaValidator from '../SimpleFormulaValidator.js'
+import FormBuilder from '../FormBuilder.js'
 
 const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
 if (!ReactGlobal) {
@@ -8,6 +9,10 @@ if (!ReactGlobal) {
 const { useState, useEffect } = ReactGlobal
 
 function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
+  // Tab state
+  const [activeTab, setActiveTab] = useState('pricing') // 'pricing' | 'form'
+  
+  // Pricing tab states
   const [parameters, setParameters] = useState([])
   const [formula, setFormula] = useState('')
   const [parameterType, setParameterType] = useState('') // '' | 'fixed' | 'form'
@@ -299,7 +304,7 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
     React.createElement('div', { style: overlayStyle, onClick: onClose }),
     React.createElement('div', { style: modalStyle },
       React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' } },
-        React.createElement('h2', { style: { margin: 0, fontSize: '20px', fontWeight: '600', color: '#1a1a1a' } }, 'Fiyat Hesaplama Ayarları'),
+        React.createElement('h2', { style: { margin: 0, fontSize: '20px', fontWeight: '600', color: '#1a1a1a' } }, 'Ayarlar'),
         React.createElement('button', { 
           onClick: onClose,
           style: { 
@@ -317,7 +322,40 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
         }, '×')
       ),
 
-      // Parameters section
+      // Tab Navigation
+      React.createElement('div', { style: { marginBottom: '20px', borderBottom: '1px solid #ddd' } },
+        React.createElement('div', { style: { display: 'flex', gap: '0' } },
+          React.createElement('button', {
+            onClick: () => setActiveTab('pricing'),
+            style: {
+              padding: '10px 20px',
+              border: 'none',
+              background: activeTab === 'pricing' ? '#007bff' : 'transparent',
+              color: activeTab === 'pricing' ? 'white' : '#666',
+              cursor: 'pointer',
+              borderBottom: activeTab === 'pricing' ? '2px solid #007bff' : 'none',
+              fontSize: '14px',
+              fontWeight: activeTab === 'pricing' ? '600' : '400'
+            }
+          }, 'Fiyat Hesaplama Ayarları'),
+          React.createElement('button', {
+            onClick: () => setActiveTab('form'),
+            style: {
+              padding: '10px 20px',
+              border: 'none',
+              background: activeTab === 'form' ? '#007bff' : 'transparent',
+              color: activeTab === 'form' ? 'white' : '#666',
+              cursor: 'pointer',
+              borderBottom: activeTab === 'form' ? '2px solid #007bff' : 'none',
+              fontSize: '14px',
+              fontWeight: activeTab === 'form' ? '600' : '400'
+            }
+          }, 'Form Düzenleme Ayarları')
+        )
+      ),
+
+      // Tab Content
+      activeTab === 'pricing' ? React.createElement('div', null,
       React.createElement('div', { style: { marginBottom: '24px' } },
         React.createElement('h3', { style: { marginBottom: '16px', fontSize: '16px', color: '#333' } }, 'Parametreler'),
         React.createElement('div', { style: { overflowX: 'auto' } },
@@ -874,6 +912,11 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
           }
         }, 'Kaydet')
       )
+      ) : activeTab === 'form' ? React.createElement(FormBuilder, {
+        onClose: () => setActiveTab('pricing'),
+        showNotification: showNotification,
+        t: t
+      }) : null
     )
   )
 }
