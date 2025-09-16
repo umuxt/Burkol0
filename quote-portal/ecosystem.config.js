@@ -7,7 +7,7 @@
 //   pm2 restart burkol
 //   pm2 save && pm2 startup
 
-module.exports = {
+export default {
   apps: [
     {
       name: 'burkol',
