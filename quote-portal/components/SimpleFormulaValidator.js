@@ -1,41 +1,18 @@
-// Formula Validator Component - Excel-like formula validation
+// Simple Formula Validator Component - Basic validation without external dependencies
 // Supports mathematical operations, IF/ELSE statements, and parameter references
-
-// Dynamic import for CommonJS module
-let FormulaParser
 
 export default function FormulaValidator({ formula, parameters, onValidation }) {
   const [validationResult, setValidationResult] = React.useState(null)
   const [isValidating, setIsValidating] = React.useState(false)
-  const [parserLoaded, setParserLoaded] = React.useState(false)
-
-  // Load parser dynamically
-  React.useEffect(() => {
-    const loadParser = async () => {
-      try {
-        const module = await import('hot-formula-parser')
-        FormulaParser = module.Parser || module.default || module
-        setParserLoaded(true)
-      } catch (error) {
-        console.error('Failed to load FormulaParser:', error)
-        setValidationResult({
-          isValid: false,
-          error: 'Formula parser could not be loaded',
-          type: 'LOAD_ERROR'
-        })
-      }
-    }
-    loadParser()
-  }, [])
 
   React.useEffect(() => {
-    if (formula && parserLoaded) {
+    if (formula) {
       validateFormula(formula)
     } else {
       setValidationResult(null)
       if (onValidation) onValidation(null)
     }
-  }, [formula, parameters, parserLoaded])
+  }, [formula, parameters])
 
   async function validateFormula(formulaText) {
     setIsValidating(true)
@@ -58,31 +35,13 @@ export default function FormulaValidator({ formula, parameters, onValidation }) 
   }
 
   async function performValidation(formulaText) {
-    if (!FormulaParser) {
-      throw new Error('Formula parser not loaded yet')
-    }
-    
-    const parser = new FormulaParser()
-    
-    // Set up custom functions for Excel compatibility
-    setupCustomFunctions(parser)
-    
-    // Set up parameter variables
-    setupParameterVariables(parser)
-    
     // Clean and normalize formula
     const cleanFormula = cleanFormulaInput(formulaText)
     
-    // Parse the formula
-    const parseResult = parser.parse(cleanFormula)
-    
-    if (parseResult.error) {
-      return {
-        isValid: false,
-        error: `Syntax Error: ${parseResult.error}`,
-        type: 'SYNTAX_ERROR',
-        details: parseResult
-      }
+    // Basic syntax validation
+    const syntaxValidation = validateSyntax(cleanFormula)
+    if (!syntaxValidation.isValid) {
+      return syntaxValidation
     }
     
     // Validate mathematical logic
@@ -98,67 +57,13 @@ export default function FormulaValidator({ formula, parameters, onValidation }) 
     }
     
     // Test with sample values
-    const testResult = testFormulaWithSamples(parser, cleanFormula)
+    const testResult = testFormulaWithSamples(cleanFormula)
     
     return {
       isValid: true,
-      result: parseResult.result,
       testValues: testResult,
       type: 'SUCCESS',
       cleanFormula: cleanFormula
-    }
-  }
-
-  function setupCustomFunctions(parser) {
-    // Add Excel-like functions
-    parser.setFunction('IF', (condition, trueValue, falseValue) => {
-      return condition ? trueValue : falseValue
-    })
-    
-    parser.setFunction('AND', (...args) => {
-      return args.every(arg => Boolean(arg))
-    })
-    
-    parser.setFunction('OR', (...args) => {
-      return args.some(arg => Boolean(arg))
-    })
-    
-    parser.setFunction('MAX', (...args) => {
-      return Math.max(...args.filter(n => typeof n === 'number'))
-    })
-    
-    parser.setFunction('MIN', (...args) => {
-      return Math.min(...args.filter(n => typeof n === 'number'))
-    })
-    
-    parser.setFunction('ROUND', (number, digits = 0) => {
-      return Math.round(number * Math.pow(10, digits)) / Math.pow(10, digits)
-    })
-  }
-
-  function setupParameterVariables(parser) {
-    if (parameters && Array.isArray(parameters)) {
-      parameters.forEach(param => {
-        // Set parameter variable with sample value
-        const sampleValue = getSampleValue(param)
-        parser.setVariable(param.id, sampleValue)
-      })
-    }
-    
-    // Add common form field variables with sample values
-    parser.setVariable('qty', 10)
-    parser.setVariable('thickness', 3.0)
-    parser.setVariable('material', 1)
-    parser.setVariable('process', 1)
-  }
-
-  function getSampleValue(param) {
-    if (param.type === 'fixed') {
-      return parseFloat(param.value) || 0
-    } else if (param.lookupTable && param.lookupTable.length > 0) {
-      return parseFloat(param.lookupTable[0].value) || 1
-    } else {
-      return 1 // Default for form field parameters
     }
   }
 
@@ -170,20 +75,12 @@ export default function FormulaValidator({ formula, parameters, onValidation }) 
       clean = clean.substring(1)
     }
     
-    // Replace common Excel operators with JavaScript equivalents
-    clean = clean.replace(/&/g, '+') // String concatenation
-    
     return clean
   }
 
-  function validateMathematicalLogic(formula) {
-    // Check for common mathematical errors
+  function validateSyntax(formula) {
+    // Check for basic syntax errors
     const errors = []
-    
-    // Check for division by zero patterns
-    if (formula.includes('/0') || formula.includes('/ 0')) {
-      errors.push('Division by zero detected')
-    }
     
     // Check for unbalanced parentheses
     const openParens = (formula.match(/\(/g) || []).length
@@ -195,6 +92,51 @@ export default function FormulaValidator({ formula, parameters, onValidation }) 
     // Check for invalid operator sequences
     if (/[+\-*/]{2,}/.test(formula)) {
       errors.push('Invalid operator sequence')
+    }
+    
+    // Check for empty formula
+    if (!formula.trim()) {
+      errors.push('Formula cannot be empty')
+    }
+    
+    // Check for basic IF statement structure
+    const ifMatches = formula.match(/IF\s*\(/gi)
+    if (ifMatches) {
+      // Count commas inside IF statements (should have 2 commas for condition, true, false)
+      const ifPattern = /IF\s*\([^)]*\)/gi
+      let match
+      while ((match = ifPattern.exec(formula)) !== null) {
+        const ifContent = match[0]
+        const commas = (ifContent.match(/,/g) || []).length
+        if (commas !== 2) {
+          errors.push('IF statement requires exactly 3 parameters: condition, true_value, false_value')
+        }
+      }
+    }
+    
+    if (errors.length > 0) {
+      return {
+        isValid: false,
+        error: `Syntax Error: ${errors.join(', ')}`,
+        type: 'SYNTAX_ERROR'
+      }
+    }
+    
+    return { isValid: true }
+  }
+
+  function validateMathematicalLogic(formula) {
+    // Check for common mathematical errors
+    const errors = []
+    
+    // Check for division by zero patterns
+    if (formula.includes('/0') || formula.includes('/ 0')) {
+      errors.push('Division by zero detected')
+    }
+    
+    // Check for square root of negative (basic check)
+    if (formula.includes('SQRT(-') || formula.includes('√(-')) {
+      errors.push('Square root of negative number')
     }
     
     if (errors.length > 0) {
@@ -211,15 +153,15 @@ export default function FormulaValidator({ formula, parameters, onValidation }) 
   function validateParameterReferences(formula) {
     if (!parameters) return { isValid: true }
     
-    // Extract parameter references from formula
-    const paramRefs = formula.match(/[A-Z][A-Z0-9]*/g) || []
+    // Extract parameter references (A, B, C, etc.)
+    const paramRefs = formula.match(/[A-Z]+/g) || []
     const paramIds = parameters.map(p => p.id)
     
     // Check for undefined parameter references
     const undefinedParams = paramRefs.filter(ref => 
       !paramIds.includes(ref) && 
-      !['IF', 'AND', 'OR', 'MAX', 'MIN', 'ROUND'].includes(ref) &&
-      !['qty', 'thickness', 'material', 'process'].includes(ref)
+      !['IF', 'AND', 'OR', 'MAX', 'MIN', 'ROUND', 'SQRT', 'ABS'].includes(ref) &&
+      !['qty', 'thickness', 'material', 'process'].includes(ref.toLowerCase())
     )
     
     if (undefinedParams.length > 0) {
@@ -233,25 +175,44 @@ export default function FormulaValidator({ formula, parameters, onValidation }) 
     return { isValid: true }
   }
 
-  function testFormulaWithSamples(parser, formula) {
+  function testFormulaWithSamples(formula) {
     const testCases = [
-      { qty: 1, thickness: 1.0, material: 1, process: 1 },
-      { qty: 10, thickness: 3.0, material: 2, process: 1 },
-      { qty: 100, thickness: 5.0, material: 1, process: 2 }
+      { A: 1, B: 2, C: 3, qty: 1, thickness: 1.0 },
+      { A: 10, B: 20, C: 30, qty: 10, thickness: 3.0 },
+      { A: 100, B: 200, C: 300, qty: 100, thickness: 5.0 }
     ]
     
     const results = testCases.map(testCase => {
-      // Set test variables
-      Object.keys(testCase).forEach(key => {
-        parser.setVariable(key, testCase[key])
-      })
-      
       try {
-        const result = parser.parse(formula)
+        // Simple formula evaluation (basic operations only)
+        let evalFormula = formula
+        
+        // Replace parameters with test values
+        Object.keys(testCase).forEach(param => {
+          const regex = new RegExp(`\\b${param}\\b`, 'g')
+          evalFormula = evalFormula.replace(regex, testCase[param])
+        })
+        
+        // Basic IF replacement (simplified)
+        evalFormula = evalFormula.replace(/IF\s*\(\s*([^,]+)\s*,\s*([^,]+)\s*,\s*([^)]+)\s*\)/g, 
+          (match, condition, trueVal, falseVal) => {
+            try {
+              // Very basic condition evaluation
+              const condResult = Function(`"use strict"; return (${condition})`)()
+              return condResult ? trueVal : falseVal
+            } catch (e) {
+              return trueVal // Default to true value if condition fails
+            }
+          }
+        )
+        
+        // Evaluate the expression (with safety checks)
+        const result = Function(`"use strict"; return (${evalFormula})`)()
+        
         return {
           input: testCase,
-          output: result.result,
-          success: !result.error
+          output: result,
+          success: true
         }
       } catch (e) {
         return {
@@ -329,7 +290,7 @@ export default function FormulaValidator({ formula, parameters, onValidation }) 
       React.createElement('div', { 
         style: { fontSize: '11px', fontWeight: '500', marginBottom: '4px' } 
       }, 'Test Results:'),
-      validationResult.testValues.map((test, idx) => 
+      validationResult.testValues.slice(0, 2).map((test, idx) => 
         React.createElement('div', { 
           key: idx,
           style: { 

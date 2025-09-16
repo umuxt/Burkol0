@@ -1,5 +1,5 @@
 import API from '../../lib/api.js'
-import FormulaValidator from '../FormulaValidator.js'
+import FormulaValidator from '../SimpleFormulaValidator.js'
 
 const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
 if (!ReactGlobal) {
