@@ -223,6 +223,115 @@ export const API = {
     } catch (e) {
       throw e
     }
+  },
+  
+  // Form Configuration APIs
+  async getFormConfig() {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/form-config`, { headers: withAuth() })
+      if (!res.ok) throw new Error('get form config failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+  async saveFormConfig(formConfig) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/form-config`, { 
+        method: 'POST', 
+        headers: withAuth({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(formConfig)
+      })
+      if (!res.ok) throw new Error('save form config failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+  async previewFormConfig(formConfig) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/form-config/preview`, { 
+        method: 'POST', 
+        headers: withAuth({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(formConfig)
+      })
+      if (!res.ok) throw new Error('preview form config failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+  
+  // Migration APIs
+  async getMigrationStatus() {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/migration/status`, { headers: withAuth() })
+      if (!res.ok) throw new Error('get migration status failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+  async updateQuotePrice(quoteId) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/migration/quotes/${quoteId}/price`, { 
+        method: 'POST', 
+        headers: withAuth() 
+      })
+      if (!res.ok) throw new Error('update quote price failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+
+  // Version History API
+  async saveQuoteVersion(id, reason = 'Admin modification') {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/save-version`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ reason })
+      })
+      if (!res.ok) throw new Error('save version failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+
+  async getQuoteVersions(id) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/versions`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      if (!res.ok) throw new Error('get versions failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+
+  async restoreQuoteVersion(id, versionIndex) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/restore-version`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({ versionIndex })
+      })
+      if (!res.ok) throw new Error('restore version failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
   }
 }
 

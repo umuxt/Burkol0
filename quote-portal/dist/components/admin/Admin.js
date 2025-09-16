@@ -14,6 +14,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   const [selected, setSelected] = useState(new Set())
   const [settingsModal, setSettingsModal] = useState(false)
   const [priceSettings, setPriceSettings] = useState(null)
+  const [formConfig, setFormConfig] = useState(null) // Dynamic form configuration
   
   // Search and Filter States
   const [globalSearch, setGlobalSearch] = useState('')
@@ -31,6 +32,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   useEffect(() => { 
     refresh()
     loadPriceSettings()
+    loadFormConfig()
   }, [])
   
   async function refresh() {
@@ -46,6 +48,185 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     } catch (e) {
       console.error('Settings load error:', e)
     }
+  }
+
+  async function loadFormConfig() {
+    try {
+      const config = await API.getFormConfig()
+      setFormConfig(config.formConfig)
+    } catch (e) {
+      console.error('Form config load error:', e)
+    }
+  }
+
+  // Get table columns - fixed columns that admin cannot modify
+  function getTableColumns() {
+    // Fixed columns that always appear in the table
+    const fixedColumns = [
+      { id: 'date', label: 'Tarih', type: 'date' },
+      { id: 'name', label: 'Müşteri', type: 'text' },
+      { id: 'company', label: 'Şirket', type: 'text' },
+      { id: 'proj', label: 'Proje', type: 'text' },
+      { id: 'phone', label: 'Telefon', type: 'phone' },
+      { id: 'email', label: 'E-posta', type: 'email' }
+    ]
+    
+    // Add dynamic fields from form config if any
+    const dynamicFields = (formConfig?.fields || [])
+      .filter(field => field.display?.showInTable)
+      .sort((a, b) => (a.display?.tableOrder || 0) - (b.display?.tableOrder || 0))
+    
+    // Add fixed end columns
+    const endColumns = [
+      { id: 'price', label: 'Tahmini Fiyat', type: 'currency' },
+      { id: 'due', label: 'Termine Kalan', type: 'text' },
+      { id: 'status', label: 'Durum', type: 'text' }
+    ]
+    
+    return [...fixedColumns, ...dynamicFields, ...endColumns]
+  }
+
+  // Get value from quote for a specific field
+  function getFieldValue(quote, fieldId) {
+    // Fixed fields are directly on the quote object
+    const fixedFields = ['date', 'name', 'company', 'proj', 'phone', 'email', 'price', 'due', 'status']
+    
+    if (fixedFields.includes(fieldId)) {
+      if (fieldId === 'date') {
+        return quote.createdAt || quote.date || ''
+      }
+      return quote[fieldId] || ''
+    } else {
+      // Dynamic fields are in customFields
+      return quote.customFields?.[fieldId] || ''
+    }
+  }
+
+  // Format field value for display
+  function formatFieldValue(value, column, item, context) {
+    // If context is provided, this is for table display with special handling
+    if (context) {
+      const { getPriceChangeType, setSettingsModal, setPriceReview, calculatePrice, statusLabel, t } = context;
+      
+      switch (column.id) {
+        case 'date':
+          return (value || '').slice(0, 10);
+          
+        case 'customer':
+          return (item.name || '') + (item.company ? ' — ' + item.company : '');
+          
+        case 'project':
+          const proj = value || '';
+          return proj.length > 15 ? proj.substring(0, 15) + '...' : proj;
+          
+        case 'days_to_due':
+          if (!(item.status === 'approved' && item.due)) return '';
+          const days = Math.ceil((new Date(item.due).getTime() - Date.now()) / (1000*60*60*24));
+          const style = days <= 3 ? { color: '#ff6b6b', fontWeight: 600 } : {};
+          return React.createElement('span', { style }, String(days));
+          
+        case 'price':
+          const changeType = getPriceChangeType(item);
+          return React.createElement('div', { 
+            style: { display: 'flex', alignItems: 'center', gap: '6px' } 
+          },
+            React.createElement('span', null, `₺ ${(item.price || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`),
+            changeType === 'formula-changed' && React.createElement('button', { 
+              className: 'btn warning',
+              style: { 
+                padding: '2px 8px', 
+                fontSize: '11px', 
+                lineHeight: '18px', 
+                height: '22px',
+                backgroundColor: '#ffa500',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                fontWeight: 'bold',
+                animation: 'pulse 1.5s infinite',
+                boxShadow: '0 2px 4px rgba(255,165,0,0.3)'
+              },
+              title: `Formül veya parametreler değişti ama fiyat aynı kaldı. Formülü kontrol edin.`,
+              onClick: (e) => { 
+                e.stopPropagation(); 
+                setSettingsModal(true); // Open formula settings
+              }
+            }, '📋 FORMÜLÜ GÖR'),
+            changeType === 'price-changed' && React.createElement('button', { 
+              className: 'btn danger',
+              style: { 
+                padding: '2px 8px', 
+                fontSize: '11px', 
+                lineHeight: '18px', 
+                height: '22px',
+                backgroundColor: '#ff4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                fontWeight: 'bold',
+                animation: 'pulse 1.5s infinite',
+                boxShadow: '0 2px 4px rgba(255,68,68,0.3)'
+              },
+              title: `Fiyat güncellenmeli! Formül veya parametreler değişti.` ,
+              onClick: (e) => { 
+                e.stopPropagation(); 
+                setPriceReview({ 
+                  item, 
+                  newPrice: item.calculatedPrice || calculatePrice(item),
+                  originalPrice: item.originalPrice || item.price || 0
+                }) 
+              }
+            }, '⚠ GÜNCELLE')
+          );
+          
+        case 'lead_time':
+          return '16'; // Default lead time
+          
+        case 'status':
+          return React.createElement('span', { 
+            className: 'status ' + (item.status === 'new' ? 'new' : 
+                                    item.status === 'review' ? 'review' : 
+                                    item.status === 'feasible' ? 'feasible' : 
+                                    item.status === 'quoted' ? 'quoted' : 
+                                    item.status === 'approved' ? 'approved' : 'not') 
+          }, statusLabel(item.status, t));
+          
+        case 'qty':
+          return String(value ?? '');
+          
+        default:
+          // For custom fields
+          if (!value) return '';
+          
+          // Handle different field types for custom fields
+          if (column.type === 'date' && value) {
+            return new Date(value).toLocaleDateString('tr-TR');
+          } else if (column.type === 'number' && value) {
+            return typeof value === 'number' ? value.toLocaleString('tr-TR') : value;
+          } else if (column.type === 'select' && value) {
+            return value;
+          } else {
+            return String(value);
+          }
+      }
+    }
+    
+    // Original simple formatting for non-table contexts
+    if (!value) return '-'
+    
+    if (Array.isArray(value)) {
+      return value.join(', ')
+    }
+    
+    if (column && column.type === 'date' && value) {
+      try {
+        return new Date(value).toLocaleDateString('tr-TR')
+      } catch {
+        return value
+      }
+    }
+    
+    return String(value)
   }
 
   async function handleLogout() {
@@ -200,18 +381,27 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         }
       }
 
-      // Add math functions to formula context
-      let evalCode = Object.keys(mathContext).map(key => `const ${key} = ${mathContext[key]};`).join(' ')
-      evalCode += `return (${formula});`
-      
-      const result = Function('"use strict"; ' + evalCode)()
-      return isNaN(result) ? (quote.calculatedPrice || quote.price || 0) : result
+      // Add math functions to formula context - Use safer approach
+      try {
+        const result = Function(
+          'mathCtx', 
+          'formula',
+          `
+          const {${Object.keys(mathContext).join(', ')}} = mathCtx;
+          return (${formula});
+          `
+        )(mathContext, formula)
+        
+        return Number(result) || 0
+      } catch (evalError) {
+        console.error('Formula evaluation error:', evalError, 'Formula:', formula)
+        return quote.calculatedPrice || quote.price || 0
+      }
       
     } catch (e) {
       console.error('Price calculation error:', e)
       return quote.calculatedPrice || quote.price || 0
     }
-  }
   }
 
   // Check if quote needs price update based on new versioning system
@@ -231,7 +421,205 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     return false
   }
 
-  // Popup for price update
+  // Enhanced price change detection
+  function getPriceChangeType(quote) {
+    const currentPrice = quote.price || 0
+    const calculatedPrice = calculatePrice(quote)
+    const priceDifference = Math.abs(calculatedPrice - currentPrice)
+    
+    // First check if price actually changed (most important)
+    if (priceDifference > 0.01) {
+      return 'price-changed' // Price actually changed - show red
+    }
+    
+    // If price is same but server indicates formula/settings changed
+    if (quote.needsPriceUpdate === true) {
+      return 'formula-changed' // Formula/params changed but price stayed same - show yellow
+    }
+    
+    // Also check if calculated differs from stored calculatedPrice (server-side calculation)
+    if (quote.calculatedPrice !== undefined && Math.abs(calculatedPrice - quote.calculatedPrice) > 0.01) {
+      return 'formula-changed' // Server calculation differs from client calculation
+    }
+    
+    return 'no-change' // No changes - no button
+  }
+
+  // Function to detect what changed for price update
+  function getChanges(item) {
+    const changes = []
+    
+    // Check if item has changeHistory from server
+    if (item.changeHistory && Array.isArray(item.changeHistory)) {
+      return item.changeHistory
+    }
+    
+    // Dynamic form field definitions (should match SettingsModal form fields)
+    const formFieldDefinitions = {
+      qty: { label: 'Adet', hasOptions: false },
+      thickness: { label: 'Kalınlık (mm)', hasOptions: false },
+      dimensions: { label: 'Boyutlar', hasOptions: false },
+      width: { label: 'Genişlik (mm)', hasOptions: false },
+      height: { label: 'Yükseklik (mm)', hasOptions: false },
+      material: { label: 'Malzeme', hasOptions: true },
+      process: { label: 'İşlem Türü', hasOptions: true },
+      finish: { label: 'Yüzey İşlemi', hasOptions: true },
+      toleranceStd: { label: 'Tolerans Standardı', hasOptions: true },
+      weldMethod: { label: 'Kaynak Yöntemi', hasOptions: true },
+      surfaceRa: { label: 'Yüzey Pürüzlülüğü', hasOptions: true },
+      repeat: { label: 'Tekrar Durumu', hasOptions: true },
+      budgetCurrency: { label: 'Para Birimi', hasOptions: true },
+      product: { label: 'Ürün Tipi', hasOptions: true }
+    }
+    
+    // Compare current formData with potential current form state
+    if (item.formData && typeof item.formData === 'object') {
+      // Get current price settings to compare with
+      if (priceSettings && priceSettings.parameters) {
+        // Check if formula changed
+        if (item.originalFormula && priceSettings.formula && item.originalFormula !== priceSettings.formula) {
+          changes.push({
+            field: 'Fiyat Hesaplama Formülü',
+            from: item.originalFormula.substring(0, 50) + (item.originalFormula.length > 50 ? '...' : ''),
+            to: priceSettings.formula.substring(0, 50) + (priceSettings.formula.length > 50 ? '...' : ''),
+            reason: 'Fiyat hesaplama formülü değiştirildi'
+          })
+        }
+        
+        // Check parameter changes
+        priceSettings.parameters.forEach(param => {
+          if (param.type === 'form' && param.formField && formFieldDefinitions[param.formField]) {
+            const fieldDef = formFieldDefinitions[param.formField]
+            const currentValue = item.formData[param.formField]
+            
+            // For form-based parameters, check if the mapping changed
+            if (param.formValue && item.originalParams && item.originalParams[param.id]) {
+              const originalParam = item.originalParams[param.id]
+              if (originalParam.formValue !== param.formValue) {
+                changes.push({
+                  field: `${fieldDef.label} Parametresi`,
+                  from: originalParam.formValue || 'Tanımlanmamış',
+                  to: param.formValue || 'Tanımlanmamış',
+                  reason: `${fieldDef.label} alanının fiyat hesaplamasındaki değer eşleştirmesi değiştirildi`
+                })
+              }
+            }
+            
+            // Check for new form field values
+            if (currentValue !== undefined && item.originalFormData && item.originalFormData[param.formField] !== currentValue) {
+              const fromValue = item.originalFormData[param.formField] || 'Boş'
+              const toValue = currentValue || 'Boş'
+              
+              if (fromValue !== toValue) {
+                changes.push({
+                  field: fieldDef.label,
+                  from: String(fromValue),
+                  to: String(toValue),
+                  reason: `${fieldDef.label} değeri değiştirildi`
+                })
+              }
+            }
+          } else if (param.type === 'fixed') {
+            // Check fixed parameter changes
+            if (item.originalParams && item.originalParams[param.id] && 
+                item.originalParams[param.id].value !== param.value) {
+              changes.push({
+                field: `${param.name} (Sabit Değer)`,
+                from: String(item.originalParams[param.id].value),
+                to: String(param.value),
+                reason: `${param.name} sabit parametresi değiştirildi`
+              })
+            }
+          }
+        })
+      }
+    }
+    
+    // Check price difference
+    if (item.originalPrice !== undefined && item.calculatedPrice !== undefined) {
+      const priceDiff = Math.abs(item.calculatedPrice - item.originalPrice)
+      if (priceDiff > 0.01) {
+        changes.push({
+          field: 'Hesaplanan Fiyat',
+          from: `₺${item.originalPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`,
+          to: `₺${item.calculatedPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`,
+          reason: 'Formül hesaplaması sonucu fiyat değişikliği'
+        })
+      }
+    }
+    
+    // If we can't detect specific changes, show generic message
+    if (changes.length === 0 && item.needsPriceUpdate) {
+      changes.push({
+        field: 'Sistem Ayarları',
+        from: 'Önceki konfigürasyon',
+        to: 'Güncellenmiş konfigürasyon',
+        reason: 'Fiyat hesaplama sistemi ayarları değiştirildi'
+      })
+    }
+    
+    return changes
+  }
+
+  // Function to get change reason explanation
+  function getChangeReason(item) {
+    const reasons = []
+    
+    // Check for formula changes
+    if (item.originalFormula && priceSettings && priceSettings.formula && 
+        item.originalFormula !== priceSettings.formula) {
+      reasons.push('Fiyat hesaplama formülü güncellendi')
+    }
+    
+    // Check for parameter changes
+    if (priceSettings && priceSettings.parameters && item.originalParams) {
+      let parameterChanges = 0
+      priceSettings.parameters.forEach(param => {
+        if (item.originalParams[param.id] && 
+            (item.originalParams[param.id].value !== param.value || 
+             item.originalParams[param.id].formValue !== param.formValue)) {
+          parameterChanges++
+        }
+      })
+      
+      if (parameterChanges > 0) {
+        reasons.push(`${parameterChanges} adet hesaplama parametresi değiştirildi`)
+      }
+    }
+    
+    // Check for form data changes
+    if (item.formData && item.originalFormData) {
+      const changedFields = []
+      Object.keys(item.formData).forEach(field => {
+        if (item.originalFormData[field] !== item.formData[field]) {
+          changedFields.push(field)
+        }
+      })
+      
+      if (changedFields.length > 0) {
+        reasons.push(`${changedFields.length} adet form alanı değiştirildi`)
+      }
+    }
+    
+    // Fallback reasons
+    if (reasons.length === 0) {
+      if (item.formulaChanged) {
+        reasons.push('Fiyat hesaplama formülü değiştirildi')
+      }
+      if (item.parametersChanged) {
+        reasons.push('Hesaplama parametreleri güncellendi')
+      }
+      if (item.needsPriceUpdate) {
+        reasons.push('Sistem ayarları değişikliği nedeniyle fiyat güncellemesi gerekiyor')
+      }
+    }
+    
+    if (reasons.length === 0) {
+      return 'Manuel fiyat güncelleme talebi'
+    }
+    
+    return reasons.join('. ') + '.'
+  }
   const [priceReview, setPriceReview] = useState(null) // { item, newPrice }
   async function applyNewPrice(item) {
     try {
@@ -240,7 +628,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          'Authorization': `Bearer ${localStorage.getItem('bk_admin_token')}`
         }
       })
       
@@ -374,6 +762,21 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     })
     setGlobalSearch('')
     setFieldSearch('')
+  }
+
+  // Clear specific filter category
+  function clearSpecificFilter(category) {
+    setFilters(prev => {
+      const newFilters = { ...prev }
+      if (category === 'dateRange') {
+        newFilters[category] = { from: '', to: '' }
+      } else if (category === 'qtyRange') {
+        newFilters[category] = { min: '', max: '' }
+      } else {
+        newFilters[category] = []
+      }
+      return newFilters
+    })
   }
 
   // Get unique values for filter options
@@ -672,17 +1075,162 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         )
       ),
       
-      // Compact filter bar (optional - can be added later)
+      // Enhanced Active filters display  
       React.createElement('div', { style: { margin: '8px 0', fontSize: '12px', color: '#6c757d' } },
         // Active filters display (if any)
         (filters.status.length > 0 || filters.material.length > 0 || filters.process.length > 0 || filters.dateRange.from || filters.dateRange.to || filters.qtyRange.min || filters.qtyRange.max) &&
-        React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '4px', alignItems: 'center' } },
-          React.createElement('span', { style: { fontWeight: '500' } }, 'Aktif filtreler: '),
-          filters.status.length > 0 && React.createElement('span', { style: { backgroundColor: '#007bff', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Durum: ${filters.status.join(', ')}`),
-          filters.material.length > 0 && React.createElement('span', { style: { backgroundColor: '#28a745', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Malzeme: ${filters.material.join(', ')}`),
-          filters.process.length > 0 && React.createElement('span', { style: { backgroundColor: '#ffc107', color: '#212529', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `İşlem: ${filters.process.join(', ')}`),
-          (filters.dateRange.from || filters.dateRange.to) && React.createElement('span', { style: { backgroundColor: '#6c757d', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Tarih: ${filters.dateRange.from || '?'} - ${filters.dateRange.to || '?'}`),
-          (filters.qtyRange.min || filters.qtyRange.max) && React.createElement('span', { style: { backgroundColor: '#17a2b8', color: 'white', padding: '2px 6px', borderRadius: '12px', fontSize: '11px' } }, `Miktar: ${filters.qtyRange.min || '0'} - ${filters.qtyRange.max || '∞'}`)
+        React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' } },
+          React.createElement('span', { style: { fontWeight: '500', marginRight: '8px' } }, 'Aktif filtreler: '),
+          filters.status.length > 0 && React.createElement('span', { 
+            style: { 
+              backgroundColor: '#007bff', 
+              color: 'white', 
+              padding: '4px 8px', 
+              borderRadius: '16px', 
+              fontSize: '11px',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              paddingRight: '20px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#0056b3',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#007bff',
+            title: 'Durum filtresini kaldır'
+          }, 
+            `Durum: ${filters.status.join(', ')}`,
+            React.createElement('span', {
+              style: {
+                position: 'absolute',
+                right: '4px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px'
+              },
+              onClick: (e) => { e.stopPropagation(); clearSpecificFilter('status') }
+            }, '×')
+          ),
+          filters.material.length > 0 && React.createElement('span', { 
+            style: { 
+              backgroundColor: '#28a745', 
+              color: 'white', 
+              padding: '4px 8px', 
+              borderRadius: '16px', 
+              fontSize: '11px',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              paddingRight: '20px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#1e7e34',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#28a745',
+            title: 'Malzeme filtresini kaldır'
+          }, 
+            `Malzeme: ${filters.material.join(', ')}`,
+            React.createElement('span', {
+              style: {
+                position: 'absolute',
+                right: '4px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px'
+              },
+              onClick: (e) => { e.stopPropagation(); clearSpecificFilter('material') }
+            }, '×')
+          ),
+          filters.process.length > 0 && React.createElement('span', { 
+            style: { 
+              backgroundColor: '#ffc107', 
+              color: '#212529', 
+              padding: '4px 8px', 
+              borderRadius: '16px', 
+              fontSize: '11px',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              paddingRight: '20px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#e0a800',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#ffc107',
+            title: 'İşlem filtresini kaldır'
+          }, 
+            `İşlem: ${filters.process.join(', ')}`,
+            React.createElement('span', {
+              style: {
+                position: 'absolute',
+                right: '4px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px'
+              },
+              onClick: (e) => { e.stopPropagation(); clearSpecificFilter('process') }
+            }, '×')
+          ),
+          (filters.dateRange.from || filters.dateRange.to) && React.createElement('span', { 
+            style: { 
+              backgroundColor: '#6c757d', 
+              color: 'white', 
+              padding: '4px 8px', 
+              borderRadius: '16px', 
+              fontSize: '11px',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              paddingRight: '20px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#545b62',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#6c757d',
+            title: 'Tarih filtresini kaldır'
+          }, 
+            `Tarih: ${filters.dateRange.from || '?'} - ${filters.dateRange.to || '?'}`,
+            React.createElement('span', {
+              style: {
+                position: 'absolute',
+                right: '4px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px'
+              },
+              onClick: (e) => { e.stopPropagation(); clearSpecificFilter('dateRange') }
+            }, '×')
+          ),
+          (filters.qtyRange.min || filters.qtyRange.max) && React.createElement('span', { 
+            style: { 
+              backgroundColor: '#17a2b8', 
+              color: 'white', 
+              padding: '4px 8px', 
+              borderRadius: '16px', 
+              fontSize: '11px',
+              position: 'relative',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              paddingRight: '20px'
+            },
+            onMouseOver: (e) => e.target.style.backgroundColor = '#117a8b',
+            onMouseOut: (e) => e.target.style.backgroundColor = '#17a2b8',
+            title: 'Miktar filtresini kaldır'
+          }, 
+            `Miktar: ${filters.qtyRange.min || '0'} - ${filters.qtyRange.max || '∞'}`,
+            React.createElement('span', {
+              style: {
+                position: 'absolute',
+                right: '4px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '12px'
+              },
+              onClick: (e) => { e.stopPropagation(); clearSpecificFilter('qtyRange') }
+            }, '×')
+          )
         )
       ),
       
@@ -694,44 +1242,23 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
                 React.createElement('th', null,
                   React.createElement('input', { type: 'checkbox', onChange: toggleAll, checked: filtered.length > 0 && selected.size === filtered.length })
                 ),
-                React.createElement('th', null, t.th_date, ' ', React.createElement('span', { 
-                  style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
-                  title: 'Tarih filtresi',
-                  onClick: (e) => { e.stopPropagation(); setFilterPopup('dateRange') }
-                }, '🔽')),
-                React.createElement('th', null, t.th_customer, ' ', React.createElement('span', { 
-                  style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
-                  title: 'Ülke filtresi',
-                  onClick: (e) => { e.stopPropagation(); setFilterPopup('country') }
-                }, '🔽')),
-                React.createElement('th', null, t.th_project, ' ', React.createElement('span', { 
-                  style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
-                  title: 'İşlem filtresi',
-                  onClick: (e) => { e.stopPropagation(); setFilterPopup('process') }
-                }, '🔽')),
-                React.createElement('th', null, t.th_material, ' ', React.createElement('span', { 
-                  style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
-                  title: 'Malzeme filtresi',
-                  onClick: (e) => { e.stopPropagation(); setFilterPopup('material') }
-                }, '🔽')),
-                React.createElement('th', null, t.th_qty, ' ', React.createElement('span', { 
-                  style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
-                  title: 'Miktar filtresi',
-                  onClick: (e) => { e.stopPropagation(); setFilterPopup('qtyRange') }
-                }, '🔽')),
-                React.createElement('th', null, t.th_due, ' ', React.createElement('span', { 
-                  style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
-                  title: 'Teslim tarihi filtresi',
-                  onClick: (e) => { e.stopPropagation(); setFilterPopup('dateRange') }
-                }, '🔽')),
-                React.createElement('th', null, t.th_days_to_due),
-                React.createElement('th', null, t.th_est_price),
-                React.createElement('th', null, t.th_est_lead),
-                React.createElement('th', null, t.a_status, ' ', React.createElement('span', { 
-                  style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
-                  title: 'Durum filtresi',
-                  onClick: (e) => { e.stopPropagation(); setFilterPopup('status') }
-                }, '🔽')),
+                ...getTableColumns().map(column => {
+                  const hasFilter = ['date', 'material', 'qty', 'due', 'status'].includes(column.id);
+                  return React.createElement('th', { key: column.id }, 
+                    column.label,
+                    hasFilter && React.createElement('span', { 
+                      style: { fontSize: '12px', opacity: 0.7, cursor: 'pointer', marginLeft: '4px', userSelect: 'none' }, 
+                      title: `${column.label} filtresi`,
+                      onClick: (e) => { 
+                        e.stopPropagation(); 
+                        const filterType = column.id === 'qty' ? 'qtyRange' : 
+                                         column.id === 'due' || column.id === 'date' ? 'dateRange' : 
+                                         column.id;
+                        setFilterPopup(filterType);
+                      }
+                    }, '🔽')
+                  );
+                }),
                 React.createElement('th', null, t.th_actions),
               )
             ),
@@ -749,53 +1276,29 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
                   },
                     React.createElement('input', { type: 'checkbox', checked: selected.has(it.id), onChange: (e) => toggleOne(it.id, e.target.checked) })
                   ),
-                  React.createElement('td', { style: { whiteSpace: 'nowrap' } }, (it.createdAt||'').slice(0,10)),
-                  React.createElement('td', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' } }, (it.name || '') + (it.company ? ' — ' + it.company : '')),
-                  React.createElement('td', { style: { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' } }, (it.proj || '').length > 15 ? (it.proj || '').substring(0, 15) + '...' : (it.proj || '')),
-                  React.createElement('td', null, it.material || ''),
-                  React.createElement('td', null, String(it.qty ?? '')),
-                  React.createElement('td', null, it.due || ''),
-                  React.createElement('td', null, (() => {
-                    if (!(it.status === 'approved' && it.due)) return ''
-                    const days = Math.ceil((new Date(it.due).getTime() - Date.now()) / (1000*60*60*24))
-                    const style = days <= 3 ? { color: '#ff6b6b', fontWeight: 600 } : {}
-                    return React.createElement('span', { style }, String(days))
-                  })()),
-                  React.createElement('td', null, (() => {
-                    const needsUpdate = needsPriceUpdate(it)
-                    return React.createElement('div', { 
-                      style: { display: 'flex', alignItems: 'center', gap: '6px' } 
-                    },
-                      React.createElement('span', null, `₺ ${(it.price || 0).toLocaleString('tr-TR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`),
-                      needsUpdate && React.createElement('button', { 
-                        className: 'btn danger',
-                        style: { 
-                          padding: '2px 8px', 
-                          fontSize: '11px', 
-                          lineHeight: '18px', 
-                          height: '22px',
-                          backgroundColor: '#ff4444',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          fontWeight: 'bold',
-                          animation: 'pulse 1.5s infinite',
-                          boxShadow: '0 2px 4px rgba(255,68,68,0.3)'
-                        },
-                        title: `Fiyat güncellenmeli! Formül veya parametreler değişti.` ,
-                        onClick: (e) => { 
-                          e.stopPropagation(); 
-                          setPriceReview({ 
-                            item: it, 
-                            newPrice: it.calculatedPrice || calculatePrice(it),
-                            originalPrice: it.originalPrice || it.price || 0
-                          }) 
-                        }
-                      }, '⚠ GÜNCELLE')
-                    )
-                  })()),
-                  React.createElement('td', null, '16'),
-                  React.createElement('td', null, React.createElement('span', { className: 'status ' + (it.status === 'new' ? 'new' : it.status === 'review' ? 'review' : it.status === 'feasible' ? 'feasible' : it.status === 'quoted' ? 'quoted' : it.status === 'approved' ? 'approved' : 'not') }, statusLabel(it.status, t))),
+                  ...getTableColumns().map(column => {
+                    const value = getFieldValue(it, column.id);
+                    const formatted = formatFieldValue(value, column, it, {
+                      getPriceChangeType,
+                      setSettingsModal,
+                      setPriceReview,
+                      calculatePrice,
+                      statusLabel,
+                      t
+                    });
+                    
+                    // Apply column-specific styles
+                    let style = {};
+                    if (column.id === 'date') {
+                      style = { whiteSpace: 'nowrap' };
+                    } else if (column.id === 'customer') {
+                      style = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '200px' };
+                    } else if (column.id === 'project') {
+                      style = { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' };
+                    }
+                    
+                    return React.createElement('td', { key: column.id, style }, formatted);
+                  }),
                   React.createElement('td', null,
                     React.createElement('div', { className: 'row actions-row', style: { gap: 8 } },
                       React.createElement('button', { 
@@ -888,34 +1391,63 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     }) : null,
     priceReview ? (function () {
       const pr = priceReview
-      const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)' }
-      const box = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#111', color: '#fff', padding: 16, borderRadius: 8, width: 380 }
+      const overlay = { position: 'fixed', inset: 0, background: 'var(--modal-overlay)' }
+      const box = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--modal-bg)', color: 'var(--text)', padding: 20, borderRadius: 12, width: 450, maxHeight: '80vh', overflowY: 'auto' }
       const originalPrice = pr.originalPrice || 0
       const newPrice = pr.newPrice || 0
       const difference = newPrice - originalPrice
       const isIncrease = difference > 0
+      const changes = getChanges(pr.item)
+      const changeReason = getChangeReason(pr.item)
       
       return React.createElement(React.Fragment, null,
         React.createElement('div', { style: overlay, onClick: () => setPriceReview(null) }),
         React.createElement('div', { style: box },
-          React.createElement('h3', { style: { marginTop: 0 } }, 'Fiyat Güncelleme'),
-          React.createElement('div', { style: { margin: '8px 0' } }, 
-            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 } },
-              React.createElement('span', null, 'Mevcut fiyat:'),
-              React.createElement('span', null, `₺ ${originalPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-            ),
-            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 } },
-              React.createElement('span', null, 'Yeni fiyat:'),
-              React.createElement('span', { style: { fontWeight: 'bold' } }, `₺ ${newPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
-            ),
-            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', color: isIncrease ? '#ff6b6b' : '#51cf66' } },
-              React.createElement('span', null, 'Fark:'),
-              React.createElement('span', { style: { fontWeight: 'bold' } }, `${isIncrease ? '+' : ''}₺ ${difference.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+          React.createElement('h3', { style: { marginTop: 0, marginBottom: 20, fontSize: '20px', color: 'var(--text)' } }, 'Fiyat Güncelleme'),
+          
+          // Changes details section (moved to top)
+          changes.length > 0 && React.createElement('div', { style: { margin: '0 0 20px 0', padding: '16px', backgroundColor: 'var(--form-bg)', borderRadius: '8px' } },
+            React.createElement('h4', { style: { margin: '0 0 12px 0', fontSize: '16px', color: 'var(--text)' } }, 'Değişiklik Detayları'),
+            React.createElement('div', { style: { fontSize: '14px' } },
+              changes.map((change, index) => 
+                React.createElement('div', { 
+                  key: index,
+                  style: { 
+                    marginBottom: '8px', 
+                    padding: '8px', 
+                    backgroundColor: 'var(--change-detail-bg)',
+                    borderRadius: '4px',
+                    borderLeft: '3px solid var(--change-detail-border)'
+                  } 
+                },
+                  React.createElement('div', { style: { fontWeight: 'bold', marginBottom: '4px', color: 'var(--text)' } }, change.field),
+                  React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' } },
+                    React.createElement('span', { style: { color: 'var(--price-increase)' } }, change.from),
+                    React.createElement('span', { style: { color: 'var(--muted)' } }, '→'),
+                    React.createElement('span', { style: { color: 'var(--price-decrease)' } }, change.to)
+                  )
+                )
+              )
             )
           ),
-          React.createElement('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 } },
-            React.createElement('button', { className: 'btn', onClick: () => setPriceReview(null) }, 'Kapat'),
-            React.createElement('button', { className: 'btn accent', onClick: () => applyNewPrice(pr.item) }, 'Fiyatı Güncelle')
+          
+          // Change reason section
+          React.createElement('div', { style: { margin: '0 0 20px 0', padding: '16px', backgroundColor: 'var(--form-bg)', borderRadius: '8px' } },
+            React.createElement('h4', { style: { margin: '0 0 8px 0', fontSize: '16px', color: 'var(--text)' } }, 'Değişiklik Sebebi'),
+            React.createElement('p', { style: { margin: 0, fontSize: '14px', color: 'var(--muted)', lineHeight: '1.4' } }, changeReason)
+          ),
+          
+          React.createElement('div', { style: { display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--modal-border)' } },
+            React.createElement('button', { 
+              className: 'btn', 
+              onClick: () => setPriceReview(null),
+              style: { padding: '10px 20px', backgroundColor: 'var(--btn-secondary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }
+            }, 'Kapat'),
+            React.createElement('button', { 
+              className: 'btn accent', 
+              onClick: () => applyNewPrice(pr.item),
+              style: { padding: '10px 20px', backgroundColor: 'var(--btn-primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }
+            }, 'Fiyatı Güncelle')
           )
         )
       )

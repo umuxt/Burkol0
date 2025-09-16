@@ -454,7 +454,88 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
       return item.changeHistory
     }
     
-    // Fallback: try to detect basic changes
+    // Dynamic form field definitions (should match SettingsModal form fields)
+    const formFieldDefinitions = {
+      qty: { label: 'Adet', hasOptions: false },
+      thickness: { label: 'Kalınlık (mm)', hasOptions: false },
+      dimensions: { label: 'Boyutlar', hasOptions: false },
+      width: { label: 'Genişlik (mm)', hasOptions: false },
+      height: { label: 'Yükseklik (mm)', hasOptions: false },
+      material: { label: 'Malzeme', hasOptions: true },
+      process: { label: 'İşlem Türü', hasOptions: true },
+      finish: { label: 'Yüzey İşlemi', hasOptions: true },
+      toleranceStd: { label: 'Tolerans Standardı', hasOptions: true },
+      weldMethod: { label: 'Kaynak Yöntemi', hasOptions: true },
+      surfaceRa: { label: 'Yüzey Pürüzlülüğü', hasOptions: true },
+      repeat: { label: 'Tekrar Durumu', hasOptions: true },
+      budgetCurrency: { label: 'Para Birimi', hasOptions: true },
+      product: { label: 'Ürün Tipi', hasOptions: true }
+    }
+    
+    // Compare current formData with potential current form state
+    if (item.formData && typeof item.formData === 'object') {
+      // Get current price settings to compare with
+      if (priceSettings && priceSettings.parameters) {
+        // Check if formula changed
+        if (item.originalFormula && priceSettings.formula && item.originalFormula !== priceSettings.formula) {
+          changes.push({
+            field: 'Fiyat Hesaplama Formülü',
+            from: item.originalFormula.substring(0, 50) + (item.originalFormula.length > 50 ? '...' : ''),
+            to: priceSettings.formula.substring(0, 50) + (priceSettings.formula.length > 50 ? '...' : ''),
+            reason: 'Fiyat hesaplama formülü değiştirildi'
+          })
+        }
+        
+        // Check parameter changes
+        priceSettings.parameters.forEach(param => {
+          if (param.type === 'form' && param.formField && formFieldDefinitions[param.formField]) {
+            const fieldDef = formFieldDefinitions[param.formField]
+            const currentValue = item.formData[param.formField]
+            
+            // For form-based parameters, check if the mapping changed
+            if (param.formValue && item.originalParams && item.originalParams[param.id]) {
+              const originalParam = item.originalParams[param.id]
+              if (originalParam.formValue !== param.formValue) {
+                changes.push({
+                  field: `${fieldDef.label} Parametresi`,
+                  from: originalParam.formValue || 'Tanımlanmamış',
+                  to: param.formValue || 'Tanımlanmamış',
+                  reason: `${fieldDef.label} alanının fiyat hesaplamasındaki değer eşleştirmesi değiştirildi`
+                })
+              }
+            }
+            
+            // Check for new form field values
+            if (currentValue !== undefined && item.originalFormData && item.originalFormData[param.formField] !== currentValue) {
+              const fromValue = item.originalFormData[param.formField] || 'Boş'
+              const toValue = currentValue || 'Boş'
+              
+              if (fromValue !== toValue) {
+                changes.push({
+                  field: fieldDef.label,
+                  from: String(fromValue),
+                  to: String(toValue),
+                  reason: `${fieldDef.label} değeri değiştirildi`
+                })
+              }
+            }
+          } else if (param.type === 'fixed') {
+            // Check fixed parameter changes
+            if (item.originalParams && item.originalParams[param.id] && 
+                item.originalParams[param.id].value !== param.value) {
+              changes.push({
+                field: `${param.name} (Sabit Değer)`,
+                from: String(item.originalParams[param.id].value),
+                to: String(param.value),
+                reason: `${param.name} sabit parametresi değiştirildi`
+              })
+            }
+          }
+        })
+      }
+    }
+    
+    // Check price difference
     if (item.originalPrice !== undefined && item.calculatedPrice !== undefined) {
       const priceDiff = Math.abs(item.calculatedPrice - item.originalPrice)
       if (priceDiff > 0.01) {
@@ -470,10 +551,10 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     // If we can't detect specific changes, show generic message
     if (changes.length === 0 && item.needsPriceUpdate) {
       changes.push({
-        field: 'Formül/Parametreler',
-        from: 'Önceki değerler',
-        to: 'Güncellenmiş değerler',
-        reason: 'Fiyat hesaplama formülü veya parametreleri değiştirildi'
+        field: 'Sistem Ayarları',
+        from: 'Önceki konfigürasyon',
+        to: 'Güncellenmiş konfigürasyon',
+        reason: 'Fiyat hesaplama sistemi ayarları değiştirildi'
       })
     }
     
@@ -482,16 +563,62 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
 
   // Function to get change reason explanation
   function getChangeReason(item) {
-    if (item.formulaChanged) {
-      return 'Fiyat hesaplama formülü değiştirildi'
+    const reasons = []
+    
+    // Check for formula changes
+    if (item.originalFormula && priceSettings && priceSettings.formula && 
+        item.originalFormula !== priceSettings.formula) {
+      reasons.push('Fiyat hesaplama formülü güncellendi')
     }
-    if (item.parametersChanged) {
-      return 'Hesaplama parametreleri güncellendi'
+    
+    // Check for parameter changes
+    if (priceSettings && priceSettings.parameters && item.originalParams) {
+      let parameterChanges = 0
+      priceSettings.parameters.forEach(param => {
+        if (item.originalParams[param.id] && 
+            (item.originalParams[param.id].value !== param.value || 
+             item.originalParams[param.id].formValue !== param.formValue)) {
+          parameterChanges++
+        }
+      })
+      
+      if (parameterChanges > 0) {
+        reasons.push(`${parameterChanges} adet hesaplama parametresi değiştirildi`)
+      }
     }
-    if (item.needsPriceUpdate) {
-      return 'Sistem ayarları değişikliği nedeniyle fiyat güncellemesi gerekiyor'
+    
+    // Check for form data changes
+    if (item.formData && item.originalFormData) {
+      const changedFields = []
+      Object.keys(item.formData).forEach(field => {
+        if (item.originalFormData[field] !== item.formData[field]) {
+          changedFields.push(field)
+        }
+      })
+      
+      if (changedFields.length > 0) {
+        reasons.push(`${changedFields.length} adet form alanı değiştirildi`)
+      }
     }
-    return 'Manuel fiyat güncelleme talebi'
+    
+    // Fallback reasons
+    if (reasons.length === 0) {
+      if (item.formulaChanged) {
+        reasons.push('Fiyat hesaplama formülü değiştirildi')
+      }
+      if (item.parametersChanged) {
+        reasons.push('Hesaplama parametreleri güncellendi')
+      }
+      if (item.needsPriceUpdate) {
+        reasons.push('Sistem ayarları değişikliği nedeniyle fiyat güncellemesi gerekiyor')
+      }
+    }
+    
+    if (reasons.length === 0) {
+      return 'Manuel fiyat güncelleme talebi'
+    }
+    
+    return reasons.join('. ') + '.'
   }
   const [priceReview, setPriceReview] = useState(null) // { item, newPrice }
   async function applyNewPrice(item) {
