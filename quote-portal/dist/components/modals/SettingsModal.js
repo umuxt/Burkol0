@@ -1,4 +1,5 @@
 import API from '../../lib/api.js'
+import FormulaValidator from '../SimpleFormulaValidator.js'
 
 const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
 if (!ReactGlobal) {
@@ -20,6 +21,10 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
   // Editing states for each parameter
   const [editingParams, setEditingParams] = useState({}) // { paramId: true/false }
   const [editingValues, setEditingValues] = useState({}) // { paramId: { name, value, lookupTable } }
+  
+  // Formula validation state
+  const [formulaValidation, setFormulaValidation] = useState(null)
+  const [isFormulaValid, setIsFormulaValid] = useState(true)
   
   // Form fields available for selection (from user form)
   const formFields = [
@@ -93,6 +98,11 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
         lookupTable: param.lookupTable ? [...param.lookupTable] : []
       }
     }))
+  }
+
+  function handleFormulaValidation(validation) {
+    setFormulaValidation(validation)
+    setIsFormulaValid(validation ? validation.isValid : true)
   }
 
   function cancelEditingParameter(paramId) {
@@ -236,6 +246,12 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
 
   async function saveSettings() {
     try {
+      // Validate formula before saving
+      if (formula && !isFormulaValid) {
+        showNotification('Formül hatası mevcut! Lütfen düzeltin.', 'error')
+        return
+      }
+
       const settings = { parameters, formula }
       console.log('Saving settings:', settings)
       await API.saveSettings(settings)
@@ -373,7 +389,8 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                                     style: { 
                                       fontSize: '11px', 
                                       minWidth: '80px',
-                                      color: '#333'  // FIXED: Changed from white to #333 for visibility
+                                      color: '#333',
+                                      fontWeight: '500'
                                     } 
                                   }, `${item.option}:`),
                                   React.createElement('input', {
@@ -398,8 +415,10 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                                   key: idx, 
                                   style: { 
                                     fontSize: '11px',
-                                    color: '#333',  // FIXED: Changed from default (white) to #333 for visibility
-                                    backgroundColor: 'transparent'  // FIXED: Ensure transparent background
+                                    color: '#333',
+                                    backgroundColor: 'transparent',
+                                    padding: '2px 0',
+                                    borderBottom: '1px solid #f0f0f0'
                                   } 
                                 }, `${item.option}: ${item.value}`)
                               )
@@ -705,9 +724,15 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
             }
           })
         ),
-        React.createElement('div', { style: { fontSize: '12px', color: '#666' } },
+        React.createElement('div', { style: { fontSize: '12px', color: '#666', marginBottom: '8px' } },
           'Excel formül formatında yazın. Parametreleri A, B, C... şeklinde kullanın. Örnek: =A*B*SQRT(C)+D^2'
-        )
+        ),
+        // Formula Validator Component
+        React.createElement(FormulaValidator, {
+          formula: formula,
+          parameters: parameters,
+          onValidation: handleFormulaValidation
+        })
       ),
 
       // Action buttons
