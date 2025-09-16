@@ -200,12 +200,22 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         }
       }
 
-      // Add math functions to formula context
-      let evalCode = Object.keys(mathContext).map(key => `const ${key} = ${mathContext[key]};`).join(' ')
-      evalCode += `return (${formula});`
-      
-      const result = Function(evalCode)()
-      return isNaN(result) ? (quote.calculatedPrice || quote.price || 0) : result
+      // Add math functions to formula context - Use safer approach
+      try {
+        const result = Function(
+          'mathCtx', 
+          'formula',
+          `
+          const {${Object.keys(mathContext).join(', ')}} = mathCtx;
+          return (${formula});
+          `
+        )(mathContext, formula)
+        
+        return Number(result) || 0
+      } catch (evalError) {
+        console.error('Formula evaluation error:', evalError, 'Formula:', formula)
+        return quote.calculatedPrice || quote.price || 0
+      }
       
     } catch (e) {
       console.error('Price calculation error:', e)
@@ -236,17 +246,22 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     const calculatedPrice = calculatePrice(quote)
     const priceDifference = Math.abs(calculatedPrice - currentPrice)
     
-    // If there's a server flag indicating changes but price is same
-    if (quote.needsPriceUpdate === true && priceDifference <= 0.01) {
-      return 'formula-changed' // Formula/params changed but price stayed same
-    }
-    
-    // If price actually changed
+    // First check if price actually changed (most important)
     if (priceDifference > 0.01) {
-      return 'price-changed' // Price actually changed
+      return 'price-changed' // Price actually changed - show red
     }
     
-    return 'no-change' // No changes
+    // If price is same but server indicates formula/settings changed
+    if (quote.needsPriceUpdate === true) {
+      return 'formula-changed' // Formula/params changed but price stayed same - show yellow
+    }
+    
+    // Also check if calculated differs from stored calculatedPrice (server-side calculation)
+    if (quote.calculatedPrice !== undefined && Math.abs(calculatedPrice - quote.calculatedPrice) > 0.01) {
+      return 'formula-changed' // Server calculation differs from client calculation
+    }
+    
+    return 'no-change' // No changes - no button
   }
 
   // Popup for price update
