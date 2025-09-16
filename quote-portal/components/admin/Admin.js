@@ -212,7 +212,6 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
       return quote.calculatedPrice || quote.price || 0
     }
   }
-  }
 
   // Check if quote needs price update based on new versioning system
   function needsPriceUpdate(quote) {
