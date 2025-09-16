@@ -62,7 +62,21 @@ body {
 .card { background: linear-gradient(180deg, var(--surface), #0c1924); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 18px; }
 
 label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
-input, select, textarea { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.03); color: var(--text); }
+input, select, textarea { 
+  width: 100%; 
+  padding: 10px 12px; 
+  border-radius: 8px; 
+  border: 1px solid rgba(255,255,255,0.12); 
+  background: rgba(255,255,255,0.03); 
+  color: #333; /* FIXED: Changed from var(--text) to dark color for better readability */
+}
+input::placeholder, textarea::placeholder {
+  color: #666; /* FIXED: Dark placeholder text */
+}
+input:focus, select:focus, textarea:focus {
+  color: #222; /* FIXED: Even darker color when focused */
+  background: rgba(255,255,255,0.9);
+}
 /* Keep selects styled as buttons when used as actions */
 select.btn { width: auto; }
 /* In tables' actions cell ensure inline layout */

@@ -122,13 +122,14 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
         return param
       })
 
-      // CRITICAL FIX: Save to API immediately
+      // FIXED: Save to backend as well!
       const settings = {
         parameters: updatedParameters,
         formula: formula,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: Date.now()
       }
       
+      console.log('Saving parameter settings:', settings)
       await API.saveSettings(settings)
 
       setParameters(updatedParameters)
@@ -139,7 +140,7 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
         return newValues
       })
 
-      showNotification('Parametre güncellendi ve kaydedildi!', 'success')
+      showNotification('Parametre güncellendi!', 'success')
     } catch (e) {
       console.error('Save parameter error:', e)
       showNotification('Parametre güncellenemedi: ' + e.message, 'error')
@@ -404,20 +405,14 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                               )
                             )
                       } else {
-                        // Form field parameter - show dropdown for field selection when editing
+                        // Form field parameter (no lookup table)
                         return isEditing 
-                          ? React.createElement('div', null,
-                              React.createElement('label', { 
-                                style: { 
-                                  fontSize: '11px', 
-                                  fontWeight: 'bold', 
-                                  display: 'block', 
-                                  marginBottom: '4px',
-                                  color: '#333'
-                                } 
+                          ? React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px' } },
+                              React.createElement('span', { 
+                                style: { fontSize: '11px', color: '#666' } 
                               }, 'Form Alanı:'),
                               React.createElement('select', {
-                                value: editValues.formField || param.formField || '',
+                                value: editValues.formField || '',
                                 onChange: (e) => updateEditingValue(param.id, 'formField', e.target.value),
                                 style: { 
                                   width: '100%', 
@@ -425,32 +420,25 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                                   border: '1px solid #ccc', 
                                   borderRadius: '3px',
                                   fontSize: '12px',
-                                  marginBottom: '4px'
+                                  backgroundColor: 'white'
                                 }
                               },
-                                React.createElement('option', { value: '' }, 'Form alanı seçin...'),
+                                React.createElement('option', { value: '' }, '-- Alan Seçin --'),
                                 formFields.map(field => 
                                   React.createElement('option', { 
                                     key: field.value, 
                                     value: field.value 
                                   }, field.label)
                                 )
-                              ),
-                              React.createElement('div', { 
-                                style: { 
-                                  fontSize: '10px', 
-                                  color: '#666', 
-                                  fontStyle: 'italic' 
-                                } 
-                              }, `Mevcut: ${param.formField || 'Tanımsız'}`)
+                              )
                             )
                           : React.createElement('div', null,
                               React.createElement('div', { 
-                                style: { fontSize: '12px', color: '#333' } 
-                              }, `Form: ${param.formField || 'Tanımsız'}`),
+                                style: { fontSize: '11px', color: '#333' } 
+                              }, 'Form Değeri'),
                               param.formField && React.createElement('div', { 
-                                style: { fontSize: '10px', color: '#666', fontStyle: 'italic' } 
-                              }, formFields.find(f => f.value === param.formField)?.label || param.formField)
+                                style: { fontSize: '10px', color: '#666' } 
+                              }, `Alan: ${param.formField}`)
                             )
                       }
                     })()
