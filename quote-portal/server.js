@@ -283,20 +283,19 @@ function calculatePriceServer(quote, settings) {
     }
     
     // Add math functions to formula context - FIXED approach
-    const fnNames = Object.keys(mathContext)
-    let evalCode = `
-    const result = (function() {
-      ${fnNames.map(name => `const ${name} = arguments[0]['${name}'];`).join('\n      ')}
-      return (${formula});
-    }).call(this, arguments[0]);
-    return result;
-    `
-    
     try {
-      const result = Function(evalCode)(mathContext)
+      const result = Function(
+        'mathCtx', 
+        'formula',
+        `
+        const {${Object.keys(mathContext).join(', ')}} = mathCtx;
+        return (${formula});
+        `
+      )(mathContext, formula)
+      
       return Number(result) || 0
     } catch (evalError) {
-      console.error('Formula evaluation error:', evalError)
+      console.error('Formula evaluation error:', evalError, 'Formula:', formula)
       return Number(quote.price) || 0
     }
   } catch (e) {
