@@ -16,7 +16,7 @@ import API, { API_BASE } from './lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from './lib/utils.js'
 import Field from './components/Field.js'
 import Modal from './components/Modal.js'
-import QuoteForm from './components/forms/QuoteForm.js'
+import DynamicFormRenderer from './components/DynamicFormRenderer.js'
 import Admin from './components/admin/Admin.js'
 import SettingsModal from './components/modals/SettingsModal.js'
 import { DetailModal } from './components/modals/DetailModal.js'
@@ -69,7 +69,7 @@ import { ToastNotification, useNotifications } from './hooks/useNotifications.js
   }
 
   // Field moved to components/Field.js
-  // QuoteForm moved to components/forms/QuoteForm.js
+  // DynamicFormRenderer renders forms based on admin configuration
   // FilterPopup moved to components/modals/FilterPopup.js
 
   // Admin component moved to components/admin/Admin.js
@@ -118,6 +118,17 @@ import { ToastNotification, useNotifications } from './hooks/useNotifications.js
       setLoggedIn(false)
     }
 
+    // Dynamic form submission handler
+    async function handleQuoteSubmit(quoteData) {
+      try {
+        await API.createQuote(quoteData)
+        showNotification('Teklif başarıyla gönderildi!', 'success')
+      } catch (error) {
+        console.error('Quote submission error:', error)
+        throw error // Let DynamicFormRenderer handle the error display
+      }
+    }
+
     return (
       React.createElement(React.Fragment, null,
         // Notifications at the top
@@ -132,7 +143,11 @@ import { ToastNotification, useNotifications } from './hooks/useNotifications.js
         React.createElement(Nav, { onLang: setLang, lang, t }),
         PAGE === 'admin'
           ? (loggedIn ? React.createElement(Admin, { t, onLogout: handleLogout, showNotification, SettingsModal, DetailModal, FilterPopup }) : React.createElement(AdminGate, { onLogin: handleLogin, t }))
-          : React.createElement(QuoteForm, { t, showNotification })
+          : React.createElement(DynamicFormRenderer, { 
+              onSubmit: handleQuoteSubmit, 
+              showNotification: showNotification, 
+              t: t 
+            })
       )
     )
   }
