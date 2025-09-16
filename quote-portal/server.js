@@ -316,19 +316,31 @@ function calculatePriceServer(quote, settings) {
       }
     }
     
-    // Add math functions to formula context
-    let evalCode = Object.keys(mathContext).map(key => `const ${key} = ${mathContext[key]};`).join(' ')
-    evalCode += `return (${formula});`
+    // Add math functions to formula context - FIXED approach
+    const fnNames = Object.keys(mathContext)
+    let evalCode = `
+    const result = (function() {
+      ${fnNames.map(name => `const ${name} = arguments[0]['${name}'];`).join('\n      ')}
+      return (${formula});
+    }).call(this, arguments[0]);
+    return result;
+    `
     
-    console.log('Eval code:', evalCode)
+    console.log('Formula after substitution:', formula)
     
-    const result = Function('"use strict"; ' + evalCode)()
-    const finalResult = Number(result)
-    
-    console.log('Calculation result:', result, '-> final:', finalResult)
-    console.log('🔧 Price calculation DEBUG END\n')
-    
-    return finalResult
+    try {
+      const result = Function(evalCode)(mathContext)
+      const finalResult = Number(result)
+      
+      console.log('Calculation result:', result, '-> final:', finalResult)
+      console.log('🔧 Price calculation DEBUG END\n')
+      
+      return finalResult
+    } catch (evalError) {
+      console.error('Formula evaluation error:', evalError)
+      console.error('Failed formula:', formula)
+      return Number(quote.price) || 0
+    }
   } catch (e) {
     console.error('calculatePriceServer failed:', e)
     return Number(quote.price) || 0
