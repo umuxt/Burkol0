@@ -160,7 +160,10 @@ export default function FormulaValidator({ formula, parameters, onValidation }) 
     // Check for undefined parameter references
     const undefinedParams = paramRefs.filter(ref => 
       !paramIds.includes(ref) && 
-      !['IF', 'AND', 'OR', 'MAX', 'MIN', 'ROUND', 'SQRT', 'ABS'].includes(ref) &&
+      !['IF', 'AND', 'OR', 'MAX', 'MIN', 'ROUND', 'SQRT', 'ABS', 'POWER', 'POW', 'EXP', 'LN', 'LOG', 'LOG10',
+        'SIN', 'COS', 'TAN', 'ASIN', 'ACOS', 'ATAN', 'ATAN2', 'CEILING', 'CEIL', 'FLOOR', 'TRUNC',
+        'ROUNDUP', 'ROUNDDOWN', 'AVERAGE', 'SUM', 'COUNT', 'COUNTA', 'NOT', 'LEN', 'LEFT', 'RIGHT',
+        'MID', 'UPPER', 'LOWER', 'PI', 'E', 'MARGIN', 'DISCOUNT', 'VAT', 'MARKUP', 'SUMPRODUCT'].includes(ref) &&
       !['qty', 'thickness', 'material', 'process'].includes(ref.toLowerCase())
     )
     
