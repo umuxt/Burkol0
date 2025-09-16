@@ -239,7 +239,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          'Authorization': `Bearer ${localStorage.getItem('bk_admin_token')}`
         }
       })
       
