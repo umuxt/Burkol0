@@ -159,90 +159,56 @@ function calculatePriceServer(quote, settings) {
     const params = settings.parameters || []
     const paramValues = {}
 
-    console.log('🔧 Price calculation DEBUG:')
-    console.log('Quote data:', { id: quote.id, qty: quote.qty, material: quote.material })
-    console.log('Settings parameters:', params)
-
     for (const param of params) {
       if (param.type === 'fixed') {
         paramValues[param.id] = parseFloat(param.value) || 0
-        console.log(`Fixed param ${param.id} (${param.name}): ${paramValues[param.id]}`)
         continue
       }
       if (param.type === 'form') {
         let value = 0
         const field = param.formField
-        console.log(`Processing form param ${param.id} (${param.name}) from field: ${field}`)
-        
         if (field === 'qty') {
           value = parseFloat(quote.qty) || 0
-          console.log(`  qty value: ${quote.qty} -> ${value}`)
         } else if (field === 'thickness') {
           value = parseFloat(quote.thickness) || 0
-          console.log(`  thickness value: ${quote.thickness} -> ${value}`)
         } else if (field === 'dimensions') {
           // Prefer numeric dimsL x dimsW (area). Fallback to parsing dims string "LxW[xH]".
           const l = parseFloat(quote.dimsL)
           const w = parseFloat(quote.dimsW)
           if (!isNaN(l) && !isNaN(w)) {
             value = l * w
-            console.log(`  dimensions from dimsL x dimsW: ${l} x ${w} = ${value}`)
           } else if (quote.dims) {
             const m = String(quote.dims).match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i)
-            if (m) {
-              value = (parseFloat(m[1]) || 0) * (parseFloat(m[2]) || 0)
-              console.log(`  dimensions from dims string: ${quote.dims} -> ${value}`)
-            }
+            if (m) value = (parseFloat(m[1]) || 0) * (parseFloat(m[2]) || 0)
           }
         } else {
           const fv = quote[field]
-          console.log(`  field '${field}' raw value:`, fv)
-          
           if (Array.isArray(fv)) {
             // Sum values from lookup table for each option in array fields (e.g. process)
             if (param.lookupTable && param.lookupTable.length) {
               value = fv.reduce((sum, opt) => {
                 const found = param.lookupTable.find(r => r.option === opt)
-                const optValue = found ? (parseFloat(found.value) || 0) : 0
-                console.log(`    array option '${opt}' -> ${optValue}`)
-                return sum + optValue
+                return sum + (found ? (parseFloat(found.value) || 0) : 0)
               }, 0)
-              console.log(`  array field total: ${value}`)
             } else {
               value = fv.length || 0
-              console.log(`  array length: ${value}`)
             }
           } else if (param.lookupTable && param.lookupTable.length) {
             const item = param.lookupTable.find(r => r.option === fv)
             value = item ? (parseFloat(item.value) || 0) : 0
-            console.log(`  lookup for '${fv}': ${value}`)
-            if (!item) {
-              console.log(`  ⚠️  No lookup found for '${fv}' in:`, param.lookupTable.map(r => r.option))
-            }
           } else {
             value = parseFloat(fv) || 0
-            console.log(`  direct parse: ${value}`)
           }
         }
         paramValues[param.id] = value
-        console.log(`Final param ${param.id}: ${value}`)
       }
     }
 
-    console.log('All parameter values:', paramValues)
-
     let formula = String(settings.formula || '').replace(/^=/, '')
-    console.log('Original formula:', settings.formula)
-    console.log('Cleaned formula:', formula)
-    
     Object.keys(paramValues).forEach(id => {
       const re = new RegExp(`\\b${id}\\b`, 'g')
-      const oldFormula = formula
       formula = formula.replace(re, String(paramValues[id]))
-      console.log(`Replace ${id} with ${paramValues[id]}: ${oldFormula} -> ${formula}`)
     })
-    
-    console.log('Final formula to evaluate:', formula)
     // Evaluate safely with comprehensive Excel/Math functions available
     const mathContext = {
       // Basic Math Functions
@@ -326,19 +292,11 @@ function calculatePriceServer(quote, settings) {
     return result;
     `
     
-    console.log('Formula after substitution:', formula)
-    
     try {
       const result = Function(evalCode)(mathContext)
-      const finalResult = Number(result)
-      
-      console.log('Calculation result:', result, '-> final:', finalResult)
-      console.log('🔧 Price calculation DEBUG END\n')
-      
-      return finalResult
+      return Number(result) || 0
     } catch (evalError) {
       console.error('Formula evaluation error:', evalError)
-      console.error('Failed formula:', formula)
       return Number(quote.price) || 0
     }
   } catch (e) {
@@ -402,11 +360,15 @@ app.post('/api/quotes', async (req, res) => {
     try {
       const settings = jsondb.getSettings()
       if (settings && settings.parameters && settings.formula) {
-        const price = calculatePriceServer(q, settings)
-        if (!isNaN(price)) {
-          q.price = Number(price)
-          q.priceSettingsStamp = settings.lastUpdated || null
-          q.priceCalculatedAt = new Date().toISOString()
+        const calculatedPrice = calculatePriceServer(q, settings)
+        if (!isNaN(calculatedPrice)) {
+          // NEW PRICE VERSIONING SYSTEM
+          q.originalPrice = Number(calculatedPrice)  // Initial price
+          q.calculatedPrice = Number(calculatedPrice) // Current calculated price
+          q.price = Number(calculatedPrice) // Backward compatibility
+          q.priceLastUpdated = new Date().toISOString()
+          q.priceSettingsVersion = settings.lastUpdated || new Date().toISOString()
+          q.needsPriceUpdate = false // New quote, no update needed
         }
       }
     } catch (e) {
@@ -435,10 +397,10 @@ app.patch('/api/quotes/:id', requireAuth, async (req, res) => {
     }
 
     // If price-related fields are being updated, recalculate price and add timestamp
-    const priceFields = ['thickness', 'width', 'length', 'weight', 'area', 'diameter', 'height', 'qty']
+    const priceFields = ['thickness', 'width', 'length', 'weight', 'area', 'diameter', 'height', 'qty', 'material', 'process']
     const hasPriceField = priceFields.some(field => patch.hasOwnProperty(field))
     
-    if (hasPriceField || patch.hasOwnProperty('price')) {
+    if (hasPriceField) {
       try {
         const settings = jsondb.getSettings()
         if (settings && settings.parameters && settings.formula) {
@@ -446,11 +408,18 @@ app.patch('/api/quotes/:id', requireAuth, async (req, res) => {
           const currentQuote = readOne(id)
           if (currentQuote) {
             const updatedQuote = { ...currentQuote, ...patch }
-            const price = calculatePriceServer(updatedQuote, settings)
-            if (!isNaN(price)) {
-              patch.price = Number(price)
-              patch.priceSettingsStamp = settings.lastUpdated || null
-              patch.priceCalculatedAt = new Date().toISOString()
+            const newCalculatedPrice = calculatePriceServer(updatedQuote, settings)
+            if (!isNaN(newCalculatedPrice)) {
+              // NEW PRICE VERSIONING SYSTEM
+              patch.calculatedPrice = Number(newCalculatedPrice)
+              patch.price = Number(newCalculatedPrice) // Backward compatibility
+              patch.priceLastUpdated = new Date().toISOString()
+              patch.priceSettingsVersion = settings.lastUpdated || new Date().toISOString()
+              
+              // Check if price differs from original - if so, mark for update notification
+              const originalPrice = currentQuote.originalPrice || currentQuote.price || 0
+              const priceDifference = Math.abs(newCalculatedPrice - originalPrice)
+              patch.needsPriceUpdate = priceDifference > 0.01 // More than 1 cent difference
             }
           }
         }
@@ -468,6 +437,36 @@ app.patch('/api/quotes/:id', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('update failed:', error)
     return res.status(500).json({ error: 'update failed' })
+  }
+})
+
+// Update quote price to calculated price
+app.patch('/api/quotes/:id/price', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params
+    const quote = readOne(id)
+    
+    if (!quote) {
+      return res.status(404).json({ error: 'Quote not found' })
+    }
+
+    // Update original price to current calculated price
+    const patch = {
+      originalPrice: quote.calculatedPrice || quote.price || 0,
+      price: quote.calculatedPrice || quote.price || 0,
+      priceLastUpdated: new Date().toISOString(),
+      needsPriceUpdate: false
+    }
+
+    const ok = updateOne(id, patch)
+    if (!ok) {
+      return res.status(404).json({ error: 'Update failed' })
+    }
+
+    return res.json({ ok: true, message: 'Price updated successfully' })
+  } catch (error) {
+    console.error('Price update failed:', error)
+    return res.status(500).json({ error: 'Price update failed' })
   }
 })
 
@@ -740,6 +739,40 @@ app.post('/api/settings', requireAuth, async (req, res) => {
     }
     
     jsondb.putSettings(settings)
+
+    // RECALCULATE ALL QUOTES AND MARK THOSE NEEDING UPDATES
+    try {
+      const allQuotes = jsondb.listQuotes()
+      let updatedCount = 0
+      
+      allQuotes.forEach(quote => {
+        try {
+          const newCalculatedPrice = calculatePriceServer(quote, settings)
+          if (!isNaN(newCalculatedPrice)) {
+            const originalPrice = quote.originalPrice || quote.price || 0
+            const priceDifference = Math.abs(newCalculatedPrice - originalPrice)
+            const needsUpdate = priceDifference > 0.01 // More than 1 cent difference
+            
+            if (quote.calculatedPrice !== newCalculatedPrice || quote.needsPriceUpdate !== needsUpdate) {
+              // Update quote with new calculated price
+              jsondb.putQuote({
+                ...quote,
+                calculatedPrice: Number(newCalculatedPrice),
+                needsPriceUpdate: needsUpdate,
+                priceSettingsVersion: settings.lastUpdated
+              })
+              updatedCount++
+            }
+          }
+        } catch (e) {
+          console.error(`Error updating quote ${quote.id}:`, e)
+        }
+      })
+      
+      console.log(`Settings updated. Recalculated ${updatedCount} quotes.`)
+    } catch (e) {
+      console.error('Error recalculating quotes after settings update:', e)
+    }
     
     res.json({ 
       ok: true, 

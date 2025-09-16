@@ -62,28 +62,21 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   // Calculate price using formula and parameters
   function calculatePrice(quote) {
     if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
-      console.log('❌ calculatePrice: Missing settings or formula')
-      return quote.price || 0
+      return quote.calculatedPrice || quote.price || 0
     }
 
     try {
-      console.log('🧮 Client-side price calculation DEBUG:')
-      console.log('Quote data:', { id: quote.id, qty: quote.qty, material: quote.material })
-      console.log('Settings:', priceSettings)
-
       // Create parameter values map
       const paramValues = {}
       
       priceSettings.parameters.forEach(param => {
         if (param.type === 'fixed') {
           paramValues[param.id] = parseFloat(param.value) || 0
-          console.log(`Fixed param ${param.id}: ${paramValues[param.id]}`)
         } else if (param.type === 'form') {
           let value = 0
           
           if (param.formField === 'qty') {
             value = parseFloat(quote.qty) || 0
-            console.log(`Qty field: ${quote.qty} -> ${value}`)
           } else if (param.formField === 'thickness') {
             value = parseFloat(quote.thickness) || 0
           } else if (param.formField === 'dimensions') {
@@ -102,7 +95,6 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
           } else {
             // For fields with lookup table or arrays
             const fieldValue = quote[param.formField]
-            console.log(`Field '${param.formField}' raw value:`, fieldValue)
             
             if (Array.isArray(fieldValue)) {
               if (param.lookupTable && param.lookupTable.length > 0) {
@@ -116,7 +108,6 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
             } else if (param.lookupTable && param.lookupTable.length > 0) {
               const lookupItem = param.lookupTable.find(item => item.option === fieldValue)
               value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
-              console.log(`Lookup for '${fieldValue}': ${value}`)
             } else {
               // Direct form value for fields without lookup
               value = parseFloat(quote[param.formField]) || 0
@@ -124,26 +115,17 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
           }
           
           paramValues[param.id] = value
-          console.log(`Final param ${param.id}: ${value}`)
         }
       })
 
-      console.log('All param values:', paramValues)
-
       // Evaluate formula with comprehensive math functions
       let formula = priceSettings.formula.replace(/^=/, '') // Remove leading =
-      console.log('Original formula:', priceSettings.formula)
-      console.log('Cleaned formula:', formula)
       
       // Replace parameter IDs with actual values
       Object.keys(paramValues).forEach(paramId => {
         const regex = new RegExp(`\\b${paramId}\\b`, 'g')
-        const oldFormula = formula
         formula = formula.replace(regex, paramValues[paramId])
-        console.log(`Replace ${paramId} with ${paramValues[paramId]}: ${oldFormula} -> ${formula}`)
       })
-
-      console.log('Final formula:', formula)
 
       // Create comprehensive math context matching server-side
       const mathContext = {
@@ -223,79 +205,54 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
       evalCode += `return (${formula});`
       
       const result = Function('"use strict"; ' + evalCode)()
-      const finalResult = isNaN(result) ? (quote.price || 0) : result
-      
-      console.log('Client calculation result:', result, '-> final:', finalResult)
-      console.log('🧮 Client price calculation DEBUG END\n')
-      
-      return finalResult
+      return isNaN(result) ? (quote.calculatedPrice || quote.price || 0) : result
       
     } catch (e) {
       console.error('Price calculation error:', e)
-      return quote.price || 0
+      return quote.calculatedPrice || quote.price || 0
     }
   }
+  }
 
-  // Check if calculated price differs significantly from stored price - OPTIMIZED
+  // Check if quote needs price update based on new versioning system
   function needsPriceUpdate(quote) {
-    if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
-      return false
+    // Use server-calculated needsPriceUpdate flag first
+    if (quote.needsPriceUpdate === true) {
+      return true
     }
     
-    try {
-      // Check if settings have been updated after quote was last calculated
-      const settingsUpdated = priceSettings.lastUpdated || null
-      const quoteCalculated = quote.priceCalculatedAt || quote.createdAt || null
-      
-      // If settings were updated after quote calculation, show update warning
-      const settingsNewer = settingsUpdated && quoteCalculated && 
-        new Date(settingsUpdated).getTime() > new Date(quoteCalculated).getTime()
-      
-      const calculatedPrice = calculatePrice(quote)
-      const storedPrice = parseFloat(quote.price) || 0
-      
-      // Only show warning if there's a significant price difference (>1%) OR settings are newer
-      const priceThreshold = Math.max(storedPrice * 0.01, 0.5) // 1% or minimum 0.5 TL
-      const priceDiffers = Math.abs(calculatedPrice - storedPrice) > priceThreshold
-      
-      const needsUpdate = priceDiffers || settingsNewer
-      
-      // Log for debugging (remove in production)
-      if (needsUpdate) {
-        console.log(`Price update needed for quote ${quote.id}:`, {
-          calculatedPrice: calculatedPrice.toFixed(2),
-          storedPrice: storedPrice.toFixed(2),
-          difference: (calculatedPrice - storedPrice).toFixed(2),
-          threshold: priceThreshold.toFixed(2),
-          settingsNewer,
-          settingsUpdated,
-          quoteCalculated
-        })
-      }
-      
-      return needsUpdate
-      
-    } catch (e) {
-      console.error('Price calculation error for needsPriceUpdate:', e)
-      return false
+    // Fallback: compare calculated vs original price if available
+    if (quote.calculatedPrice !== undefined && quote.originalPrice !== undefined) {
+      const priceDifference = Math.abs(quote.calculatedPrice - quote.originalPrice)
+      return priceDifference > 0.01 // More than 1 cent difference
     }
+    
+    // Legacy fallback: if no versioning data, don't show update
+    return false
   }
 
   // Popup for price update
   const [priceReview, setPriceReview] = useState(null) // { item, newPrice }
   async function applyNewPrice(item) {
     try {
-      const newPrice = calculatePrice(item)
-      await API.updateQuote(item.id, { 
-        price: Number(newPrice), 
-        priceUpdatedAt: new Date().toISOString(), 
-        priceSettingsStamp: priceSettings && priceSettings.lastUpdated ? priceSettings.lastUpdated : null 
+      // Use new price update endpoint
+      const response = await fetch(`/api/quotes/${item.id}/price`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        }
       })
+      
+      if (!response.ok) {
+        throw new Error('Price update failed')
+      }
+      
       showNotification && showNotification('Fiyat güncellendi', 'success')
       setPriceReview(null)
       refresh()
     } catch (e) {
-      console.error(e)
+      console.error('Price update error:', e)
       showNotification && showNotification('Fiyat güncellenemedi', 'error')
     }
   }
@@ -826,7 +783,14 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
                           boxShadow: '0 2px 4px rgba(255,68,68,0.3)'
                         },
                         title: `Fiyat güncellenmeli! Formül veya parametreler değişti.` ,
-                        onClick: (e) => { e.stopPropagation(); setPriceReview({ item: it, newPrice: calculatePrice(it) }) }
+                        onClick: (e) => { 
+                          e.stopPropagation(); 
+                          setPriceReview({ 
+                            item: it, 
+                            newPrice: it.calculatedPrice || calculatePrice(it),
+                            originalPrice: it.originalPrice || it.price || 0
+                          }) 
+                        }
                       }, '⚠ GÜNCELLE')
                     )
                   })()),
@@ -925,13 +889,31 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     priceReview ? (function () {
       const pr = priceReview
       const overlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)' }
-      const box = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#111', color: '#fff', padding: 16, borderRadius: 8, width: 320 }
+      const box = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#111', color: '#fff', padding: 16, borderRadius: 8, width: 380 }
+      const originalPrice = pr.originalPrice || 0
+      const newPrice = pr.newPrice || 0
+      const difference = newPrice - originalPrice
+      const isIncrease = difference > 0
+      
       return React.createElement(React.Fragment, null,
         React.createElement('div', { style: overlay, onClick: () => setPriceReview(null) }),
         React.createElement('div', { style: box },
-          React.createElement('h3', { style: { marginTop: 0 } }, 'Yeni fiyat önerisi'),
-          React.createElement('div', { style: { margin: '8px 0 16px' } }, `Hesaplanan: ₺ ${Number(pr.newPrice || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`),
-          React.createElement('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+          React.createElement('h3', { style: { marginTop: 0 } }, 'Fiyat Güncelleme'),
+          React.createElement('div', { style: { margin: '8px 0' } }, 
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 } },
+              React.createElement('span', null, 'Mevcut fiyat:'),
+              React.createElement('span', null, `₺ ${originalPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+            ),
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 4 } },
+              React.createElement('span', null, 'Yeni fiyat:'),
+              React.createElement('span', { style: { fontWeight: 'bold' } }, `₺ ${newPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+            ),
+            React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', color: isIncrease ? '#ff6b6b' : '#51cf66' } },
+              React.createElement('span', null, 'Fark:'),
+              React.createElement('span', { style: { fontWeight: 'bold' } }, `${isIncrease ? '+' : ''}₺ ${difference.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`)
+            )
+          ),
+          React.createElement('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 } },
             React.createElement('button', { className: 'btn', onClick: () => setPriceReview(null) }, 'Kapat'),
             React.createElement('button', { className: 'btn accent', onClick: () => applyNewPrice(pr.item) }, 'Fiyatı Güncelle')
           )
