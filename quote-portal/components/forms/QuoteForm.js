@@ -84,7 +84,7 @@ export default function QuoteForm({ t, showNotification }) {
     ]
     for (const [k, v] of intFields) {
       if (v !== '' && v != null) {
-        if (!/^\\d+$/.test(String(v))) e[k] = t.integer_required
+        if (!/^\d+$/.test(String(v))) e[k] = t.integer_required
         else if (Number(v) <= 0) e[k] = t.must_be_positive
       }
     }
@@ -92,17 +92,17 @@ export default function QuoteForm({ t, showNotification }) {
     const numFields = [ ['dimsL', form.dimsL], ['dimsW', form.dimsW], ['dimsH', form.dimsH] ]
     for (const [k, v] of numFields) {
       if (v !== '' && v != null) {
-        if (!/^\\d*(?:\\.\\d+)?$/.test(String(v))) e[k] = t.only_numbers
+        if (!/^\d*(?:\.\d+)?$/.test(String(v))) e[k] = t.only_numbers
         else if (Number(v) < 0) e[k] = t.must_be_positive
       }
     }
     // Budget amount: number >= 0
     if (form.budgetAmount !== '' && form.budgetAmount != null) {
-      if (!/^\\d*(?:\\.\\d+)?$/.test(String(form.budgetAmount))) e.budgetAmount = t.only_numbers
+      if (!/^\d*(?:\.\d+)?$/.test(String(form.budgetAmount))) e.budgetAmount = t.only_numbers
     }
     // RAL code when powder coat
     if (form.finish === 'Toz Boya' && form.finishRal) {
-      if (!/^RAL\\s*\\d{3,4}$/i.test(form.finishRal.trim())) e.finishRal = t.invalid_ral
+      if (!/^RAL\s*\d{3,4}$/i.test(form.finishRal.trim())) e.finishRal = t.invalid_ral
     }
     // Due date basic validity
     if (form.due) {
