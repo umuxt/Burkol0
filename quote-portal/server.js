@@ -153,6 +153,50 @@ function requireAuth(req, res, next) {
 const UPLOAD_DIR = path.join(ROOT, 'uploads')
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true })
 
+// --- Helper Functions ---
+function sanitizeInput(input) {
+  if (typeof input !== 'string') return input;
+  // Basic XSS prevention
+  return input.replace(/<script[^>]*>.*?<\/script>/gi, '')
+              .replace(/<[^>]*>/g, '')
+              .trim()
+}
+
+function validateQuoteData(q) {
+  const errors = []
+  
+  // Required field validation
+  if (!q.id || typeof q.id !== 'string' || q.id.trim().length === 0) {
+    errors.push('ID is required')
+  }
+  
+  // Email validation (if provided)
+  if (q.email && typeof q.email === 'string') {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(q.email)) {
+      errors.push('Invalid email format')
+    }
+  }
+  
+  // Quantity validation (if provided)
+  if (q.qty !== undefined && q.qty !== null) {
+    const qtyNum = Number(q.qty)
+    if (isNaN(qtyNum) || qtyNum < 0) {
+      errors.push('Quantity must be a positive number')
+    }
+  }
+  
+  // Phone validation (basic)
+  if (q.phone && typeof q.phone === 'string') {
+    const phoneRegex = /^[\d\s\-\+\(\)\.]{7,}$/
+    if (!phoneRegex.test(q.phone.replace(/\s/g, ''))) {
+      errors.push('Invalid phone number format')
+    }
+  }
+  
+  return errors
+}
+
 // --- Pricing helper (server-side) ---
 function calculatePriceServer(quote, settings) {
   try {
@@ -352,6 +396,24 @@ app.post('/api/quotes', async (req, res) => {
     if (!q || !q.id) {
       return res.status(400).json({ error: 'invalid payload' })
     }
+
+    // Validate and sanitize input data
+    const validationErrors = validateQuoteData(q)
+    if (validationErrors.length > 0) {
+      return res.status(400).json({ 
+        error: 'validation_failed', 
+        message: 'Invalid data provided',
+        details: validationErrors 
+      })
+    }
+
+    // Sanitize string fields
+    const sanitizedFields = ['name', 'email', 'phone', 'proj', 'material', 'notes', 'company']
+    sanitizedFields.forEach(field => {
+      if (q[field]) {
+        q[field] = sanitizeInput(q[field])
+      }
+    })
 
     // Persist attachments if provided as data URLs
     if (Array.isArray(q.files)) {
@@ -717,15 +779,12 @@ app.post('/api/migrate/ids', requireAuth, async (req, res) => {
 })
 
 // Form Configuration endpoints
-app.get('/api/form-config', requireAuth, async (req, res) => {
+app.get('/api/form-config', async (req, res) => {
   try {
     const systemConfig = jsondb.getSystemConfig()
     res.json({
       formConfig: systemConfig.formConfig,
-      pricingConfig: {
-        isConfigured: systemConfig.pricingConfig.isConfigured,
-        version: systemConfig.pricingConfig.version
-      },
+      // Pricing config omitted for public access
       migrationStatus: systemConfig.migrationStatus || 'completed'
     })
   } catch (error) {
