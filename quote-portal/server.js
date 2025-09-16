@@ -159,56 +159,90 @@ function calculatePriceServer(quote, settings) {
     const params = settings.parameters || []
     const paramValues = {}
 
+    console.log('🔧 Price calculation DEBUG:')
+    console.log('Quote data:', { id: quote.id, qty: quote.qty, material: quote.material })
+    console.log('Settings parameters:', params)
+
     for (const param of params) {
       if (param.type === 'fixed') {
         paramValues[param.id] = parseFloat(param.value) || 0
+        console.log(`Fixed param ${param.id} (${param.name}): ${paramValues[param.id]}`)
         continue
       }
       if (param.type === 'form') {
         let value = 0
         const field = param.formField
+        console.log(`Processing form param ${param.id} (${param.name}) from field: ${field}`)
+        
         if (field === 'qty') {
           value = parseFloat(quote.qty) || 0
+          console.log(`  qty value: ${quote.qty} -> ${value}`)
         } else if (field === 'thickness') {
           value = parseFloat(quote.thickness) || 0
+          console.log(`  thickness value: ${quote.thickness} -> ${value}`)
         } else if (field === 'dimensions') {
           // Prefer numeric dimsL x dimsW (area). Fallback to parsing dims string "LxW[xH]".
           const l = parseFloat(quote.dimsL)
           const w = parseFloat(quote.dimsW)
           if (!isNaN(l) && !isNaN(w)) {
             value = l * w
+            console.log(`  dimensions from dimsL x dimsW: ${l} x ${w} = ${value}`)
           } else if (quote.dims) {
             const m = String(quote.dims).match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i)
-            if (m) value = (parseFloat(m[1]) || 0) * (parseFloat(m[2]) || 0)
+            if (m) {
+              value = (parseFloat(m[1]) || 0) * (parseFloat(m[2]) || 0)
+              console.log(`  dimensions from dims string: ${quote.dims} -> ${value}`)
+            }
           }
         } else {
           const fv = quote[field]
+          console.log(`  field '${field}' raw value:`, fv)
+          
           if (Array.isArray(fv)) {
             // Sum values from lookup table for each option in array fields (e.g. process)
             if (param.lookupTable && param.lookupTable.length) {
               value = fv.reduce((sum, opt) => {
                 const found = param.lookupTable.find(r => r.option === opt)
-                return sum + (found ? (parseFloat(found.value) || 0) : 0)
+                const optValue = found ? (parseFloat(found.value) || 0) : 0
+                console.log(`    array option '${opt}' -> ${optValue}`)
+                return sum + optValue
               }, 0)
+              console.log(`  array field total: ${value}`)
             } else {
               value = fv.length || 0
+              console.log(`  array length: ${value}`)
             }
           } else if (param.lookupTable && param.lookupTable.length) {
             const item = param.lookupTable.find(r => r.option === fv)
             value = item ? (parseFloat(item.value) || 0) : 0
+            console.log(`  lookup for '${fv}': ${value}`)
+            if (!item) {
+              console.log(`  ⚠️  No lookup found for '${fv}' in:`, param.lookupTable.map(r => r.option))
+            }
           } else {
             value = parseFloat(fv) || 0
+            console.log(`  direct parse: ${value}`)
           }
         }
         paramValues[param.id] = value
+        console.log(`Final param ${param.id}: ${value}`)
       }
     }
 
+    console.log('All parameter values:', paramValues)
+
     let formula = String(settings.formula || '').replace(/^=/, '')
+    console.log('Original formula:', settings.formula)
+    console.log('Cleaned formula:', formula)
+    
     Object.keys(paramValues).forEach(id => {
       const re = new RegExp(`\\b${id}\\b`, 'g')
+      const oldFormula = formula
       formula = formula.replace(re, String(paramValues[id]))
+      console.log(`Replace ${id} with ${paramValues[id]}: ${oldFormula} -> ${formula}`)
     })
+    
+    console.log('Final formula to evaluate:', formula)
     // Evaluate safely with comprehensive Excel/Math functions available
     const mathContext = {
       // Basic Math Functions
@@ -286,8 +320,15 @@ function calculatePriceServer(quote, settings) {
     let evalCode = Object.keys(mathContext).map(key => `const ${key} = ${mathContext[key]};`).join(' ')
     evalCode += `return (${formula});`
     
+    console.log('Eval code:', evalCode)
+    
     const result = Function('"use strict"; ' + evalCode)()
-    return Number(result)
+    const finalResult = Number(result)
+    
+    console.log('Calculation result:', result, '-> final:', finalResult)
+    console.log('🔧 Price calculation DEBUG END\n')
+    
+    return finalResult
   } catch (e) {
     console.error('calculatePriceServer failed:', e)
     return Number(quote.price) || 0
