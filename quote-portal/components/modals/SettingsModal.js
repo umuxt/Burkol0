@@ -640,15 +640,15 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                   React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse' } },
                     React.createElement('thead', null,
                       React.createElement('tr', null,
-                        React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', fontSize: '12px', textAlign: 'left' } }, 'Seçenek'),
-                        React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', fontSize: '12px', textAlign: 'left' } }, 'Değer')
+                        React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', fontSize: '12px', textAlign: 'left', color: '#333' } }, 'Seçenek'),
+                        React.createElement('th', { style: { border: '1px solid #ddd', padding: '8px', backgroundColor: '#f8f9fa', fontSize: '12px', textAlign: 'left', color: '#333' } }, 'Değer')
                       )
                     ),
                     React.createElement('tbody', null,
                       getFieldOptions(selectedFormField).map(option => {
                         const existingValue = lookupTable.find(item => item.option === option)?.value || ''
                         return React.createElement('tr', { key: option },
-                          React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', fontSize: '12px' } }, option),
+                          React.createElement('td', { style: { border: '1px solid #ddd', padding: '8px', fontSize: '12px', color: '#333' } }, option),
                           React.createElement('td', { style: { border: '1px solid #ddd', padding: '4px' } },
                             React.createElement('input', {
                               type: 'number',
@@ -664,7 +664,7 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                                   return filtered
                                 })
                               },
-                              style: { width: '100%', padding: '4px', border: '1px solid #ccc', borderRadius: '3px', fontSize: '12px' }
+                              style: { width: '100%', padding: '4px', border: '1px solid #ccc', borderRadius: '3px', fontSize: '12px', color: '#333' }
                             })
                           )
                         )

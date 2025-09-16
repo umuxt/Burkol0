@@ -209,8 +209,25 @@ function calculatePriceServer(quote, settings) {
       const re = new RegExp(`\\b${id}\\b`, 'g')
       formula = formula.replace(re, String(paramValues[id]))
     })
-    // Evaluate safely-ish
-    const result = Function('"use strict"; return (' + formula + ')')()
+    // Evaluate safely with Math functions available
+    const mathContext = {
+      SQRT: Math.sqrt,
+      ROUND: Math.round,
+      MAX: Math.max,
+      MIN: Math.min,
+      ABS: Math.abs,
+      POWER: Math.pow,
+      SIN: Math.sin,
+      COS: Math.cos,
+      PI: Math.PI,
+      E: Math.E
+    }
+    
+    // Add math functions to formula context
+    let evalCode = Object.keys(mathContext).map(key => `const ${key} = ${mathContext[key]};`).join(' ')
+    evalCode += `return (${formula});`
+    
+    const result = Function('"use strict"; ' + evalCode)()
     return Number(result)
   } catch (e) {
     console.error('calculatePriceServer failed:', e)
