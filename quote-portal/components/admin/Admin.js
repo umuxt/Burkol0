@@ -689,7 +689,9 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
                   },
                   onClick: () => setDetail(it)
                 },
-                  React.createElement('td', null,
+                  React.createElement('td', { 
+                    onClick: (e) => e.stopPropagation() // Prevent row click when clicking checkbox
+                  },
                     React.createElement('input', { type: 'checkbox', checked: selected.has(it.id), onChange: (e) => toggleOne(it.id, e.target.checked) })
                   ),
                   React.createElement('td', { style: { whiteSpace: 'nowrap' } }, (it.createdAt||'').slice(0,10)),
