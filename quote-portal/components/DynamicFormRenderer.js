@@ -1,5 +1,5 @@
 import API from '../lib/api.js'
-import { uid } from '../lib/utils.js'
+import { uid, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, extOf, readFileAsDataUrl, isImageExt } from '../lib/utils.js'
 
 const { useState, useEffect } = React
 
@@ -9,6 +9,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
   const [formConfig, setFormConfig] = useState(null)
   const [formData, setFormData] = useState(initialData)
   const [errors, setErrors] = useState({})
+  const [uploadingFiles, setUploadingFiles] = useState(false)
 
   useEffect(() => {
     loadFormConfig()
@@ -28,6 +29,47 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
       showNotification('Form konfigürasyonu yüklenemedi', 'error')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleFileUpload(fieldId, files, isCustomField = false) {
+    setUploadingFiles(true)
+    try {
+      const validFiles = []
+      
+      for (const file of Array.from(files)) {
+        // Validate file extension
+        const ext = extOf(file.name)
+        if (!ACCEPT_EXT.includes(ext)) {
+          showNotification(`Desteklenmeyen dosya türü: ${ext}`, 'error')
+          continue
+        }
+        
+        // Validate file size
+        if (file.size > MAX_FILE_MB * 1024 * 1024) {
+          showNotification(`Dosya çok büyük: ${file.name} (max ${MAX_FILE_MB}MB)`, 'error')
+          continue
+        }
+        
+        // Read file as data URL
+        const dataUrl = await readFileAsDataUrl(file)
+        validFiles.push({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          dataUrl: dataUrl
+        })
+      }
+      
+      if (validFiles.length > 0) {
+        handleFieldChange(fieldId, validFiles, isCustomField)
+        showNotification(`${validFiles.length} dosya yüklendi`, 'success')
+      }
+    } catch (error) {
+      console.error('File upload error:', error)
+      showNotification('Dosya yükleme hatası', 'error')
+    } finally {
+      setUploadingFiles(false)
     }
   }
 
@@ -312,15 +354,70 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
         break
 
       case 'file':
-        inputElement = React.createElement('input', {
-          ...commonProps,
-          type: 'file',
-          multiple: true,
-          onChange: (e) => {
-            // Handle file upload - this would need additional logic
-            console.log('File upload not yet implemented', e.target.files)
-          }
-        })
+        const currentFiles = isCustomField ? formData.customFields?.[fieldId] : formData[fieldId]
+        inputElement = React.createElement('div', { className: 'file-upload-container' },
+          React.createElement('div', {
+            className: 'file-upload-area',
+            onDragOver: (e) => {
+              e.preventDefault()
+              e.currentTarget.classList.add('dragover')
+            },
+            onDragLeave: (e) => {
+              e.currentTarget.classList.remove('dragover')
+            },
+            onDrop: (e) => {
+              e.preventDefault()
+              e.currentTarget.classList.remove('dragover')
+              handleFileUpload(fieldId, e.dataTransfer.files, isCustomField)
+            },
+            onClick: () => document.getElementById(`file-input-${fieldId}`).click()
+          },
+            React.createElement('input', {
+              id: `file-input-${fieldId}`,
+              type: 'file',
+              multiple: true,
+              accept: ACCEPT_EXT.map(ext => `.${ext}`).join(','),
+              style: { display: 'none' },
+              onChange: (e) => handleFileUpload(fieldId, e.target.files, isCustomField)
+            }),
+            React.createElement('div', { className: 'upload-text' },
+              uploadingFiles ? 'Yükleniyor...' : 'Dosya seçin veya sürükleyip bırakın',
+              React.createElement('div', { className: 'upload-help' },
+                `Desteklenen formatlar: ${ACCEPT_EXT.join(', ')}`
+              )
+            )
+          ),
+          currentFiles && currentFiles.length > 0 && 
+          React.createElement('div', { className: 'file-preview' },
+            currentFiles.map((file, index) => 
+              React.createElement('div', { key: index, className: 'file-item' },
+                React.createElement('div', { className: 'file-icon' },
+                  isImageExt(file.type) ? 
+                    React.createElement('img', { 
+                      src: file.dataUrl, 
+                      alt: file.name,
+                      style: { width: '40px', height: '40px', objectFit: 'cover' }
+                    }) :
+                    React.createElement('span', null, extOf(file.name).toUpperCase())
+                ),
+                React.createElement('div', { className: 'file-info' },
+                  React.createElement('div', { className: 'file-name' }, file.name),
+                  React.createElement('div', { className: 'file-size' }, 
+                    `${(file.size / 1024).toFixed(1)} KB`
+                  )
+                ),
+                React.createElement('button', {
+                  type: 'button',
+                  className: 'btn-remove',
+                  onClick: () => {
+                    const newFiles = currentFiles.filter((_, i) => i !== index)
+                    handleFieldChange(fieldId, newFiles, isCustomField)
+                  }
+                }, '×')
+              )
+            )
+          )
+        )
         break
 
       default:

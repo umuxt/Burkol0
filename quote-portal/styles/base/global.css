@@ -1,0 +1,75 @@
+/* Global Reset and Base Styles */
+
+/* CSS Reset */
+* { 
+  box-sizing: border-box; 
+}
+
+html, body { 
+  height: 100%; 
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-family);
+  background: linear-gradient(180deg, var(--bg), #091119);
+  color: var(--text);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}
+
+/* Container */
+.container { 
+  max-width: 1200px; 
+  margin: 0 auto; 
+  padding: var(--spacing-lg); 
+}
+
+/* Grid System */
+.grid { 
+  display: grid; 
+  gap: var(--spacing-md); 
+}
+
+.grid.two { 
+  grid-template-columns: repeat(2, minmax(0, 1fr)); 
+}
+
+.grid.three { 
+  grid-template-columns: repeat(3, minmax(0, 1fr)); 
+}
+
+.grid.three .span-2 { 
+  grid-column: span 2; 
+}
+
+.grid.three .span-3 { 
+  grid-column: 1 / -1; 
+}
+
+@media (max-width: 900px) {
+  .grid.two, .grid.three { 
+    grid-template-columns: 1fr; 
+  }
+}
+
+/* Card */
+.card { 
+  background: linear-gradient(180deg, var(--surface), #0c1924); 
+  border: 1px solid rgba(255,255,255,0.06); 
+  border-radius: var(--radius-lg); 
+  padding: var(--spacing-lg); 
+}
+
+/* Typography */
+.page-title { 
+  margin: 28px 0 10px; 
+  font-size: var(--font-size-2xl); 
+  font-weight: 700; 
+}
+
+.page-sub { 
+  margin: 0 0 20px; 
+  color: var(--muted); 
+  font-size: var(--font-size-sm); 
+}

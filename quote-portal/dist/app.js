@@ -13,7 +13,7 @@ if (typeof window !== 'undefined' && !window.ReactDOM) {
 
 import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from './i18n/index.js'
 import API, { API_BASE } from './lib/api.js'
-import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from './lib/utils.js'
+import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt, formatPrice } from './lib/utils.js'
 import Field from './components/Field.js'
 import Modal from './components/Modal.js'
 import DynamicFormRenderer from './components/DynamicFormRenderer.js'
@@ -56,8 +56,7 @@ import { ToastNotification, useNotifications } from './hooks/useNotifications.js
             React.createElement('div', { style: { width: 12 } }),
             React.createElement('select', {
               value: lang,
-              onChange: (e) => onLang(e.target.value),
-              style: { padding: '8px 10px', borderRadius: 8 },
+              onChange: (e) => onLang(e.target.value)
             },
               React.createElement('option', { value: 'tr' }, 'Türkçe'),
               React.createElement('option', { value: 'en' }, 'English'),
@@ -189,16 +188,14 @@ import { ToastNotification, useNotifications } from './hooks/useNotifications.js
           React.createElement('label', { style: { marginBottom: 4 } }, 'E-posta'),
           React.createElement('input', {
             type: 'email', name: 'email', required: true,
-            value: email, onChange: (e) => setEmail(e.target.value),
-            style: { padding: 10, borderRadius: 4, border: '1px solid #ccc', fontSize: 14, width: '100%' }
+            value: email, onChange: (e) => setEmail(e.target.value)
           })
         ),
         React.createElement('div', { className: 'field', style: { marginBottom: 16 } },
           React.createElement('label', { style: { marginBottom: 4 } }, 'Şifre'),
           React.createElement('input', {
             type: 'password', name: 'password', required: true,
-            value: password, onChange: (e) => setPassword(e.target.value),
-            style: { padding: 10, borderRadius: 4, border: '1px solid #ccc', fontSize: 14, width: '100%' }
+            value: password, onChange: (e) => setPassword(e.target.value)
           })
         ),
         React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginTop: 10,  } },

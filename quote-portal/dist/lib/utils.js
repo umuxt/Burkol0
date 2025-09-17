@@ -57,3 +57,47 @@ export function isImageExt(extOrMime) {
   return e.startsWith('image/') || ['png','jpg','jpeg'].includes(e)
 }
 
+// Price formatting function
+export function formatPrice(price, currency = 'USD') {
+  if (typeof price !== 'number') {
+    price = parseFloat(price) || 0
+  }
+  
+  const formatted = price.toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })
+  
+  return `${formatted} ${currency}`
+}
+
+// Date formatting function
+export function formatDate(date) {
+  if (!date) return ''
+  
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return ''
+  
+  return d.toLocaleDateString('tr-TR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  })
+}
+
+// Time formatting function
+export function formatDateTime(date) {
+  if (!date) return ''
+  
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return ''
+  
+  return d.toLocaleString('tr-TR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+

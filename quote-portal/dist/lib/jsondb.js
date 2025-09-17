@@ -305,6 +305,9 @@ export default {
   // settings
   getSettings,
   putSettings,
+  // price settings
+  getPriceSettings: getSettings,
+  savePriceSettings: putSettings,
   // form config
   getSystemConfig,
   putSystemConfig,

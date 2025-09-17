@@ -1,0 +1,101 @@
+/* Form Base Styles */
+
+label { 
+  display: block; 
+  font-size: var(--font-size-sm); 
+  color: var(--muted); 
+  margin-bottom: var(--spacing-sm); 
+  font-weight: 500;
+}
+
+input, select, textarea { 
+  width: 100%; 
+  padding: var(--spacing-sm) var(--spacing-sm); 
+  border-radius: var(--radius-md); 
+  border: 1px solid black; 
+  background: white;
+  color: black;
+  font-size: var(--font-size-base);
+  font-family: var(--font-family);
+  transition: var(--transition-fast);
+}
+
+input::placeholder, 
+textarea::placeholder {
+  color: black;
+  opacity: 0.7;
+}
+
+input:focus, 
+select:focus, 
+textarea:focus {
+  color: black;
+  outline: none;
+  border-color: var(--form-focus);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+}
+
+input:invalid,
+textarea:invalid {
+  border-color: var(--form-error);
+}
+
+input:valid,
+textarea:valid {
+  border-color: var(--form-success);
+}
+
+/* Field Groups */
+.field { 
+  margin-bottom: var(--spacing-md); 
+}
+
+.field.error input,
+.field.error textarea,
+.field.error select {
+  border-color: var(--form-error);
+}
+
+.field.error label {
+  color: var(--form-error);
+}
+
+.field-error {
+  color: var(--form-error);
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-xs);
+}
+
+.field-help {
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+  margin-top: var(--spacing-xs);
+}
+
+/* Specific Form Elements */
+select {
+  cursor: pointer;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: auto;
+  margin-right: var(--spacing-sm);
+}
+
+input[type="file"] {
+  padding: var(--spacing-sm);
+  background: var(--form-bg);
+  color: var(--text);
+  border: 1px dashed var(--form-border);
+}
+
+input[type="file"]:focus {
+  border-color: var(--form-focus);
+  border-style: solid;
+}

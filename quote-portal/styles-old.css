@@ -103,23 +103,23 @@ body {
 label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
 input, select, textarea { 
   width: 100%; 
-  padding: 10px 12px; 
+  padding: 1.5px; 
   border-radius: 8px; 
-  border: 1px solid rgba(255,255,255,0.12); 
-  background: rgba(255,255,255,0.05); 
-  color: var(--text); /* FIXED: Use theme text color for dark mode visibility */
+  border: 1px solid black; 
+  background: white; /* Beyaz arka plan */
+  color: black; /* Form elemanlarındaki metin rengi siyah */
 }
 input::placeholder, textarea::placeholder {
-  color: var(--muted); /* FIXED: Use theme muted color for placeholders */
+  color: black; /* Placeholder metinleri siyah */
 }
 .field input::placeholder, 
 .field textarea::placeholder {
-  color: var(--muted) !important;
+  color: black !important; /* Field placeholder'ları da siyah */
 }
 input:focus, select:focus, textarea:focus {
-  color: var(--text); /* FIXED: Keep theme text color when focused */
-  background: rgba(255,255,255,0.08);
-  border-color: var(--accent);
+  color: black; /* Focus durumunda da metin siyah */
+  background: white; /* Focus'ta da beyaz arka plan */
+  border-color: black; /* Focus border'ı da siyah */
   outline: none;
 }
 /* Keep selects styled as buttons when used as actions */
@@ -254,11 +254,11 @@ th img[alt="Filtre"]:hover {
 .filter-popup label:hover { background: rgba(255,255,255,0.05); }
 .filter-popup input[type="checkbox"] { margin-right: 8px; }
 .filter-popup input[type="text"], .filter-popup input[type="date"], .filter-popup input[type="number"] { 
-  width: 100%; padding: 8px; background: var(--bg); border: 1px solid rgba(255,255,255,0.1); 
-  border-radius: 4px; color: var(--text); font-size: 14px;
+  width: 100%; padding: 1.5px; background: white; border: 1px solid black; 
+  border-radius: 4px; color: black; font-size: 14px;
 }
 .filter-popup input[type="text"]:focus, .filter-popup input[type="date"]:focus, .filter-popup input[type="number"]:focus {
-  outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(212,175,55,0.2);
+  outline: none; border-color: black; box-shadow: 0 0 0 2px rgba(0,0,0,0.2);
 }
 .filter-popup button { 
   padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s ease;
@@ -286,6 +286,144 @@ th img[alt="Filtre"]:hover {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
+}
+
+/* FormBuilder içindeki tüm input, select, textarea elemanları için özel stiller */
+.form-builder input,
+.form-builder select,
+.form-builder textarea {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important; /* Beyaz arka plan */
+}
+
+.form-builder input::placeholder,
+.form-builder textarea::placeholder {
+  color: black !important;
+}
+
+.form-builder input:focus,
+.form-builder select:focus,
+.form-builder textarea:focus {
+  border-color: black !important;
+  color: black !important;
+  background: white !important; /* Focus'ta da beyaz arka plan */
+}
+
+/* DynamicFormRenderer için özel stiller */
+.dynamic-form input,
+.dynamic-form select,
+.dynamic-form textarea {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+}
+
+.dynamic-form input::placeholder,
+.dynamic-form textarea::placeholder {
+  color: black !important;
+}
+
+.dynamic-form input:focus,
+.dynamic-form select:focus,
+.dynamic-form textarea:focus {
+  border-color: black !important;
+  color: black !important;
+  background: white !important;
+}
+
+/* QuoteForm için özel stiller */
+.quote-form input,
+.quote-form select,
+.quote-form textarea {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+}
+
+.quote-form input::placeholder,
+.quote-form textarea::placeholder {
+  color: black !important;
+}
+
+.quote-form input:focus,
+.quote-form select:focus,
+.quote-form textarea:focus {
+  border-color: black !important;
+  color: black !important;
+  background: white !important;
+}
+
+/* DetailModal için özel stiller */
+.detail-modal input,
+.detail-modal select,
+.detail-modal textarea {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+}
+
+.detail-modal input::placeholder,
+.detail-modal textarea::placeholder {
+  color: black !important;
+}
+
+.detail-modal input:focus,
+.detail-modal select:focus,
+.detail-modal textarea:focus {
+  border-color: black !important;
+  color: black !important;
+  background: white !important;
+}
+
+/* Admin paneli için özel stiller */
+.admin-panel input,
+.admin-panel select,
+.admin-panel textarea {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+}
+
+.admin-panel input::placeholder,
+.admin-panel textarea::placeholder {
+  color: black !important;
+}
+
+.admin-panel input:focus,
+.admin-panel select:focus,
+.admin-panel textarea:focus {
+  border-color: black !important;
+  color: black !important;
+  background: white !important;
+}
+
+/* Container içindeki tüm form elemanları */
+.container input,
+.container select,
+.container textarea {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+}
+
+.container input::placeholder,
+.container textarea::placeholder {
+  color: black !important;
+}
+
+.container input:focus,
+.container select:focus,
+.container textarea:focus {
+  border-color: black !important;
+  color: black !important;
+  background: white !important;
 }
 
 .form-builder-header {
@@ -454,6 +592,29 @@ th img[alt="Filtre"]:hover {
   width: 90vw;
 }
 
+/* Modal içindeki tüm form elemanları */
+.modal input,
+.modal select,
+.modal textarea {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+}
+
+.modal input::placeholder,
+.modal textarea::placeholder {
+  color: black !important;
+}
+
+.modal input:focus,
+.modal select:focus,
+.modal textarea:focus {
+  border-color: black !important;
+  color: black !important;
+  background: white !important;
+}
+
 .options-editor {
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 6px;
@@ -469,6 +630,11 @@ th img[alt="Filtre"]:hover {
 
 .add-option input {
   flex: 1;
+  /* FormBuilder için özel stiller */
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important; /* Beyaz arka plan */
 }
 
 .options-list {
@@ -575,11 +741,11 @@ th img[alt="Filtre"]:hover {
 .field input,
 .field textarea,
 .field select {
-  padding: 12px !important;
-  background: var(--bg) !important;
-  border: 1px solid rgba(255,255,255,0.1) !important;
+  padding: 1.5px !important; /* Padding 1.5px */
+  background: white !important; /* Beyaz arka plan */
+  border: 1px solid black !important; /* Border siyah */
   border-radius: 6px !important;
-  color: var(--text) !important;
+  color: black !important; /* Metin rengi siyah */
   font-size: 14px !important;
   transition: all 0.2s ease !important;
   width: 100% !important;
@@ -589,16 +755,16 @@ th img[alt="Filtre"]:hover {
 .field textarea:focus,
 .field select:focus {
   outline: none !important;
-  border-color: var(--accent) !important;
-  box-shadow: 0 0 0 2px rgba(212,175,55,0.2) !important;
-  background: var(--bg) !important;
+  border-color: black !important; /* Focus border siyah */
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.2) !important; /* Focus shadow siyah */
+  background: white !important; /* Focus'ta da beyaz arka plan */
 }
 
 .field input.error,
 .field textarea.error,
 .field select.error {
-  border-color: var(--danger);
-  box-shadow: 0 0 0 2px rgba(255,107,107,0.2);
+  border-color: black; /* Error durumunda da border siyah */
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.2); /* Error shadow siyah */
 }
 
 .field-error {
@@ -671,3 +837,311 @@ th img[alt="Filtre"]:hover {
   text-align: center;
   margin: 20px 0;
 }
+
+/* =============================================================================
+   KAPSAMLI FORM ELEMANLARİ STİLLERİ
+   Tüm frontend bileşenlerindeki form elemanları için merkezi stil yönetimi
+   ============================================================================= */
+
+/* Genel form elemanları - tüm bileşenler için temel stiller */
+input:not([type="checkbox"]):not([type="radio"]):not(.btn):not(.special),
+select:not(.btn):not(.special),
+textarea:not(.special) {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  border-radius: 4px !important;
+  color: black !important;
+  background: white !important;
+  font-size: 14px !important;
+  font-family: inherit !important;
+  transition: all 0.2s ease !important;
+}
+
+/* Placeholder stilleri */
+input:not([type="checkbox"]):not([type="radio"]):not(.btn):not(.special)::placeholder,
+textarea:not(.special)::placeholder {
+  color: black !important;
+  opacity: 0.7 !important;
+}
+
+/* Focus durumu */
+input:not([type="checkbox"]):not([type="radio"]):not(.btn):not(.special):focus,
+select:not(.btn):not(.special):focus,
+textarea:not(.special):focus {
+  border-color: black !important;
+  color: black !important;
+  background: white !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Error durumu */
+input:not([type="checkbox"]):not([type="radio"]):not(.btn):not(.special).error,
+select:not(.btn):not(.special).error,
+textarea:not(.special).error {
+  border-color: #dc3545 !important;
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2) !important;
+}
+
+/* Disabled durumu */
+input:not([type="checkbox"]):not([type="radio"]):not(.btn):not(.special):disabled,
+select:not(.btn):not(.special):disabled,
+textarea:not(.special):disabled {
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+  background: #f5f5f5 !important;
+}
+
+/* BİLEŞEN BAZLI KAPSAYICI SINIFLAR */
+
+/* FormBuilder bileşeni */
+.form-builder input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.form-builder select:not(.btn),
+.form-builder textarea,
+/* DynamicFormRenderer bileşeni */
+.dynamic-form input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.dynamic-form select:not(.btn),
+.dynamic-form textarea,
+/* QuoteForm bileşeni */
+.quote-form input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.quote-form select:not(.btn),
+.quote-form textarea,
+/* Modal bileşenleri */
+.modal input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.modal select:not(.btn),
+.modal textarea,
+/* Settings Modal */
+.settings-modal input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.settings-modal select:not(.btn),
+.settings-modal textarea,
+/* Detail Modal */
+.detail-modal input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.detail-modal select:not(.btn),
+.detail-modal textarea,
+/* Filter Popup */
+.filter-popup input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.filter-popup select:not(.btn),
+.filter-popup textarea,
+/* Admin Panel */
+.admin-panel input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.admin-panel select:not(.btn),
+.admin-panel textarea,
+/* Container içindeki elemanlar */
+.container input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.container select:not(.btn),
+.container textarea,
+/* Field wrapper'ı */
+.field input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.field select:not(.btn),
+.field textarea,
+/* Gate (login form) */
+.gate input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.gate select:not(.btn),
+.gate textarea {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  border-radius: 4px !important;
+  color: black !important;
+  background: white !important;
+  font-size: 14px !important;
+}
+
+/* ÖZEL FORM ELEMANLARİ */
+
+/* Checkbox ve Radio button'lar için özel stiller */
+.form-builder input[type="checkbox"],
+.form-builder input[type="radio"],
+.dynamic-form input[type="checkbox"],
+.dynamic-form input[type="radio"],
+.quote-form input[type="checkbox"],
+.quote-form input[type="radio"],
+.modal input[type="checkbox"],
+.modal input[type="radio"],
+.admin-panel input[type="checkbox"],
+.admin-panel input[type="radio"],
+.container input[type="checkbox"],
+.container input[type="radio"],
+.field input[type="checkbox"],
+.field input[type="radio"] {
+  width: auto !important;
+  margin-right: 8px !important;
+  margin-left: 0 !important;
+}
+
+/* File input'ları için özel stiller */
+input[type="file"] {
+  padding: 4px !important;
+  background: white !important;
+  border: 1px solid black !important;
+  color: black !important;
+  border-radius: 4px !important;
+}
+
+/* Range input'ları için özel stiller */
+input[type="range"] {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Search input'ları için özel stiller */
+input[type="search"] {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+}
+
+/* BUTON STİLLERİ - form elemanı gibi görünen seçenekler hariç */
+select.btn {
+  background: rgba(255,255,255,0.05) !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  color: var(--text) !important;
+  padding: 8px 12px !important;
+}
+
+/* RESPONSIVE TASARIM */
+@media (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]):not(.btn):not(.special),
+  select:not(.btn):not(.special),
+  textarea:not(.special) {
+    font-size: 16px !important; /* iOS zoom'u önlemek için */
+    padding: 3px !important;
+  }
+}
+
+/* FORM GRUP STİLLERİ */
+.form-group,
+.field-group,
+.input-group {
+  margin-bottom: 16px;
+}
+
+.form-group label,
+.field-group label,
+.input-group label {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+/* GRID SİSTEMLERİ İÇİN FORM ELEMANLARİ */
+.grid input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.grid select:not(.btn),
+.grid textarea {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+}
+
+/* CARD İÇİNDEKİ FORM ELEMANLARİ */
+.card input:not([type="checkbox"]):not([type="radio"]):not(.btn),
+.card select:not(.btn),
+.card textarea {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+}
+
+/* ÖZEL BİLEŞEN SINIFI EKLEMELERİ */
+
+/* Options editor için */
+.options-editor input[type="text"] {
+  flex: 1;
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+}
+
+/* Add option input'u için */
+.add-option input[type="text"] {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+}
+
+/* Nav select (dil seçimi) için */
+.nav select {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+  border-radius: 8px !important;
+  font-size: 14px !important;
+}
+
+/* Global search için */
+.admin-panel input[type="search"],
+.admin-panel input[placeholder*="ara"],
+.admin-panel input[placeholder*="search"] {
+  padding: 1.5px !important;
+  border: 1px solid black !important;
+  color: black !important;
+  background: white !important;
+  min-width: 200px;
+}
+
+/* VALIDATION MESAJLARI */
+.field-error,
+.error-message,
+.validation-error {
+  color: #dc3545;
+  font-size: 12px;
+  margin-top: 4px;
+  display: block;
+}
+
+/* SUCCESS MESAJLARI */
+.field-success,
+.success-message {
+  color: #28a745;
+  font-size: 12px;
+  margin-top: 4px;
+  display: block;
+}
+
+/* FORM LAYOUT UTILITYLERI */
+.form-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.form-row > * {
+  flex: 1;
+}
+
+.form-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-vertical .field {
+  margin-bottom: 16px;
+}
+
+/* LOADING STATELERİ */
+input:not([type="checkbox"]):not([type="radio"]):not(.btn).loading,
+select:not(.btn).loading,
+textarea.loading {
+  opacity: 0.7;
+  cursor: wait;
+  background: linear-gradient(90deg, white 25%, #f0f0f0 50%, white 75%) !important;
+  background-size: 200% 100% !important;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* =============================================================================
+   BİTİŞ - KAPSAMLI FORM ELEMANLARİ STİLLERİ
+   ============================================================================= */

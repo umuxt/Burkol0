@@ -975,6 +975,10 @@ app.get('/api/settings', requireAuth, async (req, res) => {
 app.post('/api/settings', requireAuth, async (req, res) => {
   try {
     const { parameters, formula } = req.body
+    
+    // Get current settings for original values tracking
+    const currentSettings = jsondb.getSettings() || { parameters: [], formula: '' }
+    
     const settings = {
       parameters: parameters || [],
       formula: formula || '',
@@ -997,13 +1001,26 @@ app.post('/api/settings', requireAuth, async (req, res) => {
             const needsUpdate = priceDifference > 0.01 // More than 1 cent difference
             
             if (quote.calculatedPrice !== newCalculatedPrice || quote.needsPriceUpdate !== needsUpdate) {
-              // Update quote with new calculated price
-              jsondb.putQuote({
+              // Store original values for change tracking
+              const updatedQuote = {
                 ...quote,
                 calculatedPrice: Number(newCalculatedPrice),
                 needsPriceUpdate: needsUpdate,
                 priceSettingsVersion: settings.lastUpdated
-              })
+              }
+              
+              // Store original data for change tracking (only if not already stored)
+              if (!quote.originalFormData) {
+                updatedQuote.originalFormData = { ...quote.formData }
+              }
+              if (!quote.originalParams) {
+                updatedQuote.originalParams = { ...currentSettings.parameters }
+              }
+              if (!quote.originalFormula) {
+                updatedQuote.originalFormula = currentSettings.formula
+              }
+              
+              jsondb.putQuote(updatedQuote)
               updatedCount++
             }
           }

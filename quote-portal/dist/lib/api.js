@@ -332,6 +332,37 @@ export const API = {
     } catch (e) {
       throw e
     }
+  },
+
+  // Price Settings API
+  async getPriceSettings() {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/price-settings`, { headers: withAuth() })
+      if (!res.ok) throw new Error('get price settings failed')
+      return await res.json()
+    } catch (e) {
+      // Return default settings if API fails
+      return {
+        currency: 'USD',
+        margin: 20,
+        discountThreshold: 1000,
+        discountPercent: 5
+      }
+    }
+  },
+
+  async savePriceSettings(settings) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/price-settings`, {
+        method: 'POST',
+        headers: withAuth({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify(settings)
+      })
+      if (!res.ok) throw new Error('save price settings failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
   }
 }
 

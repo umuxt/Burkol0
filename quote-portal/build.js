@@ -19,9 +19,10 @@ if (!fs.existsSync(distDir)) {
 const staticFiles = [
   'index.html',
   'panel-gizli.html', 
-  'styles.css',
   'app.js',
-  'i18n.js'
+  'i18n.js',
+  'manifest.json',
+  'sw.js'
 ]
 
 staticFiles.forEach(file => {
@@ -39,7 +40,9 @@ const staticDirs = [
   'hooks', 
   'i18n',
   'img',
-  'lib'
+  'lib',
+  'styles',
+  'performance'
 ]
 
 staticDirs.forEach(dir => {
