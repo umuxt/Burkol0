@@ -133,7 +133,7 @@ export function FilterPopup({ type, filters, filterOptions, onClose, onUpdateFil
             type: 'date',
             value: tempFilters.dateRange.from || '',
             onChange: (e) => updateRange('from', e.target.value),
-            style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }
+            style: { width: '100%', padding: '1.5px', border: '1px solid black', borderRadius: '4px', color: 'black', background: 'white' }
           })
         ),
         React.createElement('div', { style: { marginBottom: '16px' } },
@@ -142,7 +142,7 @@ export function FilterPopup({ type, filters, filterOptions, onClose, onUpdateFil
             type: 'date',
             value: tempFilters.dateRange.to || '',
             onChange: (e) => updateRange('to', e.target.value),
-            style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }
+            style: { width: '100%', padding: '1.5px', border: '1px solid black', borderRadius: '4px', color: 'black', background: 'white' }
           })
         )
       ) : type === 'qtyRange' ? React.createElement('div', null,
@@ -152,7 +152,7 @@ export function FilterPopup({ type, filters, filterOptions, onClose, onUpdateFil
             type: 'number',
             value: tempFilters.qtyRange.min || '',
             onChange: (e) => updateRange('min', e.target.value),
-            style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' },
+            style: { width: '100%', padding: '1.5px', border: '1px solid black', borderRadius: '4px', color: 'black', background: 'white' },
             placeholder: '0'
           })
         ),
@@ -162,7 +162,7 @@ export function FilterPopup({ type, filters, filterOptions, onClose, onUpdateFil
             type: 'number',
             value: tempFilters.qtyRange.max || '',
             onChange: (e) => updateRange('max', e.target.value),
-            style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' },
+            style: { width: '100%', padding: '1.5px', border: '1px solid black', borderRadius: '4px', color: 'black', background: 'white' },
             placeholder: 'Sınırsız'
           })
         )

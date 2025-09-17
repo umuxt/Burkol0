@@ -1007,11 +1007,13 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
             onChange: (e) => setGlobalSearch(e.target.value),
             style: { 
               flex: 1,
-              padding: '6px 10px', 
-              border: '1px solid #ced4da', 
+              padding: '1.5px', 
+              border: '1px solid black', 
               borderRadius: '4px', 
               fontSize: '12px',
-              minWidth: '200px'
+              minWidth: '200px',
+              color: 'black',
+              background: 'white'
             }
           }),
           React.createElement('button', {

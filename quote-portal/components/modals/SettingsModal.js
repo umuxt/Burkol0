@@ -386,10 +386,12 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                           onChange: (e) => updateEditingValue(param.id, 'name', e.target.value),
                           style: { 
                             width: '100%', 
-                            padding: '4px', 
-                            border: '1px solid #ccc', 
+                            padding: '1.5px', 
+                            border: '1px solid black', 
                             borderRadius: '3px',
-                            fontSize: '13px'
+                            fontSize: '13px',
+                            color: 'black',
+                            background: 'white'
                           }
                         })
                       : param.name
@@ -407,10 +409,12 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                               onChange: (e) => updateEditingValue(param.id, 'value', e.target.value),
                               style: { 
                                 width: '100%', 
-                                padding: '4px', 
-                                border: '1px solid #ccc', 
+                                padding: '1.5px', 
+                                border: '1px solid black', 
                                 borderRadius: '3px',
-                                fontSize: '13px'
+                                fontSize: '13px',
+                                color: 'black',
+                                background: 'white'
                               }
                             })
                           : `${param.value}`
@@ -442,10 +446,12 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                                     onChange: (e) => updateLookupItem(param.id, idx, 'value', e.target.value),
                                     style: { 
                                       width: '60px', 
-                                      padding: '2px 4px', 
-                                      border: '1px solid #ccc', 
+                                      padding: '1.5px', 
+                                      border: '1px solid black', 
                                       borderRadius: '2px',
-                                      fontSize: '11px'
+                                      fontSize: '11px',
+                                      color: 'black',
+                                      background: 'white'
                                     }
                                   })
                                 )
@@ -477,11 +483,12 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                                 onChange: (e) => updateEditingValue(param.id, 'formField', e.target.value),
                                 style: { 
                                   width: '100%', 
-                                  padding: '4px', 
-                                  border: '1px solid #ccc', 
+                                  padding: '1.5px', 
+                                  border: '1px solid black', 
                                   borderRadius: '3px',
                                   fontSize: '12px',
-                                  backgroundColor: 'white'
+                                  backgroundColor: 'white',
+                                  color: 'black'
                                 }
                               },
                                 React.createElement('option', { value: '' }, '-- Alan Seçin --'),
@@ -641,7 +648,7 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                   value: parameterName,
                   onChange: (e) => setParameterName(e.target.value),
                   placeholder: 'örn: Malzeme Katsayısı',
-                  style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#333' }
+                  style: { width: '100%', padding: '1.5px', border: '1px solid black', borderRadius: '4px', color: 'black', background: 'white' }
                 })
               ),
               
@@ -653,7 +660,7 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                   value: fixedValue,
                   onChange: (e) => setFixedValue(e.target.value),
                   placeholder: '1.5',
-                  style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#333' }
+                  style: { width: '100%', padding: '1.5px', border: '1px solid black', borderRadius: '4px', color: 'black', background: 'white' }
                 })
               ),
               
@@ -666,7 +673,7 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                     setSelectedFormField(e.target.value)
                     setSelectedFormValue('')
                   },
-                  style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px', color: '#333' }
+                  style: { width: '100%', padding: '1.5px', border: '1px solid black', borderRadius: '4px', color: 'black', background: 'white' }
                 },
                   React.createElement('option', { value: '' }, 'Alan seçiniz...'),
                   formFields.map(field => 
@@ -706,7 +713,7 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
                                   return filtered
                                 })
                               },
-                              style: { width: '100%', padding: '4px', border: '1px solid #ccc', borderRadius: '3px', fontSize: '12px', color: '#333' }
+                              style: { width: '100%', padding: '1.5px', border: '1px solid black', borderRadius: '3px', fontSize: '12px', color: 'black', background: 'white' }
                             })
                           )
                         )
@@ -777,13 +784,14 @@ function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
             placeholder: 'Excel formülü yazın (örn: =A*B*C+D)',
             style: { 
               width: '100%', 
-              padding: '12px', 
-              border: '1px solid #ddd', 
+              padding: '1.5px', 
+              border: '1px solid black', 
               borderRadius: '4px', 
               minHeight: '80px',
               fontFamily: 'monospace',
               fontSize: '14px',
-              color: '#333'
+              color: 'black',
+              background: 'white'
             }
           })
         ),

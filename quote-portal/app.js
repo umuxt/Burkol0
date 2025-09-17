@@ -57,7 +57,7 @@ import { ToastNotification, useNotifications } from './hooks/useNotifications.js
             React.createElement('select', {
               value: lang,
               onChange: (e) => onLang(e.target.value),
-              style: { padding: '8px 10px', borderRadius: 8 },
+              style: { padding: '1.5px', borderRadius: 8, border: '1px solid black', color: 'black', background: 'white' },
             },
               React.createElement('option', { value: 'tr' }, 'Türkçe'),
               React.createElement('option', { value: 'en' }, 'English'),
@@ -190,7 +190,7 @@ import { ToastNotification, useNotifications } from './hooks/useNotifications.js
           React.createElement('input', {
             type: 'email', name: 'email', required: true,
             value: email, onChange: (e) => setEmail(e.target.value),
-            style: { padding: 10, borderRadius: 4, border: '1px solid #ccc', fontSize: 14, width: '100%' }
+            style: { padding: '1.5px', borderRadius: 4, border: '1px solid black', fontSize: 14, width: '100%', color: 'black', background: 'white' }
           })
         ),
         React.createElement('div', { className: 'field', style: { marginBottom: 16 } },
@@ -198,7 +198,7 @@ import { ToastNotification, useNotifications } from './hooks/useNotifications.js
           React.createElement('input', {
             type: 'password', name: 'password', required: true,
             value: password, onChange: (e) => setPassword(e.target.value),
-            style: { padding: 10, borderRadius: 4, border: '1px solid #ccc', fontSize: 14, width: '100%' }
+            style: { padding: '1.5px', borderRadius: 4, border: '1px solid black', fontSize: 14, width: '100%', color: 'black', background: 'white' }
           })
         ),
         React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginTop: 10,  } },
