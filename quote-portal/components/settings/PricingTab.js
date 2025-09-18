@@ -117,7 +117,7 @@ function PricingTab({ t, showNotification }) {
     setLookupTable(lookupTable.filter((_, i) => i !== index))
   }
 
-  function validateFormula() {
+  async function validateFormula() {
     if (!formula) {
       setFormulaValidation(null)
       setIsFormulaValid(true)
@@ -125,7 +125,7 @@ function PricingTab({ t, showNotification }) {
     }
 
     const validator = FormulaValidator
-    const result = validator.validateFormula(formula, parameters)
+    const result = await validator.validateFormula(formula, parameters)
     
     setFormulaValidation(result)
     setIsFormulaValid(result.isValid)

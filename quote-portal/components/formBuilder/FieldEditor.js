@@ -1,7 +1,7 @@
 // Field Editor - Individual field creation and editing
 const { useState, useEffect } = React
 
-export function FieldEditor({ field, onSave, onCancel, fieldTypes, showNotification }) {
+export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNotification }) {
   const [fieldForm, setFieldForm] = useState({
     id: '',
     label: '',
@@ -123,7 +123,7 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes, showNotificat
             onChange: (e) => updateFieldForm('type', e.target.value),
             className: 'form-control'
           },
-            ...fieldTypes.map(type =>
+            ...(fieldTypes || []).map(type =>
               React.createElement('option', { key: type.value, value: type.value }, type.label)
             )
           )

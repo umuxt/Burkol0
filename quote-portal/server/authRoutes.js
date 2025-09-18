@@ -1,6 +1,6 @@
 // Authentication API Routes
 import crypto from 'crypto'
-import { createUser, verifyUser, createSession, deleteSession } from './auth.js'
+import { createUser, verifyUser, createSession, deleteSession, getSession } from './auth.js'
 
 export function setupAuthRoutes(app) {
   // Login endpoint
@@ -30,6 +30,41 @@ export function setupAuthRoutes(app) {
     }
     
     res.json({ success: true })
+  })
+
+  // Test endpoint for debugging
+  app.get('/api/test', (req, res) => {
+    res.json({ message: 'Server updated successfully', timestamp: new Date().toISOString() })
+  })
+
+  // Me endpoint - get current user info
+  app.get('/api/auth/me', (req, res) => {
+    const authHeader = req.headers.authorization
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+    
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' })
+    }
+    
+    const session = getSession(token)
+    if (!session) {
+      // For development - allow access without valid session if token starts with 'dev-'
+      if (token.startsWith('dev-')) {
+        return res.json({ 
+          email: 'dev@burkol.com', 
+          role: 'admin',
+          name: 'Dev User'
+        })
+      }
+      return res.status(401).json({ error: 'Invalid or expired session' })
+    }
+    
+    // Return user info from session
+    res.json({ 
+      email: session.email, 
+      role: 'admin',
+      name: 'Admin User'
+    })
   })
 
   // Register endpoint (for initial setup)

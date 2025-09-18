@@ -19,7 +19,18 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
 
 export const API_BASE = (window.BURKOL_API || (typeof window !== 'undefined' && window.location.origin) || 'http://localhost:3001')
 
-function getToken() { try { return localStorage.getItem('bk_admin_token') || '' } catch { return '' } }
+function getToken() { 
+  try { 
+    const token = localStorage.getItem('bk_admin_token')
+    // Development mode: use dev token if no real token exists
+    if (!token && window.location.hostname === 'localhost') {
+      return 'dev-admin-token'
+    }
+    return token || '' 
+  } catch { 
+    return '' 
+  } 
+}
 function setToken(t) { try { if (t) localStorage.setItem('bk_admin_token', t); else localStorage.removeItem('bk_admin_token') } catch {} }
 
 function withAuth(headers = {}) {

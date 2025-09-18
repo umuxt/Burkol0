@@ -308,3 +308,60 @@ export default function FormulaValidator({ formula, parameters, onValidation }) 
     )
   )
 }
+
+// Static validation method for use in other components
+FormulaValidator.validateFormula = async function(formula, parameters = []) {
+  try {
+    // Basic syntax check
+    if (!formula || typeof formula !== 'string') {
+      return {
+        isValid: false,
+        error: 'Formula is required',
+        type: 'SYNTAX_ERROR'
+      }
+    }
+
+    // Check for basic mathematical operations
+    const validPattern = /^[a-zA-Z0-9_+\-*/().,\s<>=!&|IF|ELSE|THEN|AND|OR]*$/i
+    if (!validPattern.test(formula)) {
+      return {
+        isValid: false,
+        error: 'Formula contains invalid characters',
+        type: 'SYNTAX_ERROR'
+      }
+    }
+
+    // Check parameter references
+    const paramNames = parameters.map(p => p.name || p.id || p)
+    const paramPattern = /\{([^}]+)\}/g
+    let match
+    const missingParams = []
+    
+    while ((match = paramPattern.exec(formula)) !== null) {
+      const paramName = match[1]
+      if (!paramNames.includes(paramName)) {
+        missingParams.push(paramName)
+      }
+    }
+
+    if (missingParams.length > 0) {
+      return {
+        isValid: false,
+        error: `Missing parameters: ${missingParams.join(', ')}`,
+        type: 'PARAMETER_ERROR'
+      }
+    }
+
+    return {
+      isValid: true,
+      error: null,
+      type: 'SUCCESS'
+    }
+  } catch (error) {
+    return {
+      isValid: false,
+      error: error.message,
+      type: 'VALIDATION_ERROR'
+    }
+  }
+}

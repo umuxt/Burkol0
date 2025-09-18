@@ -558,14 +558,14 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     }),
 
     // Price review modal
-    priceReview && React.createElement('div', { className: 'modal-overlay', onClick: () => setPriceReview(null) },
+    priceReview && priceReview.item && React.createElement('div', { className: 'modal-overlay', onClick: () => setPriceReview(null) },
       React.createElement('div', { className: 'modal-content', onClick: (e) => e.stopPropagation(), style: { maxWidth: '500px' } },
         React.createElement('h3', null, 'Fiyat Güncelleme'),
-        React.createElement('p', null, `Müşteri: ${priceReview.item.name}`),
-        React.createElement('p', null, `Proje: ${priceReview.item.proj}`),
-        React.createElement('p', null, `Mevcut Fiyat: ${priceReview.originalPrice?.toLocaleString('tr-TR', {style: 'currency', currency: 'TRY'})}`),
-        React.createElement('p', null, `Yeni Fiyat: ${priceReview.newPrice?.toLocaleString('tr-TR', {style: 'currency', currency: 'TRY'})}`),
-        React.createElement('p', null, `Değişiklik Nedeni: ${getChangeReason(priceReview.item, priceSettings)}`),
+        React.createElement('p', null, `Müşteri: ${priceReview.item.name || 'N/A'}`),
+        React.createElement('p', null, `Proje: ${priceReview.item.proj || 'N/A'}`),
+        React.createElement('p', null, `Mevcut Fiyat: ${priceReview.originalPrice?.toLocaleString('tr-TR', {style: 'currency', currency: 'TRY'}) || 'N/A'}`),
+        React.createElement('p', null, `Yeni Fiyat: ${priceReview.newPrice?.toLocaleString('tr-TR', {style: 'currency', currency: 'TRY'}) || 'N/A'}`),
+        React.createElement('p', null, `Değişiklik Nedeni: ${getChangeReason(priceReview.item, priceSettings) || 'N/A'}`),
         React.createElement('div', { style: { display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' } },
           React.createElement('button', {
             onClick: () => setPriceReview(null),
