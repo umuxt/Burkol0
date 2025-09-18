@@ -1,4 +1,5 @@
 // Server API Routes - Express route handlers organized by functionality
+import crypto from 'crypto'
 import jsondb from '../lib/jsondb.js'
 import { requireAuth } from './auth.js'
 import { persistFilesForQuote } from './fileHandler.js'
@@ -6,15 +7,23 @@ import { calculatePriceServer } from './priceCalculator.js'
 
 // Data access functions
 export function readAll() {
-  return jsondb.read()
+  return jsondb.listQuotes()
 }
 
 export function readOne(id) {
-  return jsondb.readOne(id)
+  return jsondb.getQuote(id)
 }
 
-export function insertOne(obj) {
-  return jsondb.insert(obj)
+export function insert(obj) {
+  return jsondb.putQuote(obj)
+}
+
+export function update(id, patch) {
+  return jsondb.patchQuote(id, patch)
+}
+
+export function remove(id) {
+  return jsondb.removeQuote(id)
 }
 
 export function updateOne(id, patch) {
@@ -102,7 +111,7 @@ export function setupQuoteRoutes(app, uploadsDir) {
         console.error('Price calculation failed:', priceError)
       }
 
-      const result = insertOne(q)
+      const result = insert(q)
       res.json({ success: true, quote: result })
     } catch (error) {
       console.error('Quote creation error:', error)
@@ -120,7 +129,7 @@ export function setupQuoteRoutes(app, uploadsDir) {
     }
     
     try {
-      const updated = updateOne(id, { status })
+      const updated = update(id, { status })
       res.json(updated)
     } catch (error) {
       res.status(500).json({ error: 'Status update failed' })
@@ -132,7 +141,7 @@ export function setupQuoteRoutes(app, uploadsDir) {
     const { id } = req.params
     
     try {
-      deleteOne(id)
+      remove(id)
       res.json({ success: true })
     } catch (error) {
       res.status(500).json({ error: 'Delete failed' })
@@ -210,9 +219,10 @@ export function setupSettingsRoutes(app) {
   app.post('/api/form-config', requireAuth, (req, res) => {
     try {
       const config = req.body
-      jsondb.saveFormConfig(config)
+      jsondb.putFormConfig(config)
       res.json({ success: true })
     } catch (error) {
+      console.error('Form config save error:', error)
       res.status(500).json({ error: 'Failed to save form config' })
     }
   })

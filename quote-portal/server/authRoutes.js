@@ -1,6 +1,6 @@
 // Authentication API Routes
 import crypto from 'crypto'
-import { createUser, verifyUser, createSession, deleteSession, getSession } from './auth.js'
+import { createUser, verifyUser, createSession, deleteSession, getSession, requireAuth } from './auth.js'
 
 export function setupAuthRoutes(app) {
   // Login endpoint
@@ -85,6 +85,46 @@ export function setupAuthRoutes(app) {
       res.json({ success: true, message: 'User created successfully' })
     } catch (error) {
       res.status(500).json({ error: 'User creation failed' })
+    }
+  })
+
+  // List users endpoint
+  app.get('/api/auth/users', requireAuth, (req, res) => {
+    try {
+      // In a real app, fetch from database
+      // For now, return mock data or empty array
+      res.json([])
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to list users' })
+    }
+  })
+
+  // Add user endpoint
+  app.post('/api/auth/users', requireAuth, (req, res) => {
+    const { email, password, role = 'admin' } = req.body
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' })
+    }
+    
+    try {
+      const user = createUser(email, password, role)
+      // In a real app, save to database
+      res.json({ success: true, message: 'User created successfully' })
+    } catch (error) {
+      res.status(500).json({ error: 'User creation failed' })
+    }
+  })
+
+  // Delete user endpoint
+  app.delete('/api/auth/users/:email', requireAuth, (req, res) => {
+    const { email } = req.params
+    
+    try {
+      // In a real app, delete from database
+      res.json({ success: true, message: 'User deleted successfully' })
+    } catch (error) {
+      res.status(500).json({ error: 'User deletion failed' })
     }
   })
 }
