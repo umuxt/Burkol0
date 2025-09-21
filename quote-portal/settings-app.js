@@ -1,5 +1,5 @@
 // Settings App - Dedicated settings interface
-import PricingTab from './components/settings/PricingTab.js'
+import PricingTab from './components/settings/DynamicPricingTab.js'
 import FormTab from './components/settings/FormTab.js'
 import UsersTab from './components/settings/UsersTab.js'
 

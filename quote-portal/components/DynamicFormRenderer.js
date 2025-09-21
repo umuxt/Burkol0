@@ -23,6 +23,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
     try {
       setLoading(true)
       const config = await API.getFormConfig()
+      console.log('DynamicFormRenderer: Loaded form config:', config)
       setFormConfig(config.formConfig)
     } catch (error) {
       console.error('Load form config error:', error)
@@ -221,7 +222,18 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
   if (loading) {
     return React.createElement('div', { className: 'loading-state' },
       React.createElement('div', { style: { textAlign: 'center', padding: '40px' } },
-        React.createElement('p', null, 'Form yükleniyor...')
+        React.createElement('p', null, 'Form yükleniyor...'),
+        React.createElement('p', { style: { fontSize: '12px', color: '#666' } }, 'Form konfigürasyonu API\'den alınıyor...')
+      )
+    )
+  }
+
+  // Show error state if config couldn't be loaded
+  if (!loading && !formConfig) {
+    return React.createElement('div', { className: 'error-state' },
+      React.createElement('div', { style: { textAlign: 'center', padding: '40px' } },
+        React.createElement('p', { style: { color: 'red' } }, 'Form konfigürasyonu yüklenemedi'),
+        React.createElement('p', { style: { fontSize: '12px', color: '#666' } }, 'Lütfen sayfayı yenileyin veya admin ile iletişime geçin.')
       )
     )
   }
@@ -479,11 +491,18 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
     }
   ]
 
+  // Get custom fields from form config
+  const customFields = formConfig?.fields || formConfig?.formStructure?.fields || []
+  console.log('DynamicFormRenderer: formConfig:', formConfig)
+  console.log('DynamicFormRenderer: Custom fields from config:', customFields)
+
   // Sort fields by form order
   const allFields = [
     ...fixedDefaultFields,
-    ...(formConfig?.fields || formConfig?.formStructure?.fields || [])
+    ...customFields
   ].sort((a, b) => (a.display?.formOrder || 0) - (b.display?.formOrder || 0))
+  
+  console.log('DynamicFormRenderer: All fields for rendering:', allFields)
 
   return React.createElement('form', { onSubmit: handleSubmit, className: 'dynamic-form' },
     React.createElement('div', { className: 'form-fields' },

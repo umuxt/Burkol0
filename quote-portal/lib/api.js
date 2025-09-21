@@ -239,13 +239,24 @@ export const API = {
   // Form Configuration APIs
   async getFormConfig() {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/form-config`, { headers: withAuth() })
+      const res = await fetchWithTimeout(`${API_BASE}/api/form-config`)
       if (!res.ok) throw new Error('get form config failed')
       return await res.json()
     } catch (e) {
       throw e
     }
   },
+  
+  async getFormFields() {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/form-fields`)
+      if (!res.ok) throw new Error('get form fields failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+
   async saveFormConfig(formConfig) {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/form-config`, { 

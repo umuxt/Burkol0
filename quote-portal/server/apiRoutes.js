@@ -294,17 +294,41 @@ export function setupSettingsRoutes(app) {
     }
   })
 
-  // Get form configuration
-  app.get('/api/form-config', requireAuth, (req, res) => {
+  // Get form configuration - PUBLIC ACCESS for user form
+  app.get('/api/form-config', (req, res) => {
     try {
       const config = jsondb.getFormConfig()
-      res.json(config || { formConfig: null })
+      res.json({ formConfig: config })
     } catch (error) {
       res.status(500).json({ error: 'Failed to load form config' })
     }
   })
 
-  // Save form configuration
+  // Get form fields for pricing configuration - PUBLIC ACCESS
+  app.get('/api/form-fields', (req, res) => {
+    try {
+      const config = jsondb.getFormConfig()
+      const fields = []
+      
+      if (config && config.formStructure && config.formStructure.fields) {
+        config.formStructure.fields.forEach(field => {
+          fields.push({
+            id: field.id,
+            label: field.label,
+            type: field.type,
+            hasOptions: field.options && field.options.length > 0,
+            options: field.options || []
+          })
+        })
+      }
+      
+      res.json({ fields })
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load form fields' })
+    }
+  })
+
+  // Save form configuration - ADMIN ONLY
   app.post('/api/form-config', requireAuth, (req, res) => {
     try {
       const config = req.body

@@ -1,5 +1,5 @@
 // Compact Settings Modal - Modular tab-based settings interface
-import PricingTab from '../settings/PricingTab.js'
+import PricingTab from '../settings/DynamicPricingTab.js'
 import FormTab from '../settings/FormTab.js'
 import UsersTab from '../settings/UsersTab.js'
 
