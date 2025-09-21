@@ -7,7 +7,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [formConfig, setFormConfig] = useState(null)
-  const [formData, setFormData] = useState(initialData)
+  const [formData, setFormData] = useState({ ...initialData, customFields: initialData.customFields || {} })
   const [errors, setErrors] = useState({})
   const [uploadingFiles, setUploadingFiles] = useState(false)
 
@@ -16,7 +16,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
   }, [])
 
   useEffect(() => {
-    setFormData(initialData)
+    setFormData({ ...initialData, customFields: initialData.customFields || {} })
   }, [initialData])
 
   async function loadFormConfig() {
@@ -74,7 +74,114 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
     }
   }
 
-  function handleFieldChange(fieldId, value, isCustomField = false) {
+  // Enhanced field validation based on type and admin rules
+  function validateFieldInput(field, value) {
+    const fieldType = field.type
+    const validation = field.validation || {}
+    const errors = []
+
+    // Type-specific validation
+    switch (fieldType) {
+      case 'number':
+        // Only allow numbers, decimal points, and minus sign
+        if (value && !/^-?\d*\.?\d*$/.test(value)) {
+          return { isValid: false, error: 'Sadece sayısal değer girebilirsiniz' }
+        }
+        
+        const numValue = parseFloat(value)
+        if (value && !isNaN(numValue)) {
+          if (validation.min !== undefined && numValue < validation.min) {
+            errors.push(`Minimum değer: ${validation.min}`)
+          }
+          if (validation.max !== undefined && numValue > validation.max) {
+            errors.push(`Maximum değer: ${validation.max}`)
+          }
+        }
+        break
+
+      case 'email':
+        if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+          return { isValid: false, error: 'Geçerli bir e-posta adresi giriniz' }
+        }
+        break
+
+      case 'phone':
+        // Turkish phone number validation
+        if (value && !/^(\+90|0)?[5][0-9]{9}$/.test(value.replace(/\s/g, ''))) {
+          return { isValid: false, error: 'Geçerli bir telefon numarası giriniz (örn: 05551234567)' }
+        }
+        break
+
+      case 'text':
+      case 'textarea':
+        // Text length validation
+        if (validation.minLength && value && value.length < validation.minLength) {
+          errors.push(`Minimum ${validation.minLength} karakter gerekli`)
+        }
+        if (validation.maxLength && value && value.length > validation.maxLength) {
+          errors.push(`Maximum ${validation.maxLength} karakter`)
+        }
+        break
+    }
+
+    // Required field validation
+    if (field.required && (!value || value.trim() === '')) {
+      return { isValid: false, error: 'Bu alan zorunludur' }
+    }
+
+    return { 
+      isValid: errors.length === 0, 
+      error: errors.length > 0 ? errors[0] : null 
+    }
+  }
+
+  // Real-time input filtering for number fields
+  function filterNumericInput(value, field) {
+    if (field.type !== 'number') return value
+    
+    // Allow empty, numbers, decimal point, and minus sign
+    const filtered = value.replace(/[^0-9.-]/g, '')
+    
+    // Ensure only one decimal point
+    const parts = filtered.split('.')
+    if (parts.length > 2) {
+      return parts[0] + '.' + parts.slice(1).join('')
+    }
+    
+    // Ensure minus sign only at the beginning
+    const minusCount = (filtered.match(/-/g) || []).length
+    if (minusCount > 1) {
+      return filtered.replace(/-/g, '').replace(/^/, filtered.startsWith('-') ? '-' : '')
+    }
+    
+    return filtered
+  }
+
+  function handleFieldChange(fieldId, value, isCustomField = false, field = null) {
+    // Apply input filtering for number fields
+    if (field && field.type === 'number') {
+      value = filterNumericInput(value, field)
+    }
+
+    // Perform real-time validation
+    if (field) {
+      const validation = validateFieldInput(field, value)
+      if (!validation.isValid && value) {
+        // For real-time feedback, only show error if there's a value
+        setErrors(prev => ({
+          ...prev,
+          [fieldId]: validation.error
+        }))
+      } else {
+        // Clear error if input is valid
+        setErrors(prev => {
+          const newErrors = { ...prev }
+          delete newErrors[fieldId]
+          return newErrors
+        })
+      }
+    }
+
     if (isCustomField) {
       setFormData(prev => ({
         ...prev,
@@ -118,61 +225,22 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
     allFields.forEach(field => {
       const isCustomField = !fixedDefaultFields.some(df => df.id === field.id)
       const value = isCustomField ? formData.customFields?.[field.id] : formData[field.id]
-      
-      if (field.required) {
-        if (Array.isArray(value)) {
-          if (!value || value.length === 0) {
-            newErrors[field.id] = `${field.label} alanı zorunludur`
-          }
-        } else {
-          if (!value?.toString().trim()) {
-            newErrors[field.id] = `${field.label} alanı zorunludur`
-          }
-        }
-      }
-
-      // Type-specific validation
-      if (value && value.toString().trim()) {
-        if (field.type === 'email') {
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-          if (!emailRegex.test(value)) {
-            newErrors[field.id] = 'Geçerli bir e-posta adresi girin'
-          }
-        }
-
-        if (field.type === 'number') {
-          if (isNaN(Number(value))) {
-            newErrors[field.id] = 'Geçerli bir sayı girin'
-          }
-          // Min/Max validation
-          const numValue = Number(value)
-          if (field.validation?.min !== null && numValue < field.validation.min) {
-            newErrors[field.id] = `Minimum değer: ${field.validation.min}`
-          }
-          if (field.validation?.max !== null && numValue > field.validation.max) {
-            newErrors[field.id] = `Maksimum değer: ${field.validation.max}`
-          }
-        }
-
-        if (field.type === 'text' && field.validation?.pattern) {
-          const regex = new RegExp(field.validation.pattern)
-          if (!regex.test(value)) {
-            newErrors[field.id] = 'Geçersiz format'
-          }
-        }
+      // Use the enhanced validation function
+      const validation = validateFieldInput(field, value)
+      if (!validation.isValid) {
+        newErrors[field.id] = validation.error
       }
     })
-
-    return newErrors
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     
-    const validationErrors = validateForm()
-    setErrors(validationErrors)
+    const isValid = validateForm()
 
-    if (Object.keys(validationErrors).length > 0) {
+    if (!isValid) {
       showNotification('Lütfen form hatalarını düzeltin', 'error')
       return
     }
@@ -248,7 +316,17 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
       name: fieldId,
       'data-field-id': fieldId,
       className: error ? 'error' : '',
-      onChange: (e) => handleFieldChange(fieldId, e.target.value, isCustomField)
+      onChange: (e) => handleFieldChange(fieldId, e.target.value, isCustomField, field),
+      onBlur: (e) => {
+        // Validate on blur for better UX
+        const validation = validateFieldInput(field, e.target.value)
+        if (!validation.isValid) {
+          setErrors(prev => ({
+            ...prev,
+            [fieldId]: validation.error
+          }))
+        }
+      }
     }
 
     let inputElement
@@ -261,7 +339,9 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
           ...commonProps,
           type: field.type === 'phone' ? 'tel' : field.type,
           value: value || '',
-          placeholder: field.placeholder || field.label
+          placeholder: field.placeholder || field.label,
+          maxLength: field.validation?.maxLength,
+          minLength: field.validation?.minLength
         })
         break
 
@@ -270,18 +350,34 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
           ...commonProps,
           value: value || '',
           placeholder: field.placeholder || field.label,
-          rows: 3
+          rows: 3,
+          maxLength: field.validation?.maxLength
         })
         break
 
       case 'number':
         inputElement = React.createElement('input', {
           ...commonProps,
-          type: 'number',
+          type: 'text', // Use text type to have full control over input
+          inputMode: 'decimal',
           value: value || '',
           placeholder: field.placeholder || field.label,
-          min: field.validation?.min,
-          max: field.validation?.max
+          'data-min': field.validation?.min,
+          'data-max': field.validation?.max,
+          onKeyPress: (e) => {
+            // Only allow numbers, decimal point, and minus sign
+            const allowedChars = /[0-9.-]/
+            if (!allowedChars.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab' && e.key !== 'Enter') {
+              e.preventDefault()
+            }
+          },
+          onPaste: (e) => {
+            // Prevent paste of non-numeric content
+            const paste = (e.clipboardData || window.clipboardData).getData('text')
+            if (!/^-?\d*\.?\d*$/.test(paste)) {
+              e.preventDefault()
+            }
+          }
         })
         break
 
@@ -493,31 +589,38 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
 
   // Get custom fields from form config
   const customFields = formConfig?.fields || formConfig?.formStructure?.fields || []
-  console.log('DynamicFormRenderer: formConfig:', formConfig)
-  console.log('DynamicFormRenderer: Custom fields from config:', customFields)
+  
+  // Assign proper form order to custom fields that don't have one
+  const customFieldsWithOrder = customFields.map((field, index) => ({
+    ...field,
+    display: {
+      ...field.display,
+      formOrder: field.display?.formOrder ?? (10 + index) // Start custom fields from order 10
+    }
+  }))
 
   // Sort fields by form order
   const allFields = [
     ...fixedDefaultFields,
-    ...customFields
+    ...customFieldsWithOrder
   ].sort((a, b) => (a.display?.formOrder || 0) - (b.display?.formOrder || 0))
   
-  console.log('DynamicFormRenderer: All fields for rendering:', allFields)
+  return React.createElement('div', { className: 'container' },
+    React.createElement('form', { onSubmit: handleSubmit, className: 'dynamic-form' },
+      React.createElement('div', { className: 'form-fields' },
+        allFields.map(field => {
+          const isCustomField = !fixedDefaultFields.some(df => df.id === field.id)
+          return renderField(field, isCustomField)
+        })
+      ),
 
-  return React.createElement('form', { onSubmit: handleSubmit, className: 'dynamic-form' },
-    React.createElement('div', { className: 'form-fields' },
-      allFields.map(field => {
-        const isCustomField = !fixedDefaultFields.some(df => df.id === field.id)
-        return renderField(field, isCustomField)
-      })
-    ),
-
-    React.createElement('div', { className: 'form-actions' },
-      React.createElement('button', {
-        type: 'submit',
-        className: 'btn accent',
-        disabled: submitting
-      }, submitting ? 'Gönderiliyor...' : 'Teklif Gönder')
+      React.createElement('div', { className: 'form-actions' },
+        React.createElement('button', {
+          type: 'submit',
+          className: 'btn accent',
+          disabled: submitting
+        }, submitting ? 'Gönderiliyor...' : 'Teklif Gönder')
+      )
     )
   )
 }
