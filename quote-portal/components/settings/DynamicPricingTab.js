@@ -49,6 +49,32 @@ function DynamicPricingTab({ t, showNotification }) {
     }
   }
 
+  // selectedFormField değiştiğinde o field'ın options'larını otomatik populate et
+  useEffect(() => {
+    if (!selectedFormField) return
+
+    const field = formFields.find(f => f.value === selectedFormField)
+    if (!field || !field.hasOptions || !field.options) return
+
+    // Field'ın options'larını lookup table'a otomatik ekle
+    const existingOptions = lookupTable.map(item => item.option)
+    const fieldOptions = field.options
+
+    // Yeni options'ları ekle (mevcut olanları koruyarak)
+    const newLookupItems = [...lookupTable]
+    
+    fieldOptions.forEach(option => {
+      if (!existingOptions.includes(option)) {
+        newLookupItems.push({ option: option, value: 0 }) // Default değer 0
+      }
+    })
+
+    // Sadece değişiklik varsa güncelle
+    if (newLookupItems.length !== lookupTable.length) {
+      setLookupTable(newLookupItems)
+    }
+  }, [selectedFormField, formFields, lookupTable])
+
   async function loadPriceSettings() {
     try {
       const settings = await API.getPriceSettings()
@@ -164,6 +190,12 @@ function DynamicPricingTab({ t, showNotification }) {
 
   function removeLookupEntry(index) {
     setLookupTable(lookupTable.filter((_, i) => i !== index))
+  }
+
+  function updateLookupValue(index, newValue) {
+    const updatedTable = [...lookupTable]
+    updatedTable[index] = { ...updatedTable[index], value: newValue }
+    setLookupTable(updatedTable)
   }
 
   function handleUserFormulaChange(newUserFormula) {
@@ -292,29 +324,8 @@ function DynamicPricingTab({ t, showNotification }) {
           selectedFormField && formFields.find(f => f.value === selectedFormField)?.hasOptions && 
           ReactGlobal.createElement('div', { className: 'form-group' },
             ReactGlobal.createElement('label', null, '🔗 Değer Eşleştirme Tablosu'),
-            ReactGlobal.createElement('div', { style: { display: 'flex', gap: '8px', marginBottom: '8px' } },
-              ReactGlobal.createElement('input', {
-                type: 'text',
-                value: newLookupOption,
-                onChange: (e) => setNewLookupOption(e.target.value),
-                placeholder: 'Seçenek',
-                className: 'form-control',
-                style: { flex: 1 }
-              }),
-              ReactGlobal.createElement('input', {
-                type: 'number',
-                value: newLookupValue,
-                onChange: (e) => setNewLookupValue(e.target.value),
-                placeholder: 'Değer',
-                className: 'form-control',
-                style: { flex: 1 },
-                step: '0.01'
-              }),
-              ReactGlobal.createElement('button', {
-                type: 'button',
-                onClick: addLookupEntry,
-                className: 'btn btn-primary'
-              }, 'Ekle')
+            ReactGlobal.createElement('div', { style: { marginBottom: '12px', fontSize: '14px', color: '#666' } },
+              'Form alanındaki seçenekler otomatik olarak listelenmiştir. Sadece değerlerini güncelleyin.'
             ),
             
             lookupTable.length > 0 && ReactGlobal.createElement('table', { className: 'table table-sm' },
@@ -329,7 +340,16 @@ function DynamicPricingTab({ t, showNotification }) {
                 ...lookupTable.map((entry, index) =>
                   ReactGlobal.createElement('tr', { key: index },
                     ReactGlobal.createElement('td', null, entry.option),
-                    ReactGlobal.createElement('td', null, entry.value),
+                    ReactGlobal.createElement('td', null,
+                      ReactGlobal.createElement('input', {
+                        type: 'number',
+                        value: entry.value,
+                        onChange: (e) => updateLookupValue(index, parseFloat(e.target.value) || 0),
+                        className: 'form-control',
+                        step: '0.01',
+                        style: { width: '100px' }
+                      })
+                    ),
                     ReactGlobal.createElement('td', null,
                       ReactGlobal.createElement('button', {
                         onClick: () => removeLookupEntry(index),

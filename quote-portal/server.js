@@ -61,6 +61,26 @@ setupExportRoutes(app)
 // Serve uploaded files
 app.use('/uploads', express.static(uploadsDir))
 
+// Set proper MIME types for static files
+app.use((req, res, next) => {
+  if (req.path.endsWith('.css')) {
+    res.type('text/css')
+  } else if (req.path.endsWith('.js')) {
+    res.type('application/javascript')
+  } else if (req.path.endsWith('.html')) {
+    res.type('text/html')
+  } else if (req.path.endsWith('.json')) {
+    res.type('application/json')
+  } else if (req.path.endsWith('.png')) {
+    res.type('image/png')
+  } else if (req.path.endsWith('.jpg') || req.path.endsWith('.jpeg')) {
+    res.type('image/jpeg')
+  } else if (req.path.endsWith('.svg')) {
+    res.type('image/svg+xml')
+  }
+  next()
+})
+
 // Serve static files
 app.use(express.static(ROOT))
 

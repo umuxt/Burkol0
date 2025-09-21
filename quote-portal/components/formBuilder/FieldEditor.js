@@ -26,6 +26,7 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNoti
     if (field) {
       setFieldForm({
         ...field,
+        options: field.options || [],
         validation: field.validation || { min: null, max: null, pattern: null },
         display: field.display || {
           showInTable: true,
@@ -311,7 +312,7 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNoti
             }, 'Ekle')
           ),
           
-          fieldForm.options.length > 0 && React.createElement('ul', { 
+          (fieldForm.options && fieldForm.options.length > 0) && React.createElement('ul', { 
             className: 'options-list'
           },
             ...fieldForm.options.map((option, index) =>

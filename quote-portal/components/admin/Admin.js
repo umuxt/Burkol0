@@ -21,9 +21,9 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   const [metric, setMetric] = useState('count')
   const [filterPopup, setFilterPopup] = useState(false)
   const [globalSearch, setGlobalSearch] = useState('')
-  const [fieldSearch, setFieldSearch] = useState('')
   const [formConfig, setFormConfig] = useState(null)
   const [priceSettings, setPriceSettings] = useState({})
+  const [showAddModal, setShowAddModal] = useState(false)
   const [pagination, setPagination] = useState({
     currentPage: 1,
     itemsPerPage: 10,
@@ -35,11 +35,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   const [newUser, setNewUser] = useState({ email: '', password: '', role: 'admin' })
   const [filters, setFilters] = useState({
     status: [],
-    material: [],
-    process: [],
     dateRange: { from: '', to: '' },
-    qtyRange: { min: '', max: '' },
-    country: []
+    qtyRange: { min: '', max: '' }
   })
 
   useEffect(() => {
@@ -53,6 +50,22 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     if (activeTab === 'users') {
       await loadUsers()
     }
+  }
+
+  async function handleAddRecord(recordData) {
+    try {
+      await API.addQuote(recordData)
+      await refresh() // Reload the list
+      showNotification('Kayıt başarıyla eklendi', 'success')
+    } catch (error) {
+      console.error('Error adding record:', error)
+      showNotification('Kayıt eklenirken hata oluştu', 'error')
+    }
+  }
+
+  function showNotification(message, type) {
+    // Simple notification - you can enhance this
+    alert(message)
   }
 
   async function loadUsers() {
@@ -147,8 +160,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   }
 
   // Use filtered list from utils
-  const filtered = createFilteredList(list, filters, globalSearch, fieldSearch)
-  const filterOptions = getFilterOptions(list)
+  const filtered = createFilteredList(list, filters, globalSearch, formConfig)
+  const filterOptions = getFilterOptions(list, formConfig)
 
   // Pagination logic
   const totalItems = filtered.length
@@ -238,8 +251,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
           },
           onMouseOver: (e) => e.target.style.backgroundColor = '#0056b3',
           onMouseOut: (e) => e.target.style.backgroundColor = '#007bff',
-          title: 'Sistem Ayarları',
-          target: '_blank'
+          title: 'Sistem Ayarları'
         }, '⚙️ Ayarlar'),
         React.createElement('button', { 
           onClick: handleLogout, 
@@ -259,14 +271,23 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     // Statistics charts
     React.createElement('div', { className: 'card', style: { marginBottom: 12 } },
       React.createElement('label', null, t.a_charts),
-      React.createElement('div', { className: 'row wrap', style: { gap: 12, marginTop: 6 } },
-        React.createElement('div', { style: { flex: '1 1 300px', minWidth: 280 } },
+      React.createElement('div', { 
+        className: 'row wrap', 
+        style: { 
+          gap: 12, 
+          marginTop: 6, 
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between'
+        } 
+      },
+        React.createElement('div', { style: { flex: '1 1 calc(33.333% - 8px)', minWidth: 250, maxWidth: '100%' } },
           React.createElement(BarChart, { data: statsAll.byStatus, xLabel: t.dim_status, yLabel: metricLabel(), byKeyAlpha: false })
         ),
-        React.createElement('div', { style: { flex: '1 1 300px', minWidth: 280 } },
+        React.createElement('div', { style: { flex: '1 1 calc(33.333% - 8px)', minWidth: 250, maxWidth: '100%' } },
           React.createElement(BarChart, { data: statsAll.byProcess, xLabel: t.dim_process, yLabel: metricLabel(), byKeyAlpha: false })
         ),
-        React.createElement('div', { style: { flex: '1 1 300px', minWidth: 280 } },
+        React.createElement('div', { style: { flex: '1 1 calc(33.333% - 8px)', minWidth: 250, maxWidth: '100%' } },
           React.createElement(BarChart, { data: statsAll.byMaterial, xLabel: t.dim_material, yLabel: metricLabel(), byKeyAlpha: false })
         )
       )
@@ -281,17 +302,10 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         React.createElement('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } },
           React.createElement('input', {
             type: 'text',
-            placeholder: 'Genel arama...',
+            placeholder: 'Tüm veriler içinde arama...',
             value: globalSearch,
             onChange: (e) => setGlobalSearch(e.target.value),
-            style: { padding: '6px 12px', border: '1px solid #ddd', borderRadius: '4px', minWidth: '150px' }
-          }),
-          React.createElement('input', {
-            type: 'text',
-            placeholder: 'Alan araması...',
-            value: fieldSearch,
-            onChange: (e) => setFieldSearch(e.target.value),
-            style: { padding: '6px 12px', border: '1px solid #ddd', borderRadius: '4px', minWidth: '150px' }
+            style: { padding: '6px 12px', border: '1px solid #ddd', borderRadius: '4px', minWidth: '200px' }
           }),
           React.createElement('button', {
             onClick: () => setFilterPopup(true),
@@ -325,7 +339,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
             }, getActiveFilterCount(filters))
           ),
           React.createElement('button', {
-            onClick: () => clearFilters(setFilters, setGlobalSearch, setFieldSearch),
+            onClick: () => clearFilters(setFilters, setGlobalSearch),
             className: 'btn',
             style: {
               backgroundColor: '#dc3545',
@@ -335,7 +349,21 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
               borderRadius: '4px',
               cursor: 'pointer'
             }
-          }, 'Temizle')
+          }, 'Temizle'),
+          
+          // Add Record button
+          React.createElement('button', {
+            onClick: () => setShowAddModal(true),
+            className: 'btn',
+            style: {
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }
+          }, 'Kayıt Ekle')
         )
       ),
 
@@ -370,38 +398,6 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
               fontSize: '12px'
             },
             onClick: (e) => { e.stopPropagation(); clearSpecificFilter(setFilters, 'status') }
-          }, '×')
-        ),
-
-        // Material filters
-        filters.material.length > 0 && React.createElement('span', { 
-          style: { 
-            backgroundColor: '#28a745', 
-            color: 'white', 
-            padding: '4px 8px', 
-            borderRadius: '16px', 
-            fontSize: '11px',
-            position: 'relative',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            paddingRight: '20px'
-          },
-          onMouseOver: (e) => e.target.style.backgroundColor = '#1e7e34',
-          onMouseOut: (e) => e.target.style.backgroundColor = '#28a745',
-          title: 'Malzeme filtresini kaldır'
-        }, 
-          `Malzeme: ${filters.material.join(', ')}`,
-          React.createElement('span', {
-            style: {
-              position: 'absolute',
-              right: '4px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              cursor: 'pointer',
-              fontWeight: 'bold',
-              fontSize: '12px'
-            },
-            onClick: (e) => { e.stopPropagation(); clearSpecificFilter(setFilters, 'material') }
           }, '×')
         )
       ),
@@ -550,6 +546,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
       item: detail,
       onClose: () => setDetail(null),
       onSave: refresh,
+      formConfig,
       t,
       showNotification
     }),
@@ -557,6 +554,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     filterPopup && React.createElement(FilterPopup, {
       filters,
       filterOptions,
+      formConfig,
       onFilterChange: (category, value, action) => updateFilter(filters, setFilters, category, value, action),
       onClose: () => setFilterPopup(false),
       t
@@ -581,6 +579,305 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
             className: 'btn btn-primary'
           }, 'Fiyatı Güncelle')
         )
+      )
+    ),
+    
+    // Add Record Modal
+    React.createElement(AddRecordModal, {
+      isOpen: showAddModal,
+      onClose: () => setShowAddModal(false),
+      formConfig: formConfig,
+      onSave: handleAddRecord
+    })
+  )
+}
+
+// AddRecordModal component - inline for simplicity
+function AddRecordModal({ isOpen, onClose, formConfig, onSave }) {
+  const [formData, setFormData] = useState({})
+  const [saving, setSaving] = useState(false)
+
+  // Initialize form data when modal opens
+  useEffect(() => {
+    if (isOpen && formConfig) {
+      const initialData = {
+        status: 'new',
+        createdAt: new Date().toISOString()
+      }
+      
+      // Set default values for form fields
+      if (formConfig.steps) {
+        formConfig.steps.forEach(step => {
+          step.fields.forEach(field => {
+            if (field.type === 'multiselect') {
+              initialData[field.id] = []
+            } else if (field.type === 'number') {
+              initialData[field.id] = 0
+            } else {
+              initialData[field.id] = ''
+            }
+          })
+        })
+      }
+      
+      setFormData(initialData)
+    }
+  }, [isOpen, formConfig])
+
+  // Handle field change
+  function handleFieldChange(fieldId, value, fieldType) {
+    setFormData(prev => ({
+      ...prev,
+      [fieldId]: fieldType === 'multiselect' && typeof value === 'string' 
+        ? value.split(',').map(s => s.trim()).filter(Boolean)
+        : value
+    }))
+  }
+
+  // Handle save
+  async function handleSave() {
+    if (saving) return
+    
+    setSaving(true)
+    try {
+      // Generate unique ID
+      const id = `admin_${Date.now()}`
+      const recordData = {
+        ...formData,
+        id,
+        createdAt: new Date().toISOString(),
+        status: formData.status || 'new'
+      }
+      
+      await onSave(recordData)
+      onClose()
+      setFormData({})
+    } catch (error) {
+      console.error('Error saving record:', error)
+      alert('Kayıt kaydedilirken hata oluştu')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Render form field based on type
+  function renderField(field) {
+    const value = formData[field.id] || ''
+    
+    switch (field.type) {
+      case 'textarea':
+        return React.createElement('textarea', {
+          value: value,
+          onChange: (e) => handleFieldChange(field.id, e.target.value, field.type),
+          style: {
+            width: '100%',
+            minHeight: '80px',
+            padding: '8px',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            resize: 'vertical'
+          },
+          placeholder: field.label
+        })
+        
+      case 'radio':
+        return React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
+          ...(field.options || []).map(option => 
+            React.createElement('label', { 
+              key: option,
+              style: { display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }
+            },
+              React.createElement('input', {
+                type: 'radio',
+                name: field.id,
+                value: option,
+                checked: value === option,
+                onChange: (e) => handleFieldChange(field.id, e.target.value, field.type)
+              }),
+              option
+            )
+          )
+        )
+        
+      case 'multiselect':
+        return React.createElement('input', {
+          type: 'text',
+          value: Array.isArray(value) ? value.join(', ') : value,
+          onChange: (e) => handleFieldChange(field.id, e.target.value, field.type),
+          style: {
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #ddd',
+            borderRadius: '4px'
+          },
+          placeholder: `${field.label} (virgülle ayırın)`
+        })
+        
+      case 'number':
+        return React.createElement('input', {
+          type: 'number',
+          value: value,
+          onChange: (e) => handleFieldChange(field.id, parseFloat(e.target.value) || 0, field.type),
+          style: {
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #ddd',
+            borderRadius: '4px'
+          },
+          placeholder: field.label
+        })
+        
+      case 'date':
+        return React.createElement('input', {
+          type: 'date',
+          value: value,
+          onChange: (e) => handleFieldChange(field.id, e.target.value, field.type),
+          style: {
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #ddd',
+            borderRadius: '4px'
+          }
+        })
+        
+      case 'email':
+        return React.createElement('input', {
+          type: 'email',
+          value: value,
+          onChange: (e) => handleFieldChange(field.id, e.target.value, field.type),
+          style: {
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #ddd',
+            borderRadius: '4px'
+          },
+          placeholder: field.label
+        })
+        
+      default: // text
+        return React.createElement('input', {
+          type: 'text',
+          value: value,
+          onChange: (e) => handleFieldChange(field.id, e.target.value, field.type),
+          style: {
+            width: '100%',
+            padding: '8px',
+            border: '1px solid #ddd',
+            borderRadius: '4px'
+          },
+          placeholder: field.label
+        })
+    }
+  }
+
+  if (!isOpen) return null
+
+  return React.createElement('div', {
+    style: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    },
+    onClick: onClose
+  },
+    React.createElement('div', {
+      className: 'card detail-modal',
+      style: {
+        width: 'min(600px, 90vw)',
+        maxHeight: '85vh',
+        overflowY: 'auto',
+        position: 'relative',
+        padding: '20px',
+        margin: '20px'
+      },
+      onClick: (e) => e.stopPropagation()
+    },
+      // Header
+      React.createElement('div', {
+        style: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '20px',
+          paddingBottom: '10px',
+          borderBottom: '1px solid rgba(255,255,255,0.1)'
+        }
+      },
+        React.createElement('h3', { style: { margin: 0 } }, 'Yeni Kayıt Ekle'),
+        React.createElement('button', {
+          onClick: onClose,
+          className: 'btn',
+          style: {
+            background: 'none',
+            border: 'none',
+            fontSize: '20px',
+            cursor: 'pointer',
+            color: '#999'
+          }
+        }, '×')
+      ),
+      
+      // Form fields
+      React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '20px' } },
+        ...(formConfig && formConfig.steps ? formConfig.steps.flatMap(step =>
+          step.fields.map(field =>
+            React.createElement('div', { key: field.id, style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+              React.createElement('label', {
+                style: {
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  color: '#333'
+                }
+              }, field.label),
+              renderField(field)
+            )
+          )
+        ) : [])
+      ),
+      
+      // Footer buttons
+      React.createElement('div', {
+        style: {
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: '10px',
+          marginTop: '20px',
+          paddingTop: '20px',
+          borderTop: '1px solid rgba(255,255,255,0.1)'
+        }
+      },
+        React.createElement('button', {
+          onClick: onClose,
+          className: 'btn',
+          style: {
+            padding: '10px 20px',
+            backgroundColor: '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }
+        }, 'İptal'),
+        React.createElement('button', {
+          onClick: handleSave,
+          disabled: saving,
+          className: 'btn',
+          style: {
+            padding: '10px 20px',
+            backgroundColor: saving ? '#999' : '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: saving ? 'not-allowed' : 'pointer'
+          }
+        }, saving ? 'Kaydediliyor...' : 'Kaydet')
       )
     )
   )

@@ -18,12 +18,19 @@ export function verifyUser(email, password) {
   const user = jsondb.getUser(email)
   if (!user) return null
   
-  // Use scrypt hash with base64 format (compatible with existing db.json)
-  const { hash } = hashPassword(password, user.pw_salt)
-  
-  if (crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(user.pw_hash))) {
+  // Simple password check for admin (not hashed)
+  if (user.password && user.password === password) {
     return { email: user.email, role: user.role }
   }
+  
+  // Fallback to hash-based auth if pw_hash exists
+  if (user.pw_hash && user.pw_salt) {
+    const { hash } = hashPassword(password, user.pw_salt)
+    if (crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(user.pw_hash))) {
+      return { email: user.email, role: user.role }
+    }
+  }
+  
   return null
 }
 

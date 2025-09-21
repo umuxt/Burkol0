@@ -17,7 +17,7 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
   ])
 }
 
-export const API_BASE = (window.BURKOL_API || (typeof window !== 'undefined' && window.location.origin) || 'http://localhost:3001')
+export const API_BASE = (window.BURKOL_API || 'http://localhost:3001')
 
 function getToken() { 
   try { 
@@ -88,6 +88,23 @@ export const API = {
       return await res.json()
     } catch (e) {
       lsUpdate(id, { status })
+      return { ok: true, local: true }
+    }
+  },
+  async addQuote(quoteData) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, { 
+        method: 'POST', 
+        headers: withAuth({ 'Content-Type': 'application/json' }), 
+        body: JSON.stringify(quoteData) 
+      })
+      if (!res.ok) throw new Error('add failed')
+      return await res.json()
+    } catch (e) {
+      // Handle offline: save to localStorage and return mock response
+      const quotes = JSON.parse(localStorage.getItem('quotes') || '{}')
+      quotes[quoteData.id] = quoteData
+      localStorage.setItem('quotes', JSON.stringify(quotes))
       return { ok: true, local: true }
     }
   },

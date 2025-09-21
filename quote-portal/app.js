@@ -165,11 +165,11 @@ import { ToastNotification, useNotifications } from './hooks/useNotifications.js
       setError('')
       try {
         const res = await API.login(email, password, remember)
-        if (res && res.ok) {
+        if (res && res.token) {
+          // Login successful, token stored automatically by API.login
           onLogin()
         } else {
-          // This branch may not be hit if API.login always throws on error, but as a fallback:
-          setError((res && res.error) || 'Giriş başarısız. Lütfen tekrar deneyin.')
+          setError('Giriş başarısız. Lütfen tekrar deneyin.')
         }
       } catch (err) {
         console.error(err)

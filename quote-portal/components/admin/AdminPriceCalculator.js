@@ -10,6 +10,11 @@ export function calculatePrice(quote, priceSettings) {
     const paramValues = {}
     
     priceSettings.parameters.forEach(param => {
+      // Safety check for param object
+      if (!param || !param.id) {
+        return
+      }
+      
       if (param.type === 'fixed') {
         paramValues[param.id] = parseFloat(param.value) || 0
       } else if (param.type === 'form') {
@@ -39,16 +44,23 @@ export function calculatePrice(quote, priceSettings) {
           if (Array.isArray(fieldValue)) {
             // For multi-select fields, sum all values
             fieldValue.forEach(opt => {
-              const found = param.lookupTable.find(item => item.option === opt)
-              if (found) {
-                value += parseFloat(found.value) || 0
+              if (param.lookupTable && Array.isArray(param.lookupTable)) {
+                const found = param.lookupTable.find(item => item.option === opt)
+                if (found) {
+                  value += parseFloat(found.value) || 0
+                }
               }
             })
           } else {
             // Single value field with lookup
-            const lookupItem = param.lookupTable.find(item => item.option === fieldValue)
-            if (lookupItem) {
-              value = parseFloat(lookupItem.value) || 0
+            if (param.lookupTable && Array.isArray(param.lookupTable)) {
+              const lookupItem = param.lookupTable.find(item => item.option === fieldValue)
+              if (lookupItem) {
+                value = parseFloat(lookupItem.value) || 0
+              } else {
+                // Direct numeric value
+                value = parseFloat(fieldValue) || 0
+              }
             } else {
               // Direct numeric value
               value = parseFloat(fieldValue) || 0
@@ -106,26 +118,31 @@ export function needsPriceUpdate(quote) {
 }
 
 export function getPriceChangeType(quote, priceSettings) {
-  const currentPrice = quote.price || 0
-  const calculatedPrice = calculatePrice(quote, priceSettings)
-  const priceDifference = Math.abs(calculatedPrice - currentPrice)
-  
-  // First check if price actually changed (most important)
-  if (priceDifference > 0.01) {
-    return 'price-changed' // Price actually changed - show red
+  try {
+    const currentPrice = quote.price || 0
+    const calculatedPrice = calculatePrice(quote, priceSettings)
+    const priceDifference = Math.abs(calculatedPrice - currentPrice)
+    
+    // First check if price actually changed (most important)
+    if (priceDifference > 0.01) {
+      return 'price-changed' // Price actually changed - show red
+    }
+    
+    // If price is same but server indicates formula/settings changed
+    if (quote.needsPriceUpdate === true) {
+      return 'formula-changed' // Formula/params changed but price stayed same - show yellow
+    }
+    
+    // Also check if calculated differs from stored calculatedPrice (server-side calculation)
+    if (quote.calculatedPrice !== undefined && Math.abs(calculatedPrice - quote.calculatedPrice) > 0.01) {
+      return 'formula-changed' // Server calculation differs from client calculation
+    }
+    
+    return 'no-change' // No changes - no button
+  } catch (e) {
+    console.error('Price change type calculation error:', e)
+    return 'no-change' // Safe fallback
   }
-  
-  // If price is same but server indicates formula/settings changed
-  if (quote.needsPriceUpdate === true) {
-    return 'formula-changed' // Formula/params changed but price stayed same - show yellow
-  }
-  
-  // Also check if calculated differs from stored calculatedPrice (server-side calculation)
-  if (quote.calculatedPrice !== undefined && Math.abs(calculatedPrice - quote.calculatedPrice) > 0.01) {
-    return 'formula-changed' // Server calculation differs from client calculation
-  }
-  
-  return 'no-change' // No changes - no button
 }
 
 export function getChanges(item, priceSettings) {
