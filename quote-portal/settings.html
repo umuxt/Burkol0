@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Burkol | Ayarlar</title>
+    <meta name="description" content="Burkol Metal - Sistem Ayarları" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Burkol Ayarlar" />
+    
+    <!-- PWA Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="./img/icon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./img/icon-192.png" />
+    <link rel="apple-touch-icon" href="./img/icon-192.png" />
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Settings specific styles -->
+    <style>
+      :root {
+        /* Light theme for settings */
+        --bg: #ffffff;
+        --surface: #f8f9fa;
+        --muted: #6c757d;
+        --text: #212529;
+        --accent: #007bff;
+        --danger: #dc3545;
+        --success: #28a745;
+        --warning: #ffc107;
+        
+        /* Form colors */
+        --form-bg: #ffffff;
+        --form-border: #ced4da;
+        --form-focus: #007bff;
+        --form-error: #dc3545;
+        --form-success: #28a745;
+        
+        /* Button colors */
+        --btn-primary: #007bff;
+        --btn-secondary: #6c757d;
+        --btn-danger: #dc3545;
+        --btn-success: #28a745;
+        
+        /* Card colors */
+        --card-bg: #ffffff;
+        --card-border: #dee2e6;
+        --card-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+        font-size: 14px;
+      }
+
+      .settings-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+      }
+
+      .settings-header {
+        background: var(--surface);
+        border-bottom: 1px solid var(--card-border);
+        padding: 1.5rem 0;
+        margin: -2rem -1rem 2rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+      }
+
+      .settings-title {
+        font-size: 1.75rem;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 0.5rem;
+      }
+
+      .settings-subtitle {
+        color: var(--muted);
+        font-size: 1rem;
+      }
+
+      .tab-navigation {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid var(--card-border);
+        padding-bottom: 0;
+      }
+
+      .tab-button {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+        border-radius: 0.5rem 0.5rem 0 0;
+        font-weight: 500;
+        transition: all 0.2s;
+        border-bottom: 3px solid transparent;
+      }
+
+      .tab-button:hover {
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .tab-button.active {
+        background: var(--card-bg);
+        color: var(--accent);
+        border-bottom-color: var(--accent);
+      }
+
+      .tab-content {
+        background: var(--card-bg);
+        border-radius: 0.5rem;
+        box-shadow: var(--card-shadow);
+        border: 1px solid var(--card-border);
+        padding: 2rem;
+        min-height: 60vh;
+      }
+
+      .card {
+        background: var(--card-bg);
+        border: 1px solid var(--card-border);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        box-shadow: var(--card-shadow);
+        margin-bottom: 1.5rem;
+      }
+
+      .card h3 {
+        color: var(--text);
+        margin-bottom: 1rem;
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        color: var(--text);
+      }
+
+      .form-control {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid var(--form-border);
+        border-radius: 0.375rem;
+        background: var(--form-bg);
+        color: var(--text);
+        font-size: 0.875rem;
+        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+      }
+
+      .form-control:focus {
+        outline: none;
+        border-color: var(--form-focus);
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+      }
+
+      .btn {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 0.375rem;
+        font-weight: 500;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        font-size: 0.875rem;
+        text-decoration: none;
+      }
+
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .btn-primary {
+        background: var(--btn-primary);
+        color: white;
+      }
+
+      .btn-primary:hover:not(:disabled) {
+        background: #0056b3;
+      }
+
+      .btn-secondary {
+        background: var(--btn-secondary);
+        color: white;
+      }
+
+      .btn-secondary:hover:not(:disabled) {
+        background: #545b62;
+      }
+
+      .btn-danger {
+        background: var(--btn-danger);
+        color: white;
+      }
+
+      .btn-danger:hover:not(:disabled) {
+        background: #c82333;
+      }
+
+      .btn-success {
+        background: var(--btn-success);
+        color: white;
+      }
+
+      .btn-success:hover:not(:disabled) {
+        background: #1e7e34;
+      }
+
+      .btn-sm {
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+      }
+
+      .table-container {
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--card-bg);
+      }
+
+      th, td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid var(--card-border);
+      }
+
+      th {
+        background: var(--surface);
+        font-weight: 600;
+        color: var(--text);
+      }
+
+      tr:hover {
+        background: var(--surface);
+      }
+
+      .spinner {
+        border: 2px solid var(--surface);
+        border-top: 2px solid var(--accent);
+        border-radius: 50%;
+        width: 20px;
+        height: 20px;
+        animation: spin 1s linear infinite;
+        display: inline-block;
+        margin-right: 0.5rem;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      .back-to-admin {
+        position: fixed;
+        top: 1rem;
+        left: 1rem;
+        z-index: 1000;
+      }
+
+      @media (max-width: 768px) {
+        .settings-container {
+          padding: 1rem 0.5rem;
+        }
+        
+        .tab-navigation {
+          flex-wrap: wrap;
+        }
+        
+        .tab-content {
+          padding: 1rem;
+        }
+        
+        .card {
+          padding: 1rem;
+        }
+      }
+    </style>
+    
+    <!-- React 18 via CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+  </head>
+  <body>
+    <a href="./panel-gizli.html" class="btn btn-secondary back-to-admin">← Admin Paneline Dön</a>
+    
+    <div class="settings-container">
+      <div class="settings-header">
+        <h1 class="settings-title">Sistem Ayarları</h1>
+        <p class="settings-subtitle">Burkol teklif sistemi yapılandırması</p>
+      </div>
+      
+      <div id="settings-root"></div>
+    </div>
+
+    <script>
+      window.BURKOL_APP = 'settings';
+      window.BURKOL_API = window.BURKOL_API || (location.origin && location.origin !== 'null' ? location.origin : 'http://localhost:3001');
+    </script>
+    <script type="module" src="./settings-app.js"></script>
+  </body>
+</html>

@@ -16,17 +16,17 @@ export function calculatePriceServer(quote, settings) {
         let value = 0
         
         if (param.formField === 'qty') {
-          value = parseFloat(quote.qty) || 0
+          value = parseFloat(quote.qty) || parseFloat(quote.customFields?.qty) || 0
         } else if (param.formField === 'thickness') {
-          value = parseFloat(quote.thickness) || 0
+          value = parseFloat(quote.thickness) || parseFloat(quote.customFields?.thickness) || 0
         } else if (param.formField === 'dimensions') {
           // Calculate area from dimensions string or numeric values
-          const l = parseFloat(quote.dimsL)
-          const w = parseFloat(quote.dimsW)
+          const l = parseFloat(quote.dimsL) || parseFloat(quote.customFields?.dimsL)
+          const w = parseFloat(quote.dimsW) || parseFloat(quote.customFields?.dimsW)
           if (!isNaN(l) && !isNaN(w)) {
             value = l * w
           } else {
-            const dims = quote.dims || ''
+            const dims = quote.dims || quote.customFields?.dims || ''
             const match = String(dims).match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i)
             if (match) {
               value = (parseFloat(match[1]) || 0) * (parseFloat(match[2]) || 0)
@@ -34,7 +34,11 @@ export function calculatePriceServer(quote, settings) {
           }
         } else {
           // For fields with lookup table or arrays
-          const fieldValue = quote[param.formField]
+          // Check both fixed fields and customFields for dynamic form compatibility
+          let fieldValue = quote[param.formField]
+          if (fieldValue === undefined && quote.customFields) {
+            fieldValue = quote.customFields[param.formField]
+          }
           
           if (Array.isArray(fieldValue)) {
             if (param.lookupTable && param.lookupTable.length > 0) {
@@ -50,7 +54,7 @@ export function calculatePriceServer(quote, settings) {
             value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
           } else {
             // Direct form value for fields without lookup
-            value = parseFloat(quote[param.formField]) || 0
+            value = parseFloat(fieldValue) || 0
           }
         }
         

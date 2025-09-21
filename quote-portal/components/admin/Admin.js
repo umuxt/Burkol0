@@ -219,8 +219,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     React.createElement('div', { className: 'header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' } },
       React.createElement('h1', null, t.a_title || 'Admin Panel'),
       React.createElement('div', { style: { display: 'flex', gap: '10px' } },
-        React.createElement('button', { 
-          onClick: () => setSettingsModal(true), 
+        React.createElement('a', { 
+          href: './settings.html',
           className: 'btn', 
           style: { 
             backgroundColor: '#007bff', 
@@ -230,12 +230,17 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
             borderRadius: '6px',
             cursor: 'pointer',
             fontSize: '16px',
-            transition: 'all 0.2s ease'
+            transition: 'all 0.2s ease',
+            textDecoration: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '5px'
           },
           onMouseOver: (e) => e.target.style.backgroundColor = '#0056b3',
           onMouseOut: (e) => e.target.style.backgroundColor = '#007bff',
-          title: 'Ayarlar'
-        }, '⚙️'),
+          title: 'Sistem Ayarları',
+          target: '_blank'
+        }, '⚙️ Ayarlar'),
         React.createElement('button', { 
           onClick: handleLogout, 
           className: 'btn', 

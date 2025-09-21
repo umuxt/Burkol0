@@ -102,34 +102,21 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
   function validateForm() {
     const newErrors = {}
     
-    if (!formConfig) return newErrors
+    // Get all fields (fixed + custom)
+    const fixedDefaultFields = [
+      { id: 'name', label: 'Müşteri Adı', type: 'text', required: true },
+      { id: 'company', label: 'Şirket', type: 'text', required: false },
+      { id: 'proj', label: 'Proje Adı', type: 'text', required: true },
+      { id: 'phone', label: 'Telefon', type: 'phone', required: true },
+      { id: 'email', label: 'E-posta', type: 'email', required: true }
+    ]
+    
+    const customFields = formConfig?.fields || formConfig?.formStructure?.fields || []
+    const allFields = [...fixedDefaultFields, ...customFields]
 
-    // Validate default fields
-    formConfig.defaultFields?.forEach(field => {
-      if (field.required && !formData[field.id]?.toString().trim()) {
-        newErrors[field.id] = `${field.label} alanı zorunludur`
-      }
-
-      // Type-specific validation
-      if (formData[field.id]) {
-        if (field.type === 'email' && formData[field.id]) {
-          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-          if (!emailRegex.test(formData[field.id])) {
-            newErrors[field.id] = 'Geçerli bir e-posta adresi girin'
-          }
-        }
-
-        if (field.type === 'number' && formData[field.id]) {
-          if (isNaN(Number(formData[field.id]))) {
-            newErrors[field.id] = 'Geçerli bir sayı girin'
-          }
-        }
-      }
-    })
-
-    // Validate custom fields
-    formConfig.fields?.forEach(field => {
-      const value = formData.customFields?.[field.id]
+    allFields.forEach(field => {
+      const isCustomField = !fixedDefaultFields.some(df => df.id === field.id)
+      const value = isCustomField ? formData.customFields?.[field.id] : formData[field.id]
       
       if (field.required) {
         if (Array.isArray(value)) {
@@ -144,7 +131,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
       }
 
       // Type-specific validation
-      if (value) {
+      if (value && value.toString().trim()) {
         if (field.type === 'email') {
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
           if (!emailRegex.test(value)) {
@@ -156,7 +143,6 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
           if (isNaN(Number(value))) {
             newErrors[field.id] = 'Geçerli bir sayı girin'
           }
-          
           // Min/Max validation
           const numValue = Number(value)
           if (field.validation?.min !== null && numValue < field.validation.min) {
@@ -198,39 +184,46 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
         id: uid(),
         createdAt: new Date().toISOString(),
         status: 'new',
-        configVersion: formConfig.version,
         
-        // Core fields
-        ...Object.fromEntries(
-          formConfig.defaultFields?.map(field => [field.id, formData[field.id] || '']) || []
-        ),
+        // Add fixed fields
+        name: formData.name,
+        company: formData.company,
+        proj: formData.proj,
+        phone: formData.phone,
+        email: formData.email,
         
-        // Custom fields
+        // Add custom fields if any
         customFields: formData.customFields || {},
         
-        // Pricing info (will be calculated by server)
-        pricing: {
-          calculatedPrice: 0,
-          configVersion: formConfig.version,
-          isLegacy: false,
-          needsUpdate: false,
-          pricingError: false,
-          lastCalculated: new Date().toISOString()
-        }
+        // Add form metadata
+        formVersion: formConfig?.version,
+        formConfigSnapshot: formConfig
       }
 
+      // Additional form data mapping for backward compatibility
+      Object.entries(formData).forEach(([key, value]) => {
+        if (!['name', 'company', 'proj', 'phone', 'email', 'customFields'].includes(key)) {
+          quoteData[key] = value
+        }
+      })
+
       await onSubmit(quoteData)
-      
-      // Reset form
-      setFormData({})
-      setErrors({})
-      
+      showNotification('Teklif başarıyla gönderildi!', 'success')
     } catch (error) {
       console.error('Submit error:', error)
       showNotification('Form gönderilemedi. Lütfen tekrar deneyin.', 'error')
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Show loading state
+  if (loading) {
+    return React.createElement('div', { className: 'loading-state' },
+      React.createElement('div', { style: { textAlign: 'center', padding: '40px' } },
+        React.createElement('p', null, 'Form yükleniyor...')
+      )
+    )
   }
 
   function renderField(field, isCustomField = false) {
@@ -489,13 +482,13 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
   // Sort fields by form order
   const allFields = [
     ...fixedDefaultFields,
-    ...(formConfig.fields || [])
+    ...(formConfig?.fields || formConfig?.formStructure?.fields || [])
   ].sort((a, b) => (a.display?.formOrder || 0) - (b.display?.formOrder || 0))
 
   return React.createElement('form', { onSubmit: handleSubmit, className: 'dynamic-form' },
     React.createElement('div', { className: 'form-fields' },
       allFields.map(field => {
-        const isCustomField = !formConfig.defaultFields?.some(df => df.id === field.id)
+        const isCustomField = !fixedDefaultFields.some(df => df.id === field.id)
         return renderField(field, isCustomField)
       })
     ),

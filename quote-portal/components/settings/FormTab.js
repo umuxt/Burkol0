@@ -1,6 +1,6 @@
 // Form Configuration Tab - Dynamic form builder management
 import API from '../../lib/api.js'
-import FormBuilder from '../FormBuilder.js'
+import { FormBuilderCompact } from '../formBuilder/FormBuilderCompact.js'
 
 const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
 const { useState, useEffect } = ReactGlobal
@@ -46,20 +46,17 @@ function FormTab({ t, showNotification }) {
     )
   }
 
-  return ReactGlobal.createElement('div', { className: 'form-tab' },
-    ReactGlobal.createElement('div', { className: 'card' },
-      ReactGlobal.createElement('h3', null, 'Form Yapılandırması'),
-      ReactGlobal.createElement('p', { style: { color: '#666', marginBottom: '20px' } },
-        'Müşteri teklif formunda gösterilecek alanları ve seçenekleri yönetin.'
-      ),
-      
-      ReactGlobal.createElement(FormBuilder, {
-        initialConfig: formConfig,
-        onSave: saveFormConfig,
-        t,
-        showNotification
-      })
-    )
+  return ReactGlobal.createElement(ReactGlobal.Fragment, null,
+    ReactGlobal.createElement('h3', null, 'Form Yapılandırması'),
+    ReactGlobal.createElement('p', { style: { color: '#666', marginBottom: '20px' } },
+      'Müşteri teklif formunda gösterilecek alanları ve seçenekleri yönetin.'
+    ),
+    
+    ReactGlobal.createElement(FormBuilderCompact, {
+      isDarkMode: false,
+      t,
+      showNotification
+    })
   )
 }
 

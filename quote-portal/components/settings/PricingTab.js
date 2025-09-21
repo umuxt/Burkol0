@@ -135,7 +135,7 @@ function PricingTab({ t, showNotification }) {
     validateFormula()
   }, [formula, parameters])
 
-  return ReactGlobal.createElement('div', { className: 'pricing-tab' },
+  return ReactGlobal.createElement(ReactGlobal.Fragment, null,
     // Parameters section
     ReactGlobal.createElement('div', { className: 'card', style: { marginBottom: '20px' } },
       ReactGlobal.createElement('h3', null, 'Fiyat Parametreleri'),

@@ -1,4 +1,6 @@
 // Field Editor - Individual field creation and editing
+import { FormBuilderUtils } from './FormBuilderUtils.js'
+
 const { useState, useEffect } = React
 
 export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNotification }) {
@@ -22,7 +24,16 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNoti
 
   useEffect(() => {
     if (field) {
-      setFieldForm({ ...field })
+      setFieldForm({
+        ...field,
+        validation: field.validation || { min: null, max: null, pattern: null },
+        display: field.display || {
+          showInTable: true,
+          showInFilter: false,
+          tableOrder: 10,
+          formOrder: 10
+        }
+      })
     }
   }, [field])
 
@@ -33,7 +44,10 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNoti
   function updateNestedField(parentKey, childKey, value) {
     setFieldForm(prev => ({
       ...prev,
-      [parentKey]: { ...prev[parentKey], [childKey]: value }
+      [parentKey]: { 
+        ...(prev[parentKey] || {}), 
+        [childKey]: value 
+      }
     }))
   }
 
@@ -86,72 +100,199 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNoti
   const needsOptions = ['dropdown', 'multiselect', 'radio'].includes(fieldForm.type)
 
   return React.createElement('div', { className: 'field-editor' },
-    React.createElement('div', { className: 'modal-overlay' },
+    React.createElement('div', { 
+      className: 'modal-overlay',
+      onClick: (e) => {
+        if (e.target === e.currentTarget) {
+          onCancel()
+        }
+      }
+    },
       React.createElement('div', { 
         className: 'modal-content',
-        style: { maxWidth: '600px', maxHeight: '80vh', overflow: 'auto' }
+        style: { 
+          maxWidth: '900px', 
+          width: '90vw',
+          maxHeight: '85vh', 
+          overflow: 'auto',
+          padding: '24px'
+        },
+        onClick: (e) => e.stopPropagation()
       },
-        React.createElement('h3', null, field ? 'Alan Düzenle' : 'Yeni Alan Ekle'),
+        React.createElement('div', { 
+          style: { 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            marginBottom: '20px' 
+          } 
+        },
+          React.createElement('h3', { style: { margin: 0 } }, field ? 'Alan Düzenle' : 'Yeni Alan Ekle'),
+          React.createElement('button', {
+            onClick: onCancel,
+            style: {
+              background: 'none',
+              border: 'none',
+              fontSize: '24px',
+              cursor: 'pointer',
+              color: 'var(--text)',
+              padding: '0',
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '4px',
+              transition: 'background-color 0.2s'
+            },
+            onMouseEnter: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.1)',
+            onMouseLeave: (e) => e.target.style.backgroundColor = 'transparent'
+          }, '×')
+        ),
         
-        // Basic field properties
-        React.createElement('div', { className: 'form-group' },
-          React.createElement('label', null, 'Alan Etiketi *'),
-          React.createElement('input', {
-            type: 'text',
-            value: fieldForm.label,
-            onChange: (e) => updateFieldForm('label', e.target.value),
-            placeholder: 'Örn: Müşteri Adı',
-            className: 'form-control'
-          })
-        ),
+        // Form container with two columns
+        React.createElement('div', { 
+          style: { 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr', 
+            gap: '24px',
+            marginBottom: '20px'
+          } 
+        },
+          // Left column
+          React.createElement('div', { className: 'form-column' },
+            // Basic field properties
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', null, 'Alan Etiketi *'),
+              React.createElement('input', {
+                type: 'text',
+                value: fieldForm.label,
+                onChange: (e) => updateFieldForm('label', e.target.value),
+                placeholder: 'Örn: Müşteri Adı',
+                className: 'form-control'
+              })
+            ),
 
-        React.createElement('div', { className: 'form-group' },
-          React.createElement('label', null, 'Alan ID'),
-          React.createElement('input', {
-            type: 'text',
-            value: fieldForm.id,
-            onChange: (e) => updateFieldForm('id', e.target.value),
-            placeholder: 'Otomatik oluşturulur',
-            className: 'form-control'
-          })
-        ),
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', null, 'Alan ID'),
+              React.createElement('input', {
+                type: 'text',
+                value: fieldForm.id,
+                onChange: (e) => updateFieldForm('id', e.target.value),
+                placeholder: 'Otomatik oluşturulur',
+                className: 'form-control'
+              })
+            ),
 
-        React.createElement('div', { className: 'form-group' },
-          React.createElement('label', null, 'Alan Türü'),
-          React.createElement('select', {
-            value: fieldForm.type,
-            onChange: (e) => updateFieldForm('type', e.target.value),
-            className: 'form-control'
-          },
-            ...(fieldTypes || []).map(type =>
-              React.createElement('option', { key: type.value, value: type.value }, type.label)
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', null, 'Alan Türü'),
+              React.createElement('select', {
+                value: fieldForm.type,
+                onChange: (e) => updateFieldForm('type', e.target.value),
+                className: 'form-control'
+              },
+                ...Object.entries(FormBuilderUtils.fieldTypes).map(([typeKey, typeConfig]) =>
+                  React.createElement('option', { key: typeKey, value: typeKey }, typeConfig.label)
+                )
+              )
+            ),
+
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', null, 'Placeholder'),
+              React.createElement('input', {
+                type: 'text',
+                value: fieldForm.placeholder,
+                onChange: (e) => updateFieldForm('placeholder', e.target.value),
+                placeholder: 'Alan için ipucu metni',
+                className: 'form-control'
+              })
+            ),
+
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('label', null,
+                React.createElement('input', {
+                  type: 'checkbox',
+                  checked: fieldForm.required,
+                  onChange: (e) => updateFieldForm('required', e.target.checked)
+                }),
+                ' Zorunlu alan'
+              )
+            )
+          ),
+
+          // Right column
+          React.createElement('div', { className: 'form-column' },
+            // Validation rules
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('h4', null, 'Doğrulama Kuralları'),
+              React.createElement('div', { style: { display: 'flex', gap: '12px', marginBottom: '12px' } },
+                React.createElement('div', { style: { flex: 1 } },
+                  React.createElement('label', null, 'Min Değer/Uzunluk'),
+                  React.createElement('input', {
+                    type: 'number',
+                    value: (fieldForm.validation && fieldForm.validation.min) || '',
+                    onChange: (e) => updateNestedField('validation', 'min', e.target.value || null),
+                    className: 'form-control'
+                  })
+                ),
+                React.createElement('div', { style: { flex: 1 } },
+                  React.createElement('label', null, 'Max Değer/Uzunluk'),
+                  React.createElement('input', {
+                    type: 'number',
+                    value: (fieldForm.validation && fieldForm.validation.max) || '',
+                    onChange: (e) => updateNestedField('validation', 'max', e.target.value || null),
+                    className: 'form-control'
+                  })
+                )
+              )
+            ),
+
+            // Display options
+            React.createElement('div', { className: 'form-group' },
+              React.createElement('h4', null, 'Görünüm Ayarları'),
+              React.createElement('div', { style: { display: 'flex', gap: '12px', marginBottom: '12px' } },
+                React.createElement('label', null,
+                  React.createElement('input', {
+                    type: 'checkbox',
+                    checked: fieldForm.display?.showInTable || false,
+                    onChange: (e) => updateNestedField('display', 'showInTable', e.target.checked)
+                  }),
+                  ' Tabloda göster'
+                ),
+                React.createElement('label', null,
+                  React.createElement('input', {
+                    type: 'checkbox',
+                    checked: fieldForm.display?.showInFilter || false,
+                    onChange: (e) => updateNestedField('display', 'showInFilter', e.target.checked)
+                  }),
+                  ' Filtrede göster'
+                )
+              ),
+              React.createElement('div', { style: { display: 'flex', gap: '12px' } },
+                React.createElement('div', { style: { flex: 1 } },
+                  React.createElement('label', null, 'Form Sırası'),
+                  React.createElement('input', {
+                    type: 'number',
+                    value: fieldForm.display?.formOrder || 0,
+                    onChange: (e) => updateNestedField('display', 'formOrder', parseInt(e.target.value) || 0),
+                    className: 'form-control'
+                  })
+                ),
+                React.createElement('div', { style: { flex: 1 } },
+                  React.createElement('label', null, 'Tablo Sırası'),
+                  React.createElement('input', {
+                    type: 'number',
+                    value: fieldForm.display?.tableOrder || 0,
+                    onChange: (e) => updateNestedField('display', 'tableOrder', parseInt(e.target.value) || 0),
+                    className: 'form-control'
+                  })
+                )
+              )
             )
           )
         ),
 
-        React.createElement('div', { className: 'form-group' },
-          React.createElement('label', null, 'Placeholder'),
-          React.createElement('input', {
-            type: 'text',
-            value: fieldForm.placeholder,
-            onChange: (e) => updateFieldForm('placeholder', e.target.value),
-            placeholder: 'Alan için ipucu metni',
-            className: 'form-control'
-          })
-        ),
-
-        React.createElement('div', { className: 'form-group' },
-          React.createElement('label', null,
-            React.createElement('input', {
-              type: 'checkbox',
-              checked: fieldForm.required,
-              onChange: (e) => updateFieldForm('required', e.target.checked)
-            }),
-            ' Zorunlu alan'
-          )
-        ),
-
-        // Options for select-type fields
+        // Options for select-type fields (full width)
         needsOptions && React.createElement('div', { className: 'form-group' },
           React.createElement('label', null, 'Seçenekler'),
           React.createElement('div', { style: { display: 'flex', gap: '8px', marginBottom: '8px' } },
@@ -171,87 +312,19 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNoti
           ),
           
           fieldForm.options.length > 0 && React.createElement('ul', { 
-            style: { 
-              listStyle: 'none', 
-              padding: 0, 
-              border: '1px solid #ddd', 
-              borderRadius: '4px',
-              maxHeight: '150px',
-              overflow: 'auto'
-            } 
+            className: 'options-list'
           },
             ...fieldForm.options.map((option, index) =>
               React.createElement('li', { 
-                key: index,
-                style: { 
-                  padding: '8px 12px', 
-                  borderBottom: '1px solid #eee',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }
+                key: index
               },
                 React.createElement('span', null, option),
                 React.createElement('button', {
                   type: 'button',
                   onClick: () => removeOption(index),
-                  style: {
-                    background: '#dc3545',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    padding: '2px 6px',
-                    fontSize: '12px'
-                  }
+                  className: 'option-remove-btn'
                 }, 'Sil')
               )
-            )
-          )
-        ),
-
-        // Display options
-        React.createElement('div', { className: 'form-group' },
-          React.createElement('h4', null, 'Görünüm Ayarları'),
-          React.createElement('label', null,
-            React.createElement('input', {
-              type: 'checkbox',
-              checked: fieldForm.display.showInTable,
-              onChange: (e) => updateNestedField('display', 'showInTable', e.target.checked)
-            }),
-            ' Tabloda göster'
-          ),
-          React.createElement('br'),
-          React.createElement('label', null,
-            React.createElement('input', {
-              type: 'checkbox',
-              checked: fieldForm.display.showInFilter,
-              onChange: (e) => updateNestedField('display', 'showInFilter', e.target.checked)
-            }),
-            ' Filtrelerde göster'
-          )
-        ),
-
-        // Validation rules
-        React.createElement('div', { className: 'form-group' },
-          React.createElement('h4', null, 'Doğrulama Kuralları'),
-          React.createElement('div', { style: { display: 'flex', gap: '12px' } },
-            React.createElement('div', { style: { flex: 1 } },
-              React.createElement('label', null, 'Min Değer/Uzunluk'),
-              React.createElement('input', {
-                type: 'number',
-                value: fieldForm.validation.min || '',
-                onChange: (e) => updateNestedField('validation', 'min', e.target.value || null),
-                className: 'form-control'
-              })
-            ),
-            React.createElement('div', { style: { flex: 1 } },
-              React.createElement('label', null, 'Max Değer/Uzunluk'),
-              React.createElement('input', {
-                type: 'number',
-                value: fieldForm.validation.max || '',
-                onChange: (e) => updateNestedField('validation', 'max', e.target.value || null),
-                className: 'form-control'
-              })
             )
           )
         ),

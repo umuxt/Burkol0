@@ -64,6 +64,74 @@ export function validateQuoteData(q) {
   return errors
 }
 
+// Dynamic validation based on form configuration
+export function validateQuoteDataDynamic(q, formConfig) {
+  const errors = []
+  
+  if (!formConfig || !formConfig.fields) {
+    // Fallback to static validation if no form config
+    return validateQuoteData(q)
+  }
+  
+  formConfig.fields.forEach(field => {
+    const fieldValue = q[field.id] || (q.customFields && q.customFields[field.id])
+    
+    // Check required fields
+    if (field.required && (!fieldValue || (typeof fieldValue === 'string' && fieldValue.trim().length === 0))) {
+      errors.push(`${field.label} alanı zorunludur`)
+      return
+    }
+    
+    // Skip validation if field is empty and not required
+    if (!fieldValue) return
+    
+    // Type-specific validation
+    switch (field.type) {
+      case 'email':
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldValue)) {
+          errors.push(`${field.label} geçerli bir email adresi olmalıdır`)
+        }
+        break
+        
+      case 'phone':
+        if (typeof fieldValue === 'string' && fieldValue.length < 10) {
+          errors.push(`${field.label} geçerli bir telefon numarası olmalıdır`)
+        }
+        break
+        
+      case 'number':
+        const num = parseFloat(fieldValue)
+        if (isNaN(num)) {
+          errors.push(`${field.label} geçerli bir sayı olmalıdır`)
+        } else if (field.validation) {
+          if (field.validation.min !== undefined && num < field.validation.min) {
+            errors.push(`${field.label} en az ${field.validation.min} olmalıdır`)
+          }
+          if (field.validation.max !== undefined && num > field.validation.max) {
+            errors.push(`${field.label} en fazla ${field.validation.max} olmalıdır`)
+          }
+        }
+        break
+        
+      case 'text':
+      case 'textarea':
+        if (typeof fieldValue === 'string') {
+          if (field.validation) {
+            if (field.validation.min !== undefined && fieldValue.length < field.validation.min) {
+              errors.push(`${field.label} en az ${field.validation.min} karakter olmalıdır`)
+            }
+            if (field.validation.max !== undefined && fieldValue.length > field.validation.max) {
+              errors.push(`${field.label} en fazla ${field.validation.max} karakter olmalıdır`)
+            }
+          }
+        }
+        break
+    }
+  })
+  
+  return errors
+}
+
 // Quote API routes
 export function setupQuoteRoutes(app, uploadsDir) {
   // Get all quotes (admin only)
@@ -75,24 +143,45 @@ export function setupQuoteRoutes(app, uploadsDir) {
   app.post('/api/quotes', async (req, res) => {
     const q = req.body
     
-    // Validate input
-    const validationErrors = validateQuoteData(q)
-    if (validationErrors.length > 0) {
-      return res.status(400).json({ error: 'Validation failed', details: validationErrors })
-    }
-
-    // Sanitize input
-    Object.keys(q).forEach(key => {
-      if (typeof q[key] === 'string') {
-        q[key] = sanitizeInput(q[key])
-      }
-    })
-
     try {
+      // Get current form configuration for dynamic validation
+      const formConfig = jsondb.getFormConfig()
+      
+      // Use dynamic validation if form config is available
+      const validationErrors = formConfig ? 
+        validateQuoteDataDynamic(q, formConfig) : 
+        validateQuoteData(q)
+        
+      if (validationErrors.length > 0) {
+        return res.status(400).json({ error: 'Validation failed', details: validationErrors })
+      }
+
+      // Sanitize input for both direct fields and customFields
+      Object.keys(q).forEach(key => {
+        if (typeof q[key] === 'string') {
+          q[key] = sanitizeInput(q[key])
+        }
+      })
+      
+      // Sanitize customFields if present
+      if (q.customFields && typeof q.customFields === 'object') {
+        Object.keys(q.customFields).forEach(key => {
+          if (typeof q.customFields[key] === 'string') {
+            q.customFields[key] = sanitizeInput(q.customFields[key])
+          }
+        })
+      }
+
       // Set defaults
       q.id = crypto.randomUUID()
       q.createdAt = new Date().toISOString()
       q.status = 'new'
+      
+      // Track form version for price recalculation purposes
+      if (formConfig) {
+        q.formVersion = formConfig.version
+        q.formStructureSnapshot = formConfig.formStructure
+      }
 
       // Handle file uploads if present
       if (q.files && Array.isArray(q.files)) {
@@ -219,8 +308,39 @@ export function setupSettingsRoutes(app) {
   app.post('/api/form-config', requireAuth, (req, res) => {
     try {
       const config = req.body
+      const currentConfig = jsondb.getFormConfig()
+      
+      // Check if this is a significant form structure change
+      const isStructuralChange = !currentConfig || 
+        JSON.stringify(currentConfig.formStructure?.fields) !== JSON.stringify(config.formStructure?.fields)
+      
+      // Save the new form configuration
       jsondb.putFormConfig(config)
-      res.json({ success: true })
+      
+      if (isStructuralChange) {
+        // Mark all existing quotes as needing price updates due to form changes
+        const quotes = jsondb.listQuotes()
+        quotes.forEach(quote => {
+          jsondb.patchQuote(quote.id, {
+            needsPriceUpdate: true,
+            priceUpdateReason: 'Form structure changed',
+            formStructureChanged: true,
+            previousFormVersion: quote.formVersion,
+            formVersion: config.version
+          })
+        })
+        
+        // Reset pricing configuration since form fields may have changed
+        jsondb.resetPricingConfig('Form configuration updated')
+        
+        console.log(`Form structure updated. Marked ${quotes.length} quotes for price recalculation.`)
+      }
+      
+      res.json({ 
+        success: true, 
+        structuralChange: isStructuralChange,
+        quotesMarkedForUpdate: isStructuralChange ? jsondb.listQuotes().length : 0
+      })
     } catch (error) {
       console.error('Form config save error:', error)
       res.status(500).json({ error: 'Failed to save form config' })

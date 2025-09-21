@@ -180,4 +180,64 @@
   .modal-footer {
     padding: var(--spacing-md);
   }
+
+  /* Field Editor responsive */
+  .field-editor .modal-content {
+    width: 95vw !important;
+    max-width: none !important;
+    padding: 16px !important;
+  }
+
+  .field-editor .modal-content > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+  }
+}
+
+/* Field Editor Specific Styles */
+.field-editor .modal-content {
+  background: var(--modal-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+}
+
+.field-editor .form-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field-editor .form-group h4 {
+  margin: 0 0 12px 0;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.field-editor .form-group label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.field-editor .form-control {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--input-bg);
+  color: var(--text);
+  font-size: 14px;
+  transition: border-color var(--transition-fast);
+}
+
+.field-editor .form-control:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.1);
 }

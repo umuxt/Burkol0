@@ -29,7 +29,8 @@ export function getTableColumns(formConfig) {
   ]
   
   // Add dynamic fields from form config if any
-  const dynamicFields = (formConfig?.fields || [])
+  const configFields = formConfig?.fields || formConfig?.formStructure?.fields || []
+  const dynamicFields = configFields
     .filter(field => field.display?.showInTable)
     .sort((a, b) => (a.display?.tableOrder || 0) - (b.display?.tableOrder || 0))
   
