@@ -88,13 +88,31 @@ export function validateQuoteDataDynamic(q, formConfig) {
     // Type-specific validation
     switch (field.type) {
       case 'email':
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fieldValue)) {
+        // Enhanced email validation
+        const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+        if (!emailRegex.test(fieldValue)) {
           errors.push(`${field.label} geçerli bir email adresi olmalıdır`)
+        }
+        
+        // Domain validation if specified
+        if (field.validation?.allowedDomains && field.validation.allowedDomains.length > 0) {
+          const domain = fieldValue.split('@')[1]
+          if (!field.validation.allowedDomains.includes(domain)) {
+            errors.push(`${field.label} sadece şu domainler kabul edilir: ${field.validation.allowedDomains.join(', ')}`)
+          }
         }
         break
         
       case 'phone':
-        if (typeof fieldValue === 'string' && fieldValue.length < 10) {
+        // Enhanced Turkish phone number validation
+        const cleanPhone = fieldValue.replace(/[\s\-\(\)]/g, '')
+        const phonePatterns = [
+          /^(\+90|90)?[5][0-9]{9}$/, // Turkish mobile
+          /^(\+90|90|0)?[2-4][0-9]{9}$/, // Turkish landline
+        ]
+        
+        const isValidPhone = phonePatterns.some(pattern => pattern.test(cleanPhone))
+        if (!isValidPhone) {
           errors.push(`${field.label} geçerli bir telefon numarası olmalıdır`)
         }
         break
@@ -110,19 +128,103 @@ export function validateQuoteDataDynamic(q, formConfig) {
           if (field.validation.max !== undefined && num > field.validation.max) {
             errors.push(`${field.label} en fazla ${field.validation.max} olmalıdır`)
           }
+          if (field.validation.integer && !Number.isInteger(num)) {
+            errors.push(`${field.label} tam sayı olmalıdır`)
+          }
+          if (field.validation.positive && num <= 0) {
+            errors.push(`${field.label} pozitif bir sayı olmalıdır`)
+          }
         }
         break
         
       case 'text':
+        if (typeof fieldValue === 'string') {
+          if (field.validation) {
+            if (field.validation.minLength !== undefined && fieldValue.length < field.validation.minLength) {
+              errors.push(`${field.label} en az ${field.validation.minLength} karakter olmalıdır`)
+            }
+            if (field.validation.maxLength !== undefined && fieldValue.length > field.validation.maxLength) {
+              errors.push(`${field.label} en fazla ${field.validation.maxLength} karakter olmalıdır`)
+            }
+            if (field.validation.onlyLetters && !/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/.test(fieldValue)) {
+              errors.push(`${field.label} sadece harf içerebilir`)
+            }
+            if (field.validation.noNumbers && /\d/.test(fieldValue)) {
+              errors.push(`${field.label} sayı içeremez`)
+            }
+            if (field.validation.alphanumeric && !/^[a-zA-Z0-9ğüşıöçĞÜŞİÖÇ\s]+$/.test(fieldValue)) {
+              errors.push(`${field.label} sadece harf ve sayı içerebilir`)
+            }
+            if (field.validation.pattern) {
+              const regex = new RegExp(field.validation.pattern)
+              if (!regex.test(fieldValue)) {
+                errors.push(field.validation.patternMessage || `${field.label} geçersiz format`)
+              }
+            }
+          }
+        }
+        break
+        
       case 'textarea':
         if (typeof fieldValue === 'string') {
           if (field.validation) {
-            if (field.validation.min !== undefined && fieldValue.length < field.validation.min) {
-              errors.push(`${field.label} en az ${field.validation.min} karakter olmalıdır`)
+            if (field.validation.minLength !== undefined && fieldValue.length < field.validation.minLength) {
+              errors.push(`${field.label} en az ${field.validation.minLength} karakter olmalıdır`)
             }
-            if (field.validation.max !== undefined && fieldValue.length > field.validation.max) {
-              errors.push(`${field.label} en fazla ${field.validation.max} karakter olmalıdır`)
+            if (field.validation.maxLength !== undefined && fieldValue.length > field.validation.maxLength) {
+              errors.push(`${field.label} en fazla ${field.validation.maxLength} karakter olmalıdır`)
             }
+            if (field.validation.minWords) {
+              const wordCount = fieldValue.trim().split(/\s+/).length
+              if (wordCount < field.validation.minWords) {
+                errors.push(`${field.label} en az ${field.validation.minWords} kelime içermelidir`)
+              }
+            }
+            if (field.validation.maxWords) {
+              const wordCount = fieldValue.trim().split(/\s+/).length
+              if (wordCount > field.validation.maxWords) {
+                errors.push(`${field.label} en fazla ${field.validation.maxWords} kelime içerebilir`)
+              }
+            }
+          }
+        }
+        break
+        
+      case 'date':
+        const dateValue = new Date(fieldValue)
+        if (isNaN(dateValue.getTime())) {
+          errors.push(`${field.label} geçerli bir tarih olmalıdır`)
+        } else if (field.validation) {
+          if (field.validation.futureOnly && dateValue <= new Date()) {
+            errors.push(`${field.label} gelecekteki bir tarih olmalıdır`)
+          }
+          if (field.validation.pastOnly && dateValue >= new Date()) {
+            errors.push(`${field.label} geçmişteki bir tarih olmalıdır`)
+          }
+          if (field.validation.minDate && dateValue < new Date(field.validation.minDate)) {
+            errors.push(`${field.label} en erken ${field.validation.minDate} tarihi olmalıdır`)
+          }
+          if (field.validation.maxDate && dateValue > new Date(field.validation.maxDate)) {
+            errors.push(`${field.label} en geç ${field.validation.maxDate} tarihi olmalıdır`)
+          }
+        }
+        break
+        
+      case 'dropdown':
+      case 'radio':
+        if (field.options && !field.options.includes(fieldValue)) {
+          errors.push(`${field.label} geçerli bir seçenek olmalıdır`)
+        }
+        break
+        
+      case 'multiselect':
+      case 'checkbox':
+        if (Array.isArray(fieldValue) && field.validation) {
+          if (field.validation.minSelections && fieldValue.length < field.validation.minSelections) {
+            errors.push(`${field.label} en az ${field.validation.minSelections} seçenek içermelidir`)
+          }
+          if (field.validation.maxSelections && fieldValue.length > field.validation.maxSelections) {
+            errors.push(`${field.label} en fazla ${field.validation.maxSelections} seçenek içerebilir`)
           }
         }
         break

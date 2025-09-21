@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Input Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        input, textarea { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; }
+        .test-section { margin-bottom: 30px; border: 1px solid #ddd; padding: 15px; }
+    </style>
+</head>
+<body>
+    <h1>Form Input Debug Test</h1>
+    
+    <div class="test-section">
+        <h2>1. Basic HTML Input Test</h2>
+        <input type="text" placeholder="Basic text input" id="basic-input">
+        <textarea placeholder="Basic textarea" id="basic-textarea"></textarea>
+        <button onclick="testBasicInput()">Test Basic Input</button>
+        <div id="basic-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>2. React createElement Test</h2>
+        <div id="react-test"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>3. API Test</h2>
+        <button onclick="testAPI()">Test API</button>
+        <div id="api-result"></div>
+    </div>
+
+    <!-- React CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <script>
+        // Test 1: Basic HTML inputs
+        function testBasicInput() {
+            const input = document.getElementById('basic-input');
+            const textarea = document.getElementById('basic-textarea');
+            const result = document.getElementById('basic-result');
+            
+            result.innerHTML = `
+                <p>Input value: "${input.value}"</p>
+                <p>Textarea value: "${textarea.value}"</p>
+                <p>Input focused: ${document.activeElement === input}</p>
+            `;
+        }
+
+        // Test 2: React createElement input
+        if (typeof React !== 'undefined' && typeof ReactDOM !== 'undefined') {
+            const { useState } = React;
+            const { createRoot } = ReactDOM;
+
+            function ReactInputTest() {
+                const [value, setValue] = useState('');
+                const [inputValue, setInputValue] = useState('');
+                
+                console.log('React input test rendered with value:', value);
+                
+                return React.createElement('div', null,
+                    React.createElement('h3', null, 'React Input Test'),
+                    React.createElement('input', {
+                        type: 'text',
+                        value: inputValue,
+                        placeholder: 'React input test',
+                        onChange: (e) => {
+                            console.log('React input change:', e.target.value);
+                            setInputValue(e.target.value);
+                        },
+                        onFocus: () => console.log('React input focused'),
+                        onBlur: () => console.log('React input blurred')
+                    }),
+                    React.createElement('p', null, `Current value: ${inputValue}`),
+                    React.createElement('button', {
+                        onClick: () => {
+                            setValue('test-' + Date.now());
+                            setInputValue('test-' + Date.now());
+                        }
+                    }, 'Set Test Value')
+                );
+            }
+
+            const reactContainer = document.getElementById('react-test');
+            const root = createRoot(reactContainer);
+            root.render(React.createElement(ReactInputTest));
+        } else {
+            document.getElementById('react-test').innerHTML = '<p style="color: red;">React not loaded!</p>';
+        }
+
+        // Test 3: API Test
+        async function testAPI() {
+            const result = document.getElementById('api-result');
+            try {
+                result.innerHTML = 'Testing API...';
+                const response = await fetch('/api/form-config');
+                const data = await response.json();
+                result.innerHTML = `
+                    <p style="color: green;">API Success!</p>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                result.innerHTML = `<p style="color: red;">API Error: ${error.message}</p>`;
+            }
+        }
+
+        // Auto test on load
+        setTimeout(() => {
+            console.log('=== DEBUG TEST PAGE LOADED ===');
+            console.log('React available:', typeof React !== 'undefined');
+            console.log('ReactDOM available:', typeof ReactDOM !== 'undefined');
+            
+            // Test focus on basic input
+            const basicInput = document.getElementById('basic-input');
+            if (basicInput) {
+                basicInput.focus();
+                console.log('Basic input focused');
+            }
+        }, 1000);
+    </script>
+</body>
+</html>

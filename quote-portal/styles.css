@@ -1247,6 +1247,7 @@ select.btn {
   font-size: 12px;
   margin-top: 4px;
   display: block;
+  animation: slideInError 0.3s ease-out;
 }
 
 /* SUCCESS MESAJLARI */
@@ -1256,6 +1257,131 @@ select.btn {
   font-size: 12px;
   margin-top: 4px;
   display: block;
+  animation: slideInSuccess 0.3s ease-out;
+}
+
+/* VALIDATION ANIMASYONLARI */
+@keyframes slideInError {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInSuccess {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ENHANCED FORM VALIDATION STATES */
+input.valid,
+textarea.valid,
+select.valid {
+  border-color: #28a745 !important;
+  box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+  transition: all 0.3s ease;
+}
+
+input.error,
+textarea.error,
+select.error {
+  border-color: #dc3545 !important;
+  box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+  20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+/* REAL-TIME VALIDATION FEEDBACK */
+.field {
+  position: relative;
+}
+
+.field .validation-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  pointer-events: none;
+}
+
+.field .validation-icon.success {
+  color: #28a745;
+}
+
+.field .validation-icon.error {
+  color: #dc3545;
+}
+
+/* NUMBER FIELD ENHANCEMENTS */
+input[data-integer="true"] {
+  /* Visual hint for integer-only fields */
+  background-image: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.05) 50%, transparent 60%);
+}
+
+input[data-min], input[data-max] {
+  /* Visual hint for constrained fields */
+  border-left: 3px solid rgba(0, 123, 255, 0.3);
+}
+
+/* TOOLTIP FOR NUMBER CONSTRAINTS */
+.number-field-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 1000;
+}
+
+.field:hover .number-field-tooltip {
+  opacity: 1;
+}
+
+/* LOADING STATE FOR VALIDATION */
+.validating {
+  position: relative;
+}
+
+.validating::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: translateY(-50%) rotate(0deg); }
+  100% { transform: translateY(-50%) rotate(360deg); }
 }
 
 /* FORM LAYOUT UTILITYLERI */

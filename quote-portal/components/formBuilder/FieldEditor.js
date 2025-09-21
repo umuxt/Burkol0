@@ -226,25 +226,219 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNoti
             // Validation rules
             React.createElement('div', { className: 'form-group' },
               React.createElement('h4', null, 'Doğrulama Kuralları'),
+              
+              // Min/Max values for numbers and length for text
               React.createElement('div', { style: { display: 'flex', gap: '12px', marginBottom: '12px' } },
                 React.createElement('div', { style: { flex: 1 } },
-                  React.createElement('label', null, 'Min Değer/Uzunluk'),
+                  React.createElement('label', null, 
+                    fieldForm.type === 'number' ? 'Min Değer' : 'Min Uzunluk'
+                  ),
                   React.createElement('input', {
                     type: 'number',
-                    value: (fieldForm.validation && fieldForm.validation.min) || '',
-                    onChange: (e) => updateNestedField('validation', 'min', e.target.value || null),
+                    value: (fieldForm.validation && (fieldForm.validation.min ?? fieldForm.validation.minLength)) || '',
+                    onChange: (e) => {
+                      const key = fieldForm.type === 'number' ? 'min' : 'minLength'
+                      updateNestedField('validation', key, e.target.value ? parseInt(e.target.value) : null)
+                    },
                     className: 'form-control'
                   })
                 ),
                 React.createElement('div', { style: { flex: 1 } },
-                  React.createElement('label', null, 'Max Değer/Uzunluk'),
+                  React.createElement('label', null, 
+                    fieldForm.type === 'number' ? 'Max Değer' : 'Max Uzunluk'
+                  ),
                   React.createElement('input', {
                     type: 'number',
-                    value: (fieldForm.validation && fieldForm.validation.max) || '',
-                    onChange: (e) => updateNestedField('validation', 'max', e.target.value || null),
+                    value: (fieldForm.validation && (fieldForm.validation.max ?? fieldForm.validation.maxLength)) || '',
+                    onChange: (e) => {
+                      const key = fieldForm.type === 'number' ? 'max' : 'maxLength'
+                      updateNestedField('validation', key, e.target.value ? parseInt(e.target.value) : null)
+                    },
                     className: 'form-control'
                   })
                 )
+              ),
+
+              // Number-specific validations
+              fieldForm.type === 'number' && React.createElement('div', { 
+                style: { display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' } 
+              },
+                React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                  React.createElement('input', {
+                    type: 'checkbox',
+                    checked: fieldForm.validation?.integer || false,
+                    onChange: (e) => updateNestedField('validation', 'integer', e.target.checked)
+                  }),
+                  'Sadece tam sayı'
+                ),
+                React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                  React.createElement('input', {
+                    type: 'checkbox',
+                    checked: fieldForm.validation?.positive || false,
+                    onChange: (e) => updateNestedField('validation', 'positive', e.target.checked)
+                  }),
+                  'Sadece pozitif sayı'
+                )
+              ),
+
+              // Text-specific validations
+              (fieldForm.type === 'text' || fieldForm.type === 'textarea') && React.createElement('div', { 
+                style: { display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' } 
+              },
+                React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                  React.createElement('input', {
+                    type: 'checkbox',
+                    checked: fieldForm.validation?.onlyLetters || false,
+                    onChange: (e) => updateNestedField('validation', 'onlyLetters', e.target.checked)
+                  }),
+                  'Sadece harf'
+                ),
+                React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                  React.createElement('input', {
+                    type: 'checkbox',
+                    checked: fieldForm.validation?.noNumbers || false,
+                    onChange: (e) => updateNestedField('validation', 'noNumbers', e.target.checked)
+                  }),
+                  'Sayı yok'
+                ),
+                React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                  React.createElement('input', {
+                    type: 'checkbox',
+                    checked: fieldForm.validation?.alphanumeric || false,
+                    onChange: (e) => updateNestedField('validation', 'alphanumeric', e.target.checked)
+                  }),
+                  'Alfanumerik'
+                )
+              ),
+
+              // Textarea-specific validations
+              fieldForm.type === 'textarea' && React.createElement('div', { 
+                style: { display: 'flex', gap: '12px', marginBottom: '12px' } 
+              },
+                React.createElement('div', { style: { flex: 1 } },
+                  React.createElement('label', null, 'Min Kelime Sayısı'),
+                  React.createElement('input', {
+                    type: 'number',
+                    value: fieldForm.validation?.minWords || '',
+                    onChange: (e) => updateNestedField('validation', 'minWords', e.target.value ? parseInt(e.target.value) : null),
+                    className: 'form-control'
+                  })
+                ),
+                React.createElement('div', { style: { flex: 1 } },
+                  React.createElement('label', null, 'Max Kelime Sayısı'),
+                  React.createElement('input', {
+                    type: 'number',
+                    value: fieldForm.validation?.maxWords || '',
+                    onChange: (e) => updateNestedField('validation', 'maxWords', e.target.value ? parseInt(e.target.value) : null),
+                    className: 'form-control'
+                  })
+                )
+              ),
+
+              // Email-specific validations
+              fieldForm.type === 'email' && React.createElement('div', { 
+                style: { marginBottom: '12px' } 
+              },
+                React.createElement('label', null, 'İzin verilen domainler (virgülle ayırın)'),
+                React.createElement('input', {
+                  type: 'text',
+                  value: fieldForm.validation?.allowedDomains?.join(', ') || '',
+                  onChange: (e) => {
+                    const domains = e.target.value.split(',').map(d => d.trim()).filter(d => d)
+                    updateNestedField('validation', 'allowedDomains', domains.length > 0 ? domains : null)
+                  },
+                  placeholder: 'örn: example.com, company.org',
+                  className: 'form-control'
+                })
+              ),
+
+              // Date-specific validations
+              fieldForm.type === 'date' && React.createElement('div', null,
+                React.createElement('div', { style: { display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' } },
+                  React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                    React.createElement('input', {
+                      type: 'checkbox',
+                      checked: fieldForm.validation?.futureOnly || false,
+                      onChange: (e) => updateNestedField('validation', 'futureOnly', e.target.checked)
+                    }),
+                    'Sadece gelecek tarihleri'
+                  ),
+                  React.createElement('label', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                    React.createElement('input', {
+                      type: 'checkbox',
+                      checked: fieldForm.validation?.pastOnly || false,
+                      onChange: (e) => updateNestedField('validation', 'pastOnly', e.target.checked)
+                    }),
+                    'Sadece geçmiş tarihleri'
+                  )
+                ),
+                React.createElement('div', { style: { display: 'flex', gap: '12px', marginBottom: '12px' } },
+                  React.createElement('div', { style: { flex: 1 } },
+                    React.createElement('label', null, 'En erken tarih'),
+                    React.createElement('input', {
+                      type: 'date',
+                      value: fieldForm.validation?.minDate || '',
+                      onChange: (e) => updateNestedField('validation', 'minDate', e.target.value || null),
+                      className: 'form-control'
+                    })
+                  ),
+                  React.createElement('div', { style: { flex: 1 } },
+                    React.createElement('label', null, 'En geç tarih'),
+                    React.createElement('input', {
+                      type: 'date',
+                      value: fieldForm.validation?.maxDate || '',
+                      onChange: (e) => updateNestedField('validation', 'maxDate', e.target.value || null),
+                      className: 'form-control'
+                    })
+                  )
+                )
+              ),
+
+              // Multi-select validations
+              (fieldForm.type === 'multiselect' || fieldForm.type === 'checkbox') && React.createElement('div', { 
+                style: { display: 'flex', gap: '12px', marginBottom: '12px' } 
+              },
+                React.createElement('div', { style: { flex: 1 } },
+                  React.createElement('label', null, 'Min Seçim Sayısı'),
+                  React.createElement('input', {
+                    type: 'number',
+                    value: fieldForm.validation?.minSelections || '',
+                    onChange: (e) => updateNestedField('validation', 'minSelections', e.target.value ? parseInt(e.target.value) : null),
+                    className: 'form-control'
+                  })
+                ),
+                React.createElement('div', { style: { flex: 1 } },
+                  React.createElement('label', null, 'Max Seçim Sayısı'),
+                  React.createElement('input', {
+                    type: 'number',
+                    value: fieldForm.validation?.maxSelections || '',
+                    onChange: (e) => updateNestedField('validation', 'maxSelections', e.target.value ? parseInt(e.target.value) : null),
+                    className: 'form-control'
+                  })
+                )
+              ),
+
+              // Custom pattern validation
+              React.createElement('div', { style: { marginBottom: '12px' } },
+                React.createElement('label', null, 'Özel Pattern (Regex)'),
+                React.createElement('input', {
+                  type: 'text',
+                  value: fieldForm.validation?.pattern || '',
+                  onChange: (e) => updateNestedField('validation', 'pattern', e.target.value || null),
+                  placeholder: 'örn: ^[A-Z]{2}\\d{6}$ (2 harf + 6 rakam)',
+                  className: 'form-control'
+                })
+              ),
+              
+              fieldForm.validation?.pattern && React.createElement('div', { style: { marginBottom: '12px' } },
+                React.createElement('label', null, 'Pattern Hata Mesajı'),
+                React.createElement('input', {
+                  type: 'text',
+                  value: fieldForm.validation?.patternMessage || '',
+                  onChange: (e) => updateNestedField('validation', 'patternMessage', e.target.value || null),
+                  placeholder: 'örn: Format: 2 harf + 6 rakam',
+                  className: 'form-control'
+                })
               )
             ),
 
