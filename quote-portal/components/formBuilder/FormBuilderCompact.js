@@ -344,23 +344,39 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
 
     // Tab Content
     React.createElement('div', { className: 'tab-content' },
-      activeTab === 'builder' && React.createElement('div', { className: 'builder-content' },
+      activeTab === 'builder' && React.createElement('div', { 
+        className: 'builder-content',
+        style: {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px', // Small consistent gap between elements
+          minHeight: 'auto',
+          height: 'auto' // Let content determine height
+        }
+      },
         // Existing Fields List
-        React.createElement(FieldList, {
-          fields,
-          onEditField: handleEditField,
-          onDeleteField: handleDeleteField,
-          onDuplicateField: handleDuplicateField,
-          onReorderFields: handleReorderField
-        }),
+        React.createElement('div', {
+          style: {
+            flex: '0 0 auto' // Don't grow, natural height, no margin
+          }
+        },
+          React.createElement(FieldList, {
+            fields,
+            onEditField: handleEditField,
+            onDeleteField: handleDeleteField,
+            onDuplicateField: handleDuplicateField,
+            onReorderFields: handleReorderField
+          })
+        ),
         
-        // Add New Field Button
+        // Add New Field Button - Now closer to the field list
         React.createElement('div', { 
           style: { 
-            marginTop: '20px',
-            padding: '16px',
+            flex: '0 0 auto', // Don't grow
+            padding: '8px 16px', // Reduced padding
             borderTop: '2px dashed #dee2e6',
-            textAlign: 'center'
+            textAlign: 'center',
+            marginTop: '0' // No additional margin since we use gap
           }
         },
           React.createElement('button', {

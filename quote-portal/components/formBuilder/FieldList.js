@@ -1,7 +1,7 @@
 // Field List Component - Display and manage existing form fields
 const { useState } = React
 
-export function FieldList({ fields, onEditField, onDeleteField, onReorderField, showNotification }) {
+export function FieldList({ fields, onEditField, onDeleteField, onDuplicateField, onReorderField, showNotification }) {
   const [draggedIndex, setDraggedIndex] = useState(null)
 
   function handleDragStart(e, index) {
@@ -44,12 +44,27 @@ export function FieldList({ fields, onEditField, onDeleteField, onReorderField, 
     )
   }
 
-  return React.createElement('div', { className: 'field-list' },
-    React.createElement('h4', null, `Form Alanları (${fields.length})`),
+  return React.createElement('div', { 
+    className: 'field-list',
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      minHeight: 'auto'
+    }
+  },
+    React.createElement('h4', { 
+      style: { margin: '0 0 16px 0' } 
+    }, `Form Alanları (${fields.length})`),
     
-    React.createElement('div', { className: 'field-cards' },
-      ...fields.map((field, index) =>
-        React.createElement('div', {
+    React.createElement('div', { 
+      className: 'field-cards',
+      style: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px'
+      }
+    }, fields.map((field, index) =>
+      React.createElement('div', {
           key: field.id,
           className: 'field-card',
           draggable: true,
@@ -60,7 +75,6 @@ export function FieldList({ fields, onEditField, onDeleteField, onReorderField, 
             border: '1px solid #ddd',
             borderRadius: '8px',
             padding: '16px',
-            margin: '8px 0',
             backgroundColor: draggedIndex === index ? '#f0f0f0' : 'white',
             cursor: 'move',
             transition: 'all 0.2s ease'
@@ -71,18 +85,7 @@ export function FieldList({ fields, onEditField, onDeleteField, onReorderField, 
               React.createElement('h5', { style: { margin: '0 0 4px 0', color: '#333' } }, field.label),
               React.createElement('div', { style: { fontSize: '12px', color: '#666' } },
                 `ID: ${field.id} | Tür: ${getFieldTypeLabel(field.type)}`
-              ),
-              field.required && React.createElement('span', { 
-                style: { 
-                  backgroundColor: '#dc3545', 
-                  color: 'white', 
-                  padding: '2px 6px', 
-                  borderRadius: '4px', 
-                  fontSize: '10px',
-                  marginTop: '4px',
-                  display: 'inline-block'
-                } 
-              }, 'ZORUNLU')
+              )
             ),
             
             React.createElement('div', { className: 'field-actions', style: { display: 'flex', gap: '4px' } },
@@ -137,3 +140,5 @@ function getFieldTypeLabel(type) {
   }
   return types[type] || type
 }
+
+export default FieldList
