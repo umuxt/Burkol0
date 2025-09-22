@@ -148,6 +148,16 @@ export const API = {
       return { ok: true, local: true }
     }
   },
+  async updateQuoteStatus(id, status) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/status`, { method: 'PATCH', headers: withAuth({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status }) })
+      if (!res.ok) throw new Error('status update failed')
+      return await res.json()
+    } catch (e) {
+      console.error('Status update error:', e)
+      throw e
+    }
+  },
   async remove(id) {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'DELETE', headers: withAuth() })

@@ -58,12 +58,12 @@ export function isImageExt(extOrMime) {
 }
 
 // Price formatting function
-export function formatPrice(price, currency = 'USD') {
+export function formatPrice(price, currency = 'TL') {
   // Ensure numeric
   const n = typeof price === 'number' ? price : (parseFloat(price) || 0)
   // Dot decimal; no thousands separators
   const formatted = n.toFixed(2)
-  return `${formatted} ${currency}`
+  return `₺${formatted}`
 }
 
 // Date formatting function

@@ -14,34 +14,32 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     
     // Initialize form with dynamic fields based on formConfig
     const initialForm = {}
-    if (formConfig && formConfig.steps) {
-      formConfig.steps.forEach(step => {
-        step.fields.forEach(field => {
-          let value = item[field.id] || ''
-          
-          // Handle special field types
-          if (field.type === 'multiselect' && Array.isArray(item[field.id])) {
-            value = item[field.id].join(', ')
-          } else if (field.type === 'radio' && !value) {
-            value = field.options?.[0] || ''
-          }
-          
-          initialForm[field.id] = value
-        })
+    if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
+      formConfig.formStructure.fields.forEach(field => {
+        let value = item.customFields?.[field.id] || item.customFields?.[field.id] || item[field.id] || ''
+        
+        // Handle special field types
+        if (field.type === 'multiselect' && Array.isArray(value)) {
+          value = value.join(', ')
+        } else if (field.type === 'radio' && !value) {
+          value = field.options?.[0] || ''
+        }
+        
+        initialForm[field.id] = value
       })
     }
     
     setForm(initialForm)
     setTechFiles(item.files || [])
     setProdImgs(item.productImages || [])
-  }, [item.id])
+  }, [item.id, item.status])
   
   function setF(k, v) { 
     setForm((s) => ({ ...s, [k]: v })) 
   }
 
   function renderDetailFields() {
-    if (!formConfig || !formConfig.steps) {
+    if (!formConfig || !formConfig.formStructure.fields) {
       return []
     }
     
@@ -55,14 +53,14 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     )
     
     // Add dynamic fields from form config
-    formConfig.steps.forEach(step => {
-      step.fields.forEach(field => {
-        let value = item[field.id] || '—'
+    formConfig.formStructure.fields.forEach(field => {
+      
+        let value = item.customFields?.[field.id] || item[field.id] || '—'
         let label = field.label || field.id
         
         // Format value based on field type
-        if (field.type === 'multiselect' && Array.isArray(item[field.id])) {
-          value = item[field.id].join(', ') || '—'
+        if (field.type === 'multiselect' && Array.isArray(item.customFields?.[field.id] || item[field.id])) {
+          value = item.customFields?.[field.id] || item[field.id].join(', ') || '—'
         } else if (field.type === 'radio' && field.options) {
           // Keep the selected value as is
           value = value || '—'
@@ -97,20 +95,19 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
           fields.push(info(label, value))
         }
       })
-    })
     
     return fields.filter(Boolean)
   }
 
   function renderEditFields() {
-    if (!formConfig || !formConfig.steps) {
+    if (!formConfig || !formConfig.formStructure.fields) {
       return []
     }
     
     const fields = []
     
-    formConfig.steps.forEach(step => {
-      step.fields.forEach(field => {
+    formConfig.formStructure.fields.forEach(field => {
+      
         const label = field.label || field.id
         
         if (field.type === 'textarea') {
@@ -123,7 +120,6 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
           fields.push(editField(label, field.id, field.type === 'number' ? 'number' : 'text'))
         }
       })
-    })
     
     return fields
   }
@@ -167,9 +163,9 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       }
       
       // Add dynamic fields from form config
-      if (formConfig && formConfig.steps) {
-        formConfig.steps.forEach(step => {
-          step.fields.forEach(field => {
+      if (formConfig && formConfig.formStructure.fields) {
+        formConfig.formStructure.fields.forEach(field => {
+          
             let value = form[field.id]
             
             // Handle special field types
@@ -181,7 +177,6 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
             
             payload[field.id] = value
           })
-        })
       }
       
       await API.createQuote(payload)
@@ -194,9 +189,9 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       }
       
       // Add dynamic fields from form config
-      if (formConfig && formConfig.steps) {
-        formConfig.steps.forEach(step => {
-          step.fields.forEach(field => {
+      if (formConfig && formConfig.formStructure.fields) {
+        formConfig.formStructure.fields.forEach(field => {
+          
             let value = form[field.id]
             
             // Handle special field types
@@ -208,7 +203,6 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
             
             patch[field.id] = value
           })
-        })
       }
       
       await API.updateQuote(item.id, patch)
@@ -260,7 +254,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
         )
       ),
   function renderDetailFields() {
-    if (!formConfig || !formConfig.steps) {
+    if (!formConfig || !formConfig.formStructure.fields) {
       return []
     }
     
@@ -274,14 +268,14 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     )
     
     // Add dynamic fields from form config
-    formConfig.steps.forEach(step => {
-      step.fields.forEach(field => {
-        let value = item[field.id] || '—'
+    formConfig.formStructure.fields.forEach(field => {
+      
+        let value = item.customFields?.[field.id] || item[field.id] || '—'
         let label = field.label || field.id
         
         // Format value based on field type
-        if (field.type === 'multiselect' && Array.isArray(item[field.id])) {
-          value = item[field.id].join(', ') || '—'
+        if (field.type === 'multiselect' && Array.isArray(item.customFields?.[field.id] || item[field.id])) {
+          value = item.customFields?.[field.id] || item[field.id].join(', ') || '—'
         } else if (field.type === 'radio' && field.options) {
           // Keep the selected value as is
           value = value || '—'
@@ -316,7 +310,6 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
           fields.push(info(label, value))
         }
       })
-    })
     
     return fields.filter(Boolean)
   }

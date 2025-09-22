@@ -9,13 +9,11 @@ export function FilterPopup({ filters, filterOptions, onFilterChange, onClose, t
     }
     
     // Add dynamic labels from formConfig
-    if (formConfig && formConfig.steps) {
-      formConfig.steps.forEach(step => {
-        step.fields.forEach(field => {
-          if (field.filterable) {
-            labels[field.id] = field.label || field.id
-          }
-        })
+    if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
+      formConfig.formStructure.fields.forEach(field => {
+        if (field.display && field.display.showInFilter) {
+          labels[field.id] = field.label || field.id
+        }
       })
     }
     
@@ -26,17 +24,14 @@ export function FilterPopup({ filters, filterOptions, onFilterChange, onClose, t
     const tabs = ['status']
     
     // Add dynamic tabs from formConfig
-    if (formConfig && formConfig.steps) {
-      formConfig.steps.forEach(step => {
-        step.fields.forEach(field => {
-          if (field.filterable && field.type !== 'textarea' && field.type !== 'date' && field.type !== 'number') {
-            tabs.push(field.id)
-          }
-        })
+    if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
+      formConfig.formStructure.fields.forEach(field => {
+        if (field.display && field.display.showInFilter) {
+          tabs.push(field.id)
+        }
       })
     }
     
-    tabs.push('dateRange', 'qtyRange')
     return tabs
   }
 
@@ -67,15 +62,83 @@ export function FilterPopup({ filters, filterOptions, onFilterChange, onClose, t
   function renderTabContent() {
     const category = activeTab
     
-    if (category === 'dateRange') {
-      const range = filters.dateRange || { from: '', to: '' }
+    // Handle status tab (special case)
+    if (category === 'status') {
+      const options = filterOptions[category] || []
+      const selectedOptions = filters[category] || []
+      
+      if (options.length === 0) {
+        return React.createElement('p', { style: { color: '#666', fontStyle: 'italic' } }, 
+          'Bu kategori için filtre seçeneği bulunmuyor.')
+      }
+
+      return React.createElement('div', null,
+        React.createElement('div', { style: { marginBottom: '15px' } },
+          React.createElement('button', {
+            onClick: () => {
+              if (selectedOptions.length === options.length) {
+                onFilterChange(category, [], 'set')
+              } else {
+                onFilterChange(category, options, 'set')
+              }
+            },
+            style: {
+              padding: '6px 12px',
+              backgroundColor: selectedOptions.length === options.length ? '#dc3545' : '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px'
+            }
+          }, selectedOptions.length === options.length ? 'Tümünü Kaldır' : 'Tümünü Seç')
+        ),
+        React.createElement('div', { style: { maxHeight: '300px', overflowY: 'auto' } },
+          options.map(option => 
+            React.createElement('label', {
+              key: option,
+              style: {
+                display: 'flex',
+                alignItems: 'center',
+                padding: '8px 0',
+                cursor: 'pointer',
+                borderBottom: '1px solid #f0f0f0'
+              }
+            },
+              React.createElement('input', {
+                type: 'checkbox',
+                checked: selectedOptions.includes(option),
+                onChange: (e) => handleCheckboxChange(category, option, e.target.checked),
+                style: { marginRight: '10px' }
+              }),
+              React.createElement('span', null, option || 'Belirtilmemiş')
+            )
+          )
+        )
+      )
+    }
+    
+    // Find the field configuration for dynamic tabs
+    let field = null
+    if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
+      field = formConfig.formStructure.fields.find(f => f.id === category)
+    }
+    
+    if (!field) {
+      return React.createElement('p', { style: { color: '#666', fontStyle: 'italic' } }, 
+        'Bu kategori için yapılandırma bulunamadı.')
+    }
+    
+    // Handle different field types dynamically
+    if (field.type === 'date') {
+      const range = filters[category] || { from: '', to: '' }
       return React.createElement('div', null,
         React.createElement('div', { style: { marginBottom: '15px' } },
           React.createElement('label', { style: { display: 'block', marginBottom: '5px' } }, 'Başlangıç Tarihi:'),
           React.createElement('input', {
             type: 'date',
             value: range.from || '',
-            onChange: (e) => handleRangeChange('dateRange', 'from', e.target.value),
+            onChange: (e) => handleRangeChange(category, 'from', e.target.value),
             style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }
           })
         ),
@@ -84,37 +147,39 @@ export function FilterPopup({ filters, filterOptions, onFilterChange, onClose, t
           React.createElement('input', {
             type: 'date',
             value: range.to || '',
-            onChange: (e) => handleRangeChange('dateRange', 'to', e.target.value),
+            onChange: (e) => handleRangeChange(category, 'to', e.target.value),
             style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }
           })
         )
       )
     }
     
-    if (category === 'qtyRange') {
-      const range = filters.qtyRange || { min: '', max: '' }
+    if (field.type === 'number') {
+      const range = filters[category] || { min: '', max: '' }
+      const label = field.label || field.id
       return React.createElement('div', null,
         React.createElement('div', { style: { marginBottom: '15px' } },
-          React.createElement('label', { style: { display: 'block', marginBottom: '5px' } }, 'Minimum Miktar:'),
+          React.createElement('label', { style: { display: 'block', marginBottom: '5px' } }, `Minimum ${label}:`),
           React.createElement('input', {
             type: 'number',
             value: range.min || '',
-            onChange: (e) => handleRangeChange('qtyRange', 'min', e.target.value),
+            onChange: (e) => handleRangeChange(category, 'min', e.target.value),
             style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }
           })
         ),
         React.createElement('div', { style: { marginBottom: '15px' } },
-          React.createElement('label', { style: { display: 'block', marginBottom: '5px' } }, 'Maksimum Miktar:'),
+          React.createElement('label', { style: { display: 'block', marginBottom: '5px' } }, `Maksimum ${label}:`),
           React.createElement('input', {
             type: 'number',
             value: range.max || '',
-            onChange: (e) => handleRangeChange('qtyRange', 'max', e.target.value),
+            onChange: (e) => handleRangeChange(category, 'max', e.target.value),
             style: { width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ddd' }
           })
         )
       )
     }
 
+    // Handle select, radio, text and other types as options
     const options = filterOptions[category] || []
     const selectedOptions = filters[category] || []
     

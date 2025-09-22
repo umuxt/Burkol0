@@ -316,7 +316,7 @@ export function setupQuoteRoutes(app, uploadsDir) {
     const { id } = req.params
     const { status } = req.body
     
-    if (!['new', 'pending', 'approved', 'rejected', 'completed'].includes(status)) {
+    if (!['new', 'review', 'feasible', 'not', 'quoted', 'approved', 'pending', 'rejected', 'completed'].includes(status)) {
       return res.status(400).json({ error: 'Invalid status' })
     }
     
@@ -325,6 +325,19 @@ export function setupQuoteRoutes(app, uploadsDir) {
       res.json(updated)
     } catch (error) {
       res.status(500).json({ error: 'Status update failed' })
+    }
+  })
+
+  // Update quote (general PATCH)
+  app.patch('/api/quotes/:id', requireAuth, (req, res) => {
+    const { id } = req.params
+    const updateData = req.body
+    
+    try {
+      const updated = update(id, updateData)
+      res.json(updated)
+    } catch (error) {
+      res.status(500).json({ error: 'Quote update failed' })
     }
   })
 
@@ -337,6 +350,44 @@ export function setupQuoteRoutes(app, uploadsDir) {
       res.json({ success: true })
     } catch (error) {
       res.status(500).json({ error: 'Delete failed' })
+    }
+  })
+
+  // Get quote as TXT export
+  app.get('/api/quotes/:id/txt', requireAuth, (req, res) => {
+    const { id } = req.params
+    
+    try {
+      const quote = readAll().find(q => q.id === id)
+      if (!quote) {
+        return res.status(404).json({ error: 'Quote not found' })
+      }
+      
+      // Generate TXT content (simplified version)
+      const txtContent = `Burkol Metal — Teklif Özeti
+Tarih: ${new Date(quote.createdAt || Date.now()).toLocaleString()}
+ID: ${quote.id}
+
+[Genel]
+Durum: ${quote.status || ''}
+Proje: ${quote.proj || ''}
+Açıklama: ${quote.desc || ''}
+
+[Müşteri]
+Ad Soyad: ${quote.name || ''}
+Firma: ${quote.company || ''}
+E‑posta: ${quote.email || ''}
+Telefon: ${quote.phone || ''}
+
+[Fiyat]
+Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
+`
+      
+      res.setHeader('Content-Type', 'text/plain; charset=utf-8')
+      res.setHeader('Content-Disposition', `attachment; filename="teklif-${id}.txt"`)
+      res.send(txtContent)
+    } catch (error) {
+      res.status(500).json({ error: 'TXT export failed' })
     }
   })
 
@@ -480,31 +531,50 @@ export function setupSettingsRoutes(app) {
               if (ov !== nv) {
                 reasons.push(`Sabit ${np.name || np.id}: ${ov} → ${nv}`)
               }
-            } else if (np.type === 'form' && Array.isArray(np.lookupTable)) {
-              const fieldId = np.formField
-              const fv = (q[fieldId] !== undefined ? q[fieldId] : (q.customFields && q.customFields[fieldId]))
-              const collect = (opt) => {
-                const nItem = np.lookupTable.find(it => it.option === opt)
-                const oItem = op.lookupTable ? op.lookupTable.find(it => it.option === opt) : null
-                const ov = oItem ? (parseFloat(oItem.value) || 0) : 0
-                const nv = nItem ? (parseFloat(nItem.value) || 0) : 0
-                if (ov !== nv) reasons.push(`Parametre '${np.name || fieldId}' [${opt}]: ${ov} → ${nv}`)
+            } else if (np.type === 'form') {
+              // Check if this is a form field parameter (either with or without lookupTable)
+              if (Array.isArray(np.lookupTable)) {
+                // Handle lookup table parameters
+                const fieldId = np.formField
+                const fv = (q[fieldId] !== undefined ? q[fieldId] : (q.customFields && q.customFields[fieldId]))
+                const collect = (opt) => {
+                  const nItem = np.lookupTable.find(it => it.option === opt)
+                  const oItem = op.lookupTable ? op.lookupTable.find(it => it.option === opt) : null
+                  const ov = oItem ? (parseFloat(oItem.value) || 0) : 0
+                  const nv = nItem ? (parseFloat(nItem.value) || 0) : 0
+                  if (ov !== nv) reasons.push(`Parametre '${np.name || fieldId}' [${opt}]: ${ov} → ${nv}`)
+                }
+                if (Array.isArray(fv)) fv.forEach(collect)
+                else if (fv !== undefined && fv !== null) collect(fv)
+              } else {
+                // For direct form field parameters (no lookup table)
+                // These parameters use the raw form field values in calculations
+                // Any change in parameter definition means recalculation needed
+                if (np.formField !== op.formField) {
+                  reasons.push(`Form parametresi '${np.name || np.id}' alan değişikliği: ${op.formField} → ${np.formField}`)
+                }
               }
-              if (Array.isArray(fv)) fv.forEach(collect)
-              else if (fv !== undefined && fv !== null) collect(fv)
             }
           })
 
+          // Check for formula changes
+          if (oldSettings.formula !== newSettings.formula) {
+            reasons.push(`Fiyat formülü değişti: ${oldSettings.formula} → ${newSettings.formula}`)
+          }
+
+          // Only mark for update if price actually changed
           if (diff > 0.01) {
             affectedCount++
             update(q.id, {
               needsPriceUpdate: true,
-              priceUpdateReasons: reasons,
+              priceUpdateReasons: reasons.length > 0 ? reasons : [`Fiyat değişti: ${oldPrice.toFixed(2)} → ${newPrice.toFixed(2)}`],
               pendingCalculatedPrice: newPrice,
               lastPriceSettingsVersionUsed: oldSettings.version || 0,
               pendingPriceSettingsVersion: newSettings.version
             })
           } else {
+            // Always clear update flags when price hasn't changed
+            // even if parameters changed but didn't affect final price
             update(q.id, {
               needsPriceUpdate: false,
               priceUpdateReasons: [],
@@ -577,6 +647,7 @@ export function setupSettingsRoutes(app) {
           jsondb.patchQuote(quote.id, {
             needsPriceUpdate: true,
             priceUpdateReason: 'Form structure changed',
+            priceUpdateReasons: ['User form güncellendi'],
             formStructureChanged: true,
             previousFormVersion: quote.formVersion,
             formVersion: config.version

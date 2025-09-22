@@ -4,10 +4,10 @@ import * as Utils from '../../lib/utils.js'
 const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
 
 // Safe formatPrice function with fallback
-const formatPrice = Utils.formatPrice || function(price, currency = 'USD') {
+const formatPrice = Utils.formatPrice || function(price, currency = 'TL') {
   const n = typeof price === 'number' ? price : (parseFloat(price) || 0)
   const formatted = n.toFixed(2) // dot decimal, no grouping
-  return `${formatted} ${currency}`
+  return `₺${formatted}`
 }
 
 export function getTableColumns(formConfig) {
@@ -81,7 +81,13 @@ export function formatFieldValue(value, column, item, context) {
               onClick: (e) => {
                 e.stopPropagation();
                 const original = parseFloat(item.price) || 0;
-                const calc = typeof calculatePrice === 'function' ? (parseFloat(calculatePrice(item)) || 0) : original;
+                // Use pendingCalculatedPrice if available (more accurate), otherwise calculate on the fly
+                let calc = original;
+                if (item.pendingCalculatedPrice !== undefined) {
+                  calc = parseFloat(item.pendingCalculatedPrice) || 0;
+                } else if (typeof calculatePrice === 'function') {
+                  calc = parseFloat(calculatePrice(item)) || 0;
+                }
                 setPriceReview({ item, originalPrice: original, newPrice: calc });
               },
               style: {

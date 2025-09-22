@@ -203,14 +203,36 @@ export function getChanges(item, priceSettings) {
   return changes
 }
 
-export function getChangeReason(item, priceSettings) {
+export function getChangeReason(item, priceSettings, formConfig = null) {
+  // Helper function to get field label from form config
+  function getFieldLabel(fieldId) {
+    if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
+      const field = formConfig.formStructure.fields.find(f => f.id === fieldId)
+      if (field && field.label) {
+        return field.label
+      }
+    }
+    return fieldId // fallback to field ID if label not found
+  }
+
   // Prefer server-provided reasons when available
   if (Array.isArray(item.priceUpdateReasons) && item.priceUpdateReasons.length > 0) {
     return item.priceUpdateReasons.join('; ')
   }
+
+  // Check if this is a form structure change
+  if (item.formStructureChanged === true) {
+    return 'User form güncellendi'
+  }
+
   const changes = getChanges(item, priceSettings)
   
   if (changes.length === 0) {
+    // Last fallback - check for any form-related changes
+    if (item.priceUpdateReason === "Form structure changed" || 
+        item.previousFormVersion !== undefined) {
+      return 'User form güncellendi'
+    }
     return 'Fiyat güncelleme gerekli (sebep belirtilmemiş)'
   }
   
@@ -245,7 +267,9 @@ export function getChangeReason(item, priceSettings) {
         reasons.push('Fiyat parametreleri güncellendi')
         break
       default:
-        reasons.push(`${change.field} değişti`)
+        // For custom form fields, use their labels
+        const fieldLabel = getFieldLabel(change.field)
+        reasons.push(`${fieldLabel} değişti`)
     }
   })
   

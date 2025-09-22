@@ -11,6 +11,39 @@ if (!ReactGlobal) {
 }
 const { useState, useEffect, useMemo } = ReactGlobal
 
+// Helper function to format change reasons with colors and field label conversion
+function formatChangeReasonWithColors(reason, formConfig) {
+  if (!reason) return reason
+  
+  // Function to get field label from form config
+  function getFieldLabel(fieldId) {
+    if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
+      const field = formConfig.formStructure.fields.find(f => f.id === fieldId)
+      if (field && field.label) {
+        return field.label
+      }
+    }
+    return fieldId
+  }
+  
+  // Replace field IDs with labels in the reason text
+  let processedReason = reason
+  if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
+    formConfig.formStructure.fields.forEach(field => {
+      const regex = new RegExp(field.id, 'g')
+      processedReason = processedReason.replace(regex, field.label || field.id)
+    })
+  }
+  
+  // Add colors to old → new format
+  processedReason = processedReason.replace(
+    /([^→]+)→([^;,]+)/g, 
+    '<span style="background-color: #ffebee; color: #c62828; padding: 2px 4px; border-radius: 3px;">$1</span>→<span style="background-color: #e8f5e8; color: #2e7d32; padding: 2px 4px; border-radius: 3px;">$2</span>'
+  )
+  
+  return processedReason
+}
+
 function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, FilterPopup }) {
   const [list, setList] = useState([])
   const [detail, setDetail] = useState(null)
@@ -24,6 +57,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   const [formConfig, setFormConfig] = useState(null)
   const [priceSettings, setPriceSettings] = useState({})
   const [showAddModal, setShowAddModal] = useState(false)
+  const [notification, setNotification] = useState(null)
   const [pagination, setPagination] = useState({
     currentPage: 1,
     itemsPerPage: 10,
@@ -63,9 +97,29 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     }
   }
 
-  function showNotification(message, type) {
-    // Simple notification - you can enhance this
-    alert(message)
+  async function setItemStatus(itemId, newStatus) {
+    try {
+      await API.updateQuoteStatus(itemId, newStatus)
+      
+      // Update the detail item if it's currently being viewed
+      if (detail && detail.id === itemId) {
+        setDetail(prev => ({ ...prev, status: newStatus }))
+      }
+      
+      await refresh() // Reload the list
+      showNotification('Durum başarıyla güncellendi', 'success')
+    } catch (error) {
+      console.error('Error updating status:', error)
+      showNotification('Durum güncellenirken hata oluştu', 'error')
+    }
+  }
+
+  function showNotification(message, type = 'info') {
+    setNotification({ message, type })
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      setNotification(null)
+    }, 3000)
   }
 
   async function loadUsers() {
@@ -228,6 +282,27 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   const tableColumns = getTableColumns(formConfig)
 
   return React.createElement('div', { className: 'admin-panel' },
+    // Toast notification
+    notification && React.createElement('div', {
+      style: {
+        position: 'fixed',
+        top: '20px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        backgroundColor: notification.type === 'success' ? '#4caf50' : notification.type === 'error' ? '#f44336' : '#2196f3',
+        color: 'white',
+        padding: '12px 24px',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        zIndex: 10000,
+        fontSize: '14px',
+        fontWeight: '500',
+        maxWidth: '400px',
+        textAlign: 'center',
+        animation: 'slideInDown 0.3s ease-out'
+      }
+    }, notification.message),
+
     // Header with logout button
     React.createElement('div', { className: 'header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' } },
       React.createElement('h1', null, t.a_title || 'Admin Panel'),
@@ -581,7 +656,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     detail && React.createElement(DetailModal, {
       item: detail,
       onClose: () => setDetail(null),
-      onSave: refresh,
+      setItemStatus: setItemStatus,
+      onSaved: refresh,
       formConfig,
       t,
       showNotification
@@ -597,15 +673,92 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     }),
 
     // Price review modal
-    priceReview && priceReview.item && React.createElement('div', { className: 'modal-overlay', onClick: () => setPriceReview(null) },
-      React.createElement('div', { className: 'modal-content', onClick: (e) => e.stopPropagation(), style: { maxWidth: '500px' } },
-        React.createElement('h3', null, 'Fiyat Güncelleme'),
-        React.createElement('p', null, `Müşteri: ${priceReview.item.name || 'N/A'}`),
-        React.createElement('p', null, `Proje: ${priceReview.item.proj || 'N/A'}`),
-        React.createElement('p', null, `Mevcut Fiyat: ${Number.isFinite(Number(priceReview.originalPrice)) ? `₺${Number(priceReview.originalPrice).toFixed(2)}` : 'N/A'}`),
-        React.createElement('p', null, `Yeni Fiyat: ${Number.isFinite(Number(priceReview.newPrice)) ? `₺${Number(priceReview.newPrice).toFixed(2)}` : 'N/A'}`),
-        React.createElement('p', null, `Değişiklik Nedeni: ${getChangeReason(priceReview.item, priceSettings) || 'N/A'}`),
-        React.createElement('div', { style: { display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' } },
+    priceReview && priceReview.item && React.createElement('div', { 
+      className: 'modal-overlay', 
+      onClick: () => setPriceReview(null),
+      style: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+      }
+    },
+      React.createElement('div', { 
+        className: 'card detail-modal', 
+        onClick: (e) => e.stopPropagation(), 
+        style: { 
+          width: 'min(500px, 90vw)',
+          maxHeight: '85vh',
+          overflowY: 'auto',
+          position: 'relative',
+          padding: '20px',
+          margin: '20px'
+        } 
+      },
+        // Header
+        React.createElement('div', {
+          style: {
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px',
+            paddingBottom: '10px',
+            borderBottom: '1px solid rgba(255,255,255,0.1)'
+          }
+        },
+          React.createElement('h3', { style: { margin: 0 } }, 'Fiyat Güncelleme'),
+          React.createElement('button', {
+            onClick: () => setPriceReview(null),
+            style: {
+              background: 'none',
+              border: 'none',
+              color: '#888',
+              fontSize: '24px',
+              cursor: 'pointer',
+              padding: '0',
+              width: '30px',
+              height: '30px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }
+          }, '×')
+        ),
+        
+        // Content
+        React.createElement('div', { style: { marginBottom: '20px' } },
+          React.createElement('p', { style: { margin: '8px 0' } }, `Müşteri: ${priceReview.item.name || 'N/A'}`),
+          React.createElement('p', { style: { margin: '8px 0' } }, `Proje: ${priceReview.item.proj || 'N/A'}`),
+          React.createElement('p', { style: { margin: '8px 0' } }, `Mevcut Fiyat: ${Number.isFinite(Number(priceReview.originalPrice)) ? `₺${Number(priceReview.originalPrice).toFixed(2)}` : 'N/A'}`),
+          React.createElement('p', { style: { margin: '8px 0' } }, `Yeni Fiyat: ${Number.isFinite(Number(priceReview.newPrice)) ? `₺${Number(priceReview.newPrice).toFixed(2)}` : 'N/A'}`),
+          React.createElement('div', { style: { margin: '8px 0' } }, [
+            React.createElement('span', { key: 'label' }, 'Değişiklik Nedeni: '),
+            React.createElement('span', { 
+              key: 'reason',
+              style: { fontFamily: 'monospace' },
+              dangerouslySetInnerHTML: { 
+                __html: formatChangeReasonWithColors(getChangeReason(priceReview.item, priceSettings, formConfig) || 'N/A', formConfig)
+              }
+            })
+          ])
+        ),
+        
+        // Footer buttons
+        React.createElement('div', { 
+          style: { 
+            display: 'flex', 
+            gap: '10px', 
+            justifyContent: 'flex-end',
+            borderTop: '1px solid rgba(255,255,255,0.1)',
+            paddingTop: '15px'
+          } 
+        },
           React.createElement('button', {
             onClick: () => setPriceReview(null),
             className: 'btn btn-secondary'
@@ -637,22 +790,26 @@ function AddRecordModal({ isOpen, onClose, formConfig, onSave }) {
   useEffect(() => {
     if (isOpen && formConfig) {
       const initialData = {
+        name: '',
+        email: '',
+        phone: '',
+        company: '',
+        proj: '',
         status: 'new',
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        customFields: {}
       }
       
-      // Set default values for form fields
-      if (formConfig.steps) {
-        formConfig.steps.forEach(step => {
-          step.fields.forEach(field => {
-            if (field.type === 'multiselect') {
-              initialData[field.id] = []
-            } else if (field.type === 'number') {
-              initialData[field.id] = 0
-            } else {
-              initialData[field.id] = ''
-            }
-          })
+      // Set default values for dynamic form fields
+      if (formConfig.formStructure && formConfig.formStructure.fields) {
+        formConfig.formStructure.fields.forEach(field => {
+          if (field.type === 'multiselect' || field.type === 'checkbox') {
+            initialData.customFields[field.id] = []
+          } else if (field.type === 'number') {
+            initialData.customFields[field.id] = ''
+          } else {
+            initialData.customFields[field.id] = ''
+          }
         })
       }
       
@@ -662,12 +819,26 @@ function AddRecordModal({ isOpen, onClose, formConfig, onSave }) {
 
   // Handle field change
   function handleFieldChange(fieldId, value, fieldType) {
-    setFormData(prev => ({
-      ...prev,
-      [fieldId]: fieldType === 'multiselect' && typeof value === 'string' 
-        ? value.split(',').map(s => s.trim()).filter(Boolean)
-        : value
-    }))
+    // Check if this is a basic field or custom field
+    const basicFields = ['name', 'email', 'phone', 'company', 'proj']
+    
+    if (basicFields.includes(fieldId)) {
+      setFormData(prev => ({
+        ...prev,
+        [fieldId]: value
+      }))
+    } else {
+      // Custom field
+      setFormData(prev => ({
+        ...prev,
+        customFields: {
+          ...prev.customFields,
+          [fieldId]: fieldType === 'multiselect' && typeof value === 'string' 
+            ? value.split(',').map(s => s.trim()).filter(Boolean)
+            : value
+        }
+      }))
+    }
   }
 
   // Handle save
@@ -698,7 +869,7 @@ function AddRecordModal({ isOpen, onClose, formConfig, onSave }) {
 
   // Render form field based on type
   function renderField(field) {
-    const value = formData[field.id] || ''
+    const value = formData.customFields?.[field.id] || ''
     
     switch (field.type) {
       case 'textarea':
@@ -862,8 +1033,61 @@ function AddRecordModal({ isOpen, onClose, formConfig, onSave }) {
       
       // Form fields
       React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '20px' } },
-        ...(formConfig && formConfig.steps ? formConfig.steps.flatMap(step =>
-          step.fields.map(field =>
+        // Basic fields
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+          React.createElement('label', { style: { fontWeight: 'bold', fontSize: '14px', color: '#333' } }, 'Müşteri Adı *'),
+          React.createElement('input', {
+            type: 'text',
+            value: formData.name || '',
+            onChange: (e) => handleFieldChange('name', e.target.value),
+            style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' },
+            placeholder: 'Müşteri adı'
+          })
+        ),
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+          React.createElement('label', { style: { fontWeight: 'bold', fontSize: '14px', color: '#333' } }, 'E-posta *'),
+          React.createElement('input', {
+            type: 'email',
+            value: formData.email || '',
+            onChange: (e) => handleFieldChange('email', e.target.value),
+            style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' },
+            placeholder: 'E-posta adresi'
+          })
+        ),
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+          React.createElement('label', { style: { fontWeight: 'bold', fontSize: '14px', color: '#333' } }, 'Telefon'),
+          React.createElement('input', {
+            type: 'tel',
+            value: formData.phone || '',
+            onChange: (e) => handleFieldChange('phone', e.target.value),
+            style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' },
+            placeholder: 'Telefon numarası'
+          })
+        ),
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+          React.createElement('label', { style: { fontWeight: 'bold', fontSize: '14px', color: '#333' } }, 'Şirket'),
+          React.createElement('input', {
+            type: 'text',
+            value: formData.company || '',
+            onChange: (e) => handleFieldChange('company', e.target.value),
+            style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' },
+            placeholder: 'Şirket adı'
+          })
+        ),
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
+          React.createElement('label', { style: { fontWeight: 'bold', fontSize: '14px', color: '#333' } }, 'Proje'),
+          React.createElement('input', {
+            type: 'text',
+            value: formData.proj || '',
+            onChange: (e) => handleFieldChange('proj', e.target.value),
+            style: { width: '100%', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' },
+            placeholder: 'Proje adı'
+          })
+        ),
+        
+        // Dynamic form fields from admin configuration
+        ...(formConfig && formConfig.formStructure && formConfig.formStructure.fields ? 
+          formConfig.formStructure.fields.map(field =>
             React.createElement('div', { key: field.id, style: { display: 'flex', flexDirection: 'column', gap: '6px' } },
               React.createElement('label', {
                 style: {
@@ -871,11 +1095,10 @@ function AddRecordModal({ isOpen, onClose, formConfig, onSave }) {
                   fontSize: '14px',
                   color: '#333'
                 }
-              }, field.label),
+              }, field.label + (field.required ? ' *' : '')),
               renderField(field)
             )
-          )
-        ) : [])
+          ) : [])
       ),
       
       // Footer buttons

@@ -1453,6 +1453,18 @@ textarea.loading {
   100% { background-position: -200% 0; }
 }
 
+/* Toast notification animation */
+@keyframes slideInDown {
+  0% {
+    transform: translateX(-50%) translateY(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+  }
+}
+
 /* =============================================================================
    BİTİŞ - KAPSAMLI FORM ELEMANLARİ STİLLERİ
    ============================================================================= */
