@@ -3,6 +3,13 @@ import { uid, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, extOf, readFileAsDataUrl, isIm
 
 const { useState, useEffect } = React
 
+// Common control keys used in keydown handlers
+const CONTROL_KEYS = [
+  'Backspace', 'Delete', 'Tab', 'Enter', 'Escape',
+  'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
+  'Home', 'End', 'PageUp', 'PageDown'
+]
+
 // Fixed default fields that cannot be modified by admin
 const FIXED_DEFAULT_FIELDS = [
   { id: 'name', label: 'Müşteri Adı', type: 'text', required: true },
@@ -12,24 +19,45 @@ const FIXED_DEFAULT_FIELDS = [
   { id: 'email', label: 'E-posta', type: 'email', required: true }
 ]
 
-export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNotification, t }) {
-  console.log('🔧 DynamicFormRenderer: Component started rendering')
-  
+export default function DynamicFormRenderer({ onSubmit, initialData = null, showNotification, t }) {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [formConfig, setFormConfig] = useState(null)
-  const [formData, setFormData] = useState({ ...initialData, customFields: initialData.customFields || {} })
+  // Initialize once from initialData; avoid resetting on each render
+  const [formData, setFormData] = useState(() => ({
+    ...(initialData || {}),
+    customFields: (initialData && initialData.customFields) || {}
+  }))
   const [errors, setErrors] = useState({})
   const [uploadingFiles, setUploadingFiles] = useState(false)
+  // Live (soft) validation warnings shown during typing
+  const [liveWarnings, setLiveWarnings] = useState({})
+  // Optional empty fields review modal state (must be before any early returns)
+  const [showEmptyReview, setShowEmptyReview] = useState(false)
+  const [pendingSubmitData, setPendingSubmitData] = useState(null)
+  const [emptyOptionalList, setEmptyOptionalList] = useState([])
 
-  console.log('🔧 DynamicFormRenderer: Initial state set', { loading, formData })
+  // Debug log component mount using useEffect to avoid infinite loops
+  useEffect(() => {
+    console.log('🔧 DynamicFormRenderer: Component mounted')
+  }, [])
+
+  // Debug formData changes
+  useEffect(() => {
+    console.log('🔥 FormData state updated:', formData)
+    // Expose formData to window for debugging
+    window.formDataState = formData
+  }, [formData])
 
   useEffect(() => {
     loadFormConfig()
   }, [])
 
+  // Only update form data if parent provides a new initialData object
   useEffect(() => {
-    setFormData({ ...initialData, customFields: initialData.customFields || {} })
+    if (initialData) {
+      setFormData({ ...initialData, customFields: initialData.customFields || {} })
+    }
   }, [initialData])
 
   async function loadFormConfig() {
@@ -37,7 +65,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
     try {
       setLoading(true)
       const config = await API.getFormConfig()
-      console.log('🔧 DynamicFormRenderer: Form config loaded successfully', config)
+      console.log('🔧 DynamicFormRenderer: Form config loaded successfully')
       setFormConfig(config.formConfig)
     } catch (error) {
       console.error('🔧 DynamicFormRenderer: Load form config error:', error)
@@ -291,8 +319,6 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
 
   // Real-time input filtering based on field type and validation rules
   function filterAndValidateInput(value, field) {
-    console.log('🔧 DynamicFormRenderer: filterAndValidateInput called', { value, fieldType: field.type })
-    
     // TEMPORARY: Return value as-is for all field types to test
     // This will help us identify if filtering is causing the issue
     return value
@@ -389,24 +415,22 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
   }
 
   function handleFieldChange(fieldId, value, isCustomField = false, field = null) {
-    console.log('� handleFieldChange CALLED!', { 
-      fieldId, 
-      value, 
-      isCustomField, 
-      fieldType: field?.type,
-      formDataBefore: formData 
-    })
+    console.log('🚀 handleFieldChange called:', { fieldId, value, isCustomField, fieldType: field?.type })
+    
+    // Only log actual changes, not every call
+    const currentValue = isCustomField ? formData.customFields?.[fieldId] : formData[fieldId]
+    if (currentValue !== value) {
+      console.log('🔥 Field value changed:', { fieldId, oldValue: currentValue, newValue: value })
+    }
     
     // Apply input filtering and formatting based on field type
     let filteredValue = value
     if (field) {
       filteredValue = filterAndValidateInput(value, field)
-      console.log('🔧 DynamicFormRenderer: Value filtered', { original: value, filtered: filteredValue })
     }
 
-    // Update form data
+    // Update form data - CRITICAL FIX: Always update, even with empty values
     if (isCustomField) {
-      console.log('📝 Updating custom field:', fieldId, filteredValue)
       setFormData(prev => ({
         ...prev,
         customFields: {
@@ -415,7 +439,6 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
         }
       }))
     } else {
-      console.log('📝 Updating regular field:', fieldId, filteredValue)
       setFormData(prev => ({
         ...prev,
         [fieldId]: filteredValue
@@ -495,6 +518,9 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
 
       await onSubmit(quoteData)
       showNotification('Teklif başarıyla gönderildi!', 'success')
+      // Fallback reset (in case this path is used)
+      setFormData({ customFields: {} })
+      setErrors({})
     } catch (error) {
       console.error('Submit error:', error)
       showNotification('Form gönderilemedi. Lütfen tekrar deneyin.', 'error')
@@ -524,43 +550,82 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
   }
 
   function renderField(field, isCustomField = false) {
-    console.log('🔧 DynamicFormRenderer: Rendering field', { field: field.id, type: field.type, isCustomField })
-    
+    // Only log field rendering once per field, not on every render
     const fieldId = field.id
     const value = isCustomField ? formData.customFields?.[fieldId] : formData[fieldId]
     const error = errors[fieldId]
-    
-    console.log('🔧 DynamicFormRenderer: Field data', { fieldId, value, error })
+    const warning = liveWarnings[fieldId]
+    const validState = value ? validateFieldInput(field, value) : null
+    const isValid = !!(value && validState && validState.isValid)
     
     const commonProps = {
       id: fieldId,
       name: fieldId,
       'data-field-id': fieldId,
-      className: error ? 'error' : '',
+      className: error ? 'error' : (warning ? 'warning' : (value ? 'valid' : '')),
       tabIndex: 0,
       autoComplete: 'off',
       onChange: (e) => {
-        console.log('🔥🔥 onChange EVENT FIRED!', { 
-          fieldId, 
-          inputValue: e.target.value, 
-          event: e.type 
-        })
-        handleFieldChange(fieldId, e.target.value, isCustomField, field)
-      },
-      onInput: (e) => {
-        console.log('🔥🔥 onInput EVENT FIRED!', { 
-          fieldId, 
-          inputValue: e.target.value, 
-          event: e.type 
-        })
-        handleFieldChange(fieldId, e.target.value, isCustomField, field)
+        // FIXED: Only use onChange, remove duplicate onInput
+        console.log('📝 Input onChange event:', { fieldId, value: e.target.value })
+        const newVal = e.target.value
+        handleFieldChange(fieldId, newVal, isCustomField, field)
+        // Yazarken genel uyarı göstermeyelim; yalnızca mevcut uyarıyı/hatayı temizleyelim
+        if (liveWarnings[fieldId]) {
+          const v2 = validateFieldInput(field, newVal)
+          if (v2.isValid) setLiveWarnings(prev => { const c = { ...prev }; delete c[fieldId]; return c })
+        }
+        if (errors[fieldId]) {
+          const v3 = validateFieldInput(field, newVal)
+          if (v3.isValid) setErrors(prev => { const c = { ...prev }; delete c[fieldId]; return c })
+        }
       },
       onKeyDown: (e) => {
-        console.log('🔥🔥 onKeyDown EVENT FIRED!', { 
-          fieldId, 
-          key: e.key, 
-          inputValue: e.target.value 
-        })
+        const ctrlKey = e.ctrlKey || e.metaKey
+        // Use global CONTROL_KEYS constant
+        // Confirm validation on Enter/Tab
+        if (e.key === 'Enter' || e.key === 'Tab') {
+          const v = validateFieldInput(field, e.currentTarget.value)
+          setErrors(prev => {
+            const next = { ...prev }
+            if (!v.isValid) next[fieldId] = v.error
+            else delete next[fieldId]
+            return next
+          })
+          setLiveWarnings(prev => { const n = { ...prev }; delete n[fieldId]; return n })
+          return
+        }
+
+        // Veri tipine aykırı girişlerde yazmayı engelle ve uyarı göster
+        if (!ctrlKey && !CONTROL_KEYS.includes(e.key) && e.key.length === 1) {
+          const k = e.key
+          // phone: yalnızca 0-9, + (başta), boşluk, ( ) -
+          if (field.type === 'phone') {
+            const allowed = /[0-9\s()\-]/.test(k) || (k === '+' && e.currentTarget.selectionStart === 0 && !e.currentTarget.value.includes('+'))
+            if (!allowed) {
+              e.preventDefault()
+              setLiveWarnings(prev => ({ ...prev, [fieldId]: 'Telefon alanı yalnızca sayı ve (+) gibi sembolleri kabul eder' }))
+            }
+          }
+          // text: onlyLetters/noNumbers kuralları
+          if (field.type === 'text') {
+            const onlyLetters = field.validation?.onlyLetters
+            const noNumbers = field.validation?.noNumbers
+            if (onlyLetters) {
+              const letter = /[a-zA-ZğüşıöçĞÜŞİÖÇ\s]/.test(k)
+              if (!letter) {
+                e.preventDefault()
+                setLiveWarnings(prev => ({ ...prev, [fieldId]: 'Sadece harf girebilirsiniz' }))
+              }
+            } else if (noNumbers) {
+              const isDigit = /\d/.test(k)
+              if (isDigit) {
+                e.preventDefault()
+                setLiveWarnings(prev => ({ ...prev, [fieldId]: 'Sayı karakteri kullanamaz' }))
+              }
+            }
+          }
+        }
       },
       onBlur: (e) => {
         const validation = validateFieldInput(field, e.target.value)
@@ -569,8 +634,32 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
             ...prev,
             [fieldId]: validation.error
           }))
+        } else {
+          setErrors(prev => { const c = { ...prev }; delete c[fieldId]; return c })
         }
+        // Clear live warning on blur (we have hard validation now)
+        setLiveWarnings(prev => { const c = { ...prev }; delete c[fieldId]; return c })
       }
+    }
+
+    // Compose placeholder with validation hints (min/max, lengths) inline
+    function computePlaceholder(f) {
+      const base = f.placeholder || f.label || ''
+      const v = f.validation || {}
+      if (f.type === 'number') {
+        const hints = []
+        if (v.min !== undefined) hints.push(`min: ${v.min}`)
+        if (v.max !== undefined) hints.push(`max: ${v.max}`)
+        if (v.integer) hints.push(`int`)
+        return hints.length ? `${base} (${hints.join(', ')})` : base
+      }
+      if (f.type === 'text' || f.type === 'textarea') {
+        const hints = []
+        if (v.minLength) hints.push(`min ${v.minLength}`)
+        if (v.maxLength) hints.push(`max ${v.maxLength}`)
+        return hints.length ? `${base} (${hints.join(', ')})` : base
+      }
+      return base
     }
 
     let inputElement
@@ -582,8 +671,8 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
         inputElement = React.createElement('input', {
           ...commonProps,
           type: field.type === 'phone' ? 'tel' : field.type,
-          value: value || '',
-          placeholder: field.placeholder || field.label,
+          value: value || '', // Keep controlled component
+          placeholder: computePlaceholder(field),
           maxLength: field.validation?.maxLength,
           minLength: field.validation?.minLength,
           autoFocus: field.autoFocus || false
@@ -594,7 +683,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
         inputElement = React.createElement('textarea', {
           ...commonProps,
           value: value || '',
-          placeholder: field.placeholder || field.label,
+          placeholder: computePlaceholder(field),
           rows: 3,
           maxLength: field.validation?.maxLength
         })
@@ -606,55 +695,50 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
           type: 'text', // Use text type to have full control over input
           inputMode: field.validation?.integer ? 'numeric' : 'decimal',
           value: value || '',
-          placeholder: field.placeholder || field.label,
+          placeholder: computePlaceholder(field),
           'data-min': field.validation?.min,
           'data-max': field.validation?.max,
           'data-integer': field.validation?.integer || false,
+          // SIMPLIFIED: Only basic keydown validation, allow normal typing
           onKeyDown: (e) => {
-            // Allowed keys: numbers, backspace, delete, tab, enter, arrows, decimal point, minus
-            const allowedKeys = [
-              'Backspace', 'Delete', 'Tab', 'Enter', 'Escape',
-              'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown',
-              'Home', 'End'
-            ]
-            
-            const isNumber = /^[0-9]$/.test(e.key)
-            const isDecimal = e.key === '.' && !field.validation?.integer
-            const isMinus = e.key === '-' && !field.validation?.positive
-            const isAllowed = allowedKeys.includes(e.key)
-            
-            // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
-            if (e.ctrlKey || e.metaKey) {
-              return
+            const ctrlKey = e.ctrlKey || e.metaKey
+            // Type enforcement: allow only digits, optional dot and minus
+            if (!ctrlKey && !CONTROL_KEYS.includes(e.key) && e.key.length === 1) {
+              const isDigit = /[0-9]/.test(e.key)
+              const isDot = e.key === '.'
+              const isMinus = e.key === '-'
+              const allowDot = !field.validation?.integer
+              const allowMinus = !field.validation?.positive && e.currentTarget.selectionStart === 0 && !e.currentTarget.value.includes('-')
+              if (!isDigit && !(isDot && allowDot) && !(isMinus && allowMinus)) {
+                e.preventDefault()
+                setLiveWarnings(prev => ({ ...prev, [fieldId]: 'Sadece sayısal karakter girebilirsiniz' }))
+                return
+              }
             }
-            
-            if (!isNumber && !isDecimal && !isMinus && !isAllowed) {
-              e.preventDefault()
-              // Visual feedback for invalid key press
-              const element = e.target
-              element.style.borderColor = '#ff4444'
-              setTimeout(() => {
-                element.style.borderColor = ''
-              }, 200)
-            }
-            
-            // Prevent multiple decimal points
-            if (isDecimal && (value || '').includes('.')) {
-              e.preventDefault()
-            }
-            
-            // Prevent multiple minus signs or minus not at the beginning
-            if (isMinus && ((value || '').includes('-') || e.target.selectionStart > 0)) {
-              e.preventDefault()
+            // Confirm validation on Enter/Tab
+            if (e.key === 'Enter' || e.key === 'Tab') {
+              const v = validateFieldInput(field, e.currentTarget.value)
+              setErrors(prev => {
+                const next = { ...prev }
+                if (!v.isValid) next[fieldId] = v.error
+                else delete next[fieldId]
+                return next
+              })
+              setLiveWarnings(prev => { const n = { ...prev }; delete n[fieldId]; return n })
             }
           },
           onPaste: (e) => {
-            e.preventDefault()
-            const paste = (e.clipboardData || window.clipboardData).getData('text')
-            const cleanPaste = filterAndValidateInput(paste, field)
-            
-            // Update the field with cleaned paste content
-            handleFieldChange(fieldId, cleanPaste, isCustomField, field)
+            // DON'T preventDefault by default - let normal paste work
+            // Only clean up the pasted content
+            setTimeout(() => {
+              const paste = (e.clipboardData || window.clipboardData).getData('text')
+              const cleanPaste = filterAndValidateInput(paste, field)
+              
+              // Only update if the cleaned paste is different
+              if (cleanPaste !== paste) {
+                handleFieldChange(fieldId, cleanPaste, isCustomField, field)
+              }
+            }, 0)
           },
           // Add visual hints for number constraints
           title: (() => {
@@ -817,52 +901,29 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
         })
     }
 
-    // Create validation icon
-    const validationIcon = (() => {
-      if (!value) return null
-      
-      const validation = validateFieldInput(field, value)
-      if (validation.isValid) {
-        return React.createElement('span', { 
-          className: 'validation-icon success',
-          title: 'Geçerli' 
-        }, '✓')
-      } else if (validation.error) {
-        return React.createElement('span', { 
-          className: 'validation-icon error',
-          title: validation.error 
-        }, '✗')
-      }
-      return null
-    })()
+    // Do not render validation icon inside input; success tick will be shown near label
+    const validationIcon = null
 
-    // Add number field tooltip for constraints
-    const numberTooltip = field.type === 'number' && (field.validation?.min !== undefined || field.validation?.max !== undefined) ?
-      React.createElement('div', { className: 'number-field-tooltip' },
-        (() => {
-          const hints = []
-          if (field.validation?.min !== undefined) hints.push(`Min: ${field.validation.min}`)
-          if (field.validation?.max !== undefined) hints.push(`Max: ${field.validation.max}`)
-          if (field.validation?.integer) hints.push('Tam sayı')
-          if (field.validation?.positive) hints.push('Pozitif sayı')
-          return hints.join(', ')
-        })()
-      ) : null
+    // Remove below-input tooltip; limits are now in placeholder
+    const numberTooltip = null
 
     return React.createElement('div', { 
       key: fieldId, 
-      className: `field ${error ? 'has-error' : ''} ${value && !error ? 'has-success' : ''}` 
+      className: `field ${error ? 'error' : ''}` 
     },
-      React.createElement('label', { htmlFor: fieldId },
+      React.createElement('label', { htmlFor: fieldId, className: 'field-label' },
         field.label,
-        field.required && React.createElement('span', { className: 'required' }, ' *')
+        field.required && React.createElement('span', { className: 'required' }, ' *'),
+        (error || warning)
+          ? React.createElement('span', { className: `field-status ${error ? 'error' : 'warning'}` }, error || warning)
+          : (isValid ? React.createElement('span', { className: 'field-status success', title: 'Geçerli' }, '✓') : null)
       ),
       React.createElement('div', { className: 'input-container', style: { position: 'relative' } },
         inputElement,
         validationIcon,
         numberTooltip
       ),
-      error && React.createElement('div', { className: 'field-error' }, error)
+      null
     )
   }
 
@@ -893,19 +954,111 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
     }
   }))
 
-  // Sort fields by form order
-  const allFields = [
-    ...fixedFieldsWithOrder,
-    ...customFieldsWithOrder
-  ].sort((a, b) => (a.display?.formOrder || 0) - (b.display?.formOrder || 0))
-  
+  // Sort and split fields by form order
+  const fixedSorted = [...fixedFieldsWithOrder].sort((a, b) => (a.display?.formOrder || 0) - (b.display?.formOrder || 0))
+  const customSorted = [...customFieldsWithOrder].sort((a, b) => (a.display?.formOrder || 0) - (b.display?.formOrder || 0))
+
+  // Empty optional fields detector for submission review
+
+  function findEmptyOptionalFields() {
+    const all = [...fixedSorted, ...customSorted]
+    const empties = []
+    all.forEach(field => {
+      const isCustom = !FIXED_DEFAULT_FIELDS.some(df => df.id === field.id)
+      const val = isCustom ? formData.customFields?.[field.id] : formData[field.id]
+      const isEmpty = Array.isArray(val) ? val.length === 0 : (val === undefined || val === null || String(val).trim() === '')
+      if (!field.required && isEmpty) {
+        empties.push({ id: field.id, label: field.label })
+      }
+    })
+    return empties
+  }
+
+  async function proceedSubmit(actualData) {
+    await onSubmit(actualData)
+    showNotification('Teklif başarıyla gönderildi!', 'success')
+    // Reset form after successful submit
+    setFormData({ customFields: {} })
+    setErrors({})
+  }
+
+  // Override submit to insert optional-empty confirmation
+  const origHandleSubmit = handleSubmit
+  handleSubmit = async function(e) {
+    e.preventDefault()
+    const isValid = validateForm()
+    if (!isValid) {
+      showNotification('Lütfen form hatalarını düzeltin', 'error')
+      return
+    }
+
+    // Prepare quote data (copied from original)
+    try {
+      setSubmitting(true)
+      const quoteData = {
+        id: uid(),
+        createdAt: new Date().toISOString(),
+        status: 'new',
+        name: formData.name,
+        company: formData.company,
+        proj: formData.proj,
+        phone: formData.phone,
+        email: formData.email,
+        customFields: formData.customFields || {},
+        formVersion: formConfig?.version,
+        formConfigSnapshot: formConfig,
+        lang: (localStorage.getItem('bk_lang') || 'tr')
+      }
+
+      const empties = findEmptyOptionalFields()
+      if (empties.length > 0) {
+        setEmptyOptionalList(empties)
+        setPendingSubmitData(quoteData)
+        setShowEmptyReview(true)
+        setSubmitting(false)
+        return
+      }
+
+      await proceedSubmit(quoteData)
+    } catch (error) {
+      console.error('Submit error:', error)
+      showNotification('Form gönderilemedi. Lütfen tekrar deneyin.', 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return React.createElement('div', { className: 'container' },
-    React.createElement('form', { onSubmit: handleSubmit, className: 'dynamic-form' },
-      React.createElement('div', { className: 'form-fields' },
-        allFields.map(field => {
-          const isCustomField = !FIXED_DEFAULT_FIELDS.some(df => df.id === field.id)
-          return renderField(field, isCustomField)
-        })
+    React.createElement('form', { onSubmit: handleSubmit, className: 'dynamic-form two-col' },
+      // Fixed/default fields at top (Customer Info)
+      React.createElement('div', { className: 'form-section fixed-fields' },
+        React.createElement('div', { className: 'section-card' },
+          (() => {
+            const lang = (localStorage.getItem('bk_lang') || 'tr')
+            const title = lang === 'en' ? 'Customer Information' : 'Müşteri Bilgileri'
+            const requiredNote = lang === 'en' ? 'Fields marked * are required' : '* işaretli alanlar zorunludur'
+            return React.createElement(React.Fragment, null,
+              React.createElement('div', { className: 'section-title' }, title),
+              React.createElement('div', { className: 'required-note' }, requiredNote)
+            )
+          })(),
+          React.createElement('div', { className: 'form-grid' },
+            fixedSorted.map(field => renderField(field, false))
+          )
+        )
+      ),
+      // Custom fields below (Additional Fields)
+      React.createElement('div', { className: 'form-section custom-fields' },
+        React.createElement('div', { className: 'section-card' },
+          (() => {
+            const lang = (localStorage.getItem('bk_lang') || 'tr')
+            const title = lang === 'en' ? 'Additional Fields' : 'Form Alanları'
+            return React.createElement('div', { className: 'section-title' }, title)
+          })(),
+          React.createElement('div', { className: 'form-grid' },
+            customSorted.map(field => renderField(field, true))
+          )
+        )
       ),
 
       React.createElement('div', { className: 'form-actions' },
@@ -914,6 +1067,55 @@ export default function DynamicFormRenderer({ onSubmit, initialData = {}, showNo
           className: 'btn accent',
           disabled: submitting
         }, submitting ? 'Gönderiliyor...' : 'Teklif Gönder')
+      ),
+
+      // Optional empty fields review modal (styled like other project modals)
+      showEmptyReview && React.createElement('div', {
+        className: 'modal-overlay',
+        'data-backdrop': 'true',
+        onClick: () => setShowEmptyReview(false)
+      },
+        React.createElement('div', {
+          className: 'modal',
+          onClick: (e) => e.stopPropagation()
+        },
+          React.createElement('div', { className: 'modal-header' },
+            (() => {
+              const lang = (localStorage.getItem('bk_lang') || 'tr')
+              const title = lang === 'en' ? 'There are fields left empty' : 'Boş bırakılan alanlar var'
+              return React.createElement('h3', null, title)
+            })(),
+          ),
+          React.createElement('div', { className: 'modal-body' },
+            (() => {
+              const lang = (localStorage.getItem('bk_lang') || 'tr')
+              const msg = lang === 'en' ? 'Would you like to review the empty fields before submitting?' : 'Boş bırakılan alanları tekrar gözden geçirmek ister misiniz?'
+              return React.createElement('p', null, msg)
+            })(),
+            React.createElement('div', { style: { maxHeight: 200, overflow: 'auto', marginTop: 8 } },
+              React.createElement('ul', null,
+                emptyOptionalList.map(f => React.createElement('li', { key: f.id }, f.label))
+              )
+            )
+          ),
+          React.createElement('div', { className: 'modal-footer' },
+            React.createElement('button', {
+              type: 'button',
+              className: 'btn secondary',
+              onClick: () => setShowEmptyReview(false)
+            }, (localStorage.getItem('bk_lang') || 'tr') === 'en' ? 'Review fields' : 'Alanları gözden geçir'),
+            React.createElement('button', {
+              type: 'button',
+              className: 'btn primary',
+              onClick: async () => {
+                const data = pendingSubmitData
+                setShowEmptyReview(false)
+                setPendingSubmitData(null)
+                await proceedSubmit(data)
+              }
+            }, (localStorage.getItem('bk_lang') || 'tr') === 'en' ? 'Continue and submit' : 'Devam et ve gönder')
+          )
+        )
       )
     )
   )

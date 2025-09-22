@@ -1328,6 +1328,38 @@ select.error {
   color: #dc3545;
 }
 
+/* Warning state for live validation */
+input.warning,
+textarea.warning,
+select.warning {
+  border-color: #ffc107 !important;
+  box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+  transition: all 0.2s ease;
+}
+
+.field-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-status {
+  font-size: 12px;
+  margin-left: 16px;
+}
+
+.field-status.warning {
+  color: #ffc107;
+}
+
+.field-status.error {
+  color: #dc3545;
+}
+
+.field-status.success {
+  color: #28a745;
+}
+
 /* NUMBER FIELD ENHANCEMENTS */
 input[data-integer="true"] {
   /* Visual hint for integer-only fields */

@@ -45,6 +45,29 @@ textarea:valid {
   border-color: var(--form-success);
 }
 
+/* Inline field status next to label */
+.field-label {
+  display: flex;
+  align-items: center;
+  gap: 16px; /* ~1 tab visual spacing */
+}
+
+.field-status { 
+  font-size: var(--font-size-sm);
+}
+
+.field-status.warning { color: #ffc107; }
+.field-status.error { color: #dc3545; }
+.field-status.success { color: #28a745; }
+
+/* Warning ring for inputs while enforcing type */
+input.warning,
+textarea.warning,
+select.warning {
+  border-color: #ffc107 !important;
+  box-shadow: 0 0 0 0.2rem rgba(255, 193, 7, 0.25);
+}
+
 /* Field Groups */
 .field { 
   margin-bottom: var(--spacing-md); 

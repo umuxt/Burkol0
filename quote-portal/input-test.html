@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Input Test</title>
+</head>
+<body>
+    <h1>INPUT TEST</h1>
+    
+    <!-- Regular HTML input -->
+    <div>
+        <h2>HTML Input</h2>
+        <input type="text" placeholder="Type here..." style="padding: 10px; border: 1px solid #ccc;">
+    </div>
+    
+    <!-- React input -->
+    <div>
+        <h2>React Input</h2>
+        <div id="react-root"></div>
+    </div>
+    
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <script>
+        // Simple React component test
+        const { useState } = React;
+        
+        function SimpleInput() {
+            const [value, setValue] = useState('');
+            
+            return React.createElement('input', {
+                type: 'text',
+                value: value,
+                onChange: (e) => setValue(e.target.value),
+                placeholder: 'React input...',
+                style: { padding: '10px', border: '1px solid #ccc' }
+            });
+        }
+        
+        ReactDOM.render(React.createElement(SimpleInput), document.getElementById('react-root'));
+    </script>
+</body>
+</html>

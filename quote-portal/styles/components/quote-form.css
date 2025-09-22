@@ -9,6 +9,65 @@
   box-shadow: var(--shadow-md);
 }
 
+/* Minimal two-column dynamic form layout */
+.dynamic-form.two-col .form-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.dynamic-form.two-col .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+}
+
+@media (max-width: 900px) {
+  .dynamic-form.two-col .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dynamic-form.two-col .form-actions {
+  margin-top: var(--spacing-lg);
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Compact spacing for fields inside the dynamic form */
+.dynamic-form.two-col .field {
+  margin-bottom: var(--spacing-sm);
+}
+
+.dynamic-form.two-col label {
+  margin-bottom: var(--spacing-xs);
+}
+
+.dynamic-form.two-col input,
+.dynamic-form.two-col select,
+.dynamic-form.two-col textarea {
+  padding: 6px 8px;
+  font-size: var(--font-size-sm);
+}
+
+/* Section wrapper */
+.dynamic-form.two-col .section-card {
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+}
+
+.dynamic-form.two-col .section-title {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dynamic-form.two-col .required-note {
+  margin: 0 0 var(--spacing-md) 0;
+  font-size: var(--font-size-sm);
+  color: var(--muted);
+}
+
 .QuoteForm h2 {
   margin-top: 0;
   margin-bottom: var(--spacing-lg);

@@ -375,8 +375,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
       if (priceDiff > 0.01) {
         changes.push({
           field: 'Hesaplanan Fiyat',
-          from: `₺${item.originalPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`,
-          to: `₺${item.calculatedPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`,
+          from: `₺${Number(item.originalPrice || 0).toFixed(2)}`,
+          to: `₺${Number(item.calculatedPrice || 0).toFixed(2)}`,
           reason: 'Formül hesaplaması sonucu fiyat değişikliği'
         })
       }

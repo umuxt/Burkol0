@@ -26,6 +26,11 @@ function DynamicPricingTab({ t, showNotification }) {
   // Dinamik form alanları
   const [formFields, setFormFields] = useState([])
   const [isLoadingFields, setIsLoadingFields] = useState(true)
+  // Inline edit states (not used in add flow anymore)
+  const [editingParamId, setEditingParamId] = useState(null)
+  const [paramDraft, setParamDraft] = useState({ name: '', value: '', formField: '' })
+  const [paramLookupTable, setParamLookupTable] = useState([])
+  // Inline lookup editor simplified: direct edit inputs; no per-row edit state needed
 
   useEffect(() => {
     loadDynamicFormFields()
@@ -65,7 +70,8 @@ function DynamicPricingTab({ t, showNotification }) {
     
     fieldOptions.forEach(option => {
       if (!existingOptions.includes(option)) {
-        newLookupItems.push({ option: option, value: 0 }) // Default değer 0
+        // Varsayılan değeri boş bırak (0 yazma)
+        newLookupItems.push({ option: option, value: '' })
       }
     })
 
@@ -94,6 +100,12 @@ function DynamicPricingTab({ t, showNotification }) {
 
   async function savePriceSettings() {
     try {
+      // Lookup tablolarında boş veya geçersiz değer var mı kontrol et
+      const hasInvalidLookup = parameters.some(p => Array.isArray(p.lookupTable) && p.lookupTable.some(it => it.value === '' || Number.isNaN(Number(it.value))))
+      if (hasInvalidLookup) {
+        showNotification('Eşleştirme tablosunda boş veya geçersiz değerler var. Lütfen tüm değerleri doldurun.', 'error')
+        return
+      }
       // Kullanıcı formülünü backend formatına çevir
       const backendFormula = PricingUtils.convertFormulaToBackend(userFormula, idMapping)
       
@@ -106,8 +118,12 @@ function DynamicPricingTab({ t, showNotification }) {
   }
 
   function addParameter() {
+    const selectedField = formFields.find(f => f.value === selectedFormField)
+    const autoNameForForm = selectedField ? (selectedField.label || selectedField.value) : ''
+    const effectiveName = parameterType === 'form' ? autoNameForForm : parameterName
+
     const validationErrors = PricingUtils.validateParameter({
-      name: parameterName,
+      name: effectiveName,
       type: parameterType,
       value: parameterType === 'fixed' ? parseFloat(fixedValue) : undefined,
       formField: parameterType === 'form' ? selectedFormField : undefined
@@ -119,8 +135,10 @@ function DynamicPricingTab({ t, showNotification }) {
     }
 
     const newParam = {
-      id: parameterName.toLowerCase().replace(/[^a-z0-9]/g, '_'),
-      name: parameterName,
+      id: parameterType === 'form'
+        ? (selectedField ? selectedField.value : (effectiveName.toLowerCase().replace(/[^a-z0-9]/g, '_')))
+        : (effectiveName.toLowerCase().replace(/[^a-z0-9]/g, '_')),
+      name: effectiveName,
       type: parameterType
     }
 
@@ -194,7 +212,8 @@ function DynamicPricingTab({ t, showNotification }) {
 
   function updateLookupValue(index, newValue) {
     const updatedTable = [...lookupTable]
-    updatedTable[index] = { ...updatedTable[index], value: newValue }
+    const parsed = newValue === '' ? '' : (isNaN(parseFloat(newValue)) ? '' : parseFloat(newValue))
+    updatedTable[index] = { ...updatedTable[index], value: parsed }
     setLookupTable(updatedTable)
   }
 
@@ -205,6 +224,60 @@ function DynamicPricingTab({ t, showNotification }) {
     const backendFormula = PricingUtils.convertFormulaToBackend(newUserFormula, idMapping)
     setFormula(backendFormula)
   }
+
+  // Row-level edit helpers removed (direct input editing used)
+
+  // Parameter row editing helpers
+  function editParameter(param) {
+    setEditingParamId(param.id)
+    setParamDraft({
+      name: param.name || '',
+      value: param.type === 'fixed' ? (param.value ?? '') : '',
+      formField: param.type === 'form' ? (param.formField || '') : ''
+    })
+    // For form params with options, load lookup table for editing
+    const field = formFields.find(f => f.value === param.formField)
+    if (param.type === 'form' && field && field.hasOptions) {
+      setParamLookupTable([...(param.lookupTable || [])])
+    } else {
+      setParamLookupTable([])
+    }
+  }
+
+  function cancelEditParameter() {
+    setEditingParamId(null)
+    setParamDraft({ name: '', value: '', formField: '' })
+    setParamLookupTable([])
+    setParamLookupEditIndex(null)
+    setParamLookupDraft({ value: '' })
+  }
+
+  function saveEditParameter(param) {
+    const updated = parameters.map(p => {
+      if (p.id !== param.id) return p
+      const patch = { ...p, name: paramDraft.name }
+      if (p.type === 'fixed') {
+        patch.value = paramDraft.value === '' ? 0 : (parseFloat(paramDraft.value) || 0)
+      } else if (p.type === 'form') {
+        // formField değişimini UI'dan kaldırıyoruz; sadece lookup değerlerini güncelleriz
+        patch.formField = p.formField
+        patch.lookupTable = paramLookupTable
+      }
+      return patch
+    })
+    setParameters(updated)
+    cancelEditParameter()
+  }
+
+  // Helpers to edit param lookup values inline
+  function paramUpdateLookupValue(index, newValue) {
+    const updated = [...paramLookupTable]
+    const parsed = newValue === '' ? '' : (isNaN(parseFloat(newValue)) ? '' : parseFloat(newValue))
+    updated[index] = { ...updated[index], value: parsed }
+    setParamLookupTable(updated)
+  }
+
+  // Removed row-level edit toggles; direct edit is active
 
   async function validateFormula() {
     if (!userFormula) {
@@ -254,7 +327,7 @@ function DynamicPricingTab({ t, showNotification }) {
     ),
 
     // Parameters section
-    ReactGlobal.createElement('div', { className: 'card', style: { marginBottom: '20px' } },
+    ReactGlobal.createElement('div', { className: 'card', style: { marginBottom: '12px' } },
       ReactGlobal.createElement('h3', null, '📊 Fiyat Parametreleri'),
       
       isLoadingFields && ReactGlobal.createElement('div', { className: 'alert alert-info' },
@@ -276,7 +349,7 @@ function DynamicPricingTab({ t, showNotification }) {
           )
         ),
 
-        parameterType && ReactGlobal.createElement('div', { className: 'form-group' },
+        parameterType === 'fixed' && ReactGlobal.createElement('div', { className: 'form-group' },
           ReactGlobal.createElement('label', null, 'Parametre Adı'),
           ReactGlobal.createElement('input', {
             type: 'text',
@@ -320,11 +393,22 @@ function DynamicPricingTab({ t, showNotification }) {
               )
           ),
 
+          // Show auto parameter name for clarity (read-only)
+          selectedFormField && ReactGlobal.createElement('div', { className: 'form-group' },
+            ReactGlobal.createElement('label', null, 'Parametre Adı (otomatik)'),
+            ReactGlobal.createElement('input', {
+              type: 'text',
+              value: (formFields.find(f => f.value === selectedFormField)?.label || ''),
+              readOnly: true,
+              className: 'form-control'
+            })
+          ),
+
           // Lookup table for fields with options
           selectedFormField && formFields.find(f => f.value === selectedFormField)?.hasOptions && 
           ReactGlobal.createElement('div', { className: 'form-group' },
             ReactGlobal.createElement('label', null, '🔗 Değer Eşleştirme Tablosu'),
-            ReactGlobal.createElement('div', { style: { marginBottom: '12px', fontSize: '14px', color: '#666' } },
+            ReactGlobal.createElement('div', { style: { marginBottom: '8px', fontSize: '13px', color: '#666' } },
               'Form alanındaki seçenekler otomatik olarak listelenmiştir. Sadece değerlerini güncelleyin.'
             ),
             
@@ -332,8 +416,7 @@ function DynamicPricingTab({ t, showNotification }) {
               ReactGlobal.createElement('thead', null,
                 ReactGlobal.createElement('tr', null,
                   ReactGlobal.createElement('th', null, 'Seçenek'),
-                  ReactGlobal.createElement('th', null, 'Değer'),
-                  ReactGlobal.createElement('th', null, 'İşlem')
+                  ReactGlobal.createElement('th', null, 'Değer')
                 )
               ),
               ReactGlobal.createElement('tbody', null,
@@ -343,18 +426,12 @@ function DynamicPricingTab({ t, showNotification }) {
                     ReactGlobal.createElement('td', null,
                       ReactGlobal.createElement('input', {
                         type: 'number',
-                        value: entry.value,
-                        onChange: (e) => updateLookupValue(index, parseFloat(e.target.value) || 0),
+                        value: entry.value === 0 ? '' : (entry.value ?? ''),
+                        onChange: (e) => updateLookupValue(index, e.target.value),
                         className: 'form-control',
                         step: '0.01',
                         style: { width: '100px' }
                       })
-                    ),
-                    ReactGlobal.createElement('td', null,
-                      ReactGlobal.createElement('button', {
-                        onClick: () => removeLookupEntry(index),
-                        className: 'btn btn-sm btn-danger'
-                      }, 'Sil')
                     )
                   )
                 )
@@ -366,13 +443,13 @@ function DynamicPricingTab({ t, showNotification }) {
         parameterType && ReactGlobal.createElement('button', {
           onClick: addParameter,
           className: 'btn btn-primary',
-          style: { marginTop: '10px' },
+          style: { marginTop: '6px' },
           disabled: formFields.length === 0 && parameterType === 'form'
         }, '➕ Parametre Ekle')
       ),
 
       // Parameters list with user-friendly IDs
-      parameters.length > 0 && ReactGlobal.createElement('div', { style: { marginTop: '20px' } },
+      parameters.length > 0 && ReactGlobal.createElement('div', { style: { marginTop: '12px' } },
         ReactGlobal.createElement('h4', null, '📋 Mevcut Parametreler'),
         ReactGlobal.createElement('div', { className: 'alert alert-info', style: { fontSize: '0.9em' } },
           'Parametreler formülde A, B, C... harfleri ile kullanılır'
@@ -395,21 +472,118 @@ function DynamicPricingTab({ t, showNotification }) {
                     getParameterDisplayId(param, index)
                   )
                 ),
-                ReactGlobal.createElement('td', null, param.name),
-                ReactGlobal.createElement('td', null, param.type === 'fixed' ? '🔢 Sabit' : '📝 Form'),
-                ReactGlobal.createElement('td', null, 
-                  param.type === 'fixed' ? param.value : 
-                  formFields.find(f => f.value === param.formField)?.label || param.formField
-                ),
+                // Name col (editable)
                 ReactGlobal.createElement('td', null,
-                  ReactGlobal.createElement('button', {
-                    onClick: () => deleteParameter(param.id),
-                    className: 'btn btn-sm btn-danger'
-                  }, '🗑️ Sil')
+                  editingParamId === param.id
+                    ? ReactGlobal.createElement('input', {
+                        type: 'text',
+                        value: paramDraft.name,
+                        onChange: (e) => setParamDraft({ ...paramDraft, name: e.target.value }),
+                        className: 'form-control',
+                        placeholder: 'Parametre adı'
+                      })
+                    : param.name
+                ),
+                // Type col (read-only label)
+                ReactGlobal.createElement('td', null, param.type === 'fixed' ? '🔢 Sabit' : '📝 Form'),
+                // Value/Field col (editable by type)
+                ReactGlobal.createElement('td', null,
+                  editingParamId === param.id
+                    ? (param.type === 'fixed'
+                        ? ReactGlobal.createElement('input', {
+                            type: 'number',
+                            value: paramDraft.value,
+                            onChange: (e) => setParamDraft({ ...paramDraft, value: e.target.value }),
+                            className: 'form-control',
+                            step: '0.01',
+                            style: { width: '140px' }
+                          })
+                        : ReactGlobal.createElement('select', {
+                            className: 'form-control',
+                            value: paramDraft.formField,
+                            onChange: (e) => setParamDraft({ ...paramDraft, formField: e.target.value })
+                          },
+                            ReactGlobal.createElement('option', { value: '' }, 'Seçiniz...'),
+                            ...formFields.map(f => ReactGlobal.createElement('option', { key: f.value, value: f.value }, `${f.label} (${f.type})`))
+                          )
+                      )
+                    : (param.type === 'fixed' ? param.value : (formFields.find(f => f.value === param.formField)?.label || param.formField))
+                ),
+                // Actions (Edit only for fixed or form-with-options)
+                ReactGlobal.createElement('td', null,
+                  (() => {
+                    const field = formFields.find(f => f.value === param.formField)
+                    const canEdit = param.type === 'fixed' || (param.type === 'form' && field && field.hasOptions)
+                    if (editingParamId === param.id) {
+                      return ReactGlobal.createElement(ReactGlobal.Fragment, null,
+                        ReactGlobal.createElement('button', {
+                          onClick: () => saveEditParameter(param),
+                          className: 'btn btn-sm btn-success',
+                          style: { marginRight: '6px' }
+                        }, 'Kaydet'),
+                        ReactGlobal.createElement('button', {
+                          onClick: cancelEditParameter,
+                          className: 'btn btn-sm btn-secondary'
+                        }, 'İptal')
+                      )
+                    }
+                    return ReactGlobal.createElement(ReactGlobal.Fragment, null,
+                      canEdit && ReactGlobal.createElement('button', {
+                        onClick: () => editParameter(param),
+                        className: 'btn btn-sm btn-primary',
+                        style: { marginRight: '6px' }
+                      }, 'Düzenle'),
+                      ReactGlobal.createElement('button', {
+                        onClick: () => deleteParameter(param.id),
+                        className: 'btn btn-sm btn-danger'
+                      }, 'Sil')
+                    )
+                  })()
                 )
               )
             )
           )
+          ,
+          // Inline lookup editor for form parameters with options
+          ...parameters.map((param) => {
+            const field = formFields.find(f => f.value === param.formField)
+            const canEdit = editingParamId === param.id && param.type === 'form' && field && field.hasOptions
+            if (!canEdit) return null
+            return ReactGlobal.createElement('tr', { key: param.id + '-lookup' },
+              ReactGlobal.createElement('td', { colSpan: 5 },
+                ReactGlobal.createElement('div', { className: 'card', style: { marginTop: '8px' } },
+                  ReactGlobal.createElement('h4', null, '🔗 Değer Eşleştirme (Düzenleme)'),
+                  paramLookupTable && paramLookupTable.length > 0 ?
+                    ReactGlobal.createElement('table', { className: 'table table-sm' },
+                      ReactGlobal.createElement('thead', null,
+                        ReactGlobal.createElement('tr', null,
+                          ReactGlobal.createElement('th', null, 'Seçenek'),
+                          ReactGlobal.createElement('th', null, 'Değer')
+                        )
+                      ),
+                      ReactGlobal.createElement('tbody', null,
+                        ...paramLookupTable.map((it, idx) =>
+                          ReactGlobal.createElement('tr', { key: idx },
+                            ReactGlobal.createElement('td', null, it.option),
+                            ReactGlobal.createElement('td', null,
+                              ReactGlobal.createElement('input', {
+                                type: 'number',
+                                value: (it.value === 0 ? '' : (it.value ?? '')),
+                                onChange: (e) => paramUpdateLookupValue(idx, e.target.value),
+                                className: 'form-control',
+                                step: '0.01',
+                                style: { width: '120px' }
+                              })
+                            )
+                          )
+                        )
+                      )
+                    )
+                  : ReactGlobal.createElement('div', { className: 'alert alert-warning' }, 'Eşleştirme tablosu boş')
+                )
+              )
+            )
+          })
         )
       )
     ),
@@ -433,7 +607,7 @@ function DynamicPricingTab({ t, showNotification }) {
           disabled: false
         }),
         
-        ReactGlobal.createElement('div', { style: { display: 'flex', gap: '10px', marginTop: '5px' } },
+        ReactGlobal.createElement('div', { style: { display: 'flex', gap: '6px', marginTop: '4px' } },
           ReactGlobal.createElement('button', {
             onClick: () => setShowFormulaInfo(!showFormulaInfo),
             className: 'btn btn-link',
@@ -451,7 +625,7 @@ function DynamicPricingTab({ t, showNotification }) {
       // Formula validation feedback
       formulaValidation && ReactGlobal.createElement('div', { 
         className: `alert ${formulaValidation.isValid ? 'alert-success' : 'alert-danger'}`,
-        style: { marginTop: '10px' }
+        style: { marginTop: '8px' }
       },
         ReactGlobal.createElement('strong', null, formulaValidation.isValid ? '✅ Formül Geçerli' : '❌ Formül Hatası'),
         formulaValidation.message && ReactGlobal.createElement('div', null, formulaValidation.message),
@@ -466,10 +640,10 @@ function DynamicPricingTab({ t, showNotification }) {
       // Formula info panel
       showFormulaInfo && ReactGlobal.createElement('div', { 
         className: 'alert alert-info',
-        style: { marginTop: '10px' }
+        style: { marginTop: '8px' }
       },
         ReactGlobal.createElement('h5', null, '📚 Kullanılabilir Fonksiyonlar:'),
-        ReactGlobal.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' } },
+        ReactGlobal.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' } },
           ReactGlobal.createElement('div', null,
             ReactGlobal.createElement('strong', null, 'Matematik:'),
             ReactGlobal.createElement('br', null), 'SQRT, ROUND, MAX, MIN, ABS, POWER'
@@ -487,9 +661,9 @@ function DynamicPricingTab({ t, showNotification }) {
             ReactGlobal.createElement('br', null), 'PI, E'
           )
         ),
-        ReactGlobal.createElement('div', { style: { marginTop: '10px', padding: '10px', backgroundColor: '#e9ecef', borderRadius: '4px' } },
+        ReactGlobal.createElement('div', { style: { marginTop: '8px', padding: '8px', backgroundColor: '#e9ecef', borderRadius: '4px' } },
           ReactGlobal.createElement('strong', null, 'Örnek Formüller:'),
-          ReactGlobal.createElement('ul', { style: { marginBottom: 0, marginTop: '5px' } },
+          ReactGlobal.createElement('ul', { style: { marginBottom: 0, marginTop: '4px' } },
             ReactGlobal.createElement('li', null, 'Basit: A * B + C'),
             ReactGlobal.createElement('li', null, 'Karmaşık: A * SQRT(B) + IF(C > 10, 50, 0)'),
             ReactGlobal.createElement('li', null, 'Yüzde: A * (1 + B/100)')
@@ -500,7 +674,7 @@ function DynamicPricingTab({ t, showNotification }) {
       ReactGlobal.createElement('button', {
         onClick: savePriceSettings,
         className: 'btn btn-success btn-lg',
-        style: { marginTop: '15px', width: '100%' },
+        style: { marginTop: '10px', width: '100%' },
         disabled: !isFormulaValid || parameters.length === 0
       }, '💾 Fiyat Ayarlarını Kaydet')
     )

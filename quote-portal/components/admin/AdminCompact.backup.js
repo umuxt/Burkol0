@@ -420,8 +420,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         React.createElement('h3', null, 'Fiyat Güncelleme'),
         React.createElement('p', null, `Müşteri: ${priceReview.item.name}`),
         React.createElement('p', null, `Proje: ${priceReview.item.proj}`),
-        React.createElement('p', null, `Mevcut Fiyat: ${priceReview.originalPrice?.toLocaleString('tr-TR', {style: 'currency', currency: 'TRY'})}`),
-        React.createElement('p', null, `Yeni Fiyat: ${priceReview.newPrice?.toLocaleString('tr-TR', {style: 'currency', currency: 'TRY'})}`),
+        React.createElement('p', null, `Mevcut Fiyat: ${Number.isFinite(Number(priceReview.originalPrice)) ? `₺${Number(priceReview.originalPrice).toFixed(2)}` : 'N/A'}`),
+        React.createElement('p', null, `Yeni Fiyat: ${Number.isFinite(Number(priceReview.newPrice)) ? `₺${Number(priceReview.newPrice).toFixed(2)}` : 'N/A'}`),
         React.createElement('p', null, `Değişiklik Nedeni: ${getChangeReason(priceReview.item, priceSettings)}`),
         React.createElement('div', { style: { display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' } },
           React.createElement('button', {

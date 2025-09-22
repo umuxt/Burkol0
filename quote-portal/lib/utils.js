@@ -59,15 +59,10 @@ export function isImageExt(extOrMime) {
 
 // Price formatting function
 export function formatPrice(price, currency = 'USD') {
-  if (typeof price !== 'number') {
-    price = parseFloat(price) || 0
-  }
-  
-  const formatted = price.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
-  
+  // Ensure numeric
+  const n = typeof price === 'number' ? price : (parseFloat(price) || 0)
+  // Dot decimal; no thousands separators
+  const formatted = n.toFixed(2)
   return `${formatted} ${currency}`
 }
 
@@ -100,4 +95,3 @@ export function formatDateTime(date) {
     minute: '2-digit'
   })
 }
-
