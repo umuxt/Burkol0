@@ -27,7 +27,8 @@ export function remove(id) {
 }
 
 export function updateOne(id, patch) {
-  return jsondb.update(id, patch)
+  // jsondb has patchQuote; provide a stable update alias
+  return jsondb.patchQuote(id, patch)
 }
 
 export function deleteOne(id) {
@@ -371,6 +372,59 @@ export function setupQuoteRoutes(app, uploadsDir) {
       res.status(500).json({ error: 'Price update failed' })
     }
   })
+
+  // Bulk apply price to selected quotes
+  app.post('/api/quotes/apply-price-bulk', requireAuth, (req, res) => {
+    try {
+      const { ids } = req.body || {}
+      if (!Array.isArray(ids) || ids.length === 0) return res.json({ updated: 0 })
+      const priceSettings = jsondb.getPriceSettings()
+      let updatedCount = 0
+      ids.forEach(id => {
+        const q = readOne(id)
+        if (!q) return
+        const np = calculatePriceServer(q, priceSettings)
+        updateOne(id, {
+          price: np,
+          calculatedPrice: np,
+          originalPrice: q.price || 0,
+          needsPriceUpdate: false,
+          priceUpdatedAt: new Date().toISOString(),
+          priceUpdateReasons: []
+        })
+        updatedCount++
+      })
+      res.json({ updated: updatedCount })
+    } catch (e) {
+      console.error('Bulk price apply error:', e)
+      res.status(500).json({ error: 'Bulk price update failed' })
+    }
+  })
+
+  // Apply price to all flagged quotes
+  app.post('/api/quotes/apply-price-all', requireAuth, (req, res) => {
+    try {
+      const priceSettings = jsondb.getPriceSettings()
+      const quotes = readAll().filter(q => q.needsPriceUpdate)
+      let updatedCount = 0
+      quotes.forEach(q => {
+        const np = calculatePriceServer(q, priceSettings)
+        updateOne(q.id, {
+          price: np,
+          calculatedPrice: np,
+          originalPrice: q.price || 0,
+          needsPriceUpdate: false,
+          priceUpdatedAt: new Date().toISOString(),
+          priceUpdateReasons: []
+        })
+        updatedCount++
+      })
+      res.json({ updated: updatedCount })
+    } catch (e) {
+      console.error('Apply all price error:', e)
+      res.status(500).json({ error: 'Apply all price failed' })
+    }
+  })
 }
 
 // Settings API routes
@@ -385,12 +439,85 @@ export function setupSettingsRoutes(app) {
     }
   })
 
-  // Save price settings
+  // Save price settings with versioning and mark affected quotes
   app.post('/api/price-settings', requireAuth, (req, res) => {
     try {
-      const settings = req.body
-      jsondb.savePriceSettings(settings)
-      res.json({ success: true })
+      const oldSettings = jsondb.getPriceSettings() || { parameters: [], formula: '' }
+      const incoming = req.body || {}
+      const newSettings = {
+        ...incoming,
+        version: (oldSettings.version || 0) + 1,
+        lastUpdated: new Date().toISOString()
+      }
+      jsondb.savePriceSettings(newSettings)
+
+      // Compute impact and mark quotes
+      const quotes = readAll()
+      let affectedCount = 0
+
+      function findParam(arr, id) { return (arr || []).find(p => p && p.id === id) }
+
+      quotes.forEach(q => {
+        try {
+          const oldPrice = calculatePriceServer(q, oldSettings)
+          const newPrice = calculatePriceServer(q, newSettings)
+          const diff = Math.abs((newPrice || 0) - (oldPrice || 0))
+          const reasons = []
+
+          if ((newSettings.formula || '') !== (oldSettings.formula || '')) {
+            reasons.push('Formül değişti')
+          }
+
+          const oldParams = oldSettings.parameters || []
+          const newParams = newSettings.parameters || []
+
+          newParams.forEach(np => {
+            const op = findParam(oldParams, np.id)
+            if (!op) return
+            if (np.type === 'fixed') {
+              const ov = parseFloat(op.value) || 0
+              const nv = parseFloat(np.value) || 0
+              if (ov !== nv) {
+                reasons.push(`Sabit ${np.name || np.id}: ${ov} → ${nv}`)
+              }
+            } else if (np.type === 'form' && Array.isArray(np.lookupTable)) {
+              const fieldId = np.formField
+              const fv = (q[fieldId] !== undefined ? q[fieldId] : (q.customFields && q.customFields[fieldId]))
+              const collect = (opt) => {
+                const nItem = np.lookupTable.find(it => it.option === opt)
+                const oItem = op.lookupTable ? op.lookupTable.find(it => it.option === opt) : null
+                const ov = oItem ? (parseFloat(oItem.value) || 0) : 0
+                const nv = nItem ? (parseFloat(nItem.value) || 0) : 0
+                if (ov !== nv) reasons.push(`Parametre '${np.name || fieldId}' [${opt}]: ${ov} → ${nv}`)
+              }
+              if (Array.isArray(fv)) fv.forEach(collect)
+              else if (fv !== undefined && fv !== null) collect(fv)
+            }
+          })
+
+          if (diff > 0.01) {
+            affectedCount++
+            update(q.id, {
+              needsPriceUpdate: true,
+              priceUpdateReasons: reasons,
+              pendingCalculatedPrice: newPrice,
+              lastPriceSettingsVersionUsed: oldSettings.version || 0,
+              pendingPriceSettingsVersion: newSettings.version
+            })
+          } else {
+            update(q.id, {
+              needsPriceUpdate: false,
+              priceUpdateReasons: [],
+              pendingCalculatedPrice: undefined,
+              pendingPriceSettingsVersion: undefined
+            })
+          }
+        } catch (e) {
+          console.error('Price mark error for quote', q.id, e)
+        }
+      })
+
+      res.json({ success: true, version: newSettings.version, affected: affectedCount })
     } catch (error) {
       res.status(500).json({ error: 'Failed to save price settings' })
     }
@@ -493,7 +620,9 @@ export function setupExportRoutes(app) {
         txt += `Phone: ${q.phone || 'N/A'}\n`
         txt += `Project: ${q.proj || 'N/A'}\n`
         txt += `Status: ${q.status || 'N/A'}\n`
-        txt += `Price: ${q.price ? `₺${q.price.toLocaleString('tr-TR')}` : 'N/A'}\n`
+        // Use dot decimal, no grouping for exported price
+        const pr = Number(q.price)
+        txt += `Price: ${Number.isFinite(pr) ? `₺${pr.toFixed(2)}` : 'N/A'}\n`
         txt += `Material: ${q.material || 'N/A'}\n`
         txt += `Process: ${Array.isArray(q.process) ? q.process.join(', ') : (q.process || 'N/A')}\n`
         txt += `Quantity: ${q.qty || 'N/A'}\n`

@@ -5,15 +5,8 @@ const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'u
 
 // Safe formatPrice function with fallback
 const formatPrice = Utils.formatPrice || function(price, currency = 'USD') {
-  if (typeof price !== 'number') {
-    price = parseFloat(price) || 0
-  }
-  
-  const formatted = price.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
-  
+  const n = typeof price === 'number' ? price : (parseFloat(price) || 0)
+  const formatted = n.toFixed(2) // dot decimal, no grouping
   return `${formatted} ${currency}`
 }
 
@@ -85,7 +78,12 @@ export function formatFieldValue(value, column, item, context) {
           return ReactGlobal.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
             ReactGlobal.createElement('span', null, formatPrice(parseFloat(value) || 0)),
             ReactGlobal.createElement('button', {
-              onClick: () => setPriceReview(item),
+              onClick: (e) => {
+                e.stopPropagation();
+                const original = parseFloat(item.price) || 0;
+                const calc = typeof calculatePrice === 'function' ? (parseFloat(calculatePrice(item)) || 0) : original;
+                setPriceReview({ item, originalPrice: original, newPrice: calc });
+              },
               style: {
                 backgroundColor: priceChangeType === 'price-changed' ? '#dc3545' : '#ffc107',
                 color: priceChangeType === 'price-changed' ? 'white' : '#000',

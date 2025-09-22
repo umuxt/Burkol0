@@ -204,6 +204,10 @@ export function getChanges(item, priceSettings) {
 }
 
 export function getChangeReason(item, priceSettings) {
+  // Prefer server-provided reasons when available
+  if (Array.isArray(item.priceUpdateReasons) && item.priceUpdateReasons.length > 0) {
+    return item.priceUpdateReasons.join('; ')
+  }
   const changes = getChanges(item, priceSettings)
   
   if (changes.length === 0) {

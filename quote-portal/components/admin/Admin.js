@@ -363,7 +363,41 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
               borderRadius: '4px',
               cursor: 'pointer'
             }
-          }, 'Kayıt Ekle')
+          }, 'Kayıt Ekle'),
+          // Bulk price update button (dynamic label)
+          (function () {
+            const selectedCount = selected.size
+            const flaggedCount = list.filter(x => x.needsPriceUpdate).length
+            if (selectedCount === 0 && flaggedCount === 0) return null
+            const label = selectedCount > 0 ? 'Seçilen kayıtların fiyatlarını güncelle' : 'Tümü güncelle'
+            const onClick = async () => {
+              try {
+                if (selectedCount > 0) {
+                  await API.applyPricesBulk(Array.from(selected))
+                } else {
+                  await API.applyPricesAll()
+                }
+                setSelected(new Set())
+                await refresh()
+                showNotification('Fiyatlar güncellendi', 'success')
+              } catch (e) {
+                console.error('Bulk update error', e)
+                showNotification('Toplu fiyat güncelleme başarısız', 'error')
+              }
+            }
+            return React.createElement('button', {
+              onClick,
+              className: 'btn',
+              style: {
+                backgroundColor: '#17a2b8',
+                color: 'white',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }
+            }, label)
+          })()
         )
       ),
 
@@ -417,7 +451,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
               React.createElement('input', {
                 type: 'checkbox',
                 checked: selected.size === filtered.length && filtered.length > 0,
-                onChange: (e) => toggleAll(e.target.checked)
+                onChange: (e) => toggleAll(e.target.checked),
+                onClick: (e) => e.stopPropagation()
               })
             ),
             ...tableColumns.map(col => 
@@ -437,7 +472,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
                 React.createElement('input', {
                   type: 'checkbox',
                   checked: selected.has(item.id),
-                  onChange: (e) => { e.stopPropagation(); toggleOne(item.id, e.target.checked) }
+                  onChange: (e) => { e.stopPropagation(); toggleOne(item.id, e.target.checked) },
+                  onClick: (e) => e.stopPropagation()
                 })
               ),
               ...tableColumns.map(col => 
@@ -566,8 +602,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         React.createElement('h3', null, 'Fiyat Güncelleme'),
         React.createElement('p', null, `Müşteri: ${priceReview.item.name || 'N/A'}`),
         React.createElement('p', null, `Proje: ${priceReview.item.proj || 'N/A'}`),
-        React.createElement('p', null, `Mevcut Fiyat: ${priceReview.originalPrice?.toLocaleString('tr-TR', {style: 'currency', currency: 'TRY'}) || 'N/A'}`),
-        React.createElement('p', null, `Yeni Fiyat: ${priceReview.newPrice?.toLocaleString('tr-TR', {style: 'currency', currency: 'TRY'}) || 'N/A'}`),
+        React.createElement('p', null, `Mevcut Fiyat: ${Number.isFinite(Number(priceReview.originalPrice)) ? `₺${Number(priceReview.originalPrice).toFixed(2)}` : 'N/A'}`),
+        React.createElement('p', null, `Yeni Fiyat: ${Number.isFinite(Number(priceReview.newPrice)) ? `₺${Number(priceReview.newPrice).toFixed(2)}` : 'N/A'}`),
         React.createElement('p', null, `Değişiklik Nedeni: ${getChangeReason(priceReview.item, priceSettings) || 'N/A'}`),
         React.createElement('div', { style: { display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' } },
           React.createElement('button', {

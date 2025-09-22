@@ -11,10 +11,21 @@ function lsUpdate(id, patch) { const arr = lsLoad().map(x => x.id === id ? { ...
 function lsDelete(id) { const arr = lsLoad().filter(x => x.id !== id); lsSave(arr) }
 
 export async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
-  return await Promise.race([
-    fetch(url, options),
-    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
-  ])
+  try {
+    const lang = (typeof localStorage !== 'undefined' && (localStorage.getItem('bk_lang') || localStorage.getItem('lang'))) || 'tr'
+    const mergedHeaders = { ...(options.headers || {}), 'Accept-Language': lang }
+    const mergedOptions = { ...options, headers: mergedHeaders }
+    return await Promise.race([
+      fetch(url, mergedOptions),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
+    ])
+  } catch (e) {
+    // Fallback to original behavior if localStorage not accessible
+    return await Promise.race([
+      fetch(url, options),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
+    ])
+  }
 }
 
 export const API_BASE = (window.BURKOL_API || 'http://localhost:3001')
@@ -51,6 +62,25 @@ export const API = {
       if ((e && e.message && /401|unauthorized/i.test(e.message))) throw e
       return lsLoad()
     }
+  },
+  async applyNewPrice(id) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/apply-price`, { method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }) })
+    if (!res.ok) throw new Error('apply price failed')
+    return await res.json()
+  },
+  async applyPricesBulk(ids = []) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/apply-price-bulk`, {
+      method: 'POST',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ ids })
+    })
+    if (!res.ok) throw new Error('bulk apply failed')
+    return await res.json()
+  },
+  async applyPricesAll() {
+    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/apply-price-all`, { method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }) })
+    if (!res.ok) throw new Error('apply all failed')
+    return await res.json()
   },
   async addUser(email, password, role = 'admin') {
     const res = await fetchWithTimeout(`${API_BASE}/api/auth/users`, {
