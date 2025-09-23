@@ -117,7 +117,7 @@ function PricingTab({ t, showNotification }) {
     setLookupTable(lookupTable.filter((_, i) => i !== index))
   }
 
-  function validateFormula() {
+  async function validateFormula() {
     if (!formula) {
       setFormulaValidation(null)
       setIsFormulaValid(true)
@@ -125,7 +125,7 @@ function PricingTab({ t, showNotification }) {
     }
 
     const validator = FormulaValidator
-    const result = validator.validateFormula(formula, parameters)
+    const result = await validator.validateFormula(formula, parameters)
     
     setFormulaValidation(result)
     setIsFormulaValid(result.isValid)
@@ -135,7 +135,7 @@ function PricingTab({ t, showNotification }) {
     validateFormula()
   }, [formula, parameters])
 
-  return ReactGlobal.createElement('div', { className: 'pricing-tab' },
+  return ReactGlobal.createElement(ReactGlobal.Fragment, null,
     // Parameters section
     ReactGlobal.createElement('div', { className: 'card', style: { marginBottom: '20px' } },
       ReactGlobal.createElement('h3', null, 'Fiyat Parametreleri'),

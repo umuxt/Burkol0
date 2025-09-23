@@ -228,10 +228,7 @@ function getBarColor(index) {
 }
 
 function formatPrice(price) {
-  return new Intl.NumberFormat('tr-TR', {
-    style: 'currency',
-    currency: 'TRY',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(price)
+  const n = typeof price === 'number' ? price : (parseFloat(price) || 0)
+  // Use dot decimals, no grouping; show TRY suffix
+  return `${n.toFixed(2)} TRY`
 }

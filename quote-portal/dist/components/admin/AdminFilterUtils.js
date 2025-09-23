@@ -3,93 +3,93 @@
 const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
 const { useMemo } = ReactGlobal
 
-export function createFilteredList(list, filters, globalSearch, fieldSearch) {
+export function createFilteredList(list, filters, globalSearch, formConfig) {
   return useMemo(() => {
     return list.filter(item => {
-      // Global search
+      // Enhanced global search - searches in ALL fields including hidden ones
       if (globalSearch) {
         const searchTerm = globalSearch.toLowerCase()
-        const searchableText = [
-          item.name, item.company, item.proj, item.email, item.phone,
-          item.material, item.finish, item.status,
-          ...(Array.isArray(item.process) ? item.process : [item.process].filter(Boolean))
-        ].join(' ').toLowerCase()
         
-        if (!searchableText.includes(searchTerm)) {
+        // Main fields
+        const mainFields = [
+          item.name, item.company, item.proj, item.email, item.phone,
+          item.material, item.finish, item.status, item.country,
+          item.dims, item.dimsL, item.dimsW, item.thickness, item.qty,
+          item.notes, item.createdBy, item.price, item.calculatedPrice
+        ]
+        
+        // Process array
+        const processes = Array.isArray(item.process) ? item.process : [item.process].filter(Boolean)
+        
+        // Custom fields
+        const customFieldValues = item.customFields ? Object.values(item.customFields) : []
+        
+        // File names
+        const fileNames = item.files ? item.files.map(f => f.name || f.originalName || '') : []
+        
+        // Combine all searchable text
+        const allSearchableText = [
+          ...mainFields,
+          ...processes,
+          ...customFieldValues,
+          ...fileNames
+        ].filter(Boolean).join(' ').toLowerCase()
+        
+        if (!allSearchableText.includes(searchTerm)) {
           return false
         }
       }
 
-      // Field-specific search
-      if (fieldSearch) {
-        const fieldTerm = fieldSearch.toLowerCase()
-        let found = false
-        
-        // Search in main fields
-        const mainFields = ['name', 'company', 'proj', 'email', 'phone', 'material', 'finish', 'status']
-        for (const field of mainFields) {
-          if (item[field] && item[field].toLowerCase().includes(fieldTerm)) {
-            found = true
-            break
-          }
-        }
-        
-        // Search in process array
-        if (!found && Array.isArray(item.process)) {
-          found = item.process.some(p => p && p.toLowerCase().includes(fieldTerm))
-        }
-        
-        // Search in custom fields
-        if (!found && item.customFields) {
-          for (const [key, value] of Object.entries(item.customFields)) {
-            if (value && String(value).toLowerCase().includes(fieldTerm)) {
-              found = true
-              break
+      // Status filter (always available)
+      if (filters.status && filters.status.length > 0 && !filters.status.includes(item.status)) {
+        return false
+      }
+
+      // Dynamic filters based on formConfig
+      if (formConfig && formConfig.steps) {
+        for (const step of formConfig.steps) {
+          for (const field of step.fields) {
+            if (field.filterable && filters[field.id] && filters[field.id].length > 0) {
+              const itemValue = item[field.id]
+              
+              if (field.type === 'multiselect') {
+                // For multiselect, check if any of the item's values match the filter
+                const itemValues = Array.isArray(itemValue) ? itemValue : 
+                  typeof itemValue === 'string' ? itemValue.split(',').map(s => s.trim()) : []
+                
+                const hasMatch = filters[field.id].some(filterValue => 
+                  itemValues.includes(filterValue)
+                )
+                if (!hasMatch) return false
+              } else {
+                // For single value fields
+                if (!filters[field.id].includes(itemValue)) {
+                  return false
+                }
+              }
             }
           }
         }
-        
-        if (!found) return false
-      }
-
-      // Status filter
-      if (filters.status.length > 0 && !filters.status.includes(item.status)) {
-        return false
-      }
-
-      // Material filter
-      if (filters.material.length > 0 && !filters.material.includes(item.material)) {
-        return false
-      }
-
-      // Process filter
-      if (filters.process.length > 0) {
-        const itemProcesses = Array.isArray(item.process) ? item.process : [item.process].filter(Boolean)
-        if (!filters.process.some(filterProcess => itemProcesses.includes(filterProcess))) {
-          return false
-        }
-      }
-
-      // Country filter
-      if (filters.country.length > 0 && !filters.country.includes(item.country)) {
-        return false
       }
 
       // Date range filter
-      if (filters.dateRange.from || filters.dateRange.to) {
-        const itemDate = item.createdAt || item.date || ''
-        const itemDateOnly = itemDate.slice(0, 10) // YYYY-MM-DD format
+      if (filters.dateRange && (filters.dateRange.from || filters.dateRange.to)) {
+        const itemDate = new Date(item.createdAt)
         
-        if (filters.dateRange.from && itemDateOnly < filters.dateRange.from) {
-          return false
+        if (filters.dateRange.from) {
+          const fromDate = new Date(filters.dateRange.from)
+          if (itemDate < fromDate) return false
         }
-        if (filters.dateRange.to && itemDateOnly > filters.dateRange.to) {
-          return false
+        
+        if (filters.dateRange.to) {
+          const toDate = new Date(filters.dateRange.to)
+          toDate.setHours(23, 59, 59, 999) // End of day
+          if (itemDate > toDate) return false
         }
       }
 
       // Quantity range filter
-      if (filters.qtyRange.min || filters.qtyRange.max) {
+      if (filters.qtyRange && (filters.qtyRange.min || filters.qtyRange.max)) {
         const qty = parseFloat(item.qty) || 0
         
         if (filters.qtyRange.min && qty < parseFloat(filters.qtyRange.min)) {
@@ -102,19 +102,41 @@ export function createFilteredList(list, filters, globalSearch, fieldSearch) {
 
       return true
     })
-  }, [list, filters, globalSearch, fieldSearch])
+  }, [list, filters, globalSearch])
 }
 
-export function getFilterOptions(list) {
+export function getFilterOptions(list, formConfig) {
   return useMemo(() => {
     const options = {
-      status: [...new Set(list.map(item => item.status).filter(Boolean))],
-      material: [...new Set(list.map(item => item.material).filter(Boolean))],
-      process: [...new Set(list.flatMap(item => Array.isArray(item.process) ? item.process : []).filter(Boolean))],
-      country: [...new Set(list.map(item => item.country).filter(Boolean))]
+      status: [...new Set(list.map(item => item.status).filter(Boolean))]
     }
+    
+    // Add dynamic filter options based on formConfig
+    if (formConfig && formConfig.steps) {
+      formConfig.steps.forEach(step => {
+        step.fields.forEach(field => {
+          if (field.filterable && field.type !== 'textarea' && field.type !== 'date' && field.type !== 'number') {
+            if (field.type === 'multiselect') {
+              // For multiselect fields, collect all individual values
+              options[field.id] = [...new Set(list.flatMap(item => 
+                Array.isArray(item[field.id]) ? item[field.id] : 
+                typeof item[field.id] === 'string' ? item[field.id].split(',').map(s => s.trim()) : 
+                []
+              ).filter(Boolean))]
+            } else if (field.type === 'radio' && field.options) {
+              // For radio fields, use the defined options
+              options[field.id] = [...new Set(list.map(item => item[field.id]).filter(Boolean))]
+            } else {
+              // For other text fields
+              options[field.id] = [...new Set(list.map(item => item[field.id]).filter(Boolean))]
+            }
+          }
+        })
+      })
+    }
+    
     return options
-  }, [list])
+  }, [list, formConfig])
 }
 
 export function updateFilter(filters, setFilters, category, value, action = 'toggle') {
@@ -145,7 +167,7 @@ export function updateFilter(filters, setFilters, category, value, action = 'tog
   })
 }
 
-export function clearFilters(setFilters, setGlobalSearch, setFieldSearch) {
+export function clearFilters(setFilters, setGlobalSearch) {
   setFilters({
     status: [],
     material: [],
@@ -155,7 +177,6 @@ export function clearFilters(setFilters, setGlobalSearch, setFieldSearch) {
     country: []
   })
   setGlobalSearch('')
-  setFieldSearch('')
 }
 
 export function clearSpecificFilter(setFilters, category) {

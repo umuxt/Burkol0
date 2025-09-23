@@ -4,17 +4,10 @@ import * as Utils from '../../lib/utils.js'
 const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
 
 // Safe formatPrice function with fallback
-const formatPrice = Utils.formatPrice || function(price, currency = 'USD') {
-  if (typeof price !== 'number') {
-    price = parseFloat(price) || 0
-  }
-  
-  const formatted = price.toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
-  
-  return `${formatted} ${currency}`
+const formatPrice = Utils.formatPrice || function(price, currency = 'TL') {
+  const n = typeof price === 'number' ? price : (parseFloat(price) || 0)
+  const formatted = n.toFixed(2) // dot decimal, no grouping
+  return `₺${formatted}`
 }
 
 export function getTableColumns(formConfig) {
@@ -29,7 +22,8 @@ export function getTableColumns(formConfig) {
   ]
   
   // Add dynamic fields from form config if any
-  const dynamicFields = (formConfig?.fields || [])
+  const configFields = formConfig?.fields || formConfig?.formStructure?.fields || []
+  const dynamicFields = configFields
     .filter(field => field.display?.showInTable)
     .sort((a, b) => (a.display?.tableOrder || 0) - (b.display?.tableOrder || 0))
   
@@ -84,7 +78,18 @@ export function formatFieldValue(value, column, item, context) {
           return ReactGlobal.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
             ReactGlobal.createElement('span', null, formatPrice(parseFloat(value) || 0)),
             ReactGlobal.createElement('button', {
-              onClick: () => setPriceReview(item),
+              onClick: (e) => {
+                e.stopPropagation();
+                const original = parseFloat(item.price) || 0;
+                // Use pendingCalculatedPrice if available (more accurate), otherwise calculate on the fly
+                let calc = original;
+                if (item.pendingCalculatedPrice !== undefined) {
+                  calc = parseFloat(item.pendingCalculatedPrice) || 0;
+                } else if (typeof calculatePrice === 'function') {
+                  calc = parseFloat(calculatePrice(item)) || 0;
+                }
+                setPriceReview({ item, originalPrice: original, newPrice: calc });
+              },
               style: {
                 backgroundColor: priceChangeType === 'price-changed' ? '#dc3545' : '#ffc107',
                 color: priceChangeType === 'price-changed' ? 'white' : '#000',

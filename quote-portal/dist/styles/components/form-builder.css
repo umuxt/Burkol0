@@ -245,3 +245,22 @@
   color: #333 !important;
   font-weight: 500 !important;
 }
+
+/* Layout Optimization for Form Builder */
+.tab-content .builder-content {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0 !important;
+  min-height: auto !important;
+}
+
+.tab-content .builder-content > div:first-child {
+  flex: 0 0 auto !important;
+  margin-bottom: 0 !important;
+}
+
+.tab-content .builder-content > div:last-child {
+  flex: 0 0 auto !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}

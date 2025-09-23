@@ -2,7 +2,7 @@ import API, { API_BASE } from '../../lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../lib/utils.js'
 import { statusLabel } from '../../i18n/index.js'
 
-export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, showNotification }) {
+export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, showNotification, formConfig }) {
   const [currStatus, setCurrStatus] = React.useState(item.status || 'new')
   const [editing, setEditing] = React.useState(!!isNew)
   const [form, setForm] = React.useState({})
@@ -11,47 +11,117 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
   
   React.useEffect(() => {
     setCurrStatus(item.status || 'new')
-    setForm({
-      name: item.name || '', 
-      company: item.company || '', 
-      email: item.email || '', 
-      phone: item.phone || '', 
-      country: item.country || '', 
-      city: item.city || '',
-      proj: item.proj || '', 
-      process: (item.process || []).join(', '), 
-      material: item.material || '', 
-      grade: item.grade || '', 
-      thickness: item.thickness || '', 
-      qty: item.qty || '', 
-      dims: item.dims || '', 
-      tolerance: item.tolerance || '', 
-      finish: item.finish || '', 
-      due: item.due || '', 
-      repeat: item.repeat || '', 
-      budget: item.budget || '', 
-      address: item.address || '', 
-      drawing: item.drawing || 'no', 
-      productPics: item.productPics || 'no', 
-      desc: item.desc || '',
-      // Additional technical fields
-      toleranceStd: item.toleranceStd || '',
-      criticalTolerance: item.toleranceCrit || '',
-      bendCount: item.bendCount || '',
-      weldMethod: item.weldMethod || '',
-      surfaceRa: item.surfaceRa || '',
-      finishRal: item.finishRal || '',
-      anodizing: item.anodizeType || '',
-      qtyT1: item.qtyT1 || '',
-      qtyT2: item.qtyT2 || '',
-      qtyT3: item.qtyT3 || '',
-    })
+    
+    // Initialize form with dynamic fields based on formConfig
+    const initialForm = {}
+    if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
+      formConfig.formStructure.fields.forEach(field => {
+        let value = item.customFields?.[field.id] || item.customFields?.[field.id] || item[field.id] || ''
+        
+        // Handle special field types
+        if (field.type === 'multiselect' && Array.isArray(value)) {
+          value = value.join(', ')
+        } else if (field.type === 'radio' && !value) {
+          value = field.options?.[0] || ''
+        }
+        
+        initialForm[field.id] = value
+      })
+    }
+    
+    setForm(initialForm)
     setTechFiles(item.files || [])
     setProdImgs(item.productImages || [])
-  }, [item.id])
+  }, [item.id, item.status])
   
   function setF(k, v) { 
     setForm((s) => ({ ...s, [k]: v })) 
+  }
+
+  function renderDetailFields() {
+    if (!formConfig || !formConfig.formStructure.fields) {
+      return []
+    }
+    
+    const fields = []
+    
+    // Add system fields first
+    fields.push(
+      info('ID', item.id),
+      info(t.th_date || 'Tarih', (item.createdAt||'').replace('T',' ').slice(0,16)),
+      info(t.a_status || 'Durum', statusLabel(currStatus, t))
+    )
+    
+    // Add dynamic fields from form config
+    formConfig.formStructure.fields.forEach(field => {
+      
+        let value = item.customFields?.[field.id] || item[field.id] || '—'
+        let label = field.label || field.id
+        
+        // Format value based on field type
+        if (field.type === 'multiselect' && Array.isArray(item.customFields?.[field.id] || item[field.id])) {
+          value = item.customFields?.[field.id] || item[field.id].join(', ') || '—'
+        } else if (field.type === 'radio' && field.options) {
+          // Keep the selected value as is
+          value = value || '—'
+        } else if (field.type === 'number') {
+          value = value ? (value + (field.unit || '')) : '—'
+        } else if (field.type === 'date') {
+          value = value || '—'
+        } else if (field.type === 'textarea') {
+          value = value || '—'
+        } else if (!value || value === '') {
+          value = '—'
+        }
+        
+        // Handle special formatting
+        if (field.id === 'thickness' && value !== '—') {
+          value = value + ' mm'
+        } else if (field.id === 'country' || field.id === 'city') {
+          // Handle country/city combination
+          const country = item.country || 'undefined'
+          const city = item.city || 'undefined'
+          if (field.id === 'country') {
+            value = `${country} / ${city}`
+            label = (t.f_country || 'Ülke') + '/' + (t.f_city || 'Şehir')
+          } else if (field.id === 'city') {
+            return null // Skip city field as it's combined with country
+          }
+        } else if (field.id === 'repeat') {
+          value = value === 'recurrent' ? (t.repeat_recurrent || 'Sürekli') : (t.repeat_one || 'Tek Seferlik')
+        }
+        
+        if (value !== null) {
+          fields.push(info(label, value))
+        }
+      })
+    
+    return fields.filter(Boolean)
+  }
+
+  function renderEditFields() {
+    if (!formConfig || !formConfig.formStructure.fields) {
+      return []
+    }
+    
+    const fields = []
+    
+    formConfig.formStructure.fields.forEach(field => {
+      
+        const label = field.label || field.id
+        
+        if (field.type === 'textarea') {
+          fields.push(editArea(label, field.id))
+        } else if (field.type === 'radio' && field.options) {
+          fields.push(editRadio(label, field.id, field.options))
+        } else if (field.type === 'multiselect') {
+          fields.push(editField(label, field.id)) // Convert array to comma-separated string for editing
+        } else {
+          fields.push(editField(label, field.id, field.type === 'number' ? 'number' : 'text'))
+        }
+      })
+    
+    return fields
   }
   
   async function onAddTech(filesList) {
@@ -88,35 +158,53 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
         id: uid(),
         createdAt: new Date().toISOString(),
         status: currStatus,
-        name: form.name, company: form.company, email: form.email, phone: form.phone, country: form.country, city: form.city,
-        proj: form.proj, process: form.process.split(',').map(s=>s.trim()).filter(Boolean), material: form.material, grade: form.grade,
-        thickness: form.thickness, qty: form.qty, dims: form.dims, tolerance: form.tolerance, finish: form.finish, due: form.due,
-        repeat: form.repeat, budget: form.budget, address: form.address, drawing: form.drawing, productPics: form.productPics, desc: form.desc,
-        files: techFiles, productImages: prodImgs,
-        // Additional technical fields
-        toleranceStd: form.toleranceStd, criticalTolerance: form.criticalTolerance, bendCount: form.bendCount,
-        weldMethod: form.weldMethod, surfaceRa: form.surfaceRa, finishRal: form.finishRal, anodizing: form.anodizing,
-        qtyT1: form.qtyT1, qtyT2: form.qtyT2, qtyT3: form.qtyT3,
-        // Map to original field names for compatibility
-        toleranceCrit: form.criticalTolerance, anodizeType: form.anodizing,
+        files: techFiles, 
+        productImages: prodImgs
       }
+      
+      // Add dynamic fields from form config
+      if (formConfig && formConfig.formStructure.fields) {
+        formConfig.formStructure.fields.forEach(field => {
+          
+            let value = form[field.id]
+            
+            // Handle special field types
+            if (field.type === 'multiselect' && typeof value === 'string') {
+              value = value.split(',').map(s => s.trim()).filter(Boolean)
+            } else if (field.type === 'number') {
+              value = value ? parseFloat(value) || value : value
+            }
+            
+            payload[field.id] = value
+          })
+      }
+      
       await API.createQuote(payload)
       showNotification('Yeni kayıt başarıyla oluşturuldu!', 'success')
     } else {
       const patch = {
         status: currStatus,
-        name: form.name, company: form.company, email: form.email, phone: form.phone, country: form.country, city: form.city,
-        proj: form.proj, process: form.process.split(',').map(s=>s.trim()).filter(Boolean), material: form.material, grade: form.grade,
-        thickness: form.thickness, qty: form.qty, dims: form.dims, tolerance: form.tolerance, finish: form.finish, due: form.due,
-        repeat: form.repeat, budget: form.budget, address: form.address, drawing: form.drawing, productPics: form.productPics, desc: form.desc,
-        files: techFiles, productImages: prodImgs,
-        // Additional technical fields
-        toleranceStd: form.toleranceStd, criticalTolerance: form.criticalTolerance, bendCount: form.bendCount,
-        weldMethod: form.weldMethod, surfaceRa: form.surfaceRa, finishRal: form.finishRal, anodizing: form.anodizing,
-        qtyT1: form.qtyT1, qtyT2: form.qtyT2, qtyT3: form.qtyT3,
-        // Map to original field names for compatibility
-        toleranceCrit: form.criticalTolerance, anodizeType: form.anodizing,
+        files: techFiles, 
+        productImages: prodImgs
       }
+      
+      // Add dynamic fields from form config
+      if (formConfig && formConfig.formStructure.fields) {
+        formConfig.formStructure.fields.forEach(field => {
+          
+            let value = form[field.id]
+            
+            // Handle special field types
+            if (field.type === 'multiselect' && typeof value === 'string') {
+              value = value.split(',').map(s => s.trim()).filter(Boolean)
+            } else if (field.type === 'number') {
+              value = value ? parseFloat(value) || value : value
+            }
+            
+            patch[field.id] = value
+          })
+      }
+      
       await API.updateQuote(item.id, patch)
       showNotification('Kayıt başarıyla güncellendi!', 'success')
     }
@@ -165,27 +253,71 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
           }, '×')
         )
       ),
+  function renderDetailFields() {
+    if (!formConfig || !formConfig.formStructure.fields) {
+      return []
+    }
+    
+    const fields = []
+    
+    // Add system fields first
+    fields.push(
+      info('ID', item.id),
+      info(t.th_date || 'Tarih', (item.createdAt||'').replace('T',' ').slice(0,16)),
+      info(t.a_status || 'Durum', statusLabel(currStatus, t))
+    )
+    
+    // Add dynamic fields from form config
+    formConfig.formStructure.fields.forEach(field => {
+      
+        let value = item.customFields?.[field.id] || item[field.id] || '—'
+        let label = field.label || field.id
+        
+        // Format value based on field type
+        if (field.type === 'multiselect' && Array.isArray(item.customFields?.[field.id] || item[field.id])) {
+          value = item.customFields?.[field.id] || item[field.id].join(', ') || '—'
+        } else if (field.type === 'radio' && field.options) {
+          // Keep the selected value as is
+          value = value || '—'
+        } else if (field.type === 'number') {
+          value = value ? (value + (field.unit || '')) : '—'
+        } else if (field.type === 'date') {
+          value = value || '—'
+        } else if (field.type === 'textarea') {
+          value = value || '—'
+        } else if (!value || value === '') {
+          value = '—'
+        }
+        
+        // Handle special formatting
+        if (field.id === 'thickness' && value !== '—') {
+          value = value + ' mm'
+        } else if (field.id === 'country' || field.id === 'city') {
+          // Handle country/city combination
+          const country = item.country || 'undefined'
+          const city = item.city || 'undefined'
+          if (field.id === 'country') {
+            value = `${country} / ${city}`
+            label = (t.f_country || 'Ülke') + '/' + (t.f_city || 'Şehir')
+          } else if (field.id === 'city') {
+            return null // Skip city field as it's combined with country
+          }
+        } else if (field.id === 'repeat') {
+          value = value === 'recurrent' ? (t.repeat_recurrent || 'Sürekli') : (t.repeat_one || 'Tek Seferlik')
+        }
+        
+        if (value !== null) {
+          fields.push(info(label, value))
+        }
+      })
+    
+    return fields.filter(Boolean)
+  }
+
       (!editing && !isNew) ? React.createElement('div', { className: 'grid two', style: { gap: 8 } },
-        info('ID', item.id), info(t.th_date, (item.createdAt||'').replace('T',' ').slice(0,16)), info(t.a_status, statusLabel(currStatus, t)), info(t.f_name, item.name),
-        info(t.f_company, item.company), info(t.f_email, item.email), info(t.f_phone, item.phone), info(t.f_country + '/' + t.f_city, `${item.country} / ${item.city}`),
-        info(t.f_proj, item.proj), info(t.f_process, (item.process||[]).join(', ')), info(t.f_material, item.material), info(t.f_grade, item.grade),
-        info(t.f_thickness, item.thickness + ' mm'), info(t.f_qty, item.qty), info(t.f_dims, item.dims), info(t.f_tolerance, item.tolerance),
-        info(t.f_finish, item.finish), info(t.f_due, item.due), info(t.f_repeat, item.repeat === 'recurrent' ? t.repeat_recurrent : t.repeat_one), info(t.f_budget, item.budget),
-        info(t.f_drawing, item.drawing), info(t.f_address, item.address), info(t.f_desc, item.desc),
-        // Additional technical fields
-        info('Tolerans Standardı', item.toleranceStd), info('Kritik Toleranslar', item.toleranceCrit), info('Büküm Sayısı', item.bendCount),
-        info('Kaynak Yöntemi', item.weldMethod), info('Ra', item.surfaceRa), info('RAL', item.finishRal), info('Anodize', item.anodizeType),
-        info('Adet Kademeleri', `T1:${item.qtyT1||''} T2:${item.qtyT2||''} T3:${item.qtyT3||''}`)
+        ...renderDetailFields()
       ) : React.createElement('div', { className: 'grid two', style: { gap: 8 } },
-        editField(t.f_name, 'name'), editField(t.f_company, 'company'), editField(t.f_email, 'email'), editField(t.f_phone, 'phone'),
-        editField(t.f_country, 'country'), editField(t.f_city, 'city'), editField(t.f_proj, 'proj'), editField(t.f_process, 'process'),
-        editField(t.f_material, 'material'), editField(t.f_grade, 'grade'), editField(t.f_thickness, 'thickness'), editField(t.f_qty, 'qty'),
-        editField(t.f_dims, 'dims'), editField(t.f_tolerance, 'tolerance'), editField(t.f_finish, 'finish'), editField(t.f_due, 'due'),
-        editField(t.f_repeat, 'repeat'), editField(t.f_budget, 'budget'), editArea(t.f_address, 'address'), editRadio(t.f_drawing, 'drawing'), editRadio(t.f_prodimg, 'productPics'), editArea(t.f_desc, 'desc'),
-        // Additional technical fields
-        editField('Tolerans Standardı', 'toleranceStd'), editField('Kritik Toleranslar', 'criticalTolerance'), editField('Büküm Sayısı', 'bendCount'),
-        editField('Kaynak Yöntemi', 'weldMethod'), editField('Ra', 'surfaceRa'), editField('RAL', 'finishRal'), editField('Anodize', 'anodizing'),
-        editField('Adet T1', 'qtyT1'), editField('Adet T2', 'qtyT2'), editField('Adet T3', 'qtyT3')
+        ...renderEditFields()
       ),
       React.createElement('div', { style: { height: 10 } }),
       React.createElement('div', { className: 'row wrap' },
@@ -233,14 +365,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
               )
             : React.createElement('button', { className: 'btn icon-btn dl-center', title: t.tt_download_txt, onClick: () => { if (f.dataUrl) downloadDataUrl(f.name, f.dataUrl); else { const u=f.url||''; window.open(/^https?:/i.test(u)?u:(API_BASE.replace(/\/$/,'')+u), '_blank') } } }, '⬇')
         ))
-      ) : null,
-      React.createElement('div', { style: { height: 10 } }),
-      React.createElement('div', { className: 'grid two', style: { gap: 8 } },
-        info(t.f_tolerance_std, item.toleranceStd), info(t.f_tolerance_crit, item.toleranceCrit),
-        info(t.f_bend_count, item.bendCount), info(t.f_weld_method, item.weldMethod),
-        info('Ra', item.surfaceRa), info('RAL', item.finishRal),
-        info('Anodize', item.anodizeType), info(t.f_qty_tiers, (item.qtyTiers||[]).join(' | '))
-      )
+      ) : null
     )
   )
 
@@ -262,17 +387,23 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       React.createElement('textarea', { value: form[key] ?? '', onChange: (e) => setF(key, e.target.value) })
     )
   }
-  function editRadio(label, key) {
+  function editRadio(label, key, options = ['yes', 'no']) {
     return React.createElement('div', { className: 'card', style: { padding: 10 } },
       React.createElement('div', { className: 'help', style: { fontSize: 11, marginBottom: 6 } }, label),
       React.createElement('div', { className: 'row' },
-        React.createElement('label', { className: 'chip' },
-          React.createElement('input', { type: 'radio', name: key, checked: (form[key]||'') === 'yes', onChange: () => setF(key, 'yes') }),
-          React.createElement('span', null, t.yes)
-        ),
-        React.createElement('label', { className: 'chip' },
-          React.createElement('input', { type: 'radio', name: key, checked: (form[key]||'') === 'no', onChange: () => setF(key, 'no') }),
-          React.createElement('span', null, t.no)
+        options.map(option => 
+          React.createElement('label', { 
+            key: option,
+            className: 'chip' 
+          },
+            React.createElement('input', { 
+              type: 'radio', 
+              name: key, 
+              checked: (form[key]||'') === option, 
+              onChange: () => setF(key, option) 
+            }),
+            React.createElement('span', null, option === 'yes' ? (t.yes || 'Evet') : option === 'no' ? (t.no || 'Hayır') : option)
+          )
         )
       )
     )

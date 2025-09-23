@@ -517,7 +517,10 @@ export default function QuoteForm({ t, showNotification }) {
           ) : null,
           form.finish === 'Anodize' ? React.createElement('div', { className: 'row', style: { marginTop: 6 } },
             React.createElement('select', { value: form.anodizeType, onChange: (e) => setF('anodizeType', e.target.value) },
-              ['Clear', 'Black', 'Colored'].map((x) => React.createElement('option', { key: x, value: x }, x === 'Clear' ? t.anodize_clear : x === 'Black' ? t.anodize_black : t.anodize_colored))
+              ['Clear', 'Black', 'Colored'].map((x) => React.createElement('option', { key: x, value: x }, 
+                x === 'Clear' ? 'Şeffaf' : 
+                x === 'Black' ? 'Siyah' : 
+                'Renkli'))
             )
           ) : null
         ) : null,

@@ -54,6 +54,7 @@ function putQuote(obj) {
   if (!q.status) q.status = 'new'
   db.quotes[q.id] = q
   saveRaw(db)
+  return q // Return the saved quote
 }
 function patchQuote(id, patch) {
   const db = loadRaw()

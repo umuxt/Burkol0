@@ -11,15 +11,37 @@ function lsUpdate(id, patch) { const arr = lsLoad().map(x => x.id === id ? { ...
 function lsDelete(id) { const arr = lsLoad().filter(x => x.id !== id); lsSave(arr) }
 
 export async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
-  return await Promise.race([
-    fetch(url, options),
-    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
-  ])
+  try {
+    const lang = (typeof localStorage !== 'undefined' && (localStorage.getItem('bk_lang') || localStorage.getItem('lang'))) || 'tr'
+    const mergedHeaders = { ...(options.headers || {}), 'Accept-Language': lang }
+    const mergedOptions = { ...options, headers: mergedHeaders }
+    return await Promise.race([
+      fetch(url, mergedOptions),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
+    ])
+  } catch (e) {
+    // Fallback to original behavior if localStorage not accessible
+    return await Promise.race([
+      fetch(url, options),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
+    ])
+  }
 }
 
-export const API_BASE = (window.BURKOL_API || (typeof window !== 'undefined' && window.location.origin) || 'http://localhost:3001')
+export const API_BASE = (window.BURKOL_API || 'http://localhost:3001')
 
-function getToken() { try { return localStorage.getItem('bk_admin_token') || '' } catch { return '' } }
+function getToken() { 
+  try { 
+    const token = localStorage.getItem('bk_admin_token')
+    // Development mode: use dev token if no real token exists
+    if (!token && window.location.hostname === 'localhost') {
+      return 'dev-admin-token'
+    }
+    return token || '' 
+  } catch { 
+    return '' 
+  } 
+}
 function setToken(t) { try { if (t) localStorage.setItem('bk_admin_token', t); else localStorage.removeItem('bk_admin_token') } catch {} }
 
 function withAuth(headers = {}) {
@@ -31,15 +53,40 @@ function withAuth(headers = {}) {
 export const API = {
   async listQuotes() {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, { headers: withAuth() })
+      // Add cache busting to ensure fresh data
+      const cacheBuster = `?_t=${Date.now()}`
+      console.log('🔧 DEBUG: API.listQuotes fetching from:', `${API_BASE}/api/quotes${cacheBuster}`)
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes${cacheBuster}`, { headers: withAuth() })
       if (res.status === 401) throw new Error('unauthorized')
       if (!res.ok) throw new Error('list failed')
-      return await res.json()
+      const quotes = await res.json()
+      console.log('🔧 DEBUG: API.listQuotes received:', quotes.length, 'quotes')
+      return quotes
     } catch (e) {
+      console.error('🔧 DEBUG: API.listQuotes error:', e)
       // If unauthorized, bubble up to show login
       if ((e && e.message && /401|unauthorized/i.test(e.message))) throw e
       return lsLoad()
     }
+  },
+  async applyNewPrice(id) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/apply-price`, { method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }) })
+    if (!res.ok) throw new Error('apply price failed')
+    return await res.json()
+  },
+  async applyPricesBulk(ids = []) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/apply-price-bulk`, {
+      method: 'POST',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ ids })
+    })
+    if (!res.ok) throw new Error('bulk apply failed')
+    return await res.json()
+  },
+  async applyPricesAll() {
+    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/apply-price-all`, { method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }) })
+    if (!res.ok) throw new Error('apply all failed')
+    return await res.json()
   },
   async addUser(email, password, role = 'admin') {
     const res = await fetchWithTimeout(`${API_BASE}/api/auth/users`, {
@@ -58,6 +105,15 @@ export const API = {
   async deleteUser(email) {
     const res = await fetchWithTimeout(`${API_BASE}/api/auth/users/${encodeURIComponent(email)}`, { method: 'DELETE', headers: withAuth() })
     if (!res.ok) throw new Error('delete_user_failed')
+    return await res.json()
+  },
+  async updateUser(email, updates) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/auth/users/${encodeURIComponent(email)}`, {
+      method: 'PUT',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(updates)
+    })
+    if (!res.ok) throw new Error('update_user_failed')
     return await res.json()
   },
   async createQuote(payload) {
@@ -80,6 +136,23 @@ export const API = {
       return { ok: true, local: true }
     }
   },
+  async addQuote(quoteData) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, { 
+        method: 'POST', 
+        headers: withAuth({ 'Content-Type': 'application/json' }), 
+        body: JSON.stringify(quoteData) 
+      })
+      if (!res.ok) throw new Error('add failed')
+      return await res.json()
+    } catch (e) {
+      // Handle offline: save to localStorage and return mock response
+      const quotes = JSON.parse(localStorage.getItem('quotes') || '{}')
+      quotes[quoteData.id] = quoteData
+      localStorage.setItem('quotes', JSON.stringify(quotes))
+      return { ok: true, local: true }
+    }
+  },
   async updateQuote(id, patch) {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'PATCH', headers: withAuth({ 'Content-Type': 'application/json' }), body: JSON.stringify(patch) })
@@ -88,6 +161,16 @@ export const API = {
     } catch (e) {
       lsUpdate(id, patch)
       return { ok: true, local: true }
+    }
+  },
+  async updateQuoteStatus(id, status) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/status`, { method: 'PATCH', headers: withAuth({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status }) })
+      if (!res.ok) throw new Error('status update failed')
+      return await res.json()
+    } catch (e) {
+      console.error('Status update error:', e)
+      throw e
     }
   },
   async remove(id) {
@@ -228,13 +311,24 @@ export const API = {
   // Form Configuration APIs
   async getFormConfig() {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/form-config`, { headers: withAuth() })
+      const res = await fetchWithTimeout(`${API_BASE}/api/form-config`)
       if (!res.ok) throw new Error('get form config failed')
       return await res.json()
     } catch (e) {
       throw e
     }
   },
+  
+  async getFormFields() {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/form-fields`)
+      if (!res.ok) throw new Error('get form fields failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+
   async saveFormConfig(formConfig) {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/form-config`, { 

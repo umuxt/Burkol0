@@ -18,7 +18,8 @@ if (!fs.existsSync(distDir)) {
 // Copy static files
 const staticFiles = [
   'index.html',
-  'panel-gizli.html', 
+  'panel-gizli.html',
+  'settings.html',
   'app.js',
   'i18n.js',
   'manifest.json',

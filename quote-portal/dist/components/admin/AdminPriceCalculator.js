@@ -10,6 +10,11 @@ export function calculatePrice(quote, priceSettings) {
     const paramValues = {}
     
     priceSettings.parameters.forEach(param => {
+      // Safety check for param object
+      if (!param || !param.id) {
+        return
+      }
+      
       if (param.type === 'fixed') {
         paramValues[param.id] = parseFloat(param.value) || 0
       } else if (param.type === 'form') {
@@ -33,22 +38,33 @@ export function calculatePrice(quote, priceSettings) {
             }
           }
         } else {
-          // For fields with lookup table or arrays
-          const fieldValue = quote[param.formField]
+          // For custom form fields
+          // Check both standard quote fields and customFields
+          let fieldValue = quote[param.formField]
+          if (fieldValue === undefined && quote.customFields) {
+            fieldValue = quote.customFields[param.formField]
+          }
           
           if (Array.isArray(fieldValue)) {
             // For multi-select fields, sum all values
             fieldValue.forEach(opt => {
-              const found = param.lookupTable.find(item => item.option === opt)
-              if (found) {
-                value += parseFloat(found.value) || 0
+              if (param.lookupTable && Array.isArray(param.lookupTable)) {
+                const found = param.lookupTable.find(item => item.option === opt)
+                if (found) {
+                  value += parseFloat(found.value) || 0
+                }
               }
             })
           } else {
             // Single value field with lookup
-            const lookupItem = param.lookupTable.find(item => item.option === fieldValue)
-            if (lookupItem) {
-              value = parseFloat(lookupItem.value) || 0
+            if (param.lookupTable && Array.isArray(param.lookupTable)) {
+              const lookupItem = param.lookupTable.find(item => item.option === fieldValue)
+              if (lookupItem) {
+                value = parseFloat(lookupItem.value) || 0
+              } else {
+                // Direct numeric value
+                value = parseFloat(fieldValue) || 0
+              }
             } else {
               // Direct numeric value
               value = parseFloat(fieldValue) || 0
@@ -58,6 +74,14 @@ export function calculatePrice(quote, priceSettings) {
         
         paramValues[param.id] = value
       }
+    })
+
+    // DEBUG: Critical debugging information
+    console.log('🔍 PRICE CALCULATION DEBUG:', {
+      quoteId: quote.id,
+      paramValues: paramValues,
+      originalFormula: priceSettings.formula,
+      customFields: quote.customFields
     })
 
     // Safely evaluate formula
@@ -72,9 +96,11 @@ export function calculatePrice(quote, priceSettings) {
       formula = formula.replace(regex, paramValues[paramId])
     })
 
+    console.log('🔍 FORMULA AFTER REPLACEMENT:', formula)
+
     // Validate formula contains only numbers and basic operators
     if (!/^[\d\s+\-*/().]+$/.test(formula)) {
-      console.warn('Invalid formula characters detected:', formula)
+      console.warn('❌ Invalid formula characters detected:', formula)
       return quote.calculatedPrice || quote.price || 0
     }
 
@@ -106,26 +132,31 @@ export function needsPriceUpdate(quote) {
 }
 
 export function getPriceChangeType(quote, priceSettings) {
-  const currentPrice = quote.price || 0
-  const calculatedPrice = calculatePrice(quote, priceSettings)
-  const priceDifference = Math.abs(calculatedPrice - currentPrice)
-  
-  // First check if price actually changed (most important)
-  if (priceDifference > 0.01) {
-    return 'price-changed' // Price actually changed - show red
+  try {
+    const currentPrice = quote.price || 0
+    const calculatedPrice = calculatePrice(quote, priceSettings)
+    const priceDifference = Math.abs(calculatedPrice - currentPrice)
+    
+    // First check if price actually changed (most important)
+    if (priceDifference > 0.01) {
+      return 'price-changed' // Price actually changed - show red
+    }
+    
+    // If price is same but server indicates formula/settings changed
+    if (quote.needsPriceUpdate === true) {
+      return 'formula-changed' // Formula/params changed but price stayed same - show yellow
+    }
+    
+    // Also check if calculated differs from stored calculatedPrice (server-side calculation)
+    if (quote.calculatedPrice !== undefined && Math.abs(calculatedPrice - quote.calculatedPrice) > 0.01) {
+      return 'formula-changed' // Server calculation differs from client calculation
+    }
+    
+    return 'no-change' // No changes - no button
+  } catch (e) {
+    console.error('Price change type calculation error:', e)
+    return 'no-change' // Safe fallback
   }
-  
-  // If price is same but server indicates formula/settings changed
-  if (quote.needsPriceUpdate === true) {
-    return 'formula-changed' // Formula/params changed but price stayed same - show yellow
-  }
-  
-  // Also check if calculated differs from stored calculatedPrice (server-side calculation)
-  if (quote.calculatedPrice !== undefined && Math.abs(calculatedPrice - quote.calculatedPrice) > 0.01) {
-    return 'formula-changed' // Server calculation differs from client calculation
-  }
-  
-  return 'no-change' // No changes - no button
 }
 
 export function getChanges(item, priceSettings) {
@@ -186,10 +217,36 @@ export function getChanges(item, priceSettings) {
   return changes
 }
 
-export function getChangeReason(item, priceSettings) {
+export function getChangeReason(item, priceSettings, formConfig = null) {
+  // Helper function to get field label from form config
+  function getFieldLabel(fieldId) {
+    if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
+      const field = formConfig.formStructure.fields.find(f => f.id === fieldId)
+      if (field && field.label) {
+        return field.label
+      }
+    }
+    return fieldId // fallback to field ID if label not found
+  }
+
+  // Prefer server-provided reasons when available
+  if (Array.isArray(item.priceUpdateReasons) && item.priceUpdateReasons.length > 0) {
+    return item.priceUpdateReasons.join('; ')
+  }
+
+  // Check if this is a form structure change
+  if (item.formStructureChanged === true) {
+    return 'User form güncellendi'
+  }
+
   const changes = getChanges(item, priceSettings)
   
   if (changes.length === 0) {
+    // Last fallback - check for any form-related changes
+    if (item.priceUpdateReason === "Form structure changed" || 
+        item.previousFormVersion !== undefined) {
+      return 'User form güncellendi'
+    }
     return 'Fiyat güncelleme gerekli (sebep belirtilmemiş)'
   }
   
@@ -224,7 +281,9 @@ export function getChangeReason(item, priceSettings) {
         reasons.push('Fiyat parametreleri güncellendi')
         break
       default:
-        reasons.push(`${change.field} değişti`)
+        // For custom form fields, use their labels
+        const fieldLabel = getFieldLabel(change.field)
+        reasons.push(`${fieldLabel} değişti`)
     }
   })
   

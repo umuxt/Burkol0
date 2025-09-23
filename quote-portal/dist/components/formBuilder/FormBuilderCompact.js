@@ -1,7 +1,7 @@
 // Form Builder Compact - Main component using modular architecture
+import API from '../../lib/api.js'
 import { FieldEditor } from './FieldEditor.js'
 import { FieldList } from './FieldList.js'
-import { FormPreview } from './FormPreview.js'
 import { FormBuilderUtils } from './FormBuilderUtils.js'
 
 const { useState, useEffect } = React
@@ -20,48 +20,123 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
 
   // Load saved form configuration on mount
   useEffect(() => {
-    const saved = localStorage.getItem('formBuilder_config')
-    if (saved) {
-      try {
-        const config = JSON.parse(saved)
-        if (config.fields) {
-          setFields(config.fields)
-          setSavedFields(config.fields)
-        }
-        if (config.settings) {
-          setFormSettings(config.settings)
-        }
-      } catch (error) {
-        console.error('Kaydedilmiş form yüklenirken hata:', error)
-        showNotification('Kaydedilmiş form yüklenemedi', 'error')
-      }
-    }
+    console.log('FormBuilderUtils.fieldTypes:', FormBuilderUtils.fieldTypes)
+    loadFormConfig()
   }, [])
 
+  async function loadFormConfig() {
+    try {
+      // Try to load from API first
+      const config = await API.getFormConfig()
+      if (config.formConfig && config.formConfig.formStructure && config.formConfig.formStructure.fields) {
+        setFields(config.formConfig.formStructure.fields)
+        setSavedFields(config.formConfig.formStructure.fields)
+        
+        if (config.formConfig.formStructure.title || config.formConfig.formStructure.description) {
+          setFormSettings({
+            title: config.formConfig.formStructure.title || 'Yeni Form',
+            description: config.formConfig.formStructure.description || '',
+            submitButtonText: config.formConfig.formStructure.submitButtonText || 'Gönder'
+          })
+        }
+      } else {
+        // Fallback to localStorage if API doesn't have config
+        const saved = localStorage.getItem('formBuilder_config')
+        if (saved) {
+          const localConfig = JSON.parse(saved)
+          if (localConfig.fields) {
+            setFields(localConfig.fields)
+            setSavedFields(localConfig.fields)
+          }
+          if (localConfig.settings) {
+            setFormSettings(localConfig.settings)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Form yüklenirken hata:', error)
+      // Try localStorage as backup
+      const saved = localStorage.getItem('formBuilder_config')
+      if (saved) {
+        try {
+          const config = JSON.parse(saved)
+          if (config.fields) {
+            setFields(config.fields)
+            setSavedFields(config.fields)
+          }
+          if (config.settings) {
+            setFormSettings(config.settings)
+          }
+        } catch (localError) {
+          console.error('Local storage yüklenirken hata:', localError)
+          showNotification('Kaydedilmiş form yüklenemedi', 'error')
+        }
+      }
+    }
+  }
+
   // Save form configuration
-  function saveFormConfig() {
+  async function saveFormConfig() {
     try {
       const config = {
+        formStructure: {
+          title: formSettings.title,
+          description: formSettings.description,
+          submitButtonText: formSettings.submitButtonText,
+          fields: fields
+        },
+        version: Date.now(), // Simple version based on timestamp
+        lastModified: new Date().toISOString()
+      }
+      
+      // Save both to API and localStorage (as backup)
+      const result = await API.saveFormConfig(config)
+      localStorage.setItem('formBuilder_config', JSON.stringify({
         fields,
         settings: formSettings,
         savedAt: new Date().toISOString()
-      }
-      localStorage.setItem('formBuilder_config', JSON.stringify(config))
+      }))
+      
       setSavedFields([...fields])
-      showNotification('Form yapılandırması kaydedildi', 'success')
+      
+      if (result.structuralChange) {
+        showNotification(
+          `Form yapılandırması kaydedildi. ${result.quotesMarkedForUpdate || 0} teklif fiyat güncellemesi için işaretlendi.`, 
+          'success'
+        )
+      } else {
+        showNotification('Form yapılandırması kaydedildi', 'success')
+      }
     } catch (error) {
       console.error('Form kaydedilirken hata:', error)
-      showNotification('Form kaydedilemedi', 'error')
+      showNotification('Form kaydedilemedi: ' + (error.message || 'Bilinmeyen hata'), 'error')
+    }
+  }
+
+  // Add new field with default type (text)
+  function handleAddNewField() {
+    console.log('handleAddNewField called')
+    try {
+      const newField = FormBuilderUtils.createNewField('text')
+      console.log('New field created:', newField)
+      setEditingField(newField)
+      setIsFieldEditorOpen(true)
+    } catch (error) {
+      console.error('Error in handleAddNewField:', error)
+      showNotification(error.message, 'error')
     }
   }
 
   // Add new field
   function handleAddField(fieldType) {
+    console.log('handleAddField called with:', fieldType)
     try {
       const newField = FormBuilderUtils.createNewField(fieldType)
+      console.log('New field created:', newField)
       setEditingField(newField)
       setIsFieldEditorOpen(true)
     } catch (error) {
+      console.error('Error in handleAddField:', error)
       showNotification(error.message, 'error')
     }
   }
@@ -120,6 +195,11 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
     const clonedField = FormBuilderUtils.cloneField(field)
     setFields(prev => [...prev, clonedField])
     showNotification('Alan kopyalandı', 'success')
+  }
+
+  // Duplicate field (alias for clone)
+  function handleDuplicateField(field) {
+    handleCloneField(field)
   }
 
   // Export form configuration
@@ -264,66 +344,196 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
 
     // Tab Content
     React.createElement('div', { className: 'tab-content' },
-      activeTab === 'builder' && React.createElement('div', { className: 'builder-content' },
-        // Field Type Buttons
+      activeTab === 'builder' && React.createElement('div', { 
+        className: 'builder-content',
+        style: {
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px', // Small consistent gap between elements
+          minHeight: 'auto',
+          height: 'auto' // Let content determine height
+        }
+      },
+        // Existing Fields List
         React.createElement('div', {
-          className: 'field-type-buttons',
           style: {
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-            gap: '8px',
-            marginBottom: '20px',
-            padding: '16px',
-            backgroundColor: '#f8f9fa',
-            borderRadius: '8px'
+            flex: '0 0 auto' // Don't grow, natural height, no margin
           }
         },
-          React.createElement('h4', { style: { gridColumn: '1 / -1', margin: '0 0 12px 0' } }, 'Yeni Alan Ekle'),
-          ...Object.entries(FormBuilderUtils.fieldTypes).map(([type, config]) =>
-            React.createElement('button', {
-              key: type,
-              onClick: () => handleAddField(type),
-              className: 'btn btn-outline-primary',
-              style: {
-                padding: '8px',
-                fontSize: '12px',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '4px',
-                minHeight: '60px'
-              }
-            },
-              React.createElement('span', { style: { fontSize: '16px' } }, config.icon),
-              React.createElement('span', null, config.label)
-            )
-          )
+          React.createElement(FieldList, {
+            fields,
+            onEditField: handleEditField,
+            onDeleteField: handleDeleteField,
+            onDuplicateField: handleDuplicateField,
+            onReorderFields: handleReorderField
+          })
         ),
-
-        // Field List
-        React.createElement(FieldList, {
-          fields,
-          onEditField: handleEditField,
-          onDeleteField: handleDeleteField,
-          onReorderField: handleReorderField,
-          showNotification
-        })
+        
+        // Add New Field Button - Now closer to the field list
+        React.createElement('div', { 
+          style: { 
+            flex: '0 0 auto', // Don't grow
+            padding: '8px 16px', // Reduced padding
+            borderTop: '2px dashed #dee2e6',
+            textAlign: 'center',
+            marginTop: '0' // No additional margin since we use gap
+          }
+        },
+          React.createElement('button', {
+            onClick: handleAddNewField,
+            className: 'btn btn-primary',
+            style: {
+              padding: '12px 24px',
+              fontSize: '14px',
+              fontWeight: '600',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px'
+            }
+          },
+            React.createElement('span', { style: { fontSize: '18px' } }, '+'),
+            'Yeni Alan Ekle'
+          )
+        )
       ),
 
-      activeTab === 'preview' && React.createElement(FormPreview, {
-        fields,
-        isDarkMode,
-        t,
-        showNotification
-      })
+      activeTab === 'preview' && React.createElement(React.Fragment, null,
+        React.createElement('h3', {
+          style: {
+            marginTop: '0',
+            marginBottom: '20px',
+            paddingBottom: '10px',
+            borderBottom: '2px solid #007bff',
+            color: '#333'
+          }
+        }, 'Form Önizlemesi'),
+        
+        React.createElement('form', null,
+          ...fields.map(field => 
+            React.createElement('div', {
+              key: field.id,
+              className: 'preview-field',
+              style: {
+                marginBottom: '20px',
+                padding: '12px',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                backgroundColor: 'white'
+              }
+            },
+              React.createElement('label', {
+                style: {
+                  display: 'block',
+                  marginBottom: '6px',
+                  fontWeight: '500',
+                  color: '#333'
+                }
+              }, field.label),
+              
+              field.type === 'text' && React.createElement('input', {
+                type: 'text',
+                placeholder: field.placeholder,
+                className: 'form-control',
+                style: {
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }
+              }),
+              
+              field.type === 'number' && React.createElement('input', {
+                type: 'number',
+                placeholder: field.placeholder,
+                min: field.validation?.min || undefined,
+                max: field.validation?.max || undefined,
+                className: 'form-control',
+                style: {
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }
+              }),
+              
+              field.type === 'textarea' && React.createElement('textarea', {
+                placeholder: field.placeholder,
+                className: 'form-control',
+                rows: 3,
+                style: {
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  resize: 'vertical'
+                }
+              }),
+              
+              field.type === 'dropdown' && React.createElement('select', {
+                className: 'form-control',
+                style: {
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  fontSize: '14px'
+                }
+              },
+                React.createElement('option', { value: '' }, field.placeholder || 'Seçiniz...'),
+                ...field.options.map((option, index) =>
+                  React.createElement('option', { key: index, value: option }, option)
+                )
+              )
+            )
+          ),
+          
+          React.createElement('div', {
+            style: {
+              marginTop: '30px',
+              paddingTop: '20px',
+              borderTop: '1px solid #eee',
+              display: 'flex',
+              gap: '12px'
+            }
+          },
+            React.createElement('button', {
+              type: 'submit',
+              className: 'btn btn-primary',
+              style: {
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }
+            }, 'Formu Doğrula'),
+            
+            React.createElement('button', {
+              type: 'button',
+              className: 'btn btn-secondary',
+              style: {
+                backgroundColor: '#6c757d',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }
+            }, 'Temizle')
+          )
+        )
+      )
     ),
 
     // Field Editor Modal
     isFieldEditorOpen && React.createElement(FieldEditor, {
       field: editingField,
-      isOpen: isFieldEditorOpen,
       onSave: handleSaveField,
-      onClose: () => {
+      onCancel: () => {
         setIsFieldEditorOpen(false)
         setEditingField(null)
       },
