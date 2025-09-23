@@ -482,7 +482,7 @@ function DynamicPricingTab({ t, showNotification }) {
                         className: 'form-control',
                         placeholder: 'Parametre adı'
                       })
-                    : (param.name || `Parametre ${getParameterDisplayId(param, index)}`)
+                    : param.name
                 ),
                 // Type col (read-only label)
                 ReactGlobal.createElement('td', null, param.type === 'fixed' ? '🔢 Sabit' : '📝 Form'),
@@ -594,11 +594,7 @@ function DynamicPricingTab({ t, showNotification }) {
       
       parameters.length > 0 && ReactGlobal.createElement('div', { className: 'alert alert-success', style: { fontSize: '0.9em' } },
         ReactGlobal.createElement('strong', null, 'Kullanılabilir Parametreler: '),
-        ReactGlobal.createElement('br', null),
-        parameters.map((param, index) => {
-          const displayId = getParameterDisplayId(param, index)
-          return `${displayId}: ${param.name || 'Adsız parametre'}`
-        }).join(' | ')
+        Object.values(idMapping.backendToUser).join(', ')
       ),
       
       ReactGlobal.createElement('div', { className: 'form-group' },
