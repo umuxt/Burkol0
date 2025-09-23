@@ -1,0 +1,13 @@
+{
+  "name": "burkol-quote-portal",
+  "version": "1.0.0",
+  "description": "Burkol Quote Portal - React Frontend",
+  "scripts": {
+    "build": "cd quote-portal && npm run build",
+    "start": "cd quote-portal && npm start",
+    "install": "cd quote-portal && npm install"
+  },
+  "keywords": ["burkol", "quote", "portal", "react"],
+  "author": "Burkol Team",
+  "license": "ISC"
+}

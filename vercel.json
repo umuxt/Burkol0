@@ -1,0 +1,22 @@
+{
+  "buildCommand": "cd quote-portal && npm run build",
+  "outputDirectory": "quote-portal/dist",
+  "installCommand": "cd quote-portal && npm install",
+  "rewrites": [
+    { 
+      "source": "/api/:path*", 
+      "destination": "https://api.test-burkolmetal.com/api/:path*" 
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cross-Origin-Embedder-Policy",
+          "value": "unsafe-none"
+        }
+      ]
+    }
+  ]
+}
