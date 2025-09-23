@@ -53,11 +53,17 @@ function withAuth(headers = {}) {
 export const API = {
   async listQuotes() {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, { headers: withAuth() })
+      // Add cache busting to ensure fresh data
+      const cacheBuster = `?_t=${Date.now()}`
+      console.log('🔧 DEBUG: API.listQuotes fetching from:', `${API_BASE}/api/quotes${cacheBuster}`)
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes${cacheBuster}`, { headers: withAuth() })
       if (res.status === 401) throw new Error('unauthorized')
       if (!res.ok) throw new Error('list failed')
-      return await res.json()
+      const quotes = await res.json()
+      console.log('🔧 DEBUG: API.listQuotes received:', quotes.length, 'quotes')
+      return quotes
     } catch (e) {
+      console.error('🔧 DEBUG: API.listQuotes error:', e)
       // If unauthorized, bubble up to show login
       if ((e && e.message && /401|unauthorized/i.test(e.message))) throw e
       return lsLoad()
@@ -99,6 +105,15 @@ export const API = {
   async deleteUser(email) {
     const res = await fetchWithTimeout(`${API_BASE}/api/auth/users/${encodeURIComponent(email)}`, { method: 'DELETE', headers: withAuth() })
     if (!res.ok) throw new Error('delete_user_failed')
+    return await res.json()
+  },
+  async updateUser(email, updates) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/auth/users/${encodeURIComponent(email)}`, {
+      method: 'PUT',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(updates)
+    })
+    if (!res.ok) throw new Error('update_user_failed')
     return await res.json()
   },
   async createQuote(payload) {

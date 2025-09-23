@@ -10,8 +10,8 @@ export function calculatePriceServer(quote, settings) {
     const paramValues = {}
     
     settings.parameters.forEach(param => {
-      // Use parameter name instead of id for formula variables
-      const paramKey = param.name || param.id // Fallback to id if name is not available
+      // Use parameter ID for consistency (formulas use IDs)
+      const paramKey = param.id
       
       if (param.type === 'fixed') {
         paramValues[paramKey] = parseFloat(param.value) || 0
@@ -36,7 +36,7 @@ export function calculatePriceServer(quote, settings) {
             }
           }
         } else {
-          // For fields with lookup table or arrays
+          // For custom form fields
           // Check both fixed fields and customFields for dynamic form compatibility
           let fieldValue = quote[param.formField]
           if (fieldValue === undefined && quote.customFields) {
@@ -65,8 +65,23 @@ export function calculatePriceServer(quote, settings) {
       }
     })
 
+    // SERVER DEBUG: Critical debugging information
+    console.log('🔍 SERVER PRICE CALCULATION DEBUG:', {
+      quoteId: quote.id,
+      paramValues: paramValues,
+      originalFormula: settings.formula,
+      customFields: quote.customFields
+    })
+
     // Evaluate formula with comprehensive math functions
     let formula = settings.formula.replace(/^=/, '') // Remove leading =
+    
+    // Excel fonksiyonlarını JavaScript fonksiyonlarına çevir (client ile uyumlu)
+    formula = formula.replace(/\bMAX\s*\(/g, 'Math.max(')
+    formula = formula.replace(/\bMIN\s*\(/g, 'Math.min(')
+    formula = formula.replace(/\bABS\s*\(/g, 'Math.abs(')
+    formula = formula.replace(/\bPOW\s*\(/g, 'Math.pow(')
+    formula = formula.replace(/\bSQRT\s*\(/g, 'Math.sqrt(')
     
     // Replace parameter names with actual values (case-sensitive)
     Object.keys(paramValues).forEach(paramName => {
@@ -75,6 +90,8 @@ export function calculatePriceServer(quote, settings) {
       const regex = new RegExp(`\\b${escapedParamName}\\b`, 'g')
       formula = formula.replace(regex, paramValues[paramName])
     })
+
+    console.log('🔍 SERVER FORMULA AFTER REPLACEMENT:', formula)
 
     // Create comprehensive math context
     const mathContext = {

@@ -11,15 +11,12 @@ export function calculatePrice(quote, priceSettings) {
     
     priceSettings.parameters.forEach(param => {
       // Safety check for param object
-      if (!param || (!param.name && !param.id)) {
+      if (!param || !param.id) {
         return
       }
       
-      // Use parameter name instead of id for formula variables
-      const paramKey = param.name || param.id // Fallback to id if name is not available
-      
       if (param.type === 'fixed') {
-        paramValues[paramKey] = parseFloat(param.value) || 0
+        paramValues[param.id] = parseFloat(param.value) || 0
       } else if (param.type === 'form') {
         let value = 0
         
@@ -41,8 +38,12 @@ export function calculatePrice(quote, priceSettings) {
             }
           }
         } else {
-          // For fields with lookup table or arrays
-          const fieldValue = quote[param.formField]
+          // For custom form fields
+          // Check both standard quote fields and customFields
+          let fieldValue = quote[param.formField]
+          if (fieldValue === undefined && quote.customFields) {
+            fieldValue = quote.customFields[param.formField]
+          }
           
           if (Array.isArray(fieldValue)) {
             // For multi-select fields, sum all values
@@ -71,27 +72,35 @@ export function calculatePrice(quote, priceSettings) {
           }
         }
         
-        paramValues[paramKey] = value
+        paramValues[param.id] = value
       }
     })
 
+    // DEBUG: Critical debugging information
+    console.log('🔍 PRICE CALCULATION DEBUG:', {
+      quoteId: quote.id,
+      paramValues: paramValues,
+      originalFormula: priceSettings.formula,
+      customFields: quote.customFields
+    })
+
     // Safely evaluate formula
-    // Replace parameter names with their values
+    // Replace parameter IDs with their values
     let formula = priceSettings.formula
     
-    // Sort parameters by name length (descending) to avoid partial replacements
+    // Sort parameters by ID length (descending) to avoid partial replacements
     const sortedParams = Object.keys(paramValues).sort((a, b) => b.length - a.length)
     
-    sortedParams.forEach(paramName => {
-      // Escape special regex characters in parameter names
-      const escapedParamName = paramName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const regex = new RegExp('\\b' + escapedParamName + '\\b', 'g')
-      formula = formula.replace(regex, paramValues[paramName])
+    sortedParams.forEach(paramId => {
+      const regex = new RegExp('\\b' + paramId + '\\b', 'g')
+      formula = formula.replace(regex, paramValues[paramId])
     })
+
+    console.log('🔍 FORMULA AFTER REPLACEMENT:', formula)
 
     // Validate formula contains only numbers and basic operators
     if (!/^[\d\s+\-*/().]+$/.test(formula)) {
-      console.warn('Invalid formula characters detected:', formula)
+      console.warn('❌ Invalid formula characters detected:', formula)
       return quote.calculatedPrice || quote.price || 0
     }
 

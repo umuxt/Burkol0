@@ -18,18 +18,20 @@ export function verifyUser(email, password) {
   const user = jsondb.getUser(email)
   if (!user) return null
   
-  // Simple password check for admin (not hashed)
-  if (user.password && user.password === password) {
+  // Kullanıcının aktif olup olmadığını kontrol et
+  if (user.active === false) {
+    return { error: 'account_deactivated', message: 'Hesabınız devre dışı bırakılmış.' }
+  }
+  
+  // SADECE Admin Panel'den yönetilen şifreler kabul edilir
+  if (user.plainPassword && user.plainPassword === password) {
     return { email: user.email, role: user.role }
   }
   
-  // Fallback to hash-based auth if pw_hash exists
-  if (user.pw_hash && user.pw_salt) {
-    const { hash } = hashPassword(password, user.pw_salt)
-    if (crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(user.pw_hash))) {
-      return { email: user.email, role: user.role }
-    }
-  }
+  // Diğer tüm şifre kontrolleri kaldırıldı (Güvenlik için)
+  // - Legacy password alanı artık kullanılmıyor
+  // - Hash'li şifreler artık kullanılmıyor
+  // Sadece admin panelindeki plainPassword geçerlidir
   
   return null
 }

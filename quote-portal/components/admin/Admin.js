@@ -78,22 +78,41 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   }, [])
 
   async function refresh() {
-    setList(await API.listQuotes())
-    await loadPriceSettings()
-    await loadFormConfig()
-    if (activeTab === 'users') {
-      await loadUsers()
+    console.log('🔧 DEBUG: refresh() called')
+    try {
+      console.log('🔧 DEBUG: Calling API.listQuotes()...')
+      const quotes = await API.listQuotes()
+      console.log('🔧 DEBUG: API.listQuotes() returned:', quotes.length, 'quotes')
+      setList(quotes)
+      console.log('🔧 DEBUG: setList() called with quotes')
+      
+      await loadPriceSettings()
+      await loadFormConfig()
+      if (activeTab === 'users') {
+        await loadUsers()
+      }
+      console.log('🔧 DEBUG: refresh() completed successfully')
+    } catch (error) {
+      console.error('🔧 DEBUG: refresh() error:', error)
     }
   }
 
   async function handleAddRecord(recordData) {
+    console.log('🔧 DEBUG: handleAddRecord called with:', recordData)
     try {
-      await API.addQuote(recordData)
+      console.log('🔧 DEBUG: Calling API.addQuote...')
+      const result = await API.addQuote(recordData)
+      console.log('🔧 DEBUG: API.addQuote result:', result)
+      
+      console.log('🔧 DEBUG: Refreshing list...')
       await refresh() // Reload the list
+      
+      console.log('🔧 DEBUG: Showing success notification...')
       showNotification('Kayıt başarıyla eklendi', 'success')
+      console.log('🔧 DEBUG: Add record completed successfully')
     } catch (error) {
-      console.error('Error adding record:', error)
-      showNotification('Kayıt eklenirken hata oluştu', 'error')
+      console.error('🔧 DEBUG: Error adding record:', error)
+      showNotification('Kayıt eklenirken hata oluştu: ' + error.message, 'error')
     }
   }
 
@@ -428,7 +447,11 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
           
           // Add Record button
           React.createElement('button', {
-            onClick: () => setShowAddModal(true),
+            onClick: () => {
+              console.log('🔧 DEBUG: Kayıt Ekle button clicked')
+              setShowAddModal(true)
+              console.log('🔧 DEBUG: showAddModal set to true')
+            },
             className: 'btn',
             style: {
               backgroundColor: '#28a745',
@@ -786,6 +809,9 @@ function AddRecordModal({ isOpen, onClose, formConfig, onSave }) {
   const [formData, setFormData] = useState({})
   const [saving, setSaving] = useState(false)
 
+  // Debug log for modal state
+  console.log('🔧 DEBUG: AddRecordModal render - isOpen:', isOpen, 'formConfig:', !!formConfig)
+
   // Initialize form data when modal opens
   useEffect(() => {
     if (isOpen && formConfig) {
@@ -847,21 +873,22 @@ function AddRecordModal({ isOpen, onClose, formConfig, onSave }) {
     
     setSaving(true)
     try {
-      // Generate unique ID
-      const id = `admin_${Date.now()}`
+      // Don't generate ID here - let server create UUID
       const recordData = {
         ...formData,
-        id,
+        // Remove manual ID generation - server will create UUID
         createdAt: new Date().toISOString(),
         status: formData.status || 'new'
       }
       
+      console.log('🔧 DEBUG: Submitting record data:', recordData)
       await onSave(recordData)
+      console.log('🔧 DEBUG: Record saved successfully')
       onClose()
       setFormData({})
     } catch (error) {
-      console.error('Error saving record:', error)
-      alert('Kayıt kaydedilirken hata oluştu')
+      console.error('🔧 DEBUG: Error saving record:', error)
+      alert('Kayıt kaydedilirken hata oluştu: ' + error.message)
     } finally {
       setSaving(false)
     }
@@ -977,7 +1004,12 @@ function AddRecordModal({ isOpen, onClose, formConfig, onSave }) {
     }
   }
 
-  if (!isOpen) return null
+  if (!isOpen) {
+    console.log('🔧 DEBUG: AddRecordModal not rendering - isOpen is false')
+    return null
+  }
+
+  console.log('🔧 DEBUG: AddRecordModal rendering modal content')
 
   return React.createElement('div', {
     style: {

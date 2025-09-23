@@ -239,7 +239,10 @@ export function validateQuoteDataDynamic(q, formConfig) {
 export function setupQuoteRoutes(app, uploadsDir) {
   // Get all quotes (admin only)
   app.get('/api/quotes', requireAuth, (req, res) => {
-    return res.json(readAll())
+    console.log('🔧 DEBUG: GET /api/quotes called')
+    const quotes = readAll()
+    console.log('🔧 DEBUG: Returning', quotes.length, 'quotes')
+    return res.json(quotes)
   })
 
   // Create new quote

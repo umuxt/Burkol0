@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Record Debug Test</title>
+</head>
+<body>
+    <h1>Admin Panel Add Record Debug</h1>
+    <p>Bu sayfadan admin paneline gidip debug testi çalıştırabilirsiniz.</p>
+    <a href="/panel-gizli.html" target="_blank">Admin Panel'i Aç</a>
+    
+    <h2>Debug Script</h2>
+    <p>Admin paneli açtıktan sonra browser console'da şu komutu çalıştırın:</p>
+    <pre id="debug-script"></pre>
+    
+    <script>
+        // Load debug script content and display it
+        fetch('/debug-add-record-test.js')
+            .then(response => response.text())
+            .then(scriptContent => {
+                document.getElementById('debug-script').textContent = scriptContent;
+            })
+            .catch(error => {
+                document.getElementById('debug-script').textContent = 'Debug script yüklenemedi: ' + error.message;
+            });
+    </script>
+</body>
+</html>

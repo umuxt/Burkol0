@@ -1,12 +1,13 @@
 // Compact Settings Modal - Modular tab-based settings interface
 import PricingTab from '../settings/DynamicPricingTab.js'
 import FormTab from '../settings/FormTab.js'
+import UsersTab from '../settings/UsersTab.js'
 
 const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
 const { useState } = ReactGlobal
 
 function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification }) {
-  const [activeTab, setActiveTab] = useState('pricing') // 'pricing' | 'form'
+  const [activeTab, setActiveTab] = useState('pricing') // 'pricing' | 'form' | 'users'
 
   function handleClose() {
     onSettingsUpdated()
@@ -69,7 +70,21 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
             borderRadius: '4px 4px 0 0',
             marginLeft: '5px'
           }
-        }, t.settings_form_tab || 'Form Yapısı')
+        }, t.settings_form_tab || 'Form Yapısı'),
+        
+        ReactGlobal.createElement('button', {
+          className: `tab-button ${activeTab === 'users' ? 'active' : ''}`,
+          onClick: () => setActiveTab('users'),
+          style: {
+            padding: '10px 20px',
+            border: 'none',
+            background: activeTab === 'users' ? '#007bff' : 'transparent',
+            color: activeTab === 'users' ? 'white' : '#007bff',
+            cursor: 'pointer',
+            borderRadius: '4px 4px 0 0',
+            marginLeft: '5px'
+          }
+        }, t.settings_users_tab || 'Kullanıcılar')
       ),
 
       // Tab content
@@ -80,6 +95,11 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
         }),
         
         activeTab === 'form' && ReactGlobal.createElement(FormTab, {
+          t,
+          showNotification
+        }),
+
+        activeTab === 'users' && ReactGlobal.createElement(UsersTab, {
           t,
           showNotification
         })
