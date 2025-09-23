@@ -293,7 +293,7 @@ function DynamicPricingTab({ t, showNotification }) {
       setFormulaValidation({
         isValid: false,
         message: userValidation.errors.join(', '),
-        suggestions: [`Kullanılabilir parametreler: ${userValidation.availableLetters.join(', ')}`]
+        suggestions: [`${t.formula_validate_params || 'Kullanılabilir parametreler:'} ${userValidation.availableLetters.join(', ')}`]
       })
       setIsFormulaValid(false)
       return
@@ -337,20 +337,20 @@ function DynamicPricingTab({ t, showNotification }) {
       !isLoadingFields && ReactGlobal.createElement(ReactGlobal.Fragment, null,
         // Add parameter form
         ReactGlobal.createElement('div', { className: 'form-group' },
-          ReactGlobal.createElement('label', null, 'Parametre Türü'),
+          ReactGlobal.createElement('label', null, t.pricing_param_type || 'Parametre Türü'),
           ReactGlobal.createElement('select', {
             value: parameterType,
             onChange: (e) => setParameterType(e.target.value),
             className: 'form-control'
           },
-            ReactGlobal.createElement('option', { value: '' }, 'Seçiniz...'),
-            ReactGlobal.createElement('option', { value: 'fixed' }, '🔢 Sabit Değer'),
-            ReactGlobal.createElement('option', { value: 'form' }, '📝 Form Verisinden')
+            ReactGlobal.createElement('option', { value: '' }, t.pricing_select || 'Seçiniz...'),
+            ReactGlobal.createElement('option', { value: 'fixed' }, '🔢 ' + (t.pricing_fixed_param || 'Sabit Değer')),
+            ReactGlobal.createElement('option', { value: 'form' }, '📝 ' + (t.pricing_form_param || 'Form Verisinden'))
           )
         ),
 
         parameterType === 'fixed' && ReactGlobal.createElement('div', { className: 'form-group' },
-          ReactGlobal.createElement('label', null, 'Parametre Adı'),
+          ReactGlobal.createElement('label', null, t.pricing_param_name || 'Parametre Adı'),
           ReactGlobal.createElement('input', {
             type: 'text',
             value: parameterName,
@@ -361,7 +361,7 @@ function DynamicPricingTab({ t, showNotification }) {
         ),
 
         parameterType === 'fixed' && ReactGlobal.createElement('div', { className: 'form-group' },
-          ReactGlobal.createElement('label', null, 'Sabit Değer'),
+          ReactGlobal.createElement('label', null, t.pricing_fixed_value || 'Sabit Değer'),
           ReactGlobal.createElement('input', {
             type: 'number',
             value: fixedValue,
@@ -374,17 +374,17 @@ function DynamicPricingTab({ t, showNotification }) {
 
         parameterType === 'form' && ReactGlobal.createElement('div', null,
           ReactGlobal.createElement('div', { className: 'form-group' },
-            ReactGlobal.createElement('label', null, 'Form Alanı'),
+            ReactGlobal.createElement('label', null, t.pricing_form_field || 'Form Alanı'),
             formFields.length === 0 ? 
               ReactGlobal.createElement('div', { className: 'alert alert-warning' },
-                'Henüz form alanı bulunmuyor. Önce Form Düzenleme menüsünden form alanları oluşturun.'
+                t.pricing_no_form_fields || 'Henüz form alanı bulunmuyor. Önce Form Düzenleme menüsünden form alanları oluşturun.'
               ) :
               ReactGlobal.createElement('select', {
                 value: selectedFormField,
                 onChange: (e) => setSelectedFormField(e.target.value),
                 className: 'form-control'
               },
-                ReactGlobal.createElement('option', { value: '' }, 'Seçiniz...'),
+                ReactGlobal.createElement('option', { value: '' }, t.pricing_select || 'Seçiniz...'),
                 ...formFields.map(field =>
                   ReactGlobal.createElement('option', { key: field.value, value: field.value }, 
                     `${field.label} (${field.type})`
@@ -395,7 +395,7 @@ function DynamicPricingTab({ t, showNotification }) {
 
           // Show auto parameter name for clarity (read-only)
           selectedFormField && ReactGlobal.createElement('div', { className: 'form-group' },
-            ReactGlobal.createElement('label', null, 'Parametre Adı (otomatik)'),
+            ReactGlobal.createElement('label', null, t.pricing_param_name_auto || 'Parametre Adı (otomatik)'),
             ReactGlobal.createElement('input', {
               type: 'text',
               value: (formFields.find(f => f.value === selectedFormField)?.label || ''),

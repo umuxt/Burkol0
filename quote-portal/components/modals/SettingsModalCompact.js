@@ -55,7 +55,7 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
             cursor: 'pointer',
             borderRadius: '4px 4px 0 0'
           }
-        }, 'Fiyatlandırma'),
+        }, t.settings_pricing_tab || 'Fiyatlandırma'),
         
         ReactGlobal.createElement('button', {
           className: `tab-button ${activeTab === 'form' ? 'active' : ''}`,
@@ -69,7 +69,7 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
             borderRadius: '4px 4px 0 0',
             marginLeft: '5px'
           }
-        }, 'Form Yapısı')
+        }, t.settings_form_tab || 'Form Yapısı')
       ),
 
       // Tab content

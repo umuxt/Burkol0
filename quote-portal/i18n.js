@@ -108,38 +108,9 @@ export const dict = {
     ph_bend_count: 'Örn. 2',
     ph_budget_amount: 'Tutar',
     ph_address_optional: 'Opsiyonel',
-    // Dropdown option labels
-    opt_process: {
-      'Lazer Kesim': 'Lazer Kesim',
-      'Abkant Büküm': 'Abkant Büküm',
-      'Kaynak': 'Kaynak',
-      'CNC İşleme': 'CNC İşleme',
-      'Montaj': 'Montaj',
-      'Toz Boya': 'Toz Boya',
-      'Galvaniz': 'Galvaniz',
-      'Anodize': 'Anodize',
-    },
-    opt_material: {
-      'Mild Steel (S235/S355)': 'Yumuşak Çelik (S235/S355)',
-      'Stainless Steel (304/316)': 'Paslanmaz Çelik (304/316)',
-      'Aluminum (5052/6061/6082)': 'Alüminyum (5052/6061/6082)',
-      'Galvanized Steel': 'Galvanizli Çelik',
-      'Copper/Brass': 'Bakır/Pirinç',
-      'Other': 'Diğer',
-    },
-    opt_finish: {
-      'Ham': 'Ham',
-      'Zımpara': 'Zımpara',
-      'Toz Boya': 'Toz Boya',
-      'Galvaniz': 'Galvaniz',
-      'Anodize': 'Anodize',
-      'Diğer': 'Diğer',
-    },
+    // Tekrar ve durum seçenekleri
     repeat_one: 'Tek Seferlik',
     repeat_recurrent: 'Süreklilik',
-    anodize_clear: 'Şeffaf',
-    anodize_black: 'Siyah',
-    anodize_colored: 'Renkli',
     // Stepper
     next: 'Devam',
     back: 'Geri',
@@ -192,7 +163,25 @@ export const dict = {
     // Login
     remember_me: 'Beni hatırla',
     login_btn: 'Giriş Yap',
-    logout_btn: 'Çıkış Yap'
+    logout_btn: 'Çıkış Yap',
+    // Settings Tabs
+    settings_title: 'Ayarlar',
+    settings_pricing_tab: 'Fiyatlandırma',
+    settings_form_tab: 'Form Yapısı',
+    settings_form_subtitle: 'Müşteri teklif formunda gösterilecek alanları ve seçenekleri yönetin.',
+    settings_form_loading: 'Form yapılandırması yükleniyor...',
+    settings_form_config: 'Form Yapılandırması',
+    formula_validate_params: 'Kullanılabilir parametreler:',
+    pricing_param_type: 'Parametre Türü',
+    pricing_fixed_param: 'Sabit Değer',
+    pricing_form_param: 'Form Alanı',
+    pricing_param_name: 'Parametre Adı',
+    pricing_fixed_value: 'Sabit Değer',
+    pricing_form_field: 'Form Alanı',
+    pricing_param_name_auto: 'Parametre Adı (otomatik)',
+    pricing_select: 'Seçiniz...',
+    pricing_no_form_fields: 'Henüz form alanı bulunmuyor. Önce Form Düzenleme menüsünden form alanları oluşturun.',
+    close: 'Kapat'
   },
   en: {
     nav_quote: 'Request Quote',
@@ -298,38 +287,9 @@ export const dict = {
     ph_bend_count: 'e.g., 2',
     ph_budget_amount: 'Amount',
     ph_address_optional: 'Optional',
-    // Dropdown option labels
-    opt_process: {
-      'Lazer Kesim': 'Laser Cutting',
-      'Abkant Büküm': 'Bending',
-      'Kaynak': 'Welding',
-      'CNC İşleme': 'CNC Machining',
-      'Montaj': 'Assembly',
-      'Toz Boya': 'Powder Coating',
-      'Galvaniz': 'Galvanization',
-      'Anodize': 'Anodizing',
-    },
-    opt_material: {
-      'Mild Steel (S235/S355)': 'Mild Steel (S235/S355)',
-      'Stainless Steel (304/316)': 'Stainless Steel (304/316)',
-      'Aluminum (5052/6061/6082)': 'Aluminum (5052/6061/6082)',
-      'Galvanized Steel': 'Galvanized Steel',
-      'Copper/Brass': 'Copper/Brass',
-      'Other': 'Other',
-    },
-    opt_finish: {
-      'Ham': 'As-machined',
-      'Zımpara': 'Sanded',
-      'Toz Boya': 'Powder Coating',
-      'Galvaniz': 'Galvanized',
-      'Anodize': 'Anodized',
-      'Diğer': 'Other',
-    },
+    // Repetition options
     repeat_one: 'One-off',
     repeat_recurrent: 'Recurrent',
-    anodize_clear: 'Clear',
-    anodize_black: 'Black',
-    anodize_colored: 'Colored',
     // Stepper
     next: 'Next',
     back: 'Back',
@@ -382,13 +342,32 @@ export const dict = {
     // Login
     remember_me: 'Remember me',
     login_btn: 'Login',
-    logout_btn: 'Logout'
+    logout_btn: 'Logout',
+    // Settings Tabs
+    settings_title: 'Settings',
+    settings_pricing_tab: 'Pricing',
+    settings_form_tab: 'Form Structure',
+    settings_form_subtitle: 'Manage fields and options displayed in the customer quote form.',
+    settings_form_loading: 'Loading form configuration...',
+    settings_form_config: 'Form Configuration',
+    formula_validate_params: 'Available parameters:',
+    pricing_param_type: 'Parameter Type',
+    pricing_fixed_param: 'Fixed Value',
+    pricing_form_param: 'Form Field',
+    pricing_param_name: 'Parameter Name',
+    pricing_fixed_value: 'Fixed Value',
+    pricing_form_field: 'Form Field',
+    pricing_param_name_auto: 'Parameter Name (automatic)',
+    pricing_select: 'Select...',
+    pricing_no_form_fields: 'No form fields available yet. First create form fields from the Form Editing menu.',
+    close: 'Close'
   },
 }
 
-export function procLabel(p, t) { return (t.opt_process && t.opt_process[p]) || p }
-export function materialLabel(m, t) { return (t.opt_material && t.opt_material[m]) || m }
-export function finishLabel(f, t) { return (t.opt_finish && t.opt_finish[f]) || f }
+// Dinamik sistem için helper fonksiyonlar
+export function procLabel(p, t) { return p }
+export function materialLabel(m, t) { return m }
+export function finishLabel(f, t) { return f }
 export function tFor(lang) { return dict[lang] || dict.tr }
 export function statusLabel(s, t) {
   if (s === 'new') return t.s_new

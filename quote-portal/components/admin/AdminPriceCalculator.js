@@ -11,12 +11,15 @@ export function calculatePrice(quote, priceSettings) {
     
     priceSettings.parameters.forEach(param => {
       // Safety check for param object
-      if (!param || !param.id) {
+      if (!param || (!param.name && !param.id)) {
         return
       }
       
+      // Use parameter name instead of id for formula variables
+      const paramKey = param.name || param.id // Fallback to id if name is not available
+      
       if (param.type === 'fixed') {
-        paramValues[param.id] = parseFloat(param.value) || 0
+        paramValues[paramKey] = parseFloat(param.value) || 0
       } else if (param.type === 'form') {
         let value = 0
         
@@ -68,20 +71,22 @@ export function calculatePrice(quote, priceSettings) {
           }
         }
         
-        paramValues[param.id] = value
+        paramValues[paramKey] = value
       }
     })
 
     // Safely evaluate formula
-    // Replace parameter IDs with their values
+    // Replace parameter names with their values
     let formula = priceSettings.formula
     
-    // Sort parameters by ID length (descending) to avoid partial replacements
+    // Sort parameters by name length (descending) to avoid partial replacements
     const sortedParams = Object.keys(paramValues).sort((a, b) => b.length - a.length)
     
-    sortedParams.forEach(paramId => {
-      const regex = new RegExp('\\b' + paramId + '\\b', 'g')
-      formula = formula.replace(regex, paramValues[paramId])
+    sortedParams.forEach(paramName => {
+      // Escape special regex characters in parameter names
+      const escapedParamName = paramName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp('\\b' + escapedParamName + '\\b', 'g')
+      formula = formula.replace(regex, paramValues[paramName])
     })
 
     // Validate formula contains only numbers and basic operators

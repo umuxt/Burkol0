@@ -10,8 +10,11 @@ export function calculatePriceServer(quote, settings) {
     const paramValues = {}
     
     settings.parameters.forEach(param => {
+      // Use parameter name instead of id for formula variables
+      const paramKey = param.name || param.id // Fallback to id if name is not available
+      
       if (param.type === 'fixed') {
-        paramValues[param.id] = parseFloat(param.value) || 0
+        paramValues[paramKey] = parseFloat(param.value) || 0
       } else if (param.type === 'form') {
         let value = 0
         
@@ -58,17 +61,19 @@ export function calculatePriceServer(quote, settings) {
           }
         }
         
-        paramValues[param.id] = value
+        paramValues[paramKey] = value
       }
     })
 
     // Evaluate formula with comprehensive math functions
     let formula = settings.formula.replace(/^=/, '') // Remove leading =
     
-    // Replace parameter IDs with actual values
-    Object.keys(paramValues).forEach(paramId => {
-      const regex = new RegExp(`\\b${paramId}\\b`, 'g')
-      formula = formula.replace(regex, paramValues[paramId])
+    // Replace parameter names with actual values (case-sensitive)
+    Object.keys(paramValues).forEach(paramName => {
+      // Use word boundaries and escape special regex characters in parameter names
+      const escapedParamName = paramName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const regex = new RegExp(`\\b${escapedParamName}\\b`, 'g')
+      formula = formula.replace(regex, paramValues[paramName])
     })
 
     // Create comprehensive math context
