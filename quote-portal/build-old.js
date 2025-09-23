@@ -11,10 +11,9 @@ const __dirname = path.dirname(__filename)
 
 // Create dist directory
 const distDir = path.join(__dirname, 'dist')
-if (fs.existsSync(distDir)) {
-  fs.rmSync(distDir, { recursive: true })
+if (!fs.existsSync(distDir)) {
+  fs.mkdirSync(distDir)
 }
-fs.mkdirSync(distDir)
 
 // Copy static files - COMPLETE LIST
 const staticFiles = [
@@ -55,6 +54,24 @@ const staticDirs = [
 
 console.log('\n📁 Copying directories...\n')
 
+staticDirs.forEach(dir => {
+  const srcDir = path.join(__dirname, dir)
+  const destDir = path.join(distDir, dir)
+  
+  if (fs.existsSync(srcDir)) {
+    // Create destination directory
+    if (!fs.existsSync(destDir)) {
+      fs.mkdirSync(destDir, { recursive: true })
+    }
+    
+    // Copy directory contents recursively
+    copyDirectoryRecursive(srcDir, destDir)
+    console.log(`✅ Copied directory: ${dir}/`)
+  } else {
+    console.log(`❌ Missing directory: ${dir}/`)
+  }
+})
+
 // Recursive directory copy function
 function copyDirectoryRecursive(src, dest) {
   const entries = fs.readdirSync(src, { withFileTypes: true })
@@ -74,24 +91,6 @@ function copyDirectoryRecursive(src, dest) {
   })
 }
 
-staticDirs.forEach(dir => {
-  const srcDir = path.join(__dirname, dir)
-  const destDir = path.join(distDir, dir)
-  
-  if (fs.existsSync(srcDir)) {
-    // Create destination directory
-    if (!fs.existsSync(destDir)) {
-      fs.mkdirSync(destDir, { recursive: true })
-    }
-    
-    // Copy directory contents recursively
-    copyDirectoryRecursive(srcDir, destDir)
-    console.log(`✅ Copied directory: ${dir}/`)
-  } else {
-    console.log(`❌ Missing directory: ${dir}/`)
-  }
-})
-
 // Verify critical files exist in dist
 console.log('\n🔍 Verifying build...\n')
 
@@ -102,6 +101,7 @@ const criticalFiles = [
   'app.js',
   'settings-app.js',
   'components/admin/Admin.js',
+  'components/settings/SettingsApp.js',
   'lib/api.js'
 ]
 
@@ -125,3 +125,29 @@ if (allGood) {
   process.exit(1)
 }
 console.log('='.repeat(50))
+  if (fs.existsSync(srcDir)) {
+    copyDir(srcDir, destDir)
+    console.log(`Copied ${dir}/`)
+  }
+})
+
+function copyDir(src, dest) {
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true })
+  }
+  
+  const entries = fs.readdirSync(src, { withFileTypes: true })
+  
+  for (let entry of entries) {
+    const srcPath = path.join(src, entry.name)
+    const destPath = path.join(dest, entry.name)
+    
+    if (entry.isDirectory()) {
+      copyDir(srcPath, destPath)
+    } else {
+      fs.copyFileSync(srcPath, destPath)
+    }
+  }
+}
+
+console.log('Build completed for Vercel deployment!')
