@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "build": "node build.js",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "node test-automation.js",
     "test:smoke": "node scripts/firestore-smoke-test.js",
     "test:watch": "node test-automation.js --watch",
@@ -19,9 +21,12 @@
   "dependencies": {
     "@google-cloud/firestore": "^7.11.5",
     "express": "^4.19.2",
+    "firebase": "^12.3.0",
     "firebase-admin": "^13.5.0",
     "formulajs": "^1.0.8",
-    "hot-formula-parser": "^4.0.0"
+    "hot-formula-parser": "^4.0.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.3",
