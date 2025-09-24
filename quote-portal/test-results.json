@@ -5,64 +5,64 @@
     "failed": 7,
     "partial": 1,
     "successRate": "12.50",
-    "duration": 131526
+    "duration": 132391
   },
   "results": [
     {
       "test": "Form görüntüleme",
       "status": "FAIL",
       "details": "Form container bulunamadı",
-      "timestamp": "2025-09-17T19:43:45.367Z",
-      "duration": 6279
+      "timestamp": "2025-09-24T22:49:37.219Z",
+      "duration": 7084
     },
     {
       "test": "Form doldurma",
       "status": "FAIL",
-      "details": "Waiting for selector `input[name=\"name\"]` failed",
-      "timestamp": "2025-09-17T19:44:15.371Z",
-      "duration": 36282
+      "details": "Waiting for selector `input[name=\"name\"]` failed: Waiting failed: 30000ms exceeded",
+      "timestamp": "2025-09-24T22:50:07.222Z",
+      "duration": 37087
     },
     {
       "test": "Dosya yükleme",
       "status": "FAIL",
       "details": "File input bulunamadı",
-      "timestamp": "2025-09-17T19:44:15.387Z",
-      "duration": 36298
+      "timestamp": "2025-09-24T22:50:07.237Z",
+      "duration": 37102
     },
     {
       "test": "Form validation",
       "status": "FAIL",
-      "details": "Waiting for selector `input[name=\"email\"]` failed",
-      "timestamp": "2025-09-17T19:44:45.389Z",
-      "duration": 66300
+      "details": "Waiting for selector `input[name=\"email\"]` failed: Waiting failed: 30000ms exceeded",
+      "timestamp": "2025-09-24T22:50:37.240Z",
+      "duration": 67105
     },
     {
       "test": "Form submission",
       "status": "FAIL",
-      "details": "Waiting for selector `input[name=\"email\"]` failed",
-      "timestamp": "2025-09-17T19:45:15.397Z",
-      "duration": 96308
+      "details": "Waiting for selector `input[name=\"email\"]` failed: Waiting failed: 30000ms exceeded",
+      "timestamp": "2025-09-24T22:51:07.246Z",
+      "duration": 97111
     },
     {
       "test": "Admin Login",
       "status": "FAIL",
-      "details": "Waiting for selector `input[name=\"email\"]` failed",
-      "timestamp": "2025-09-17T19:45:45.596Z",
-      "duration": 126507
+      "details": "Waiting for selector `input[name=\"email\"]` failed: Waiting failed: 30000ms exceeded",
+      "timestamp": "2025-09-24T22:51:37.509Z",
+      "duration": 127375
     },
     {
       "test": "Teklif listesi",
       "status": "FAIL",
       "details": "Tablo bulunamadı",
-      "timestamp": "2025-09-17T19:45:50.600Z",
-      "duration": 131511
+      "timestamp": "2025-09-24T22:51:42.514Z",
+      "duration": 132379
     },
     {
       "test": "İstatistikler",
       "status": "PARTIAL",
       "details": "İstatistik elementi bulunamadı",
-      "timestamp": "2025-09-17T19:45:50.614Z",
-      "duration": 131525
+      "timestamp": "2025-09-24T22:51:42.525Z",
+      "duration": 132390
     }
   ]
 }

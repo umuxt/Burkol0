@@ -1,322 +1,259 @@
-import fs from 'fs'
+import admin from 'firebase-admin'
+import { readFile } from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-// Very small JSON store for quotes/users/sessions
-// Single-process friendly; writes atomically via tmp+rename.
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const ROOT = path.join(__dirname, '..')
-const DATA_FILE = process.env.BURKOL_DATA || path.join(ROOT, 'db.json')
-
-function ensureDir(p) {
-  const dir = path.dirname(p)
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-}
-
-function loadRaw() {
-  try {
-    const buf = fs.readFileSync(DATA_FILE)
-    const obj = JSON.parse(String(buf))
-    if (obj && typeof obj === 'object') return obj
-  } catch {}
-  return { quotes: {}, users: {}, sessions: {} }
-}
-
-function saveRaw(obj) {
-  ensureDir(DATA_FILE)
-  const tmp = DATA_FILE + '.tmp'
-  fs.writeFileSync(tmp, JSON.stringify(obj, null, 2))
-  fs.renameSync(tmp, DATA_FILE)
-}
-
-function nowISO() { return new Date().toISOString() }
-
-// Quote ops
-function listQuotes() {
-  const db = loadRaw()
-  return Object.values(db.quotes || {}).sort((a, b) => {
-    const ta = new Date(a.createdAt || 0).getTime()
-    const tb = new Date(b.createdAt || 0).getTime()
-    return tb - ta
+if (!admin.apps.length) {
+  const __filename = fileURLToPath(import.meta.url)
+  const __dirname = path.dirname(__filename)
+  const serviceAccountPath = path.join(__dirname, '..', 'serviceAccountKey.json')
+  const raw = await readFile(serviceAccountPath, 'utf8')
+  const serviceAccount = JSON.parse(raw)
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
   })
 }
+
+const db = admin.firestore()
+const quotesRef = db.collection('quotes')
+const usersRef = db.collection('users')
+const sessionsRef = db.collection('sessions')
+const settingsDoc = db.collection('settings').doc('main')
+const systemDoc = db.collection('system').doc('config')
+
+const state = {
+  ready: false,
+  quotes: [],
+  users: [],
+  sessions: [],
+  settings: {},
+  systemConfig: {}
+}
+
+function clone(value) {
+  return value === undefined || value === null ? value : JSON.parse(JSON.stringify(value))
+}
+
+function fireAndForget(promise, label) {
+  promise.catch(err => console.error(`[jsondb] ${label} failed:`, err))
+}
+
+async function bootstrap() {
+  const [quotesSnap, usersSnap, sessionsSnap, settingsSnap, systemSnap] = await Promise.all([
+    quotesRef.get(),
+    usersRef.get(),
+    sessionsRef.get(),
+    settingsDoc.get(),
+    systemDoc.get()
+  ])
+
+  state.quotes = quotesSnap.docs.map(doc => doc.data())
+  state.users = usersSnap.docs.map(doc => doc.data())
+  state.sessions = sessionsSnap.docs.map(doc => doc.data())
+  state.settings = settingsSnap.exists ? settingsSnap.data() : {}
+  state.systemConfig = systemSnap.exists ? systemSnap.data() : {}
+  state.ready = true
+}
+
+await bootstrap()
+
+quotesRef.onSnapshot(snapshot => {
+  state.quotes = snapshot.docs.map(doc => doc.data())
+}, err => console.error('[jsondb] quotes snapshot error:', err))
+
+usersRef.onSnapshot(snapshot => {
+  state.users = snapshot.docs.map(doc => doc.data())
+}, err => console.error('[jsondb] users snapshot error:', err))
+
+sessionsRef.onSnapshot(snapshot => {
+  state.sessions = snapshot.docs.map(doc => doc.data())
+}, err => console.error('[jsondb] sessions snapshot error:', err))
+
+settingsDoc.onSnapshot(doc => {
+  state.settings = doc.exists ? doc.data() : {}
+}, err => console.error('[jsondb] settings snapshot error:', err))
+
+systemDoc.onSnapshot(doc => {
+  state.systemConfig = doc.exists ? doc.data() : {}
+}, err => console.error('[jsondb] system snapshot error:', err))
+
+function ensureReady() {
+  if (!state.ready) {
+    throw new Error('jsondb not ready yet; Firestore bootstrap incomplete')
+  }
+}
+
+function listQuotes() {
+  ensureReady()
+  return clone(state.quotes)
+}
+
 function getQuote(id) {
-  const db = loadRaw()
-  return (db.quotes && db.quotes[id]) || null
+  ensureReady()
+  return clone(state.quotes.find(q => q.id === id) || null)
 }
-function putQuote(obj) {
-  const db = loadRaw()
-  if (!db.quotes) db.quotes = {}
-  const q = { ...obj }
-  if (!q.createdAt) q.createdAt = nowISO()
-  if (!q.status) q.status = 'new'
-  db.quotes[q.id] = q
-  saveRaw(db)
-  return q // Return the saved quote
+
+function putQuote(quote) {
+  ensureReady()
+  if (!quote?.id) throw new Error('Quote must include an id')
+  const idx = state.quotes.findIndex(q => q.id === quote.id)
+  const stored = { ...quote }
+  if (!stored.createdAt) stored.createdAt = new Date().toISOString()
+  if (!stored.status) stored.status = 'new'
+  if (idx >= 0) state.quotes[idx] = stored
+  else state.quotes.push(stored)
+  fireAndForget(quotesRef.doc(stored.id).set(stored), `putQuote(${stored.id})`)
+  return clone(stored)
 }
+
 function patchQuote(id, patch) {
-  const db = loadRaw()
-  if (!db.quotes || !db.quotes[id]) return false
-  const cur = db.quotes[id]
-  const merged = { ...cur, ...patch }
-  if (!merged.createdAt) merged.createdAt = cur.createdAt || nowISO()
-  if (!merged.status) merged.status = cur.status || 'new'
-  db.quotes[id] = merged
-  saveRaw(db)
+  ensureReady()
+  const idx = state.quotes.findIndex(q => q.id === id)
+  if (idx === -1) return false
+  const merged = { ...state.quotes[idx], ...patch }
+  state.quotes[idx] = merged
+  fireAndForget(quotesRef.doc(id).set(merged, { merge: true }), `patchQuote(${id})`)
   return true
 }
+
 function removeQuote(id) {
-  const db = loadRaw()
-  if (db.quotes && db.quotes[id]) { delete db.quotes[id]; saveRaw(db) }
+  ensureReady()
+  const idx = state.quotes.findIndex(q => q.id === id)
+  if (idx === -1) return false
+  state.quotes.splice(idx, 1)
+  fireAndForget(quotesRef.doc(id).delete(), `removeQuote(${id})`)
+  return true
 }
 
-// Users
-function getUser(email) {
-  const db = loadRaw()
-  return (db.users && db.users[email]) || null
-}
-function upsertUser(user) {
-  const db = loadRaw()
-  if (!db.users) db.users = {}
-  db.users[user.email] = user
-  saveRaw(db)
-}
-function listUsersRaw() {
-  const db = loadRaw()
-  return Object.values(db.users || {}).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-}
-function deleteUser(email) {
-  const db = loadRaw()
-  if (db.users && db.users[email]) { delete db.users[email]; saveRaw(db) }
+function getPriceSettings() {
+  ensureReady()
+  return clone(state.settings.priceSettings || null)
 }
 
-// Sessions
-function putSession(sess) {
-  const db = loadRaw()
-  if (!db.sessions) db.sessions = {}
-  db.sessions[sess.token] = sess
-  saveRaw(db)
-}
-function getSession(token) {
-  const db = loadRaw()
-  return (db.sessions && db.sessions[token]) || null
-}
-function deleteSession(sessionId) {
-  const db = loadRaw()
-  if (db.sessions && db.sessions[sessionId]) {
-    delete db.sessions[sessionId]
-    saveRaw(db)
-  }
-}
-
-// Settings ops
-function getSettings() {
-  const db = loadRaw()
-  return db.settings || null
-}
-function putSettings(obj) {
-  const db = loadRaw()
-  if (!db.settings) db.settings = {}
-  db.settings = { ...obj }
-  saveRaw(db)
-}
-
-// Form Config ops
-function getSystemConfig() {
-  const db = loadRaw()
-  return db.systemConfig || getDefaultSystemConfig()
-}
-
-function putSystemConfig(obj) {
-  const db = loadRaw()
-  db.systemConfig = {
-    ...obj,
-    version: (db.systemConfig?.version || 0) + 1,
-    lastModified: nowISO()
-  }
-  saveRaw(db)
+function savePriceSettings(settings) {
+  ensureReady()
+  state.settings.priceSettings = { ...settings }
+  fireAndForget(settingsDoc.set({ priceSettings: state.settings.priceSettings }, { merge: true }), 'savePriceSettings')
+  return clone(state.settings.priceSettings)
 }
 
 function getFormConfig() {
-  const systemConfig = getSystemConfig()
-  return systemConfig.formConfig
+  ensureReady()
+  return clone(state.settings.formConfig || null)
 }
 
-function putFormConfig(formConfig) {
-  const systemConfig = getSystemConfig()
-  
-  // Form config güncellendiğinde pricing config'i sıfırla
-  const newSystemConfig = {
-    ...systemConfig,
-    formConfig: {
-      ...formConfig,
-      version: (systemConfig.formConfig?.version || 0) + 1,
-      lastModified: nowISO()
-    },
-    pricingConfig: {
-      version: 1,
-      isConfigured: false,
-      parameters: [],
-      formula: "",
-      lastUpdated: nowISO(),
-      resetReason: "Form configuration updated"
-    },
-    migrationStatus: "pending"
-  }
-  
-  putSystemConfig(newSystemConfig)
+function putFormConfig(config) {
+  ensureReady()
+  state.settings.formConfig = { ...config }
+  fireAndForget(settingsDoc.set({ formConfig: state.settings.formConfig }, { merge: true }), 'putFormConfig')
+  return clone(state.settings.formConfig)
 }
 
-function resetPricingConfig() {
-  const systemConfig = getSystemConfig()
-  const newSystemConfig = {
-    ...systemConfig,
-    pricingConfig: {
-      version: 1,
-      isConfigured: false,
-      parameters: [],
-      formula: "",
-      lastUpdated: nowISO(),
-      resetReason: "Manual reset"
-    }
-  }
-  putSystemConfig(newSystemConfig)
+function resetPricingConfig(reason = 'Form configuration updated') {
+  ensureReady()
+  const entry = { reason, timestamp: new Date().toISOString() }
+  const history = Array.isArray(state.settings.pricingResets)
+    ? [...state.settings.pricingResets, entry]
+    : [entry]
+  state.settings.pricingResets = history
+  state.settings.lastPricingReset = entry
+  fireAndForget(settingsDoc.set({ pricingResets: history, lastPricingReset: entry }, { merge: true }), 'resetPricingConfig')
 }
 
-function getDefaultSystemConfig() {
-  return {
-    version: 1,
-    lastModified: nowISO(),
-    migrationStatus: "completed",
-    
-    formConfig: {
-      version: 1,
-      lastModified: nowISO(),
-      fields: [],
-      defaultFields: [
-        {
-          id: "name",
-          label: "Müşteri Adı",
-          type: "text",
-          required: true,
-          deletable: false,
-          display: {
-            showInTable: true,
-            showInFilter: false,
-            tableOrder: 1,
-            formOrder: 1
-          }
-        },
-        {
-          id: "company",
-          label: "Şirket",
-          type: "text",
-          required: false,
-          deletable: false,
-          display: {
-            showInTable: false,
-            showInFilter: false,
-            tableOrder: 0,
-            formOrder: 2
-          }
-        },
-        {
-          id: "email",
-          label: "E-posta",
-          type: "email",
-          required: true,
-          deletable: false,
-          display: {
-            showInTable: false,
-            showInFilter: false,
-            tableOrder: 0,
-            formOrder: 3
-          }
-        },
-        {
-          id: "phone",
-          label: "Telefon",
-          type: "phone",
-          required: true,
-          deletable: false,
-          display: {
-            showInTable: false,
-            showInFilter: false,
-            tableOrder: 0,
-            formOrder: 4
-          }
-        },
-        {
-          id: "proj",
-          label: "Proje",
-          type: "text",
-          required: true,
-          deletable: false,
-          display: {
-            showInTable: true,
-            showInFilter: true,
-            tableOrder: 3,
-            formOrder: 5
-          }
-        },
-        {
-          id: "createdAt",
-          label: "Tarih",
-          type: "date",
-          required: true,
-          deletable: false,
-          display: {
-            showInTable: true,
-            showInFilter: true,
-            tableOrder: 2,
-            formOrder: 0
-          }
-        }
-      ]
-    },
-    
-    pricingConfig: {
-      version: 1,
-      isConfigured: false,
-      parameters: [],
-      formula: "",
-      lastUpdated: nowISO()
-    }
-  }
+function getSettings() {
+  ensureReady()
+  return clone(state.settings)
+}
+
+function putSettings(settings) {
+  ensureReady()
+  state.settings = { ...state.settings, ...settings }
+  fireAndForget(settingsDoc.set(state.settings, { merge: true }), 'putSettings')
+  return clone(state.settings)
+}
+
+function listUsersRaw() {
+  ensureReady()
+  return clone(state.users)
+}
+
+function getUser(email) {
+  ensureReady()
+  return clone(state.users.find(u => u.email === email) || null)
+}
+
+function upsertUser(user) {
+  ensureReady()
+  if (!user?.email) throw new Error('User must include an email')
+  const idx = state.users.findIndex(u => u.email === user.email)
+  const stored = idx === -1 ? { ...user } : { ...state.users[idx], ...user }
+  if (idx === -1) state.users.push(stored)
+  else state.users[idx] = stored
+  fireAndForget(usersRef.doc(user.email).set(stored, { merge: true }), `upsertUser(${user.email})`)
+  return clone(stored)
+}
+
+function deleteUser(email) {
+  ensureReady()
+  const idx = state.users.findIndex(u => u.email === email)
+  if (idx === -1) return false
+  state.users.splice(idx, 1)
+  fireAndForget(usersRef.doc(email).delete(), `deleteUser(${email})`)
+  return true
+}
+
+function putSession(session) {
+  ensureReady()
+  if (!session?.token) throw new Error('Session must include a token')
+  state.sessions = state.sessions.filter(s => s.token !== session.token)
+  state.sessions.push({ ...session })
+  fireAndForget(sessionsRef.doc(session.token).set({ ...session }), `putSession(${session.token})`)
+}
+
+function getSession(token) {
+  ensureReady()
+  return clone(state.sessions.find(s => s.token === token) || null)
+}
+
+function deleteSession(token) {
+  ensureReady()
+  state.sessions = state.sessions.filter(s => s.token !== token)
+  fireAndForget(sessionsRef.doc(token).delete(), `deleteSession(${token})`)
+}
+
+function getSystemConfig() {
+  ensureReady()
+  return clone(state.systemConfig)
+}
+
+function putSystemConfig(config) {
+  ensureReady()
+  state.systemConfig = { ...state.systemConfig, ...config }
+  fireAndForget(systemDoc.set(state.systemConfig, { merge: true }), 'putSystemConfig')
+  return clone(state.systemConfig)
 }
 
 export default {
-  // quotes
   listQuotes,
   getQuote,
   putQuote,
   patchQuote,
   removeQuote,
-  // users
-  getUser,
-  upsertUser,
-  listUsersRaw,
-  deleteUser,
-  // sessions
-  putSession,
-  getSession,
-  deleteSession,
-  // settings
-  getSettings,
-  putSettings,
-  // price settings
-  getPriceSettings: getSettings,
-  savePriceSettings: putSettings,
-  // form config
-  getSystemConfig,
-  putSystemConfig,
+  delete: removeQuote,
+  getPriceSettings,
+  savePriceSettings,
   getFormConfig,
   putFormConfig,
   resetPricingConfig,
-  getDefaultSystemConfig,
-  // utils
-  DATA_FILE,
+  getSettings,
+  putSettings,
+  listUsersRaw,
+  getUser,
+  upsertUser,
+  deleteUser,
+  putSession,
+  getSession,
+  deleteSession,
+  getSystemConfig,
+  putSystemConfig
 }
-

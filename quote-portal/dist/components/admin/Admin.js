@@ -71,11 +71,36 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     status: [],
     dateRange: { from: '', to: '' },
     qtyRange: { min: '', max: '' }
-  })
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    refresh()
-  }, [])
+    setLoading(true);
+    const unsubscribe = db.collection('quotes')
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(snapshot => {
+        const quotesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setList(quotesData);
+        setLoading(false);
+      }, err => {
+        console.error("Firestore listener error:", err);
+        setError("Veriler yüklenirken bir hata oluştu.");
+        setLoading(false);
+      });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    // These can still be loaded once, or also be converted to listeners if they change often
+    loadPriceSettings();
+    loadFormConfig();
+    if (activeTab === 'users') {
+      loadUsers();
+    }
+  }, [activeTab]);
 
   async function refresh() {
     console.log('🔧 DEBUG: refresh() called')

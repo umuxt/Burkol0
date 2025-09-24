@@ -2,6 +2,197 @@
 import puppeteer from 'puppeteer'
 import fs from 'fs'
 import path from 'path'
+import { spawn } from 'child_process'
+import process from 'process'
+import jsondb from './lib/jsondb.js'
+
+async function pingServer(url) {
+  try {
+    const res = await fetch(url, { method: 'GET' })
+    return res.ok || res.status === 404
+  } catch (_) {
+    return false
+  }
+}
+
+async function waitForServer(url, timeout = 20000, interval = 500) {
+  const start = Date.now()
+  while (Date.now() - start < timeout) {
+    if (await pingServer(url)) return true
+    await new Promise(resolve => setTimeout(resolve, interval))
+  }
+  throw new Error(`Backend did not become ready within ${timeout}ms at ${url}`)
+}
+
+const DEFAULT_FORM_CONFIG = {
+  version: Date.now(),
+  lastPublishedAt: new Date().toISOString(),
+  formStructure: {
+    fields: [
+      {
+        id: 'material',
+        label: 'Malzeme Türü',
+        type: 'dropdown',
+        required: true,
+        options: ['Çelik', 'Alüminyum', 'Paslanmaz Çelik'],
+        display: { formOrder: 10 }
+      },
+      {
+        id: 'thickness',
+        label: 'Kalınlık (mm)',
+        type: 'number',
+        required: true,
+        validation: { min: 1, max: 200, integer: false },
+        display: { formOrder: 11 }
+      },
+      {
+        id: 'qty',
+        label: 'Adet',
+        type: 'number',
+        required: true,
+        validation: { min: 1, integer: true },
+        display: { formOrder: 12 }
+      },
+      {
+        id: 'notes',
+        label: 'Ek Notlar',
+        type: 'textarea',
+        required: false,
+        validation: { maxLength: 500 },
+        display: { formOrder: 13 }
+      },
+      {
+        id: 'drawings',
+        label: 'Teknik Çizimler',
+        type: 'file',
+        required: false,
+        display: { formOrder: 14 }
+      }
+    ],
+    metadata: {
+      seededBy: 'automation',
+      seededAt: new Date().toISOString()
+    }
+  }
+}
+
+const DEFAULT_PRICE_SETTINGS = {
+  version: 1,
+  formula: '(base_cost + (qty * unit_cost)) * margin',
+  parameters: [
+    { id: 'base_cost', name: 'Baz Maliyet', type: 'fixed', value: 250 },
+    { id: 'unit_cost', name: 'Birim İşçilik', type: 'fixed', value: 45 },
+    { id: 'margin', name: 'Kar Marjı', type: 'fixed', value: 1.25 },
+    { id: 'qty', name: 'Adet', type: 'form', formField: 'qty' }
+  ],
+  lastUpdated: new Date().toISOString()
+}
+
+const DEFAULT_ADMIN_USER = {
+  email: 'umutyalcin8@gmail.com',
+  plainPassword: 'burkol123',
+  role: 'admin',
+  active: true,
+  createdAt: new Date().toISOString()
+}
+
+async function seedFirestoreDefaults() {
+  const existingConfig = jsondb.getFormConfig()
+  if (!existingConfig || !(existingConfig.fields || existingConfig.formStructure?.fields)?.length) {
+    console.log('🌱 Seeding default form configuration into Firestore...')
+    jsondb.putFormConfig(DEFAULT_FORM_CONFIG)
+  }
+
+  const priceSettings = jsondb.getPriceSettings()
+  if (!priceSettings || !(priceSettings.parameters?.length)) {
+    console.log('🌱 Seeding default price settings into Firestore...')
+    jsondb.savePriceSettings(DEFAULT_PRICE_SETTINGS)
+  }
+
+  const adminUser = jsondb.getUser(DEFAULT_ADMIN_USER.email)
+  if (!adminUser) {
+    console.log('🌱 Seeding default admin user...')
+    jsondb.upsertUser({
+      ...DEFAULT_ADMIN_USER,
+      pw_hash: '',
+      pw_salt: '',
+      lastLoginAt: null
+    })
+  } else if (adminUser.plainPassword !== DEFAULT_ADMIN_USER.plainPassword || adminUser.active === false) {
+    jsondb.upsertUser({
+      ...adminUser,
+      plainPassword: DEFAULT_ADMIN_USER.plainPassword,
+      active: true,
+      deactivatedAt: null
+    })
+  }
+
+  const existingQuotes = jsondb.listQuotes()
+  if (!existingQuotes || existingQuotes.length === 0) {
+    console.log('🌱 Seeding sample quotes...')
+    const now = new Date().toISOString()
+    const samples = [
+      {
+        id: 'seed-quote-1',
+        name: 'Test Kullanıcı 1',
+        email: 'test1@burkol.com',
+        phone: '+905551112233',
+        proj: 'Otomasyon Test Projesi',
+        status: 'new',
+        createdAt: now,
+        qty: 50,
+        price: 8125,
+        calculatedPrice: 8125,
+        customFields: {
+          material: 'Çelik',
+          thickness: 8,
+          qty: 50,
+          notes: 'Laser kesim ve büküm',
+          drawings: []
+        }
+      },
+      {
+        id: 'seed-quote-2',
+        name: 'Test Kullanıcı 2',
+        email: 'test2@burkol.com',
+        phone: '+905556667788',
+        proj: 'Kaynaklı Parça İmalatı',
+        status: 'review',
+        createdAt: now,
+        qty: 20,
+        price: 4375,
+        calculatedPrice: 4375,
+        customFields: {
+          material: 'Alüminyum',
+          thickness: 5,
+          qty: 20,
+          notes: 'Isıl işlem dahil',
+          drawings: []
+        }
+      },
+      {
+        id: 'seed-quote-3',
+        name: 'Test Kullanıcı 3',
+        email: 'test3@burkol.com',
+        phone: '+905559998877',
+        proj: 'Paslanmaz Konstrüksiyon',
+        status: 'approved',
+        createdAt: now,
+        qty: 10,
+        price: 2812.5,
+        calculatedPrice: 2812.5,
+        customFields: {
+          material: 'Paslanmaz Çelik',
+          thickness: 12,
+          qty: 10,
+          notes: 'Gıda sınıfı kaynak',
+          drawings: []
+        }
+      }
+    ]
+    samples.forEach(sample => jsondb.putQuote(sample))
+  }
+}
 
 class BurkolTestRunner {
   constructor() {
@@ -10,12 +201,15 @@ class BurkolTestRunner {
     this.results = []
     this.baseUrl = 'http://localhost:3001'
     this.testStartTime = new Date()
+    this.serverProcess = null
+    this.managedServer = false
   }
 
   async init() {
     console.log('🚀 Burkol Test Automation başlatılıyor...')
+    const headlessMode = process.env.HEADLESS === 'false' ? false : 'new'
     this.browser = await puppeteer.launch({ 
-      headless: false, // Görünür browser
+      headless: headlessMode,
       defaultViewport: { width: 1920, height: 1080 },
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     })
@@ -32,7 +226,38 @@ class BurkolTestRunner {
         console.log(`📡 API Response: ${response.status()} ${response.url()}`)
       }
     })
+
+    this.page.on('pageerror', error => {
+      console.error('❌ Browser PageError:', error.message || error)
+    })
+
+    this.page.on('requestfailed', request => {
+      console.error('❌ Request failed:', request.url(), request.failure()?.errorText)
+    })
   }
+
+    async ensureServer() {
+      if (await pingServer(`${this.baseUrl}/index.html`)) {
+        console.log('ℹ️  Existing server detected, using current instance.')
+        this.managedServer = false
+        return
+      }
+
+      console.log('🚀 Backend sunucusu testler için başlatılıyor...')
+      this.serverProcess = spawn('node', ['server.js'], {
+        cwd: process.cwd(),
+        stdio: 'inherit'
+      })
+      this.managedServer = true
+
+      this.serverProcess.on('exit', code => {
+        if (this.managedServer) {
+          console.log(`⚠️  Test tarafından yönetilen sunucu beklenmedik şekilde kapandı (kod: ${code})`)
+        }
+      })
+
+      await waitForServer(`${this.baseUrl}/index.html`)
+    }
 
   async logResult(testName, status, details = '') {
     const result = {
@@ -398,10 +623,17 @@ class BurkolTestRunner {
     if (this.browser) {
       await this.browser.close()
     }
+    if (this.managedServer && this.serverProcess) {
+      this.serverProcess.kill()
+      this.serverProcess = null
+      this.managedServer = false
+    }
   }
 
   async run() {
     try {
+      await seedFirestoreDefaults()
+      await this.ensureServer()
       await this.init()
       
       await this.runUserTests()

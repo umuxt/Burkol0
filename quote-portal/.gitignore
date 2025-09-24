@@ -15,3 +15,6 @@ yarn-debug.log*
 
 # Server logs
 server.log
+
+# Service account key file
+serviceAccountKey.json

@@ -77,11 +77,29 @@
   </head>
   <body>
     <div id="root"></div>
+    <div id="modal-root"></div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore-compat.js"></script>
     <script>
-      window.BURKOL_APP = 'admin';
-      // Default API to same origin (works on VPS + local). Fallback to localhost for file:// usage.
-      window.BURKOL_API = window.BURKOL_API || (location.origin && location.origin !== 'null' ? location.origin : 'http://localhost:3001');
+      // Your web app's Firebase configuration
+      const firebaseConfig = {
+        apiKey: "AIzaSyCjk0dG1CjZECHzwT9cr9S19XhnMnTYgmI",
+        authDomain: "burkolmetal-726f3.firebaseapp.com",
+        projectId: "burkolmetal-726f3",
+        storageBucket: "burkolmetal-726f3.appspot.com",
+        messagingSenderId: "271422310075",
+        appId: "1:271422310075:web:0f466fc8deeed58f4d4b9e",
+        measurementId: "G-25LT6XSH60"
+      };
+
+      // Initialize Firebase
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.firestore();
     </script>
-    <script type="module" src="./app.js?v=20250917"></script>
+
+    <!-- React App -->
+    <script type="text/babel" data-presets="react,stage-2" src="app.js"></script>
   </body>
-  </html>
+</html>

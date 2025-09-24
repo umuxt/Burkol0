@@ -5,7 +5,7 @@ import { requireAuth } from './auth.js'
 import { persistFilesForQuote } from './fileHandler.js'
 import { calculatePriceServer } from './priceCalculator.js'
 
-// Data access functions
+// --- Data Access Helpers powered by jsondb ---
 export function readAll() {
   return jsondb.listQuotes()
 }
@@ -19,7 +19,8 @@ export function insert(obj) {
 }
 
 export function update(id, patch) {
-  return jsondb.patchQuote(id, patch)
+  const success = jsondb.patchQuote(id, patch)
+  return success ? jsondb.getQuote(id) : null
 }
 
 export function remove(id) {
@@ -27,8 +28,7 @@ export function remove(id) {
 }
 
 export function updateOne(id, patch) {
-  // jsondb has patchQuote; provide a stable update alias
-  return jsondb.patchQuote(id, patch)
+  return update(id, patch)
 }
 
 export function deleteOne(id) {
@@ -239,10 +239,15 @@ export function validateQuoteDataDynamic(q, formConfig) {
 export function setupQuoteRoutes(app, uploadsDir) {
   // Get all quotes (admin only)
   app.get('/api/quotes', requireAuth, (req, res) => {
-    console.log('🔧 DEBUG: GET /api/quotes called')
-    const quotes = readAll()
-    console.log('🔧 DEBUG: Returning', quotes.length, 'quotes')
-    return res.json(quotes)
+    try {
+      console.log('🔧 DEBUG: GET /api/quotes called');
+      const quotes = jsondb.listQuotes();
+      console.log('🔧 DEBUG: Returning', quotes.length, 'quotes');
+      return res.json(quotes);
+    } catch (error) {
+      console.error('Error fetching quotes:', error);
+      res.status(500).json({ error: 'Failed to fetch quotes' });
+    }
   })
 
   // Create new quote
@@ -250,8 +255,8 @@ export function setupQuoteRoutes(app, uploadsDir) {
     const q = req.body
     
     try {
-      // Get current form configuration for dynamic validation
-      const formConfig = jsondb.getFormConfig()
+    // Get current form configuration for dynamic validation
+    const formConfig = jsondb.getFormConfig()
       
       // Use dynamic validation if form config is available
       const validationErrors = formConfig ? 
@@ -306,7 +311,7 @@ export function setupQuoteRoutes(app, uploadsDir) {
         console.error('Price calculation failed:', priceError)
       }
 
-      const result = insert(q)
+      const result = jsondb.putQuote(q)
       res.json({ success: true, quote: result })
     } catch (error) {
       console.error('Quote creation error:', error)
@@ -404,7 +409,7 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
         return res.status(404).json({ error: 'Quote not found' })
       }
 
-      const priceSettings = jsondb.getPriceSettings()
+  const priceSettings = jsondb.getPriceSettings()
       if (!priceSettings) {
         return res.status(400).json({ error: 'Price settings not configured' })
       }

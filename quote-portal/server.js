@@ -6,12 +6,23 @@
 
 import express from 'express'
 import path from 'path'
+import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { setupAuthRoutes } from './server/authRoutes.js'
 import { setupQuoteRoutes, setupSettingsRoutes, setupExportRoutes } from './server/apiRoutes.js'
+import admin from 'firebase-admin'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json')
+const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'))
+
+// Initialize Firebase Admin SDK if it hasn't been initialized yet
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  })
+}
 
 const app = express()
 const PORT = process.env.PORT || 3001
