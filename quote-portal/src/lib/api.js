@@ -28,8 +28,40 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
   }
 }
 
-export const API_BASE = import.meta.env.VITE_API_BASE_URL || 
-  (import.meta.env.PROD ? '/api' : (window.BURKOL_API || 'http://localhost:3001'))
+// Robust API base URL detection that works regardless of Vercel build settings
+function getApiBase() {
+  // First try environment variable
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL
+  }
+  
+  // Runtime URL detection - most reliable for production
+  if (typeof window !== 'undefined' && window.location) {
+    const hostname = window.location.hostname
+    const protocol = window.location.protocol
+    
+    // Production domains
+    if (hostname.includes('vercel.app') || 
+        hostname.includes('burkol0.vercel.app') ||
+        hostname.includes('burkol') ||
+        protocol === 'https:') {
+      console.log('🔧 API: Production detected, using /api')
+      return '/api'
+    }
+    
+    // Local development
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      console.log('🔧 API: Development detected, using localhost:3001')
+      return window.BURKOL_API || 'http://localhost:3001'
+    }
+  }
+  
+  // Final fallback - assume production
+  console.log('🔧 API: Fallback to production /api')
+  return '/api'
+}
+
+export const API_BASE = getApiBase()
 
 function getToken() { 
   try { 
