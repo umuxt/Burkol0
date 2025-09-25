@@ -93,10 +93,15 @@ export function setupAuthRoutes(app) {
     
     try {
       const user = createUser(email, password, 'admin')
-      // Note: In production, you'd save this to database
+      // plainPassword alanını da ekle (admin panel uyumluluğu için)
+      user.plainPassword = password
+      user.active = true
+      user.createdAt = new Date().toISOString()
+      
+      jsondb.upsertUser(user)
       res.json({ success: true, message: 'User created successfully' })
     } catch (error) {
-      res.status(500).json({ error: 'User creation failed' })
+      res.status(500).json({ error: 'User creation failed: ' + error.message })
     }
   })
 
