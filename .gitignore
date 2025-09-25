@@ -86,6 +86,7 @@ typings/
 quote-portal/db.json
 quote-portal/db.json.tmp
 quote-portal/backup_*.json
+quote-portal/db_vps_backup.json
 
 # Upload directories
 quote-portal/uploads/*
