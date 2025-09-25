@@ -2,8 +2,6 @@
 import React from 'react';
 import * as Utils from '../../lib/utils.js'
 
-const React = React;
-
 // Safe formatPrice function with fallback
 const formatPrice = Utils.formatPrice || function(price, currency = 'TL') {
   const n = typeof price === 'number' ? price : (parseFloat(price) || 0)

@@ -226,9 +226,3 @@ function getBarColor(index) {
   ]
   return colors[index % colors.length]
 }
-
-function formatPrice(price) {
-  const n = typeof price === 'number' ? price : (parseFloat(price) || 0)
-  // Use dot decimals, no grouping; show TRY suffix
-  return `${n.toFixed(2)} TRY`
-}

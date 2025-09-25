@@ -3,7 +3,6 @@ import React from 'react';
 import API from '../../lib/api.js'
 import FormulaValidator from '../SimpleFormulaValidator.js'
 
-const React = React;
 const { useState, useEffect } = React;
 
 function PricingTab({ t, showNotification }) {
