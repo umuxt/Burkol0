@@ -1,4 +1,5 @@
 // Simple modal (ES module)
+import React from 'react'
 import { useI18n } from '../i18n/index.js'
 
 export default function Modal({ title, children, onClose }) {

@@ -1,4 +1,5 @@
 // FormBuilder - Main entry point using modular architecture
+import React from 'react'
 import { FormBuilderCompact } from './formBuilder/FormBuilderCompact.js'
 
 export default function FormBuilder({ onClose, showNotification, t, isDarkMode }) {

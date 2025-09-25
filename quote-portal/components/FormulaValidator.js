@@ -1,5 +1,6 @@
 // Formula Validator Component - Excel-like formula validation
 // Supports mathematical operations, IF/ELSE statements, and parameter references
+import React from 'react'
 
 // Dynamic import for CommonJS module
 let FormulaParser

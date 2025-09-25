@@ -1,4 +1,5 @@
 // Form Builder Compact - Main component using modular architecture
+import React from 'react'
 import API from '../../lib/api.js'
 import { FieldEditor } from './FieldEditor.js'
 import { FieldList } from './FieldList.js'

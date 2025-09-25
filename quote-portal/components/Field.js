@@ -1,4 +1,6 @@
 // Field component (ES module)
+import React from 'react'
+
 export default function Field({ label, children, help, className, style }) {
   const cls = ['card', className].filter(Boolean).join(' ')
   return React.createElement('div', { className: cls, style },

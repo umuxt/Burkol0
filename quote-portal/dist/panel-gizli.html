@@ -1,105 +1,14 @@
 <!doctype html>
 <html lang="tr">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Burkol | Admin</title>
-    <meta name="description" content="Burkol Metal - Admin paneli" />
-    
-    <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#3b82f6" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Burkol Admin" />
-    <meta name="msapplication-TileColor" content="#3b82f6" />
-    <meta name="msapplication-tap-highlight" content="no" />
-    
-    <!-- PWA Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="./img/icon-32.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="./img/icon-192.png" />
-    <link rel="apple-touch-icon" href="./img/icon-192.png" />
-    <link rel="manifest" href="./manifest.json" />
-
-    <!-- Critical styles inline for better performance -->
-    <link rel="stylesheet" href="./styles/main.css" />
-
-    <!-- Service Worker disabled for debugging -->
-    <script>
-      /*
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js')
-            .then((registration) => {
-              console.log('🔧 SW registered:', registration.scope)
-            })
-            .catch((error) => {
-              console.log('❌ SW registration failed:', error)
-            })
-        })
-      }
-      */
-      
-      // Clear any existing service workers
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister()
-            console.log('🧹 Service Worker unregistered')
-          }
-        })
-      }
-    </script>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Burkol | Admin</title>
-    <meta name="description" content="Burkol Metal - Admin paneli" />
-    
-    <!-- PWA Meta Tags -->
-    <meta name="theme-color" content="#3b82f6" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="apple-mobile-web-app-title" content="Burkol Admin" />
-    <meta name="msapplication-TileColor" content="#3b82f6" />
-    <meta name="msapplication-tap-highlight" content="no" />
-    
-    <!-- PWA Icons -->
-    <link rel="icon" type="image/png" sizes="32x32" href="./img/icon-32.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="./img/icon-192.png" />
-    <link rel="apple-touch-icon" href="./img/icon-192.png" />
-    <link rel="manifest" href="./manifest.json" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- React 18 via CDN - Development for debugging -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
+    <link rel="manifest" href="/assets/manifest-JtguDbAE.json">
+    <script type="module" crossorigin src="/assets/main-D0JSvMSr.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/main-C4CekK5F.css">
   </head>
   <body>
     <div id="root"></div>
-    <div id="modal-root"></div>
-
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.15.0/firebase-firestore-compat.js"></script>
-    <script>
-      // Your web app's Firebase configuration
-      const firebaseConfig = {
-        apiKey: "AIzaSyCjk0dG1CjZECHzwT9cr9S19XhnMnTYgmI",
-        authDomain: "burkolmetal-726f3.firebaseapp.com",
-        projectId: "burkolmetal-726f3",
-        storageBucket: "burkolmetal-726f3.appspot.com",
-        messagingSenderId: "271422310075",
-        appId: "1:271422310075:web:0f466fc8deeed58f4d4b9e",
-        measurementId: "G-25LT6XSH60"
-      };
-
-      // Initialize Firebase
-      firebase.initializeApp(firebaseConfig);
-      const db = firebase.firestore();
-    </script>
-
-    <!-- React App -->
-    <script type="text/babel" data-presets="react,stage-2" src="app.js"></script>
   </body>
 </html>

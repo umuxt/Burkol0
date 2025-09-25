@@ -1,15 +1,11 @@
+import React from 'react'
 import API from '../../lib/api.js'
 import { statusLabel, procLabel, materialLabel } from '../../i18n/index.js'
 import { getTableColumns, getFieldValue, formatFieldValue } from './AdminTableUtils.js'
 import { calculatePrice, needsPriceUpdate, getPriceChangeType, getChanges, getChangeReason, applyNewPrice } from './AdminPriceCalculator.js'
 import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from './AdminFilterUtils.js'
 import { calculateStatistics, BarChart } from './AdminStatistics.js'
-
-const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
-if (!ReactGlobal) {
-  throw new Error('React global not found. Ensure React CDN script loads before admin module.')
-}
-const { useState, useEffect, useMemo } = ReactGlobal
+const { useState, useEffect, useMemo } = React
 
 // Helper function to format change reasons with colors and field label conversion
 function formatChangeReasonWithColors(reason, formConfig) {

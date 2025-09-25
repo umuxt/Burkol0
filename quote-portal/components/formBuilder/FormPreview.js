@@ -1,4 +1,6 @@
 // Form Preview Component - Live preview of the form being built
+import React from 'react'
+
 const { useState } = React
 
 export function FormPreview({ fields, isDarkMode, t, showNotification }) {

@@ -1,4 +1,5 @@
 // Field Editor - Individual field creation and editing
+import React from 'react'
 import { FormBuilderUtils } from './FormBuilderUtils.js'
 
 const { useState, useEffect } = React
