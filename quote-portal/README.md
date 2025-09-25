@@ -289,3 +289,4 @@ Bu proje [MIT Lisansı](LICENSE) altında lisanslanmıştır.
 
 *Modern teknoloji ile metal işleme sektörüne özel çözümler*
 # Thu Sep 25 10:16:40 +03 2025
+# Force rebuild Thu Sep 25 10:33:40 +03 2025
