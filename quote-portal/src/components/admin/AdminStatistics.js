@@ -1,6 +1,5 @@
 // Admin Statistics - Data analysis and chart generation
-
-const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
+import React from 'react';
 
 export function calculateStatistics(list, metric = 'count') {
   const stats = {

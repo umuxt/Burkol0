@@ -1,11 +1,11 @@
 // Dynamic Pricing Tab Component - Completely redesigned dynamic pricing system
+import React from 'react';
 import API from '../../lib/api.js'
 import FormulaValidator from '../SimpleFormulaValidator.js'
 import PricingUtils from '../../lib/pricing-utils.js'
 import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'
 
-const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
-const { useState, useEffect } = ReactGlobal
+const { useState, useEffect } = React;
 
 function DynamicPricingTab({ t, showNotification }) {
   const [parameters, setParameters] = useState([])

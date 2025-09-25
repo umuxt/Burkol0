@@ -1,7 +1,7 @@
 // Admin Filter Utils - Filtering and search functionality
+import React from 'react';
 
-const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
-const { useMemo } = ReactGlobal
+const { useMemo } = React;
 
 export function createFilteredList(list, filters, globalSearch, formConfig) {
   return useMemo(() => {

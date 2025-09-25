@@ -1,7 +1,8 @@
 // Users Tab - User management interface for admin settings
+import React from 'react';
 import API from '../../lib/api.js'
 
-const { useState, useEffect } = React
+const { useState, useEffect } = React;
 
 export default function UsersTab({ t, showNotification }) {
   const [users, setUsers] = useState([])

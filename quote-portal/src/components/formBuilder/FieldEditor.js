@@ -1,7 +1,8 @@
 // Field Editor - Individual field creation and editing
+import React from 'react';
 import { FormBuilderUtils } from './FormBuilderUtils.js'
 
-const { useState, useEffect } = React
+const { useState, useEffect } = React;
 
 export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNotification }) {
   const [fieldForm, setFieldForm] = useState({

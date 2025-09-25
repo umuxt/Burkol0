@@ -1,8 +1,8 @@
 // Enhanced Formula Editor Component - Advanced formula editing with real-time validation
+import React from 'react';
 import PricingUtils from '../../lib/pricing-utils.js'
 
-const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
-const { useState, useEffect, useRef } = ReactGlobal
+const { useState, useEffect, useRef } = React;
 
 function EnhancedFormulaEditor({ 
   value = '', 

@@ -1,9 +1,9 @@
 // Form Configuration Tab - Dynamic form builder management
+import React from 'react';
 import API from '../../lib/api.js'
 import { FormBuilderCompact } from '../formBuilder/FormBuilderCompact.js'
 
-const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
-const { useState, useEffect } = ReactGlobal
+const { useState, useEffect } = React;
 
 function FormTab({ t, showNotification }) {
   const [formConfig, setFormConfig] = useState(null)
