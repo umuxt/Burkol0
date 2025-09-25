@@ -12,7 +12,7 @@
   "rewrites": [
     { 
       "source": "/api/:path*", 
-      "destination": "https://test-burkolmetal.com/api/:path*" 
+      "destination": "https://api.test-burkolmetal.com/api/:path*" 
     }
   ],
   "headers": [
