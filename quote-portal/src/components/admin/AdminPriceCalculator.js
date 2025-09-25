@@ -98,6 +98,12 @@ export function calculatePrice(quote, priceSettings) {
 
     console.log('🔍 FORMULA AFTER REPLACEMENT:', formula)
 
+    // Remove leading = if present (Excel-style formulas)
+    if (formula.startsWith('=')) {
+      formula = formula.substring(1)
+      console.log('🔍 FORMULA AFTER = REMOVAL:', formula)
+    }
+
     // Validate formula contains only numbers and basic operators
     if (!/^[\d\s+\-*/().]+$/.test(formula)) {
       console.warn('❌ Invalid formula characters detected:', formula)
