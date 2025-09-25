@@ -1,5 +1,6 @@
 // Simple Formula Validator Component - Basic validation without external dependencies
 // Supports mathematical operations, IF/ELSE statements, and parameter references
+import React from 'react';
 
 export default function FormulaValidator({ formula, parameters, onValidation }) {
   const [validationResult, setValidationResult] = React.useState(null)

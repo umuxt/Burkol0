@@ -1,3 +1,5 @@
+import React from 'react';
+
 export function FilterPopup({ filters, filterOptions, onFilterChange, onClose, t, formConfig }) {
   const [activeTab, setActiveTab] = React.useState('status')
   

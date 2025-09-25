@@ -1,3 +1,5 @@
+import React from 'react';
+
 export function ToastNotification({ message, type = 'success', onClose }) {
   const toastStyle = {
     position: 'fixed',

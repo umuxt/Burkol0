@@ -1,3 +1,4 @@
+import React from 'react';
 import API, { API_BASE } from '../../lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../lib/utils.js'
 import { statusLabel } from '../../i18n/index.js'
