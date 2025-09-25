@@ -1,0 +1,108 @@
+/* Toast/Notification Component Styles */
+
+.toast-container {
+  position: fixed;
+  top: var(--spacing-lg);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin-bottom: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--font-size-base);
+  font-weight: 500;
+  min-width: 300px;
+  max-width: 500px;
+  pointer-events: all;
+  animation: slideInDown var(--transition-normal);
+}
+
+.toast.success {
+  background: var(--btn-success);
+  color: white;
+  border-left: 4px solid #1e7e34;
+}
+
+.toast.error {
+  background: var(--btn-danger);
+  color: white;
+  border-left: 4px solid #bd2130;
+}
+
+.toast.warning {
+  background: var(--btn-warning);
+  color: white;
+  border-left: 4px solid #d39e00;
+}
+
+.toast.info {
+  background: var(--btn-primary);
+  color: white;
+  border-left: 4px solid #0056b3;
+}
+
+.toast-icon {
+  font-size: var(--font-size-lg);
+  flex-shrink: 0;
+}
+
+.toast-content {
+  flex: 1;
+}
+
+.toast-close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: var(--font-size-lg);
+  padding: 0;
+  opacity: 0.8;
+  transition: opacity var(--transition-fast);
+}
+
+.toast-close:hover {
+  opacity: 1;
+}
+
+.toast.slide-out {
+  animation: slideOutUp var(--transition-normal);
+}
+
+/* Progress Bar for Auto-dismiss */
+.toast-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.3);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  transition: width linear;
+}
+
+/* Multiple toasts stacking */
+.toast:not(:last-child) {
+  margin-bottom: var(--spacing-sm);
+}
+
+.toast:nth-child(2) {
+  transform: scale(0.95) translateY(-10px);
+  opacity: 0.9;
+}
+
+.toast:nth-child(3) {
+  transform: scale(0.9) translateY(-20px);
+  opacity: 0.8;
+}
+
+.toast:nth-child(n+4) {
+  display: none;
+}

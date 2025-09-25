@@ -1,0 +1,301 @@
+/* Admin Panel Component Styles */
+
+.admin-panel {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.admin-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--font-size-2xl);
+}
+
+.admin-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+/* Search and Filter Controls */
+.admin-controls {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.search-box {
+  flex: 1;
+  min-width: 250px;
+  max-width: 400px;
+}
+
+.search-box input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.05);
+  color: var(--text);
+  font-size: var(--font-size-base);
+}
+
+.search-box input::placeholder {
+  color: var(--muted);
+}
+
+.search-box input:focus {
+  border-color: var(--accent);
+  background: rgba(255,255,255,0.08);
+}
+
+.filter-controls {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+}
+
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--accent);
+  color: #000;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.filter-badge .remove {
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--transition-fast);
+}
+
+.filter-badge .remove:hover {
+  opacity: 1;
+}
+
+/* Statistics Cards */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.stat-card {
+  background: linear-gradient(135deg, var(--surface), #0c1924);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  text-align: center;
+}
+
+.stat-card h3 {
+  margin: 0 0 var(--spacing-xs) 0;
+  font-size: var(--font-size-2xl);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.stat-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Price Review Modal */
+.price-review-modal {
+  max-width: 600px;
+}
+
+.price-review-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.price-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.price-indicator.increase {
+  background: rgba(255,107,107,0.2);
+  color: var(--price-increase);
+  border: 1px solid var(--price-increase);
+}
+
+.price-indicator.decrease {
+  background: rgba(81,207,102,0.2);
+  color: var(--price-decrease);
+  border: 1px solid var(--price-decrease);
+}
+
+.price-indicator.neutral {
+  background: rgba(108,117,125,0.2);
+  color: var(--price-neutral);
+  border: 1px solid var(--price-neutral);
+}
+
+.price-changes {
+  background: var(--change-detail-bg);
+  border: 1px solid var(--change-detail-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  margin: var(--spacing-md) 0;
+}
+
+.price-changes h4 {
+  margin: 0 0 var(--spacing-sm) 0;
+  color: var(--text);
+  font-size: var(--font-size-base);
+}
+
+.change-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.change-item:last-child {
+  border-bottom: none;
+}
+
+.change-label {
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+}
+
+.change-value {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.change-value.increase {
+  color: var(--price-increase);
+}
+
+.change-value.decrease {
+  color: var(--price-decrease);
+}
+
+/* Bulk Actions */
+.bulk-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: center;
+  padding: var(--spacing-md);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.bulk-actions .selected-count {
+  color: var(--accent);
+  font-weight: 600;
+  margin-right: var(--spacing-sm);
+}
+
+/* Status Indicators */
+.status {
+  display: inline-block;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.status.new {
+  background: rgba(23,162,184,0.2);
+  color: var(--status-new);
+  border: 1px solid var(--status-new);
+}
+
+.status.pending {
+  background: rgba(255,193,7,0.2);
+  color: var(--status-pending);
+  border: 1px solid var(--status-pending);
+}
+
+.status.approved {
+  background: rgba(40,167,69,0.2);
+  color: var(--status-approved);
+  border: 1px solid var(--status-approved);
+}
+
+.status.rejected {
+  background: rgba(220,53,69,0.2);
+  color: var(--status-rejected);
+  border: 1px solid var(--status-rejected);
+}
+
+/* Admin Form Overrides */
+.admin-panel input,
+.admin-panel select,
+.admin-panel textarea {
+  background: rgba(255,255,255,0.05) !important;
+  color: var(--text) !important;
+  border: 1px solid rgba(255,255,255,0.2) !important;
+}
+
+.admin-panel input:focus,
+.admin-panel select:focus,
+.admin-panel textarea:focus {
+  background: rgba(255,255,255,0.08) !important;
+  border-color: var(--accent) !important;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .admin-header {
+    flex-direction: column;
+    gap: var(--spacing-md);
+    align-items: stretch;
+  }
+  
+  .admin-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .search-box {
+    max-width: none;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .bulk-actions {
+    flex-wrap: wrap;
+  }
+}

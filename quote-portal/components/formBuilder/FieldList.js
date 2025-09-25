@@ -1,6 +1,5 @@
 // Field List Component - Display and manage existing form fields
-import React from 'react';
-const { useState } = React;
+const { useState } = React
 
 export function FieldList({ fields, onEditField, onDeleteField, onDuplicateField, onReorderField, showNotification }) {
   const [draggedIndex, setDraggedIndex] = useState(null)

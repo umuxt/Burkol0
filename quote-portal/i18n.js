@@ -1,6 +1,5 @@
 // i18n dictionary and helpers (ES module)
-import React from 'react';
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo } = React
 
 export const dict = {
   tr: {

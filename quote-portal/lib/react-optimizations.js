@@ -1,6 +1,5 @@
 // React Performance Optimizations - HOCs and hooks for component optimization
-import React from 'react';
-const { memo, useMemo, useCallback, useState, useEffect, useRef } = React;
+const { memo, useMemo, useCallback, useState, useEffect, useRef } = React
 
 // Higher-Order Component for memoization with custom comparison
 export function withMemoization(Component, propsAreEqual = null) {
