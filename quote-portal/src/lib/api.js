@@ -28,7 +28,7 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
   }
 }
 
-export const API_BASE = (window.BURKOL_API || 'http://localhost:3001')
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || (window.BURKOL_API || 'http://localhost:3001')
 
 function getToken() { 
   try { 
