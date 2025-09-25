@@ -52,6 +52,15 @@ export function getFieldValue(quote, fieldId) {
 }
 
 export function formatFieldValue(value, column, item, context) {
+  // Normalize values to avoid passing objects/undefined to React DOM (prevents React error #130)
+  const normalize = (v) => {
+    if (v === null || v === undefined) return ''
+    if (Array.isArray(v)) return v.join(', ')
+    if (typeof v === 'object') return JSON.stringify(v)
+    return v
+  }
+  value = normalize(value)
+
   // If context is provided, this is for table display with special handling
   if (context) {
     const { getPriceChangeType, setSettingsModal, setPriceReview, calculatePrice, statusLabel, t } = context;

@@ -1,18 +1,18 @@
 {
-  "buildCommand": "VITE_API_BASE_URL=/api npm run build",
+  "buildCommand": "VITE_API_BASE_URL= npm run build",
   "outputDirectory": "dist",
   "env": {
-    "VITE_API_BASE_URL": "/api"
+    "VITE_API_BASE_URL": ""
   },
   "build": {
     "env": {
-      "VITE_API_BASE_URL": "/api"
+      "VITE_API_BASE_URL": ""
     }
   },
   "rewrites": [
     { 
       "source": "/api/:path*", 
-      "destination": "https://api.test-burkolmetal.com/:path*" 
+      "destination": "https://api.test-burkolmetal.com/api/:path*" 
     }
   ],
   "headers": [

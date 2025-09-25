@@ -48,20 +48,11 @@ export default function UsersTab({ t, showNotification }) {
       }
 
       setLoading(true)
-      
-      // Login API'si ile kullanıcıyı doğrula
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: accessCredentials.email,
-          password: accessCredentials.password
-        })
-      })
 
-      const result = await response.json()
+      // Merkezi API istemcisini kullanarak login ol (token depolama dahil)
+      const result = await API.login(accessCredentials.email, accessCredentials.password, true)
 
-      if (!response.ok) {
+      if (!result || !result.user) {
         showNotification(t.admin_access_invalid || 'Geçersiz kullanıcı bilgileri', 'error')
         return
       }
@@ -77,6 +68,9 @@ export default function UsersTab({ t, showNotification }) {
       setShowAccessModal(false)
       setAccessCredentials({ email: '', password: '' })
       showNotification(t.admin_access_granted || 'Admin erişimi onaylandı', 'success')
+
+      // Girişten sonra kullanıcı listesini yükle
+      await loadUsers()
       
     } catch (e) {
       console.error('Admin access error:', e)
