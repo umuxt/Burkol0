@@ -94,6 +94,20 @@ quote-portal/uploads/*
 # Log files
 quote-portal/logs/*
 !quote-portal/logs/.gitkeep
+*.log
+logs/
+server.log
+
+# Test result files and logs
+testing/**/test-results-*.log
+testing/**/*.log
+admin-test.log
+error-test.log
+performance-test.log
+user-test.log
+advanced-test.log
+issues.log
+ultra-deep-test.log
 
 # OS generated files
 .DS_Store
