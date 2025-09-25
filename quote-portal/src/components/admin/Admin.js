@@ -1,6 +1,8 @@
 import React from 'react';
 import API from '../../lib/api.js'
 import { statusLabel, procLabel, materialLabel } from '../../i18n/index.js'
+import { db } from '../../firebase-config.js'
+import { collection, orderBy, onSnapshot, query } from 'firebase/firestore'
 import { getTableColumns, getFieldValue, formatFieldValue } from './AdminTableUtils.js'
 import { calculatePrice, needsPriceUpdate, getPriceChangeType, getChanges, getChangeReason, applyNewPrice } from './AdminPriceCalculator.js'
 import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from './AdminFilterUtils.js'
@@ -74,9 +76,9 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
 
   useEffect(() => {
     setLoading(true);
-    const unsubscribe = db.collection('quotes')
-      .orderBy('createdAt', 'desc')
-      .onSnapshot(snapshot => {
+    const quotesRef = collection(db, 'quotes');
+    const q = query(quotesRef, orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
         const quotesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setList(quotesData);
         setLoading(false);
