@@ -1,7 +1,7 @@
 // Service Worker for Burkol Quote Portal PWA
-const CACHE_NAME = 'burkol-quote-portal-v1.2'
-const STATIC_CACHE = 'burkol-static-v1.2'
-const DYNAMIC_CACHE = 'burkol-dynamic-v1.2'
+const CACHE_NAME = 'burkol-quote-portal-v1.3'
+const STATIC_CACHE = 'burkol-static-v1.3'
+const DYNAMIC_CACHE = 'burkol-dynamic-v1.3'
 
 // Files to cache immediately
 const STATIC_ASSETS = [
