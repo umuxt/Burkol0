@@ -32,10 +32,6 @@
         <div id="api-result"></div>
     </div>
 
-    <!-- React CDN -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
     <script>
         // Test 1: Basic HTML inputs
         function testBasicInput() {
@@ -48,47 +44,6 @@
                 <p>Textarea value: "${textarea.value}"</p>
                 <p>Input focused: ${document.activeElement === input}</p>
             `;
-        }
-
-        // Test 2: React createElement input
-        if (typeof React !== 'undefined' && typeof ReactDOM !== 'undefined') {
-            const { useState } = React;
-            const { createRoot } = ReactDOM;
-
-            function ReactInputTest() {
-                const [value, setValue] = useState('');
-                const [inputValue, setInputValue] = useState('');
-                
-                console.log('React input test rendered with value:', value);
-                
-                return React.createElement('div', null,
-                    React.createElement('h3', null, 'React Input Test'),
-                    React.createElement('input', {
-                        type: 'text',
-                        value: inputValue,
-                        placeholder: 'React input test',
-                        onChange: (e) => {
-                            console.log('React input change:', e.target.value);
-                            setInputValue(e.target.value);
-                        },
-                        onFocus: () => console.log('React input focused'),
-                        onBlur: () => console.log('React input blurred')
-                    }),
-                    React.createElement('p', null, `Current value: ${inputValue}`),
-                    React.createElement('button', {
-                        onClick: () => {
-                            setValue('test-' + Date.now());
-                            setInputValue('test-' + Date.now());
-                        }
-                    }, 'Set Test Value')
-                );
-            }
-
-            const reactContainer = document.getElementById('react-test');
-            const root = createRoot(reactContainer);
-            root.render(React.createElement(ReactInputTest));
-        } else {
-            document.getElementById('react-test').innerHTML = '<p style="color: red;">React not loaded!</p>';
         }
 
         // Test 3: API Test
@@ -110,8 +65,6 @@
         // Auto test on load
         setTimeout(() => {
             console.log('=== DEBUG TEST PAGE LOADED ===');
-            console.log('React available:', typeof React !== 'undefined');
-            console.log('ReactDOM available:', typeof ReactDOM !== 'undefined');
             
             // Test focus on basic input
             const basicInput = document.getElementById('basic-input');
@@ -120,6 +73,46 @@
                 console.log('Basic input focused');
             }
         }, 1000);
+    </script>
+    
+    <script type="module">
+        import React, { useState } from 'react';
+        import { createRoot } from 'react-dom/client';
+
+        function ReactInputTest() {
+            const [value, setValue] = useState('');
+            const [inputValue, setInputValue] = useState('');
+            
+            console.log('React input test rendered with value:', value);
+            
+            return React.createElement('div', null,
+                React.createElement('h3', null, 'React Input Test'),
+                React.createElement('input', {
+                    type: 'text',
+                    value: inputValue,
+                    placeholder: 'React input test',
+                    onChange: (e) => {
+                        console.log('React input change:', e.target.value);
+                        setInputValue(e.target.value);
+                    },
+                    onFocus: () => console.log('React input focused'),
+                    onBlur: () => console.log('React input blurred')
+                }),
+                React.createElement('p', null, `Current value: ${inputValue}`),
+                React.createElement('button', {
+                    onClick: () => {
+                        setValue('test-' + Date.now());
+                        setInputValue('test-' + Date.now());
+                    }
+                }, 'Set Test Value')
+            );
+        }
+
+        const reactContainer = document.getElementById('react-test');
+        if (reactContainer) {
+            const root = createRoot(reactContainer);
+            root.render(React.createElement(ReactInputTest));
+        }
     </script>
 </body>
 </html>

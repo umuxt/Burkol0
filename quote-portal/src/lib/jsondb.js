@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 if (!admin.apps.length) {
   const __filename = fileURLToPath(import.meta.url)
   const __dirname = path.dirname(__filename)
-  const serviceAccountPath = path.join(__dirname, '..', 'serviceAccountKey.json')
+  const serviceAccountPath = path.join(__dirname, '..', '..', 'serviceAccountKey.json')
   const raw = await readFile(serviceAccountPath, 'utf8')
   const serviceAccount = JSON.parse(raw)
   admin.initializeApp({

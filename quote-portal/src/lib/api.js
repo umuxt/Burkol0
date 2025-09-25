@@ -51,8 +51,8 @@ function getApiBase() {
     
     // Local development
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      console.log('🔧 API: Development detected, using localhost:3001')
-      return window.BURKOL_API || 'http://localhost:3001'
+      console.log('🔧 API: Development detected, using localhost:3002')
+      return window.BURKOL_API || 'http://localhost:3002'
     }
   }
   

@@ -4,7 +4,7 @@ import PricingTab from '../settings/DynamicPricingTab.js'
 import FormTab from '../settings/FormTab.js'
 import UsersTab from '../settings/UsersTab.js'
 
-const ReactGlobal = React;
+const React = React;
 const { useState } = React;
 
 function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification }) {
@@ -15,8 +15,8 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
     onClose()
   }
 
-  return ReactGlobal.createElement('div', { className: 'modal-overlay', onClick: handleClose },
-    ReactGlobal.createElement('div', { 
+  return React.createElement('div', { className: 'modal-overlay', onClick: handleClose },
+    React.createElement('div', { 
       className: 'modal-content',
       onClick: (e) => e.stopPropagation(),
       style: { 
@@ -27,9 +27,9 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
       }
     },
       // Modal header
-      ReactGlobal.createElement('div', { className: 'modal-header' },
-        ReactGlobal.createElement('h2', null, t.settings_title || 'Ayarlar'),
-        ReactGlobal.createElement('button', {
+      React.createElement('div', { className: 'modal-header' },
+        React.createElement('h2', null, t.settings_title || 'Ayarlar'),
+        React.createElement('button', {
           onClick: handleClose,
           className: 'btn btn-close',
           style: {
@@ -45,8 +45,8 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
       ),
 
       // Tab navigation
-      ReactGlobal.createElement('div', { className: 'tab-navigation', style: { borderBottom: '1px solid #ddd', marginBottom: '20px' } },
-        ReactGlobal.createElement('button', {
+      React.createElement('div', { className: 'tab-navigation', style: { borderBottom: '1px solid #ddd', marginBottom: '20px' } },
+        React.createElement('button', {
           className: `tab-button ${activeTab === 'pricing' ? 'active' : ''}`,
           onClick: () => setActiveTab('pricing'),
           style: {
@@ -59,7 +59,7 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
           }
         }, t.settings_pricing_tab || 'Fiyatlandırma'),
         
-        ReactGlobal.createElement('button', {
+        React.createElement('button', {
           className: `tab-button ${activeTab === 'form' ? 'active' : ''}`,
           onClick: () => setActiveTab('form'),
           style: {
@@ -73,7 +73,7 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
           }
         }, t.settings_form_tab || 'Form Yapısı'),
         
-        ReactGlobal.createElement('button', {
+        React.createElement('button', {
           className: `tab-button ${activeTab === 'users' ? 'active' : ''}`,
           onClick: () => setActiveTab('users'),
           style: {
@@ -89,26 +89,26 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
       ),
 
       // Tab content
-      ReactGlobal.createElement('div', { className: 'tab-content' },
-        activeTab === 'pricing' && ReactGlobal.createElement(PricingTab, {
+      React.createElement('div', { className: 'tab-content' },
+        activeTab === 'pricing' && React.createElement(PricingTab, {
           t,
           showNotification
         }),
         
-        activeTab === 'form' && ReactGlobal.createElement(FormTab, {
+        activeTab === 'form' && React.createElement(FormTab, {
           t,
           showNotification
         }),
 
-        activeTab === 'users' && ReactGlobal.createElement(UsersTab, {
+        activeTab === 'users' && React.createElement(UsersTab, {
           t,
           showNotification
         })
       ),
 
       // Modal footer
-      ReactGlobal.createElement('div', { className: 'modal-footer', style: { marginTop: '20px', textAlign: 'right' } },
-        ReactGlobal.createElement('button', {
+      React.createElement('div', { className: 'modal-footer', style: { marginTop: '20px', textAlign: 'right' } },
+        React.createElement('button', {
           onClick: handleClose,
           className: 'btn btn-secondary'
         }, t.close || 'Kapat')

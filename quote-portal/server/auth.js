@@ -1,6 +1,6 @@
-// Server Authentication Module - User management and session handling
+// Authentication system - User management and session handling
 import crypto from 'crypto'
-import jsondb from '../lib/jsondb.js'
+import jsondb from '../src/lib/jsondb.js'
 
 // Authentication functions
 export function hashPassword(password, salt) {

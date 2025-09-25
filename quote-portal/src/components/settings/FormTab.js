@@ -3,7 +3,7 @@ import React from 'react';
 import API from '../../lib/api.js'
 import { FormBuilderCompact } from '../formBuilder/FormBuilderCompact.js'
 
-const ReactGlobal = React;
+const React = React;
 const { useState, useEffect } = React;
 
 function FormTab({ t, showNotification }) {
@@ -39,21 +39,21 @@ function FormTab({ t, showNotification }) {
   }
 
   if (isLoading) {
-    return ReactGlobal.createElement('div', { className: 'form-tab loading' },
-      ReactGlobal.createElement('div', { style: { textAlign: 'center', padding: '40px' } },
-        ReactGlobal.createElement('div', { className: 'spinner' }),
-        ReactGlobal.createElement('p', null, t.settings_form_loading || 'Form yapılandırması yükleniyor...')
+    return React.createElement('div', { className: 'form-tab loading' },
+      React.createElement('div', { style: { textAlign: 'center', padding: '40px' } },
+        React.createElement('div', { className: 'spinner' }),
+        React.createElement('p', null, t.settings_form_loading || 'Form yapılandırması yükleniyor...')
       )
     )
   }
 
-  return ReactGlobal.createElement(ReactGlobal.Fragment, null,
-    ReactGlobal.createElement('h3', null, t.settings_form_config || 'Form Yapılandırması'),
-    ReactGlobal.createElement('p', { style: { color: '#666', marginBottom: '20px' } },
+  return React.createElement(React.Fragment, null,
+    React.createElement('h3', null, t.settings_form_config || 'Form Yapılandırması'),
+    React.createElement('p', { style: { color: '#666', marginBottom: '20px' } },
       t.settings_form_subtitle || 'Müşteri teklif formunda gösterilecek alanları ve seçenekleri yönetin.'
     ),
     
-    ReactGlobal.createElement(FormBuilderCompact, {
+    React.createElement(FormBuilderCompact, {
       isDarkMode: false,
       t,
       showNotification

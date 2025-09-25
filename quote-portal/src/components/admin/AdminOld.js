@@ -5,11 +5,11 @@ import { calculatePrice, needsPriceUpdate, getPriceChangeType, getChanges, getCh
 import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from './AdminFilterUtils.js'
 import { calculateStatistics, BarChart } from './AdminStatistics.js'
 
-const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
-if (!ReactGlobal) {
+const React = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
+if (!React) {
   throw new Error('React global not found. Ensure React CDN script loads before admin module.')
 }
-const { useState, useEffect, useMemo } = ReactGlobal
+const { useState, useEffect, useMemo } = React
 
 function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, FilterPopup }) {
   const [list, setList] = useState([])

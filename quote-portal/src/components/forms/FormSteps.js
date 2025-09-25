@@ -1,7 +1,7 @@
 // Form Steps - Step navigation and progress management
+import React from 'react';
 
 export function StepNavigation({ currentStep, totalSteps, onStepChange, stepHasErrors, furthest }) {
-  const React = window.React
   
   return React.createElement('div', { 
     className: 'step-navigation',
@@ -46,7 +46,6 @@ export function StepNavigation({ currentStep, totalSteps, onStepChange, stepHasE
 }
 
 export function StepHeader({ step, title, description }) {
-  const React = window.React
   
   return React.createElement('div', { 
     className: 'step-header',
@@ -76,7 +75,6 @@ export function StepHeader({ step, title, description }) {
 }
 
 export function StepProgress({ currentStep, totalSteps }) {
-  const React = window.React
   const progress = ((currentStep + 1) / totalSteps) * 100
   
   return React.createElement('div', { 
@@ -113,7 +111,6 @@ export function StepButtons({
   prevLabel = 'Geri',
   submitLabel = 'Gönder'
 }) {
-  const React = window.React
   const isLastStep = currentStep === totalSteps - 1
   
   return React.createElement('div', { 

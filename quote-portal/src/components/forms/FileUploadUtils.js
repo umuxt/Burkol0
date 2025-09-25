@@ -1,4 +1,5 @@
 // File Upload Utils - File handling for quote forms
+import React from 'react';
 import { ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../lib/utils.js'
 
 export async function handleFileUpload(fileList, currentFiles, maxFiles = MAX_FILES, showNotification) {
@@ -85,7 +86,6 @@ export function formatFileSize(bytes) {
 }
 
 export function FilePreview({ file, onRemove, index, showNotification }) {
-  const React = window.React
   
   return React.createElement('div', {
     className: 'file-preview',

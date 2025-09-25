@@ -1,6 +1,6 @@
 // Server API Routes - Express route handlers organized by functionality
 import crypto from 'crypto'
-import jsondb from '../lib/jsondb.js'
+import jsondb from '../src/lib/jsondb.js'
 import { requireAuth } from './auth.js'
 import { persistFilesForQuote } from './fileHandler.js'
 import { calculatePriceServer } from './priceCalculator.js'

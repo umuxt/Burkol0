@@ -25,7 +25,7 @@ if (!admin.apps.length) {
 }
 
 const app = express()
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 3002
 const ROOT = __dirname
 const uploadsDir = path.join(ROOT, 'uploads')
 

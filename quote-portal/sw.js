@@ -25,10 +25,6 @@ const STATIC_ASSETS = [
   '/img/info.png',
   
   // Fonts (Google Fonts URLs will be cached dynamically)
-  
-  // External CDN resources
-  'https://unpkg.com/react@18/umd/react.production.min.js',
-  'https://unpkg.com/react-dom@18/umd/react-dom.production.min.js'
 ]
 
 // URLs that should always be fetched from network

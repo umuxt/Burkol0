@@ -20,12 +20,9 @@
         <div id="react-root"></div>
     </div>
     
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
-    <script>
-        // Simple React component test
-        const { useState } = React;
+    <script type="module">
+        import React, { useState } from 'react';
+        import { createRoot } from 'react-dom/client';
         
         function SimpleInput() {
             const [value, setValue] = useState('');
@@ -39,7 +36,8 @@
             });
         }
         
-        ReactDOM.render(React.createElement(SimpleInput), document.getElementById('react-root'));
+        const root = createRoot(document.getElementById('react-root'));
+        root.render(React.createElement(SimpleInput));
     </script>
 </body>
 </html>

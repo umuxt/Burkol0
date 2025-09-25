@@ -1,7 +1,6 @@
 // Admin Statistics - Data analysis and chart generation
 import React from 'react';
-
-const ReactGlobal = React;
+import { formatPrice } from '../../lib/utils.js';
 
 export function calculateStatistics(list, metric = 'count') {
   const stats = {
@@ -93,7 +92,7 @@ export function calculateStatistics(list, metric = 'count') {
 
 export function BarChart({ data, xLabel, yLabel, byKeyAlpha = false }) {
   if (!data || data.length === 0) {
-    return ReactGlobal.createElement('div', { 
+    return React.createElement('div', { 
       style: { 
         padding: '20px', 
         textAlign: 'center', 
@@ -117,7 +116,7 @@ export function BarChart({ data, xLabel, yLabel, byKeyAlpha = false }) {
   
   const barWidth = Math.max(20, (chartWidth - padding.left - padding.right) / sortedData.length - 10)
   
-  return ReactGlobal.createElement('div', { 
+  return React.createElement('div', { 
     style: { 
       border: '1px solid #ddd', 
       borderRadius: '8px', 
@@ -125,7 +124,7 @@ export function BarChart({ data, xLabel, yLabel, byKeyAlpha = false }) {
       backgroundColor: 'white'
     } 
   },
-    ReactGlobal.createElement('h4', { 
+    React.createElement('h4', { 
       style: { 
         margin: '0 0 16px 0', 
         fontSize: '14px', 
@@ -134,14 +133,14 @@ export function BarChart({ data, xLabel, yLabel, byKeyAlpha = false }) {
       } 
     }, `${xLabel} - ${yLabel}`),
     
-    ReactGlobal.createElement('div', { 
+    React.createElement('div', { 
       style: { 
         position: 'relative',
         height: chartHeight + padding.top + padding.bottom,
         overflow: 'auto'
       }
     },
-      ReactGlobal.createElement('svg', {
+      React.createElement('svg', {
         width: Math.max(chartWidth, sortedData.length * (barWidth + 10) + padding.left + padding.right),
         height: chartHeight + padding.top + padding.bottom,
         style: { display: 'block' }

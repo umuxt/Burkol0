@@ -181,10 +181,10 @@ function EnhancedFormulaEditor({
     return highlighted
   }
 
-  return ReactGlobal.createElement('div', { className: 'enhanced-formula-editor' },
+  return React.createElement('div', { className: 'enhanced-formula-editor' },
     // Ana formül editörü
-    ReactGlobal.createElement('div', { className: 'formula-editor-container' },
-      ReactGlobal.createElement('textarea', {
+    React.createElement('div', { className: 'formula-editor-container' },
+      React.createElement('textarea', {
         ref: textareaRef,
         value: value,
         onChange: handleTextChange,
@@ -202,7 +202,7 @@ function EnhancedFormulaEditor({
       }),
       
       // Otomatik tamamlama önerileri
-      showSuggestions && suggestions.length > 0 && ReactGlobal.createElement('div', {
+      showSuggestions && suggestions.length > 0 && React.createElement('div', {
         className: 'formula-suggestions',
         style: {
           position: 'absolute',
@@ -219,7 +219,7 @@ function EnhancedFormulaEditor({
         }
       },
         ...suggestions.map((suggestion, index) =>
-          ReactGlobal.createElement('div', {
+          React.createElement('div', {
             key: index,
             className: 'suggestion-item',
             style: {
@@ -231,13 +231,13 @@ function EnhancedFormulaEditor({
             onMouseEnter: (e) => e.target.style.backgroundColor = '#f8f9fa',
             onMouseLeave: (e) => e.target.style.backgroundColor = 'white'
           },
-            ReactGlobal.createElement('div', { style: { fontWeight: 'bold', color: suggestion.type === 'parameter' ? '#007bff' : '#28a745' } },
+            React.createElement('div', { style: { fontWeight: 'bold', color: suggestion.type === 'parameter' ? '#007bff' : '#28a745' } },
               suggestion.text
             ),
-            ReactGlobal.createElement('div', { style: { fontSize: '0.8em', color: '#666' } },
+            React.createElement('div', { style: { fontSize: '0.8em', color: '#666' } },
               suggestion.description
             ),
-            suggestion.example && ReactGlobal.createElement('div', { style: { fontSize: '0.75em', color: '#999', fontFamily: 'monospace' } },
+            suggestion.example && React.createElement('div', { style: { fontSize: '0.75em', color: '#999', fontFamily: 'monospace' } },
               suggestion.example
             )
           )
@@ -246,18 +246,18 @@ function EnhancedFormulaEditor({
     ),
     
     // Hızlı ekleme butonları
-    ReactGlobal.createElement('div', { 
+    React.createElement('div', { 
       className: 'formula-quick-actions',
       style: { marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '5px' }
     },
-      ReactGlobal.createElement('div', { style: { fontSize: '0.9em', fontWeight: 'bold', width: '100%', marginBottom: '5px' } },
+      React.createElement('div', { style: { fontSize: '0.9em', fontWeight: 'bold', width: '100%', marginBottom: '5px' } },
         '⚡ Hızlı Ekleme:'
       ),
       
       // Parametreler
-      availableParameters.length > 0 && ReactGlobal.createElement('div', { style: { display: 'flex', gap: '3px', flexWrap: 'wrap' } },
+      availableParameters.length > 0 && React.createElement('div', { style: { display: 'flex', gap: '3px', flexWrap: 'wrap' } },
         ...availableParameters.map(param =>
-          ReactGlobal.createElement('button', {
+          React.createElement('button', {
             key: param,
             type: 'button',
             onClick: () => insertQuickFunction(param),
@@ -268,9 +268,9 @@ function EnhancedFormulaEditor({
       ),
       
       // Operatörler
-      ReactGlobal.createElement('div', { style: { display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '5px' } },
+      React.createElement('div', { style: { display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '5px' } },
         ...operators.slice(0, 6).map(op =>
-          ReactGlobal.createElement('button', {
+          React.createElement('button', {
             key: op.symbol,
             type: 'button',
             onClick: () => insertQuickFunction(op.symbol),
@@ -282,9 +282,9 @@ function EnhancedFormulaEditor({
       ),
       
       // Yaygın fonksiyonlar
-      ReactGlobal.createElement('div', { style: { display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '5px' } },
+      React.createElement('div', { style: { display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '5px' } },
         ...['SQRT(', 'ROUND(', 'IF(', 'MAX(', 'MIN('].map(func =>
-          ReactGlobal.createElement('button', {
+          React.createElement('button', {
             key: func,
             type: 'button',
             onClick: () => insertQuickFunction(func),
@@ -296,7 +296,7 @@ function EnhancedFormulaEditor({
     ),
     
     // Stil tanımları
-    ReactGlobal.createElement('style', null, `
+    React.createElement('style', null, `
       .enhanced-formula-editor {
         position: relative;
       }

@@ -2,11 +2,11 @@ import API from '../../lib/api.js'
 import FormulaValidator from '../SimpleFormulaValidator.js'
 import FormBuilder from '../FormBuilder.js'
 
-const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
-if (!ReactGlobal) {
+const React = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
+if (!React) {
   throw new Error('React global not found. Ensure React CDN script loads before settings modal module.')
 }
-const { useState, useEffect } = ReactGlobal
+const { useState, useEffect } = React
 
 function SettingsModal({ onClose, onSettingsUpdated, t, showNotification }) {
   // Tab state

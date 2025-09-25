@@ -5,7 +5,7 @@ import FormulaValidator from '../SimpleFormulaValidator.js'
 import PricingUtils from '../../lib/pricing-utils.js'
 import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'
 
-const ReactGlobal = React;
+const React = React;
 const { useState, useEffect } = React;
 
 function DynamicPricingTab({ t, showNotification }) {
@@ -318,41 +318,41 @@ function DynamicPricingTab({ t, showNotification }) {
     return idMapping.backendToUser[param.id] || String.fromCharCode(65 + index)
   }
 
-  return ReactGlobal.createElement(ReactGlobal.Fragment, null,
+  return React.createElement(React.Fragment, null,
     // Başlık ve açıklama
-    ReactGlobal.createElement('div', { className: 'card', style: { marginBottom: '20px', backgroundColor: '#f8f9fa' } },
-      ReactGlobal.createElement('h2', null, '🔧 Dinamik Fiyatlandırma Sistemi'),
-      ReactGlobal.createElement('p', { style: { margin: '10px 0', color: '#666' } },
+    React.createElement('div', { className: 'card', style: { marginBottom: '20px', backgroundColor: '#f8f9fa' } },
+      React.createElement('h2', null, '🔧 Dinamik Fiyatlandırma Sistemi'),
+      React.createElement('p', { style: { margin: '10px 0', color: '#666' } },
         'Form verilerinize dayalı dinamik fiyatlandırma parametreleri oluşturun. Parametreler otomatik olarak A, B, C... harfleriyle etiketlenir.'
       )
     ),
 
     // Parameters section
-    ReactGlobal.createElement('div', { className: 'card', style: { marginBottom: '12px' } },
-      ReactGlobal.createElement('h3', null, '📊 Fiyat Parametreleri'),
+    React.createElement('div', { className: 'card', style: { marginBottom: '12px' } },
+      React.createElement('h3', null, '📊 Fiyat Parametreleri'),
       
-      isLoadingFields && ReactGlobal.createElement('div', { className: 'alert alert-info' },
+      isLoadingFields && React.createElement('div', { className: 'alert alert-info' },
         'Form alanları yükleniyor...'
       ),
       
-      !isLoadingFields && ReactGlobal.createElement(ReactGlobal.Fragment, null,
+      !isLoadingFields && React.createElement(React.Fragment, null,
         // Add parameter form
-        ReactGlobal.createElement('div', { className: 'form-group' },
-          ReactGlobal.createElement('label', null, t.pricing_param_type || 'Parametre Türü'),
-          ReactGlobal.createElement('select', {
+        React.createElement('div', { className: 'form-group' },
+          React.createElement('label', null, t.pricing_param_type || 'Parametre Türü'),
+          React.createElement('select', {
             value: parameterType,
             onChange: (e) => setParameterType(e.target.value),
             className: 'form-control'
           },
-            ReactGlobal.createElement('option', { value: '' }, t.pricing_select || 'Seçiniz...'),
-            ReactGlobal.createElement('option', { value: 'fixed' }, '🔢 ' + (t.pricing_fixed_param || 'Sabit Değer')),
-            ReactGlobal.createElement('option', { value: 'form' }, '📝 ' + (t.pricing_form_param || 'Form Verisinden'))
+            React.createElement('option', { value: '' }, t.pricing_select || 'Seçiniz...'),
+            React.createElement('option', { value: 'fixed' }, '🔢 ' + (t.pricing_fixed_param || 'Sabit Değer')),
+            React.createElement('option', { value: 'form' }, '📝 ' + (t.pricing_form_param || 'Form Verisinden'))
           )
         ),
 
-        parameterType === 'fixed' && ReactGlobal.createElement('div', { className: 'form-group' },
-          ReactGlobal.createElement('label', null, t.pricing_param_name || 'Parametre Adı'),
-          ReactGlobal.createElement('input', {
+        parameterType === 'fixed' && React.createElement('div', { className: 'form-group' },
+          React.createElement('label', null, t.pricing_param_name || 'Parametre Adı'),
+          React.createElement('input', {
             type: 'text',
             value: parameterName,
             onChange: (e) => setParameterName(e.target.value),
@@ -361,9 +361,9 @@ function DynamicPricingTab({ t, showNotification }) {
           })
         ),
 
-        parameterType === 'fixed' && ReactGlobal.createElement('div', { className: 'form-group' },
-          ReactGlobal.createElement('label', null, t.pricing_fixed_value || 'Sabit Değer'),
-          ReactGlobal.createElement('input', {
+        parameterType === 'fixed' && React.createElement('div', { className: 'form-group' },
+          React.createElement('label', null, t.pricing_fixed_value || 'Sabit Değer'),
+          React.createElement('input', {
             type: 'number',
             value: fixedValue,
             onChange: (e) => setFixedValue(e.target.value),
@@ -373,21 +373,21 @@ function DynamicPricingTab({ t, showNotification }) {
           })
         ),
 
-        parameterType === 'form' && ReactGlobal.createElement('div', null,
-          ReactGlobal.createElement('div', { className: 'form-group' },
-            ReactGlobal.createElement('label', null, t.pricing_form_field || 'Form Alanı'),
+        parameterType === 'form' && React.createElement('div', null,
+          React.createElement('div', { className: 'form-group' },
+            React.createElement('label', null, t.pricing_form_field || 'Form Alanı'),
             formFields.length === 0 ? 
-              ReactGlobal.createElement('div', { className: 'alert alert-warning' },
+              React.createElement('div', { className: 'alert alert-warning' },
                 t.pricing_no_form_fields || 'Henüz form alanı bulunmuyor. Önce Form Düzenleme menüsünden form alanları oluşturun.'
               ) :
-              ReactGlobal.createElement('select', {
+              React.createElement('select', {
                 value: selectedFormField,
                 onChange: (e) => setSelectedFormField(e.target.value),
                 className: 'form-control'
               },
-                ReactGlobal.createElement('option', { value: '' }, t.pricing_select || 'Seçiniz...'),
+                React.createElement('option', { value: '' }, t.pricing_select || 'Seçiniz...'),
                 ...formFields.map(field =>
-                  ReactGlobal.createElement('option', { key: field.value, value: field.value }, 
+                  React.createElement('option', { key: field.value, value: field.value }, 
                     `${field.label} (${field.type})`
                   )
                 )
@@ -395,9 +395,9 @@ function DynamicPricingTab({ t, showNotification }) {
           ),
 
           // Show auto parameter name for clarity (read-only)
-          selectedFormField && ReactGlobal.createElement('div', { className: 'form-group' },
-            ReactGlobal.createElement('label', null, t.pricing_param_name_auto || 'Parametre Adı (otomatik)'),
-            ReactGlobal.createElement('input', {
+          selectedFormField && React.createElement('div', { className: 'form-group' },
+            React.createElement('label', null, t.pricing_param_name_auto || 'Parametre Adı (otomatik)'),
+            React.createElement('input', {
               type: 'text',
               value: (formFields.find(f => f.value === selectedFormField)?.label || ''),
               readOnly: true,
@@ -407,25 +407,25 @@ function DynamicPricingTab({ t, showNotification }) {
 
           // Lookup table for fields with options
           selectedFormField && formFields.find(f => f.value === selectedFormField)?.hasOptions && 
-          ReactGlobal.createElement('div', { className: 'form-group' },
-            ReactGlobal.createElement('label', null, '🔗 Değer Eşleştirme Tablosu'),
-            ReactGlobal.createElement('div', { style: { marginBottom: '8px', fontSize: '13px', color: '#666' } },
+          React.createElement('div', { className: 'form-group' },
+            React.createElement('label', null, '🔗 Değer Eşleştirme Tablosu'),
+            React.createElement('div', { style: { marginBottom: '8px', fontSize: '13px', color: '#666' } },
               'Form alanındaki seçenekler otomatik olarak listelenmiştir. Sadece değerlerini güncelleyin.'
             ),
             
-            lookupTable.length > 0 && ReactGlobal.createElement('table', { className: 'table table-sm' },
-              ReactGlobal.createElement('thead', null,
-                ReactGlobal.createElement('tr', null,
-                  ReactGlobal.createElement('th', null, 'Seçenek'),
-                  ReactGlobal.createElement('th', null, 'Değer')
+            lookupTable.length > 0 && React.createElement('table', { className: 'table table-sm' },
+              React.createElement('thead', null,
+                React.createElement('tr', null,
+                  React.createElement('th', null, 'Seçenek'),
+                  React.createElement('th', null, 'Değer')
                 )
               ),
-              ReactGlobal.createElement('tbody', null,
+              React.createElement('tbody', null,
                 ...lookupTable.map((entry, index) =>
-                  ReactGlobal.createElement('tr', { key: index },
-                    ReactGlobal.createElement('td', null, entry.option),
-                    ReactGlobal.createElement('td', null,
-                      ReactGlobal.createElement('input', {
+                  React.createElement('tr', { key: index },
+                    React.createElement('td', null, entry.option),
+                    React.createElement('td', null,
+                      React.createElement('input', {
                         type: 'number',
                         value: entry.value === 0 ? '' : (entry.value ?? ''),
                         onChange: (e) => updateLookupValue(index, e.target.value),
@@ -441,7 +441,7 @@ function DynamicPricingTab({ t, showNotification }) {
           )
         ),
 
-        parameterType && ReactGlobal.createElement('button', {
+        parameterType && React.createElement('button', {
           onClick: addParameter,
           className: 'btn btn-primary',
           style: { marginTop: '6px' },
@@ -450,33 +450,33 @@ function DynamicPricingTab({ t, showNotification }) {
       ),
 
       // Parameters list with user-friendly IDs
-      parameters.length > 0 && ReactGlobal.createElement('div', { style: { marginTop: '12px' } },
-        ReactGlobal.createElement('h4', null, '📋 Mevcut Parametreler'),
-        ReactGlobal.createElement('div', { className: 'alert alert-info', style: { fontSize: '0.9em' } },
+      parameters.length > 0 && React.createElement('div', { style: { marginTop: '12px' } },
+        React.createElement('h4', null, '📋 Mevcut Parametreler'),
+        React.createElement('div', { className: 'alert alert-info', style: { fontSize: '0.9em' } },
           'Parametreler formülde A, B, C... harfleri ile kullanılır'
         ),
-        ReactGlobal.createElement('table', { className: 'table' },
-          ReactGlobal.createElement('thead', null,
-            ReactGlobal.createElement('tr', null,
-              ReactGlobal.createElement('th', null, 'Formül ID'),
-              ReactGlobal.createElement('th', null, 'Ad'),
-              ReactGlobal.createElement('th', null, 'Tür'),
-              ReactGlobal.createElement('th', null, 'Değer/Alan'),
-              ReactGlobal.createElement('th', null, 'İşlem')
+        React.createElement('table', { className: 'table' },
+          React.createElement('thead', null,
+            React.createElement('tr', null,
+              React.createElement('th', null, 'Formül ID'),
+              React.createElement('th', null, 'Ad'),
+              React.createElement('th', null, 'Tür'),
+              React.createElement('th', null, 'Değer/Alan'),
+              React.createElement('th', null, 'İşlem')
             )
           ),
-          ReactGlobal.createElement('tbody', null,
+          React.createElement('tbody', null,
             ...parameters.map((param, index) =>
-              ReactGlobal.createElement('tr', { key: param.id },
-                ReactGlobal.createElement('td', null, 
-                  ReactGlobal.createElement('strong', { style: { color: '#007bff', fontSize: '1.1em' } },
+              React.createElement('tr', { key: param.id },
+                React.createElement('td', null, 
+                  React.createElement('strong', { style: { color: '#007bff', fontSize: '1.1em' } },
                     getParameterDisplayId(param, index)
                   )
                 ),
                 // Name col (editable)
-                ReactGlobal.createElement('td', null,
+                React.createElement('td', null,
                   editingParamId === param.id
-                    ? ReactGlobal.createElement('input', {
+                    ? React.createElement('input', {
                         type: 'text',
                         value: paramDraft.name,
                         onChange: (e) => setParamDraft({ ...paramDraft, name: e.target.value }),
@@ -486,12 +486,12 @@ function DynamicPricingTab({ t, showNotification }) {
                     : param.name
                 ),
                 // Type col (read-only label)
-                ReactGlobal.createElement('td', null, param.type === 'fixed' ? '🔢 Sabit' : '📝 Form'),
+                React.createElement('td', null, param.type === 'fixed' ? '🔢 Sabit' : '📝 Form'),
                 // Value/Field col (editable by type)
-                ReactGlobal.createElement('td', null,
+                React.createElement('td', null,
                   editingParamId === param.id
                     ? (param.type === 'fixed'
-                        ? ReactGlobal.createElement('input', {
+                        ? React.createElement('input', {
                             type: 'number',
                             value: paramDraft.value,
                             onChange: (e) => setParamDraft({ ...paramDraft, value: e.target.value }),
@@ -499,42 +499,42 @@ function DynamicPricingTab({ t, showNotification }) {
                             step: '0.01',
                             style: { width: '140px' }
                           })
-                        : ReactGlobal.createElement('select', {
+                        : React.createElement('select', {
                             className: 'form-control',
                             value: paramDraft.formField,
                             onChange: (e) => setParamDraft({ ...paramDraft, formField: e.target.value })
                           },
-                            ReactGlobal.createElement('option', { value: '' }, 'Seçiniz...'),
-                            ...formFields.map(f => ReactGlobal.createElement('option', { key: f.value, value: f.value }, `${f.label} (${f.type})`))
+                            React.createElement('option', { value: '' }, 'Seçiniz...'),
+                            ...formFields.map(f => React.createElement('option', { key: f.value, value: f.value }, `${f.label} (${f.type})`))
                           )
                       )
                     : (param.type === 'fixed' ? param.value : (formFields.find(f => f.value === param.formField)?.label || param.formField))
                 ),
                 // Actions (Edit only for fixed or form-with-options)
-                ReactGlobal.createElement('td', null,
+                React.createElement('td', null,
                   (() => {
                     const field = formFields.find(f => f.value === param.formField)
                     const canEdit = param.type === 'fixed' || (param.type === 'form' && field && field.hasOptions)
                     if (editingParamId === param.id) {
-                      return ReactGlobal.createElement(ReactGlobal.Fragment, null,
-                        ReactGlobal.createElement('button', {
+                      return React.createElement(React.Fragment, null,
+                        React.createElement('button', {
                           onClick: () => saveEditParameter(param),
                           className: 'btn btn-sm btn-success',
                           style: { marginRight: '6px' }
                         }, 'Kaydet'),
-                        ReactGlobal.createElement('button', {
+                        React.createElement('button', {
                           onClick: cancelEditParameter,
                           className: 'btn btn-sm btn-secondary'
                         }, 'İptal')
                       )
                     }
-                    return ReactGlobal.createElement(ReactGlobal.Fragment, null,
-                      canEdit && ReactGlobal.createElement('button', {
+                    return React.createElement(React.Fragment, null,
+                      canEdit && React.createElement('button', {
                         onClick: () => editParameter(param),
                         className: 'btn btn-sm btn-primary',
                         style: { marginRight: '6px' }
                       }, 'Düzenle'),
-                      ReactGlobal.createElement('button', {
+                      React.createElement('button', {
                         onClick: () => deleteParameter(param.id),
                         className: 'btn btn-sm btn-danger'
                       }, 'Sil')
@@ -550,24 +550,24 @@ function DynamicPricingTab({ t, showNotification }) {
             const field = formFields.find(f => f.value === param.formField)
             const canEdit = editingParamId === param.id && param.type === 'form' && field && field.hasOptions
             if (!canEdit) return null
-            return ReactGlobal.createElement('tr', { key: param.id + '-lookup' },
-              ReactGlobal.createElement('td', { colSpan: 5 },
-                ReactGlobal.createElement('div', { className: 'card', style: { marginTop: '8px' } },
-                  ReactGlobal.createElement('h4', null, '🔗 Değer Eşleştirme (Düzenleme)'),
+            return React.createElement('tr', { key: param.id + '-lookup' },
+              React.createElement('td', { colSpan: 5 },
+                React.createElement('div', { className: 'card', style: { marginTop: '8px' } },
+                  React.createElement('h4', null, '🔗 Değer Eşleştirme (Düzenleme)'),
                   paramLookupTable && paramLookupTable.length > 0 ?
-                    ReactGlobal.createElement('table', { className: 'table table-sm' },
-                      ReactGlobal.createElement('thead', null,
-                        ReactGlobal.createElement('tr', null,
-                          ReactGlobal.createElement('th', null, 'Seçenek'),
-                          ReactGlobal.createElement('th', null, 'Değer')
+                    React.createElement('table', { className: 'table table-sm' },
+                      React.createElement('thead', null,
+                        React.createElement('tr', null,
+                          React.createElement('th', null, 'Seçenek'),
+                          React.createElement('th', null, 'Değer')
                         )
                       ),
-                      ReactGlobal.createElement('tbody', null,
+                      React.createElement('tbody', null,
                         ...paramLookupTable.map((it, idx) =>
-                          ReactGlobal.createElement('tr', { key: idx },
-                            ReactGlobal.createElement('td', null, it.option),
-                            ReactGlobal.createElement('td', null,
-                              ReactGlobal.createElement('input', {
+                          React.createElement('tr', { key: idx },
+                            React.createElement('td', null, it.option),
+                            React.createElement('td', null,
+                              React.createElement('input', {
                                 type: 'number',
                                 value: (it.value === 0 ? '' : (it.value ?? '')),
                                 onChange: (e) => paramUpdateLookupValue(idx, e.target.value),
@@ -580,7 +580,7 @@ function DynamicPricingTab({ t, showNotification }) {
                         )
                       )
                     )
-                  : ReactGlobal.createElement('div', { className: 'alert alert-warning' }, 'Eşleştirme tablosu boş')
+                  : React.createElement('div', { className: 'alert alert-warning' }, 'Eşleştirme tablosu boş')
                 )
               )
             )
@@ -590,17 +590,17 @@ function DynamicPricingTab({ t, showNotification }) {
     ),
 
     // Formula section with user-friendly interface
-    ReactGlobal.createElement('div', { className: 'card' },
-      ReactGlobal.createElement('h3', null, '🧮 Fiyat Hesaplama Formülü'),
+    React.createElement('div', { className: 'card' },
+      React.createElement('h3', null, '🧮 Fiyat Hesaplama Formülü'),
       
-      parameters.length > 0 && ReactGlobal.createElement('div', { className: 'alert alert-success', style: { fontSize: '0.9em' } },
-        ReactGlobal.createElement('strong', null, 'Kullanılabilir Parametreler: '),
+      parameters.length > 0 && React.createElement('div', { className: 'alert alert-success', style: { fontSize: '0.9em' } },
+        React.createElement('strong', null, 'Kullanılabilir Parametreler: '),
         Object.values(idMapping.backendToUser).join(', ')
       ),
       
-      ReactGlobal.createElement('div', { className: 'form-group' },
-        ReactGlobal.createElement('label', null, 'Formül (A, B, C... kullanın)'),
-        ReactGlobal.createElement(EnhancedFormulaEditor, {
+      React.createElement('div', { className: 'form-group' },
+        React.createElement('label', null, 'Formül (A, B, C... kullanın)'),
+        React.createElement(EnhancedFormulaEditor, {
           value: userFormula,
           onChange: handleUserFormulaChange,
           parameters: parameters,
@@ -608,14 +608,14 @@ function DynamicPricingTab({ t, showNotification }) {
           disabled: false
         }),
         
-        ReactGlobal.createElement('div', { style: { display: 'flex', gap: '6px', marginTop: '4px' } },
-          ReactGlobal.createElement('button', {
+        React.createElement('div', { style: { display: 'flex', gap: '6px', marginTop: '4px' } },
+          React.createElement('button', {
             onClick: () => setShowFormulaInfo(!showFormulaInfo),
             className: 'btn btn-link',
             style: { padding: '5px 0' }
           }, showFormulaInfo ? '❌ Yardımı Gizle' : '❓ Formül Yardımı'),
           
-          parameters.length > 0 && ReactGlobal.createElement('button', {
+          parameters.length > 0 && React.createElement('button', {
             onClick: () => setUserFormula('A * B'),
             className: 'btn btn-link',
             style: { padding: '5px 0' }
@@ -624,55 +624,55 @@ function DynamicPricingTab({ t, showNotification }) {
       ),
 
       // Formula validation feedback
-      formulaValidation && ReactGlobal.createElement('div', { 
+      formulaValidation && React.createElement('div', { 
         className: `alert ${formulaValidation.isValid ? 'alert-success' : 'alert-danger'}`,
         style: { marginTop: '8px' }
       },
-        ReactGlobal.createElement('strong', null, formulaValidation.isValid ? '✅ Formül Geçerli' : '❌ Formül Hatası'),
-        formulaValidation.message && ReactGlobal.createElement('div', null, formulaValidation.message),
+        React.createElement('strong', null, formulaValidation.isValid ? '✅ Formül Geçerli' : '❌ Formül Hatası'),
+        formulaValidation.message && React.createElement('div', null, formulaValidation.message),
         formulaValidation.suggestions && formulaValidation.suggestions.length > 0 && 
-        ReactGlobal.createElement('ul', { style: { marginTop: '5px', marginBottom: 0 } },
+        React.createElement('ul', { style: { marginTop: '5px', marginBottom: 0 } },
           ...formulaValidation.suggestions.map((suggestion, index) =>
-            ReactGlobal.createElement('li', { key: index }, suggestion)
+            React.createElement('li', { key: index }, suggestion)
           )
         )
       ),
 
       // Formula info panel
-      showFormulaInfo && ReactGlobal.createElement('div', { 
+      showFormulaInfo && React.createElement('div', { 
         className: 'alert alert-info',
         style: { marginTop: '8px' }
       },
-        ReactGlobal.createElement('h5', null, '📚 Kullanılabilir Fonksiyonlar:'),
-        ReactGlobal.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' } },
-          ReactGlobal.createElement('div', null,
-            ReactGlobal.createElement('strong', null, 'Matematik:'),
-            ReactGlobal.createElement('br', null), 'SQRT, ROUND, MAX, MIN, ABS, POWER'
+        React.createElement('h5', null, '📚 Kullanılabilir Fonksiyonlar:'),
+        React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' } },
+          React.createElement('div', null,
+            React.createElement('strong', null, 'Matematik:'),
+            React.createElement('br', null), 'SQRT, ROUND, MAX, MIN, ABS, POWER'
           ),
-          ReactGlobal.createElement('div', null,
-            ReactGlobal.createElement('strong', null, 'Yuvarlama:'),
-            ReactGlobal.createElement('br', null), 'CEIL, FLOOR, ROUNDUP, ROUNDDOWN'
+          React.createElement('div', null,
+            React.createElement('strong', null, 'Yuvarlama:'),
+            React.createElement('br', null), 'CEIL, FLOOR, ROUNDUP, ROUNDDOWN'
           ),
-          ReactGlobal.createElement('div', null,
-            ReactGlobal.createElement('strong', null, 'Mantık:'),
-            ReactGlobal.createElement('br', null), 'IF, AND, OR, NOT'
+          React.createElement('div', null,
+            React.createElement('strong', null, 'Mantık:'),
+            React.createElement('br', null), 'IF, AND, OR, NOT'
           ),
-          ReactGlobal.createElement('div', null,
-            ReactGlobal.createElement('strong', null, 'Sabitler:'),
-            ReactGlobal.createElement('br', null), 'PI, E'
+          React.createElement('div', null,
+            React.createElement('strong', null, 'Sabitler:'),
+            React.createElement('br', null), 'PI, E'
           )
         ),
-        ReactGlobal.createElement('div', { style: { marginTop: '8px', padding: '8px', backgroundColor: '#e9ecef', borderRadius: '4px' } },
-          ReactGlobal.createElement('strong', null, 'Örnek Formüller:'),
-          ReactGlobal.createElement('ul', { style: { marginBottom: 0, marginTop: '4px' } },
-            ReactGlobal.createElement('li', null, 'Basit: A * B + C'),
-            ReactGlobal.createElement('li', null, 'Karmaşık: A * SQRT(B) + IF(C > 10, 50, 0)'),
-            ReactGlobal.createElement('li', null, 'Yüzde: A * (1 + B/100)')
+        React.createElement('div', { style: { marginTop: '8px', padding: '8px', backgroundColor: '#e9ecef', borderRadius: '4px' } },
+          React.createElement('strong', null, 'Örnek Formüller:'),
+          React.createElement('ul', { style: { marginBottom: 0, marginTop: '4px' } },
+            React.createElement('li', null, 'Basit: A * B + C'),
+            React.createElement('li', null, 'Karmaşık: A * SQRT(B) + IF(C > 10, 50, 0)'),
+            React.createElement('li', null, 'Yüzde: A * (1 + B/100)')
           )
         )
       ),
 
-      ReactGlobal.createElement('button', {
+      React.createElement('button', {
         onClick: savePriceSettings,
         className: 'btn btn-success btn-lg',
         style: { marginTop: '10px', width: '100%' },

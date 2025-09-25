@@ -2,7 +2,7 @@
 import React from 'react';
 import * as Utils from '../../lib/utils.js'
 
-const ReactGlobal = React;
+const React = React;
 
 // Safe formatPrice function with fallback
 const formatPrice = Utils.formatPrice || function(price, currency = 'TL') {
@@ -76,9 +76,9 @@ export function formatFieldValue(value, column, item, context) {
           return formatPrice(parseFloat(value) || 0);
         } else {
           // Price update needed - show with button
-          return ReactGlobal.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-            ReactGlobal.createElement('span', null, formatPrice(parseFloat(value) || 0)),
-            ReactGlobal.createElement('button', {
+          return React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+            React.createElement('span', null, formatPrice(parseFloat(value) || 0)),
+            React.createElement('button', {
               onClick: (e) => {
                 e.stopPropagation();
                 const original = parseFloat(item.price) || 0;
@@ -109,18 +109,18 @@ export function formatFieldValue(value, column, item, context) {
       case 'due':
         const due = value || '';
         if (due.includes('Gecikti')) {
-          return ReactGlobal.createElement('span', { style: { color: '#dc3545', fontWeight: 'bold' } }, due);
+          return React.createElement('span', { style: { color: '#dc3545', fontWeight: 'bold' } }, due);
         } else if (due.includes('gün')) {
           const days = parseInt(due.match(/\d+/)?.[0] || '0');
           if (days <= 3) {
-            return ReactGlobal.createElement('span', { style: { color: '#ffc107', fontWeight: 'bold' } }, due);
+            return React.createElement('span', { style: { color: '#ffc107', fontWeight: 'bold' } }, due);
           }
         }
         return due;
         
       case 'status':
         const status = statusLabel(value || 'new', t);
-        return ReactGlobal.createElement('span', {
+        return React.createElement('span', {
           style: {
             padding: '2px 8px',
             borderRadius: '12px',
@@ -135,9 +135,9 @@ export function formatFieldValue(value, column, item, context) {
         if (column.type === 'currency') {
           return formatPrice(parseFloat(value) || 0);
         } else if (column.type === 'email') {
-          return ReactGlobal.createElement('a', { href: `mailto:${value}`, style: { color: '#007bff' } }, value);
+          return React.createElement('a', { href: `mailto:${value}`, style: { color: '#007bff' } }, value);
         } else if (column.type === 'phone') {
-          return ReactGlobal.createElement('a', { href: `tel:${value}`, style: { color: '#007bff' } }, value);
+          return React.createElement('a', { href: `tel:${value}`, style: { color: '#007bff' } }, value);
         }
         return value || '';
     }

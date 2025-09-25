@@ -1,10 +1,9 @@
 // Settings App - Dedicated settings interface
-import PricingTab from './components/settings/DynamicPricingTab.js'
-import FormTab from './components/settings/FormTab.js'
-import UsersTab from './components/settings/UsersTab.js'
-
-const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
-const { useState, useEffect } = ReactGlobal
+import React, { useState, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
+import PricingTab from './src/components/settings/DynamicPricingTab.js'
+import FormTab from './src/components/settings/FormTab.js'
+import UsersTab from './src/components/settings/UsersTab.js'
 
 // Notification Hook
 function useNotifications() {
@@ -32,7 +31,7 @@ function useNotifications() {
 function NotificationContainer({ notifications, onRemove }) {
   if (notifications.length === 0) return null
 
-  return ReactGlobal.createElement('div', {
+  return React.createElement('div', {
     style: {
       position: 'fixed',
       top: '1rem',
@@ -43,7 +42,7 @@ function NotificationContainer({ notifications, onRemove }) {
       gap: '0.5rem'
     }
   }, notifications.map(notification => 
-    ReactGlobal.createElement('div', {
+    React.createElement('div', {
       key: notification.id,
       style: {
         background: notification.type === 'error' ? '#dc3545' : 
@@ -80,44 +79,44 @@ function SettingsApp() {
     console.log('Settings updated')
   }
 
-  return ReactGlobal.createElement('div', { className: 'settings-app' },
+  return React.createElement('div', { className: 'settings-app' },
     // Notifications
-    ReactGlobal.createElement(NotificationContainer, {
+    React.createElement(NotificationContainer, {
       notifications,
       onRemove: removeNotification
     }),
 
     // Tab navigation
-    ReactGlobal.createElement('div', { className: 'tab-navigation' },
-      ReactGlobal.createElement('button', {
+    React.createElement('div', { className: 'tab-navigation' },
+      React.createElement('button', {
         className: `tab-button ${activeTab === 'pricing' ? 'active' : ''}`,
         onClick: () => setActiveTab('pricing')
       }, 'Fiyatlandırma'),
       
-      ReactGlobal.createElement('button', {
+      React.createElement('button', {
         className: `tab-button ${activeTab === 'form' ? 'active' : ''}`,
         onClick: () => setActiveTab('form')
       }, 'Form Yapısı'),
 
-      ReactGlobal.createElement('button', {
+      React.createElement('button', {
         className: `tab-button ${activeTab === 'users' ? 'active' : ''}`,
         onClick: () => setActiveTab('users')
       }, 'Kullanıcılar')
     ),
 
     // Tab content
-    ReactGlobal.createElement('div', { className: 'tab-content' },
-      activeTab === 'pricing' && ReactGlobal.createElement(PricingTab, {
+    React.createElement('div', { className: 'tab-content' },
+      activeTab === 'pricing' && React.createElement(PricingTab, {
         t,
         showNotification
       }),
       
-      activeTab === 'form' && ReactGlobal.createElement(FormTab, {
+      activeTab === 'form' && React.createElement(FormTab, {
         t,
         showNotification
       }),
 
-      activeTab === 'users' && ReactGlobal.createElement(UsersTab, {
+      activeTab === 'users' && React.createElement(UsersTab, {
         t,
         showNotification
       })
@@ -128,6 +127,6 @@ function SettingsApp() {
 // Initialize the app
 const settingsRoot = document.getElementById('settings-root')
 if (settingsRoot) {
-  const root = ReactDOM.createRoot(settingsRoot)
-  root.render(ReactGlobal.createElement(SettingsApp))
+  const root = createRoot(settingsRoot)
+  root.render(React.createElement(SettingsApp))
 }

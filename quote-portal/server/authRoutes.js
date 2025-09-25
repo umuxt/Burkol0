@@ -1,7 +1,7 @@
 // Authentication API Routes
 import crypto from 'crypto'
 import { createUser, verifyUser, createSession, deleteSession, getSession, requireAuth, hashPassword } from './auth.js'
-import jsondb from '../lib/jsondb.js'
+import jsondb from '../src/lib/jsondb.js'
 
 export function setupAuthRoutes(app) {
   // Login endpoint
