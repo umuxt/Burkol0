@@ -484,6 +484,72 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
       res.status(500).json({ error: 'Apply all price failed' })
     }
   })
+
+  // Calculate price endpoint (for real-time price calculation)
+  app.post('/api/calculate-price', (req, res) => {
+    try {
+      const { customFields } = req.body || {}
+      
+      if (!customFields) {
+        return res.status(400).json({ error: 'customFields required' })
+      }
+
+      // Get current price settings
+      const priceSettings = jsondb.getPriceSettings()
+      if (!priceSettings) {
+        return res.status(400).json({ error: 'Price settings not configured' })
+      }
+
+      // Create a temporary quote object for calculation
+      const tempQuote = {
+        id: 'temp-calc',
+        customFields: customFields,
+        qty: customFields.qty || 0
+      }
+
+      // Calculate price with validation
+      const calculatedPrice = calculatePriceServer(tempQuote, priceSettings)
+      
+      res.json({ 
+        price: calculatedPrice,
+        formula: priceSettings.formula,
+        parameters: priceSettings.parameters
+      })
+    } catch (error) {
+      console.error('❌ Price calculation error:', error.message)
+      
+      // Handle validation errors with specific HTTP status codes
+      if (error.message.includes('must be a valid number') ||
+          error.message.includes('cannot be negative') ||
+          error.message.includes('must be at least 1') ||
+          error.message.includes('exceeds maximum limit')) {
+        return res.status(400).json({ 
+          error: 'Invalid input data',
+          details: error.message 
+        })
+      }
+      
+      if (error.message.includes('unauthorized functions')) {
+        return res.status(403).json({ 
+          error: 'Security violation',
+          details: 'Formula contains unauthorized functions' 
+        })
+      }
+      
+      if (error.message.includes('exceeds reasonable business limits')) {
+        return res.status(422).json({ 
+          error: 'Business rule violation',
+          details: error.message 
+        })
+      }
+      
+      // Generic server error for unexpected issues
+      res.status(500).json({ 
+        error: 'Price calculation failed',
+        details: 'An unexpected error occurred during price calculation'
+      })
+    }
+  })
 }
 
 // Settings API routes

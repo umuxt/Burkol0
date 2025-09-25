@@ -1,11 +1,87 @@
 // Server Price Calculator - Server-side price calculation with comprehensive math functions
 
+// Security validation functions
+function validateAndSanitizeQuantity(value, fieldName = 'quantity') {
+  // Convert to number
+  const num = parseFloat(value);
+  
+  // Check if it's a valid number
+  if (isNaN(num)) {
+    throw new Error(`${fieldName} must be a valid number, received: ${value}`);
+  }
+  
+  // Check for negative values (critical security issue)
+  if (num < 0) {
+    throw new Error(`${fieldName} cannot be negative: ${num}`);
+  }
+  
+  // Check for extreme values (DoS attack prevention)
+  if (num > 1000000) {
+    throw new Error(`${fieldName} exceeds maximum limit (1,000,000): ${num}`);
+  }
+  
+  // Sistem akışını bozma - sıfır değerlere izin ver ama logla
+  if (num === 0) {
+    console.log(`⚠️ Zero ${fieldName} detected but allowed for system compatibility`);
+  }
+  
+  return num;
+}
+
+function validateCalculatedPrice(price) {
+  if (isNaN(price) || !isFinite(price)) {
+    throw new Error(`Invalid price calculation result: ${price}`);
+  }
+  
+  if (price < 0) {
+    throw new Error(`Price cannot be negative: ${price}`);
+  }
+  
+  // Business rule: maximum reasonable price (100M limit)
+  if (price > 100000000) {
+    throw new Error(`Calculated price exceeds reasonable business limits: ${price}`);
+  }
+  
+  return price;
+}
+
+function sanitizeFormula(formula) {
+  // Block dangerous patterns
+  const dangerousPatterns = [
+    /require\s*\(/i,
+    /import\s+/i,
+    /process\./i,
+    /global\./i,
+    /console\./i,
+    /eval\s*\(/i,
+    /Function\s*\(/i,
+    /setTimeout/i,
+    /setInterval/i,
+    /fetch\s*\(/i,
+    /XMLHttpRequest/i,
+    /child_process/i,
+    /fs\./i,
+    /\.exec\s*\(/i
+  ];
+  
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(formula)) {
+      throw new Error(`Formula contains unauthorized functions: ${pattern.source}`);
+    }
+  }
+  
+  return formula;
+}
+
 export function calculatePriceServer(quote, settings) {
   if (!settings || !settings.parameters || !settings.formula) {
     return quote.price || 0
   }
 
   try {
+    // Sanitize formula first
+    const sanitizedFormula = sanitizeFormula(settings.formula);
+    
     // Create parameter values map
     const paramValues = {}
     
@@ -19,9 +95,14 @@ export function calculatePriceServer(quote, settings) {
         let value = 0
         
         if (param.formField === 'qty') {
-          value = parseFloat(quote.qty) || parseFloat(quote.customFields?.qty) || 0
+          // Orijinal sistem mantığını koru
+          const rawQty = quote.qty || quote.customFields?.qty || 0;
+          // Sadece güvenlik tehditleri için validasyon yap
+          value = validateAndSanitizeQuantity(rawQty, 'quantity');
         } else if (param.formField === 'thickness') {
-          value = parseFloat(quote.thickness) || parseFloat(quote.customFields?.thickness) || 0
+          // Orijinal sistem mantığını koru
+          const rawThickness = quote.thickness || quote.customFields?.thickness || 0;  
+          value = validateAndSanitizeQuantity(rawThickness, 'thickness');
         } else if (param.formField === 'dimensions') {
           // Calculate area from dimensions string or numeric values
           const l = parseFloat(quote.dimsL) || parseFloat(quote.customFields?.dimsL)
@@ -74,7 +155,7 @@ export function calculatePriceServer(quote, settings) {
     })
 
     // Evaluate formula with comprehensive math functions
-    let formula = settings.formula.replace(/^=/, '') // Remove leading =
+    let formula = sanitizedFormula.replace(/^=/, '') // Remove leading =
     
     // Excel fonksiyonlarını JavaScript fonksiyonlarına çevir (client ile uyumlu)
     formula = formula.replace(/\bMAX\s*\(/g, 'Math.max(')
@@ -177,14 +258,23 @@ export function calculatePriceServer(quote, settings) {
         `
       )(mathContext, formula)
       
-      return Number(result) || 0
+      // Validate the calculated price before returning
+      const price = Number(result) || 0;
+      return validateCalculatedPrice(price);
     } catch (evalError) {
-      console.error('Formula evaluation error:', evalError, 'Formula:', formula)
-      return quote.price || 0
+      console.error('❌ Formula evaluation error:', evalError.message, 'Formula:', formula)
+      throw new Error(`Price calculation failed: ${evalError.message}`);
     }
     
   } catch (e) {
-    console.error('Price calculation error:', e)
+    console.error('❌ Price calculation error:', e.message)
+    // For security validation errors, throw them up to be handled by the API
+    if (e.message.includes('exceeds maximum limit') || 
+        e.message.includes('cannot be negative') || 
+        e.message.includes('must be a valid number') ||
+        e.message.includes('unauthorized functions')) {
+      throw e;
+    }
     return quote.price || 0
   }
 }
