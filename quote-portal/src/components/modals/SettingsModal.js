@@ -4,6 +4,7 @@ import PricingTab from '../settings/DynamicPricingTab.js'
 import FormTab from '../settings/FormTab.js'
 import UsersTab from '../settings/UsersTab.js'
 
+const ReactGlobal = React;
 const { useState, useEffect } = React;
 
 function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification }) {

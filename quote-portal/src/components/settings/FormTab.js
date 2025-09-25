@@ -3,6 +3,7 @@ import React from 'react';
 import API from '../../lib/api.js'
 import { FormBuilderCompact } from '../formBuilder/FormBuilderCompact.js'
 
+const ReactGlobal = React;
 const { useState, useEffect } = React;
 
 function FormTab({ t, showNotification }) {

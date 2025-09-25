@@ -1,9 +1,10 @@
 // Pricing Tab Component - Price parameter and formula management
+import React from 'react';
 import API from '../../lib/api.js'
 import FormulaValidator from '../SimpleFormulaValidator.js'
 
-const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
-const { useState, useEffect } = ReactGlobal
+const ReactGlobal = React;
+const { useState, useEffect } = React;
 
 function PricingTab({ t, showNotification }) {
   const [parameters, setParameters] = useState([])

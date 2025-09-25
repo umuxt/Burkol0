@@ -1,7 +1,8 @@
+import React from 'react';
 import API from '../lib/api.js'
 import { uid, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, extOf, readFileAsDataUrl, isImageExt } from '../lib/utils.js'
 
-const { useState, useEffect } = React
+const { useState, useEffect } = React;
 
 // Common control keys used in keydown handlers
 const CONTROL_KEYS = [

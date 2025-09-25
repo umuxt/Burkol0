@@ -1,6 +1,8 @@
 // Admin Statistics - Data analysis and chart generation
 import React from 'react';
 
+const ReactGlobal = React;
+
 export function calculateStatistics(list, metric = 'count') {
   const stats = {
     total: list.length,

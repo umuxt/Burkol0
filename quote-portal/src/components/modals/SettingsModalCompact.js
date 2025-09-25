@@ -1,10 +1,11 @@
 // Compact Settings Modal - Modular tab-based settings interface
+import React from 'react';
 import PricingTab from '../settings/DynamicPricingTab.js'
 import FormTab from '../settings/FormTab.js'
 import UsersTab from '../settings/UsersTab.js'
 
-const ReactGlobal = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
-const { useState } = ReactGlobal
+const ReactGlobal = React;
+const { useState } = React;
 
 function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification }) {
   const [activeTab, setActiveTab] = useState('pricing') // 'pricing' | 'form' | 'users'

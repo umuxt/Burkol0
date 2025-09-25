@@ -5,6 +5,7 @@ import FormulaValidator from '../SimpleFormulaValidator.js'
 import PricingUtils from '../../lib/pricing-utils.js'
 import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'
 
+const ReactGlobal = React;
 const { useState, useEffect } = React;
 
 function DynamicPricingTab({ t, showNotification }) {
