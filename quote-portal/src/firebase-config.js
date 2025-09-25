@@ -11,7 +11,16 @@ const firebaseConfig = {
   measurementId: "G-25LT6XSH60"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+let app;
+let db;
+
+try {
+  app = initializeApp(firebaseConfig);
+  db = getFirestore(app);
+  console.log('🔥 Firebase initialized successfully');
+} catch (error) {
+  console.error('❌ Firebase initialization failed:', error);
+  // Fallback - Bu durumda API'ye geçiş yapılabilir
+}
 
 export { db };

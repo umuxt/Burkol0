@@ -76,20 +76,41 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
 
   useEffect(() => {
     setLoading(true);
-    const quotesRef = collection(db, 'quotes');
-    const q = query(quotesRef, orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-        const quotesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setList(quotesData);
-        setLoading(false);
-      }, err => {
-        console.error("Firestore listener error:", err);
-        setError("Veriler yüklenirken bir hata oluştu.");
-        setLoading(false);
-      });
+    setError(null);
+    
+    if (!db) {
+      setError("Firebase bağlantısı kurulamadı. Lütfen sayfayı yenileyin.");
+      setLoading(false);
+      return;
+    }
 
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
+    try {
+      const quotesRef = collection(db, 'quotes');
+      const q = query(quotesRef, orderBy('createdAt', 'desc'));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+          const quotesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setList(quotesData);
+          setLoading(false);
+          setError(null);
+        }, err => {
+          console.error("Firestore listener error:", err);
+          if (err.code === 'permission-denied') {
+            setError("Firebase erişim izni reddedildi. Lütfen yönetici ile iletişime geçin.");
+          } else if (err.code === 'unavailable') {
+            setError("Firebase servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.");
+          } else {
+            setError(`Veri yükleme hatası: ${err.message}`);
+          }
+          setLoading(false);
+        });
+
+      // Cleanup subscription on unmount
+      return () => unsubscribe();
+    } catch (error) {
+      console.error("Firebase query error:", error);
+      setError("Veritabanı sorgusu başlatılamadı.");
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
