@@ -288,3 +288,4 @@ Bu proje [MIT Lisansı](LICENSE) altında lisanslanmıştır.
 **🏭 Burkol Metal İşleme - Profesyonel Teklif Yönetim Sistemi**
 
 *Modern teknoloji ile metal işleme sektörüne özel çözümler*
+# Thu Sep 25 10:16:40 +03 2025
