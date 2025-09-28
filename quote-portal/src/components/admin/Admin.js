@@ -125,6 +125,14 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   async function refresh() {
     console.log('🔧 DEBUG: refresh() called')
     try {
+      // First sync any localStorage quotes to Firebase
+      console.log('🔄 Syncing localStorage quotes to Firebase...')
+      const syncResult = await API.syncLocalQuotesToFirebase()
+      if (syncResult.synced > 0) {
+        console.log('✅ Synced', syncResult.synced, 'localStorage quotes to Firebase')
+        showNotification(`Synced ${syncResult.synced} local quotes to database`, 'success')
+      }
+      
       console.log('🔧 DEBUG: Calling API.listQuotes()...')
       const quotes = await API.listQuotes()
       console.log('🔧 DEBUG: API.listQuotes() returned:', quotes.length, 'quotes')

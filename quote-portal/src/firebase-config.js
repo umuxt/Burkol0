@@ -14,13 +14,19 @@ const firebaseConfig = {
 let app;
 let db;
 
-try {
-  app = initializeApp(firebaseConfig);
-  db = getFirestore(app);
-  console.log('🔥 Firebase initialized successfully');
-} catch (error) {
-  console.error('❌ Firebase initialization failed:', error);
-  // Fallback - Bu durumda API'ye geçiş yapılabilir
+// Development mode: Skip Firebase client initialization to avoid CORS errors
+// Backend handles all Firebase operations via Admin SDK
+if (process.env.NODE_ENV === 'production') {
+  try {
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    console.log('🔥 Firebase initialized successfully');
+  } catch (error) {
+    console.error('❌ Firebase initialization failed:', error);
+  }
+} else {
+  console.log('🔥 Firebase client skipped in development (using backend API)');
+  db = null; // Use API instead of direct Firebase
 }
 
 export { db };

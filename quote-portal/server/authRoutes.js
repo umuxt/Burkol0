@@ -51,6 +51,15 @@ export function setupAuthRoutes(app) {
 
   // Me endpoint - get current user info
   app.get('/api/auth/me', (req, res) => {
+    // In development mode, bypass authentication for easier testing
+    if (process.env.NODE_ENV === 'development') {
+      return res.json({ 
+        email: 'dev@burkol.com', 
+        role: 'admin',
+        name: 'Dev User'
+      })
+    }
+    
     const authHeader = req.headers.authorization
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
     

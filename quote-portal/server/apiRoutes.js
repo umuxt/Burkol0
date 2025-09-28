@@ -237,8 +237,16 @@ export function validateQuoteDataDynamic(q, formConfig) {
 
 // Quote API routes
 export function setupQuoteRoutes(app, uploadsDir) {
-  // Get all quotes (admin only)
-  app.get('/api/quotes', requireAuth, (req, res) => {
+  // Get all quotes (admin only, but allow in development)
+  app.get('/api/quotes', (req, res, next) => {
+    // In development mode, bypass authentication
+    if (process.env.NODE_ENV === 'development') {
+      req.user = { email: 'dev@burkol.com', role: 'admin' };
+      next();
+    } else {
+      requireAuth(req, res, next);
+    }
+  }, (req, res) => {
     try {
       console.log('🔧 DEBUG: GET /api/quotes called');
       const quotes = jsondb.listQuotes();
@@ -252,6 +260,9 @@ export function setupQuoteRoutes(app, uploadsDir) {
 
   // Create new quote
   app.post('/api/quotes', async (req, res) => {
+    console.log('🔧 DEBUG: POST /api/quotes called')
+    console.log('🔧 DEBUG: Request body:', JSON.stringify(req.body, null, 2))
+    
     const q = req.body
     
     try {

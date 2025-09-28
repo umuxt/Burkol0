@@ -39,6 +39,7 @@ function getApiBase() {
   if (typeof window !== 'undefined' && window.location) {
     const hostname = window.location.hostname
     const protocol = window.location.protocol
+    const port = window.location.port
     
     // Production domains
     if (hostname.includes('vercel.app') || 
@@ -49,10 +50,16 @@ function getApiBase() {
       return '/api'
     }
     
-    // Local development
+    // Local development - distinguish between Vite dev server and direct backend
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      console.log('🔧 API: Development detected, using localhost:3002')
-      return window.BURKOL_API || 'http://localhost:3002'
+      // If running on Vite dev server (port 3001), use proxy /api
+      if (port === '3001') {
+        console.log('🔧 API: Vite dev server detected, using /api proxy')
+        return '/api'
+      }
+      // Otherwise use direct backend connection
+      console.log('🔧 API: Development detected, using localhost:3000')
+      return window.BURKOL_API || 'http://localhost:3000'
     }
   }
   
@@ -92,14 +99,28 @@ export const API = {
       const res = await fetchWithTimeout(`${API_BASE}/api/quotes${cacheBuster}`, { headers: withAuth() })
       if (res.status === 401) throw new Error('unauthorized')
       if (!res.ok) throw new Error('list failed')
-      const quotes = await res.json()
-      console.log('🔧 DEBUG: API.listQuotes received:', quotes.length, 'quotes')
-      return quotes
+      const firebaseQuotes = await res.json()
+      console.log('🔧 DEBUG: API.listQuotes received from Firebase:', firebaseQuotes.length, 'quotes')
+      
+      // Also get localStorage quotes and merge them
+      const localQuotes = lsLoad()
+      console.log('🔧 DEBUG: API.listQuotes found in localStorage:', localQuotes.length, 'quotes')
+      
+      // Merge: Firebase quotes + localStorage quotes (avoid duplicates by ID)
+      const firebaseIds = new Set(firebaseQuotes.map(q => q.id))
+      const uniqueLocalQuotes = localQuotes.filter(q => !firebaseIds.has(q.id))
+      const allQuotes = [...firebaseQuotes, ...uniqueLocalQuotes]
+      
+      console.log('🔧 DEBUG: API.listQuotes merged total:', allQuotes.length, 'quotes')
+      return allQuotes
     } catch (e) {
       console.error('🔧 DEBUG: API.listQuotes error:', e)
       // If unauthorized, bubble up to show login
       if ((e && e.message && /401|unauthorized/i.test(e.message))) throw e
-      return lsLoad()
+      // Fallback to localStorage only
+      const localQuotes = lsLoad()
+      console.log('🔧 DEBUG: API.listQuotes fallback to localStorage:', localQuotes.length, 'quotes')
+      return localQuotes
     }
   },
   async applyNewPrice(id) {
@@ -150,13 +171,77 @@ export const API = {
     return await res.json()
   },
   async createQuote(payload) {
+    console.log('🔧 DEBUG: createQuote called with:', payload)
+    console.log('🔧 DEBUG: API_BASE:', API_BASE)
+    
+    // Build correct URL - if API_BASE is already '/api', don't duplicate
+    const url = API_BASE.endsWith('/api') ? `${API_BASE}/quotes` : `${API_BASE}/api/quotes`
+    console.log('🔧 DEBUG: Full URL:', url)
+    
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      if (!res.ok) throw new Error('create failed')
-      return await res.json()
+      const res = await fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      console.log('🔧 DEBUG: Response status:', res.status)
+      console.log('🔧 DEBUG: Response ok:', res.ok)
+      
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.log('🔧 DEBUG: Error response:', errorText)
+        throw new Error(`create failed: ${res.status} - ${errorText}`)
+      }
+      
+      const result = await res.json()
+      console.log('🔧 DEBUG: Success response:', result)
+      return result
     } catch (e) {
+      console.log('🔧 DEBUG: createQuote error, falling back to localStorage:', e.message)
       lsAdd(payload)
       return { ok: true, id: payload.id, local: true }
+    }
+  },
+
+  async syncLocalQuotesToFirebase() {
+    try {
+      const localQuotes = lsLoad()
+      if (localQuotes.length === 0) {
+        console.log('🔄 No local quotes to sync')
+        return { synced: 0, errors: 0 }
+      }
+
+      console.log('🔄 Syncing', localQuotes.length, 'local quotes to Firebase...')
+      let synced = 0
+      let errors = 0
+
+      for (const quote of localQuotes) {
+        try {
+          const res = await fetchWithTimeout(`${API_BASE}/api/quotes`, { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' }, 
+            body: JSON.stringify(quote) 
+          })
+          if (res.ok) {
+            synced++
+            console.log('✅ Synced quote:', quote.id)
+          } else {
+            errors++
+            console.error('❌ Failed to sync quote:', quote.id, res.status)
+          }
+        } catch (e) {
+          errors++
+          console.error('❌ Error syncing quote:', quote.id, e.message)
+        }
+      }
+
+      // If all synced successfully, clear localStorage
+      if (errors === 0 && synced > 0) {
+        console.log('🧹 All quotes synced, clearing localStorage...')
+        localStorage.removeItem(LS_KEY)
+      }
+
+      console.log('🔄 Sync complete:', synced, 'synced,', errors, 'errors')
+      return { synced, errors }
+    } catch (e) {
+      console.error('🔄 Sync error:', e)
+      return { synced: 0, errors: 1 }
     }
   },
   async updateStatus(id, status) {

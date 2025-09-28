@@ -8,6 +8,7 @@ import express from 'express'
 import path from 'path'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
+import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
 import { setupQuoteRoutes, setupSettingsRoutes, setupExportRoutes } from './server/apiRoutes.js'
 import admin from 'firebase-admin'
@@ -24,8 +25,11 @@ if (!admin.apps.length) {
   })
 }
 
+// Configure JSX MIME type
+mime.types['jsx'] = 'application/javascript'
+
 const app = express()
-const PORT = process.env.PORT || 3002
+const PORT = process.env.PORT || 3000
 const ROOT = __dirname
 const uploadsDir = path.join(ROOT, 'uploads')
 
@@ -74,34 +78,27 @@ app.use('/uploads', express.static(uploadsDir))
 
 // Set proper MIME types for static files
 app.use((req, res, next) => {
-  if (req.path.endsWith('.css')) {
-    res.type('text/css')
-  } else if (req.path.endsWith('.js')) {
-    res.type('application/javascript')
-  } else if (req.path.endsWith('.html')) {
-    res.type('text/html')
-  } else if (req.path.endsWith('.json')) {
-    res.type('application/json')
-  } else if (req.path.endsWith('.png')) {
-    res.type('image/png')
-  } else if (req.path.endsWith('.jpg') || req.path.endsWith('.jpeg')) {
-    res.type('image/jpeg')
-  } else if (req.path.endsWith('.svg')) {
-    res.type('image/svg+xml')
+  const mimeType = mime.lookup(req.path)
+  if (mimeType) {
+    res.type(mimeType)
   }
   next()
 })
 
-// Serve static files
-app.use(express.static(ROOT))
+// Production mode: Serve static files and SPA fallback
+if (process.env.NODE_ENV !== 'development') {
+  app.use(express.static(ROOT))
+  
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
+      return res.status(404).json({ error: 'Not found' })
+    }
+    res.sendFile(path.join(ROOT, 'index.html'))
+  })
+}
 
-// SPA fallback
-app.get('*', (req, res) => {
-  if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
-    return res.status(404).json({ error: 'Not found' })
-  }
-  res.sendFile(path.join(ROOT, 'index.html'))
-})
+// Development mode: Only serve API endpoints
+// Frontend is handled by Vite on port 3001
 
 // Error handling
 app.use((err, req, res, next) => {
