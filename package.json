@@ -1,13 +1,42 @@
 {
   "name": "burkol-quote-portal",
-  "version": "1.0.0",
-  "description": "Burkol Quote Portal - React Frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "build": "cd quote-portal && npm run build",
-    "start": "cd quote-portal && npm start",
-    "install": "cd quote-portal && npm install"
+    "start": "npm run start:backend",
+    "start:backend": "PORT=3000 NODE_ENV=development node server.js",
+    "start:frontend": "PORT=3001 npm run dev",
+    "start:both": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "dev": "vite --port 3001 --host localhost",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node test-automation.js",
+    "test:smoke": "node scripts/firestore-smoke-test.js",
+    "test:watch": "node test-automation.js --watch",
+    "test:safari": "node safari-test.js",
+    "test:extended": "node extended-test.js",
+    "test:all": "npm run test:safari && npm run test:extended",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:restart": "pm2 restart burkol || pm2 start ecosystem.config.js",
+    "pm2:logs": "pm2 logs burkol"
   },
-  "keywords": ["burkol", "quote", "portal", "react"],
-  "author": "Burkol Team",
-  "license": "ISC"
+  "dependencies": {
+    "@google-cloud/firestore": "^7.11.5",
+    "express": "^4.19.2",
+    "firebase": "^12.3.0",
+    "firebase-admin": "^13.5.0",
+    "formulajs": "^1.0.8",
+    "hot-formula-parser": "^4.0.0",
+    "mime-types": "^3.0.1",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.3",
+    "concurrently": "^9.2.1",
+    "playwright": "^1.55.0",
+    "puppeteer": "^23.7.0",
+    "vite": "^7.1.7"
+  }
 }
