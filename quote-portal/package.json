@@ -10,6 +10,7 @@
     "start:both": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
     "dev": "vite --port 3001",
     "build": "vite build",
+    "build:backend": "echo 'Backend build: Installing dependencies...' && npm install",
     "preview": "vite preview",
     "test": "node test-automation.js",
     "test:smoke": "node scripts/firestore-smoke-test.js",
@@ -18,8 +19,8 @@
     "test:extended": "node extended-test.js",
     "test:all": "npm run test:safari && npm run test:extended",
     "pm2:start": "pm2 start ecosystem.config.js",
-    "pm2:restart": "pm2 restart burkol || pm2 start ecosystem.config.js",
-    "pm2:logs": "pm2 logs burkol"
+    "pm2:restart": "pm2 restart burkol-backend || pm2 start ecosystem.config.js",
+    "pm2:logs": "pm2 logs burkol-backend"
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.11.5",

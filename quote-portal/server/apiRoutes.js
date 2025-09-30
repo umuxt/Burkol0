@@ -565,6 +565,27 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
 
 // Settings API routes
 export function setupSettingsRoutes(app) {
+  // Get general settings
+  app.get('/api/settings', requireAuth, (req, res) => {
+    try {
+      const settings = jsondb.getSettings()
+      res.json(settings || {})
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load settings' })
+    }
+  })
+
+  // Save general settings
+  app.post('/api/settings', requireAuth, (req, res) => {
+    try {
+      const settings = req.body || {}
+      jsondb.putSettings(settings)
+      res.json({ success: true, settings })
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to save settings' })
+    }
+  })
+
   // Get price settings
   app.get('/api/price-settings', requireAuth, (req, res) => {
     try {

@@ -1,12 +1,10 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
+import React, { useState, useEffect } from 'react';
+import { createRoot } from 'react-dom/client';
 import { useI18n } from './i18n/index.js';
 import API from './lib/api.js';
 import DynamicFormRenderer from './components/DynamicFormRenderer.js';
 import Admin from './components/admin/Admin.js';
 import { ToastNotification, useNotifications } from './hooks/useNotifications.js';
-
-const { useState, useEffect } = React;
 
 const PAGE = window.location.pathname.includes('panel-gizli.html') ? 'admin' : 'quote';
 
@@ -146,4 +144,4 @@ function AdminGate({ onLogin, t }) {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+createRoot(document.getElementById('root')).render(<App />);

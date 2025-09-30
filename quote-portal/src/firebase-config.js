@@ -14,19 +14,25 @@ const firebaseConfig = {
 let app;
 let db;
 
-// Development mode: Skip Firebase client initialization to avoid CORS errors
-// Backend handles all Firebase operations via Admin SDK
+// IMPORTANT: Firebase Client Pattern
+// - Development: Use API-only pattern (no direct Firebase client)
+// - Production: Firebase client available but prefer API pattern for consistency
+// - Backend: Always uses Firebase Admin SDK (server.js, jsondb.js)
+
 if (process.env.NODE_ENV === 'production') {
   try {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
-    console.log('🔥 Firebase initialized successfully');
+    console.log('🔥 Firebase client initialized (production mode)');
+    console.log('💡 Recommendation: Use API endpoints instead of direct client calls');
   } catch (error) {
-    console.error('❌ Firebase initialization failed:', error);
+    console.error('❌ Firebase client initialization failed:', error);
+    db = null; // Fallback to API-only
   }
 } else {
-  console.log('🔥 Firebase client skipped in development (using backend API)');
-  db = null; // Use API instead of direct Firebase
+  console.log('🔥 Firebase client disabled in development');
+  console.log('💡 Using API-only pattern for consistent dev/prod behavior');
+  db = null; // Always use API in development
 }
 
 export { db };

@@ -50,21 +50,15 @@ function getApiBase() {
       return '/api'
     }
     
-    // Local development - distinguish between Vite dev server and direct backend
+    // Local development - always use /api for Vite proxy
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      // If running on Vite dev server (port 3001), use proxy /api
-      if (port === '3001') {
-        console.log('🔧 API: Vite dev server detected, using /api proxy')
-        return '/api'
-      }
-      // Otherwise use direct backend connection
-      console.log('🔧 API: Development detected, using localhost:3000')
-      return window.BURKOL_API || 'http://localhost:3000'
+      console.log('🔧 API: Local development detected, using /api for proxy')
+      return '/api'
     }
   }
   
   // Final fallback - assume production
-  console.log('🔧 API: Fallback to production /api')
+  console.log('🔧 API: Fallback to /api')
   return '/api'
 }
 
@@ -95,8 +89,9 @@ export const API = {
     try {
       // Add cache busting to ensure fresh data
       const cacheBuster = `?_t=${Date.now()}`
-      console.log('🔧 DEBUG: API.listQuotes fetching from:', `${API_BASE}/api/quotes${cacheBuster}`)
-      const res = await fetchWithTimeout(`${API_BASE}/api/quotes${cacheBuster}`, { headers: withAuth() })
+      const url = `/api/quotes${cacheBuster}`
+      console.log('🔧 DEBUG: API.listQuotes fetching from:', url)
+      const res = await fetchWithTimeout(url, { headers: withAuth() })
       if (res.status === 401) throw new Error('unauthorized')
       if (!res.ok) throw new Error('list failed')
       const firebaseQuotes = await res.json()
