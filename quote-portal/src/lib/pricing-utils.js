@@ -124,6 +124,75 @@ export function validateUserFriendlyFormula(formula, parameters) {
   }
 }
 
+// Orphan parameter kontrolü - Form alanı silinen parametreleri tespit et
+export function detectOrphanParameters(parameters, availableFormFields) {
+  if (!parameters || !Array.isArray(parameters)) return []
+  if (!availableFormFields || !Array.isArray(availableFormFields)) return []
+  
+  const availableFieldIds = availableFormFields.map(field => field.value)
+  
+  return parameters.filter(param => {
+    // Sadece form tipindeki parametreleri kontrol et
+    if (param.type !== 'form' || !param.formField) return false
+    
+    // Form alanı artık mevcut değilse orphan
+    return !availableFieldIds.includes(param.formField)
+  })
+}
+
+// Orphan parametrelerin formülde kullanılıp kullanılmadığını kontrol et
+export function getOrphanParametersInFormula(orphanParameters, formula, allParameters) {
+  if (!orphanParameters || orphanParameters.length === 0) return []
+  if (!formula) return []
+  
+  const mapping = createUserFriendlyIdMapping(allParameters)
+  const usedLetters = formula.match(/\b[A-Z]\b/g) || []
+  
+  return orphanParameters.filter(param => {
+    const userLetter = mapping.backendToUser[param.id]
+    return usedLetters.includes(userLetter)
+  })
+}
+
+// Sistem durumu kontrolü - orphan parametreler varsa işlemleri bloke et
+export function validateSystemIntegrity(parameters, availableFormFields, formula) {
+  const orphanParams = detectOrphanParameters(parameters, availableFormFields)
+  const orphansInFormula = getOrphanParametersInFormula(orphanParams, formula, parameters)
+  
+  const hasOrphans = orphanParams.length > 0
+  const hasOrphansInFormula = orphansInFormula.length > 0
+  
+  const result = {
+    isValid: !hasOrphans,
+    canSave: !hasOrphans,
+    canEdit: !hasOrphans,
+    orphanParameters: orphanParams,
+    orphansInFormula: orphansInFormula,
+    warnings: [],
+    errors: []
+  }
+  
+  if (hasOrphans) {
+    result.errors.push(`${orphanParams.length} parametre artık form alanında bulunmuyor`)
+    
+    orphanParams.forEach(param => {
+      result.warnings.push(`"${param.name}" parametresi "${param.formField}" form alanına bağlı ancak bu alan artık mevcut değil`)
+    })
+    
+    if (hasOrphansInFormula) {
+      result.errors.push(`${orphansInFormula.length} orphan parametre hala formülde kullanılıyor`)
+      
+      orphansInFormula.forEach(param => {
+        const mapping = createUserFriendlyIdMapping(parameters)
+        const userLetter = mapping.backendToUser[param.id]
+        result.errors.push(`Formülden "${userLetter}" (${param.name}) parametresini kaldırın`)
+      })
+    }
+  }
+  
+  return result
+}
+
 export default {
   createUserFriendlyIdMapping,
   convertFormulaToUserFriendly,
@@ -132,5 +201,8 @@ export default {
   isFixedValueParameter,
   extractFieldInfoFromFormConfig,
   validateParameter,
-  validateUserFriendlyFormula
+  validateUserFriendlyFormula,
+  detectOrphanParameters,
+  getOrphanParametersInFormula,
+  validateSystemIntegrity
 }

@@ -190,8 +190,13 @@ export const API = {
     } catch (e) {
       console.log('🔧 DEBUG: createQuote error, falling back to localStorage:', e.message)
       lsAdd(payload)
-      return { ok: true, id: payload.id, local: true }
+      return { success: true, id: payload.id, local: true }
     }
+  },
+
+  // Alias for createQuote to maintain compatibility
+  async create(payload) {
+    return this.createQuote(payload)
   },
 
   async syncLocalQuotesToFirebase() {
@@ -443,15 +448,32 @@ export const API = {
   },
 
   async saveFormConfig(formConfig) {
+    console.log('🔧 DEBUG: API.saveFormConfig called with:', formConfig)
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/form-config`, { 
+      const url = `${API_BASE}/api/form-config`
+      console.log('🔧 DEBUG: Sending request to:', url)
+      console.log('🔧 DEBUG: Headers:', withAuth({ 'Content-Type': 'application/json' }))
+      
+      const res = await fetchWithTimeout(url, { 
         method: 'POST', 
         headers: withAuth({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(formConfig)
       })
-      if (!res.ok) throw new Error('save form config failed')
-      return await res.json()
+      
+      console.log('🔧 DEBUG: Response status:', res.status)
+      console.log('🔧 DEBUG: Response ok:', res.ok)
+      
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.log('🔧 DEBUG: Error response text:', errorText)
+        throw new Error(`save form config failed: ${res.status} - ${errorText}`)
+      }
+      
+      const result = await res.json()
+      console.log('🔧 DEBUG: Success response:', result)
+      return result
     } catch (e) {
+      console.error('🔧 DEBUG: API.saveFormConfig error:', e)
       throw e
     }
   },

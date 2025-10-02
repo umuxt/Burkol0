@@ -26,10 +26,24 @@ function DynamicPricingTab({ t, showNotification }) {
   // Dinamik form alanları
   const [formFields, setFormFields] = useState([])
   const [isLoadingFields, setIsLoadingFields] = useState(true)
+  
+  // Orphan parameter kontrolü
+  const [systemIntegrity, setSystemIntegrity] = useState({
+    isValid: true,
+    canSave: true,
+    canEdit: true,
+    orphanParameters: [],
+    orphansInFormula: [],
+    warnings: [],
+    errors: []
+  })
+  
   // Inline edit states (not used in add flow anymore)
   const [editingParamId, setEditingParamId] = useState(null)
   const [paramDraft, setParamDraft] = useState({ name: '', value: '', formField: '' })
   const [paramLookupTable, setParamLookupTable] = useState([])
+  const [paramLookupEditIndex, setParamLookupEditIndex] = useState(null)
+  const [paramLookupDraft, setParamLookupDraft] = useState({ value: '' })
   // Inline lookup editor simplified: direct edit inputs; no per-row edit state needed
 
   useEffect(() => {
@@ -37,12 +51,27 @@ function DynamicPricingTab({ t, showNotification }) {
     loadPriceSettings()
   }, [])
 
+  // Sistem bütünlüğü kontrolü - form alanları ve parametreler değiştiğinde
+  useEffect(() => {
+    if (formFields.length > 0 && parameters.length > 0) {
+      const integrity = PricingUtils.validateSystemIntegrity(parameters, formFields, userFormula)
+      setSystemIntegrity(integrity)
+      
+      if (!integrity.isValid) {
+        console.warn('🚨 Sistem bütünlüğü hatası:', integrity)
+      }
+    }
+  }, [formFields, parameters, userFormula])
+
   // Form alanlarını dinamik olarak yükle
   async function loadDynamicFormFields() {
     setIsLoadingFields(true)
     try {
+      console.log('🔧 DEBUG: Loading form fields...')
       const response = await API.getFormFields()
+      console.log('🔧 DEBUG: Raw response:', response)
       const dynamicFields = PricingUtils.extractFieldInfoFromFormConfig(response.fields)
+      console.log('🔧 DEBUG: Processed fields:', dynamicFields)
       setFormFields(dynamicFields)
     } catch (e) {
       console.error('Form fields load error:', e)
@@ -100,6 +129,12 @@ function DynamicPricingTab({ t, showNotification }) {
 
   async function savePriceSettings() {
     try {
+      // Önce sistem bütünlüğü kontrolü yap
+      if (!systemIntegrity.canSave) {
+        showNotification('Kaydetme işlemi engellenmiştir! Orphan parametreleri temizleyin.', 'error')
+        return
+      }
+      
       // Lookup tablolarında boş veya geçersiz değer var mı kontrol et
       const hasInvalidLookup = parameters.some(p => Array.isArray(p.lookupTable) && p.lookupTable.some(it => it.value === '' || Number.isNaN(Number(it.value))))
       if (hasInvalidLookup) {
@@ -118,6 +153,12 @@ function DynamicPricingTab({ t, showNotification }) {
   }
 
   function addParameter() {
+    // Orphan parametreler varsa yeni parametre eklemeyi engelle
+    if (!systemIntegrity.canEdit) {
+      showNotification('Orphan parametreler mevcut! Önce mevcut sorunları çözün.', 'error')
+      return
+    }
+    
     const selectedField = formFields.find(f => f.value === selectedFormField)
     const autoNameForForm = selectedField ? (selectedField.label || selectedField.value) : ''
     const effectiveName = parameterType === 'form' ? autoNameForForm : parameterName
@@ -179,6 +220,41 @@ function DynamicPricingTab({ t, showNotification }) {
     const currentBackendFormula = PricingUtils.convertFormulaToBackend(userFormula, idMapping)
     const updatedUserFormula = PricingUtils.convertFormulaToUserFriendly(currentBackendFormula, newMapping)
     setUserFormula(updatedUserFormula)
+  }
+
+  // Orphan parametreleri temizleme fonksiyonu
+  function removeOrphanParameter(paramId) {
+    const param = parameters.find(p => p.id === paramId)
+    if (!param) return
+    
+    // Önce formülden parametreyi kaldır
+    const mapping = PricingUtils.createUserFriendlyIdMapping(parameters)
+    const userLetter = mapping.backendToUser[paramId]
+    
+    if (userLetter && userFormula.includes(userLetter)) {
+      // Kullanıcıya formül temizleme onayı iste
+      const confirmRemoval = window.confirm(
+        `"${param.name}" parametresi (${userLetter}) formülde kullanılıyor.\n\n` +
+        `Mevcut formül: ${userFormula}\n\n` +
+        `Parametreyi silmek için önce formülden "${userLetter}" harfini kaldırmanız gerekiyor.\n\n` +
+        `Formülü otomatik temizlemek ister misiniz?\n` +
+        `(${userLetter} → 0 ile değiştirilecek)`
+      )
+      
+      if (confirmRemoval) {
+        // Formülden parametreyi otomatik kaldır
+        const cleanedFormula = userFormula.replace(new RegExp(`\\b${userLetter}\\b`, 'g'), '0')
+        setUserFormula(cleanedFormula)
+        showNotification(`Formül güncellendi: ${userLetter} → 0`, 'info')
+      } else {
+        showNotification('Önce formülden parametreyi manuel olarak kaldırın', 'warning')
+        return
+      }
+    }
+    
+    // Parametreyi sil
+    deleteParameter(paramId)
+    showNotification(`"${param.name}" orphan parametresi temizlendi`, 'success')
   }
 
   function resetParameterForm() {
@@ -331,7 +407,7 @@ function DynamicPricingTab({ t, showNotification }) {
       React.createElement('h3', null, '📊 Fiyat Parametreleri'),
       
       isLoadingFields && React.createElement('div', { className: 'alert alert-info' },
-        'Form alanları yükleniyor...'
+        '📝 Form alanları yükleniyor... Firebase\'den form konfigürasyonu çekiliyor.'
       ),
       
       !isLoadingFields && React.createElement(React.Fragment, null,
@@ -377,17 +453,26 @@ function DynamicPricingTab({ t, showNotification }) {
             React.createElement('label', null, t.pricing_form_field || 'Form Alanı'),
             formFields.length === 0 ? 
               React.createElement('div', { className: 'alert alert-warning' },
-                t.pricing_no_form_fields || 'Henüz form alanı bulunmuyor. Önce Form Düzenleme menüsünden form alanları oluşturun.'
+                React.createElement('strong', null, '⚠️ Form alanı bulunamadı'),
+                React.createElement('br'),
+                'Firebase\'de form konfigürasyonu bulunamadı. Önce Form Düzenleme menüsünden form alanları oluşturun.',
+                React.createElement('br'),
+                React.createElement('small', null, 'Debug: formFields.length = ', formFields.length)
               ) :
-              React.createElement('select', {
-                value: selectedFormField,
-                onChange: (e) => setSelectedFormField(e.target.value),
-                className: 'form-control'
-              },
-                React.createElement('option', { value: '' }, t.pricing_select || 'Seçiniz...'),
-                ...formFields.map(field =>
-                  React.createElement('option', { key: field.value, value: field.value }, 
-                    `${field.label} (${field.type})`
+              React.createElement('div', null,
+                React.createElement('div', { className: 'alert alert-success', style: { fontSize: '13px', padding: '8px', marginBottom: '8px' } },
+                  `✅ ${formFields.length} form alanı Firebase'den başarıyla yüklendi`
+                ),
+                React.createElement('select', {
+                  value: selectedFormField,
+                  onChange: (e) => setSelectedFormField(e.target.value),
+                  className: 'form-control'
+                },
+                  React.createElement('option', { value: '' }, t.pricing_select || 'Seçiniz...'),
+                  ...formFields.map(field =>
+                    React.createElement('option', { key: field.value, value: field.value }, 
+                      `${field.label} (${field.type})`
+                    )
                   )
                 )
               )
@@ -442,15 +527,46 @@ function DynamicPricingTab({ t, showNotification }) {
 
         parameterType && React.createElement('button', {
           onClick: addParameter,
-          className: 'btn btn-primary',
+          className: systemIntegrity.canEdit ? 'btn btn-primary' : 'btn btn-secondary',
           style: { marginTop: '6px' },
-          disabled: formFields.length === 0 && parameterType === 'form'
-        }, '➕ Parametre Ekle')
+          disabled: (formFields.length === 0 && parameterType === 'form') || !systemIntegrity.canEdit
+        }, systemIntegrity.canEdit ? '➕ Parametre Ekle' : '🚫 Orphan Parametreler Var - Ekleme Engellendi')
       ),
 
       // Parameters list with user-friendly IDs
       parameters.length > 0 && React.createElement('div', { style: { marginTop: '12px' } },
         React.createElement('h4', null, '📋 Mevcut Parametreler'),
+        
+        // Orphan parameter uyarı sistemi
+        !systemIntegrity.isValid && React.createElement('div', { className: 'alert alert-danger', style: { marginBottom: '15px' } },
+          React.createElement('h5', { style: { margin: '0 0 10px 0' } }, '🚨 SİSTEM BÜTÜNLÜK HATASI'),
+          React.createElement('div', { style: { marginBottom: '10px' } },
+            React.createElement('strong', null, 'Aşağıdaki parametreler artık form alanında bulunmuyor:')
+          ),
+          React.createElement('ul', { style: { marginBottom: '10px' } },
+            ...systemIntegrity.orphanParameters.map(param => 
+              React.createElement('li', { key: param.id },
+                React.createElement('strong', null, param.name),
+                ` → "${param.formField}" alanı mevcut değil`
+              )
+            )
+          ),
+          systemIntegrity.orphansInFormula.length > 0 && React.createElement('div', { style: { marginTop: '10px', padding: '8px', backgroundColor: '#dc3545', color: 'white', borderRadius: '4px' } },
+            React.createElement('strong', null, '⚠️ Bu parametreler hala formülde kullanılıyor!'),
+            React.createElement('br'),
+            'Önce formülden kaldırın, sonra parametreyi silin.'
+          ),
+          React.createElement('div', { style: { marginTop: '10px', fontSize: '0.9em' } },
+            React.createElement('strong', null, '🔒 Bloke Edilen İşlemler:'),
+            React.createElement('br'),
+            '• Form kaydetme engellenmiştir',
+            React.createElement('br'),
+            '• Yeni parametre ekleme engellenmiştir',
+            React.createElement('br'),
+            '• Mevcut parametreler düzenlenemez'
+          )
+        ),
+        
         React.createElement('div', { className: 'alert alert-info', style: { fontSize: '0.9em' } },
           'Parametreler formülde A, B, C... harfleri ile kullanılır'
         ),
@@ -465,8 +581,11 @@ function DynamicPricingTab({ t, showNotification }) {
             )
           ),
           React.createElement('tbody', null,
-            ...parameters.map((param, index) =>
-              React.createElement('tr', { key: param.id },
+            ...parameters.map((param, index) => {
+              const isOrphan = systemIntegrity.orphanParameters.some(op => op.id === param.id)
+              const rowStyle = isOrphan ? { backgroundColor: '#ffebee', border: '2px solid #f44336' } : {}
+              
+              return React.createElement('tr', { key: param.id, style: rowStyle },
                 React.createElement('td', null, 
                   React.createElement('strong', { style: { color: '#007bff', fontSize: '1.1em' } },
                     getParameterDisplayId(param, index)
@@ -507,7 +626,11 @@ function DynamicPricingTab({ t, showNotification }) {
                             ...formFields.map(f => React.createElement('option', { key: f.value, value: f.value }, `${f.label} (${f.type})`))
                           )
                       )
-                    : (param.type === 'fixed' ? param.value : (formFields.find(f => f.value === param.formField)?.label || param.formField))
+                    : (param.type === 'fixed' ? param.value : 
+                        (isOrphan ? React.createElement('span', { style: { color: '#f44336', fontWeight: 'bold' } },
+                          '❌ ', param.formField, ' (ALAN MEVCUT DEĞİL)'
+                        ) : (formFields.find(f => f.value === param.formField)?.label || param.formField))
+                    )
                 ),
                 // Actions (Edit only for fixed or form-with-options)
                 React.createElement('td', null,
@@ -528,12 +651,16 @@ function DynamicPricingTab({ t, showNotification }) {
                       )
                     }
                     return React.createElement(React.Fragment, null,
-                      canEdit && React.createElement('button', {
+                      canEdit && !isOrphan && React.createElement('button', {
                         onClick: () => editParameter(param),
                         className: 'btn btn-sm btn-primary',
                         style: { marginRight: '6px' }
                       }, 'Düzenle'),
-                      React.createElement('button', {
+                      isOrphan ? React.createElement('button', {
+                        onClick: () => removeOrphanParameter(param.id),
+                        className: 'btn btn-sm btn-warning',
+                        style: { marginRight: '6px' }
+                      }, '🧹 Orphan Temizle') : React.createElement('button', {
                         onClick: () => deleteParameter(param.id),
                         className: 'btn btn-sm btn-danger'
                       }, 'Sil')
@@ -541,9 +668,8 @@ function DynamicPricingTab({ t, showNotification }) {
                   })()
                 )
               )
-            )
-          )
-          ,
+            })
+          ),
           // Inline lookup editor for form parameters with options
           ...parameters.map((param) => {
             const field = formFields.find(f => f.value === param.formField)
@@ -604,7 +730,7 @@ function DynamicPricingTab({ t, showNotification }) {
           onChange: handleUserFormulaChange,
           parameters: parameters,
           placeholder: 'Örn: A * B * SQRT(C) + 100',
-          disabled: false
+          disabled: !systemIntegrity.canEdit
         }),
         
         React.createElement('div', { style: { display: 'flex', gap: '6px', marginTop: '4px' } },
@@ -673,10 +799,10 @@ function DynamicPricingTab({ t, showNotification }) {
 
       React.createElement('button', {
         onClick: savePriceSettings,
-        className: 'btn btn-success btn-lg',
+        className: systemIntegrity.canSave ? 'btn btn-success btn-lg' : 'btn btn-danger btn-lg',
         style: { marginTop: '10px', width: '100%' },
-        disabled: !isFormulaValid || parameters.length === 0
-      }, '💾 Fiyat Ayarlarını Kaydet')
+        disabled: !isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave
+      }, systemIntegrity.canSave ? '💾 Fiyat Ayarlarını Kaydet' : '🚫 Kaydetme Engellendi - Orphan Parametreler Mevcut')
     )
   )
 }

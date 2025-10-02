@@ -83,6 +83,36 @@ function ensureReady() {
   }
 }
 
+function generateQuoteId() {
+  ensureReady()
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const datePrefix = `${year}${month}${day}`
+  
+  // Find existing quotes for today
+  const todayQuotes = state.quotes.filter(q => q.id && q.id.startsWith(datePrefix + '.'))
+  
+  // Get the highest index for today
+  let maxIndex = 0
+  todayQuotes.forEach(q => {
+    const parts = q.id.split('.')
+    if (parts.length === 2) {
+      const index = parseInt(parts[1], 10)
+      if (!isNaN(index) && index > maxIndex) {
+        maxIndex = index
+      }
+    }
+  })
+  
+  // Generate next index
+  const nextIndex = maxIndex + 1
+  const indexStr = String(nextIndex).padStart(4, '0')
+  
+  return `${datePrefix}.${indexStr}`
+}
+
 function listQuotes() {
   ensureReady()
   return clone(state.quotes)
@@ -95,25 +125,69 @@ function getQuote(id) {
 
 function putQuote(quote) {
   ensureReady()
-  if (!quote?.id) throw new Error('Quote must include an id')
-  const idx = state.quotes.findIndex(q => q.id === quote.id)
   const stored = { ...quote }
-  if (!stored.createdAt) stored.createdAt = new Date().toISOString()
-  if (!stored.status) stored.status = 'new'
-  if (idx >= 0) state.quotes[idx] = stored
-  else state.quotes.push(stored)
-  fireAndForget(quotesRef.doc(stored.id).set(stored), `putQuote(${stored.id})`)
-  return clone(stored)
+  
+  // Auto-generate ID if not provided or if it's in old UUID format
+  if (!stored.id || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stored.id)) {
+    stored.id = generateQuoteId()
+  }
+  
+  // Deep filter out undefined values to avoid Firestore errors
+  const cleanStored = filterUndefinedValues(stored)
+  
+  const idx = state.quotes.findIndex(q => q.id === cleanStored.id)
+  if (!cleanStored.createdAt) cleanStored.createdAt = new Date().toISOString()
+  if (!cleanStored.status) cleanStored.status = 'new'
+  
+  if (idx >= 0) state.quotes[idx] = cleanStored
+  else state.quotes.push(cleanStored)
+  
+  fireAndForget(quotesRef.doc(cleanStored.id).set(cleanStored), `putQuote(${cleanStored.id})`)
+  return clone(cleanStored)
 }
 
 function patchQuote(id, patch) {
   ensureReady()
   const idx = state.quotes.findIndex(q => q.id === id)
   if (idx === -1) return false
-  const merged = { ...state.quotes[idx], ...patch }
+  
+  // Deep filter out undefined values to avoid Firestore errors
+  const cleanPatch = filterUndefinedValues(patch)
+  
+  const merged = { ...state.quotes[idx], ...cleanPatch }
   state.quotes[idx] = merged
   fireAndForget(quotesRef.doc(id).set(merged, { merge: true }), `patchQuote(${id})`)
   return true
+}
+
+// Helper function to recursively filter undefined values
+function filterUndefinedValues(obj) {
+  if (obj === null || typeof obj !== 'object') {
+    return obj === undefined ? null : obj
+  }
+  
+  if (Array.isArray(obj)) {
+    return obj.map(item => filterUndefinedValues(item)).filter(item => item !== undefined)
+  }
+  
+  const cleaned = {}
+  Object.keys(obj).forEach(key => {
+    const value = obj[key]
+    if (value !== undefined) {
+      if (value === null) {
+        cleaned[key] = null
+      } else if (typeof value === 'object') {
+        const cleanedValue = filterUndefinedValues(value)
+        if (cleanedValue !== undefined) {
+          cleaned[key] = cleanedValue
+        }
+      } else {
+        cleaned[key] = value
+      }
+    }
+  })
+  
+  return cleaned
 }
 
 function removeQuote(id) {
@@ -240,6 +314,7 @@ export default {
   patchQuote,
   removeQuote,
   delete: removeQuote,
+  generateQuoteId,
   getPriceSettings,
   savePriceSettings,
   getFormConfig,

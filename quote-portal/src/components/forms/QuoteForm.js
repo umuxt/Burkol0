@@ -1,7 +1,6 @@
 // Compact Quote Form - Modular multi-step form with validation and file upload
 import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../i18n/index.js'
 import API from '../../lib/api.js'
-import { uid } from '../../lib/utils.js'
 import Field from '../Field.js'
 import Modal from '../Modal.js'
 import { validateQuoteForm, getStepFields, stepHasErrors, computeMissingFields, sanitizeInteger, sanitizeNumber } from './FormValidation.js'
@@ -121,7 +120,6 @@ export default function QuoteFormCompact({ t, showNotification }) {
 
       const payload = {
         ...form,
-        id: uid(),
         files: files.length > 0 ? files : undefined,
         prodFiles: prodFiles.length > 0 ? prodFiles : undefined,
         qtyTiers: qtyTiers.length > 0 ? qtyTiers : undefined

@@ -9,7 +9,8 @@ export default defineConfig({
     port: 3001,
     host: true, // Listen on all addresses
     hmr: {
-      port: 3001
+      port: 3001,
+      overlay: false // Disable error overlay for minor issues
     },
     proxy: {
       '/api': {

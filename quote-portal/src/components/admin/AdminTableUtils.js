@@ -9,6 +9,51 @@ const formatPrice = Utils.formatPrice || function(price, currency = 'TL') {
   return `₺${formatted}`
 }
 
+// Price change button helper functions
+function getPriceChangeButtonColor(changeType) {
+  switch (changeType) {
+    case 'price-changed':
+      return '#dc3545' // 🔴 Kırmızı - Fiyat gerçekten değişti
+    case 'formula-changed':
+      return '#ffc107' // 🟡 Sarı - Formül/parametre değişti ama fiyat aynı
+    default:
+      return '#6c757d' // Gri - Bilinmeyen durum
+  }
+}
+
+function getPriceChangeButtonTextColor(changeType) {
+  switch (changeType) {
+    case 'price-changed':
+      return 'white' // Kırmızı arkaplan için beyaz yazı
+    case 'formula-changed':
+      return '#000' // Sarı arkaplan için siyah yazı
+    default:
+      return 'white' // Gri arkaplan için beyaz yazı
+  }
+}
+
+function getPriceChangeButtonTitle(changeType) {
+  switch (changeType) {
+    case 'price-changed':
+      return 'Fiyat değişti - Yeni hesaplama mevcut fiyattan farklı'
+    case 'formula-changed':
+      return 'Formül değişti - Parametre veya formül güncellendi ama fiyat aynı kaldı'
+    default:
+      return 'Fiyat durumu belirsiz'
+  }
+}
+
+function getPriceChangeButtonSymbol(changeType) {
+  switch (changeType) {
+    case 'price-changed':
+      return '!' // Ünlem - Fiyat değişti
+    case 'formula-changed':
+      return '~' // Tilde - Formül değişti
+    default:
+      return '?' // Soru işareti - Bilinmeyen
+  }
+}
+
 export function getTableColumns(formConfig) {
   // Fixed columns that always appear in the table
   const fixedColumns = [
@@ -88,6 +133,13 @@ export function formatFieldValue(value, column, item, context) {
             React.createElement('button', {
               onClick: (e) => {
                 e.stopPropagation();
+                console.log('🔧 Price update button clicked for quote:', item.id, {
+                  changeType: priceChangeType,
+                  currentPrice: item.price,
+                  needsPriceUpdate: item.needsPriceUpdate,
+                  priceUpdatedAt: item.priceUpdatedAt
+                });
+                
                 const original = parseFloat(item.price) || 0;
                 // Use pendingCalculatedPrice if available (more accurate), otherwise calculate on the fly
                 let calc = original;
@@ -96,11 +148,18 @@ export function formatFieldValue(value, column, item, context) {
                 } else if (typeof calculatePrice === 'function') {
                   calc = parseFloat(calculatePrice(item)) || 0;
                 }
+                
+                console.log('🔧 Price review data:', {
+                  original,
+                  calculated: calc,
+                  difference: Math.abs(calc - original)
+                });
+                
                 setPriceReview({ item, originalPrice: original, newPrice: calc });
               },
               style: {
-                backgroundColor: priceChangeType === 'price-changed' ? '#dc3545' : '#ffc107',
-                color: priceChangeType === 'price-changed' ? 'white' : '#000',
+                backgroundColor: getPriceChangeButtonColor(priceChangeType),
+                color: getPriceChangeButtonTextColor(priceChangeType),
                 border: 'none',
                 padding: '2px 6px',
                 borderRadius: '4px',
@@ -108,8 +167,8 @@ export function formatFieldValue(value, column, item, context) {
                 cursor: 'pointer',
                 fontWeight: 'bold'
               },
-              title: priceChangeType === 'price-changed' ? 'Fiyat değişti' : 'Formül değişti'
-            }, priceChangeType === 'price-changed' ? '!' : '~')
+              title: getPriceChangeButtonTitle(priceChangeType)
+            }, getPriceChangeButtonSymbol(priceChangeType))
           );
         }
         

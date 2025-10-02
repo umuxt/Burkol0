@@ -1,12 +1,13 @@
 import React from 'react';
 import API from '../../lib/api.js'
 import { statusLabel, procLabel, materialLabel } from '../../i18n/index.js'
-import { db } from '../../firebase-config.js'
-import { collection, orderBy, onSnapshot, query } from 'firebase/firestore'
 import { getTableColumns, getFieldValue, formatFieldValue } from './AdminTableUtils.js'
-import { calculatePrice, needsPriceUpdate, getPriceChangeType, getChanges, getChangeReason, applyNewPrice } from './AdminPriceCalculator.js'
+import { calculatePrice, needsPriceUpdate, getPriceChangeType, getChanges, getChangeReason, applyNewPrice, getChangesFromOriginal } from './AdminPriceCalculator.js'
 import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from './AdminFilterUtils.js'
 import { calculateStatistics, BarChart } from './AdminStatistics.js'
+import { DetailModal } from '../modals/DetailModal.js'
+import SettingsModalCompact from '../modals/SettingsModal.js'
+import { FilterPopup } from '../modals/FilterPopup.js'
 
 const { useState, useEffect, useMemo } = React;
 
@@ -29,21 +30,57 @@ function formatChangeReasonWithColors(reason, formConfig) {
   let processedReason = reason
   if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
     formConfig.formStructure.fields.forEach(field => {
-      const regex = new RegExp(field.id, 'g')
+      const regex = new RegExp(`\\b${field.id}\\b`, 'g')
       processedReason = processedReason.replace(regex, field.label || field.id)
     })
   }
   
-  // Add colors to old → new format
-  processedReason = processedReason.replace(
-    /([^→]+)→([^;,]+)/g, 
-    '<span style="background-color: #ffebee; color: #c62828; padding: 2px 4px; border-radius: 3px;">$1</span>→<span style="background-color: #e8f5e8; color: #2e7d32; padding: 2px 4px; border-radius: 3px;">$2</span>'
-  )
+  // Clean up any existing HTML first
+  processedReason = processedReason.replace(/<[^>]*>/g, '')
   
-  return processedReason
+  // Split by semicolons to handle each change separately
+  const changes = processedReason.split(';').map(change => change.trim()).filter(Boolean)
+  
+  const formattedChanges = changes.map(change => {
+    // Highlight numeric changes (like prices, percentages)
+    if (change.includes(' → ')) {
+      const parts = change.split(' → ')
+      if (parts.length === 2) {
+        const [beforePart, afterPart] = parts
+        
+        // Check if this looks like a numeric change
+        const beforeMatch = beforePart.match(/([\d,\.]+)$/)
+        const afterMatch = afterPart.match(/^([\d,\.]+)/)
+        
+        if (beforeMatch && afterMatch) {
+          const beforeText = beforePart.replace(beforeMatch[1], '')
+          const afterText = afterPart.replace(afterMatch[1], '')
+          
+          return `${beforeText}<span style="background-color: #ffebee; color: #c62828; padding: 2px 4px; border-radius: 3px; font-weight: bold;">${beforeMatch[1]}</span> → <span style="background-color: #e8f5e8; color: #2e7d32; padding: 2px 4px; border-radius: 3px; font-weight: bold;">${afterMatch[1]}</span>${afterText}`
+        } else {
+          // Non-numeric change
+          return `<span style="background-color: #fff3e0; color: #ef6c00; padding: 2px 4px; border-radius: 3px;">${beforePart}</span> → <span style="background-color: #e3f2fd; color: #1565c0; padding: 2px 4px; border-radius: 3px;">${afterPart}</span>`
+        }
+      }
+    }
+    
+    // Highlight status changes
+    const statusChange = change.replace(
+      /(eklendi|kaldırıldı|aktif|pasif)/g,
+      '<span style="background-color: #f3e5f5; color: #7b1fa2; padding: 2px 4px; border-radius: 3px; font-weight: bold;">$1</span>'
+    )
+    
+    // Highlight parameter types
+    return statusChange.replace(
+      /(Sabit fiyat|Döviz kuru|Parametre çarpanı|Form parametresi|Parametre değişti)/g,
+      '<strong style="color: #1976d2;">$1</strong>'
+    )
+  })
+  
+  return formattedChanges.join('; ')
 }
 
-function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, FilterPopup }) {
+function Admin({ t, onLogout, showNotification }) {
   const [list, setList] = useState([])
   const [detail, setDetail] = useState(null)
   const [creating, setCreating] = useState(false)
@@ -75,43 +112,31 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    loadQuotes();
+  }, []);
+
+  async function loadQuotes() {
     setLoading(true);
     setError(null);
     
-    if (!db) {
-      setError("Firebase bağlantısı kurulamadı. Lütfen sayfayı yenileyin.");
-      setLoading(false);
-      return;
-    }
-
     try {
-      const quotesRef = collection(db, 'quotes');
-      const q = query(quotesRef, orderBy('createdAt', 'desc'));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-          const quotesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setList(quotesData);
-          setLoading(false);
-          setError(null);
-        }, err => {
-          console.error("Firestore listener error:", err);
-          if (err.code === 'permission-denied') {
-            setError("Firebase erişim izni reddedildi. Lütfen yönetici ile iletişime geçin.");
-          } else if (err.code === 'unavailable') {
-            setError("Firebase servisi şu anda kullanılamıyor. Lütfen daha sonra tekrar deneyin.");
-          } else {
-            setError(`Veri yükleme hatası: ${err.message}`);
-          }
-          setLoading(false);
-        });
-
-      // Cleanup subscription on unmount
-      return () => unsubscribe();
+      console.log('🔧 Admin: Loading quotes from API...');
+      const quotesData = await API.listQuotes();
+      console.log('🔧 Admin: Loaded', quotesData.length, 'quotes');
+      setList(quotesData);
+      setLoading(false);
+      setError(null);
     } catch (error) {
-      console.error("Firebase query error:", error);
-      setError("Veritabanı sorgusu başlatılamadı.");
+      console.error("API quotes loading error:", error);
+      if (error.message.includes('401') || error.message.includes('unauthorized')) {
+        setError("Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.");
+        onLogout();
+      } else {
+        setError(`Veri yükleme hatası: ${error.message}`);
+      }
       setLoading(false);
     }
-  }, []);
+  }
 
   useEffect(() => {
     // These can still be loaded once, or also be converted to listeners if they change often
@@ -133,11 +158,8 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         showNotification(`Synced ${syncResult.synced} local quotes to database`, 'success')
       }
       
-      console.log('🔧 DEBUG: Calling API.listQuotes()...')
-      const quotes = await API.listQuotes()
-      console.log('🔧 DEBUG: API.listQuotes() returned:', quotes.length, 'quotes')
-      setList(quotes)
-      console.log('🔧 DEBUG: setList() called with quotes')
+      // Reload quotes using the same method as initial load
+      await loadQuotes()
       
       await loadPriceSettings()
       await loadFormConfig()
@@ -147,6 +169,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
       console.log('🔧 DEBUG: refresh() completed successfully')
     } catch (error) {
       console.error('🔧 DEBUG: refresh() error:', error)
+      showNotification('Refresh failed: ' + error.message, 'error')
     }
   }
 
@@ -343,10 +366,41 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
   async function handlePriceReviewApply() {
     if (!priceReview) return
     
-    const result = await applyNewPrice(priceReview.item, API, showNotification)
-    if (result) {
-      refresh()
-      setPriceReview(null)
+    try {
+      console.log('🔧 Applying price update for quote:', priceReview.item.id)
+      
+      const result = await applyNewPrice(priceReview.item, API, showNotification)
+      if (result) {
+        console.log('✅ Price update successful, result:', result)
+        
+        // Update local state immediately to prevent button flickering
+        setList(prevList => 
+          prevList.map(quote => 
+            quote.id === priceReview.item.id 
+              ? {
+                  ...quote,
+                  ...result,
+                  needsPriceUpdate: false,
+                  formStructureChanged: false,
+                  priceUpdateReasons: [],
+                  pendingCalculatedPrice: undefined,
+                  priceUpdatedAt: new Date().toISOString()
+                }
+              : quote
+          )
+        )
+        
+        // Close modal and refresh from server
+        setPriceReview(null)
+        
+        // Small delay then refresh to get authoritative data
+        setTimeout(() => {
+          refresh()
+        }, 100)
+      }
+    } catch (error) {
+      console.error('Price review apply error:', error)
+      showNotification('Fiyat güncellenirken hata oluştu', 'error')
     }
   }
 
@@ -523,17 +577,68 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
             const label = selectedCount > 0 ? 'Seçilen kayıtların fiyatlarını güncelle' : 'Tümü güncelle'
             const onClick = async () => {
               try {
+                console.log('🔧 Starting bulk price update...')
+                let updatedIds = []
+                let result = null
+                
                 if (selectedCount > 0) {
-                  await API.applyPricesBulk(Array.from(selected))
+                  console.log('🔧 Updating selected quotes:', Array.from(selected))
+                  result = await API.applyPricesBulk(Array.from(selected))
+                  updatedIds = Array.from(selected)
                 } else {
-                  await API.applyPricesAll()
+                  console.log('🔧 Updating all flagged quotes')
+                  result = await API.applyPricesAll()
+                  updatedIds = list.filter(x => x.needsPriceUpdate).map(x => x.id)
                 }
+                
+                console.log('🔧 Bulk update result:', result)
+                
+                // Check for errors in result
+                if (result && result.errors && result.errors.length > 0) {
+                  console.warn('🔧 Some updates failed:', result.errors)
+                  showNotification(`Bazı fiyatlar güncellenemedi: ${result.errors.join(', ')}`, 'warning')
+                } else {
+                  showNotification(`${result?.updated || 0} fiyat güncellendi`, 'success')
+                }
+                
+                // Update local state immediately to prevent button flickering
+                setList(prevList => 
+                  prevList.map(quote => 
+                    updatedIds.includes(quote.id)
+                      ? {
+                          ...quote,
+                          needsPriceUpdate: false,
+                          formStructureChanged: false,
+                          priceUpdateReasons: [],
+                          pendingCalculatedPrice: undefined,
+                          priceUpdatedAt: new Date().toISOString()
+                        }
+                      : quote
+                  )
+                )
+                
                 setSelected(new Set())
-                await refresh()
-                showNotification('Fiyatlar güncellendi', 'success')
+                
+                // Small delay then refresh to get authoritative data
+                setTimeout(() => {
+                  refresh()
+                }, 200)
+                
+                console.log('✅ Bulk price update completed')
               } catch (e) {
-                console.error('Bulk update error', e)
-                showNotification('Toplu fiyat güncelleme başarısız', 'error')
+                console.error('🔧 Bulk update error:', e)
+                console.error('🔧 Error details:', e.message)
+                console.error('🔧 Error stack:', e.stack)
+                
+                // More detailed error message
+                let errorMessage = 'Toplu fiyat güncelleme başarısız'
+                if (e.message && e.message.includes('bulk apply failed')) {
+                  errorMessage += ': Sunucu hatası (500)'
+                } else if (e.message) {
+                  errorMessage += `: ${e.message}`
+                }
+                
+                showNotification(errorMessage, 'error')
               }
             }
             return React.createElement('button', {
@@ -616,7 +721,10 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
           currentPageItems.map(item => 
             React.createElement('tr', { 
               key: item.id,
-              onClick: () => setDetail(item),
+              onClick: () => {
+                console.log('🔧 DEBUG: Row clicked for item:', item.id, item);
+                setDetail(item);
+              },
               style: { cursor: 'pointer' }
             },
               React.createElement('td', null,
@@ -647,7 +755,11 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
               React.createElement('td', null,
                 React.createElement('div', { style: { display: 'flex', gap: '4px' } },
                   React.createElement('button', {
-                    onClick: (e) => { e.stopPropagation(); setDetail(item) },
+                    onClick: (e) => { 
+                      e.stopPropagation(); 
+                      console.log('🔧 DEBUG: Detay button clicked for item:', item.id, item);
+                      setDetail(item);
+                    },
                     className: 'btn btn-sm',
                     style: { fontSize: '12px', padding: '2px 6px' }
                   }, 'Detay'),
@@ -722,7 +834,7 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     ),
 
     // Modals
-    settingsModal && React.createElement(SettingsModal, {
+    settingsModal && React.createElement(SettingsModalCompact, {
       onClose: () => setSettingsModal(false),
       onSettingsUpdated: refresh,
       t,

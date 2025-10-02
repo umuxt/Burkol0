@@ -83,7 +83,13 @@ function App() {
       ))}
       <Nav onLang={setLang} lang={lang} t={t} />
       {PAGE === 'admin'
-        ? (loggedIn ? <Admin t={t} onLogout={handleLogout} showNotification={showNotification} /> : <AdminGate onLogin={handleLogin} t={t} />)
+        ? (loggedIn ? (
+            <Admin 
+              t={t} 
+              onLogout={handleLogout} 
+              showNotification={showNotification}
+            />
+          ) : <AdminGate onLogin={handleLogin} t={t} />)
         : <DynamicFormRenderer onSubmit={handleQuoteSubmit} showNotification={showNotification} t={t} />
       }
     </React.Fragment>

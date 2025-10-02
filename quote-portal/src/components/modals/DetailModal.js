@@ -4,6 +4,8 @@ import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_F
 import { statusLabel } from '../../i18n/index.js'
 
 export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, showNotification, formConfig }) {
+  console.log('🔧 DEBUG: DetailModal rendered with item:', item?.id, 'formConfig:', !!formConfig)
+  
   const [currStatus, setCurrStatus] = React.useState(item.status || 'new')
   const [editing, setEditing] = React.useState(!!isNew)
   const [form, setForm] = React.useState({})
