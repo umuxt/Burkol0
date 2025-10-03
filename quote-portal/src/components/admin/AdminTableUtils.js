@@ -122,7 +122,7 @@ export function formatFieldValue(value, column, item, context) {
         return proj.length > 15 ? proj.substring(0, 15) + '...' : proj;
         
       case 'price':
-        const priceChangeType = getPriceChangeType(item);
+        const priceChangeType = item.priceChangeType || 'no-change';
         
         if (priceChangeType === 'no-change') {
           return formatPrice(parseFloat(value) || 0);

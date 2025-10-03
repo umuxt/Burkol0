@@ -592,6 +592,36 @@ export const API = {
     } catch (e) {
       throw e
     }
+  },
+
+  // Phase 1: Unified Price Calculation API
+  async calculatePricePreview(quote, priceSettingsOverride = null) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/calculate-preview`, {
+        method: 'POST',
+        headers: withAuth({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ 
+          quote: quote,
+          priceSettingsOverride: priceSettingsOverride 
+        })
+      })
+      
+      if (!res.ok) {
+        throw new Error(`Price calculation failed: ${res.status}`)
+      }
+      
+      const result = await res.json()
+      return result
+    } catch (e) {
+      console.error('Price calculation API error:', e)
+      // Fallback to quote.price if API fails
+      return {
+        calculatedPrice: quote?.price || 0,
+        breakdown: { error: e.message },
+        usedParameters: {},
+        source: 'api-error-fallback'
+      }
+    }
   }
 }
 

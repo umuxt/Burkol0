@@ -3,11 +3,12 @@ import React from 'react';
 import PricingTab from '../settings/DynamicPricingTab.js'
 import FormTab from '../settings/FormTab.js'
 import UsersTab from '../settings/UsersTab.js'
+import AdvancedPriceRules from '../settings/AdvancedPriceRules.js'
 
 const { useState, useEffect } = React;
 
 function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification }) {
-  const [activeTab, setActiveTab] = useState('pricing') // 'pricing' | 'form' | 'users'
+  const [activeTab, setActiveTab] = useState('advanced-rules') // 'pricing' | 'form' | 'users' | 'advanced-rules'
 
   // Body scroll lock on mount/unmount
   useEffect(() => {
@@ -54,6 +55,19 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
       // Tab navigation
       React.createElement('div', { className: 'tab-navigation', style: { borderBottom: '1px solid #ddd', marginBottom: '20px' } },
         React.createElement('button', {
+          className: `tab-button ${activeTab === 'advanced-rules' ? 'active' : ''}`,
+          onClick: () => setActiveTab('advanced-rules'),
+          style: {
+            padding: '10px 20px',
+            border: 'none',
+            background: activeTab === 'advanced-rules' ? '#007bff' : 'transparent',
+            color: activeTab === 'advanced-rules' ? 'white' : '#007bff',
+            cursor: 'pointer',
+            borderRadius: '4px 4px 0 0'
+          }
+        }, '🎯 Gelişmiş Kurallar'),
+        
+        React.createElement('button', {
           className: `tab-button ${activeTab === 'pricing' ? 'active' : ''}`,
           onClick: () => setActiveTab('pricing'),
           style: {
@@ -62,7 +76,8 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
             background: activeTab === 'pricing' ? '#007bff' : 'transparent',
             color: activeTab === 'pricing' ? 'white' : '#007bff',
             cursor: 'pointer',
-            borderRadius: '4px 4px 0 0'
+            borderRadius: '4px 4px 0 0',
+            marginLeft: '5px'
           }
         }, 'Fiyatlandırma'),
         
@@ -97,6 +112,11 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
 
       // Tab content
       React.createElement('div', { className: 'tab-content' },
+        activeTab === 'advanced-rules' && React.createElement(AdvancedPriceRules, {
+          t,
+          showNotification
+        }),
+        
         activeTab === 'pricing' && React.createElement(PricingTab, {
           t,
           showNotification

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import API from '../lib/api.js'
 import { uid, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, extOf, readFileAsDataUrl, isImageExt } from '../lib/utils.js'
+import { calculatePrice } from './admin/AdminPriceCalculator.js'
 
 // Common control keys used in keydown handlers
 const CONTROL_KEYS = [
@@ -35,6 +36,12 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
   const [showEmptyReview, setShowEmptyReview] = useState(false)
   const [pendingSubmitData, setPendingSubmitData] = useState(null)
   const [emptyOptionalList, setEmptyOptionalList] = useState([])
+  
+  // Phase 2: Real-time price calculation
+  const [priceSettings, setPriceSettings] = useState(null)
+  const [calculatedPrice, setCalculatedPrice] = useState(null)
+  const [priceLoading, setPriceLoading] = useState(false)
+  const [priceDebounceTimer, setPriceDebounceTimer] = useState(null)
 
   // Debug log component mount using useEffect to avoid infinite loops
   useEffect(() => {
@@ -51,6 +58,38 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
   useEffect(() => {
     loadFormConfig()
   }, [])
+
+  // Phase 2: Load price settings when form config is loaded
+  useEffect(() => {
+    if (formConfig) {
+      loadPriceSettings()
+    }
+  }, [formConfig])
+
+  // Phase 2: Calculate price when form data changes (debounced)
+  useEffect(() => {
+    if (priceSettings && formData) {
+      // Clear existing timer
+      if (priceDebounceTimer) {
+        clearTimeout(priceDebounceTimer)
+      }
+      
+      // Set new timer for debounced calculation
+      const timer = setTimeout(() => {
+        console.log('💰 Triggering price calculation due to form change')
+        calculatePricePreview()
+      }, 800) // 800ms debounce for better UX
+      
+      setPriceDebounceTimer(timer)
+      
+      // Cleanup on unmount
+      return () => {
+        if (timer) {
+          clearTimeout(timer)
+        }
+      }
+    }
+  }, [formData, priceSettings])
 
   // Only update form data if parent provides a new initialData object
   useEffect(() => {
@@ -72,6 +111,46 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
     } finally {
       setLoading(false)
       console.log('🔧 DynamicFormRenderer: Loading completed')
+    }
+  }
+
+  // Phase 2: Load price settings for real-time calculation
+  async function loadPriceSettings() {
+    try {
+      console.log('💰 Loading price settings for real-time calculation...')
+      const settings = await API.getSettings()
+      if (settings.priceSettings) {
+        setPriceSettings(settings.priceSettings)
+        console.log('💰 Price settings loaded:', settings.priceSettings)
+      }
+    } catch (error) {
+      console.error('💰 Failed to load price settings:', error)
+    }
+  }
+
+  // Phase 2: Calculate price preview
+  async function calculatePricePreview() {
+    if (!priceSettings || priceLoading) return
+    
+    try {
+      setPriceLoading(true)
+      
+      // Convert form data to quote format for calculation
+      const quoteData = {
+        ...formData,
+        customFields: formData.customFields || {}
+      }
+      
+      console.log('💰 Calculating price preview for form data:', quoteData)
+      const price = await calculatePrice(quoteData, priceSettings)
+      setCalculatedPrice(price)
+      console.log('💰 Price calculated:', price)
+      
+    } catch (error) {
+      console.error('💰 Price calculation error:', error)
+      setCalculatedPrice(null)
+    } finally {
+      setPriceLoading(false)
     }
   }
 
@@ -1056,6 +1135,33 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
           })(),
           React.createElement('div', { className: 'form-grid' },
             customSorted.map(field => renderField(field, true))
+          )
+        )
+      ),
+
+      // Phase 2: Price Preview Section
+      priceSettings && React.createElement('div', { className: 'form-section price-preview' },
+        React.createElement('div', { className: 'section-card' },
+          React.createElement('div', { className: 'section-title' }, '💰 Fiyat Önizleme'),
+          React.createElement('div', { className: 'price-preview-content' },
+            priceLoading 
+              ? React.createElement('div', { className: 'price-loading' }, '⏳ Hesaplanıyor...')
+              : calculatedPrice !== null
+                ? React.createElement('div', { className: 'price-display' },
+                    React.createElement('span', { className: 'price-label' }, 'Tahmini Fiyat: '),
+                    React.createElement('span', { className: 'price-value' }, 
+                      new Intl.NumberFormat('tr-TR', { 
+                        style: 'currency', 
+                        currency: 'TRY' 
+                      }).format(calculatedPrice)
+                    ),
+                    React.createElement('div', { className: 'price-note' }, 
+                      '* Bu tahmini bir fiyattır. Kesin fiyat teklif onayından sonra belirlenecektir.'
+                    )
+                  )
+                : React.createElement('div', { className: 'price-empty' }, 
+                    'Fiyat hesaplanabilmesi için gerekli alanları doldurun'
+                  )
           )
         )
       ),

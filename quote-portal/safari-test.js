@@ -240,7 +240,7 @@ class BurkolSafariTestRunner {
     const errorCountBefore = this.consoleErrors.length
     
     // Form container kontrolü
-    const formExists = await this.waitForElement('form, .dynamic-form, .QuoteForm', 15000)
+    const formExists = await this.waitForElement('form, .dynamic-form, .dynamic-form.two-col', 15000)
     
     if (formExists) {
       await this.logResult('Form container', 'PASS', 'Form elementi bulundu')

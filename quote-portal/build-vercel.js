@@ -24,7 +24,7 @@ function bundleComponents() {
   const componentFiles = [
     'components/Field.js',
     'components/Modal.js', 
-    'components/forms/QuoteForm.js',
+    'components/DynamicFormRenderer.js',
     'components/admin/Admin.js',
     'components/modals/SettingsModal.js',
     'components/modals/DetailModal.js',

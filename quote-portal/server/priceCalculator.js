@@ -1,4 +1,4 @@
-// Server Price Calculator - Server-side price calculation with comprehensive math functions
+// Enhanced Server Price Calculator - Unified calculation engine with detailed breakdown
 
 // Security validation functions
 function validateAndSanitizeQuantity(value, fieldName = 'quantity') {
@@ -28,152 +28,91 @@ function validateAndSanitizeQuantity(value, fieldName = 'quantity') {
   return num;
 }
 
-function validateCalculatedPrice(price) {
-  if (isNaN(price) || !isFinite(price)) {
-    throw new Error(`Invalid price calculation result: ${price}`);
+/**
+ * Enhanced form field value extraction with multiple fallback strategies
+ */
+function extractFormFieldValue(quote, parameter) {
+  const fieldId = parameter.formField
+  let rawValue = null
+  let source = 'not_found'
+  
+  // Strategy 1: customFields (primary)
+  if (quote.customFields && quote.customFields[fieldId] !== undefined) {
+    rawValue = quote.customFields[fieldId]
+    source = 'customFields'
   }
-  
-  if (price < 0) {
-    throw new Error(`Price cannot be negative: ${price}`);
+  // Strategy 2: Direct field access (secondary)  
+  else if (quote[fieldId] !== undefined) {
+    rawValue = quote[fieldId]
+    source = 'direct_field'
   }
-  
-  // Business rule: maximum reasonable price (100M limit)
-  if (price > 100000000) {
-    throw new Error(`Calculated price exceeds reasonable business limits: ${price}`);
-  }
-  
-  return price;
-}
-
-function sanitizeFormula(formula) {
-  // Block dangerous patterns
-  const dangerousPatterns = [
-    /require\s*\(/i,
-    /import\s+/i,
-    /process\./i,
-    /global\./i,
-    /console\./i,
-    /eval\s*\(/i,
-    /Function\s*\(/i,
-    /setTimeout/i,
-    /setInterval/i,
-    /fetch\s*\(/i,
-    /XMLHttpRequest/i,
-    /child_process/i,
-    /fs\./i,
-    /\.exec\s*\(/i
-  ];
-  
-  for (const pattern of dangerousPatterns) {
-    if (pattern.test(formula)) {
-      throw new Error(`Formula contains unauthorized functions: ${pattern.source}`);
+  // Strategy 3: Try to find by field label (tertiary)
+  else if (parameter.name && quote.customFields) {
+    const matchingKey = Object.keys(quote.customFields).find(key => 
+      key.toLowerCase().includes(parameter.name.toLowerCase()) ||
+      parameter.name.toLowerCase().includes(key.toLowerCase())
+    )
+    if (matchingKey) {
+      rawValue = quote.customFields[matchingKey]
+      source = 'label_match'
     }
   }
-  
-  return formula;
-}
 
-export function calculatePriceServer(quote, settings) {
-  if (!settings || !settings.parameters || !settings.formula) {
-    return quote.price || 0
+  // Process the raw value
+  let finalValue = 0
+  
+  if (rawValue !== null && rawValue !== undefined) {
+    // Handle lookup table if exists
+    if (parameter.lookupTable && Array.isArray(parameter.lookupTable)) {
+      const lookupEntry = parameter.lookupTable.find(entry => entry.option === rawValue)
+      if (lookupEntry) {
+        finalValue = parseFloat(lookupEntry.value) || 0
+        source = source + '_lookup'
+      } else {
+        console.warn(`⚠️ Lookup value "${rawValue}" not found in table for ${parameter.name}`)
+        finalValue = parseFloat(rawValue) || 0
+      }
+    } else {
+      // Direct numeric conversion
+      finalValue = parseFloat(rawValue) || 0
+    }
   }
 
+  return {
+    value: finalValue,
+    rawValue: rawValue,
+    source: source
+  }
+}
+
+/**
+ * Safe formula evaluation with comprehensive math context
+ */
+function evaluateFormulaSafely(formula) {
   try {
-    // Sanitize formula first
-    const sanitizedFormula = sanitizeFormula(settings.formula);
+    // Basic validation
+    if (!formula || typeof formula !== 'string') {
+      return 0
+    }
     
-    // Create parameter values map
-    const paramValues = {}
+    // Sanitize formula
+    const sanitizedFormula = sanitizeFormula(formula)
     
-    settings.parameters.forEach(param => {
-      // Use parameter ID for consistency (formulas use IDs)
-      const paramKey = param.id
-      
-      if (param.type === 'fixed') {
-        paramValues[paramKey] = parseFloat(param.value) || 0
-      } else if (param.type === 'form') {
-        let value = 0
-        
-        if (param.formField === 'qty') {
-          // Orijinal sistem mantığını koru
-          const rawQty = quote.qty || quote.customFields?.qty || 0;
-          // Sadece güvenlik tehditleri için validasyon yap
-          value = validateAndSanitizeQuantity(rawQty, 'quantity');
-        } else if (param.formField === 'thickness') {
-          // Orijinal sistem mantığını koru
-          const rawThickness = quote.thickness || quote.customFields?.thickness || 0;  
-          value = validateAndSanitizeQuantity(rawThickness, 'thickness');
-        } else if (param.formField === 'dimensions') {
-          // Calculate area from dimensions string or numeric values
-          const l = parseFloat(quote.dimsL) || parseFloat(quote.customFields?.dimsL)
-          const w = parseFloat(quote.dimsW) || parseFloat(quote.customFields?.dimsW)
-          if (!isNaN(l) && !isNaN(w)) {
-            value = l * w
-          } else {
-            const dims = quote.dims || quote.customFields?.dims || ''
-            const match = String(dims).match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i)
-            if (match) {
-              value = (parseFloat(match[1]) || 0) * (parseFloat(match[2]) || 0)
-            }
-          }
-        } else {
-          // For custom form fields
-          // Check both fixed fields and customFields for dynamic form compatibility
-          let fieldValue = quote[param.formField]
-          if (fieldValue === undefined && quote.customFields) {
-            fieldValue = quote.customFields[param.formField]
-          }
-          
-          if (Array.isArray(fieldValue)) {
-            if (param.lookupTable && param.lookupTable.length > 0) {
-              value = fieldValue.reduce((sum, opt) => {
-                const found = param.lookupTable.find(item => item.option === opt)
-                return sum + (found ? (parseFloat(found.value) || 0) : 0)
-              }, 0)
-            } else {
-              value = fieldValue.length || 0
-            }
-          } else if (param.lookupTable && param.lookupTable.length > 0) {
-            const lookupItem = param.lookupTable.find(item => item.option === fieldValue)
-            value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
-          } else {
-            // Direct form value for fields without lookup
-            value = parseFloat(fieldValue) || 0
-          }
-        }
-        
-        paramValues[paramKey] = value
-      }
-    })
-
-    // SERVER DEBUG: Critical debugging information
-    console.log('🔍 SERVER PRICE CALCULATION DEBUG:', {
-      quoteId: quote.id,
-      paramValues: paramValues,
-      originalFormula: settings.formula,
-      customFields: quote.customFields
-    })
-
-    // Evaluate formula with comprehensive math functions
-    let formula = sanitizedFormula.replace(/^=/, '') // Remove leading =
+    // Remove leading equals and clean formula
+    let cleanFormula = sanitizedFormula.replace(/^=/, '').trim()
     
-    // Excel fonksiyonlarını JavaScript fonksiyonlarına çevir (client ile uyumlu)
-    formula = formula.replace(/\bMAX\s*\(/g, 'Math.max(')
-    formula = formula.replace(/\bMIN\s*\(/g, 'Math.min(')
-    formula = formula.replace(/\bABS\s*\(/g, 'Math.abs(')
-    formula = formula.replace(/\bPOW\s*\(/g, 'Math.pow(')
-    formula = formula.replace(/\bSQRT\s*\(/g, 'Math.sqrt(')
+    if (!cleanFormula) {
+      return 0
+    }
     
-    // Replace parameter names with actual values (case-sensitive)
-    Object.keys(paramValues).forEach(paramName => {
-      // Use word boundaries and escape special regex characters in parameter names
-      const escapedParamName = paramName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-      const regex = new RegExp(`\\b${escapedParamName}\\b`, 'g')
-      formula = formula.replace(regex, paramValues[paramName])
-    })
-
-    console.log('🔍 SERVER FORMULA AFTER REPLACEMENT:', formula)
-
+    // Excel function compatibility
+    cleanFormula = cleanFormula.replace(/\bMAX\s*\(/g, 'Math.max(')
+    cleanFormula = cleanFormula.replace(/\bMIN\s*\(/g, 'Math.min(')
+    cleanFormula = cleanFormula.replace(/\bABS\s*\(/g, 'Math.abs(')
+    cleanFormula = cleanFormula.replace(/\bPOW\s*\(/g, 'Math.pow(')
+    cleanFormula = cleanFormula.replace(/\bSQRT\s*\(/g, 'Math.sqrt(')
+    cleanFormula = cleanFormula.replace(/\bROUND\s*\(/g, 'Math.round(')
+    
     // Create comprehensive math context
     const mathContext = {
       // Basic Math Functions
@@ -246,35 +185,193 @@ export function calculatePriceServer(quote, settings) {
         return sum;
       }
     }
-
-    // Safer evaluation using Function constructor
-    try {
-      const result = Function(
-        'mathCtx', 
-        'formula',
-        `
-        const {${Object.keys(mathContext).join(', ')}} = mathCtx;
-        return (${formula});
-        `
-      )(mathContext, formula)
-      
-      // Validate the calculated price before returning
-      const price = Number(result) || 0;
-      return validateCalculatedPrice(price);
-    } catch (evalError) {
-      console.error('❌ Formula evaluation error:', evalError.message, 'Formula:', formula)
-      throw new Error(`Price calculation failed: ${evalError.message}`);
+    
+    // Safe evaluation with context
+    const result = Function(
+      'mathCtx', 
+      'formula',
+      `
+      const {${Object.keys(mathContext).join(', ')}} = mathCtx;
+      return (${cleanFormula});
+      `
+    )(mathContext, cleanFormula)
+    
+    if (isNaN(result) || !isFinite(result)) {
+      console.warn(`⚠️ Formula evaluation resulted in invalid number: ${result}`)
+      return 0
     }
     
-  } catch (e) {
-    console.error('❌ Price calculation error:', e.message)
-    // For security validation errors, throw them up to be handled by the API
-    if (e.message.includes('exceeds maximum limit') || 
-        e.message.includes('cannot be negative') || 
-        e.message.includes('must be a valid number') ||
-        e.message.includes('unauthorized functions')) {
-      throw e;
-    }
-    return quote.price || 0
+    return Math.max(0, result) // Ensure non-negative price
+    
+  } catch (error) {
+    console.error('❌ Formula evaluation error:', error.message)
+    return 0
   }
+}
+
+function validateCalculatedPrice(price) {
+  if (isNaN(price) || !isFinite(price)) {
+    throw new Error(`Invalid price calculation result: ${price}`);
+  }
+  
+  if (price < 0) {
+    throw new Error(`Price cannot be negative: ${price}`);
+  }
+  
+  // Business rule: maximum reasonable price (100M limit)
+  if (price > 100000000) {
+    throw new Error(`Calculated price exceeds reasonable business limits: ${price}`);
+  }
+  
+  return price;
+}
+
+function sanitizeFormula(formula) {
+  // Block dangerous patterns
+  const dangerousPatterns = [
+    /require\s*\(/i,
+    /import\s+/i,
+    /process\./i,
+    /global\./i,
+    /console\./i,
+    /eval\s*\(/i,
+    /Function\s*\(/i,
+    /setTimeout/i,
+    /setInterval/i,
+    /fetch\s*\(/i,
+    /XMLHttpRequest/i,
+    /child_process/i,
+    /fs\./i,
+    /\.exec\s*\(/i
+  ];
+  
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(formula)) {
+      throw new Error(`Formula contains unauthorized functions: ${pattern.source}`);
+    }
+  }
+  
+  return formula;
+}
+
+/**
+ * Enhanced server-side price calculation with detailed breakdown
+ * @param {Object} quote - Quote object with form data
+ * @param {Object} priceSettings - Price settings with parameters and formula
+ * @returns {Object} - Calculation result with breakdown
+ */
+export function calculatePriceServer(quote, priceSettings) {
+  try {
+    // Input validation
+    if (!quote || !priceSettings) {
+      console.error('❌ calculatePriceServer: Missing required inputs')
+      return {
+        success: false,
+        price: quote?.price || 0,
+        error: 'Missing quote or price settings',
+        breakdown: {}
+      }
+    }
+
+    if (!priceSettings.parameters || !priceSettings.formula) {
+      console.warn('⚠️ calculatePriceServer: No parameters or formula defined')
+      return {
+        success: true,
+        price: quote.price || 0,
+        breakdown: { fallback: 'No pricing formula defined' },
+        usedFallback: true
+      }
+    }
+
+    console.log(`🔧 calculatePriceServer: Processing quote ${quote.id}`)
+    
+    // Extract parameter values with detailed logging
+    const paramValues = {}
+    const parameterBreakdown = {}
+    
+    priceSettings.parameters.forEach(param => {
+      let value = 0
+      let source = 'default'
+      
+      if (param.type === 'fixed') {
+        value = parseFloat(param.value) || 0
+        source = 'fixed'
+        parameterBreakdown[param.id] = {
+          name: param.name,
+          type: 'fixed',
+          value: value,
+          source: 'parameter_setting'
+        }
+      } else if (param.type === 'form') {
+        // Enhanced form field value extraction
+        const fieldValue = extractFormFieldValue(quote, param)
+        value = fieldValue.value
+        source = fieldValue.source
+        
+        parameterBreakdown[param.id] = {
+          name: param.name,
+          type: 'form',
+          value: value,
+          source: source,
+          fieldId: param.formField,
+          rawValue: fieldValue.rawValue
+        }
+      }
+      
+      paramValues[param.id] = value
+      console.log(`  � Parameter ${param.id} (${param.name}): ${value} [${source}]`)
+    })
+
+    // Enhanced formula evaluation
+    let processedFormula = priceSettings.formula
+    const replacements = {}
+    
+    // Replace parameter IDs with values
+    Object.keys(paramValues).forEach(paramId => {
+      const value = paramValues[paramId]
+      const regex = new RegExp(`\\b${paramId}\\b`, 'g')
+      processedFormula = processedFormula.replace(regex, value.toString())
+      replacements[paramId] = value
+    })
+
+    console.log(`🧮 Formula evaluation: ${priceSettings.formula} → ${processedFormula}`)
+
+    // Safe formula evaluation
+    const calculatedPrice = evaluateFormulaSafely(processedFormula)
+    
+    const result = {
+      success: true,
+      price: calculatedPrice,
+      breakdown: {
+        originalFormula: priceSettings.formula,
+        processedFormula: processedFormula,
+        parameters: parameterBreakdown,
+        replacements: replacements,
+        finalPrice: calculatedPrice
+      },
+      usedParameters: Object.keys(paramValues),
+      timestamp: new Date().toISOString()
+    }
+
+    console.log(`✅ calculatePriceServer result: ${calculatedPrice}`)
+    return result
+
+  } catch (error) {
+    console.error('❌ calculatePriceServer error:', error)
+    return {
+      success: false,
+      price: quote?.price || 0,
+      error: error.message,
+      breakdown: {},
+      timestamp: new Date().toISOString()
+    }
+  }
+}
+
+/**
+ * Legacy compatibility function - returns just the price for existing code
+ */
+export function calculatePriceServerLegacy(quote, settings) {
+  const result = calculatePriceServer(quote, settings)
+  return result.success ? result.price : (quote?.price || 0)
 }

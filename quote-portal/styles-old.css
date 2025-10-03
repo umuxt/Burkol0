@@ -334,7 +334,7 @@ th img[alt="Filtre"]:hover {
   background: white !important;
 }
 
-/* QuoteForm için özel stiller */
+/* Dynamic Form için özel stiller */
 .quote-form input,
 .quote-form select,
 .quote-form textarea {
@@ -902,7 +902,7 @@ textarea:not(.special):disabled {
 .dynamic-form input:not([type="checkbox"]):not([type="radio"]):not(.btn),
 .dynamic-form select:not(.btn),
 .dynamic-form textarea,
-/* QuoteForm bileşeni */
+/* Dynamic Form bileşeni */
 .quote-form input:not([type="checkbox"]):not([type="radio"]):not(.btn),
 .quote-form select:not(.btn),
 .quote-form textarea,

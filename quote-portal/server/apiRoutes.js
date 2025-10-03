@@ -4,6 +4,126 @@ import { requireAuth } from './auth.js'
 import { persistFilesForQuote } from './fileHandler.js'
 import { calculatePriceServer } from './priceCalculator.js'
 
+// Phase 1: Helper functions for unified price calculation
+function createCalculationBreakdown(quote, priceSettings, finalPrice) {
+  const breakdown = {
+    finalPrice: parseFloat(finalPrice) || 0,
+    formula: priceSettings.formula || '',
+    parameters: {},
+    steps: [],
+    errors: []
+  }
+
+  try {
+    // Extract parameter values used in calculation
+    priceSettings.parameters?.forEach(param => {
+      if (!param || !param.id) return
+
+      let value = 0
+      let source = 'unknown'
+
+      if (param.type === 'fixed') {
+        value = parseFloat(param.value) || 0
+        source = 'fixed-value'
+      } else if (param.type === 'form') {
+        if (param.formField === 'qty') {
+          value = parseFloat(quote.qty) || 0
+          source = 'quote.qty'
+        } else if (param.formField === 'thickness') {
+          value = parseFloat(quote.thickness) || 0
+          source = 'quote.thickness'
+        } else if (param.formField === 'dimensions') {
+          const l = parseFloat(quote.dimsL)
+          const w = parseFloat(quote.dimsW)
+          if (!isNaN(l) && !isNaN(w)) {
+            value = l * w
+            source = 'quote.dimsL * quote.dimsW'
+          } else {
+            const dims = quote.dims || ''
+            const match = String(dims).match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i)
+            if (match) {
+              value = (parseFloat(match[1]) || 0) * (parseFloat(match[2]) || 0)
+              source = 'quote.dims parsed'
+            }
+          }
+        } else {
+          // Custom form field
+          let fieldValue = quote[param.formField]
+          if (fieldValue === undefined && quote.customFields) {
+            fieldValue = quote.customFields[param.formField]
+          }
+          
+          if (param.lookupTable && Array.isArray(param.lookupTable)) {
+            if (Array.isArray(fieldValue)) {
+              value = fieldValue.reduce((sum, opt) => {
+                const found = param.lookupTable.find(item => item.option === opt)
+                return sum + (found ? (parseFloat(found.value) || 0) : 0)
+              }, 0)
+              source = 'lookup-table-array'
+            } else {
+              const lookupItem = param.lookupTable.find(item => item.option === fieldValue)
+              value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
+              source = 'lookup-table-single'
+            }
+          } else {
+            value = parseFloat(fieldValue) || 0
+            source = 'direct-form-value'
+          }
+        }
+      }
+
+      breakdown.parameters[param.id] = {
+        name: param.name || param.id,
+        type: param.type,
+        value: value,
+        source: source,
+        formField: param.formField || null
+      }
+    })
+
+    // Formula replacement simulation
+    let formula = priceSettings.formula || ''
+    const originalFormula = formula
+
+    Object.keys(breakdown.parameters).forEach(paramId => {
+      const paramValue = breakdown.parameters[paramId].value
+      formula = formula.replace(new RegExp(`\\b${paramId}\\b`, 'g'), paramValue)
+    })
+
+    breakdown.steps = [
+      { step: 'original-formula', value: originalFormula },
+      { step: 'parameters-replaced', value: formula },
+      { step: 'evaluated-result', value: finalPrice }
+    ]
+
+  } catch (error) {
+    breakdown.errors.push(`Breakdown creation failed: ${error.message}`)
+  }
+
+  return breakdown
+}
+
+function extractUsedParameters(quote, priceSettings) {
+  const usedParams = {}
+  
+  try {
+    priceSettings.parameters?.forEach(param => {
+      if (!param || !param.id) return
+      
+      usedParams[param.id] = {
+        name: param.name || param.id,
+        type: param.type,
+        formField: param.formField || null,
+        hasLookupTable: !!(param.lookupTable && param.lookupTable.length > 0)
+      }
+    })
+  } catch (error) {
+    console.error('Parameter extraction error:', error)
+  }
+
+  return usedParams
+}
+
 // --- Data Access Helpers powered by jsondb ---
 export function readAll() {
   return jsondb.listQuotes()
@@ -1090,4 +1210,208 @@ export function setupExportRoutes(app) {
       res.status(500).json({ error: 'Export failed' })
     }
   })
+
+  // Phase 1: Unified Price Calculation API (Phase 3: Enhanced with Advanced Rules)
+  app.post('/api/quotes/calculate-preview', async (req, res) => {
+    try {
+      const { quote, priceSettingsOverride } = req.body
+      
+      if (!quote) {
+        return res.status(400).json({ error: 'Quote data required' })
+      }
+
+      // Use provided settings or get current system settings
+      const priceSettings = priceSettingsOverride || jsondb.getPriceSettings()
+      
+      if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
+        return res.json({ 
+          calculatedPrice: quote.price || 0,
+          breakdown: { error: 'No price settings configured' },
+          usedParameters: {},
+          source: 'fallback'
+        })
+      }
+
+      // Phase 3: Calculate with advanced rules
+      const result = await calculatePriceWithAdvancedRules(quote, priceSettings)
+      
+      res.json(result)
+    } catch (error) {
+      console.error('❌ Server price calculation error:', error)
+      res.status(500).json({ error: 'Price calculation failed', details: error.message })
+    }
+  })
+
+  // Phase 3: Advanced price calculation with rules
+  async function calculatePriceWithAdvancedRules(quote, priceSettings) {
+    // Step 1: Calculate base price
+    const basePrice = calculatePriceServer(quote, priceSettings)
+    const breakdown = createCalculationBreakdown(quote, priceSettings, basePrice)
+    const usedParameters = extractUsedParameters(quote, priceSettings)
+    
+    // Step 2: Load advanced rules from settings
+    const advancedRules = await getAdvancedPriceRules()
+    
+    // Step 3: Apply advanced rules
+    const rulesResult = applyAdvancedPriceRules(basePrice, quote, advancedRules)
+    
+    return {
+      calculatedPrice: rulesResult.finalPrice,
+      basePrice: basePrice,
+      breakdown,
+      usedParameters,
+      rulesApplied: rulesResult.rulesApplied,
+      source: 'server-calculation-with-advanced-rules',
+      timestamp: new Date().toISOString(),
+      settingsVersion: priceSettings.version || 0
+    }
+  }
+
+  // Phase 3: Get advanced price rules from settings
+  async function getAdvancedPriceRules() {
+    try {
+      const settings = jsondb.getDocument('settings', 'app-settings')
+      return settings?.advancedPriceRules || {
+        quantityDiscounts: [],
+        materialMultipliers: [],
+        conditionalRules: [],
+        priceHistory: { enabled: true, retentionDays: 90 }
+      }
+    } catch (error) {
+      console.error('Advanced rules load error:', error)
+      return {
+        quantityDiscounts: [],
+        materialMultipliers: [],
+        conditionalRules: [],
+        priceHistory: { enabled: true, retentionDays: 90 }
+      }
+    }
+  }
+
+  // Phase 3: Apply advanced price rules to base price
+  function applyAdvancedPriceRules(basePrice, quote, advancedRules) {
+    let finalPrice = basePrice
+    const rulesApplied = []
+    
+    try {
+      // Apply quantity discounts
+      if (advancedRules.quantityDiscounts?.length > 0 && quote.qty) {
+        const qty = parseFloat(quote.qty) || (quote.customFields?.qty ? parseFloat(quote.customFields.qty) : 0)
+        const applicableDiscount = findApplicableQuantityDiscount(qty, advancedRules.quantityDiscounts)
+        
+        if (applicableDiscount) {
+          const discountedPrice = applyQuantityDiscount(finalPrice, applicableDiscount)
+          rulesApplied.push({
+            type: 'quantity-discount',
+            rule: applicableDiscount.name,
+            originalPrice: finalPrice,
+            newPrice: discountedPrice,
+            discount: finalPrice - discountedPrice
+          })
+          finalPrice = discountedPrice
+        }
+      }
+
+      // Apply material multipliers
+      if (advancedRules.materialMultipliers?.length > 0) {
+        const applicableMultipliers = findApplicableMaterialMultipliers(quote, advancedRules.materialMultipliers)
+        
+        applicableMultipliers.forEach(multiplier => {
+          const multipliedPrice = finalPrice * multiplier.multiplier
+          rulesApplied.push({
+            type: 'material-multiplier',
+            rule: multiplier.name,
+            fieldId: multiplier.fieldId,
+            fieldValue: multiplier.fieldValue,
+            multiplier: multiplier.multiplier,
+            originalPrice: finalPrice,
+            newPrice: multipliedPrice
+          })
+          finalPrice = multipliedPrice
+        })
+      }
+
+      // Apply conditional rules (sorted by priority)
+      if (advancedRules.conditionalRules?.length > 0) {
+        const sortedRules = advancedRules.conditionalRules
+          .filter(rule => rule.enabled)
+          .sort((a, b) => (a.priority || 1) - (b.priority || 1))
+        
+        sortedRules.forEach(rule => {
+          if (evaluateConditionalRule(quote, rule)) {
+            const adjustedPrice = applyConditionalRuleAction(finalPrice, rule.action)
+            rulesApplied.push({
+              type: 'conditional-rule',
+              rule: rule.name,
+              action: rule.action,
+              originalPrice: finalPrice,
+              newPrice: adjustedPrice
+            })
+            finalPrice = adjustedPrice
+          }
+        })
+      }
+
+    } catch (error) {
+      console.error('Advanced rules application error:', error)
+      rulesApplied.push({
+        type: 'error',
+        message: `Rules application failed: ${error.message}`
+      })
+    }
+
+    return {
+      finalPrice: Math.max(0, finalPrice), // Ensure price is not negative
+      rulesApplied
+    }
+  }
+
+  // Helper functions for advanced rules
+  function findApplicableQuantityDiscount(qty, discounts) {
+    return discounts
+      .filter(d => d.enabled)
+      .find(d => qty >= d.minQuantity && (d.maxQuantity === null || qty <= d.maxQuantity))
+  }
+
+  function applyQuantityDiscount(price, discount) {
+    switch (discount.discountType) {
+      case 'percentage':
+        return price * (1 - discount.discountValue / 100)
+      case 'fixed':
+        return Math.max(0, price - discount.discountValue)
+      case 'multiplier':
+        return price * discount.discountValue
+      default:
+        return price
+    }
+  }
+
+  function findApplicableMaterialMultipliers(quote, multipliers) {
+    return multipliers
+      .filter(m => m.enabled && m.fieldId && m.fieldValue)
+      .filter(m => {
+        const fieldValue = quote[m.fieldId] || quote.customFields?.[m.fieldId]
+        return fieldValue === m.fieldValue
+      })
+  }
+
+  function evaluateConditionalRule(quote, rule) {
+    // Simple condition evaluation - can be expanded
+    return rule.conditions?.length === 0 || true // For now, accept all rules
+  }
+
+  function applyConditionalRuleAction(price, action) {
+    switch (action.type) {
+      case 'multiply':
+        return price * action.value
+      case 'add':
+        return price + action.value
+      case 'subtract':
+        return Math.max(0, price - action.value)
+      case 'setFixed':
+        return action.value
+      default:
+        return price
+    }
+  }
 }

@@ -1,3 +1,6 @@
+// DEPRECATED: This file is no longer used. The project now uses DynamicFormRenderer.js
+// TODO: Remove this file after confirming no dependencies
+
 // Compact Quote Form - Modular multi-step form with validation and file upload
 import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../i18n/index.js'
 import API from '../../lib/api.js'
@@ -323,7 +326,7 @@ export default function QuoteFormCompact({ t, showNotification }) {
             { value: '', label: 'Seçiniz...' },
             { value: 'none', label: 'Yüzey işlemi yok' },
             { value: 'painting', label: 'Boyama' },
-            { value: 'anodizing', label: 'Anodizaj' },
+
             { value: 'galvanizing', label: 'Galvanizleme' }
           ]
         }),

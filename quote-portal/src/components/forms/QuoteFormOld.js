@@ -1,3 +1,6 @@
+// DEPRECATED: This file is no longer used. The project now uses DynamicFormRenderer.js
+// TODO: Remove this file after confirming no dependencies
+
 import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../i18n/index.js'
 import API from '../../lib/api.js'
 import { uid, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../lib/utils.js'

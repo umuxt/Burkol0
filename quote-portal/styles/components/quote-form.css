@@ -1,6 +1,6 @@
 /* Quote Form Component Styles */
 
-.QuoteForm {
+.dynamic-form {
   max-width: 800px;
   margin: 0 auto;
   background: var(--surface);
@@ -68,7 +68,7 @@
   color: var(--muted);
 }
 
-.QuoteForm h2 {
+.dynamic-form h2 {
   margin-top: 0;
   margin-bottom: var(--spacing-lg);
   color: var(--text);
@@ -397,36 +397,36 @@
   font-size: var(--font-size-sm);
 }
 
-/* QuoteForm Input Overrides */
-.QuoteForm input,
-.QuoteForm select,
-.QuoteForm textarea {
+/* dynamic-form Input Overrides */
+.dynamic-form input,
+.dynamic-form select,
+.dynamic-form textarea {
   background: white !important;
   color: black !important;
   border: 1px solid black !important;
   padding: var(--spacing-sm) !important;
 }
 
-.QuoteForm input::placeholder,
-.QuoteForm textarea::placeholder {
+.dynamic-form input::placeholder,
+.dynamic-form textarea::placeholder {
   color: black !important;
 }
 
-.QuoteForm input:focus,
-.QuoteForm select:focus,
-.QuoteForm textarea:focus {
+.dynamic-form input:focus,
+.dynamic-form select:focus,
+.dynamic-form textarea:focus {
   color: black !important;
   background: white !important;
   border-color: black !important;
 }
 
-.QuoteForm label {
+.dynamic-form label {
   color: var(--muted) !important;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .QuoteForm {
+  .dynamic-form {
     margin: var(--spacing-md);
     padding: var(--spacing-md);
   }

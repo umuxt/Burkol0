@@ -1,6 +1,33 @@
 // Admin Price Calculator - Price calculation and update logic
+import API from '../../lib/api.js'
 
-export function calculatePrice(quote, priceSettings) {
+// Phase 1: Unified calculation using server API
+export async function calculatePrice(quote, priceSettings) {
+  if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
+    return quote.calculatedPrice || quote.price || 0
+  }
+
+  try {
+    const result = await API.calculatePricePreview(quote, priceSettings)
+    
+    console.log('🔍 SERVER PRICE CALCULATION RESULT:', {
+      quoteId: quote.id,
+      serverPrice: result.calculatedPrice,
+      currentPrice: quote.price,
+      source: result.source,
+      breakdown: result.breakdown
+    })
+
+    return result.calculatedPrice
+  } catch (error) {
+    console.error('❌ Server price calculation failed:', error)
+    // Fallback to local calculation for backwards compatibility
+    return calculatePriceLocal(quote, priceSettings)
+  }
+}
+
+// Fallback local calculation (legacy)
+function calculatePriceLocal(quote, priceSettings) {
   if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
     return quote.calculatedPrice || quote.price || 0
   }
@@ -143,7 +170,7 @@ export function calculatePrice(quote, priceSettings) {
     return isNaN(result) ? 0 : Math.max(0, result) // Ensure non-negative
     
   } catch (e) {
-    console.error('Price calculation error:', e)
+    console.error('Local price calculation error:', e)
     return quote.calculatedPrice || quote.price || 0
   }
 }
@@ -164,10 +191,10 @@ export function needsPriceUpdate(quote) {
   return false
 }
 
-export function getPriceChangeType(quote, priceSettings) {
+export async function getPriceChangeType(quote, priceSettings) {
   try {
     const currentPrice = parseFloat(quote.price) || 0
-    const calculatedPrice = parseFloat(calculatePrice(quote, priceSettings)) || 0
+    const calculatedPrice = parseFloat(await calculatePrice(quote, priceSettings)) || 0
     const priceDifference = Math.abs(calculatedPrice - currentPrice)
     
     console.log('🔧 DETAILED Price change analysis:', {

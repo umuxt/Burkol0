@@ -123,7 +123,30 @@ function Admin({ t, onLogout, showNotification }) {
       console.log('🔧 Admin: Loading quotes from API...');
       const quotesData = await API.listQuotes();
       console.log('🔧 Admin: Loaded', quotesData.length, 'quotes');
-      setList(quotesData);
+      
+      // Add price change type to each quote
+      const quotesWithPriceChangeType = await Promise.all(
+        quotesData.map(async (quote) => {
+          try {
+            const priceChangeType = await getPriceChangeType(quote, priceSettings);
+            const calculatedPrice = await calculatePrice(quote, priceSettings);
+            return { 
+              ...quote, 
+              priceChangeType,
+              pendingCalculatedPrice: calculatedPrice
+            };
+          } catch (error) {
+            console.warn('Failed to calculate price change type for quote:', quote.id, error);
+            return { 
+              ...quote, 
+              priceChangeType: 'unknown',
+              pendingCalculatedPrice: quote.price
+            };
+          }
+        })
+      );
+      
+      setList(quotesWithPriceChangeType);
       setLoading(false);
       setError(null);
     } catch (error) {
@@ -742,10 +765,10 @@ function Admin({ t, onLogout, showNotification }) {
                     col,
                     item,
                     {
-                      getPriceChangeType: (quote) => getPriceChangeType(quote, priceSettings),
+                      getPriceChangeType: (quote) => quote.priceChangeType || 'no-change',
                       setSettingsModal,
                       setPriceReview,
-                      calculatePrice: (quote) => calculatePrice(quote, priceSettings),
+                      calculatePrice: (quote) => quote.pendingCalculatedPrice || quote.price,
                       statusLabel,
                       t
                     }

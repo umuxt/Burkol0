@@ -1,12 +1,66 @@
 /* Quote Form Component Styles */
 
-.QuoteForm {
+.dynamic-form {
   max-width: 800px;
   margin: 0 auto;
   background: var(--surface);
   border-radius: var(--radius-lg);
   padding: var(--spacing-lg);
   box-shadow: var(--shadow-md);
+}
+
+/* Phase 2: Price Preview Styles */
+.price-preview {
+  margin-bottom: var(--spacing-lg);
+}
+
+.price-preview .section-card {
+  background: linear-gradient(135deg, #f8fffe 0%, #f1fdf8 100%);
+  border: 2px solid #10b981;
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+}
+
+.price-preview .section-title {
+  color: #065f46;
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-lg);
+}
+
+.price-preview-content {
+  text-align: center;
+}
+
+.price-loading {
+  color: #6b7280;
+  font-style: italic;
+  padding: var(--spacing-sm);
+}
+
+.price-display .price-label {
+  color: #374151;
+  font-weight: 500;
+}
+
+.price-display .price-value {
+  color: #059669;
+  font-weight: 700;
+  font-size: 1.5rem;
+  margin-left: var(--spacing-xs);
+}
+
+.price-display .price-note {
+  font-size: var(--font-size-xs);
+  color: #6b7280;
+  margin-top: var(--spacing-xs);
+  font-style: italic;
+}
+
+.price-empty {
+  color: #9ca3af;
+  font-style: italic;
+  padding: var(--spacing-sm);
 }
 
 /* Minimal two-column dynamic form layout */
@@ -68,7 +122,7 @@
   color: var(--muted);
 }
 
-.QuoteForm h2 {
+.dynamic-form h2 {
   margin-top: 0;
   margin-bottom: var(--spacing-lg);
   color: var(--text);
@@ -397,36 +451,36 @@
   font-size: var(--font-size-sm);
 }
 
-/* QuoteForm Input Overrides */
-.QuoteForm input,
-.QuoteForm select,
-.QuoteForm textarea {
+/* Dynamic Form Input Overrides */
+.dynamic-form input,
+.dynamic-form select,
+.dynamic-form textarea {
   background: white !important;
   color: black !important;
   border: 1px solid black !important;
   padding: var(--spacing-sm) !important;
 }
 
-.QuoteForm input::placeholder,
-.QuoteForm textarea::placeholder {
+.dynamic-form input::placeholder,
+.dynamic-form textarea::placeholder {
   color: black !important;
 }
 
-.QuoteForm input:focus,
-.QuoteForm select:focus,
-.QuoteForm textarea:focus {
+.dynamic-form input:focus,
+.dynamic-form select:focus,
+.dynamic-form textarea:focus {
   color: black !important;
   background: white !important;
   border-color: black !important;
 }
 
-.QuoteForm label {
+.dynamic-form label {
   color: var(--muted) !important;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .QuoteForm {
+  .dynamic-form {
     margin: var(--spacing-md);
     padding: var(--spacing-md);
   }
