@@ -3,126 +3,7 @@ import jsondb from '../src/lib/jsondb.js'
 import { requireAuth } from './auth.js'
 import { persistFilesForQuote } from './fileHandler.js'
 import { calculatePriceServer } from './priceCalculator.js'
-
-// Phase 1: Helper functions for unified price calculation
-function createCalculationBreakdown(quote, priceSettings, finalPrice) {
-  const breakdown = {
-    finalPrice: parseFloat(finalPrice) || 0,
-    formula: priceSettings.formula || '',
-    parameters: {},
-    steps: [],
-    errors: []
-  }
-
-  try {
-    // Extract parameter values used in calculation
-    priceSettings.parameters?.forEach(param => {
-      if (!param || !param.id) return
-
-      let value = 0
-      let source = 'unknown'
-
-      if (param.type === 'fixed') {
-        value = parseFloat(param.value) || 0
-        source = 'fixed-value'
-      } else if (param.type === 'form') {
-        if (param.formField === 'qty') {
-          value = parseFloat(quote.qty) || 0
-          source = 'quote.qty'
-        } else if (param.formField === 'thickness') {
-          value = parseFloat(quote.thickness) || 0
-          source = 'quote.thickness'
-        } else if (param.formField === 'dimensions') {
-          const l = parseFloat(quote.dimsL)
-          const w = parseFloat(quote.dimsW)
-          if (!isNaN(l) && !isNaN(w)) {
-            value = l * w
-            source = 'quote.dimsL * quote.dimsW'
-          } else {
-            const dims = quote.dims || ''
-            const match = String(dims).match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i)
-            if (match) {
-              value = (parseFloat(match[1]) || 0) * (parseFloat(match[2]) || 0)
-              source = 'quote.dims parsed'
-            }
-          }
-        } else {
-          // Custom form field
-          let fieldValue = quote[param.formField]
-          if (fieldValue === undefined && quote.customFields) {
-            fieldValue = quote.customFields[param.formField]
-          }
-          
-          if (param.lookupTable && Array.isArray(param.lookupTable)) {
-            if (Array.isArray(fieldValue)) {
-              value = fieldValue.reduce((sum, opt) => {
-                const found = param.lookupTable.find(item => item.option === opt)
-                return sum + (found ? (parseFloat(found.value) || 0) : 0)
-              }, 0)
-              source = 'lookup-table-array'
-            } else {
-              const lookupItem = param.lookupTable.find(item => item.option === fieldValue)
-              value = lookupItem ? parseFloat(lookupItem.value) || 0 : 0
-              source = 'lookup-table-single'
-            }
-          } else {
-            value = parseFloat(fieldValue) || 0
-            source = 'direct-form-value'
-          }
-        }
-      }
-
-      breakdown.parameters[param.id] = {
-        name: param.name || param.id,
-        type: param.type,
-        value: value,
-        source: source,
-        formField: param.formField || null
-      }
-    })
-
-    // Formula replacement simulation
-    let formula = priceSettings.formula || ''
-    const originalFormula = formula
-
-    Object.keys(breakdown.parameters).forEach(paramId => {
-      const paramValue = breakdown.parameters[paramId].value
-      formula = formula.replace(new RegExp(`\\b${paramId}\\b`, 'g'), paramValue)
-    })
-
-    breakdown.steps = [
-      { step: 'original-formula', value: originalFormula },
-      { step: 'parameters-replaced', value: formula },
-      { step: 'evaluated-result', value: finalPrice }
-    ]
-
-  } catch (error) {
-    breakdown.errors.push(`Breakdown creation failed: ${error.message}`)
-  }
-
-  return breakdown
-}
-
-function extractUsedParameters(quote, priceSettings) {
-  const usedParams = {}
-  
-  try {
-    priceSettings.parameters?.forEach(param => {
-      if (!param || !param.id) return
-      
-      usedParams[param.id] = {
-        name: param.name || param.id,
-        type: param.type,
-        formField: param.formField || null,
-        hasLookupTable: !!(param.lookupTable && param.lookupTable.length > 0)
-      }
-    })
-  } catch (error) {
-    console.error('Parameter extraction error:', error)
-  }
-
-  return usedParams
-}
+import PriceStatus from './models/PriceStatus.js'
 
 // --- Data Access Helpers powered by jsondb ---
 export function readAll() {
@@ -675,135 +556,105 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
   })
 
   // Bulk apply price to selected quotes
-  app.post('/api/quotes/apply-price-bulk', requireAuth, (req, res) => {
+  app.post('/api/quotes/apply-price-bulk', requireAuth, async (req, res) => {
     try {
-      console.log('🔧 DEBUG: Bulk price update started')
       const { ids } = req.body || {}
-      console.log('🔧 DEBUG: IDs to update:', ids)
-      
       if (!Array.isArray(ids) || ids.length === 0) {
-        console.log('🔧 DEBUG: No valid IDs provided')
         return res.json({ updated: 0 })
       }
-      
-      const priceSettings = jsondb.getPriceSettings()
-      console.log('🔧 DEBUG: Price settings loaded:', !!priceSettings)
-      
-      if (!priceSettings) {
-        console.error('🔧 ERROR: No price settings available')
-        return res.status(400).json({ error: 'Price settings not configured' })
+
+      const userInfo = {
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        timestamp: new Date().toISOString(),
+        action: 'bulk-apply'
       }
-      
+
       let updatedCount = 0
+      const results = []
       const errors = []
-      
-      ids.forEach((id, index) => {
+
+      for (const [index, id] of ids.entries()) {
         try {
-          console.log(`🔧 DEBUG: Processing quote ${index + 1}/${ids.length} - ID: ${id}`)
-          
-          const q = readOne(id)
-          if (!q) {
-            console.warn(`🔧 WARN: Quote not found: ${id}`)
-            errors.push(`Quote not found: ${id}`)
-            return
-          }
-          
-          console.log(`🔧 DEBUG: Quote loaded: ${q.name || 'unnamed'}`)
-          
-          const np = calculatePriceServer(q, priceSettings)
-          console.log(`🔧 DEBUG: Price calculated: ${np}`)
-          
-        // Create history entry
-        const historyEntry = {
-          timestamp: new Date().toISOString(),
-          price: np,
-          calculatedPrice: np,
-          priceSettings: JSON.parse(JSON.stringify(priceSettings)),
-          quoteSnapshot: createQuoteSnapshot(q),
-          changeReason: 'Toplu fiyat güncellendi'
-        }
-        
-        console.log(`🔧 DEBUG: History entry created for: ${id}`)
-          
-          const updateResult = updateOne(id, {
-            price: np,
-            calculatedPrice: np,
-            originalPrice: q.price || 0,
-            needsPriceUpdate: false,
-            formStructureChanged: false,
-            priceUpdatedAt: new Date().toISOString(),
-            priceUpdateReasons: [],
-            pendingCalculatedPrice: undefined,
-            priceHistory: [...(q.priceHistory || []), historyEntry]
+          console.log(`🔧 Bulk apply processing ${index + 1}/${ids.length} | ${id}`)
+          const comparison = await jsondb.compareQuotePriceVersions(id)
+          const updateResult = await jsondb.updateQuotePrice(id, comparison.quote.latestPrice, userInfo)
+          updatedCount++
+          results.push({
+            id,
+            updatedPrice: updateResult.updatedPrice,
+            calculatedPrice: updateResult.calculatedPrice,
+            baseline: comparison.comparisonBaseline
           })
-          
-          if (updateResult) {
-            console.log(`🔧 DEBUG: Quote updated successfully: ${id}`)
-            updatedCount++
-          } else {
-            console.error(`🔧 ERROR: Failed to update quote: ${id}`)
-            errors.push(`Failed to update quote: ${id}`)
-          }
-          
-        } catch (itemError) {
-          console.error(`🔧 ERROR: Error processing quote ${id}:`, itemError)
-          errors.push(`Error processing ${id}: ${itemError.message}`)
+        } catch (err) {
+          console.error('🔧 Bulk apply error for', id, err)
+          errors.push({ id, error: err?.message || 'unknown error' })
         }
-      })
-      
-      console.log('✅ Bulk price update completed:', updatedCount, 'quotes updated')
-      if (errors.length > 0) {
-        console.warn('🔧 WARN: Some errors occurred:', errors)
       }
-      
-      res.json({ 
+
+      return res.json({
         updated: updatedCount,
-        errors: errors.length > 0 ? errors : undefined
+        results,
+        errors: errors.length ? errors : undefined
       })
     } catch (e) {
       console.error('🔧 ERROR: Bulk price apply error:', e)
-      console.error('🔧 ERROR: Stack trace:', e.stack)
       res.status(500).json({ error: 'Bulk price update failed', details: e.message })
     }
   })
 
-    // Apply price to all flagged quotes
-  app.post('/api/quotes/apply-price-all', requireAuth, (req, res) => {
+  // Apply price to all flagged quotes
+  app.post('/api/quotes/apply-price-all', requireAuth, async (req, res) => {
     try {
-      const priceSettings = jsondb.getPriceSettings()
-      const quotes = readAll().filter(q => q.needsPriceUpdate)
-      let updatedCount = 0
-      quotes.forEach(q => {
-        const np = calculatePriceServer(q, priceSettings)
-        
-        // Create history entry
-        const historyEntry = {
-          timestamp: new Date().toISOString(),
-          price: np,
-          calculatedPrice: np,
-          priceSettings: JSON.parse(JSON.stringify(priceSettings)),
-          quoteSnapshot: createQuoteSnapshot(q),
-          changeReason: 'Tümü fiyat güncellendi'
-        }
-        
-        updateOne(q.id, {
-          price: np,
-          calculatedPrice: np,
-          originalPrice: q.price || 0,
-          needsPriceUpdate: false,
-          formStructureChanged: false,
-          priceUpdatedAt: new Date().toISOString(),
-          priceUpdateReasons: [],
-          pendingCalculatedPrice: undefined,
-          priceHistory: [...(q.priceHistory || []), historyEntry]
-        })
-        updatedCount++
+      const allQuotes = readAll()
+      const candidates = allQuotes.filter(q => {
+        const status = PriceStatus.fromJSON(q.priceStatus)
+        if (status.hasPendingUpdate()) return true
+        if (q.needsPriceUpdate === true) return true
+        if (q.formStructureChanged) return true
+        return false
       })
-      console.log('✅ Apply-all price update completed:', updatedCount, 'quotes updated')
-      res.json({ updated: updatedCount })
+
+      if (candidates.length === 0) {
+        return res.json({ updated: 0 })
+      }
+
+      const userInfo = {
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        timestamp: new Date().toISOString(),
+        action: 'apply-all'
+      }
+
+      let updatedCount = 0
+      const results = []
+      const errors = []
+
+      for (const quote of candidates) {
+        try {
+          const comparison = await jsondb.compareQuotePriceVersions(quote.id)
+          const updateResult = await jsondb.updateQuotePrice(quote.id, comparison.quote.latestPrice, userInfo)
+          updatedCount++
+          results.push({
+            id: quote.id,
+            updatedPrice: updateResult.updatedPrice,
+            calculatedPrice: updateResult.calculatedPrice,
+            baseline: comparison.comparisonBaseline
+          })
+        } catch (err) {
+          console.error('🔧 Apply-all error for', quote.id, err)
+          errors.push({ id: quote.id, error: err?.message || 'unknown error' })
+        }
+      }
+
+      return res.json({
+        updated: updatedCount,
+        results,
+        errors: errors.length ? errors : undefined
+      })
     } catch (e) {
       console.error('Apply all price error:', e)
-      res.status(500).json({ error: 'Apply all price update failed' })
+      res.status(500).json({ error: 'Apply all price update failed', details: e.message })
     }
   })
 
@@ -908,125 +759,231 @@ export function setupSettingsRoutes(app) {
   })
 
   // Save price settings with versioning and mark affected quotes
-  app.post('/api/price-settings', requireAuth, (req, res) => {
+  app.post('/api/price-settings', requireAuth, async (req, res) => {
     try {
       const oldSettings = jsondb.getPriceSettings() || { parameters: [], formula: '' }
       const incoming = req.body || {}
-      const newSettings = {
-        ...incoming,
-        version: (oldSettings.version || 0) + 1,
-        lastUpdated: new Date().toISOString()
+      
+      // Get user info for versioning
+      const userInfo = {
+        userId: req.user?.id || 'unknown',
+        username: req.user?.username || 'admin',
+        timestamp: new Date().toISOString()
       }
-      jsondb.savePriceSettings(newSettings)
+      
+      // Save with versioning system
+      const versionResult = await jsondb.savePriceSettingsWithVersioning(incoming, userInfo)
+      const newSettings = versionResult.settings
+
+      console.log('✅ Price settings saved with version:', versionResult.version)
 
       // Compute impact and mark quotes
       const quotes = readAll()
       let affectedCount = 0
+      const versionCache = new Map()
 
-      function findParam(arr, id) { return (arr || []).find(p => p && p.id === id) }
+      const versionKey = (snapshot = {}) => snapshot.versionId || `number:${snapshot.versionNumber}`
 
+      const versionRequests = new Map()
       quotes.forEach(q => {
+        const applied = q.priceVersionApplied || q.priceVersion || null
+        const original = q.priceVersionOriginal || null
+        ;[applied, original].forEach(snapshot => {
+          if (!snapshot) return
+          const versionId = snapshot.versionId || null
+          const versionNumber = snapshot.versionNumber ?? null
+          if (!versionId && (versionNumber === null || versionNumber === undefined)) return
+          const key = versionKey({ versionId, versionNumber })
+          if (!versionRequests.has(key)) {
+            versionRequests.set(key, { versionId, versionNumber })
+          }
+        })
+      })
+
+      const loadedSnapshots = await Promise.all(Array.from(versionRequests.entries()).map(async ([key, req]) => {
+        const data = await jsondb.getPriceSettingsVersionSnapshot(req)
+        return [key, data]
+      }))
+      loadedSnapshots.forEach(([key, data]) => {
+        versionCache.set(key, data)
+      })
+
+      async function loadVersionSnapshot(snapshot) {
+        if (!snapshot || (!snapshot.versionId && snapshot.versionNumber === undefined)) {
+          return null
+        }
+
+        const cacheKey = versionKey(snapshot)
+        if (versionCache.has(cacheKey)) {
+          return versionCache.get(cacheKey)
+        }
+
+        const loaded = await jsondb.getPriceSettingsVersionSnapshot({
+          versionId: snapshot.versionId || null,
+          versionNumber: snapshot.versionNumber ?? null
+        })
+        versionCache.set(cacheKey, loaded)
+        return loaded
+      }
+
+      for (const q of quotes) {
         try {
-          const oldPrice = calculatePriceServer(q, oldSettings)
+          const evaluationTimestamp = new Date().toISOString()
+
+          const appliedVersion = q.priceVersionApplied || q.priceVersion || null
+          const baselineSnapshot = appliedVersion || q.priceVersionOriginal || null
+
+          const baselineSettings = baselineSnapshot ? await loadVersionSnapshot({
+            versionId: baselineSnapshot.versionId || null,
+            versionNumber: baselineSnapshot.versionNumber ?? null
+          }) : null
+
+          const resolvedBaselineSettings = baselineSettings || oldSettings || {}
+
+          const oldPrice = calculatePriceServer(q, resolvedBaselineSettings)
           const newPrice = calculatePriceServer(q, newSettings)
-          const diff = Math.abs((newPrice || 0) - (oldPrice || 0))
-          const reasons = []
+          const priceDiff = Number(((newPrice || 0) - (oldPrice || 0)).toFixed(2))
 
-          if ((newSettings.formula || '') !== (oldSettings.formula || '')) {
-            reasons.push('Formül değişti')
+          const differences = jsondb.findPriceSettingsDifferences(resolvedBaselineSettings || {}, newSettings || {})
+          const hasPriceChange = Math.abs(priceDiff) > 0.01
+          const hasContentChange = differences.reasons.length > 0
+          const hasVersionChange = (baselineSnapshot?.versionNumber !== newSettings.version) || (baselineSnapshot?.versionId !== newSettings.versionId)
+
+          const currentStatus = PriceStatus.fromJSON(q.priceStatus)
+          const previousVersionNumber = baselineSnapshot?.versionNumber || currentStatus.settingsVersion || oldSettings.version || null
+          const previousVersionId = baselineSnapshot?.versionId || currentStatus.settingsVersionId || null
+
+          const differenceSummary = {
+            priceDiff,
+            oldPrice: oldPrice ?? null,
+            newPrice: newPrice ?? null,
+            evaluatedAt: evaluationTimestamp,
+            comparisonBaseline: baselineSnapshot ? 'applied' : 'original',
+            reasons: differences.reasons,
+            parameterChanges: {
+              added: differences.parameters.added,
+              removed: differences.parameters.removed,
+              modified: differences.parameters.modified
+            },
+            formulaChanged: differences.formula.changed,
+            previousVersion: previousVersionNumber,
+            previousVersionId,
+            originalVersion: q.priceVersionOriginal?.versionNumber || null,
+            originalVersionId: q.priceVersionOriginal?.versionId || null,
+            nextVersion: newSettings.version,
+            nextVersionId: newSettings.versionId || null
           }
 
-          const oldParams = oldSettings.parameters || []
-          const newParams = newSettings.parameters || []
-
-          newParams.forEach(np => {
-            const op = findParam(oldParams, np.id)
-            if (!op) return
-            if (np.type === 'fixed') {
-              const ov = parseFloat(op.value) || 0
-              const nv = parseFloat(np.value) || 0
-              if (ov !== nv) {
-                reasons.push(`Sabit fiyat '${np.name || np.id}': ${ov.toFixed(2)} → ${nv.toFixed(2)}`)
-              }
-            } else if (np.type === 'form') {
-              // Check if this is a form field parameter (either with or without lookupTable)
-              if (Array.isArray(np.lookupTable)) {
-                // Handle lookup table parameters
-                const fieldId = np.formField
-                const fv = (q[fieldId] !== undefined ? q[fieldId] : (q.customFields && q.customFields[fieldId]))
-                const collect = (opt) => {
-                  const nItem = np.lookupTable.find(it => it.option === opt)
-                  const oItem = op.lookupTable ? op.lookupTable.find(it => it.option === opt) : null
-                  const ov = oItem ? (parseFloat(oItem.value) || 0) : 0
-                  const nv = nItem ? (parseFloat(nItem.value) || 0) : 0
-                  if (ov !== nv) {
-                    const paramName = np.name || fieldId
-                    reasons.push(`${paramName} [${opt}]: ${ov.toFixed(2)} → ${nv.toFixed(2)}`)
-                  }
-                }
-                if (Array.isArray(fv)) fv.forEach(collect)
-                else if (fv !== undefined && fv !== null) collect(fv)
-              } else {
-                // For direct form field parameters (no lookup table)
-                // These parameters use the raw form field values in calculations
-                // Any change in parameter definition means recalculation needed
-                if (np.formField !== op.formField) {
-                  reasons.push(`Form parametresi '${np.name || np.id}' alan değişikliği: ${op.formField} → ${np.formField}`)
-                }
-                // Check for multiplier changes
-                const oldMult = parseFloat(op.multiplier) || 1
-                const newMult = parseFloat(np.multiplier) || 1
-                if (oldMult !== newMult) {
-                  reasons.push(`Parametre çarpanı '${np.name || np.id}': ${oldMult} → ${newMult}`)
-                }
-              }
-            } else if (np.type === 'currency') {
-              // Handle currency parameter changes
-              const oldRate = parseFloat(op.rate) || 1
-              const newRate = parseFloat(np.rate) || 1
-              if (oldRate !== newRate) {
-                reasons.push(`Döviz kuru '${np.name || np.id}': ${oldRate.toFixed(4)} → ${newRate.toFixed(4)}`)
-              }
-              if (op.enabled !== np.enabled) {
-                const status = np.enabled ? 'aktif' : 'pasif'
-                reasons.push(`Döviz durumu '${np.name || np.id}': ${status}`)
-              }
+          currentStatus.updateCalculation(
+            newPrice,
+            newSettings.version,
+            null,
+            {
+              settingsVersionId: newSettings.versionId || null,
+              differenceSummary
             }
-          })
+          )
 
-          // Check for formula changes
-          if (oldSettings.formula !== newSettings.formula) {
-            reasons.push(`Fiyat formülü değişti: ${oldSettings.formula} → ${newSettings.formula}`)
-          }
-
-          // Only mark for update if price actually changed
-          if (diff > 0.01) {
-            affectedCount++
-            update(q.id, {
-              needsPriceUpdate: true,
-              priceUpdateReasons: reasons.length > 0 ? reasons : [`Fiyat değişti: ${oldPrice.toFixed(2)} → ${newPrice.toFixed(2)}`],
-              pendingCalculatedPrice: newPrice,
-              lastPriceSettingsVersionUsed: oldSettings.version || 0,
-              pendingPriceSettingsVersion: newSettings.version
-            })
+          if (hasPriceChange) {
+            currentStatus.markPriceDrift(differenceSummary)
+          } else if (hasContentChange) {
+            currentStatus.markContentDrift(differenceSummary)
           } else {
-            // Always clear update flags when price hasn't changed
-            // even if parameters changed but didn't affect final price
-            update(q.id, {
-              needsPriceUpdate: false,
-              priceUpdateReasons: [],
-              pendingCalculatedPrice: undefined,
-              pendingPriceSettingsVersion: undefined
-            })
+            currentStatus.markOutdated('Price settings updated')
           }
+
+          if (hasPriceChange || hasContentChange || hasVersionChange) {
+            affectedCount++
+          }
+
+          const patchPayload = {
+            priceStatus: currentStatus.toJSON(),
+            pendingPriceVersion: {
+              versionId: newSettings.versionId || null,
+              versionNumber: newSettings.version,
+              evaluatedAt: evaluationTimestamp,
+              priceDiff,
+              comparisonBaseline: differenceSummary.comparisonBaseline,
+              reasons: differences.reasons,
+              parameterChanges: differenceSummary.parameterChanges,
+              formulaChanged: differences.formula.changed,
+              differenceSummary
+            },
+            priceVersionLatest: {
+              versionId: newSettings.versionId || null,
+              versionNumber: newSettings.version,
+              evaluatedAt: evaluationTimestamp
+            }
+          }
+
+          if (!q.priceVersionOriginal && (q.priceVersion || q.priceCalculation)) {
+            patchPayload.priceVersionOriginal = q.priceVersion || (q.priceCalculation ? {
+              versionId: q.priceCalculation.versionId || null,
+              versionNumber: q.priceCalculation.version || null,
+              capturedAt: q.priceCalculation.timestamp || q.createdAt || evaluationTimestamp
+            } : null)
+          }
+
+          if (!q.priceVersionApplied && q.priceVersion) {
+            patchPayload.priceVersionApplied = q.priceVersion
+          }
+
+          update(q.id, patchPayload)
         } catch (e) {
           console.error('Price mark error for quote', q.id, e)
         }
-      })
+      }
 
-      res.json({ success: true, version: newSettings.version, affected: affectedCount })
+      res.json({ 
+        success: true, 
+        version: versionResult.version,
+        versionId: versionResult.versionId,
+        affected: affectedCount,
+        message: `Version ${versionResult.version} created successfully`
+      })
     } catch (error) {
+      console.error('Price settings save error:', error)
       res.status(500).json({ error: 'Failed to save price settings' })
+    }
+  })
+
+  // VERSION MANAGEMENT API ROUTES
+
+  // Get all price settings versions
+  app.get('/api/price-settings/versions', requireAuth, async (req, res) => {
+    try {
+      const { versions } = await jsondb.getPriceSettingsVersions()
+      res.json({ success: true, versions })
+    } catch (error) {
+      console.error('Failed to get versions:', error)
+      res.status(500).json({ error: 'Failed to get versions' })
+    }
+  })
+
+  // Restore a specific version
+  app.post('/api/price-settings/restore/:versionId', requireAuth, async (req, res) => {
+    try {
+      const { versionId } = req.params
+      const userInfo = {
+        userId: req.user?.id || 'unknown',
+        username: req.user?.username || 'admin',
+        timestamp: new Date().toISOString(),
+        action: 'restore'
+      }
+      
+      const result = await jsondb.restorePriceSettingsVersion(versionId)
+      
+      res.json({ 
+        success: true, 
+        restoredVersion: result.restoredVersion,
+        restoredVersionId: result.restoredVersionId,
+        originalVersion: result.originalVersion,
+        originalVersionId: result.originalVersionId,
+        message: `Version restored successfully as v${result.restoredVersion}`
+      })
+    } catch (error) {
+      console.error('Version restore failed:', error)
+      res.status(500).json({ error: 'Failed to restore version' })
     }
   })
 
@@ -1065,50 +1022,47 @@ export function setupSettingsRoutes(app) {
   })
 
   // Save form configuration - ADMIN ONLY
-  app.post('/api/form-config', requireAuth, (req, res) => {
+  app.post('/api/form-config', requireAuth, async (req, res) => {
     console.log('🔧 DEBUG: POST /api/form-config called')
     console.log('🔧 DEBUG: Request body:', JSON.stringify(req.body, null, 2))
-    
+
     try {
       const config = req.body
       console.log('🔧 DEBUG: Getting current config...')
       const currentConfig = jsondb.getFormConfig()
       console.log('🔧 DEBUG: Current config:', !!currentConfig)
-      
-      // Check if this is a significant form structure change
-      const isStructuralChange = !currentConfig || 
+
+      const isStructuralChange = !currentConfig ||
         JSON.stringify(currentConfig.formStructure?.fields) !== JSON.stringify(config.formStructure?.fields)
       console.log('🔧 DEBUG: Is structural change:', isStructuralChange)
-      
-      // Save the new form configuration
+
       console.log('🔧 DEBUG: Saving form config...')
-      const result = jsondb.putFormConfig(config)
+      const result = await jsondb.putFormConfig(config, {
+        userId: req.user?.id,
+        username: req.user?.username
+      })
       console.log('🔧 DEBUG: Form config saved:', !!result)
-      
+
       if (isStructuralChange) {
         console.log('🔧 DEBUG: Processing structural change...')
-        
-        // Analyze specific changes in form structure
+
         const getFormChanges = (oldConfig, newConfig) => {
           const changes = []
           const oldFields = oldConfig?.formStructure?.fields || []
           const newFields = newConfig?.formStructure?.fields || []
-          
-          // Check for removed fields
+
           oldFields.forEach(oldField => {
             const stillExists = newFields.find(f => f.id === oldField.id)
             if (!stillExists) {
               changes.push(`Alan kaldırıldı: ${oldField.label || oldField.id}`)
             }
           })
-          
-          // Check for added fields  
+
           newFields.forEach(newField => {
             const existed = oldFields.find(f => f.id === newField.id)
             if (!existed) {
               changes.push(`Yeni alan eklendi: ${newField.label || newField.id}`)
             } else {
-              // Check for field changes
               if (existed.label !== newField.label) {
                 changes.push(`Alan etiketi değişti: ${existed.label} → ${newField.label}`)
               }
@@ -1120,48 +1074,64 @@ export function setupSettingsRoutes(app) {
               }
             }
           })
-          
+
           return changes
         }
-        
+
         const formChanges = getFormChanges(currentConfig, config)
-        const changeReason = formChanges.length > 0 
-          ? `Form değişiklikleri: ${formChanges.join('; ')}`
-          : 'User form güncellendi'
-        
-        // Mark all existing quotes as needing price updates due to form changes
         const quotes = jsondb.listQuotes()
+        const evaluationTimestamp = new Date().toISOString()
+
         console.log('🔧 DEBUG: Found', quotes.length, 'quotes to update')
-        
+
         quotes.forEach(quote => {
-          // Create patch object with only defined values
+          const status = PriceStatus.fromJSON(quote.priceStatus)
+          status.setVersionInfo({ formVersionId: result?.versionId || null })
+
+          const differenceSummary = {
+            reasons: formChanges,
+            evaluatedAt: evaluationTimestamp,
+            previousFormVersionId: quote.formVersion?.versionId || currentConfig?.versionId || null,
+            previousFormVersion: quote.formVersion?.versionNumber || currentConfig?.version || null,
+            nextFormVersionId: result?.versionId || null,
+            nextFormVersion: result?.version || null
+          }
+
+          status.markContentDrift(differenceSummary)
+
           const patch = {
-            needsPriceUpdate: true,
-            priceUpdateReason: 'Form structure changed',
-            priceUpdateReasons: [changeReason],
-            formStructureChanged: true,
-            formVersion: config.version
+            priceStatus: status.toJSON(),
+            pendingFormVersion: {
+              versionId: result?.versionId || null,
+              versionNumber: result?.version || null,
+              evaluatedAt: evaluationTimestamp,
+              reasons: formChanges
+            }
           }
-          
-          // Only add previousFormVersion if it exists
-          if (quote.formVersion !== undefined && quote.formVersion !== null) {
-            patch.previousFormVersion = quote.formVersion
+
+          if (!quote.formVersion) {
+            patch.formVersion = {
+              versionId: currentConfig?.versionId || null,
+              versionNumber: currentConfig?.version || null,
+              capturedAt: quote.createdAt || evaluationTimestamp
+            }
           }
-          
+
           jsondb.patchQuote(quote.id, patch)
         })
-        
-        // Reset pricing configuration since form fields may have changed
+
         console.log('🔧 DEBUG: Resetting pricing config...')
         jsondb.resetPricingConfig('Form configuration updated')
-        
+
         console.log(`Form structure updated. Marked ${quotes.length} quotes for price recalculation.`)
       }
-      
+
       console.log('🔧 DEBUG: Sending success response...')
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         structuralChange: isStructuralChange,
+        version: result?.version || null,
+        versionId: result?.versionId || null,
         quotesMarkedForUpdate: isStructuralChange ? jsondb.listQuotes().length : 0
       })
     } catch (error) {
@@ -1211,207 +1181,149 @@ export function setupExportRoutes(app) {
     }
   })
 
-  // Phase 1: Unified Price Calculation API (Phase 3: Enhanced with Advanced Rules)
-  app.post('/api/quotes/calculate-preview', async (req, res) => {
+  // Quote price version comparison
+  app.get('/api/quotes/:quoteId/price-comparison', async (req, res) => {
     try {
-      const { quote, priceSettingsOverride } = req.body
-      
-      if (!quote) {
-        return res.status(400).json({ error: 'Quote data required' })
-      }
+      const { quoteId } = req.params
+      const comparison = await jsondb.compareQuotePriceVersions(quoteId)
 
-      // Use provided settings or get current system settings
-      const priceSettings = priceSettingsOverride || jsondb.getPriceSettings()
-      
-      if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
-        return res.json({ 
-          calculatedPrice: quote.price || 0,
-          breakdown: { error: 'No price settings configured' },
-          usedParameters: {},
-          source: 'fallback'
-        })
-      }
+      const quote = jsondb.getQuote(quoteId)
+      if (quote) {
+        const status = PriceStatus.fromJSON(quote.priceStatus)
+        const latestVersion = comparison.versions.latest || {}
+        const diffSummary = comparison.differenceSummary || {}
+        const evaluatedAt = diffSummary.evaluatedAt || new Date().toISOString()
 
-      // Phase 3: Calculate with advanced rules
-      const result = await calculatePriceWithAdvancedRules(quote, priceSettings)
-      
-      res.json(result)
+        status.updateCalculation(
+          comparison.quote.latestPrice,
+          latestVersion.version,
+          null,
+          {
+            settingsVersionId: latestVersion.versionId,
+            differenceSummary: diffSummary
+          }
+        )
+
+        if (comparison.quote.priceChanged) {
+          status.markPriceDrift(diffSummary)
+        } else if ((diffSummary.reasons || []).length > 0) {
+          status.markContentDrift(diffSummary)
+        } else {
+          status.markOutdated('Price settings updated')
+        }
+
+        const versionSnapshot = (ver) => (
+          ver && (ver.versionId || ver.version)
+            ? {
+                versionId: ver.versionId || null,
+                versionNumber: ver.version || null,
+                capturedAt: ver.timestamp || evaluatedAt
+              }
+            : null
+        )
+
+        const patch = {
+          priceStatus: status.toJSON(),
+          pendingPriceVersion: {
+            versionId: latestVersion.versionId || null,
+            versionNumber: latestVersion.version || null,
+            evaluatedAt,
+            priceDiff: diffSummary.priceDiff || 0,
+            comparisonBaseline: diffSummary.comparisonBaseline || 'applied',
+            reasons: diffSummary.reasons || [],
+            parameterChanges: diffSummary.parameterChanges || {
+              added: [],
+              removed: [],
+              modified: []
+            },
+            formulaChanged: !!diffSummary.formulaChanged,
+            differenceSummary: diffSummary
+          },
+          priceVersionLatest: {
+            versionId: latestVersion.versionId || null,
+            versionNumber: latestVersion.version || null,
+            evaluatedAt
+          }
+        }
+
+        if (!quote.priceVersionOriginal && comparison.versions.original) {
+          const originalSnap = versionSnapshot(comparison.versions.original)
+          if (originalSnap) {
+            patch.priceVersionOriginal = originalSnap
+          }
+        }
+
+        if (comparison.versions.applied) {
+          const appliedSnap = versionSnapshot(comparison.versions.applied)
+          if (appliedSnap) {
+            patch.priceVersionApplied = appliedSnap
+            patch.priceVersion = appliedSnap
+          }
+        }
+
+        jsondb.patchQuote(quoteId, patch)
+        comparison.quote.priceStatus = patch.priceStatus
+      }
+      res.json(comparison)
     } catch (error) {
-      console.error('❌ Server price calculation error:', error)
-      res.status(500).json({ error: 'Price calculation failed', details: error.message })
+      console.error('Quote price comparison error:', error)
+      if (error && error.status === 404) {
+        return res.status(404).json({ error: 'Quote not found' })
+      }
+      res.status(500).json({ error: 'Failed to compare quote price versions' })
     }
   })
 
-  // Phase 3: Advanced price calculation with rules
-  async function calculatePriceWithAdvancedRules(quote, priceSettings) {
-    // Step 1: Calculate base price
-    const basePrice = calculatePriceServer(quote, priceSettings)
-    const breakdown = createCalculationBreakdown(quote, priceSettings, basePrice)
-    const usedParameters = extractUsedParameters(quote, priceSettings)
-    
-    // Step 2: Load advanced rules from settings
-    const advancedRules = await getAdvancedPriceRules()
-    
-    // Step 3: Apply advanced rules
-    const rulesResult = applyAdvancedPriceRules(basePrice, quote, advancedRules)
-    
-    return {
-      calculatedPrice: rulesResult.finalPrice,
-      basePrice: basePrice,
-      breakdown,
-      usedParameters,
-      rulesApplied: rulesResult.rulesApplied,
-      source: 'server-calculation-with-advanced-rules',
-      timestamp: new Date().toISOString(),
-      settingsVersion: priceSettings.version || 0
-    }
-  }
-
-  // Phase 3: Get advanced price rules from settings
-  async function getAdvancedPriceRules() {
+  // Apply current price version to quote
+  app.post('/api/quotes/:quoteId/apply-current-price', async (req, res) => {
     try {
-      const settings = jsondb.getDocument('settings', 'app-settings')
-      return settings?.advancedPriceRules || {
-        quantityDiscounts: [],
-        materialMultipliers: [],
-        conditionalRules: [],
-        priceHistory: { enabled: true, retentionDays: 90 }
+      const { quoteId } = req.params
+      const userInfo = {
+        ip: req.ip,
+        userAgent: req.get('User-Agent'),
+        timestamp: new Date().toISOString()
       }
-    } catch (error) {
-      console.error('Advanced rules load error:', error)
-      return {
-        quantityDiscounts: [],
-        materialMultipliers: [],
-        conditionalRules: [],
-        priceHistory: { enabled: true, retentionDays: 90 }
-      }
-    }
-  }
+      
+      // Get comparison first
+      const comparison = await jsondb.compareQuotePriceVersions(quoteId)
 
-  // Phase 3: Apply advanced price rules to base price
-  function applyAdvancedPriceRules(basePrice, quote, advancedRules) {
-    let finalPrice = basePrice
-    const rulesApplied = []
-    
+      const updateResult = await jsondb.updateQuotePrice(quoteId, comparison.quote.latestPrice, userInfo)
+      const updatedQuote = updateResult.quote || jsondb.getQuote(quoteId)
+
+      res.json({ 
+        success: true, 
+        updatedPrice: updateResult.updatedPrice,
+        calculatedPrice: updateResult.calculatedPrice,
+        appliedVersion: (comparison.versions.latest && comparison.versions.latest.version) || null,
+        quote: updatedQuote,
+        comparisonBaseline: comparison.comparisonBaseline,
+        differenceSummary: comparison.differenceSummary
+      })
+    } catch (error) {
+      console.error('Apply current price error:', error)
+      res.status(500).json({ error: 'Failed to apply current price to quote' })
+    }
+  })
+
+  // Price calculation preview endpoint
+  app.post('/api/calculate-price', async (req, res) => {
     try {
-      // Apply quantity discounts
-      if (advancedRules.quantityDiscounts?.length > 0 && quote.qty) {
-        const qty = parseFloat(quote.qty) || (quote.customFields?.qty ? parseFloat(quote.customFields.qty) : 0)
-        const applicableDiscount = findApplicableQuantityDiscount(qty, advancedRules.quantityDiscounts)
-        
-        if (applicableDiscount) {
-          const discountedPrice = applyQuantityDiscount(finalPrice, applicableDiscount)
-          rulesApplied.push({
-            type: 'quantity-discount',
-            rule: applicableDiscount.name,
-            originalPrice: finalPrice,
-            newPrice: discountedPrice,
-            discount: finalPrice - discountedPrice
-          })
-          finalPrice = discountedPrice
-        }
+      const { quote, priceSettings } = req.body
+      
+      if (!quote || !priceSettings) {
+        return res.status(400).json({ error: 'Quote and priceSettings are required' })
       }
 
-      // Apply material multipliers
-      if (advancedRules.materialMultipliers?.length > 0) {
-        const applicableMultipliers = findApplicableMaterialMultipliers(quote, advancedRules.materialMultipliers)
-        
-        applicableMultipliers.forEach(multiplier => {
-          const multipliedPrice = finalPrice * multiplier.multiplier
-          rulesApplied.push({
-            type: 'material-multiplier',
-            rule: multiplier.name,
-            fieldId: multiplier.fieldId,
-            fieldValue: multiplier.fieldValue,
-            multiplier: multiplier.multiplier,
-            originalPrice: finalPrice,
-            newPrice: multipliedPrice
-          })
-          finalPrice = multipliedPrice
-        })
-      }
-
-      // Apply conditional rules (sorted by priority)
-      if (advancedRules.conditionalRules?.length > 0) {
-        const sortedRules = advancedRules.conditionalRules
-          .filter(rule => rule.enabled)
-          .sort((a, b) => (a.priority || 1) - (b.priority || 1))
-        
-        sortedRules.forEach(rule => {
-          if (evaluateConditionalRule(quote, rule)) {
-            const adjustedPrice = applyConditionalRuleAction(finalPrice, rule.action)
-            rulesApplied.push({
-              type: 'conditional-rule',
-              rule: rule.name,
-              action: rule.action,
-              originalPrice: finalPrice,
-              newPrice: adjustedPrice
-            })
-            finalPrice = adjustedPrice
-          }
-        })
-      }
-
+      const calculatedPrice = calculatePriceServer(quote, priceSettings)
+      
+      res.json({ 
+        success: true,
+        calculatedPrice: calculatedPrice || 0,
+        quote: { ...quote, calculatedPrice }
+      })
     } catch (error) {
-      console.error('Advanced rules application error:', error)
-      rulesApplied.push({
-        type: 'error',
-        message: `Rules application failed: ${error.message}`
-      })
+      console.error('Price calculation error:', error)
+      res.status(500).json({ error: 'Price calculation failed' })
     }
-
-    return {
-      finalPrice: Math.max(0, finalPrice), // Ensure price is not negative
-      rulesApplied
-    }
-  }
-
-  // Helper functions for advanced rules
-  function findApplicableQuantityDiscount(qty, discounts) {
-    return discounts
-      .filter(d => d.enabled)
-      .find(d => qty >= d.minQuantity && (d.maxQuantity === null || qty <= d.maxQuantity))
-  }
-
-  function applyQuantityDiscount(price, discount) {
-    switch (discount.discountType) {
-      case 'percentage':
-        return price * (1 - discount.discountValue / 100)
-      case 'fixed':
-        return Math.max(0, price - discount.discountValue)
-      case 'multiplier':
-        return price * discount.discountValue
-      default:
-        return price
-    }
-  }
-
-  function findApplicableMaterialMultipliers(quote, multipliers) {
-    return multipliers
-      .filter(m => m.enabled && m.fieldId && m.fieldValue)
-      .filter(m => {
-        const fieldValue = quote[m.fieldId] || quote.customFields?.[m.fieldId]
-        return fieldValue === m.fieldValue
-      })
-  }
-
-  function evaluateConditionalRule(quote, rule) {
-    // Simple condition evaluation - can be expanded
-    return rule.conditions?.length === 0 || true // For now, accept all rules
-  }
-
-  function applyConditionalRuleAction(price, action) {
-    switch (action.type) {
-      case 'multiply':
-        return price * action.value
-      case 'add':
-        return price + action.value
-      case 'subtract':
-        return Math.max(0, price - action.value)
-      case 'setFixed':
-        return action.value
-      default:
-        return price
-    }
-  }
+  })
 }

@@ -2,82 +2,23 @@ import React from 'react';
 import API from '../../lib/api.js'
 import { statusLabel, procLabel, materialLabel } from '../../i18n/index.js'
 import { getTableColumns, getFieldValue, formatFieldValue } from './AdminTableUtils.js'
-import { calculatePrice, needsPriceUpdate, getPriceChangeType, getChanges, getChangeReason, applyNewPrice, getChangesFromOriginal } from './AdminPriceCalculator.js'
+import { calculatePrice, getPriceChangeType } from './AdminPriceCalculator.js'
 import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from './AdminFilterUtils.js'
 import { calculateStatistics, BarChart } from './AdminStatistics.js'
 import { DetailModal } from '../modals/DetailModal.js'
 import SettingsModalCompact from '../modals/SettingsModal.js'
 import { FilterPopup } from '../modals/FilterPopup.js'
 
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 
-// Helper function to format change reasons with colors and field label conversion
-function formatChangeReasonWithColors(reason, formConfig) {
-  if (!reason) return reason
-  
-  // Function to get field label from form config
-  function getFieldLabel(fieldId) {
-    if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
-      const field = formConfig.formStructure.fields.find(f => f.id === fieldId)
-      if (field && field.label) {
-        return field.label
-      }
-    }
-    return fieldId
-  }
-  
-  // Replace field IDs with labels in the reason text
-  let processedReason = reason
-  if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
-    formConfig.formStructure.fields.forEach(field => {
-      const regex = new RegExp(`\\b${field.id}\\b`, 'g')
-      processedReason = processedReason.replace(regex, field.label || field.id)
-    })
-  }
-  
-  // Clean up any existing HTML first
-  processedReason = processedReason.replace(/<[^>]*>/g, '')
-  
-  // Split by semicolons to handle each change separately
-  const changes = processedReason.split(';').map(change => change.trim()).filter(Boolean)
-  
-  const formattedChanges = changes.map(change => {
-    // Highlight numeric changes (like prices, percentages)
-    if (change.includes(' → ')) {
-      const parts = change.split(' → ')
-      if (parts.length === 2) {
-        const [beforePart, afterPart] = parts
-        
-        // Check if this looks like a numeric change
-        const beforeMatch = beforePart.match(/([\d,\.]+)$/)
-        const afterMatch = afterPart.match(/^([\d,\.]+)/)
-        
-        if (beforeMatch && afterMatch) {
-          const beforeText = beforePart.replace(beforeMatch[1], '')
-          const afterText = afterPart.replace(afterMatch[1], '')
-          
-          return `${beforeText}<span style="background-color: #ffebee; color: #c62828; padding: 2px 4px; border-radius: 3px; font-weight: bold;">${beforeMatch[1]}</span> → <span style="background-color: #e8f5e8; color: #2e7d32; padding: 2px 4px; border-radius: 3px; font-weight: bold;">${afterMatch[1]}</span>${afterText}`
-        } else {
-          // Non-numeric change
-          return `<span style="background-color: #fff3e0; color: #ef6c00; padding: 2px 4px; border-radius: 3px;">${beforePart}</span> → <span style="background-color: #e3f2fd; color: #1565c0; padding: 2px 4px; border-radius: 3px;">${afterPart}</span>`
-        }
-      }
-    }
-    
-    // Highlight status changes
-    const statusChange = change.replace(
-      /(eklendi|kaldırıldı|aktif|pasif)/g,
-      '<span style="background-color: #f3e5f5; color: #7b1fa2; padding: 2px 4px; border-radius: 3px; font-weight: bold;">$1</span>'
-    )
-    
-    // Highlight parameter types
-    return statusChange.replace(
-      /(Sabit fiyat|Döviz kuru|Parametre çarpanı|Form parametresi|Parametre değişti)/g,
-      '<strong style="color: #1976d2;">$1</strong>'
-    )
-  })
-  
-  return formattedChanges.join('; ')
+const DRIFT_STATUSES = ['price-drift', 'content-drift', 'outdated', 'unknown', 'error']
+
+function isQuoteFlaggedForPricing(quote) {
+  if (!quote) return false
+  if (DRIFT_STATUSES.includes(quote.priceStatus?.status)) return true
+  if (quote.needsPriceUpdate === true) return true
+  if (quote.formStructureChanged) return true
+  return false
 }
 
 function Admin({ t, onLogout, showNotification }) {
@@ -110,6 +51,8 @@ function Admin({ t, onLogout, showNotification }) {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [bulkProgress, setBulkProgress] = useState(null)
+  const bulkCancelRef = useRef(false)
 
   useEffect(() => {
     loadQuotes();
@@ -123,30 +66,8 @@ function Admin({ t, onLogout, showNotification }) {
       console.log('🔧 Admin: Loading quotes from API...');
       const quotesData = await API.listQuotes();
       console.log('🔧 Admin: Loaded', quotesData.length, 'quotes');
-      
-      // Add price change type to each quote
-      const quotesWithPriceChangeType = await Promise.all(
-        quotesData.map(async (quote) => {
-          try {
-            const priceChangeType = await getPriceChangeType(quote, priceSettings);
-            const calculatedPrice = await calculatePrice(quote, priceSettings);
-            return { 
-              ...quote, 
-              priceChangeType,
-              pendingCalculatedPrice: calculatedPrice
-            };
-          } catch (error) {
-            console.warn('Failed to calculate price change type for quote:', quote.id, error);
-            return { 
-              ...quote, 
-              priceChangeType: 'unknown',
-              pendingCalculatedPrice: quote.price
-            };
-          }
-        })
-      );
-      
-      setList(quotesWithPriceChangeType);
+      setList(quotesData);
+
       setLoading(false);
       setError(null);
     } catch (error) {
@@ -386,44 +307,233 @@ function Admin({ t, onLogout, showNotification }) {
     }
   }
 
+  function handleBulkProgressAction(action) {
+    if (action === 'cancel') {
+      setBulkProgress(prev => {
+        if (!prev || prev.finished || prev.cancelling) return prev
+        bulkCancelRef.current = true
+        return { ...prev, cancelling: true }
+      })
+    } else if (action === 'close') {
+      bulkCancelRef.current = false
+      setBulkProgress(null)
+    }
+  }
+
+  async function performBulkUpdate(targetIds, mode = 'selected') {
+    if (!Array.isArray(targetIds) || targetIds.length === 0) {
+      return
+    }
+
+    // Prevent overlapping bulk operations
+    if (bulkProgress && !bulkProgress.finished && !bulkProgress.cancelled) {
+      return
+    }
+
+    const total = targetIds.length
+    bulkCancelRef.current = false
+
+    const idToQuote = new Map(list.map(q => [q.id, q]))
+
+    setBulkProgress({
+      active: true,
+      total,
+      completed: 0,
+      currentIndex: 0,
+      currentId: null,
+      currentName: '',
+      cancelling: false,
+      finished: false,
+      cancelled: false,
+      errors: [],
+      mode
+    })
+
+    let processedCount = 0
+    let successCount = 0
+    const errors = []
+
+    for (let i = 0; i < total; i++) {
+      if (bulkCancelRef.current) {
+        break
+      }
+
+      const id = targetIds[i]
+      const quoteRef = idToQuote.get(id)
+      setBulkProgress(prev => prev ? {
+        ...prev,
+        currentIndex: i,
+        currentId: id,
+        currentName: quoteRef?.name || id,
+        completed: processedCount
+      } : prev)
+
+      try {
+        const response = await API.applyCurrentPriceToQuote(id)
+        successCount += 1
+        if (response?.quote) {
+          const updatedQuote = response.quote
+          setList(prevList => prevList.map(q => q.id === id ? { ...q, ...updatedQuote } : q))
+          if (detail && detail.id === id) {
+            setDetail(prev => prev ? { ...prev, ...updatedQuote } : prev)
+          }
+        }
+      } catch (error) {
+        console.error('Bulk update quote error:', id, error)
+        errors.push({ id, error: error?.message || 'Hata' })
+      }
+
+      processedCount += 1
+      setBulkProgress(prev => prev ? { ...prev, completed: processedCount } : prev)
+    }
+
+    const cancelled = bulkCancelRef.current
+    bulkCancelRef.current = false
+
+    setBulkProgress(prev => prev ? {
+      ...prev,
+      completed: processedCount,
+      currentId: null,
+      currentName: '',
+      finished: true,
+      active: false,
+      cancelling: false,
+      cancelled,
+      errors
+    } : prev)
+
+    if (mode === 'selected') {
+      setSelected(new Set())
+    }
+
+    if (!cancelled) {
+      if (errors.length > 0) {
+        showNotification(`${successCount} kayıt güncellendi, ${errors.length} hata oluştu`, 'warning')
+      } else {
+        showNotification(`${successCount} fiyat güncellendi`, 'success')
+      }
+    } else {
+      showNotification(`Toplu güncelleme iptal edildi (${processedCount}/${total})`, errors.length ? 'warning' : 'info')
+    }
+
+    try {
+      await refresh()
+    } catch (refreshError) {
+      console.error('Bulk refresh error:', refreshError)
+    }
+  }
+
+  async function openPriceReview(item, snapshot = {}) {
+    if (!item) return
+
+    const fallbackOriginal = snapshot.originalPrice ?? (parseFloat(item.price) || 0)
+    const fallbackNew = snapshot.newPrice ?? (parseFloat(item.priceStatus?.calculatedPrice) || fallbackOriginal)
+    const initialDiff = snapshot.differenceSummary ?? item.priceStatus?.differenceSummary ?? null
+    const fallbackVersions = snapshot.versions || {
+      original: {
+        version: item.priceCalculation?.version,
+        versionId: item.priceCalculation?.versionId || item.priceVersion?.versionId || null,
+        timestamp: item.priceCalculation?.timestamp || item.createdAt || null
+      },
+      applied: {
+        version: item.priceVersionApplied?.versionNumber || item.priceVersion?.versionNumber || item.priceStatus?.settingsVersion || priceSettings?.version || null,
+        versionId: item.priceVersionApplied?.versionId || item.priceVersion?.versionId || item.priceStatus?.settingsVersionId || priceSettings?.versionId || null,
+        timestamp: item.priceVersionApplied?.capturedAt || item.priceVersion?.capturedAt || item.priceStatus?.lastApplied || null
+      },
+      latest: {
+        version: priceSettings?.version || null,
+        versionId: priceSettings?.versionId || null,
+        timestamp: priceSettings?.updatedAt || null
+      }
+    }
+    const fallbackSummary = initialDiff
+      ? {
+          ...initialDiff,
+          priceDiff: initialDiff.priceDiff ?? (fallbackNew - fallbackOriginal),
+          oldPrice: initialDiff.oldPrice ?? fallbackOriginal,
+          newPrice: initialDiff.newPrice ?? fallbackNew
+        }
+      : null
+
+    setPriceReview({
+      item,
+      originalPrice: fallbackOriginal,
+      newPrice: fallbackNew,
+      differenceSummary: fallbackSummary,
+      versions: fallbackVersions,
+      loading: true
+    })
+
+    try {
+      const comparison = await API.getQuotePriceComparison(item.id)
+      const summary = comparison.differenceSummary || {}
+      const baselinePrice = summary.oldPrice ?? comparison.quote.appliedPrice ?? fallbackOriginal
+      const latestPrice = summary.newPrice ?? comparison.quote.latestPrice ?? fallbackNew
+
+      const comparisonDiff = {
+        priceDiff: summary.priceDiff ?? Number((latestPrice - baselinePrice).toFixed(2)),
+        oldPrice: baselinePrice,
+        newPrice: latestPrice,
+        reasons: summary.reasons || [],
+        comparisonBaseline: summary.comparisonBaseline || comparison.comparisonBaseline || 'applied',
+        parameterChanges: summary.parameterChanges || { added: [], removed: [], modified: [] },
+        formulaChanged: summary.formulaChanged || false,
+        evaluatedAt: summary.evaluatedAt || new Date().toISOString()
+      }
+      setPriceReview({
+        item: { ...item, comparison },
+        originalPrice: baselinePrice,
+        newPrice: latestPrice,
+        differenceSummary: comparisonDiff,
+        versions: comparison.versions || fallbackVersions,
+        loading: false
+      })
+    } catch (error) {
+      console.error('Price comparison load error:', error)
+      showNotification('Fiyat karşılaştırması yüklenemedi', 'error')
+      setPriceReview(prev => prev ? { ...prev, loading: false, error: error.message } : null)
+    }
+  }
+
   async function handlePriceReviewApply() {
     if (!priceReview) return
     
     try {
       console.log('🔧 Applying price update for quote:', priceReview.item.id)
+      setPriceReview(prev => prev ? { ...prev, updating: true } : prev)
       
-      const result = await applyNewPrice(priceReview.item, API, showNotification)
-      if (result) {
-        console.log('✅ Price update successful, result:', result)
-        
-        // Update local state immediately to prevent button flickering
-        setList(prevList => 
-          prevList.map(quote => 
-            quote.id === priceReview.item.id 
-              ? {
-                  ...quote,
-                  ...result,
-                  needsPriceUpdate: false,
-                  formStructureChanged: false,
-                  priceUpdateReasons: [],
-                  pendingCalculatedPrice: undefined,
-                  priceUpdatedAt: new Date().toISOString()
-                }
-              : quote
-          )
-        )
-        
-        // Close modal and refresh from server
-        setPriceReview(null)
-        
-        // Small delay then refresh to get authoritative data
-        setTimeout(() => {
-          refresh()
-        }, 100)
+      const response = await API.applyNewPrice(priceReview.item.id)
+      if (!response || response.success === false) {
+        throw new Error(response?.error || 'apply price failed')
       }
+
+      const updatedQuote = response.quote || {
+        ...priceReview.item,
+        price: response.updatedPrice,
+        calculatedPrice: response.calculatedPrice ?? response.updatedPrice,
+        priceStatus: {
+          ...(priceReview.item.priceStatus || {}),
+          status: 'current',
+          differenceSummary: null
+        }
+      }
+
+      setList(prevList => prevList.map(quote => quote.id === priceReview.item.id ? { ...quote, ...updatedQuote } : quote))
+
+      if (detail && detail.id === priceReview.item.id) {
+        setDetail(prev => ({ ...prev, ...updatedQuote }))
+      }
+
+      showNotification('Fiyat güncellendi!', 'success')
+      setPriceReview(null)
+
+      setTimeout(() => {
+        refresh()
+      }, 100)
     } catch (error) {
       console.error('Price review apply error:', error)
       showNotification('Fiyat güncellenirken hata oluştu', 'error')
+      setPriceReview(prev => prev ? { ...prev, updating: false } : prev)
     }
   }
 
@@ -595,74 +705,25 @@ function Admin({ t, onLogout, showNotification }) {
           // Bulk price update button (dynamic label)
           (function () {
             const selectedCount = selected.size
-            const flaggedCount = list.filter(x => x.needsPriceUpdate).length
+            const flaggedCount = list.filter(isQuoteFlaggedForPricing).length
             if (selectedCount === 0 && flaggedCount === 0) return null
             const label = selectedCount > 0 ? 'Seçilen kayıtların fiyatlarını güncelle' : 'Tümü güncelle'
             const onClick = async () => {
-              try {
-                console.log('🔧 Starting bulk price update...')
-                let updatedIds = []
-                let result = null
-                
-                if (selectedCount > 0) {
-                  console.log('🔧 Updating selected quotes:', Array.from(selected))
-                  result = await API.applyPricesBulk(Array.from(selected))
-                  updatedIds = Array.from(selected)
-                } else {
-                  console.log('🔧 Updating all flagged quotes')
-                  result = await API.applyPricesAll()
-                  updatedIds = list.filter(x => x.needsPriceUpdate).map(x => x.id)
-                }
-                
-                console.log('🔧 Bulk update result:', result)
-                
-                // Check for errors in result
-                if (result && result.errors && result.errors.length > 0) {
-                  console.warn('🔧 Some updates failed:', result.errors)
-                  showNotification(`Bazı fiyatlar güncellenemedi: ${result.errors.join(', ')}`, 'warning')
-                } else {
-                  showNotification(`${result?.updated || 0} fiyat güncellendi`, 'success')
-                }
-                
-                // Update local state immediately to prevent button flickering
-                setList(prevList => 
-                  prevList.map(quote => 
-                    updatedIds.includes(quote.id)
-                      ? {
-                          ...quote,
-                          needsPriceUpdate: false,
-                          formStructureChanged: false,
-                          priceUpdateReasons: [],
-                          pendingCalculatedPrice: undefined,
-                          priceUpdatedAt: new Date().toISOString()
-                        }
-                      : quote
-                  )
-                )
-                
-                setSelected(new Set())
-                
-                // Small delay then refresh to get authoritative data
-                setTimeout(() => {
-                  refresh()
-                }, 200)
-                
-                console.log('✅ Bulk price update completed')
-              } catch (e) {
-                console.error('🔧 Bulk update error:', e)
-                console.error('🔧 Error details:', e.message)
-                console.error('🔧 Error stack:', e.stack)
-                
-                // More detailed error message
-                let errorMessage = 'Toplu fiyat güncelleme başarısız'
-                if (e.message && e.message.includes('bulk apply failed')) {
-                  errorMessage += ': Sunucu hatası (500)'
-                } else if (e.message) {
-                  errorMessage += `: ${e.message}`
-                }
-                
-                showNotification(errorMessage, 'error')
+              if (bulkProgress && !bulkProgress.finished && !bulkProgress.cancelled) {
+                showNotification('Bir toplu işlem zaten yürütülüyor', 'info')
+                return
               }
+
+              const ids = selectedCount > 0
+                ? Array.from(selected)
+                : list.filter(isQuoteFlaggedForPricing).map(item => item.id)
+
+              if (!ids.length) {
+                showNotification('Güncellenecek kayıt bulunamadı', 'info')
+                return
+              }
+
+              performBulkUpdate(ids, selectedCount > 0 ? 'selected' : 'all')
             }
             return React.createElement('button', {
               onClick,
@@ -765,10 +826,10 @@ function Admin({ t, onLogout, showNotification }) {
                     col,
                     item,
                     {
-                      getPriceChangeType: (quote) => quote.priceChangeType || 'no-change',
+                      getPriceChangeType: (quote) => getPriceChangeType(quote, priceSettings),
                       setSettingsModal,
-                      setPriceReview,
-                      calculatePrice: (quote) => quote.pendingCalculatedPrice || quote.price,
+                      openPriceReview,
+                      calculatePrice: (quote) => calculatePrice(quote, priceSettings),
                       statusLabel,
                       t
                     }
@@ -852,9 +913,14 @@ function Admin({ t, onLogout, showNotification }) {
         React.createElement('option', { value: 5 }, '5 kayıt'),
         React.createElement('option', { value: 10 }, '10 kayıt'),
         React.createElement('option', { value: 25 }, '25 kayıt'),
-        React.createElement('option', { value: 50 }, '50 kayıt')
+      React.createElement('option', { value: 50 }, '50 kayıt')
       )
     ),
+
+    bulkProgress && React.createElement(BulkProgressOverlay, {
+      progress: bulkProgress,
+      onAction: handleBulkProgressAction
+    }),
 
     // Modals
     settingsModal && React.createElement(SettingsModalCompact, {
@@ -943,21 +1009,62 @@ function Admin({ t, onLogout, showNotification }) {
         ),
         
         // Content
+        priceReview.loading && React.createElement('p', { style: { marginBottom: '12px', color: '#999' } }, 'Karşılaştırma yükleniyor...'),
+        priceReview.error && React.createElement('p', { style: { marginBottom: '12px', color: '#dc3545' } }, `Hata: ${priceReview.error}`),
         React.createElement('div', { style: { marginBottom: '20px' } },
           React.createElement('p', { style: { margin: '8px 0' } }, `Müşteri: ${priceReview.item.name || 'N/A'}`),
           React.createElement('p', { style: { margin: '8px 0' } }, `Proje: ${priceReview.item.proj || 'N/A'}`),
           React.createElement('p', { style: { margin: '8px 0' } }, `Mevcut Fiyat: ${Number.isFinite(Number(priceReview.originalPrice)) ? `₺${Number(priceReview.originalPrice).toFixed(2)}` : 'N/A'}`),
           React.createElement('p', { style: { margin: '8px 0' } }, `Yeni Fiyat: ${Number.isFinite(Number(priceReview.newPrice)) ? `₺${Number(priceReview.newPrice).toFixed(2)}` : 'N/A'}`),
-          React.createElement('div', { style: { margin: '8px 0' } }, [
-            React.createElement('span', { key: 'label' }, 'Değişiklik Nedeni: '),
-            React.createElement('span', { 
-              key: 'reason',
-              style: { fontFamily: 'monospace' },
-              dangerouslySetInnerHTML: { 
-                __html: formatChangeReasonWithColors(getChangeReason(priceReview.item, priceSettings, formConfig) || 'N/A', formConfig)
-              }
-            })
-          ])
+          priceReview.differenceSummary?.priceDiff !== undefined && React.createElement('p', { style: { margin: '8px 0', color: '#dc3545', fontWeight: 'bold' } }, `Fiyat Farkı: ₺${Number(priceReview.differenceSummary.priceDiff).toFixed(2)}`),
+          priceReview.versions && React.createElement('div', { style: { margin: '8px 0', fontSize: '13px', color: '#666' } },
+            React.createElement('div', null, `Orijinal Versiyon: ${priceReview.versions.original?.version ?? 'N/A'} (${priceReview.versions.original?.versionId || '—'})`),
+            React.createElement('div', null, `Mevcut Versiyon: ${priceReview.versions.applied?.version ?? 'N/A'} (${priceReview.versions.applied?.versionId || '—'})`),
+            React.createElement('div', null, `Güncel Versiyon: ${priceReview.versions.latest?.version ?? 'N/A'} (${priceReview.versions.latest?.versionId || '—'})`),
+            priceReview.differenceSummary?.comparisonBaseline && React.createElement('div', null, `Karşılaştırma Bazı: ${priceReview.differenceSummary.comparisonBaseline === 'applied' ? 'Mevcut → Güncel' : 'Orijinal → Güncel'}`)
+          ),
+          (() => {
+            const changes = priceReview.differenceSummary?.parameterChanges
+            if (!changes) return null
+
+            const formatValue = (value) => {
+              if (value === null || value === undefined || value === '') return '—'
+              return typeof value === 'number' ? value : String(value)
+            }
+
+            const lines = []
+            if (Array.isArray(changes.added)) {
+              changes.added.forEach(change => {
+                const label = change?.name || change?.id || 'Parametre'
+                const val = formatValue(change?.newValue)
+                lines.push(`Yeni parametre: ${label}${val !== '—' ? ` = ${val}` : ''}`)
+              })
+            }
+            if (Array.isArray(changes.removed)) {
+              changes.removed.forEach(change => {
+                const label = change?.name || change?.id || 'Parametre'
+                const val = formatValue(change?.oldValue)
+                lines.push(`Parametre kaldırıldı: ${label}${val !== '—' ? ` (eski: ${val})` : ''}`)
+              })
+            }
+            if (Array.isArray(changes.modified)) {
+              changes.modified.forEach(change => {
+                const label = change?.name || change?.id || 'Parametre'
+                const oldVal = formatValue(change?.oldValue)
+                const newVal = formatValue(change?.newValue)
+                lines.push(`${label}: ${oldVal} → ${newVal}`)
+              })
+            }
+
+            if (!lines.length) return null
+
+            return React.createElement('div', { style: { margin: '12px 0' } },
+              React.createElement('strong', { style: { display: 'block', marginBottom: '6px' } }, 'Parametre Değişiklikleri'),
+              React.createElement('ul', { style: { paddingLeft: '18px', margin: 0 } },
+                ...lines.map((text, idx) => React.createElement('li', { key: idx, style: { marginBottom: '4px', color: '#555' } }, text))
+              )
+            )
+          })()
         ),
         
         // Footer buttons
@@ -976,8 +1083,9 @@ function Admin({ t, onLogout, showNotification }) {
           }, 'İptal'),
           React.createElement('button', {
             onClick: handlePriceReviewApply,
-            className: 'btn btn-primary'
-          }, 'Fiyatı Güncelle')
+            className: 'btn btn-primary',
+            disabled: priceReview.loading || priceReview.updating
+          }, priceReview.updating ? 'Güncelleniyor...' : 'Fiyatı Güncelle')
         )
       )
     ),
@@ -1357,6 +1465,144 @@ function AddRecordModal({ isOpen, onClose, formConfig, onSave }) {
             cursor: saving ? 'not-allowed' : 'pointer'
           }
         }, saving ? 'Kaydediliyor...' : 'Kaydet')
+      )
+    )
+  )
+}
+
+function BulkProgressOverlay({ progress, onAction }) {
+  const clamp = (value) => {
+    if (!Number.isFinite(value)) return 0
+    return Math.max(0, Math.min(100, value))
+  }
+
+  const percent = progress.total > 0 ? clamp((progress.completed / progress.total) * 100) : 0
+
+  const statusText = progress.finished
+    ? (progress.cancelled ? 'İşlem iptal edildi' : 'Toplu güncelleme tamamlandı')
+    : (progress.cancelling ? 'İşlem iptal ediliyor...' : 'Fiyatlar güncelleniyor...')
+
+  const subtitle = !progress.finished && progress.currentName
+    ? `Şu an: ${progress.currentName}`
+    : ''
+
+  const showCancelButton = !progress.finished && !progress.cancelling
+  const showCloseButton = progress.finished
+
+  const errorList = Array.isArray(progress.errors) ? progress.errors : []
+  const errorPreview = errorList.slice(0, 3)
+
+  return React.createElement('div', {
+    style: {
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.65)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 2000,
+      pointerEvents: 'auto'
+    }
+  },
+    React.createElement('div', {
+      style: {
+        width: 'min(420px, 90vw)',
+        background: '#0f1e2c',
+        color: '#fff',
+        borderRadius: '12px',
+        padding: '24px',
+        position: 'relative',
+        boxShadow: '0 12px 32px rgba(0,0,0,0.35)'
+      }
+    },
+      React.createElement('button', {
+        onClick: () => {
+          if (progress.finished) {
+            onAction('close')
+          } else if (!progress.cancelling) {
+            onAction('cancel')
+          }
+        },
+        style: {
+          position: 'absolute',
+          top: '10px',
+          right: '12px',
+          background: 'transparent',
+          border: 'none',
+          color: '#aaa',
+          fontSize: '20px',
+          cursor: progress.cancelling && !progress.finished ? 'default' : 'pointer'
+        },
+        disabled: progress.cancelling && !progress.finished
+      }, '×'),
+      React.createElement('h3', {
+        style: { margin: '0 0 12px 0', fontSize: '18px' }
+      }, 'Toplu Fiyat Güncelleme'),
+      React.createElement('p', {
+        style: { margin: '4px 0', fontSize: '14px', color: '#f1f1f1' }
+      }, statusText),
+      subtitle && React.createElement('p', {
+        style: { margin: '4px 0 12px 0', fontSize: '13px', color: '#b5b5b5' }
+      }, subtitle),
+      React.createElement('div', {
+        style: {
+          width: '100%',
+          height: '12px',
+          backgroundColor: 'rgba(255,255,255,0.1)',
+          borderRadius: '6px',
+          overflow: 'hidden'
+        }
+      },
+        React.createElement('div', {
+          style: {
+            width: `${percent}%`,
+            height: '100%',
+            background: progress.finished ? '#28a745' : '#17a2b8',
+            transition: 'width 0.2s ease'
+          }
+        })
+      ),
+      React.createElement('p', {
+        style: { margin: '12px 0 0 0', fontSize: '13px', color: '#ddd' }
+      }, `Tamamlanan: ${progress.completed}/${progress.total}`),
+      errorPreview.length > 0 && React.createElement('div', {
+        style: { marginTop: '12px', backgroundColor: 'rgba(220,53,69,0.1)', padding: '12px', borderRadius: '8px', color: '#f5c6cb' }
+      },
+        React.createElement('strong', { style: { display: 'block', marginBottom: '6px', color: '#f8d7da' } }, 'Hatalar'),
+        React.createElement('ul', { style: { margin: 0, paddingLeft: '18px', fontSize: '12px' } },
+          ...errorPreview.map((err, index) => React.createElement('li', { key: `${err.id || index}-err` }, typeof err === 'string' ? err : `${err.id ? `${err.id}: ` : ''}${err.error || 'Hata'}`))
+        ),
+        errorList.length > errorPreview.length && React.createElement('div', { style: { marginTop: '6px', fontSize: '12px' } }, `+${errorList.length - errorPreview.length} diğer hata`)
+      ),
+      React.createElement('div', {
+        style: { display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '20px' }
+      },
+        showCancelButton && React.createElement('button', {
+          onClick: () => onAction('cancel'),
+          className: 'btn',
+          style: {
+            backgroundColor: '#ffc107',
+            color: '#212529',
+            border: 'none',
+            padding: '6px 12px',
+            borderRadius: '4px',
+            cursor: progress.cancelling ? 'not-allowed' : 'pointer',
+            opacity: progress.cancelling ? 0.6 : 1
+          },
+          disabled: progress.cancelling
+        }, 'İptal Et'),
+        showCloseButton && React.createElement('button', {
+          onClick: () => onAction('close'),
+          className: 'btn',
+          style: {
+            backgroundColor: '#28a745',
+            color: 'white',
+            border: 'none',
+            padding: '6px 16px',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }
+        }, 'Kapat')
       )
     )
   )

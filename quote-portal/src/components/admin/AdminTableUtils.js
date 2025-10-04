@@ -108,7 +108,7 @@ export function formatFieldValue(value, column, item, context) {
 
   // If context is provided, this is for table display with special handling
   if (context) {
-    const { getPriceChangeType, setSettingsModal, setPriceReview, calculatePrice, statusLabel, t } = context;
+    const { getPriceChangeType, setSettingsModal, openPriceReview, calculatePrice, statusLabel, t } = context;
     
     switch (column.id) {
       case 'date':
@@ -122,56 +122,74 @@ export function formatFieldValue(value, column, item, context) {
         return proj.length > 15 ? proj.substring(0, 15) + '...' : proj;
         
       case 'price':
-        const priceChangeType = item.priceChangeType || 'no-change';
-        
-        if (priceChangeType === 'no-change') {
-          return formatPrice(parseFloat(value) || 0);
-        } else {
-          // Price update needed - show with button
-          return React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-            React.createElement('span', null, formatPrice(parseFloat(value) || 0)),
-            React.createElement('button', {
-              onClick: (e) => {
-                e.stopPropagation();
-                console.log('🔧 Price update button clicked for quote:', item.id, {
-                  changeType: priceChangeType,
-                  currentPrice: item.price,
-                  needsPriceUpdate: item.needsPriceUpdate,
-                  priceUpdatedAt: item.priceUpdatedAt
-                });
-                
-                const original = parseFloat(item.price) || 0;
-                // Use pendingCalculatedPrice if available (more accurate), otherwise calculate on the fly
-                let calc = original;
-                if (item.pendingCalculatedPrice !== undefined) {
-                  calc = parseFloat(item.pendingCalculatedPrice) || 0;
-                } else if (typeof calculatePrice === 'function') {
-                  calc = parseFloat(calculatePrice(item)) || 0;
-                }
-                
-                console.log('🔧 Price review data:', {
-                  original,
-                  calculated: calc,
-                  difference: Math.abs(calc - original)
-                });
-                
-                setPriceReview({ item, originalPrice: original, newPrice: calc });
-              },
-              style: {
-                backgroundColor: getPriceChangeButtonColor(priceChangeType),
-                color: getPriceChangeButtonTextColor(priceChangeType),
-                border: 'none',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                fontSize: '10px',
-                cursor: 'pointer',
-                fontWeight: 'bold'
-              },
-              title: getPriceChangeButtonTitle(priceChangeType)
-            }, getPriceChangeButtonSymbol(priceChangeType))
-          );
+        const priceStatus = item?.priceStatus || null
+        const priceChangeType = getPriceChangeType(item)
+        const status = priceStatus?.status
+        const differenceSummary = priceStatus?.differenceSummary || null
+
+        const shouldShowButton = ['price-drift', 'content-drift', 'outdated', 'unknown', 'error'].includes(status) || !!priceChangeType
+
+        if (!shouldShowButton) {
+          return formatPrice(parseFloat(value) || 0)
         }
-        
+
+        const originalPrice = differenceSummary?.oldPrice ?? (parseFloat(item.price) || 0)
+        const fallbackCalculated = typeof calculatePrice === 'function'
+          ? parseFloat(calculatePrice(item)) || 0
+          : (item.pendingCalculatedPrice !== undefined ? parseFloat(item.pendingCalculatedPrice) || 0 : 0)
+        const recalculatedPrice = differenceSummary?.newPrice
+          ?? (parseFloat(priceStatus?.calculatedPrice) || fallbackCalculated || originalPrice)
+
+        let indicatorColor = '#ffc107'
+        if (status === 'price-drift' || status === 'content-drift' || priceChangeType === 'price-changed') {
+          indicatorColor = '#dc3545'
+        }
+        if (!differenceSummary) indicatorColor = '#ffc107'
+
+        const priceDiffValue = Number(differenceSummary?.priceDiff ?? (recalculatedPrice - originalPrice))
+        const baseTitle = differenceSummary
+          ? `Fark: ₺${priceDiffValue.toFixed(2)} (${formatPrice(originalPrice)} → ${formatPrice(recalculatedPrice)})`
+          : 'Fiyat ayarları değişti'
+        const reasonLines = differenceSummary?.reasons?.length ? `\n${differenceSummary.reasons.join('\n')}` : ''
+        const indicatorTitle = `${baseTitle}${reasonLines}`
+
+        return React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+          React.createElement('span', null, formatPrice(parseFloat(value) || 0)),
+          React.createElement('div', {
+            style: {
+              display: 'inline-block',
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: indicatorColor
+            },
+            title: indicatorTitle
+          }),
+          React.createElement('button', {
+            onClick: (e) => {
+              e.stopPropagation()
+              if (typeof openPriceReview === 'function') {
+                openPriceReview(item, {
+                  originalPrice,
+                  newPrice: recalculatedPrice,
+                  differenceSummary
+                })
+              }
+            },
+            style: {
+              backgroundColor: getPriceChangeButtonColor(priceChangeType || (['price-drift', 'content-drift'].includes(status) ? 'price-changed' : 'formula-changed')),
+              color: getPriceChangeButtonTextColor(priceChangeType || (['price-drift', 'content-drift'].includes(status) ? 'price-changed' : 'formula-changed')),
+              border: 'none',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              fontSize: '10px',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            },
+            title: getPriceChangeButtonTitle(priceChangeType || (['price-drift', 'content-drift'].includes(status) ? 'price-changed' : 'formula-changed'))
+          }, getPriceChangeButtonSymbol(priceChangeType || (['price-drift', 'content-drift'].includes(status) ? 'price-changed' : 'formula-changed')))
+        )
+
       case 'due':
         const due = value || '';
         if (due.includes('Gecikti')) {
@@ -185,7 +203,7 @@ export function formatFieldValue(value, column, item, context) {
         return due;
         
       case 'status':
-        const status = statusLabel(value || 'new', t);
+        const statusText = statusLabel(value || 'new', t);
         return React.createElement('span', {
           style: {
             padding: '2px 8px',
@@ -195,11 +213,11 @@ export function formatFieldValue(value, column, item, context) {
             backgroundColor: getStatusColor(value),
             color: getStatusTextColor(value)
           }
-        }, status);
+        }, statusText);
         
       default:
         if (column.type === 'currency') {
-          return formatPrice(parseFloat(value) || 0);
+          return formatPrice(parseFloat(value) || 0)
         } else if (column.type === 'email') {
           return React.createElement('a', { href: `mailto:${value}`, style: { color: '#007bff' } }, value);
         } else if (column.type === 'phone') {

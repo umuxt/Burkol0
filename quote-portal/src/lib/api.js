@@ -119,7 +119,10 @@ export const API = {
     }
   },
   async applyNewPrice(id) {
-    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/apply-price`, { method: 'POST', headers: withAuth({ 'Content-Type': 'application/json' }) })
+    const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/apply-current-price`, {
+      method: 'POST',
+      headers: withAuth({ 'Content-Type': 'application/json' })
+    })
     if (!res.ok) throw new Error('apply price failed')
     return await res.json()
   },
@@ -586,7 +589,7 @@ export const API = {
         method: 'POST',
         headers: withAuth({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(settings)
-      })
+      }, 15000)
       if (!res.ok) throw new Error('save price settings failed')
       return await res.json()
     } catch (e) {
@@ -594,33 +597,185 @@ export const API = {
     }
   },
 
-  // Phase 1: Unified Price Calculation API
-  async calculatePricePreview(quote, priceSettingsOverride = null) {
+  // VERSION MANAGEMENT API FUNCTIONS
+
+  async getPriceSettingsVersions() {
     try {
-      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/calculate-preview`, {
+      const res = await fetchWithTimeout(`${API_BASE}/api/price-settings/versions`, {
+        headers: withAuth()
+      })
+      if (!res.ok) throw new Error('get price settings versions failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+
+  async restorePriceSettingsVersion(versionId) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/price-settings/restore/${versionId}`, {
+        method: 'POST',
+        headers: withAuth({ 'Content-Type': 'application/json' })
+      })
+      if (!res.ok) throw new Error('restore version failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+
+  // Quote price version comparison
+  async getQuotePriceComparison(quoteId) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${quoteId}/price-comparison`, {
+        headers: withAuth()
+      })
+      if (!res.ok) throw new Error('get quote price comparison failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+
+  async applyCurrentPriceToQuote(quoteId) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${quoteId}/apply-current-price`, {
+        method: 'POST',
+        headers: withAuth({ 'Content-Type': 'application/json' })
+      })
+      if (!res.ok) throw new Error('apply current price failed')
+      return await res.json()
+    } catch (e) {
+      throw e
+    }
+  },
+
+  // Price calculation preview
+  async calculatePricePreview(quote, priceSettings) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/calculate-price`, {
         method: 'POST',
         headers: withAuth({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ 
-          quote: quote,
-          priceSettingsOverride: priceSettingsOverride 
-        })
+        body: JSON.stringify({ quote, priceSettings })
+      })
+      if (!res.ok) throw new Error('price calculation failed')
+      const result = await res.json()
+      return result.calculatedPrice || 0
+    } catch (e) {
+      console.error('Price calculation failed:', e)
+      // Fallback to local calculation if server fails
+      return this.calculatePriceLocal(quote, priceSettings)
+    }
+  },
+
+  // Local price calculation fallback
+  calculatePriceLocal(quote, priceSettings) {
+    console.log('🔧 calculatePriceLocal called with:', { quote: quote?.id, priceSettings: !!priceSettings })
+    
+    if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
+      console.log('⚠️ Missing priceSettings data, returning fallback price')
+      return quote.calculatedPrice || quote.price || 0
+    }
+
+    try {
+      // Create parameter values map
+      const paramValues = {}
+      
+      console.log('📊 Processing parameters:', priceSettings.parameters.length)
+      
+      priceSettings.parameters.forEach(param => {
+        if (!param || !param.id) return
+        
+        if (param.type === 'fixed') {
+          paramValues[param.id] = parseFloat(param.value) || 0
+          console.log(`📌 Fixed param ${param.id} = ${paramValues[param.id]}`)
+        } else if (param.type === 'form') {
+          let value = 0
+          
+          if (param.formField === 'qty') {
+            value = parseFloat(quote.qty) || 0
+          } else if (param.formField === 'thickness') {
+            value = parseFloat(quote.thickness) || 0
+          } else if (param.formField === 'dimensions') {
+            // Calculate area from dimensions
+            const l = parseFloat(quote.dimsL)
+            const w = parseFloat(quote.dimsW)
+            if (!isNaN(l) && !isNaN(w)) {
+              value = l * w
+            } else {
+              const dims = quote.dims || ''
+              const match = String(dims).match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i)
+              if (match) {
+                value = (parseFloat(match[1]) || 0) * (parseFloat(match[2]) || 0)
+              }
+            }
+          } else {
+            // For custom form fields
+            let fieldValue = quote[param.formField] || quote.customFields?.[param.formField]
+            
+            if (Array.isArray(fieldValue)) {
+              // Multi-select: sum all lookup values
+              value = fieldValue.reduce((sum, opt) => {
+                const lookup = param.lookupTable?.find(l => l.option === opt)
+                return sum + (parseFloat(lookup?.value) || 0)
+              }, 0)
+            } else if (param.lookupTable && fieldValue) {
+              // Single select: find lookup value
+              const lookup = param.lookupTable.find(l => l.option === fieldValue)
+              value = parseFloat(lookup?.value) || 0
+            } else {
+              value = parseFloat(fieldValue) || 0
+            }
+          }
+          
+          paramValues[param.id] = value
+          console.log(`📋 Form param ${param.id} (${param.formField}) = ${value}`)
+        }
+      })
+
+      // Simple formula evaluation (basic math operations)
+      let formula = priceSettings.formula
+      console.log('🎯 Original formula:', formula)
+      
+      // Replace parameter IDs with values
+      Object.keys(paramValues).forEach(paramId => {
+        const regex = new RegExp(`\\b${paramId}\\b`, 'g')
+        formula = formula.replace(regex, paramValues[paramId])
       })
       
-      if (!res.ok) {
-        throw new Error(`Price calculation failed: ${res.status}`)
-      }
+      console.log('🔄 Substituted formula:', formula)
+
+      // Clean up formula for safe evaluation
+      formula = formula.trim()
       
-      const result = await res.json()
-      return result
-    } catch (e) {
-      console.error('Price calculation API error:', e)
-      // Fallback to quote.price if API fails
-      return {
-        calculatedPrice: quote?.price || 0,
-        breakdown: { error: e.message },
-        usedParameters: {},
-        source: 'api-error-fallback'
+      // Check for invalid characters that could cause syntax errors
+      if (!formula || formula === '' || /[=;{}[\]<>]/.test(formula)) {
+        console.warn('⚠️ Invalid formula detected:', formula)
+        return quote.calculatedPrice || quote.price || 0
       }
+
+      // Basic math evaluation with better error handling
+      try {
+        // Only allow basic math operations
+        const safeFormula = formula.replace(/[^0-9+\-*/().\s]/g, '')
+        if (safeFormula !== formula) {
+          console.warn('⚠️ Formula contained unsafe characters, cleaned to:', safeFormula)
+          formula = safeFormula
+        }
+        
+        console.log('🧮 Evaluating formula:', formula)
+        const result = Function(`"use strict"; return (${formula})`)()
+        console.log('✅ Calculation result:', result)
+        return isNaN(result) ? 0 : Number(result)
+      } catch (e) {
+        console.error('❌ Formula evaluation error:', e)
+        console.error('❌ Failed formula:', formula)
+        console.error('❌ Parameter values:', paramValues)
+        return quote.calculatedPrice || quote.price || 0
+      }
+    } catch (error) {
+      console.error('❌ Local price calculation error:', error)
+      return quote.calculatedPrice || quote.price || 0
     }
   }
 }

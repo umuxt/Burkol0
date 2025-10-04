@@ -193,6 +193,12 @@ export function validateSystemIntegrity(parameters, availableFormFields, formula
   return result
 }
 
+// Orphan parametreleri bulma fonksiyonu (backward compatibility)
+export function findOrphanParameters(parameters, userFormula) {
+  const systemCheck = validateSystemIntegrity(parameters, userFormula)
+  return systemCheck.orphanParameters || []
+}
+
 export default {
   createUserFriendlyIdMapping,
   convertFormulaToUserFriendly,
@@ -204,5 +210,6 @@ export default {
   validateUserFriendlyFormula,
   detectOrphanParameters,
   getOrphanParametersInFormula,
-  validateSystemIntegrity
+  validateSystemIntegrity,
+  findOrphanParameters
 }

@@ -18,6 +18,8 @@
     "test:safari": "node safari-test.js",
     "test:extended": "node extended-test.js",
     "test:all": "npm run test:safari && npm run test:extended",
+    "migrate:versions": "node scripts/migrate-versioning.js",
+    "cleanup:firestore": "node scripts/cleanup-firestore.js",
     "pm2:start": "pm2 start ecosystem.config.js",
     "pm2:restart": "pm2 restart burkol-backend || pm2 start ecosystem.config.js",
     "pm2:logs": "pm2 logs burkol-backend"

@@ -16,6 +16,7 @@
 @import './components/admin.css';
 @import './components/toast.css';
 @import './components/advanced-price-rules.css';
+@import './components/migration.css';
 
 /* 3. Utility Classes (Last - highest specificity) */
 @import './utils/utilities.css';

@@ -2,6 +2,7 @@ import React from 'react';
 import API, { API_BASE } from '../../lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../lib/utils.js'
 import { statusLabel } from '../../i18n/index.js'
+import { PriceStatusBadge } from '../admin/PriceStatusUI.js'
 
 export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, showNotification, formConfig }) {
   console.log('🔧 DEBUG: DetailModal rendered with item:', item?.id, 'formConfig:', !!formConfig)
@@ -223,7 +224,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     React.createElement('div', { className: 'card detail-modal', style: { width: 'min(680px, 96vw)', maxHeight: '85vh', overflowY: 'auto', position: 'relative', padding: 12, fontSize: 13 }, onClick: (e) => e.stopPropagation() },
       React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, position: 'sticky', top: 0, zIndex: 5, background: 'linear-gradient(180deg, #0f1e2c, #0c1924)', padding: '8px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)' } },
         React.createElement('h3', { style: { margin: 0, fontSize: 16 } }, t.a_detail),
-      React.createElement('div', { className: 'row' },
+      React.createElement('div', { className: 'row', style: { alignItems: 'center', gap: '8px' } },
           (!editing && !isNew) ? React.createElement('button', { 
             className: 'btn', 
             onClick: () => setEditing(true),
@@ -246,6 +247,15 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
               style: { transition: 'all 0.2s ease' }
             }, t.cancel)
           ),
+          !editing && item.priceStatus && React.createElement(PriceStatusBadge, {
+            quote: item,
+            compact: true,
+            onUpdate: async () => {
+              if (typeof onSaved === 'function') {
+                try { await onSaved() } catch {}
+              }
+            }
+          }),
           React.createElement('button', { 
             className: 'btn', 
             onClick: onClose, 

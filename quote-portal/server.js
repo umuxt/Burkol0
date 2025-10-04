@@ -11,6 +11,8 @@ import { fileURLToPath } from 'url'
 import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
 import { setupQuoteRoutes, setupSettingsRoutes, setupExportRoutes } from './server/apiRoutes.js'
+import addMigrationRoutes from './server/migrationRoutes.js'
+import jsondb from './src/lib/jsondb.js'
 import admin from 'firebase-admin'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -72,6 +74,9 @@ setupAuthRoutes(app)
 setupQuoteRoutes(app, uploadsDir)
 setupSettingsRoutes(app)
 setupExportRoutes(app)
+
+// Setup migration routes for Phase C
+addMigrationRoutes(app, jsondb)
 
 // Serve uploaded files
 app.use('/uploads', express.static(uploadsDir))

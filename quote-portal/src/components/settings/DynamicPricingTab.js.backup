@@ -13,6 +13,13 @@ function DynamicPricingTab({ t, showNotification }) {
   const [userFormula, setUserFormula] = useState('') // Kullanıcı dostu formül (A, B, C...)
   const [parameterType, setParameterType] = useState('')
   const [parameterName, setParameterName] = useState('')
+  
+  // Version management states
+  const [versions, setVersions] = useState([])
+  const [showVersionHistory, setShowVersionHistory] = useState(false)
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [originalData, setOriginalData] = useState({ parameters: [], formula: '' })
   const [fixedValue, setFixedValue] = useState('')
   const [selectedFormField, setSelectedFormField] = useState('')
   const [lookupTable, setLookupTable] = useState([])
@@ -23,12 +30,14 @@ function DynamicPricingTab({ t, showNotification }) {
   const [showFormulaInfo, setShowFormulaInfo] = useState(false)
   const [idMapping, setIdMapping] = useState({ backendToUser: {}, userToBackend: {} })
   
-  // Version management states
+  // Version management state
   const [versions, setVersions] = useState([])
   const [showVersionHistory, setShowVersionHistory] = useState(false)
   const [isLoadingVersions, setIsLoadingVersions] = useState(false)
+  
+  // Change tracking
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [originalData, setOriginalData] = useState({ parameters: [], formula: '' })
+  const [originalSettings, setOriginalSettings] = useState({ parameters: [], formula: '' })
   
   // Dinamik form alanları
   const [formFields, setFormFields] = useState([])
@@ -53,9 +62,9 @@ function DynamicPricingTab({ t, showNotification }) {
   const [paramLookupDraft, setParamLookupDraft] = useState({ value: '' })
   // Inline lookup editor simplified: direct edit inputs; no per-row edit state needed
 
-  useEffect(() => {
-    loadDynamicFormFields()
+    useEffect(() => {
     loadPriceSettings()
+    loadFormFields()
   }, [])
 
   // Track changes for unsaved indicator
@@ -124,6 +133,14 @@ function DynamicPricingTab({ t, showNotification }) {
     }
   }, [selectedFormField, formFields, lookupTable])
 
+  // Change tracking
+  useEffect(() => {
+    const currentSettings = { parameters, formula: userFormula }
+    const hasChanges = JSON.stringify(currentSettings.parameters) !== JSON.stringify(originalSettings.parameters) ||
+                       currentSettings.formula !== originalSettings.formula
+    setHasUnsavedChanges(hasChanges)
+  }, [parameters, userFormula, originalSettings])
+
   async function loadPriceSettings() {
     try {
       const settings = await API.getPriceSettings()
@@ -137,11 +154,9 @@ function DynamicPricingTab({ t, showNotification }) {
       const userFriendlyFormula = PricingUtils.convertFormulaToUserFriendly(settings.formula || '', mapping)
       setUserFormula(userFriendlyFormula)
       
-      // Set original data for change tracking
-      setOriginalData({ parameters: loadedParameters, formula: userFriendlyFormula })
-      
-      // Check system integrity
-      checkSystemIntegrity(loadedParameters)
+      // Original settings'i sakla (change tracking için)
+      setOriginalSettings({ parameters: loadedParameters, formula: userFriendlyFormula })
+      setHasUnsavedChanges(false)
     } catch (e) {
       console.error('Price settings load error:', e)
     }
@@ -161,17 +176,18 @@ function DynamicPricingTab({ t, showNotification }) {
         showNotification('Eşleştirme tablosunda boş veya geçersiz değerler var. Lütfen tüm değerleri doldurun.', 'error')
         return
       }
+      
       // Kullanıcı formülünü backend formatına çevir
       const backendFormula = PricingUtils.convertFormulaToBackend(userFormula, idMapping)
       
       // Save with versioning
       const result = await API.savePriceSettings({ parameters, formula: backendFormula })
       
-      // Reset change tracking after successful save
-      setOriginalData({ parameters, formula: userFormula })
-      setHasUnsavedChanges(false)
-      
       showNotification(`Fiyat ayarları kaydedildi! (Version ${result.version})`, 'success')
+      
+      // Update original settings and clear unsaved changes
+      setOriginalSettings({ parameters, formula: userFormula })
+      setHasUnsavedChanges(false)
       
       // Refresh version history if visible
       if (showVersionHistory) {
@@ -225,22 +241,6 @@ function DynamicPricingTab({ t, showNotification }) {
     if (!showVersionHistory && versions.length === 0) {
       loadVersionHistory()
     }
-  }
-
-  // System integrity check
-  function checkSystemIntegrity(parametersToCheck = parameters) {
-    const orphans = PricingUtils.findOrphanParameters(parametersToCheck, userFormula)
-    const integrity = {
-      isValid: orphans.length === 0,
-      canSave: orphans.length === 0,
-      canEdit: orphans.length === 0,
-      orphanParameters: orphans,
-      orphansInFormula: [],
-      warnings: orphans.length > 0 ? [`${orphans.length} orphan parametre tespit edildi`] : [],
-      errors: []
-    }
-    setSystemIntegrity(integrity)
-    return integrity
   }
 
   function addParameter() {
@@ -942,34 +942,19 @@ function DynamicPricingTab({ t, showNotification }) {
                         index === 0 && React.createElement('span', { style: { color: '#28a745', fontSize: '14px', marginLeft: '10px' } }, '(Güncel)')
                       ),
                       React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
-                        `Tarih: ${version.timestamp ? new Date(version.timestamp).toLocaleString('tr-TR') : 'Bilinmiyor'}`
-                      ),
-                      React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
-                        `Versiyon Kodu: ${version.versionId || version.id}`
-                      ),
-                      version.userTag && React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
-                        `Kullanıcı Etiketi: ${version.userTag}`
-                      ),
-                      version.dateKey && React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
-                        `Tarih Kodu: ${version.dateKey}`
-                      ),
-                      version.dailyIndex && React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
-                        `Günlük Sıra: ${String(version.dailyIndex).padStart(2, '0')}`
+                        `Tarih: ${new Date(version.timestamp).toLocaleString('tr-TR')}`
                       ),
                       version.savedBy && React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
                         `Kaydeden: ${version.savedBy}`
                       ),
-                      version.changeSummary && React.createElement('p', { style: { margin: '5px 0', fontSize: '13px', color: '#555' } },
-                        `Özet: ${version.changeSummary}`
-                      ),
                       React.createElement('p', { style: { margin: '5px 0', fontSize: '14px' } },
-                        `Parametre Sayısı: ${(version.parameters && version.parameters.length) || (version.data?.parameters?.length) || 0}`
+                        `Parametre Sayısı: ${version.data.parameters?.length || 0}`
                       ),
-                      (version.formula || version.data?.formula) && React.createElement('p', { style: { margin: '5px 0', fontSize: '12px', color: '#888' } },
-                        `Formül: ${(version.formula || version.data?.formula || '').substring(0, 80)}${(version.formula || version.data?.formula || '').length > 80 ? '...' : ''}`
+                      version.data.formula && React.createElement('p', { style: { margin: '5px 0', fontSize: '12px', color: '#888' } },
+                        `Formül: ${version.data.formula.substring(0, 50)}...`
                       )
                     ),
-
+                    
                     index !== 0 && React.createElement('button', {
                       onClick: () => restoreVersion(version.id),
                       className: 'btn btn-warning',
