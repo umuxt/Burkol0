@@ -55,7 +55,7 @@
       "name": "Admin Panel",
       "short_name": "Admin",
       "description": "Access admin dashboard",
-      "url": "/panel-gizli.html",
+      "url": "/qupte-dashboard.html",
       "icons": [
         {
           "src": "./img/shortcut-admin.png",
