@@ -116,7 +116,7 @@ curl -X GET http://localhost:3002/api/form-config
 **Preconditions:** Admin account exists in system  
 
 **Main Flow:**
-1. Admin navigates to admin panel (`/panel-gizli.html`)
+1. Admin navigates to admin panel (`/quote-dashboard.html`)
 2. Enters credentials (email and password)
 3. System validates credentials and role
 4. JWT token issued for session management
