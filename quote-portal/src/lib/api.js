@@ -397,6 +397,22 @@ export const API = {
     try { await fetchWithTimeout(`${API_BASE}/api/auth/logout`, { method: 'POST', headers: withAuth() }) } catch {}
     setToken('')
   },
+  async listSessions() {
+    const res = await fetchWithTimeout(`${API_BASE}/api/admin/sessions`, { headers: withAuth() })
+    if (!res.ok) throw new Error('list_sessions_failed')
+    const payload = await res.json().catch(() => ([]))
+    if (Array.isArray(payload)) return payload
+    if (Array.isArray(payload?.sessions)) return payload.sessions
+    return []
+  },
+  async deleteSession(sessionId) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/admin/sessions/${encodeURIComponent(sessionId)}`, {
+      method: 'DELETE',
+      headers: withAuth()
+    })
+    if (!res.ok) throw new Error('delete_session_failed')
+    return await res.json()
+  },
   async migrateIds() {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/migrate/ids`, { method: 'POST', headers: withAuth() })

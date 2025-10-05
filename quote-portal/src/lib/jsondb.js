@@ -349,7 +349,7 @@ async function bootstrap() {
 
   state.quotes = quotesSnap.docs.map(doc => doc.data())
   state.users = usersSnap.docs.map(doc => doc.data())
-  state.sessions = sessionsSnap.docs.map(doc => doc.data())
+  state.sessions = sessionsSnap.docs.map(doc => normalizeSessionData({ sessionId: doc.id, ...doc.data() }))
 
   const settingsData = settingsSnap.exists ? settingsSnap.data() : {}
   const { priceSettings: legacyPriceSettings, formConfig: legacyFormConfig, ...restSettings } = settingsData || {}
@@ -400,7 +400,7 @@ usersRef.onSnapshot(snapshot => {
 }, err => console.error('[jsondb] users snapshot error:', err))
 
 sessionsRef.onSnapshot(snapshot => {
-  state.sessions = snapshot.docs.map(doc => doc.data())
+  state.sessions = snapshot.docs.map(doc => normalizeSessionData({ sessionId: doc.id, ...doc.data() }))
 }, err => console.error('[jsondb] sessions snapshot error:', err))
 
 settingsDoc.onSnapshot(doc => {
@@ -459,6 +459,99 @@ function ensureReady() {
   if (!state.ready) {
     throw new Error('jsondb not ready yet; Firestore bootstrap incomplete')
   }
+}
+
+function generateActivityId() {
+  return `act-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function normalizeSessionActivity(activity) {
+  if (!activity || typeof activity !== 'object') return null
+
+  const timestamp = activity.timestamp || activity.createdAt || new Date().toISOString()
+  const normalized = {
+    id: activity.id || activity.activityId || generateActivityId(),
+    timestamp,
+    type: activity.type || activity.event || 'general',
+    action: activity.action || 'update',
+    scope: activity.scope || 'system',
+    title: activity.title || activity.summary || activity.action || 'Aktivite',
+    description: activity.description || activity.details || null,
+    metadata: activity.metadata || activity.data || null,
+    performedBy: activity.performedBy || activity.actor || null
+  }
+
+  return normalized
+}
+
+function normalizeSessionData(raw = {}) {
+  if (!raw || typeof raw !== 'object') return null
+
+  const normalizedActivities = Array.isArray(raw.activityLog)
+    ? raw.activityLog.map(normalizeSessionActivity).filter(Boolean)
+    : []
+
+  const normalized = {
+    ...raw,
+    sessionId: raw.sessionId || raw.id || null,
+    token: raw.token || raw.accessToken || null,
+    userName: raw.userName || raw.username || raw.name || 'Unknown User',
+    email: raw.email || null,
+    loginTime: raw.loginTime || null,
+    loginDate: raw.loginDate || (raw.loginTime ? String(raw.loginTime).split('T')[0] : null),
+    expires: raw.expires || null,
+    lastActivityAt: raw.lastActivityAt || (normalizedActivities.length ? normalizedActivities[normalizedActivities.length - 1].timestamp : null),
+    activityLog: normalizedActivities
+  }
+
+  return normalized
+}
+
+function appendSessionActivity(sessionId, activity) {
+  ensureReady()
+  if (!sessionId || !activity) return null
+
+  const entry = normalizeSessionActivity(activity)
+  if (!entry) return null
+
+  const index = state.sessions.findIndex(s => s.sessionId === sessionId)
+  if (index === -1) {
+    console.warn(`[jsondb] appendSessionActivity: session ${sessionId} not found in memory, writing directly`)
+
+    fireAndForget(
+      sessionsRef.doc(sessionId).set({
+        activityLog: admin.firestore.FieldValue.arrayUnion(entry),
+        lastActivityAt: entry.timestamp
+      }, { merge: true }),
+      `appendSessionActivity(${sessionId})`
+    )
+
+    const placeholder = normalizeSessionData({ sessionId, activityLog: [entry], lastActivityAt: entry.timestamp })
+    if (placeholder) {
+      state.sessions.push(placeholder)
+    }
+    return entry
+  }
+
+  const session = state.sessions[index]
+  const updatedLog = Array.isArray(session.activityLog) ? [...session.activityLog, entry] : [entry]
+  const updatedSession = {
+    ...session,
+    activityLog: updatedLog,
+    lastActivityAt: entry.timestamp
+  }
+
+  state.sessions[index] = updatedSession
+
+  fireAndForget(
+    sessionsRef.doc(sessionId).set({
+      activityLog: admin.firestore.FieldValue.arrayUnion(entry),
+      lastActivityAt: entry.timestamp
+    }, { merge: true }),
+    `appendSessionActivity(${sessionId})`
+  )
+
+  return entry
 }
 
 function generateQuoteId() {
@@ -1101,7 +1194,7 @@ function getFormConfig() {
 function putFormConfig(config, userInfo = null) {
   ensureReady()
   return saveFormConfigWithVersioning(config, userInfo)
-    .then(result => clone(result.config || state.formConfig || null))
+    .then(result => clone(result))
 }
 
 function resetPricingConfig(reason = 'Form configuration updated') {
@@ -1191,9 +1284,25 @@ function deleteUser(email) {
 function putSession(session) {
   ensureReady()
   if (!session?.token) throw new Error('Session must include a token')
-  state.sessions = state.sessions.filter(s => s.token !== session.token)
-  state.sessions.push({ ...session })
-  fireAndForget(sessionsRef.doc(session.token).set({ ...session }), `putSession(${session.token})`)
+  if (!session?.sessionId) throw new Error('Session must include a sessionId')
+  
+  const existing = state.sessions.find(s => s.sessionId === session.sessionId || s.token === session.token)
+
+  // Remove existing session with same token or sessionId
+  state.sessions = state.sessions.filter(s => s.token !== session.token && s.sessionId !== session.sessionId)
+  const normalized = normalizeSessionData({
+    ...existing,
+    ...session,
+    sessionId: session.sessionId,
+    token: session.token
+  })
+
+  state.sessions.push(normalized)
+
+  const cleanStored = filterUndefinedValues(normalized)
+
+  // Store in Firestore using sessionId as document ID
+  fireAndForget(sessionsRef.doc(session.sessionId).set(cleanStored, { merge: true }), `putSession(${session.sessionId})`)
 }
 
 function getSession(token) {
@@ -1201,10 +1310,35 @@ function getSession(token) {
   return clone(state.sessions.find(s => s.token === token) || null)
 }
 
+function getSessionById(sessionId) {
+  ensureReady()
+  return clone(state.sessions.find(s => s.sessionId === sessionId) || null)
+}
+
+function getAllSessions() {
+  ensureReady()
+  return clone(state.sessions)
+}
+
+function deleteSessionById(sessionId) {
+  ensureReady()
+  const session = state.sessions.find(s => s.sessionId === sessionId)
+  if (session) {
+    state.sessions = state.sessions.filter(s => s.sessionId !== sessionId)
+    fireAndForget(sessionsRef.doc(sessionId).delete(), `deleteSessionById(${sessionId})`)
+    return true
+  }
+  return false
+}
+
 function deleteSession(token) {
   ensureReady()
-  state.sessions = state.sessions.filter(s => s.token !== token)
-  fireAndForget(sessionsRef.doc(token).delete(), `deleteSession(${token})`)
+  const session = state.sessions.find(s => s.token === token)
+  if (session) {
+    state.sessions = state.sessions.filter(s => s.token !== token)
+    // Delete from Firestore using sessionId
+    fireAndForget(sessionsRef.doc(session.sessionId).delete(), `deleteSession(${session.sessionId})`)
+  }
 }
 
 function getSystemConfig() {
@@ -1657,7 +1791,11 @@ export default {
   deleteUser,
   putSession,
   getSession,
+  getSessionById,
+  getAllSessions,
+  appendSessionActivity,
   deleteSession,
+  deleteSessionById,
   getSystemConfig,
   putSystemConfig,
   // Quote price version functions

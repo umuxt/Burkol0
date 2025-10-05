@@ -4,6 +4,7 @@ import { requireAuth } from './auth.js'
 import { persistFilesForQuote } from './fileHandler.js'
 import { calculatePriceServer } from './priceCalculator.js'
 import PriceStatus from './models/PriceStatus.js'
+import auditSessionActivity from './auditTrail.js'
 
 // --- Data Access Helpers powered by jsondb ---
 export function readAll() {
@@ -419,7 +420,29 @@ export function setupQuoteRoutes(app, uploadsDir) {
     }
     
     try {
+      const existing = readOne(id)
+      if (!existing) {
+        return res.status(404).json({ error: 'Quote not found' })
+      }
+
       const updated = update(id, { status })
+      if (!updated) {
+        return res.status(404).json({ error: 'Quote not found' })
+      }
+
+      auditSessionActivity(req, {
+        type: 'quote',
+        action: 'update-status',
+        scope: 'quotes',
+        title: `Teklif durumu güncellendi (#${id})`,
+        description: `${existing.status || 'unknown'} → ${status}`,
+        metadata: {
+          quoteId: id,
+          previousStatus: existing.status || null,
+          nextStatus: status
+        }
+      })
+
       res.json(updated)
     } catch (error) {
       res.status(500).json({ error: 'Status update failed' })
@@ -432,7 +455,44 @@ export function setupQuoteRoutes(app, uploadsDir) {
     const updateData = req.body
     
     try {
+      const existing = readOne(id)
+      if (!existing) {
+        return res.status(404).json({ error: 'Quote not found' })
+      }
+
       const updated = update(id, updateData)
+      if (!updated) {
+        return res.status(404).json({ error: 'Quote not found' })
+      }
+
+      const changedKeys = Object.keys(updateData || {})
+      const previousSnapshot = {}
+      changedKeys.forEach(key => {
+        const value = existing[key]
+        if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) {
+          previousSnapshot[key] = value
+        } else if (Array.isArray(value)) {
+          previousSnapshot[key] = `[array:${value.length}]`
+        } else if (value && typeof value === 'object') {
+          previousSnapshot[key] = '[object]'
+        } else {
+          previousSnapshot[key] = value
+        }
+      })
+
+      auditSessionActivity(req, {
+        type: 'quote',
+        action: 'update',
+        scope: 'quotes',
+        title: `Teklif güncellendi (#${id})`,
+        description: changedKeys.length ? `Güncellenen alanlar: ${changedKeys.join(', ')}` : 'Teklif detayları güncellendi',
+        metadata: {
+          quoteId: id,
+          updatedFields: changedKeys,
+          previousValues: previousSnapshot
+        }
+      })
+
       res.json(updated)
     } catch (error) {
       res.status(500).json({ error: 'Quote update failed' })
@@ -444,7 +504,26 @@ export function setupQuoteRoutes(app, uploadsDir) {
     const { id } = req.params
     
     try {
+      const existing = readOne(id)
+      if (!existing) {
+        return res.status(404).json({ error: 'Quote not found' })
+      }
+
       remove(id)
+
+      auditSessionActivity(req, {
+        type: 'quote',
+        action: 'delete',
+        scope: 'quotes',
+        title: `Teklif silindi (#${id})`,
+        description: existing.name ? `Müşteri: ${existing.name}` : undefined,
+        metadata: {
+          quoteId: id,
+          customer: existing.name || null,
+          company: existing.company || null
+        }
+      })
+
       res.json({ success: true })
     } catch (error) {
       res.status(500).json({ error: 'Delete failed' })
@@ -547,6 +626,25 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
         needsPriceUpdate: false
       })
 
+      const prevPriceNum = Number(quote.price)
+      const newPriceNum = Number(newPrice)
+      const prevPriceDisplay = Number.isFinite(prevPriceNum) ? prevPriceNum.toFixed(2) : String(quote.price ?? '—')
+      const newPriceDisplay = Number.isFinite(newPriceNum) ? newPriceNum.toFixed(2) : String(newPrice ?? '—')
+
+      auditSessionActivity(req, {
+        type: 'quote',
+        action: 'apply-price',
+        scope: 'pricing',
+        title: `Teklif fiyatı güncellendi (#${id})`,
+        description: `₺${prevPriceDisplay} → ₺${newPriceDisplay}`,
+        metadata: {
+          quoteId: id,
+          previousPrice: quote.price || null,
+          newPrice,
+          evaluationTimestamp: historyEntry.timestamp
+        }
+      })
+
       res.json(updated)
     } catch (error) {
       console.error('🔧 ERROR: Price application error:', error)
@@ -565,10 +663,32 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
         return res.status(400).json({ error: 'price_required' })
       }
 
+      const existing = readOne(id)
+      if (!existing) {
+        return res.status(404).json({ error: 'Quote not found' })
+      }
+
       const updatedQuote = jsondb.setManualOverride(id, {
         price,
         note,
         userInfo: req.user || {}
+      })
+
+      const priceNum = Number(price)
+      const priceDisplay = Number.isFinite(priceNum) ? priceNum.toFixed(2) : String(price)
+
+      auditSessionActivity(req, {
+        type: 'quote',
+        action: 'manual-override-set',
+        scope: 'pricing',
+        title: `Teklife manuel fiyat atandı (#${id})`,
+        description: `Yeni manuel fiyat: ₺${priceDisplay}${note ? ` (${note})` : ''}`,
+        metadata: {
+          quoteId: id,
+          previousPrice: existing.price || null,
+          manualPrice: price,
+          note: note || null
+        }
       })
 
       res.json({ success: true, quote: updatedQuote })
@@ -585,9 +705,27 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
     const { reason } = req.body || {}
 
     try {
+      const existing = readOne(id)
+      if (!existing) {
+        return res.status(404).json({ error: 'Quote not found' })
+      }
+
       const updatedQuote = jsondb.clearManualOverride(id, {
         userInfo: req.user || {},
         reason: reason || 'Manual fiyat kilidi kaldırıldı'
+      })
+
+      auditSessionActivity(req, {
+        type: 'quote',
+        action: 'manual-override-clear',
+        scope: 'pricing',
+        title: `Teklif manuel fiyatı kaldırıldı (#${id})`,
+        description: reason ? `Sebep: ${reason}` : 'Manuel fiyat kapatıldı',
+        metadata: {
+          quoteId: id,
+          previousManualPrice: existing.manualOverride?.price || existing.price || null,
+          reason: reason || 'Manual fiyat kilidi kaldırıldı'
+        }
       })
 
       res.json({ success: true, quote: updatedQuote })
@@ -635,11 +773,26 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
         }
       }
 
-      return res.json({
+      const response = {
         updated: updatedCount,
         results,
         errors: errors.length ? errors : undefined
+      }
+
+      auditSessionActivity(req, {
+        type: 'quote',
+        action: 'apply-price-bulk',
+        scope: 'pricing',
+        title: `Toplu fiyat güncellemesi (${updatedCount} teklif)`,
+        description: `İşlenen toplam teklif: ${ids.length}, başarılı: ${updatedCount}, hatalı: ${errors.length}`,
+        metadata: {
+          requestedIds: ids,
+          updatedCount,
+          errorCount: errors.length
+        }
       })
+
+      return res.json(response)
     } catch (e) {
       console.error('🔧 ERROR: Bulk price apply error:', e)
       res.status(500).json({ error: 'Bulk price update failed', details: e.message })
@@ -690,11 +843,26 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
         }
       }
 
-      return res.json({
+      const response = {
         updated: updatedCount,
         results,
         errors: errors.length ? errors : undefined
+      }
+
+      auditSessionActivity(req, {
+        type: 'quote',
+        action: 'apply-price-all',
+        scope: 'pricing',
+        title: `Bekleyen tekliflerin fiyatları güncellendi (${updatedCount})`,
+        description: `Değerlendirilen teklif: ${candidates.length}, başarılı: ${updatedCount}, hatalı: ${errors.length}`,
+        metadata: {
+          candidateCount: candidates.length,
+          updatedCount,
+          errorCount: errors.length
+        }
       })
+
+      return res.json(response)
     } catch (e) {
       console.error('Apply all price error:', e)
       res.status(500).json({ error: 'Apply all price update failed', details: e.message })
@@ -977,6 +1145,32 @@ export function setupSettingsRoutes(app) {
         }
       }
 
+      const priceDiffSummary = jsondb.findPriceSettingsDifferences(oldSettings || {}, newSettings || {})
+      const highlightParts = []
+      const addedCount = priceDiffSummary.parameters?.added?.length || 0
+      const removedCount = priceDiffSummary.parameters?.removed?.length || 0
+      const modifiedCount = priceDiffSummary.parameters?.modified?.length || 0
+
+      if (addedCount) highlightParts.push(`${addedCount} parametre eklendi`)
+      if (removedCount) highlightParts.push(`${removedCount} parametre kaldırıldı`)
+      if (modifiedCount) highlightParts.push(`${modifiedCount} parametre güncellendi`)
+      if (priceDiffSummary.formula?.changed) highlightParts.push('Fiyat formülü güncellendi')
+      if (affectedCount) highlightParts.push(`${affectedCount} teklif yeniden değerlendirilecek`)
+
+      auditSessionActivity(req, {
+        type: 'price-settings',
+        action: 'update',
+        scope: 'pricing',
+        title: `Fiyat ayarları güncellendi (v${versionResult.version})`,
+        description: highlightParts.length ? highlightParts.join(', ') : null,
+        metadata: {
+          version: versionResult.version,
+          versionId: versionResult.versionId,
+          affectedQuotes: affectedCount,
+          differences: priceDiffSummary
+        }
+      })
+
       res.json({ 
         success: true, 
         version: versionResult.version,
@@ -1016,6 +1210,23 @@ export function setupSettingsRoutes(app) {
       
       const result = await jsondb.restorePriceSettingsVersion(versionId)
       
+      auditSessionActivity(req, {
+        type: 'price-settings',
+        action: 'restore',
+        scope: 'pricing',
+        title: `Fiyat ayarları versiyonu geri yüklendi (${versionId})`,
+        description: result?.restoredVersion
+          ? `Yeni aktif versiyon: v${result.restoredVersion}`
+          : 'Fiyat ayarları geçmiş versiyondan geri alındı',
+        metadata: {
+          requestedVersion: versionId,
+          restoredVersion: result?.restoredVersion || null,
+          restoredVersionId: result?.restoredVersionId || null,
+          originalVersion: result?.originalVersion || null,
+          originalVersionId: result?.originalVersionId || null
+        }
+      })
+
       res.json({ 
         success: true, 
         restoredVersion: result.restoredVersion,
@@ -1086,6 +1297,9 @@ export function setupSettingsRoutes(app) {
       })
       console.log('🔧 DEBUG: Form config saved:', !!result)
 
+      let formChanges = []
+      let quotesMarked = 0
+
       if (isStructuralChange) {
         console.log('🔧 DEBUG: Processing structural change...')
 
@@ -1121,9 +1335,10 @@ export function setupSettingsRoutes(app) {
           return changes
         }
 
-        const formChanges = getFormChanges(currentConfig, config)
+        formChanges = getFormChanges(currentConfig, config)
         const quotes = jsondb.listQuotes()
         const evaluationTimestamp = new Date().toISOString()
+        quotesMarked = quotes.length
 
         console.log('🔧 DEBUG: Found', quotes.length, 'quotes to update')
 
@@ -1169,13 +1384,33 @@ export function setupSettingsRoutes(app) {
         console.log(`Form structure updated. Marked ${quotes.length} quotes for price recalculation.`)
       }
 
+      const describedChanges = formChanges.length > 0 ? formChanges.slice(0, 3) : []
+      const descriptionText = formChanges.length
+        ? `${formChanges.length} değişiklik: ${describedChanges.join(', ')}${formChanges.length > 3 ? ', ...' : ''}`
+        : (isStructuralChange ? 'Form alanlarında değişiklik yapıldı' : 'Form ayarları güncellendi')
+
+      auditSessionActivity(req, {
+        type: 'form-config',
+        action: isStructuralChange ? 'structure-update' : 'update',
+        scope: 'forms',
+        title: result?.version ? `Form yapılandırması güncellendi (v${result.version})` : 'Form yapılandırması güncellendi',
+        description: descriptionText,
+        metadata: {
+          structuralChange: isStructuralChange,
+          version: result?.version || null,
+          versionId: result?.versionId || null,
+          changes: formChanges,
+          quotesMarked
+        }
+      })
+
       console.log('🔧 DEBUG: Sending success response...')
       res.json({
         success: true,
         structuralChange: isStructuralChange,
         version: result?.version || null,
         versionId: result?.versionId || null,
-        quotesMarkedForUpdate: isStructuralChange ? jsondb.listQuotes().length : 0
+        quotesMarkedForUpdate: quotesMarked
       })
     } catch (error) {
       console.error('🔧 DEBUG: Form config save error:', error)
@@ -1318,13 +1553,17 @@ export function setupExportRoutes(app) {
   })
 
   // Apply current price version to quote
-  app.post('/api/quotes/:quoteId/apply-current-price', async (req, res) => {
+  app.post('/api/quotes/:quoteId/apply-current-price', requireAuth, async (req, res) => {
     try {
       const { quoteId } = req.params
+      const existingQuote = jsondb.getQuote(quoteId)
+
       const userInfo = {
+        ...req.user,
         ip: req.ip,
         userAgent: req.get('User-Agent'),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        action: 'apply-current-price'
       }
       
       // Get comparison first
@@ -1333,7 +1572,7 @@ export function setupExportRoutes(app) {
       const updateResult = await jsondb.updateQuotePrice(quoteId, comparison.quote.latestPrice, userInfo)
       const updatedQuote = updateResult.quote || jsondb.getQuote(quoteId)
 
-      res.json({ 
+      const responsePayload = {
         success: true, 
         updatedPrice: updateResult.updatedPrice,
         calculatedPrice: updateResult.calculatedPrice,
@@ -1341,7 +1580,35 @@ export function setupExportRoutes(app) {
         quote: updatedQuote,
         comparisonBaseline: comparison.comparisonBaseline,
         differenceSummary: comparison.differenceSummary
-      })
+      }
+
+      if (existingQuote) {
+        const previousPriceNum = Number(existingQuote.price)
+        const newPriceNum = Number(updateResult.updatedPrice)
+        const previousPriceDisplay = Number.isFinite(previousPriceNum)
+          ? previousPriceNum.toFixed(2)
+          : String(existingQuote.price ?? '—')
+        const newPriceDisplay = Number.isFinite(newPriceNum)
+          ? newPriceNum.toFixed(2)
+          : String(updateResult.updatedPrice ?? '—')
+
+        auditSessionActivity(req, {
+          type: 'quote',
+          action: 'apply-price-current',
+          scope: 'pricing',
+          title: `Teklif fiyatı güncellendi (#${quoteId})`,
+          description: `₺${previousPriceDisplay} → ₺${newPriceDisplay}`,
+          metadata: {
+            quoteId,
+            previousPrice: existingQuote.price ?? null,
+            newPrice: updateResult.updatedPrice ?? null,
+            appliedVersion: responsePayload.appliedVersion,
+            comparisonBaseline: comparison.comparisonBaseline || null
+          }
+        })
+      }
+
+      res.json(responsePayload)
     } catch (error) {
       console.error('Apply current price error:', error)
       res.status(500).json({ error: 'Failed to apply current price to quote' })

@@ -41,10 +41,61 @@ export function newToken() {
   return crypto.randomBytes(32).toString('base64url') 
 }
 
+// Generate session ID with format: ss-yyyymmdd-000x
+export function generateSessionId() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const dateKey = `${year}${month}${day}`
+  
+  // Get daily counter from system config
+  const systemConfig = jsondb.getSystemConfig()
+  const dailyCounters = systemConfig.dailySessionCounters || {}
+  const currentCounter = (dailyCounters[dateKey] || 0) + 1
+  
+  // Update counter in system config
+  const updatedCounters = { ...dailyCounters, [dateKey]: currentCounter }
+  jsondb.putSystemConfig({ dailySessionCounters: updatedCounters })
+  
+  // Format counter with leading zeros (4 digits max)
+  const counterStr = String(currentCounter).padStart(4, '0')
+  
+  return `ss-${dateKey}-${counterStr}`
+}
+
 export function createSession(email, days = 30) {
   const token = newToken()
+  const sessionId = generateSessionId()
+  const loginTime = new Date()
   const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000)
-  jsondb.putSession({ token, email, expires })
+  
+  // Get user info for session
+  const user = jsondb.getUser(email)
+  const userName = user?.name || user?.email?.split('@')[0] || 'Unknown User'
+  
+  const sessionData = {
+    sessionId,
+    token,
+    userName,
+    email,
+    loginTime: loginTime.toISOString(),
+    loginDate: loginTime.toISOString().split('T')[0], // YYYY-MM-DD format
+    expires: expires.toISOString()
+  }
+  
+  jsondb.putSession(sessionData)
+  jsondb.appendSessionActivity(sessionId, {
+    type: 'session',
+    action: 'login',
+    scope: 'auth',
+    title: 'Admin panel giriş yapıldı',
+    description: `${email} oturumu başlatıldı`,
+    metadata: {
+      email,
+      expires: sessionData.expires
+    }
+  })
   return token
 }
 

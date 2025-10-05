@@ -2,6 +2,7 @@
 import crypto from 'crypto'
 import { createUser, verifyUser, createSession, deleteSession, getSession, requireAuth, hashPassword } from './auth.js'
 import jsondb from '../src/lib/jsondb.js'
+import auditSessionActivity from './auditTrail.js'
 
 export function setupAuthRoutes(app) {
   // Login endpoint
@@ -29,7 +30,17 @@ export function setupAuthRoutes(app) {
     
     // Başarılı login
     const token = createSession(email)
-    res.json({ token, user: result })
+    const session = getSession(token)
+    res.json({ 
+      token, 
+      user: result,
+      session: {
+        sessionId: session?.sessionId,
+        loginTime: session?.loginTime,
+        loginDate: session?.loginDate,
+        expires: session?.expires
+      }
+    })
   })
 
   // Logout endpoint
@@ -84,11 +95,14 @@ export function setupAuthRoutes(app) {
     res.json({ 
       email: session.email, 
       role: 'admin',
-      name: 'Admin User'
+      name: session.userName || 'Admin User',
+      sessionId: session.sessionId,
+      loginTime: session.loginTime,
+      loginDate: session.loginDate
     })
   })
 
-  // Register endpoint (for initial setup)
+    // Register endpoint (for initial setup)
   app.post('/api/auth/register', (req, res) => {
     const { email, password } = req.body
     
@@ -96,21 +110,55 @@ export function setupAuthRoutes(app) {
       return res.status(400).json({ error: 'Email and password required' })
     }
     
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' })
-    }
+    const user = createUser(email, password)
     
     try {
-      const user = createUser(email, password, 'admin')
-      // plainPassword alanını da ekle (admin panel uyumluluğu için)
-      user.plainPassword = password
-      user.active = true
-      user.createdAt = new Date().toISOString()
-      
       jsondb.upsertUser(user)
-      res.json({ success: true, message: 'User created successfully' })
+      res.json({ message: 'User created successfully' })
     } catch (error) {
-      res.status(500).json({ error: 'User creation failed: ' + error.message })
+      res.status(500).json({ error: 'Failed to create user' })
+    }
+  })
+
+  // Admin: List all sessions
+  app.get('/api/admin/sessions', (req, res) => {
+    const authHeader = req.headers.authorization
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+    
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' })
+    }
+    
+    const session = getSession(token)
+    if (!session && !token.startsWith('dev-')) {
+      return res.status(401).json({ error: 'Invalid or expired session' })
+    }
+    
+    const allSessions = jsondb.getAllSessions()
+    res.json({ sessions: allSessions })
+  })
+
+  // Admin: Delete session by ID
+  app.delete('/api/admin/sessions/:sessionId', (req, res) => {
+    const authHeader = req.headers.authorization
+    const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
+    
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' })
+    }
+    
+    const session = getSession(token)
+    if (!session && !token.startsWith('dev-')) {
+      return res.status(401).json({ error: 'Invalid or expired session' })
+    }
+    
+    const { sessionId } = req.params
+    const deleted = jsondb.deleteSessionById(sessionId)
+    
+    if (deleted) {
+      res.json({ message: 'Session deleted successfully' })
+    } else {
+      res.status(404).json({ error: 'Session not found' })
     }
   })
 
@@ -168,6 +216,19 @@ export function setupAuthRoutes(app) {
       }
       
       jsondb.upsertUser(user)
+
+      auditSessionActivity(req, {
+        type: 'user-management',
+        action: 'create',
+        scope: 'users',
+        title: `Yeni kullanıcı eklendi (${email})`,
+        description: `Rol: ${role}`,
+        metadata: {
+          email,
+          role,
+          createdAt: user.createdAt
+        }
+      })
       res.json({ success: true, message: 'User created successfully' })
     } catch (error) {
       console.error('Add user error:', error)
@@ -200,6 +261,20 @@ export function setupAuthRoutes(app) {
       }
       
       jsondb.upsertUser(updatedUser)
+
+      auditSessionActivity(req, {
+        type: 'user-management',
+        action: 'deactivate',
+        scope: 'users',
+        title: `Kullanıcı devre dışı bırakıldı (${email})`,
+        description: `${email} hesabı pasif edildi`,
+        metadata: {
+          email,
+          deactivatedAt: updatedUser.deactivatedAt,
+          deactivatedBy: req.user?.email || null,
+          previousRole: existingUser.role || null
+        }
+      })
       res.json({ success: true, message: 'User deactivated successfully' })
     } catch (error) {
       console.error('Deactivate user error:', error)
@@ -239,6 +314,28 @@ export function setupAuthRoutes(app) {
       updates.updatedAt = new Date().toISOString()
       
       jsondb.upsertUser(updates)
+
+      const changes = []
+      if (password && password.length >= 6) {
+        changes.push('Şifre güncellendi')
+      }
+      if (role && role !== existingUser.role) {
+        changes.push(`Rol değişti: ${existingUser.role || 'unknown'} → ${role}`)
+      }
+
+      auditSessionActivity(req, {
+        type: 'user-management',
+        action: 'update',
+        scope: 'users',
+        title: `Kullanıcı bilgileri güncellendi (${email})`,
+        description: changes.length ? changes.join(', ') : 'Kullanıcı bilgileri güncellendi',
+        metadata: {
+          email,
+          role: updates.role,
+          updatedAt: updates.updatedAt,
+          changes
+        }
+      })
       res.json({ success: true, message: 'User updated successfully' })
     } catch (error) {
       console.error('Update user error:', error)
