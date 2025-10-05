@@ -650,6 +650,40 @@ export const API = {
     }
   },
 
+  async setManualPrice(quoteId, { price, note } = {}) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${quoteId}/manual-price`, {
+        method: 'POST',
+        headers: withAuth({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ price, note })
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(json?.error || 'manual price set failed')
+      }
+      return json
+    } catch (e) {
+      throw e
+    }
+  },
+
+  async clearManualPrice(quoteId, reason = 'Manual fiyat kilidi kaldırıldı') {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${quoteId}/manual-price`, {
+        method: 'DELETE',
+        headers: withAuth({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ reason })
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(json?.error || 'manual price clear failed')
+      }
+      return json
+    } catch (e) {
+      throw e
+    }
+  },
+
   // Price calculation preview
   async calculatePricePreview(quote, priceSettings) {
     try {
@@ -776,6 +810,24 @@ export const API = {
     } catch (error) {
       console.error('❌ Local price calculation error:', error)
       return quote.calculatedPrice || quote.price || 0
+    }
+  },
+
+  // Version comparison for quotes
+  async compareQuotePriceVersions(quoteId) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${quoteId}/price-comparison`, {
+        headers: withAuth()
+      })
+      if (!res.ok) throw new Error('price comparison failed')
+      return await res.json()
+    } catch (e) {
+      // Fallback: basic check if quote needs update
+      console.warn('Price comparison API failed, using fallback logic:', e.message)
+      return {
+        needsUpdate: false,
+        status: { status: 'current', message: 'API unavailable' }
+      }
     }
   }
 }

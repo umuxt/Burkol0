@@ -62,6 +62,10 @@ class PriceUpdateManager {
       let markedCount = 0
 
       quotes.forEach(quote => {
+        if (quote.manualOverride?.active) {
+          console.log(`🔒 Skipping quote ${quote.id}: manual override active`)
+          return
+        }
         console.log(`🔧 Checking quote ${quote.id}: currentVersion=${quote.priceStatus?.settingsVersion}, currentVersionId=${quote.priceStatus?.settingsVersionId}, targetOldVersion=${oldVersion}`)
         const currentStatus = PriceStatus.fromJSON(quote.priceStatus)
         
@@ -104,6 +108,16 @@ class PriceUpdateManager {
       console.log('🔧 Quote found:', quote.id)
 
       const currentStatus = PriceStatus.fromJSON(quote.priceStatus)
+      if (quote.manualOverride?.active || currentStatus.isManualOverrideActive()) {
+        console.log(`🔒 Quote ${quoteId} has manual override, skipping calculation`)
+        return {
+          success: true,
+          price: quote.manualOverride?.price ?? currentStatus.appliedPrice ?? quote.price,
+          status: currentStatus.toJSON(),
+          manualOverride: true,
+          skipped: true
+        }
+      }
       console.log('🔧 Current status:', currentStatus.status)
       
       // Check if calculation is needed
@@ -207,6 +221,15 @@ class PriceUpdateManager {
       const quote = this.jsondb.getQuote(quoteId)
       if (!quote) {
         throw new Error(`Quote ${quoteId} not found`)
+      }
+
+      if (quote.manualOverride?.active) {
+        console.log(`🔒 Quote ${quoteId} manual override active - apply skipped`)
+        return {
+          success: false,
+          error: 'Manual override active',
+          manualOverride: true
+        }
       }
 
       const currentStatus = PriceStatus.fromJSON(quote.priceStatus)

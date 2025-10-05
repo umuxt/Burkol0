@@ -13,23 +13,28 @@ class PriceStatus {
     lastApplied = null,
     calculationDetails = null,
     differenceSummary = null,
-    statusReason = null
+    statusReason = null,
+    manualOverride = null,
+    errorMessage = null
   } = {}) {
     this.settingsVersion = settingsVersion  // Numeric price settings version used
     this.settingsVersionId = settingsVersionId  // Canonical version ID in Firestore
     this.formVersionId = formVersionId      // Form configuration version snapshot ID
     this.calculatedPrice = calculatedPrice  // Latest calculated price
     this.appliedPrice = appliedPrice        // Currently applied/displayed price
-    this.status = status                    // 'current' | 'outdated' | 'calculating' | 'error' | 'unknown' | 'price-drift' | 'content-drift'
+    this.status = status                    // 'current' | 'outdated' | 'calculating' | 'error' | 'unknown' | 'price-drift' | 'content-drift' | 'manual'
     this.lastCalculated = lastCalculated    // When was price last calculated
     this.lastApplied = lastApplied          // When was price last applied
     this.calculationDetails = calculationDetails  // Full calculation breakdown
     this.differenceSummary = differenceSummary    // Summary of detected differences between versions
     this.statusReason = statusReason              // Human-readable reason for status
+    this.errorMessage = errorMessage
+    this.manualOverride = manualOverride ? { ...manualOverride } : null
   }
 
   // Check if price needs update based on current settings version/id
   needsUpdate(currentSettingsVersion, currentSettingsVersionId = null) {
+    if (this.isManualOverrideActive()) return false
     const versionMismatch = currentSettingsVersion !== undefined && currentSettingsVersion !== null && this.settingsVersion !== currentSettingsVersion
     const versionIdMismatch = currentSettingsVersionId && this.settingsVersionId && this.settingsVersionId !== currentSettingsVersionId
     const requiresAttentionStatuses = new Set(['outdated', 'error', 'unknown', 'price-drift', 'content-drift'])
@@ -38,6 +43,9 @@ class PriceStatus {
 
   // Check if calculated price differs from applied price or status flags require refresh
   hasPendingUpdate() {
+    if (this.isManualOverrideActive()) {
+      return false
+    }
     if (['outdated', 'unknown', 'price-drift', 'content-drift'].includes(this.status)) {
       return true
     }
@@ -79,6 +87,7 @@ class PriceStatus {
 
   // Mark as calculating
   markCalculating() {
+    if (this.isManualOverrideActive()) return this
     this.status = 'calculating'
     this.statusReason = null
     return this
@@ -94,6 +103,10 @@ class PriceStatus {
     this.lastCalculated = new Date().toISOString()
     this.calculationDetails = calculationDetails
     this.differenceSummary = differenceSummary
+    if (this.isManualOverrideActive()) {
+      this.status = 'manual'
+      return this
+    }
     this.status = 'current'
     this.statusReason = null
     return this
@@ -101,6 +114,10 @@ class PriceStatus {
 
   // Apply calculated price
   applyPrice() {
+    if (this.isManualOverrideActive()) {
+      this.appliedPrice = this.manualOverride?.price ?? this.appliedPrice
+      return this
+    }
     if (this.calculatedPrice !== null) {
       this.appliedPrice = this.calculatedPrice
       this.lastApplied = new Date().toISOString()
@@ -108,8 +125,55 @@ class PriceStatus {
     return this
   }
 
+  isManualOverrideActive() {
+    return !!(this.manualOverride && this.manualOverride.active)
+  }
+
+  activateManualOverride({ price, setAt = new Date().toISOString(), setBy = null, note = null, previousStatus = null, previousCalculatedPrice = null, previousAppliedPrice = null } = {}) {
+    const parsedPrice = typeof price === 'number' ? price : parseFloat(price)
+    if (Number.isNaN(parsedPrice)) {
+      throw new Error('Manual override price must be a valid number')
+    }
+
+    this.manualOverride = {
+      active: true,
+      price: parsedPrice,
+      setAt,
+      setBy,
+      note: note || null,
+      previousStatus: previousStatus ?? this.status ?? null,
+      previousCalculatedPrice: previousCalculatedPrice ?? this.calculatedPrice ?? null,
+      previousAppliedPrice: previousAppliedPrice ?? this.appliedPrice ?? null,
+      releasedAt: null,
+      releasedBy: null
+    }
+
+    this.appliedPrice = parsedPrice
+    this.calculatedPrice = parsedPrice
+    this.status = 'manual'
+    this.statusReason = 'Manual override active'
+    this.errorMessage = null
+    return this
+  }
+
+  clearManualOverride({ releasedAt = new Date().toISOString(), releasedBy = null, nextStatus = 'outdated', reason = 'Manual override released' } = {}) {
+    if (this.manualOverride) {
+      this.manualOverride = {
+        ...this.manualOverride,
+        active: false,
+        releasedAt,
+        releasedBy
+      }
+    }
+
+    this.status = nextStatus
+    this.statusReason = reason
+    return this
+  }
+
   // Mark as error
   markError(errorMessage = null) {
+    if (this.isManualOverrideActive()) return this
     this.status = 'error'
     this.errorMessage = errorMessage
     this.statusReason = errorMessage
@@ -136,12 +200,14 @@ class PriceStatus {
       buttonType: this.getButtonType(),
       differenceSummary: this.differenceSummary,
       statusReason: this.statusReason,
-      driftType
+      driftType,
+      manualOverride: this.manualOverride || null
     }
   }
 
   // Get button type for UI
   getButtonType() {
+    if (this.status === 'manual') return 'manual'
     if (this.status === 'calculating') return 'calculating'
     if (this.status === 'error') return 'error'
      if (this.status === 'price-drift') return 'price-drift'
@@ -165,7 +231,8 @@ class PriceStatus {
       calculationDetails: this.calculationDetails,
       differenceSummary: this.differenceSummary,
       statusReason: this.statusReason,
-      errorMessage: this.errorMessage
+      errorMessage: this.errorMessage,
+      manualOverride: this.manualOverride
     }
   }
 
@@ -197,6 +264,11 @@ class PriceStatus {
       status: 'outdated',
       statusReason: reason
     })
+  }
+
+  static createManualOverride(options = {}) {
+    const instance = new PriceStatus()
+    return instance.activateManualOverride(options)
   }
 }
 

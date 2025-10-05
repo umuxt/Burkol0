@@ -605,6 +605,158 @@ function normalizeQuoteVersionInfo(sourceQuote) {
   return normalized
 }
 
+function buildUserMetadata(userInfo = {}) {
+  if (!userInfo || typeof userInfo !== 'object') return null
+  const { id, uid, userId, email, username, name, role } = userInfo
+  const metadata = {}
+  if (id || uid || userId) metadata.id = id || uid || userId
+  if (email) metadata.email = email
+  if (username) metadata.username = username
+  if (name) metadata.name = name
+  if (role) metadata.role = role
+  return Object.keys(metadata).length ? metadata : null
+}
+
+function appendPriceHistory(quote, entry) {
+  const currentHistory = Array.isArray(quote.priceHistory) ? [...quote.priceHistory] : []
+  currentHistory.push(entry)
+  return currentHistory
+}
+
+function createManualOverrideSnapshot({ price, setAt, userInfo, note }, quote) {
+  return {
+    active: true,
+    price,
+    setAt,
+    setBy: buildUserMetadata(userInfo),
+    setByLabel: formatUserInfo(userInfo),
+    note: note || null,
+    userTag: getUserTag(userInfo),
+    previousStatus: quote?.priceStatus?.status || null,
+    previousCalculatedPrice: quote?.priceStatus?.calculatedPrice ?? null,
+    previousAppliedPrice: quote?.priceStatus?.appliedPrice ?? quote?.price ?? null,
+    releasedAt: null,
+    releasedBy: null
+  }
+}
+
+function validateManualPrice(price) {
+  const parsed = typeof price === 'number' ? price : Number(price)
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error('Manual fiyat değeri geçerli bir sayı olmalıdır')
+  }
+  return parsed
+}
+
+function ensureQuoteExists(quoteId) {
+  const quote = getQuote(quoteId)
+  if (!quote) {
+    const error = new Error(`Quote ${quoteId} not found`)
+    error.status = 404
+    throw error
+  }
+  return quote
+}
+
+function setManualOverride(quoteId, { price, note = null, userInfo = {} } = {}) {
+  ensureReady()
+  const quote = ensureQuoteExists(quoteId)
+  const parsedPrice = validateManualPrice(price)
+  const setAt = new Date().toISOString()
+  const overrideSnapshot = createManualOverrideSnapshot({ price: parsedPrice, setAt, userInfo, note }, quote)
+
+  const statusInstance = PriceStatus.fromJSON(quote.priceStatus)
+  statusInstance.activateManualOverride({
+    price: parsedPrice,
+    setAt,
+    setBy: overrideSnapshot.setByLabel,
+    note,
+    previousStatus: quote.priceStatus?.status || null,
+    previousCalculatedPrice: quote.priceStatus?.calculatedPrice ?? null,
+    previousAppliedPrice: quote.priceStatus?.appliedPrice ?? quote.price ?? null
+  })
+
+  const historyEntry = {
+    timestamp: setAt,
+    price: parsedPrice,
+    calculatedPrice: parsedPrice,
+    changeReason: 'Manuel fiyat belirlendi',
+    manualOverride: {
+      action: 'set',
+      setBy: overrideSnapshot.setByLabel,
+      note
+    }
+  }
+
+  const patch = {
+    price: parsedPrice,
+    calculatedPrice: parsedPrice,
+    manualOverride: overrideSnapshot,
+    priceStatus: statusInstance.toJSON(),
+    priceHistory: appendPriceHistory(quote, historyEntry),
+    priceUpdateInfo: {
+      timestamp: setAt,
+      updatedBy: userInfo,
+      reason: 'manual-override-set'
+    },
+    pendingPriceVersion: null,
+    pendingFormVersion: null,
+    pendingCalculatedPrice: null,
+    priceVersionLatest: null
+  }
+
+  patchQuote(quoteId, patch)
+  return getQuote(quoteId)
+}
+
+function clearManualOverride(quoteId, { userInfo = {}, reason = 'Manual fiyat kilidi kaldırıldı' } = {}) {
+  ensureReady()
+  const quote = ensureQuoteExists(quoteId)
+  if (!quote.manualOverride?.active) {
+    return quote
+  }
+
+  const releasedAt = new Date().toISOString()
+  const statusInstance = PriceStatus.fromJSON(quote.priceStatus)
+  statusInstance.clearManualOverride({
+    releasedAt,
+    releasedBy: formatUserInfo(userInfo),
+    reason
+  })
+
+  const updatedOverride = {
+    ...quote.manualOverride,
+    active: false,
+    releasedAt,
+    releasedBy: formatUserInfo(userInfo)
+  }
+
+  const historyEntry = {
+    timestamp: releasedAt,
+    price: quote.price,
+    calculatedPrice: quote.calculatedPrice ?? quote.price,
+    changeReason: reason,
+    manualOverride: {
+      action: 'clear',
+      releasedBy: formatUserInfo(userInfo)
+    }
+  }
+
+  const patch = {
+    manualOverride: updatedOverride,
+    priceStatus: statusInstance.toJSON(),
+    priceHistory: appendPriceHistory(quote, historyEntry),
+    priceUpdateInfo: {
+      timestamp: releasedAt,
+      updatedBy: userInfo,
+      reason: 'manual-override-clear'
+    }
+  }
+
+  patchQuote(quoteId, patch)
+  return getQuote(quoteId)
+}
+
 function removeQuote(id) {
   ensureReady()
   const idx = state.quotes.findIndex(q => q.id === id)
@@ -1135,6 +1287,58 @@ export async function compareQuotePriceVersions(quoteId) {
     }
 
     const quoteData = quoteDoc.data()
+    if (quoteData.manualOverride?.active) {
+      const manualInfo = quoteData.manualOverride
+      const lockedPrice = validateManualPrice(manualInfo.price ?? quoteData.price ?? 0)
+      const reasons = [
+        `Fiyat manuel olarak ${manualInfo.setByLabel || 'admin'} tarafından kilitlendi`,
+        manualInfo.note ? `Not: ${manualInfo.note}` : null
+      ].filter(Boolean)
+
+      const differences = {
+        parameters: {
+          added: [],
+          removed: [],
+          modified: []
+        },
+        formula: {
+          changed: false,
+          originalFormula: '',
+          currentFormula: ''
+        },
+        reasons
+      }
+
+      const differenceSummary = {
+        priceDiff: 0,
+        oldPrice: lockedPrice,
+        newPrice: lockedPrice,
+        comparisonBaseline: 'manual',
+        reasons,
+        manualOverride: manualInfo,
+        evaluatedAt: new Date().toISOString()
+      }
+
+      return {
+        quote: {
+          id: quoteId,
+          originalPrice: lockedPrice,
+          appliedPrice: lockedPrice,
+          latestPrice: lockedPrice,
+          priceChanged: false,
+          status: 'manual-override'
+        },
+        comparisonBaseline: 'manual',
+        versions: {
+          original: null,
+          applied: null,
+          latest: null
+        },
+        differences,
+        differenceSummary
+      }
+    }
+
     const originalPriceCalc = quoteData.priceCalculation || {}
 
     const currentPriceSettings = getPriceSettings() || {}
@@ -1242,6 +1446,11 @@ export async function updateQuotePrice(quoteId, newPrice, userInfo = {}) {
     }
 
     const quoteData = quoteDoc.data()
+    if (quoteData.manualOverride?.active) {
+      const error = new Error('Manual price override is active for this quote')
+      error.code = 'MANUAL_OVERRIDE_ACTIVE'
+      throw error
+    }
     const currentPriceSettings = getPriceSettings()
     const priceMeta = state.priceSettingsMeta || defaultPriceSettingsMeta()
     const appliedAt = new Date().toISOString()
@@ -1456,5 +1665,7 @@ export default {
   getPriceSettingsVersionSnapshot,
   compareQuotePriceVersions,
   updateQuotePrice,
+  setManualOverride,
+  clearManualOverride,
   findPriceSettingsDifferences
 }

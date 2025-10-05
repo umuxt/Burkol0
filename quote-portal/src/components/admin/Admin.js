@@ -52,6 +52,8 @@ function Admin({ t, onLogout, showNotification }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [bulkProgress, setBulkProgress] = useState(null)
+  const [globalProcessing, setGlobalProcessing] = useState(false) // Global processing state
+  const [processingMessage, setProcessingMessage] = useState('') // Processing message
   const bulkCancelRef = useRef(false)
   const [sortConfig, setSortConfig] = useState({ columnId: 'date', direction: 'desc' })
 
@@ -69,6 +71,9 @@ function Admin({ t, onLogout, showNotification }) {
       console.log('🔧 Admin: Loaded', quotesData.length, 'quotes');
       setList(quotesData);
 
+      // Check if there are pending version updates
+      await checkAndProcessVersionUpdates(quotesData);
+
       setLoading(false);
       setError(null);
     } catch (error) {
@@ -80,6 +85,56 @@ function Admin({ t, onLogout, showNotification }) {
         setError(`Veri yükleme hatası: ${error.message}`);
       }
       setLoading(false);
+    }
+  }
+
+  async function checkAndProcessVersionUpdates(quotesData) {
+    try {
+      // Check if there are quotes that need version comparison
+      const quotesNeedingUpdate = quotesData.filter(quote => 
+        !quote.manualOverride?.active && // Skip manually locked quotes
+        (quote.priceStatus?.status === 'outdated' || 
+         quote.priceStatus?.status === 'drift' ||
+         quote.priceStatus?.status === 'unknown' ||
+         !quote.priceStatus)
+      );
+
+      if (quotesNeedingUpdate.length > 0) {
+        setGlobalProcessing(true);
+        setProcessingMessage(`Değişiklikler uygulanıyor... (${quotesNeedingUpdate.length} teklif)`);
+
+        // Process quotes in batches to avoid overwhelming the backend
+        const batchSize = 5;
+        for (let i = 0; i < quotesNeedingUpdate.length; i += batchSize) {
+          const batch = quotesNeedingUpdate.slice(i, i + batchSize);
+          
+          setProcessingMessage(`Değişiklikler uygulanıyor... (${i + batch.length}/${quotesNeedingUpdate.length})`);
+          
+          // Process batch
+          await Promise.all(batch.map(async (quote) => {
+            try {
+              const comparison = await API.compareQuotePriceVersions(quote.id);
+              if (comparison.needsUpdate) {
+                // Update the quote with new price status
+                const updatedQuote = { ...quote, priceStatus: comparison.status };
+                setList(prev => prev.map(q => q.id === quote.id ? updatedQuote : q));
+              }
+            } catch (error) {
+              console.warn(`Failed to update quote ${quote.id}:`, error);
+            }
+          }));
+
+          // Small delay between batches
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+
+        setGlobalProcessing(false);
+        setProcessingMessage('');
+      }
+    } catch (error) {
+      console.error('Version update check failed:', error);
+      setGlobalProcessing(false);
+      setProcessingMessage('');
     }
   }
 
@@ -489,6 +544,10 @@ function Admin({ t, onLogout, showNotification }) {
 
     try {
       await refresh()
+      // Check for version updates after bulk price update
+      if (!cancelled && successCount > 0) {
+        await checkAndProcessVersionUpdates()
+      }
     } catch (refreshError) {
       console.error('Bulk refresh error:', refreshError)
     }
@@ -629,6 +688,40 @@ function Admin({ t, onLogout, showNotification }) {
         animation: 'slideInDown 0.3s ease-out'
       }
     }, notification.message),
+
+    // Global Processing Overlay
+    globalProcessing && React.createElement('div', {
+      style: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(255, 255, 255, 0.85)',
+        backdropFilter: 'blur(2px)',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 20000,
+        fontSize: '16px',
+        fontWeight: '500',
+        color: '#333'
+      }
+    },
+      React.createElement('div', {
+        style: {
+          width: '40px',
+          height: '40px',
+          border: '3px solid #f3f3f3',
+          borderTop: '3px solid #2196f3',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+          marginBottom: '16px'
+        }
+      }),
+      React.createElement('div', null, t.a_processing || 'Değişiklikler uygulanıyor...')
+    ),
 
     // Header with logout button
     React.createElement('div', { className: 'header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' } },
@@ -1016,7 +1109,10 @@ function Admin({ t, onLogout, showNotification }) {
       onClose: () => setSettingsModal(false),
       onSettingsUpdated: refresh,
       t,
-      showNotification
+      showNotification,
+      globalProcessing,
+      setGlobalProcessing,
+      checkAndProcessVersionUpdates
     }),
 
     detail && React.createElement(DetailModal, {
@@ -1026,7 +1122,10 @@ function Admin({ t, onLogout, showNotification }) {
       onSaved: refresh,
       formConfig,
       t,
-      showNotification
+      showNotification,
+      globalProcessing,
+      setGlobalProcessing,
+      checkAndProcessVersionUpdates
     }),
 
     filterPopup && React.createElement(FilterPopup, {

@@ -66,6 +66,12 @@ async function migrate() {
     quotes.forEach(quote => {
       const patch = {}
 
+      // Skip locked quotes - they should not be automatically migrated
+      if (quote.manualOverride?.active) {
+        console.log(`⏭️  Skipping locked quote ${quote.id} - manual override active`)
+        return
+      }
+
       if (priceSettings?.versionId && !quote.priceVersion) {
         patch.priceVersion = {
           versionId: priceSettings.versionId,

@@ -7,7 +7,7 @@ import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'
 
 const { useState, useEffect } = React;
 
-function DynamicPricingTab({ t, showNotification }) {
+function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates }) {
   const [parameters, setParameters] = useState([])
   const [formula, setFormula] = useState('')
   const [userFormula, setUserFormula] = useState('') // Kullanıcı dostu formül (A, B, C...)
@@ -176,6 +176,11 @@ function DynamicPricingTab({ t, showNotification }) {
       // Refresh version history if visible
       if (showVersionHistory) {
         loadVersionHistory()
+      }
+
+      // Check for version updates after price settings save
+      if (checkAndProcessVersionUpdates && setGlobalProcessing) {
+        await checkAndProcessVersionUpdates()
       }
     } catch (e) {
       console.error('Price settings save error:', e)

@@ -492,7 +492,7 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
   // Apply new price to quote
   app.post('/api/quotes/:id/apply-price', requireAuth, async (req, res) => {
     const { id } = req.params
-    
+
     try {
       console.log('🔧 DEBUG: Single price update started for ID:', id)
       
@@ -552,6 +552,49 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
       console.error('🔧 ERROR: Price application error:', error)
       console.error('🔧 ERROR: Stack trace:', error.stack)
       res.status(500).json({ error: 'Price update failed', details: error.message })
+    }
+  })
+
+  // Set manual price override for quote
+  app.post('/api/quotes/:id/manual-price', requireAuth, (req, res) => {
+    const { id } = req.params
+    const { price, note } = req.body || {}
+
+    try {
+      if (price === undefined || price === null || price === '') {
+        return res.status(400).json({ error: 'price_required' })
+      }
+
+      const updatedQuote = jsondb.setManualOverride(id, {
+        price,
+        note,
+        userInfo: req.user || {}
+      })
+
+      res.json({ success: true, quote: updatedQuote })
+    } catch (error) {
+      console.error('🔧 Manual price override error:', error)
+      const statusCode = error.status || (error.code === 'MANUAL_OVERRIDE_ACTIVE' ? 409 : 500)
+      res.status(statusCode).json({ success: false, error: error.message })
+    }
+  })
+
+  // Clear manual price override
+  app.delete('/api/quotes/:id/manual-price', requireAuth, (req, res) => {
+    const { id } = req.params
+    const { reason } = req.body || {}
+
+    try {
+      const updatedQuote = jsondb.clearManualOverride(id, {
+        userInfo: req.user || {},
+        reason: reason || 'Manual fiyat kilidi kaldırıldı'
+      })
+
+      res.json({ success: true, quote: updatedQuote })
+    } catch (error) {
+      console.error('🔧 Manual price override clear error:', error)
+      const statusCode = error.status || 500
+      res.status(statusCode).json({ success: false, error: error.message })
     }
   })
 

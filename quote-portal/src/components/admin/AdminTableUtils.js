@@ -126,6 +126,17 @@ export function formatFieldValue(value, column, item, context) {
         const priceChangeType = getPriceChangeType(item)
         const status = priceStatus?.status
         const differenceSummary = priceStatus?.differenceSummary || null
+        const manualOverrideActive = item?.manualOverride?.active === true || status === 'manual'
+
+        if (manualOverrideActive) {
+          return React.createElement('span', {
+            style: {
+              color: 'var(--text, #f8fafc)', // Normal beyaz renk
+              fontWeight: 'normal'
+            },
+            title: 'Bu fiyat manuel olarak kilitlendi'
+          }, `${formatPrice(parseFloat(value) || 0)}🔒`)
+        }
 
         const shouldShowButton = ['price-drift', 'content-drift', 'outdated', 'unknown', 'error'].includes(status) || !!priceChangeType
 

@@ -1,25 +1,25 @@
 // Detail Modal - Static import implementation for performance optimization
 // Lazy loading disabled to prevent console errors during development
 
-import React from 'react'
-import { DetailModal } from './DetailModal.js'
+import React from 'react';
+import { DetailModal } from './DetailModal.js';
 
 // Use static import instead of lazy loading to avoid console spam
-const LazyDetailModal = DetailModal
+const LazyDetailModal = DetailModal;
 
 // Lightweight wrapper for immediate response
 export function DetailModalWrapper(props) {
-  const { useState, useEffect } = React
-  const [shouldRender, setShouldRender] = useState(false)
+  const { useState, useEffect } = React;
+  const [shouldRender, setShouldRender] = useState(false);
 
   useEffect(() => {
     // Trigger render on next frame for smooth interaction
     const timer = requestAnimationFrame(() => {
-      setShouldRender(true)
-    })
+      setShouldRender(true);
+    });
     
-    return () => cancelAnimationFrame(timer)
-  }, [])
+    return () => cancelAnimationFrame(timer);
+  }, []);
 
   // Don't render anything until next frame
   if (!shouldRender) {
@@ -34,17 +34,17 @@ export function DetailModalWrapper(props) {
         backgroundColor: 'rgba(0,0,0,0.1)',
         zIndex: 1000
       }
-    })
+    });
   }
 
-  return React.createElement(LazyDetailModal, props)
+  return React.createElement(LazyDetailModal, props);
 }
 
 // Export the wrapper as default
-export default DetailModalWrapper
+export default DetailModalWrapper;
 
 // Also export the lazy component for direct use
-export { LazyDetailModal }
+export { LazyDetailModal };
 
 // Preload trigger for intersection observer
 export function preloadDetailModal(triggerElement) {
@@ -52,6 +52,6 @@ export function preloadDetailModal(triggerElement) {
     window.moduleLoader.setupIntersectionObserver(
       './components/modals/DetailModal.js',
       triggerElement
-    )
+    );
   }
 }

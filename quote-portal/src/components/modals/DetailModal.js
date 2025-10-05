@@ -4,7 +4,7 @@ import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_F
 import { statusLabel } from '../../i18n/index.js'
 import { PriceStatusBadge } from '../admin/PriceStatusUI.js'
 
-export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, showNotification, formConfig }) {
+export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, showNotification, formConfig, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates }) {
   console.log('🔧 DEBUG: DetailModal rendered with item:', item?.id, 'formConfig:', !!formConfig)
   
   const [currStatus, setCurrStatus] = React.useState(item.status || 'new')
@@ -12,6 +12,10 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
   const [form, setForm] = React.useState({})
   const [techFiles, setTechFiles] = React.useState(item.files || [])
   const [prodImgs, setProdImgs] = React.useState(item.productImages || [])
+  const [manualOverride, setManualOverride] = React.useState(item.manualOverride || null)
+  const [manualPriceInput, setManualPriceInput] = React.useState(() => formatManualPriceInput(item.manualOverride?.price ?? item.price))
+  const [manualNote, setManualNote] = React.useState(item.manualOverride?.note || '')
+  const [manualLoading, setManualLoading] = React.useState(false)
   
   React.useEffect(() => {
     setCurrStatus(item.status || 'new')
@@ -36,6 +40,12 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     setForm(initialForm)
     setTechFiles(item.files || [])
     setProdImgs(item.productImages || [])
+
+    const override = item.manualOverride || null
+    setManualOverride(override)
+    const initialManualPrice = override?.price ?? item.price
+    setManualPriceInput(formatManualPriceInput(initialManualPrice))
+    setManualNote(override?.note || '')
   }, [item.id, item.status])
   
   function setF(k, v) { 
@@ -126,6 +136,160 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       })
     
     return fields
+  }
+
+  function renderDetailFields() {
+    if (!formConfig || !formConfig.formStructure.fields) {
+      return []
+    }
+    
+    const fields = []
+    
+    // Add system fields first
+    fields.push(
+      info('ID', item.id),
+      info(t.th_date || 'Tarih', (item.createdAt||'').replace('T',' ').slice(0,16)),
+      info(t.a_status || 'Durum', statusLabel(currStatus, t))
+    )
+    
+    // Add dynamic fields from form config
+    formConfig.formStructure.fields.forEach(field => {
+      
+        let value = item.customFields?.[field.id] || item[field.id] || '—'
+        let label = field.label || field.id
+        
+        // Format value based on field type
+        if (field.type === 'multiselect' && Array.isArray(item.customFields?.[field.id] || item[field.id])) {
+          value = item.customFields?.[field.id] || item[field.id].join(', ') || '—'
+        } else if (field.type === 'radio' && field.options) {
+          // Keep the selected value as is
+          value = value || '—'
+        } else if (field.type === 'number') {
+          value = value ? (value + (field.unit || '')) : '—'
+        } else if (field.type === 'date') {
+          value = value || '—'
+        } else if (field.type === 'textarea') {
+          value = value || '—'
+        } else if (!value || value === '') {
+          value = '—'
+        }
+        
+        // Handle special formatting
+        if (field.id === 'thickness' && value !== '—') {
+          value = value + ' mm'
+        } else if (field.id === 'country' || field.id === 'city') {
+          // Handle country/city combination
+          const country = item.country || 'undefined'
+          const city = item.city || 'undefined'
+          if (field.id === 'country') {
+            value = `${country} / ${city}`
+            label = (t.f_country || 'Ülke') + '/' + (t.f_city || 'Şehir')
+          } else if (field.id === 'city') {
+            return null // Skip city field as it's combined with country
+          }
+        } else if (field.id === 'repeat') {
+          value = value === 'recurrent' ? (t.repeat_recurrent || 'Sürekli') : (t.repeat_one || 'Tek Seferlik')
+        }
+        
+        if (value !== null) {
+          fields.push(info(label, value))
+        }
+      })
+    
+    return fields.filter(Boolean)
+  }
+
+  const manualOverrideActive = !!(manualOverride && manualOverride.active)
+  const manualSetAtText = manualOverride?.setAt ? new Date(manualOverride.setAt).toLocaleString('tr-TR') : null
+  const manualSetByText = manualOverride?.setByLabel || manualOverride?.setBy || null
+
+  function formatManualPriceInput(value) {
+    if (value === null || value === undefined || value === '') return ''
+    const parsed = Number(String(value).replace(',', '.'))
+    if (Number.isNaN(parsed)) return ''
+    return parsed.toFixed(2)
+  }
+
+  function parseManualPrice(value) {
+    if (value === null || value === undefined || value === '') return NaN
+    return Number(String(value).replace(',', '.'))
+  }
+
+  function formatPriceDisplay(value) {
+    const parsed = parseManualPrice(value)
+    if (Number.isNaN(parsed)) return '—'
+    return `₺${parsed.toFixed(2)}`
+  }
+
+  async function handleManualPriceSave() {
+    if (!item || !item.id) return
+    const parsedPrice = parseManualPrice(manualPriceInput)
+    if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
+      showNotification?.('Geçerli bir fiyat giriniz', 'error')
+      return
+    }
+
+    setManualLoading(true)
+    try {
+      const response = await API.setManualPrice(item.id, {
+        price: parsedPrice,
+        note: manualNote
+      })
+
+      const updatedQuote = response?.quote || response || {}
+      setManualOverride(updatedQuote.manualOverride || { active: true, price: parsedPrice, note: manualNote })
+      setManualPriceInput(formatManualPriceInput(updatedQuote.manualOverride?.price ?? parsedPrice))
+      setManualNote(updatedQuote.manualOverride?.note || manualNote)
+
+      showNotification?.('Fiyat manuel olarak kilitlendi', 'success')
+      if (typeof onSaved === 'function') {
+        await onSaved()
+      }
+
+      // Check for version updates after manual price save
+      if (checkAndProcessVersionUpdates && setGlobalProcessing) {
+        await checkAndProcessVersionUpdates()
+      }
+    } catch (error) {
+      console.error('Manual price save error:', error)
+      showNotification?.(`Manuel fiyat kaydedilemedi: ${error.message || 'Beklenmeyen hata'}`, 'error')
+    } finally {
+      setManualLoading(false)
+    }
+  }
+
+  async function handleManualRelease(applyLatest = false) {
+    if (!item || !item.id) return
+    setManualLoading(true)
+    try {
+      const response = await API.clearManualPrice(item.id, applyLatest ? 'Manuel fiyat kilidi kaldırıldı ve güncel sürüm uygulandı' : 'Manuel fiyat kilidi kaldırıldı')
+      const clearedQuote = response?.quote || response || {}
+      setManualOverride(clearedQuote.manualOverride || { active: false })
+      setManualPriceInput(formatManualPriceInput(clearedQuote.manualOverride?.price ?? clearedQuote.price ?? ''))
+      setManualNote(clearedQuote.manualOverride?.note || '')
+
+      if (applyLatest) {
+        const applyResponse = await API.applyCurrentPriceToQuote(item.id)
+        if (!applyResponse || applyResponse.success === false) {
+          throw new Error(applyResponse?.error || 'Güncel fiyat uygulanamadı')
+        }
+      }
+
+      showNotification?.(applyLatest ? 'Kilit kaldırıldı ve güncel fiyat uygulandı' : 'Manuel kilit kaldırıldı', 'success')
+      if (typeof onSaved === 'function') {
+        await onSaved()
+      }
+
+      // Check for version updates after manual price release
+      if (checkAndProcessVersionUpdates && setGlobalProcessing) {
+        await checkAndProcessVersionUpdates()
+      }
+    } catch (error) {
+      console.error('Manual override release error:', error)
+      showNotification?.(`İşlem başarısız: ${error.message || 'Beklenmeyen hata'}`, 'error')
+    } finally {
+      setManualLoading(false)
+    }
   }
   
   async function onAddTech(filesList) {
@@ -266,67 +430,130 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
           }, '×')
         )
       ),
-  function renderDetailFields() {
-    if (!formConfig || !formConfig.formStructure.fields) {
-      return []
-    }
-    
-    const fields = []
-    
-    // Add system fields first
-    fields.push(
-      info('ID', item.id),
-      info(t.th_date || 'Tarih', (item.createdAt||'').replace('T',' ').slice(0,16)),
-      info(t.a_status || 'Durum', statusLabel(currStatus, t))
-    )
-    
-    // Add dynamic fields from form config
-    formConfig.formStructure.fields.forEach(field => {
       
-        let value = item.customFields?.[field.id] || item[field.id] || '—'
-        let label = field.label || field.id
-        
-        // Format value based on field type
-        if (field.type === 'multiselect' && Array.isArray(item.customFields?.[field.id] || item[field.id])) {
-          value = item.customFields?.[field.id] || item[field.id].join(', ') || '—'
-        } else if (field.type === 'radio' && field.options) {
-          // Keep the selected value as is
-          value = value || '—'
-        } else if (field.type === 'number') {
-          value = value ? (value + (field.unit || '')) : '—'
-        } else if (field.type === 'date') {
-          value = value || '—'
-        } else if (field.type === 'textarea') {
-          value = value || '—'
-        } else if (!value || value === '') {
-          value = '—'
+      !isNew && React.createElement('div', {
+        className: 'card manual-price-management',
+        style: {
+          padding: '12px',
+          marginBottom: '12px',
+          background: 'rgba(15, 30, 44, 0.65)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: '8px'
         }
-        
-        // Handle special formatting
-        if (field.id === 'thickness' && value !== '—') {
-          value = value + ' mm'
-        } else if (field.id === 'country' || field.id === 'city') {
-          // Handle country/city combination
-          const country = item.country || 'undefined'
-          const city = item.city || 'undefined'
-          if (field.id === 'country') {
-            value = `${country} / ${city}`
-            label = (t.f_country || 'Ülke') + '/' + (t.f_city || 'Şehir')
-          } else if (field.id === 'city') {
-            return null // Skip city field as it's combined with country
+      },
+        React.createElement('div', {
+          className: 'manual-price-header',
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '8px'
           }
-        } else if (field.id === 'repeat') {
-          value = value === 'recurrent' ? (t.repeat_recurrent || 'Sürekli') : (t.repeat_one || 'Tek Seferlik')
-        }
-        
-        if (value !== null) {
-          fields.push(info(label, value))
-        }
-      })
-    
-    return fields.filter(Boolean)
-  }
-
+        },
+          React.createElement('strong', null, 'Manuel Fiyat Yönetimi'),
+          manualOverrideActive && React.createElement('span', {
+            className: 'manual-price-lock-indicator',
+            style: { color: '#ffc107', fontSize: '12px', fontWeight: 600 }
+          }, `###🔒 ${formatPriceDisplay(manualOverride?.price ?? item.price)}`)
+        ),
+        React.createElement('div', {
+          className: 'manual-price-controls',
+          style: {
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px',
+            alignItems: 'center',
+            marginBottom: '6px'
+          }
+        },
+          React.createElement('input', {
+            type: 'number',
+            step: '0.01',
+            min: '0',
+            value: manualPriceInput,
+            onChange: (e) => setManualPriceInput(e.target.value),
+            disabled: manualLoading,
+            className: 'manual-price-input',
+            style: {
+              flex: '0 0 140px',
+              padding: '6px 8px',
+              borderRadius: '4px',
+              border: '1px solid rgba(255,255,255,0.2)',
+              background: 'rgba(15,23,42,0.45)',
+              color: 'var(--text, #f8fafc)'
+            }
+          }),
+          React.createElement('input', {
+            type: 'text',
+            placeholder: 'Not (opsiyonel)',
+            value: manualNote,
+            onChange: (e) => setManualNote(e.target.value),
+            disabled: manualLoading,
+            className: 'manual-price-note',
+            style: {
+              flex: '1 1 200px',
+              minWidth: '160px',
+              padding: '6px 8px',
+              borderRadius: '4px',
+              border: '1px solid rgba(255,255,255,0.2)',
+              background: 'rgba(15,23,42,0.45)',
+              color: 'var(--text, #f8fafc)'
+            }
+          }),
+          React.createElement('button', {
+            className: 'btn manual-price-btn',
+            onClick: handleManualPriceSave,
+            disabled: manualLoading,
+            style: {
+              padding: '4px 8px',
+              fontSize: '12px',
+              opacity: manualLoading ? 0.6 : 1
+            }
+          }, manualOverrideActive ? 'Güncelle' : 'Kilitle'),
+          manualOverrideActive && React.createElement('button', {
+            onClick: () => handleManualRelease(true),
+            disabled: manualLoading,
+            className: 'manual-price-apply-btn',
+            style: {
+              marginLeft: '4px',
+              padding: '2px 4px',
+              border: '1px solid rgba(220, 53, 69, 0.6)',
+              borderRadius: '4px',
+              backgroundColor: 'rgb(220, 53, 69)',
+              color: '#fff',
+              fontSize: '10px',
+              cursor: manualLoading ? 'not-allowed' : 'pointer',
+              opacity: manualLoading ? 0.7 : 1
+            }
+          }, 'Uygula'),
+          manualOverrideActive && React.createElement('button', {
+            className: 'btn manual-price-btn',
+            onClick: () => handleManualRelease(false),
+            disabled: manualLoading,
+            style: {
+              padding: '4px 8px',
+              fontSize: '12px',
+              opacity: manualLoading ? 0.6 : 1
+            }
+          }, 'Kilidi Aç')
+        ),
+        React.createElement('div', {
+          className: 'manual-price-description',
+          style: {
+            fontSize: '12px',
+            color: 'rgba(255,255,255,0.75)',
+            lineHeight: 1.5
+          }
+        }, manualOverrideActive
+          ? [
+              manualSetAtText ? `Kilit ${manualSetAtText} tarihinde ${manualSetByText || 'admin'} tarafından oluşturuldu.` : `Kilit ${(manualSetByText || 'admin')} tarafından oluşturuldu.`,
+              manualOverride?.note ? ` Not: ${manualOverride.note}` : null
+            ].filter(Boolean).join(' ') : 'Bu alanı kullanarak otomatik fiyatı geçersiz kılıp manuel değer belirleyebilirsiniz.'),
+        manualLoading && React.createElement('div', {
+          className: 'manual-price-loading',
+          style: { fontSize: '11px', color: '#9ca3af', marginTop: '4px' }
+        }, 'İşlem yapılıyor...')
+      ),
       (!editing && !isNew) ? React.createElement('div', { className: 'grid two', style: { gap: 8 } },
         ...renderDetailFields()
       ) : React.createElement('div', { className: 'grid two', style: { gap: 8 } },

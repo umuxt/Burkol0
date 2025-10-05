@@ -242,7 +242,7 @@ Sabitler: PI, E
    - Proje adı
    - Tarih
    - Durum
-   - Fiyat
+   - Fiyat (🔒 simgesi manuel fiyat işaretler)
    ```
 
 ### Teklif Detaylarını Görme
@@ -253,6 +253,43 @@ Sabitler: PI, E
    - Seçilen malzeme ve işlemler
    - Eklenen dosyalar
    - Hesaplanan fiyat
+   - **Manuel Fiyat Yönetimi bölümü**
+
+### 🔒 Manuel Fiyat Yönetimi (YENİ!)
+
+#### Manuel Fiyat Belirleme
+1. Teklif detayında **"Manuel Fiyat Yönetimi"** bölümünü bulun
+2. İstediğiniz fiyatı sayı alanına girin
+3. Opsiyonel olarak açıklama notu ekleyin
+4. **"Kilitle"** butonuna tıklayın
+5. ✅ Fiyat kilitlenir ve otomatik hesaplama devre dışı kalır
+
+#### Manuel Fiyat Özellikleri
+```
+- Otomatik fiyat hesaplaması durdurulur
+- Admin tablosunda ###🔒 simgesiyle gösterilir
+- Fiyat değiştirme butonları gizlenir
+- Kim ve ne zaman kilitlendiği kayıt altına alınır
+- Opsiyonel açıklama notu saklanır
+```
+
+#### Manuel Fiyat Güncelleme
+1. Kilitli teklifin detayına girin
+2. Yeni fiyat değerini girin
+3. **"Güncelle"** butonuna tıklayın
+4. Manuel fiyat güncellenirken kilit devam eder
+
+#### Manuel Fiyat Kilidini Açma
+
+**Seçenek 1: Güncel Otomatik Fiyatı Uygula**
+1. Kırmızı **"Uygula"** butonuna tıklayın
+2. ✅ Kilit kalkar + güncel otomatik fiyat uygulanır
+3. Sistem normal otomatik hesaplama moduna döner
+
+**Seçenek 2: Sadece Kilidi Aç**
+1. **"Kilidi Aç"** butonuna tıklayın
+2. ✅ Kilit kalkar ama fiyat değişmez
+3. Sistem normal otomatik hesaplama moduna döner
 
 ### Teklif Durum Değiştirme
 1. Listede durum sütunundaki dropdown'ı açın
@@ -264,6 +301,15 @@ Sabitler: PI, E
    - ❌ Reddedildi
    - 🏁 Tamamlandı
    ```
+
+### Kilitli Teklifleri Tanıma
+Admin tablosunda kilitli teklifler şu şekilde görünür:
+```
+Fiyat: ₺1,500.00 ###🔒
+```
+- 🔒 simgesi manuel fiyat işaretler
+- Bu tekliflerde fiyat değiştirme butonları görünmez
+- Otomatik fiyat güncellemeleri uygulanmaz
 
 ### Teklif Silme
 1. **Tek silme:** Satır sonundaki 🗑️ butonuna tıklayın

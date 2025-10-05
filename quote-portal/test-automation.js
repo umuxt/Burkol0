@@ -483,6 +483,9 @@ class BurkolTestRunner {
     // Teklif listesi
     await this.testQuoteList()
     
+    // Manual pricing tests
+    await this.testManualPricingWorkflow()
+    
     // Filtreleme
     await this.testFiltering()
     
@@ -537,6 +540,194 @@ class BurkolTestRunner {
 
     } catch (error) {
       await this.logResult('Teklif listesi', 'FAIL', error.message)
+    }
+  }
+
+  async testManualPricingWorkflow() {
+    console.log('\n🔒 Test: Manuel Fiyat Yönetimi Workflow')
+    
+    try {
+      // İlk teklifi bulup detay modal açma
+      const firstDetailBtn = await this.page.$('button:contains("Detay"), .btn[title*="detail"]')
+      if (!firstDetailBtn) {
+        // Try finding detail button with different selector
+        const detailButtons = await this.page.$$('button')
+        let detailBtn = null
+        for (const btn of detailButtons) {
+          const text = await this.page.evaluate(el => el.textContent, btn)
+          if (text.includes('Detay')) {
+            detailBtn = btn
+            break
+          }
+        }
+        
+        if (detailBtn) {
+          await detailBtn.click()
+        } else {
+          await this.logResult('Detail modal açma', 'FAIL', 'Detay button bulunamadı')
+          return
+        }
+      } else {
+        await firstDetailBtn.click()
+      }
+      
+      // Modal yüklenmesini bekle
+      await this.page.waitForTimeout(1000)
+      
+      // Manuel fiyat yönetimi bölümünü kontrol et
+      const manualPriceSection = await this.page.$('.manual-price-management')
+      if (manualPriceSection) {
+        await this.logResult('Manuel fiyat bölümü', 'PASS', 'Manuel fiyat yönetimi bölümü mevcut')
+        
+        // Manuel fiyat test etme
+        await this.testManualPriceSet()
+        
+        // Lock durumu test etme
+        await this.testPriceLockStatus()
+        
+        // Lock kaldırma test etme
+        await this.testPriceUnlock()
+        
+      } else {
+        await this.logResult('Manuel fiyat bölümü', 'FAIL', 'Manuel fiyat yönetimi bölümü bulunamadı')
+      }
+      
+    } catch (error) {
+      await this.logResult('Manuel fiyat workflow', 'FAIL', error.message)
+    }
+  }
+
+  async testManualPriceSet() {
+    console.log('\n💰 Test: Manuel fiyat belirleme')
+    
+    try {
+      // Fiyat input alanına değer gir
+      const priceInput = await this.page.$('.manual-price-input')
+      if (priceInput) {
+        await this.page.evaluate(el => el.value = '', priceInput)
+        await this.page.type('.manual-price-input', '1299.99')
+        
+        // Not alanına değer gir
+        const noteInput = await this.page.$('.manual-price-note')
+        if (noteInput) {
+          await this.page.evaluate(el => el.value = '', noteInput)
+          await this.page.type('.manual-price-note', 'Test automation manual price')
+        }
+        
+        // Kilitle button'una tıkla
+        const lockBtn = await this.page.$('.manual-price-btn')
+        if (lockBtn) {
+          await lockBtn.click()
+          
+          // API yanıtını bekle
+          await this.page.waitForTimeout(2000)
+          
+          // Lock indicator kontrolü
+          const lockIndicator = await this.page.$('.manual-price-lock-indicator')
+          if (lockIndicator) {
+            const lockText = await this.page.evaluate(el => el.textContent, lockIndicator)
+            if (lockText.includes('🔒') && lockText.includes('1299.99')) {
+              await this.logResult('Manuel fiyat set', 'PASS', 'Fiyat başarıyla kilitlendi')
+            } else {
+              await this.logResult('Manuel fiyat set', 'FAIL', 'Lock indicator yanlış değer gösteriyor')
+            }
+          } else {
+            await this.logResult('Manuel fiyat set', 'FAIL', 'Lock indicator görünmüyor')
+          }
+          
+        } else {
+          await this.logResult('Manuel fiyat set', 'FAIL', 'Lock button bulunamadı')
+        }
+        
+      } else {
+        await this.logResult('Manuel fiyat set', 'FAIL', 'Fiyat input alanı bulunamadı')
+      }
+      
+    } catch (error) {
+      await this.logResult('Manuel fiyat set', 'FAIL', error.message)
+    }
+  }
+
+  async testPriceLockStatus() {
+    console.log('\n🔐 Test: Fiyat kilit durumu')
+    
+    try {
+      // Modal'ı kapat
+      const closeBtn = await this.page.$('.modal .close, [onclick*="close"]')
+      if (closeBtn) {
+        await closeBtn.click()
+        await this.page.waitForTimeout(500)
+      }
+      
+      // Admin tablosunda lock indicator'ı kontrol et
+      const lockIndicators = await this.page.$$eval('td', cells => {
+        return cells.filter(cell => cell.textContent.includes('🔒')).length
+      })
+      
+      if (lockIndicators > 0) {
+        await this.logResult('Admin table lock display', 'PASS', `${lockIndicators} locked quote bulundu`)
+      } else {
+        await this.logResult('Admin table lock display', 'FAIL', 'Admin tablosunda lock indicator görünmüyor')
+      }
+      
+      // Price change button'ının gizli olduğunu kontrol et
+      const priceChangeButtons = await this.page.$$('button:contains("Hesapla"), button:contains("Uygula")')
+      if (priceChangeButtons.length === 0) {
+        await this.logResult('Price change button gizleme', 'PASS', 'Locked quote için price change button gizli')
+      } else {
+        await this.logResult('Price change button gizleme', 'PARTIAL', 'Price change button hala görünüyor olabilir')
+      }
+      
+    } catch (error) {
+      await this.logResult('Fiyat kilit durumu', 'FAIL', error.message)
+    }
+  }
+
+  async testPriceUnlock() {
+    console.log('\n🔓 Test: Fiyat kilit kaldırma')
+    
+    try {
+      // Tekrar detail modal'ı aç
+      const firstDetailBtn = await this.page.$('button:contains("Detay")')
+      if (firstDetailBtn) {
+        await firstDetailBtn.click()
+        await this.page.waitForTimeout(1000)
+        
+        // Uygula button'unu bul ve tıkla (kırmızı button)
+        const applyBtn = await this.page.$('.manual-price-apply-btn')
+        if (applyBtn) {
+          await applyBtn.click()
+          
+          // API yanıtını bekle
+          await this.page.waitForTimeout(2000)
+          
+          // Lock indicator'ın kaybolduğunu kontrol et
+          const lockIndicator = await this.page.$('.manual-price-lock-indicator')
+          if (!lockIndicator) {
+            await this.logResult('Manuel fiyat unlock', 'PASS', 'Fiyat kilidi başarıyla kaldırıldı')
+          } else {
+            // Indicator hala varsa görünür olmamalı
+            const isVisible = await this.page.evaluate(el => {
+              return el && el.offsetParent !== null
+            }, lockIndicator)
+            
+            if (!isVisible) {
+              await this.logResult('Manuel fiyat unlock', 'PASS', 'Fiyat kilidi kaldırıldı (indicator gizli)')
+            } else {
+              await this.logResult('Manuel fiyat unlock', 'FAIL', 'Lock indicator hala görünüyor')
+            }
+          }
+          
+        } else {
+          await this.logResult('Manuel fiyat unlock', 'FAIL', 'Uygula button bulunamadı')
+        }
+        
+      } else {
+        await this.logResult('Manuel fiyat unlock', 'FAIL', 'Detail modal tekrar açılamadı')
+      }
+      
+    } catch (error) {
+      await this.logResult('Manuel fiyat unlock', 'FAIL', error.message)
     }
   }
 
