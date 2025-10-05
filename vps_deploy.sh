@@ -5,7 +5,7 @@
 
 PROJECT_DIR="/root/Burkol0"
 BACKEND_DIR="$PROJECT_DIR/quote-portal"
-PM2_PROCESS_NAME="quote-portal" # Correct PM2 process name from your logs
+PM2_PROCESS_NAME="burkol" # Matching ecosystem.config.js process name
 
 echo "--- Starting Backend Deployment ---"
 
