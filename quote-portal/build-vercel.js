@@ -92,7 +92,7 @@ function createVercelHTML(template, outputName) {
 }
 
 createVercelHTML('index.html', 'index.html')
-createVercelHTML('panel-gizli.html', 'panel-gizli.html')
+createVercelHTML('quote-dashboard.html', 'quote-dashboard.html')
 
 // Copy img directory
 const imgSrc = path.join(__dirname, 'img')

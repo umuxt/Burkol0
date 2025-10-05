@@ -398,7 +398,7 @@ class BurkolSafariTestRunner {
     this.consoleErrors = []
     this.networkErrors = []
     
-    await this.page.goto(`${this.baseUrl}/panel-gizli.html`)
+    await this.page.goto(`${this.baseUrl}/quote-dashboard.html`)
     await this.page.waitForTimeout(3000)
     
     // Admin sayfası yükleme ve hatalar

@@ -179,7 +179,7 @@ class ExtendedBurkolTests {
   async runExtendedAdminTests() {
     console.log('\n🔐 EXTENDED ADMIN TESTS')
     
-    await this.page.goto(`${this.baseUrl}/panel-gizli.html`)
+    await this.page.goto(`${this.baseUrl}/quote-dashboard.html`)
     await this.page.waitForTimeout(3000)
 
     // Login first
@@ -357,7 +357,7 @@ class ExtendedBurkolTests {
       `${userPageTime}ms (target: <5000ms)`)
 
     const adminPageStart = Date.now()
-    await this.page.goto(`${this.baseUrl}/panel-gizli.html`)
+    await this.page.goto(`${this.baseUrl}/quote-dashboard.html`)
     await this.page.waitForLoadState('networkidle')
     const adminPageTime = Date.now() - adminPageStart
     

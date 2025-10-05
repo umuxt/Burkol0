@@ -475,7 +475,7 @@ class BurkolTestRunner {
   // ADMIN TESTLERİ
   async runAdminTests() {
     console.log('\n🔐 ADMIN TESTLERİ BAŞLIYOR...')
-    await this.page.goto(`${this.baseUrl}/panel-gizli.html`)
+    await this.page.goto(`${this.baseUrl}/quote-dashboard.html`)
     
     // Admin login
     await this.testAdminLogin()

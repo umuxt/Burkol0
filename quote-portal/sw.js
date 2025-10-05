@@ -7,7 +7,7 @@ const DYNAMIC_CACHE = 'burkol-dynamic-v1.3'
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/panel-gizli.html',
+  '/quote-dashboard.html',
   '/manifest.json',
   
   // JavaScript modules
@@ -279,7 +279,7 @@ self.addEventListener('notificationclick', (event) => {
 
   if (event.action === 'explore') {
     event.waitUntil(
-      clients.openWindow('/panel-gizli.html')
+      clients.openWindow('/quote-dashboard.html')
     )
   }
 })

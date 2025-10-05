@@ -6,7 +6,7 @@ import DynamicFormRenderer from './components/DynamicFormRenderer.js';
 import Admin from './components/admin/Admin.js';
 import { ToastNotification, useNotifications } from './hooks/useNotifications.js';
 
-const PAGE = window.location.pathname.includes('panel-gizli.html') ? 'admin' : 'quote';
+const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin' : 'quote';
 
 function Nav({ onLang, lang, t }) {
   const isAdmin = PAGE === 'admin';
@@ -15,7 +15,7 @@ function Nav({ onLang, lang, t }) {
       <div className='nav-inner container'>
         <div className='brand'>
           <div className='dot'></div>
-          <a href={isAdmin ? './panel-gizli.html' : './index.html'}>BURKOL</a>
+          <a href={isAdmin ? './quote-dashboard.html' : './index.html'}>BURKOL</a>
         </div>
         <div className='row wrap'>
           <div className='tabs'></div>

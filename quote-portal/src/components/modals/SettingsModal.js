@@ -2,7 +2,7 @@
 import React from 'react';
 import PricingTab from '../settings/DynamicPricingTab.js'
 import FormTab from '../settings/FormTab.js'
-import UsersTab from '../settings/UsersTab.js'
+import UsersTab from '../settings/UsersTab.jsx'
 
 const { useState, useEffect } = React;
 

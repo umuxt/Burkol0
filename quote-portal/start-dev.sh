@@ -72,7 +72,7 @@ fi
 echo ""
 echo "🌐 Access URLs:"
 echo "   Frontend: http://localhost:3001/"
-echo "   Admin Panel: http://localhost:3001/panel-gizli.html"
+echo "   Admin Panel: http://localhost:3001/quote-dashboard.html"
 echo "   API Status: http://localhost:3000/api/quotes"
 echo ""
 echo "📝 Troubleshooting:"

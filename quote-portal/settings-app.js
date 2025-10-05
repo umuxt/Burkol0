@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import PricingTab from './src/components/settings/DynamicPricingTab.js'
 import FormTab from './src/components/settings/FormTab.js'
-import UsersTab from './src/components/settings/UsersTab.js'
+import UsersTab from './src/components/settings/UsersTab.jsx'
 
 // Notification Hook
 function useNotifications() {

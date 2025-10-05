@@ -692,6 +692,79 @@ function Admin({ t, onLogout, showNotification }) {
   }
 
   return React.createElement('div', { className: 'admin-panel' },
+    // Navigation Header
+    React.createElement('div', {
+      style: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '1rem 1.5rem',
+        background: 'rgba(255, 255, 255, 0.1)',
+        backdropFilter: 'blur(10px)',
+        borderRadius: '15px',
+        border: '1px solid rgba(255, 255, 255, 0.2)',
+        marginBottom: '1rem'
+      }
+    },
+      React.createElement('div', {
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem'
+        }
+      },
+        React.createElement('a', {
+          href: './admin-dashboard.html',
+          style: {
+            padding: '0.75rem 1.5rem',
+            background: 'linear-gradient(135deg, #6c757d 0%, #495057 100%)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+            fontWeight: '500',
+            transition: 'all 0.3s ease',
+            boxShadow: '0 4px 15px rgba(108, 117, 125, 0.3)',
+            textDecoration: 'none',
+            display: 'inline-flex',
+            alignItems: 'center'
+          }
+        }, '← Yönetim Paneli'),
+        React.createElement('div', {},
+          React.createElement('h1', {
+            style: {
+              fontSize: '1.5rem',
+              color: '#333',
+              margin: '0 0 0.25rem 0',
+              fontWeight: '600'
+            }
+          }, 'Teklif Yönetimi'),
+          React.createElement('p', {
+            style: {
+              fontSize: '0.9rem',
+              color: '#666',
+              margin: '0'
+            }
+          }, 'Müşteri teklifleri ve hesaplamaları')
+        )
+      ),
+      React.createElement('button', {
+        onClick: onLogout,
+        style: {
+          padding: '0.75rem 1.5rem',
+          background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)',
+          color: 'white',
+          border: 'none',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '1rem',
+          fontWeight: '500',
+          transition: 'all 0.3s ease',
+          boxShadow: '0 4px 15px rgba(238, 90, 36, 0.3)'
+        }
+      }, '🚪 Çıkış')
+    ),
     // Toast notification
     notification && React.createElement('div', {
       style: {
@@ -745,67 +818,6 @@ function Admin({ t, onLogout, showNotification }) {
         }
       }),
       React.createElement('div', null, t.a_processing || 'Değişiklikler uygulanıyor...')
-    ),
-
-    // Header with logout button
-    React.createElement('div', { className: 'header', style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' } },
-      React.createElement('h1', null, t.a_title || 'Admin Panel'),
-      React.createElement('div', { style: { display: 'flex', gap: '10px' } },
-        React.createElement('a', { 
-          href: './settings.html',
-          className: 'btn', 
-          style: { 
-            backgroundColor: '#007bff', 
-            color: 'white', 
-            border: 'none',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '16px',
-            transition: 'all 0.2s ease',
-            textDecoration: 'none',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '5px'
-          },
-          onMouseOver: (e) => e.target.style.backgroundColor = '#0056b3',
-          onMouseOut: (e) => e.target.style.backgroundColor = '#007bff',
-          title: 'Sistem Ayarları'
-        }, '⚙️ Ayarlar'),
-        React.createElement('a', {
-          href: './production.html',
-          className: 'btn',
-          style: {
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '16px',
-            transition: 'all 0.2s ease',
-            textDecoration: 'none',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px'
-          },
-          onMouseOver: (e) => e.target.style.backgroundColor = '#1e7e34',
-          onMouseOut: (e) => e.target.style.backgroundColor = '#28a745',
-          title: t.production_dashboard_title || 'Üretim Paneli'
-        }, `📈 ${t.production_dashboard_btn || 'Production Dashboard'}`),
-        React.createElement('button', { 
-          onClick: handleLogout, 
-          className: 'btn', 
-          style: { 
-            backgroundColor: '#ff3b30', 
-            color: 'white', 
-            border: 'none',
-            padding: '8px 16px',
-            borderRadius: '6px',
-            cursor: 'pointer'
-          } 
-        }, t.logout_btn || 'Çıkış Yap')
-      )
     ),
 
     // Statistics charts

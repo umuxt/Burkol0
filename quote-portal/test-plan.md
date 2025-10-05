@@ -4,7 +4,7 @@
 - **Platform:** Local Development
 - **Browser:** Chrome/Safari 
 - **URL User:** http://localhost:3001/index.html
-- **URL Admin:** http://localhost:3001/panel-gizli.html
+- **URL Admin:** http://localhost:3001/quote-dashboard.html
 
 ## USER TESTLERİ (5 ANA AKSİYON)
 

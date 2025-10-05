@@ -19,7 +19,7 @@ fs.mkdirSync(distDir)
 // Copy static files - COMPLETE LIST
 const staticFiles = [
   'index.html',
-  'panel-gizli.html',
+  'quote-dashboard.html',
   'settings.html',
   'app.js',
   'i18n.js',
@@ -97,7 +97,7 @@ console.log('\n🔍 Verifying build...\n')
 
 const criticalFiles = [
   'index.html',
-  'panel-gizli.html', 
+  'quote-dashboard.html', 
   'settings.html',
   'app.js',
   'settings-app.js',

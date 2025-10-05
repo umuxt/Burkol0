@@ -43,7 +43,7 @@ else
 fi
 
 # Test admin panel
-if curl -s http://localhost:3001/panel-gizli.html >/dev/null 2>&1; then
+if curl -s http://localhost:3001/quote-dashboard.html >/dev/null 2>&1; then
     echo "✅ Admin Panel: Accessible"
 else
     echo "❌ Admin Panel: Not accessible"
@@ -52,7 +52,7 @@ fi
 echo ""
 echo "🔗 Quick Access URLs:"
 echo "   Frontend: http://localhost:3001/"
-echo "   Admin Panel: http://localhost:3001/panel-gizli.html"
+echo "   Admin Panel: http://localhost:3001/quote-dashboard.html"
 echo "   API Test: http://localhost:3000/api/quotes"
 
 echo ""

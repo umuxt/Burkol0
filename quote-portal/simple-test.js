@@ -40,7 +40,7 @@ class SimpleBurkolTest {
       this.log('User sayfası yükleme', userResponse.status() === 200 ? 'PASS' : 'FAIL', `Status: ${userResponse.status()}`)
       
       // Admin sayfa testi  
-      const adminResponse = await this.page.goto(`${this.baseUrl}/panel-gizli.html`)
+      const adminResponse = await this.page.goto(`${this.baseUrl}/quote-dashboard.html`)
       this.log('Admin sayfası yükleme', adminResponse.status() === 200 ? 'PASS' : 'FAIL', `Status: ${adminResponse.status()}`)
       
       // API health check
@@ -102,7 +102,7 @@ class SimpleBurkolTest {
   async testAdminPage() {
     console.log('\n🔐 Admin Sayfa Testleri:')
     
-    await this.page.goto(`${this.baseUrl}/panel-gizli.html`)
+    await this.page.goto(`${this.baseUrl}/quote-dashboard.html`)
     await this.page.waitForTimeout(3000)
     
     // Login form test

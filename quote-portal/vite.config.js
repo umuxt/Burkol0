@@ -25,7 +25,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        admin: resolve(__dirname, 'panel-gizli.html'),
+        admin: resolve(__dirname, 'quote-dashboard.html'),
         settings: resolve(__dirname, 'settings.html')
       }
     }

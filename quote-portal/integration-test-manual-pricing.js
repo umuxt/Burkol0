@@ -15,7 +15,7 @@ class IntegrationTestSuite {
     this.page = null
     this.results = []
     this.baseUrl = 'http://localhost:3001'
-    this.adminUrl = `${this.baseUrl}/panel-gizli.html`
+    this.adminUrl = `${this.baseUrl}/quote-dashboard.html`
     this.testData = {
       testQuoteId: null,
       originalQuotes: []
