@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { useI18n } from './i18n/index.js';
+import { useI18n } from './i18n.js';
 import API from './lib/api.js';
 import DynamicFormRenderer from './components/DynamicFormRenderer.js';
 import Admin from './components/admin/Admin.js';

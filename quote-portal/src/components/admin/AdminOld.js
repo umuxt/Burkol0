@@ -1,5 +1,5 @@
 import API from '../../lib/api.js'
-import { statusLabel, procLabel, materialLabel } from '../../i18n/index.js'
+import { statusLabel, procLabel, materialLabel } from '../../i18n.js'
 import { getTableColumns, getFieldValue, formatFieldValue } from './AdminTableUtils.js'
 import { calculatePrice, needsPriceUpdate, getPriceChangeType, getChanges, getChangeReason, applyNewPrice } from './AdminPriceCalculator.js'
 import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from './AdminFilterUtils.js'

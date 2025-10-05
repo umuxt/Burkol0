@@ -1,10 +1,10 @@
 import React from 'react';
 import API, { API_BASE } from '../../lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../lib/utils.js'
-import { statusLabel } from '../../i18n/index.js'
+import { statusLabel } from '../../i18n.js'
 import { PriceStatusBadge } from '../admin/PriceStatusUI.js'
 
-export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, showNotification, formConfig, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates }) {
+export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, showNotification, formConfig, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, currentQuotes }) {
   console.log('🔧 DEBUG: DetailModal rendered with item:', item?.id, 'formConfig:', !!formConfig)
   
   const [currStatus, setCurrStatus] = React.useState(item.status || 'new')
@@ -16,6 +16,8 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
   const [manualPriceInput, setManualPriceInput] = React.useState(() => formatManualPriceInput(item.manualOverride?.price ?? item.price))
   const [manualNote, setManualNote] = React.useState(item.manualOverride?.note || '')
   const [manualLoading, setManualLoading] = React.useState(false)
+  const [showPriceUpdateModal, setShowPriceUpdateModal] = React.useState(false)
+  const [priceUpdateData, setPriceUpdateData] = React.useState(null)
   
   React.useEffect(() => {
     setCurrStatus(item.status || 'new')
@@ -46,7 +48,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     const initialManualPrice = override?.price ?? item.price
     setManualPriceInput(formatManualPriceInput(initialManualPrice))
     setManualNote(override?.note || '')
-  }, [item.id, item.status])
+  }, [item.id, item.status, item.price, item.manualOverride])
   
   function setF(k, v) { 
     setForm((s) => ({ ...s, [k]: v })) 
@@ -248,7 +250,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
 
       // Check for version updates after manual price save
       if (checkAndProcessVersionUpdates && setGlobalProcessing) {
-        await checkAndProcessVersionUpdates()
+        await checkAndProcessVersionUpdates(currentQuotes)
       }
     } catch (error) {
       console.error('Manual price save error:', error)
@@ -258,35 +260,118 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     }
   }
 
+  function handlePriceStatusClick() {
+    if (!item.priceStatus || !item.priceStatus.calculatedPrice) return
+    
+    const currentPrice = parseFloat(item.price) || 0
+    const newPrice = parseFloat(item.priceStatus.calculatedPrice) || 0
+    const priceDifference = newPrice - currentPrice
+    
+    // Prepare version information
+    const versionInfo = item.priceStatus?.versionInfo || {}
+    const originalVersion = versionInfo.originalVersion || 'Bilinmiyor'
+    const currentVersion = versionInfo.currentVersion || 'Bilinmiyor'
+    const latestVersion = versionInfo.latestVersion || 'Bilinmiyor'
+    const comparisonBasis = versionInfo.comparisonBasis || 'Mevcut → Güncel'
+    
+    // Prepare parameter changes
+    const parameterChanges = versionInfo.parameterChanges || []
+    
+    setPriceUpdateData({
+      customerName: item.name || 'Bilinmiyor',
+      projectName: item.proj || 'Bilinmiyor',
+      currentPrice,
+      newPrice,
+      priceDifference,
+      originalVersion,
+      currentVersion,
+      latestVersion,
+      comparisonBasis,
+      parameterChanges
+    })
+    
+    setShowPriceUpdateModal(true)
+  }
+
   async function handleManualRelease(applyLatest = false) {
-    if (!item || !item.id) return
+    console.log('� handleManualRelease STARTED with applyLatest:', applyLatest)
+    console.log('🔴 item:', item)
+    console.log('🔴 item.id:', item?.id)
+    console.log('🔴 manualLoading before:', manualLoading)
+    
+    if (!item || !item.id) {
+      console.log('🔴 ERROR: No item or item.id')
+      return
+    }
+    console.log('🔴 Setting manualLoading to true')
     setManualLoading(true)
     try {
+      console.log('� Clearing manual price...')
       const response = await API.clearManualPrice(item.id, applyLatest ? 'Manuel fiyat kilidi kaldırıldı ve güncel sürüm uygulandı' : 'Manuel fiyat kilidi kaldırıldı')
+      console.log('� Clear manual price response:', response)
       const clearedQuote = response?.quote || response || {}
       setManualOverride(clearedQuote.manualOverride || { active: false })
       setManualPriceInput(formatManualPriceInput(clearedQuote.manualOverride?.price ?? clearedQuote.price ?? ''))
       setManualNote(clearedQuote.manualOverride?.note || '')
 
       if (applyLatest) {
+        console.log('🔧 Applying current price...')
         const applyResponse = await API.applyCurrentPriceToQuote(item.id)
+        console.log('🔧 Apply current price response:', applyResponse)
         if (!applyResponse || applyResponse.success === false) {
           throw new Error(applyResponse?.error || 'Güncel fiyat uygulanamadı')
         }
       }
 
+      console.log('🔧 Operation completed successfully')
       showNotification?.(applyLatest ? 'Kilit kaldırıldı ve güncel fiyat uygulandı' : 'Manuel kilit kaldırıldı', 'success')
       if (typeof onSaved === 'function') {
+        console.log('🔧 Calling onSaved function...')
         await onSaved()
+        console.log('🔧 onSaved completed')
+      } else {
+        console.log('🔧 No onSaved function provided')
       }
 
       // Check for version updates after manual price release
       if (checkAndProcessVersionUpdates && setGlobalProcessing) {
+        console.log('🔧 Checking for version updates...')
         await checkAndProcessVersionUpdates()
+        console.log('🔧 Version updates check completed')
       }
     } catch (error) {
       console.error('Manual override release error:', error)
       showNotification?.(`İşlem başarısız: ${error.message || 'Beklenmeyen hata'}`, 'error')
+    } finally {
+      setManualLoading(false)
+    }
+  }
+
+  async function handleApplyPriceUpdate() {
+    if (!priceUpdateData || !item.id) return
+    
+    setManualLoading(true)
+    try {
+      const response = await API.applyCurrentPriceToQuote(item.id)
+      if (!response || response.success === false) {
+        throw new Error(response?.error || 'Fiyat güncellemesi başarısız')
+      }
+      
+      showNotification?.('Fiyat başarıyla güncellendi', 'success')
+      setShowPriceUpdateModal(false)
+      setPriceUpdateData(null)
+      
+      if (typeof onSaved === 'function') {
+        await onSaved()
+      }
+      
+      // Check for version updates after price update
+      if (checkAndProcessVersionUpdates && setGlobalProcessing) {
+        await checkAndProcessVersionUpdates(currentQuotes)
+      }
+    } catch (error) {
+      console.error('Price update error:', error)
+      showNotification?.(`Fiyat güncellemesi başarısız: ${error.message || 'Beklenmeyen hata'}`, 'error')
     } finally {
       setManualLoading(false)
     }
@@ -381,6 +466,119 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
    
     onClose()
   }
+
+  // Price Update Modal component
+  const PriceUpdateModal = showPriceUpdateModal && priceUpdateData && React.createElement('div', {
+    style: {
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.7)',
+      backdropFilter: 'blur(4px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 60
+    },
+    onClick: () => setShowPriceUpdateModal(false)
+  },
+    React.createElement('div', {
+      className: 'card detail-modal',
+      style: {
+        width: 'min(500px, 90vw)',
+        maxHeight: '85vh',
+        overflowY: 'auto',
+        position: 'relative',
+        padding: '20px',
+        margin: '20px'
+      },
+      onClick: (e) => e.stopPropagation()
+    },
+      React.createElement('div', {
+        style: {
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '20px',
+          paddingBottom: '10px',
+          borderBottom: '1px solid rgba(255,255,255,0.1)'
+        }
+      },
+        React.createElement('h3', { style: { margin: 0 } }, 'Fiyat Güncelleme'),
+        React.createElement('button', {
+          style: {
+            background: 'none',
+            border: 'none',
+            color: '#888',
+            fontSize: '24px',
+            cursor: 'pointer',
+            padding: 0,
+            width: '30px',
+            height: '30px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          },
+          onClick: () => setShowPriceUpdateModal(false)
+        }, '×')
+      ),
+      React.createElement('div', { style: { marginBottom: '20px' } },
+        React.createElement('p', { style: { margin: '8px 0' } }, `Müşteri: ${priceUpdateData.customerName}`),
+        React.createElement('p', { style: { margin: '8px 0' } }, `Proje: ${priceUpdateData.projectName}`),
+        React.createElement('p', { style: { margin: '8px 0' } }, `Mevcut Fiyat: ₺${priceUpdateData.currentPrice.toFixed(2)}`),
+        React.createElement('p', { style: { margin: '8px 0' } }, `Yeni Fiyat: ₺${priceUpdateData.newPrice.toFixed(2)}`),
+        React.createElement('p', { 
+          style: { 
+            margin: '8px 0', 
+            color: priceUpdateData.priceDifference >= 0 ? '#dc3545' : '#28a745', 
+            fontWeight: 'bold' 
+          } 
+        }, `Fiyat Farkı: ${priceUpdateData.priceDifference >= 0 ? '+' : ''}₺${priceUpdateData.priceDifference.toFixed(2)}`),
+        React.createElement('div', {
+          style: {
+            margin: '8px 0',
+            fontSize: '13px',
+            color: '#666'
+          }
+        },
+          React.createElement('div', null, `Orijinal Versiyon: ${priceUpdateData.originalVersion}`),
+          React.createElement('div', null, `Mevcut Versiyon: ${priceUpdateData.currentVersion}`),
+          React.createElement('div', null, `Güncel Versiyon: ${priceUpdateData.latestVersion}`),
+          React.createElement('div', null, `Karşılaştırma Bazı: ${priceUpdateData.comparisonBasis}`)
+        ),
+        priceUpdateData.parameterChanges && priceUpdateData.parameterChanges.length > 0 &&
+        React.createElement('div', { style: { margin: '12px 0' } },
+          React.createElement('strong', { style: { display: 'block', marginBottom: '6px' } }, 'Parametre Değişiklikleri'),
+          React.createElement('ul', { style: { paddingLeft: '18px', margin: 0 } },
+            priceUpdateData.parameterChanges.map((change, index) =>
+              React.createElement('li', {
+                key: index,
+                style: { marginBottom: '4px', color: '#555' }
+              }, change)
+            )
+          )
+        )
+      ),
+      React.createElement('div', {
+        style: {
+          display: 'flex',
+          gap: '10px',
+          justifyContent: 'flex-end',
+          borderTop: '1px solid rgba(255,255,255,0.1)',
+          paddingTop: '15px'
+        }
+      },
+        React.createElement('button', {
+          className: 'btn btn-secondary',
+          onClick: () => setShowPriceUpdateModal(false)
+        }, 'İptal'),
+        React.createElement('button', {
+          className: 'btn btn-primary',
+          onClick: handleApplyPriceUpdate,
+          disabled: manualLoading
+        }, manualLoading ? 'Güncelleniyor...' : 'Fiyatı Güncelle')
+      )
+    )
+  )
   
   return React.createElement('div', { style: {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
@@ -411,15 +609,33 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
               style: { transition: 'all 0.2s ease' }
             }, t.cancel)
           ),
-          !editing && item.priceStatus && React.createElement(PriceStatusBadge, {
-            quote: item,
-            compact: true,
-            onUpdate: async () => {
-              if (typeof onSaved === 'function') {
-                try { await onSaved() } catch {}
-              }
+          !editing && item.priceStatus && React.createElement('span', {
+            onClick: (e) => {
+              e.stopPropagation()
+              handlePriceStatusClick()
+            },
+            title: 'Fiyat güncelleme bilgileri için tıklayın',
+            style: {
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              fontSize: '10px',
+              fontWeight: '500',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              cursor: 'pointer',
+              opacity: 1,
+              transition: '0.2s',
+              backgroundColor: 'rgba(239, 68, 68, 0.1)',
+              color: '#ef4444'
             }
-          }),
+          }, 
+            React.createElement('span', null, '❓'),
+            React.createElement('span', null, item.priceStatus?.status === 'drift' ? 'Sapma' : 
+              item.priceStatus?.status === 'outdated' ? 'Güncel Değil' : 
+              item.priceStatus?.status === 'unknown' ? 'Bilinmeyen' : 'Durum')
+          ),
           React.createElement('button', { 
             className: 'btn', 
             onClick: onClose, 
@@ -511,7 +727,12 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
             }
           }, manualOverrideActive ? 'Güncelle' : 'Kilitle'),
           manualOverrideActive && React.createElement('button', {
-            onClick: () => handleManualRelease(true),
+            onClick: () => {
+              console.log('🔴 UYGULA BUTTON CLICKED!')
+              console.log('🔴 manualLoading:', manualLoading)
+              console.log('🔴 item.id:', item?.id)
+              handleManualRelease(true)
+            },
             disabled: manualLoading,
             className: 'manual-price-apply-btn',
             style: {
@@ -606,7 +827,8 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
             : React.createElement('button', { className: 'btn icon-btn dl-center', title: t.tt_download_txt, onClick: () => { if (f.dataUrl) downloadDataUrl(f.name, f.dataUrl); else { const u=f.url||''; window.open(/^https?:/i.test(u)?u:(API_BASE.replace(/\/$/,'')+u), '_blank') } } }, '⬇')
         ))
       ) : null
-    )
+    ),
+    PriceUpdateModal
   )
 
   function info(k, v) {

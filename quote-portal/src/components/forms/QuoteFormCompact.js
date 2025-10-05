@@ -2,7 +2,7 @@
 // Safe to remove once audits confirm no integrations render this component dynamically
 
 // Compact Quote Form - Modular multi-step form with validation and file upload
-import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../i18n/index.js'
+import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../i18n.js'
 import API from '../../lib/api.js'
 import { uid } from '../../lib/utils.js'
 import Field from '../Field.js'

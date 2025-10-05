@@ -1,6 +1,6 @@
 import React from 'react';
 import API from '../../lib/api.js'
-import { statusLabel, procLabel, materialLabel } from '../../i18n/index.js'
+import { statusLabel, procLabel, materialLabel } from '../../i18n.js'
 import { getTableColumns, getFieldValue, formatFieldValue } from './AdminTableUtils.js'
 import { calculatePrice, getPriceChangeType } from './AdminPriceCalculator.js'
 import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from './AdminFilterUtils.js'
@@ -90,8 +90,18 @@ function Admin({ t, onLogout, showNotification }) {
 
   async function checkAndProcessVersionUpdates(quotesData) {
     try {
+      // If quotesData is not provided, fetch it from the current list
+      let dataToCheck = quotesData;
+      if (!dataToCheck || !Array.isArray(dataToCheck)) {
+        dataToCheck = list || [];
+        if (dataToCheck.length === 0) {
+          console.log('🔧 No quotes data available for version update check');
+          return;
+        }
+      }
+
       // Check if there are quotes that need version comparison
-      const quotesNeedingUpdate = quotesData.filter(quote => 
+      const quotesNeedingUpdate = dataToCheck.filter(quote => 
         !quote.manualOverride?.active && // Skip manually locked quotes
         (quote.priceStatus?.status === 'outdated' || 
          quote.priceStatus?.status === 'drift' ||
@@ -172,6 +182,17 @@ function Admin({ t, onLogout, showNotification }) {
       showNotification('Refresh failed: ' + error.message, 'error')
     }
   }
+
+  // Update detail modal when list changes
+  React.useEffect(() => {
+    if (detail && detail.id && list && list.length > 0) {
+      const updatedItem = list.find(item => item.id === detail.id)
+      if (updatedItem && JSON.stringify(updatedItem) !== JSON.stringify(detail)) {
+        console.log('🔧 Updating detail modal with refreshed data from list change')
+        setDetail(updatedItem)
+      }
+    }
+  }, [list, detail])
 
   async function handleAddRecord(recordData) {
     console.log('🔧 DEBUG: handleAddRecord called with:', recordData)
@@ -546,7 +567,10 @@ function Admin({ t, onLogout, showNotification }) {
       await refresh()
       // Check for version updates after bulk price update
       if (!cancelled && successCount > 0) {
-        await checkAndProcessVersionUpdates()
+        // Wait for state to update after refresh, then use current list
+        setTimeout(() => {
+          checkAndProcessVersionUpdates()
+        }, 100)
       }
     } catch (refreshError) {
       console.error('Bulk refresh error:', refreshError)
@@ -1125,7 +1149,8 @@ function Admin({ t, onLogout, showNotification }) {
       showNotification,
       globalProcessing,
       setGlobalProcessing,
-      checkAndProcessVersionUpdates
+      checkAndProcessVersionUpdates,
+      currentQuotes: list
     }),
 
     filterPopup && React.createElement(FilterPopup, {

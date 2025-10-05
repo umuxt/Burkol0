@@ -31,7 +31,7 @@ function bundleComponents() {
     'components/modals/FilterPopup.js',
     'components/modals/FilesModal.js',
     'hooks/useNotifications.js',
-    'i18n/index.js',
+    'i18n.js',
     'lib/api.js',
     'lib/utils.js'
   ]

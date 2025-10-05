@@ -1,5 +1,5 @@
 // API and localStorage fallback (ES module)
-import { tFor, statusLabel } from '../i18n/index.js'
+import { tFor, statusLabel } from '../i18n.js'
 
 const LS_KEY = 'bk_quotes_v1'
 function lsLoad() {
