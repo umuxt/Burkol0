@@ -37,7 +37,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
   const [pendingSubmitData, setPendingSubmitData] = useState(null)
   const [emptyOptionalList, setEmptyOptionalList] = useState([])
   
-  // Phase 2: Real-time price calculation
+  // Real-time price calculation lifecycle
   const [priceSettings, setPriceSettings] = useState(null)
   const [calculatedPrice, setCalculatedPrice] = useState(null)
   const [priceLoading, setPriceLoading] = useState(false)
@@ -59,14 +59,14 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
     loadFormConfig()
   }, [])
 
-  // Phase 2: Load price settings when form config is loaded
+  // Load price settings whenever the form configuration becomes available
   useEffect(() => {
     if (formConfig) {
       loadPriceSettings()
     }
   }, [formConfig])
 
-  // Phase 2: Calculate price when form data changes (debounced)
+  // Debounced price recalculation whenever form data changes
   useEffect(() => {
     if (priceSettings && formData) {
       // Clear existing timer
@@ -114,7 +114,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
     }
   }
 
-  // Phase 2: Load price settings for real-time calculation
+  // Ensure pricing configuration is ready before running live calculations
   async function loadPriceSettings() {
     try {
       console.log('💰 Loading price settings for real-time calculation...')
@@ -128,7 +128,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
     }
   }
 
-  // Phase 2: Calculate price preview
+  // Generate price preview data from current form state
   async function calculatePricePreview() {
     if (!priceSettings || priceLoading) return
     
@@ -1139,7 +1139,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
         )
       ),
 
-      // Phase 2: Price Preview Section
+      // Price preview section rendered when live pricing is enabled
       priceSettings && React.createElement('div', { className: 'form-section price-preview' },
         React.createElement('div', { className: 'section-card' },
           React.createElement('div', { className: 'section-title' }, '💰 Fiyat Önizleme'),

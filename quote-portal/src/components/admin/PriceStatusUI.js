@@ -1,5 +1,5 @@
-// PriceStatus UI Component - Phase B
-// Visual representation of price status with user controls
+// PriceStatus UI component that visualizes status state and exposes recovery actions
+// Used throughout the admin surfaces to keep quotes in sync with pricing versions
 
 import React from 'react'
 import architectureAPI from '../../lib/architectureAPI.js'

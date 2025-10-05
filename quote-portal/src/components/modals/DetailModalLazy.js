@@ -1,45 +1,11 @@
-// Lazy-loaded Detail Modal - Temporarily using static imports to avoid console errors// Lazy-loaded Detail Modal - Temporarily using static imports to avoid console errors
+// Detail Modal - Static import implementation for performance optimization
+// Lazy loading disabled to prevent console errors during development
 
-import { DetailModal } from './DetailModal.js'// import ModuleLoader from '../../performance/module-loader.js'
-
+import React from 'react'
 import { DetailModal } from './DetailModal.js'
 
 // Use static import instead of lazy loading to avoid console spam
-
-const LazyDetailModal = DetailModal// Use static import instead of lazy loading to avoid console spam
-
 const LazyDetailModal = DetailModal
-
-// Export the component    }
-
-export { LazyDetailModal as DetailModal }  }, React.createElement('div', {
-
-export default LazyDetailModal    className: 'modal-content',
-    style: {
-      background: 'var(--surface)',
-      borderRadius: 'var(--radius-lg)',
-      padding: '2rem',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '1rem',
-      color: 'var(--text)'
-    }
-  }, [
-    React.createElement('div', {
-      key: 'spinner',
-      className: 'spinner',
-      style: {
-        width: '20px',
-        height: '20px',
-        border: '2px solid var(--accent)',
-        borderTop: '2px solid transparent',
-        borderRadius: '50%',
-        animation: 'spin 1s linear infinite'
-      }
-    }),
-    React.createElement('span', { key: 'text' }, 'Detay modal yükleniyor...')
-  ]))
-)
 
 // Lightweight wrapper for immediate response
 export function DetailModalWrapper(props) {

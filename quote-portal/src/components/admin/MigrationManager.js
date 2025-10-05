@@ -1,5 +1,5 @@
-// Migration Management UI - Phase C
-// Admin interface for controlling migration from legacy to new architecture
+// Migration management UI used to control legacy-to-PriceStatus conversions
+// Drives the admin dashboard widgets for running, validating, and cleaning migrations
 
 import React from 'react'
 
@@ -176,7 +176,7 @@ const MigrationManager = () => {
   return React.createElement('div', { className: 'migration-manager' },
     // Header
     React.createElement('div', { className: 'migration-header' },
-      React.createElement('h3', null, '🔄 Phase C: Migration Manager'),
+      React.createElement('h3', null, '🔄 Migration Manager'),
       React.createElement('div', { className: 'migration-subtitle' }, 'Legacy → New Architecture Migration Control'),
       lastUpdate && React.createElement('div', { className: 'last-update' }, `Last updated: ${lastUpdate}`)
     ),

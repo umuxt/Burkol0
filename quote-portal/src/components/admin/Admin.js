@@ -53,6 +53,7 @@ function Admin({ t, onLogout, showNotification }) {
   const [error, setError] = useState(null);
   const [bulkProgress, setBulkProgress] = useState(null)
   const bulkCancelRef = useRef(false)
+  const [sortConfig, setSortConfig] = useState({ columnId: 'date', direction: 'desc' })
 
   useEffect(() => {
     loadQuotes();
@@ -252,16 +253,75 @@ function Admin({ t, onLogout, showNotification }) {
     }
   }
 
+  const collator = useMemo(() => new Intl.Collator('tr', { sensitivity: 'base', numeric: true }), [])
+
   // Use filtered list from utils
   const filtered = createFilteredList(list, filters, globalSearch, formConfig)
+  const tableColumns = useMemo(() => getTableColumns(formConfig), [formConfig])
+
+  const sortedFiltered = useMemo(() => {
+    if (!Array.isArray(filtered) || filtered.length === 0) return filtered
+
+    const { columnId, direction } = sortConfig || {}
+    if (!columnId) return filtered
+
+    const column = tableColumns.find(col => col.id === columnId)
+
+    const getComparableValue = (item) => {
+      const rawValue = getFieldValue(item, columnId)
+      if (rawValue === null || rawValue === undefined) return null
+
+      if (column?.type === 'date') {
+        const timestamp = Date.parse(rawValue) || Date.parse(item?.createdAt) || 0
+        return Number.isNaN(timestamp) ? 0 : timestamp
+      }
+
+      if (column?.type === 'currency' || column?.type === 'number') {
+        if (typeof rawValue === 'number') return rawValue
+        const numericString = String(rawValue).replace(/[^0-9,.-]/g, '')
+        const normalized = numericString.includes(',')
+          ? numericString.replace(/\./g, '').replace(',', '.')
+          : numericString
+        const numeric = parseFloat(normalized)
+        return Number.isNaN(numeric) ? 0 : numeric
+      }
+
+      if (typeof rawValue === 'number') return rawValue
+
+      if (typeof rawValue === 'string') {
+        return rawValue.toLowerCase()
+      }
+
+      return String(rawValue)
+    }
+
+    const sorted = [...filtered].sort((a, b) => {
+      const valueA = getComparableValue(a)
+      const valueB = getComparableValue(b)
+
+      if (valueA === valueB) return 0
+      if (valueA === null || valueA === undefined) return direction === 'asc' ? 1 : -1
+      if (valueB === null || valueB === undefined) return direction === 'asc' ? -1 : 1
+
+      if (typeof valueA === 'number' && typeof valueB === 'number') {
+        return direction === 'asc' ? valueA - valueB : valueB - valueA
+      }
+
+      const comparison = collator.compare(String(valueA), String(valueB))
+      return direction === 'asc' ? comparison : -comparison
+    })
+
+    return sorted
+  }, [filtered, sortConfig, tableColumns, collator])
+
   const filterOptions = getFilterOptions(list, formConfig)
 
   // Pagination logic
-  const totalItems = filtered.length
+  const totalItems = sortedFiltered.length
   const totalPages = Math.ceil(totalItems / pagination.itemsPerPage)
   const startIndex = (pagination.currentPage - 1) * pagination.itemsPerPage
   const endIndex = startIndex + pagination.itemsPerPage
-  const currentPageItems = filtered.slice(startIndex, endIndex)
+  const currentPageItems = sortedFiltered.slice(startIndex, endIndex)
 
   // Update total items when filtered list changes
   React.useEffect(() => {
@@ -305,6 +365,17 @@ function Admin({ t, onLogout, showNotification }) {
     } else {
       setSelected(new Set())
     }
+  }
+
+  function handleSort(columnId) {
+    setSortConfig(prev => {
+      if (prev?.columnId === columnId) {
+        const nextDirection = prev.direction === 'asc' ? 'desc' : 'asc'
+        return { columnId, direction: nextDirection }
+      }
+      return { columnId, direction: columnId === 'date' ? 'desc' : 'asc' }
+    })
+    setPagination(prev => ({ ...prev, currentPage: 1 }))
   }
 
   function handleBulkProgressAction(action) {
@@ -536,9 +607,6 @@ function Admin({ t, onLogout, showNotification }) {
       setPriceReview(prev => prev ? { ...prev, updating: false } : prev)
     }
   }
-
-  // Table columns from utils
-  const tableColumns = getTableColumns(formConfig)
 
   return React.createElement('div', { className: 'admin-panel' },
     // Toast notification
@@ -795,9 +863,30 @@ function Admin({ t, onLogout, showNotification }) {
                 onClick: (e) => e.stopPropagation()
               })
             ),
-            ...tableColumns.map(col => 
-              React.createElement('th', { key: col.id }, col.label)
-            ),
+            ...tableColumns.map(col => {
+              const isActive = sortConfig?.columnId === col.id
+              const indicator = isActive ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'
+              return React.createElement('th', { key: col.id, style: { whiteSpace: 'nowrap' } },
+                React.createElement('button', {
+                  type: 'button',
+                  onClick: () => handleSort(col.id),
+                  style: {
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    font: 'inherit',
+                    color: isActive ? '#007bff' : 'inherit'
+                  }
+                },
+                  col.label,
+                  React.createElement('span', { style: { fontSize: '12px', opacity: isActive ? 1 : 0.6 } }, indicator)
+                )
+              )
+            }),
             React.createElement('th', null, 'İşlemler')
           )
         ),

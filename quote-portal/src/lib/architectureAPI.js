@@ -1,5 +1,5 @@
-// New Architecture API Client - Phase B
-// Provides API methods for the new PriceStatus and PriceUpdateManager system
+// Architecture API client for the PriceStatus and PriceUpdateManager stack
+// Centralizes admin-side calls for price status inspection and recovery flows
 
 import { fetchWithTimeout } from './api.js'
 

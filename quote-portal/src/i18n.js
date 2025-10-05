@@ -90,7 +90,7 @@ export const dict = {
     f_surface_ra: 'Yüzey Pürüzlülüğü (Ra)',
     f_bend_count: 'Büküm Sayısı',
     f_weld_method: 'Kaynak Yöntemi',
-    // Placeholders
+    // Input field placeholders - Turkish
     ph_name: 'Örn. Ahmet Yılmaz',
     ph_company: 'Şirket adı',
     ph_email: 'ornek@firma.com',
@@ -320,7 +320,7 @@ export const dict = {
     f_surface_ra: 'Surface Roughness (Ra)',
     f_bend_count: 'Bend Count',
     f_weld_method: 'Weld Method',
-    // Placeholders
+    // Input field placeholders - English
     ph_name: 'e.g., John Smith',
     ph_company: 'Company name',
     ph_email: 'example@company.com',

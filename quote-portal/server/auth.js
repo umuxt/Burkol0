@@ -28,10 +28,10 @@ export function verifyUser(email, password) {
     return { email: user.email, role: user.role }
   }
   
-  // Diğer tüm şifre kontrolleri kaldırıldı (Güvenlik için)
-  // - Legacy password alanı artık kullanılmıyor
-  // - Hash'li şifreler artık kullanılmıyor
-  // Sadece admin panelindeki plainPassword geçerlidir
+  // Authentication simplified for admin access only
+  // - Legacy password fields no longer used
+  // - Hash-based authentication removed
+  // - Only plain text admin password verification active
   
   return null
 }

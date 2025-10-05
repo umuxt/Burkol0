@@ -1,4 +1,4 @@
-// Phase 3: Advanced Price Rules Component - Conditional pricing, discounts, material variations
+// Advanced pricing rules editor covering conditional logic, discounts, and material overrides
 import React from 'react';
 import API from '../../lib/api.js'
 

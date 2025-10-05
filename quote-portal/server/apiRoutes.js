@@ -75,7 +75,7 @@ function createQuoteSnapshot(quote) {
     phone: quote.phone || ''
   }
   
-  // Legacy static fields - only add if they exist
+  // Static quote fields for backward compatibility - only add if they exist
   const staticFields = ['qty', 'thickness', 'material', 'process', 'finish', 'dims']
   staticFields.forEach(field => {
     if (quote[field] !== undefined) {
@@ -673,7 +673,7 @@ Toplam: ₺${(parseFloat(quote.price) || 0).toFixed(2)}
         return res.status(400).json({ error: 'Price settings not configured' })
       }
 
-      // Create a temporary quote object for calculation
+      // Create a quote object for price calculation
       const tempQuote = {
         id: 'temp-calc',
         customFields: customFields,

@@ -60,7 +60,7 @@ async function cleanup() {
     notes: []
   }
 
-  // Remove legacy priceSettings collection entirely (no longer used)
+  // Remove deprecated priceSettings collection (replaced by new architecture)
   try {
     const priceSettingsRef = db.collection('priceSettings')
     const removed = await deleteCollection(priceSettingsRef)
@@ -69,7 +69,7 @@ async function cleanup() {
     summary.notes.push(`priceSettings cleanup skipped: ${err.message}`)
   }
 
-  // Drop legacy quoteVersions collection entirely if it exists
+  // Remove deprecated quoteVersions collection if it exists
   try {
     const quoteVersionsRef = db.collection('quoteVersions')
     const deleted = await deleteCollection(quoteVersionsRef)
@@ -90,7 +90,7 @@ async function cleanup() {
     summary.notes.push(`settings/main update skipped: ${err.message}`)
   }
 
-  // Remove historic priceSettings documents stored under priceSettingsVersions using legacy flags
+  // Remove historic priceSettings documents using migration flags
   const priceSettingsVersionsRef = db.collection('priceSettingsVersions')
   await deleteDocs(priceSettingsVersionsRef, doc => doc.data()?.isHistorical === true)
 

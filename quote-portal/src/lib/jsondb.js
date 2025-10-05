@@ -507,7 +507,7 @@ function putQuote(quote) {
   ensureReady()
   const stored = { ...quote }
   
-  // Auto-generate ID if not provided or if it's in old UUID format
+  // Auto-generate ID if not provided or if it's in legacy UUID format
   if (!stored.id || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stored.id)) {
     stored.id = generateQuoteId()
   }

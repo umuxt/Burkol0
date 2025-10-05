@@ -1,5 +1,5 @@
-// DEPRECATED: This file is no longer used. The project now uses DynamicFormRenderer.js
-// TODO: Remove this file after confirming no dependencies
+// Legacy compact quote form retained for reference; DynamicFormRenderer powers the live experience
+// Safe to remove once audits confirm no integrations render this component dynamically
 
 // Compact Quote Form - Modular multi-step form with validation and file upload
 import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../i18n/index.js'

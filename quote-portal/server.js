@@ -75,7 +75,7 @@ setupQuoteRoutes(app, uploadsDir)
 setupSettingsRoutes(app)
 setupExportRoutes(app)
 
-// Setup migration routes for Phase C
+// Expose migration management API routes used by admin tooling
 addMigrationRoutes(app, jsondb)
 
 // Serve uploaded files
