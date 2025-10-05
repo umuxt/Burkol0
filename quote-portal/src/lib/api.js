@@ -46,8 +46,8 @@ function getApiBase() {
         hostname.includes('burkol0.vercel.app') ||
         hostname.includes('burkol') ||
         protocol === 'https:') {
-      console.log('🔧 API: Production detected, using /api')
-      return '/api'
+      console.log('🔧 API: Production detected, using empty string (Vercel rewrites handle /api)')
+      return ''
     }
     
     // Local development - always use /api for Vite proxy
@@ -58,8 +58,8 @@ function getApiBase() {
   }
   
   // Final fallback - assume production
-  console.log('🔧 API: Fallback to /api')
-  return '/api'
+  console.log('🔧 API: Fallback to empty string (for Vercel rewrites)')
+  return ''
 }
 
 export const API_BASE = getApiBase()
