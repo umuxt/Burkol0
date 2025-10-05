@@ -64,6 +64,9 @@ export const dict = {
     a_files: 'Dosyalar',
     a_close: 'Kapat',
     a_none: 'Kayıt bulunamadı',
+    production_dashboard_btn: 'Production Dashboard',
+    production_dashboard_title: 'Üretim Paneli',
+    send_to_production_btn: 'Üretim Paneline Aktar',
     // Common UI
     select: 'Seçiniz',
     refresh: 'Yenile',
@@ -294,6 +297,9 @@ export const dict = {
     a_files: 'Files',
     a_close: 'Close',
     a_none: 'No records found',
+    production_dashboard_btn: 'Production Dashboard',
+    production_dashboard_title: 'Production Dashboard',
+    send_to_production_btn: 'Send to Production',
     // Common UI
     select: 'Select',
     refresh: 'Refresh',

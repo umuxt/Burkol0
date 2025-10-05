@@ -772,6 +772,27 @@ function Admin({ t, onLogout, showNotification }) {
           onMouseOut: (e) => e.target.style.backgroundColor = '#007bff',
           title: 'Sistem Ayarları'
         }, '⚙️ Ayarlar'),
+        React.createElement('a', {
+          href: './production.html',
+          className: 'btn',
+          style: {
+            backgroundColor: '#28a745',
+            color: 'white',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '16px',
+            transition: 'all 0.2s ease',
+            textDecoration: 'none',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px'
+          },
+          onMouseOver: (e) => e.target.style.backgroundColor = '#1e7e34',
+          onMouseOut: (e) => e.target.style.backgroundColor = '#28a745',
+          title: t.production_dashboard_title || 'Üretim Paneli'
+        }, `📈 ${t.production_dashboard_btn || 'Production Dashboard'}`),
         React.createElement('button', { 
           onClick: handleLogout, 
           className: 'btn', 
@@ -1053,6 +1074,21 @@ function Admin({ t, onLogout, showNotification }) {
                     className: 'btn btn-sm',
                     style: { fontSize: '12px', padding: '2px 6px' }
                   }, 'Detay'),
+                  React.createElement('button', {
+                    onClick: (e) => {
+                      e.stopPropagation();
+                      console.log('ℹ️ TODO: Production transfer placeholder for item:', item.id);
+                    },
+                    className: 'btn btn-sm',
+                    style: {
+                      fontSize: '12px',
+                      padding: '2px 6px',
+                      backgroundColor: '#28a745',
+                      color: 'white',
+                      border: 'none'
+                    },
+                    title: t.send_to_production_btn || 'Üretim Paneline Aktar'
+                  }, '🏭'),
                   React.createElement('button', {
                     onClick: (e) => { e.stopPropagation(); remove(item.id) },
                     className: 'btn btn-sm btn-danger',
