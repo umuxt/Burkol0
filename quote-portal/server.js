@@ -6,7 +6,7 @@
 
 import express from 'express'
 import path from 'path'
-import { readFileSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
@@ -14,17 +14,55 @@ import { setupQuoteRoutes, setupSettingsRoutes, setupExportRoutes } from './serv
 import addMigrationRoutes from './server/migrationRoutes.js'
 import jsondb from './src/lib/jsondb.js'
 import admin from 'firebase-admin'
+import dotenv from 'dotenv'
+
+// Load environment variables
+dotenv.config()
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
-const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json')
-const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'))
 
 // Initialize Firebase Admin SDK if it hasn't been initialized yet
 if (!admin.apps.length) {
+  let credential;
+  
+  // Try to use environment variables first (recommended for production)
+  if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PROJECT_ID) {
+    console.log('🔑 Using Firebase credentials from environment variables')
+    const serviceAccount = {
+      type: process.env.FIREBASE_TYPE || "service_account",
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      client_email: process.env.FIREBASE_CLIENT_EMAIL,
+      client_id: process.env.FIREBASE_CLIENT_ID,
+      auth_uri: process.env.FIREBASE_AUTH_URI || "https://accounts.google.com/o/oauth2/auth",
+      token_uri: process.env.FIREBASE_TOKEN_URI || "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL || "https://www.googleapis.com/oauth2/v1/certs",
+      client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
+      universe_domain: process.env.FIREBASE_UNIVERSE_DOMAIN || "googleapis.com"
+    }
+    credential = admin.credential.cert(serviceAccount)
+  } else {
+    // Fallback to serviceAccountKey.json file (development only)
+    const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json')
+    if (existsSync(serviceAccountPath)) {
+      console.log('🔑 Using Firebase credentials from serviceAccountKey.json')
+      const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'))
+      credential = admin.credential.cert(serviceAccount)
+    } else {
+      console.error('❌ Firebase credentials not found!')
+      console.error('Please either:')
+      console.error('1. Set environment variables (recommended for production)')
+      console.error('2. Create serviceAccountKey.json file (development only)')
+      process.exit(1)
+    }
+  }
+  
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
+    credential: credential
   })
+  console.log('🔥 Firebase Admin SDK initialized successfully')
 }
 
 // Configure JSX MIME type
