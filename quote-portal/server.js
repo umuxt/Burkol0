@@ -69,7 +69,7 @@ if (!admin.apps.length) {
 mime.types['jsx'] = 'application/javascript'
 
 const app = express()
-const PORT = process.env.PORT || 3000
+const PORT = process.env.PORT || 3001
 const ROOT = __dirname
 const uploadsDir = path.join(ROOT, 'uploads')
 
