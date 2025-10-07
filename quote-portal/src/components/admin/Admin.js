@@ -400,8 +400,6 @@ function Admin({ t, onLogout, showNotification }) {
 
   async function loadPriceSettings() {
     try {
-      console.log('🔧 DEBUG: loadPriceSettings başlatıldı')
-      
       // Defensive check for API method availability
       if (typeof API.getPriceSettings !== 'function') {
         console.warn('API.getPriceSettings is not available, using defaults')
@@ -414,17 +412,10 @@ function Admin({ t, onLogout, showNotification }) {
         return
       }
       
-      console.log('🔧 DEBUG: API.getPriceSettings çağrılıyor...')
       const settings = await API.getPriceSettings()
-      console.log('🔧 DEBUG: API.getPriceSettings yanıtı:', settings)
       setPriceSettings(settings)
     } catch (e) {
-      console.error('🔧 DEBUG: Price settings load error:', e)
-      console.error('🔧 DEBUG: Error details:', {
-        message: e.message,
-        stack: e.stack,
-        name: e.name
-      })
+      console.error('Price settings load error:', e)
       // Set default settings on error
       setPriceSettings({
         currency: 'USD',

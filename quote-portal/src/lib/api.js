@@ -607,28 +607,10 @@ export const API = {
   // Price Settings API
   async getPriceSettings() {
     try {
-      console.log('🔧 DEBUG: API.getPriceSettings başlatıldı')
-      console.log('🔧 DEBUG: API_BASE:', API_BASE)
-      const url = `${API_BASE}/api/price-settings`
-      console.log('🔧 DEBUG: Request URL:', url)
-      const headers = withAuth()
-      console.log('🔧 DEBUG: Request headers:', headers)
-      
-      const res = await fetchWithTimeout(url, { headers })
-      console.log('🔧 DEBUG: Response status:', res.status)
-      console.log('🔧 DEBUG: Response ok:', res.ok)
-      
-      if (!res.ok) {
-        const errorText = await res.text()
-        console.log('🔧 DEBUG: Error response text:', errorText)
-        throw new Error(`get price settings failed: ${res.status} - ${errorText}`)
-      }
-      
-      const result = await res.json()
-      console.log('🔧 DEBUG: API.getPriceSettings result:', result)
-      return result
+      const res = await fetchWithTimeout(`${API_BASE}/api/price-settings`, { headers: withAuth() })
+      if (!res.ok) throw new Error('get price settings failed')
+      return await res.json()
     } catch (e) {
-      console.error('🔧 DEBUG: API.getPriceSettings error:', e)
       // Return default settings if API fails
       return {
         currency: 'USD',
@@ -656,46 +638,13 @@ export const API = {
   // VERSION MANAGEMENT API FUNCTIONS
 
   async getPriceSettingsVersions() {
-    console.log('🔧 DEBUG: API.getPriceSettingsVersions - BAŞLADI')
-    
     try {
-      console.log('🔧 DEBUG: API_BASE değeri:', API_BASE)
-      const url = `${API_BASE}/api/price-settings/versions`
-      console.log('🔧 DEBUG: İstek URL:', url)
-      
-      const headers = withAuth()
-      console.log('🔧 DEBUG: İstek headers:', headers)
-      
-      console.log('🔧 DEBUG: fetchWithTimeout çağrılıyor...')
-      const res = await fetchWithTimeout(url, {
-        headers: headers
+      const res = await fetchWithTimeout(`${API_BASE}/api/price-settings/versions`, {
+        headers: withAuth()
       })
-      
-      console.log('🔧 DEBUG: Response alındı')
-      console.log('🔧 DEBUG: Response status:', res.status)
-      console.log('🔧 DEBUG: Response ok:', res.ok)
-      console.log('🔧 DEBUG: Response headers:', [...res.headers.entries()])
-      
-      if (!res.ok) {
-        const errorText = await res.text()
-        console.error('🔧 DEBUG: Error response text:', errorText)
-        throw new Error(`get price settings versions failed: ${res.status} - ${errorText}`)
-      }
-      
-      console.log('🔧 DEBUG: JSON parse edilecek...')
-      const result = await res.json()
-      console.log('🔧 DEBUG: JSON parse başarılı')
-      console.log('🔧 DEBUG: Result:', result)
-      console.log('🔧 DEBUG: Result.versions length:', result.versions ? result.versions.length : 'undefined')
-      
-      return result
+      if (!res.ok) throw new Error('get price settings versions failed')
+      return await res.json()
     } catch (e) {
-      console.error('❌ DEBUG: getPriceSettingsVersions HATA:', e)
-      console.error('❌ DEBUG: Hata detayları:', {
-        name: e.name,
-        message: e.message,
-        stack: e.stack
-      })
       throw e
     }
   },
