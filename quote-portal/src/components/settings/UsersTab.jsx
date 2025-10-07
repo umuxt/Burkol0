@@ -214,6 +214,29 @@ export default function UsersTab({ t, showNotification }) {
     }
   }
 
+  async function handlePermanentDeleteUser(email) {
+    if (!confirm(`${email} kullanıcısını kalıcı olarak silmek istediğinizden emin misiniz? Bu işlem geri alınamaz!`)) {
+      return
+    }
+    
+    // Double confirmation for permanent delete
+    if (!confirm(`SON UYARI: ${email} kullanıcısı kalıcı olarak silinecek ve tüm verileri kaybolacak. Devam etmek istediğinizden emin misiniz?`)) {
+      return
+    }
+    
+    try {
+      setLoading(true)
+      await API.permanentDeleteUser(email)
+      await loadUsers()
+      showNotification('Kullanıcı kalıcı olarak silindi', 'success')
+    } catch (e) {
+      console.error('Permanent delete user error:', e)
+      showNotification(e.message || 'Kullanıcı silinemedi', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function handleUpdateUser(email, updates) {
     try {
       setLoading(true)
@@ -557,7 +580,14 @@ export default function UsersTab({ t, showNotification }) {
                             className: user.active ? 'btn btn-warning' : 'btn btn-success',
                             style: { fontSize: '12px', padding: '4px 8px' },
                             disabled: loading
-                          }, user.active ? (t.users_deactivate || 'Devre Dışı') : (t.users_activate || 'Aktifleştir'))
+                          }, user.active ? (t.users_deactivate || 'Devre Dışı') : (t.users_activate || 'Aktifleştir')),
+                          React.createElement('button', {
+                            onClick: () => handlePermanentDeleteUser(user.email),
+                            className: 'btn btn-danger',
+                            style: { fontSize: '12px', padding: '4px 8px' },
+                            disabled: loading,
+                            title: 'Kullanıcıyı kalıcı olarak sil'
+                          }, 'Sil')
                         )
                       )
                     )

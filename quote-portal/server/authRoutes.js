@@ -321,7 +321,7 @@ export function setupAuthRoutes(app) {
     }
   })
 
-  // Delete user endpoint (Soft delete - kullanıcıyı devre dışı bırak)
+  // Delete user endpoint (Toggle active status - aktifleştir/deaktifleştir)
   app.delete('/api/auth/users/:email', requireAuth, (req, res) => {
     const { email } = req.params
     
@@ -337,33 +337,81 @@ export function setupAuthRoutes(app) {
         return res.status(400).json({ error: 'Cannot delete your own account' })
       }
       
-      // Soft delete: active = false yap
+      // Toggle active status
+      const newActiveStatus = !existingUser.active
       const updatedUser = {
         ...existingUser,
-        active: false,
-        deactivatedAt: new Date().toISOString(),
-        deactivatedBy: req.user.email
+        active: newActiveStatus,
+        [newActiveStatus ? 'activatedAt' : 'deactivatedAt']: new Date().toISOString(),
+        [newActiveStatus ? 'activatedBy' : 'deactivatedBy']: req.user.email
       }
       
       jsondb.upsertUser(updatedUser)
 
+      const actionType = newActiveStatus ? 'activate' : 'deactivate'
+      const actionTitle = newActiveStatus ? 'aktifleştirildi' : 'devre dışı bırakıldı'
+      const actionDesc = newActiveStatus ? 'aktif edildi' : 'pasif edildi'
+
       auditSessionActivity(req, {
         type: 'user-management',
-        action: 'deactivate',
+        action: actionType,
         scope: 'users',
-        title: `Kullanıcı devre dışı bırakıldı (${email})`,
-        description: `${email} hesabı pasif edildi`,
+        title: `Kullanıcı ${actionTitle} (${email})`,
+        description: `${email} hesabı ${actionDesc}`,
         metadata: {
           email,
-          deactivatedAt: updatedUser.deactivatedAt,
-          deactivatedBy: req.user?.email || null,
-          previousRole: existingUser.role || null
+          [newActiveStatus ? 'activatedAt' : 'deactivatedAt']: updatedUser[newActiveStatus ? 'activatedAt' : 'deactivatedAt'],
+          [newActiveStatus ? 'activatedBy' : 'deactivatedBy']: req.user?.email || null,
+          previousRole: existingUser.role || null,
+          newStatus: newActiveStatus ? 'active' : 'inactive'
         }
       })
-      res.json({ success: true, message: 'User deactivated successfully' })
+      
+      const message = newActiveStatus ? 'User activated successfully' : 'User deactivated successfully'
+      res.json({ success: true, message, active: newActiveStatus })
     } catch (error) {
-      console.error('Deactivate user error:', error)
-      res.status(500).json({ error: 'User deactivation failed' })
+      console.error('Toggle user status error:', error)
+      res.status(500).json({ error: 'User status change failed' })
+    }
+  })
+
+  // Permanent delete user endpoint (Hard delete - kullanıcıyı kalıcı olarak sil)
+  app.delete('/api/auth/users/:email/permanent', requireAuth, (req, res) => {
+    const { email } = req.params
+    
+    try {
+      // Kullanıcı var mı kontrol et
+      const existingUser = jsondb.getUser(email)
+      if (!existingUser) {
+        return res.status(404).json({ error: 'User not found' })
+      }
+      
+      // Kendi hesabını silmeyi engelle
+      if (req.user && req.user.email === email) {
+        return res.status(400).json({ error: 'Cannot delete your own account' })
+      }
+      
+      // Hard delete: kullanıcıyı tamamen sil
+      jsondb.deleteUser(email)
+
+      auditSessionActivity(req, {
+        type: 'user-management',
+        action: 'permanent-delete',
+        scope: 'users',
+        title: `Kullanıcı kalıcı olarak silindi (${email})`,
+        description: `${email} hesabı kalıcı olarak kaldırıldı`,
+        metadata: {
+          email,
+          deletedAt: new Date().toISOString(),
+          deletedBy: req.user?.email || null,
+          previousRole: existingUser.role || null,
+          warning: 'PERMANENT_DELETE'
+        }
+      })
+      res.json({ success: true, message: 'User permanently deleted' })
+    } catch (error) {
+      console.error('Permanent delete user error:', error)
+      res.status(500).json({ error: 'User permanent deletion failed' })
     }
   })
 

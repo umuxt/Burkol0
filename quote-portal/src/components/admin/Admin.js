@@ -239,6 +239,122 @@ function Admin({ t, onLogout, showNotification }) {
     }, 3000)
   }
 
+  function exportToCSV() {
+    try {
+      // Seçili kayıtlar varsa onları kullan, yoksa filtrelenmiş tüm kayıtları kullan
+      const dataToExport = selected.size > 0 
+        ? filtered.filter(item => selected.has(item.id))
+        : filtered
+
+      if (!dataToExport || dataToExport.length === 0) {
+        showNotification('Export edilecek veri bulunamadı', 'warning')
+        return
+      }
+
+      // t objesinin güvenli versiyonu (fallback değerlerle)
+      const safeT = t || {
+        s_new: 'Yeni',
+        s_review: 'İnceleme',
+        s_feasible: 'Uygun',
+        s_not: 'Uygun Değil',
+        s_quoted: 'Teklif Verildi',
+        s_approved: 'Onaylandı'
+      }
+
+      // CSV başlık satırı
+      const headers = [
+        'ID',
+        'Durum',
+        'Müşteri Adı',
+        'Şirket',
+        'Proje',
+        'Telefon',
+        'E-posta',
+        'Fiyat',
+        'Oluşturma Tarihi',
+        'Güncellenme Tarihi',
+        'Manuel Fiyat',
+        'Manuel Not'
+      ]
+
+      // Dinamik alanları da başlıklara ekle
+      if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
+        formConfig.formStructure.fields.forEach(field => {
+          headers.push(field.label || field.id)
+        })
+      }
+
+      // CSV verisini oluştur
+      const csvData = dataToExport.map(item => {
+        const baseFields = [
+          item.id || '',
+          statusLabel(item.status, safeT) || '',
+          item.name || '',
+          item.company || '',
+          item.proj || '',
+          item.phone || '',
+          item.email || '',
+          item.price || '',
+          item.createdAt || '',
+          item.updatedAt || '',
+          item.manualOverride?.active ? item.manualOverride.price : '',
+          item.manualOverride?.note || ''
+        ]
+
+        // Dinamik alanları da ekle
+        const dynamicFields = []
+        if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
+          formConfig.formStructure.fields.forEach(field => {
+            const value = item.customFields?.[field.id] || ''
+            dynamicFields.push(Array.isArray(value) ? value.join(', ') : value)
+          })
+        }
+
+        return [...baseFields, ...dynamicFields].map(field => {
+          // CSV için özel karakterleri escape et
+          const str = String(field || '').replace(/"/g, '""')
+          return `"${str}"`
+        }).join(',')
+      })
+
+      // CSV içeriği
+      const csvContent = [
+        headers.map(h => `"${h}"`).join(','),
+        ...csvData
+      ].join('\n')
+
+      // Dosya adı (tarih ile)
+      const now = new Date()
+      const timestamp = now.toISOString().split('T')[0] // YYYY-MM-DD format
+      const filenameSuffix = selected.size > 0 ? '-selected' : ''
+      const filename = `burkol-quotes-${timestamp}${filenameSuffix}.csv`
+
+      // Dosyayı indir
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob)
+        link.setAttribute('href', url)
+        link.setAttribute('download', filename)
+        link.style.visibility = 'hidden'
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        
+        const exportMessage = selected.size > 0 
+          ? `${selected.size} seçili kayıt CSV olarak export edildi`
+          : `${dataToExport.length} kayıt CSV olarak export edildi`
+        showNotification(exportMessage, 'success')
+      } else {
+        showNotification('Tarayıcınız dosya indirmeyi desteklemiyor', 'error')
+      }
+    } catch (error) {
+      console.error('CSV export error:', error)
+      showNotification('CSV export edilirken hata oluştu', 'error')
+    }
+  }
+
   async function loadUsers() {
     try {
       const userList = await API.listUsers()
@@ -801,145 +917,183 @@ function Admin({ t, onLogout, showNotification }) {
         React.createElement('label', { style: { fontSize: '16px', fontWeight: '600', margin: 0, minWidth: '120px' } }, t.a_list),
         
         // Search controls
-        React.createElement('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } },
-          React.createElement('input', {
-            type: 'text',
-            placeholder: 'Tüm veriler içinde arama...',
-            value: globalSearch,
-            onChange: (e) => setGlobalSearch(e.target.value),
-            style: { padding: '6px 12px', border: '1px solid #ddd', borderRadius: '4px', minWidth: '200px' }
-          }),
-          React.createElement('button', {
-            onClick: () => setFilterPopup(true),
-            className: 'btn',
-            style: {
-              backgroundColor: getActiveFilterCount(filters) > 0 ? '#28a745' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              position: 'relative'
-            }
-          }, 
-            '🔍 Filtreler',
-            getActiveFilterCount(filters) > 0 && React.createElement('span', {
-              style: {
-                position: 'absolute',
-                top: '-6px',
-                right: '-6px',
-                backgroundColor: '#dc3545',
-                color: 'white',
-                borderRadius: '50%',
-                width: '20px',
-                height: '20px',
-                fontSize: '11px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }
-            }, getActiveFilterCount(filters))
-          ),
-          React.createElement('button', {
-            onClick: () => clearFilters(setFilters, setGlobalSearch),
-            className: 'btn',
-            style: {
-              backgroundColor: '#dc3545',
-              color: 'white',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }
-          }, 'Temizle'),
-          
-          // Add Record button
-          React.createElement('button', {
-            onClick: () => {
-              console.log('🔧 DEBUG: Kayıt Ekle button clicked')
-              setShowAddModal(true)
-              console.log('🔧 DEBUG: showAddModal set to true')
-            },
-            className: 'btn',
-            style: {
-              backgroundColor: '#28a745',
-              color: 'white',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }
-          }, 'Kayıt Ekle'),
-          
-          // Locked quotes filter button
-          React.createElement('button', {
-            onClick: () => {
-              setFilters(prev => ({ ...prev, lockedOnly: !prev.lockedOnly }))
-            },
-            className: 'btn',
-            title: filters.lockedOnly ? 'Kilitli filtresi aktif - kaldırmak için tekrar tıkla' : 'Sadece fiyatı kilitli kayıtları göster',
-            style: {
-              backgroundColor: filters.lockedOnly ? '#28a745' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              minWidth: '40px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '14px'
-            }
-          }, '🔒'),
-          
-          // Bulk price update button (dynamic label)
-          (function () {
-            const selectedCount = selected.size
-            const flaggedCount = list.filter(isQuoteFlaggedForPricing).length
-            const lockedCount = selectedCount > 0 
-              ? Array.from(selected).filter(id => {
-                  const quote = list.find(q => q.id === id)
-                  return quote?.manualOverride?.active
-                }).length
-              : list.filter(item => isQuoteFlaggedForPricing(item) && item.manualOverride?.active).length
-            
-            if (selectedCount === 0 && flaggedCount === 0) return null
-            
-            let label = selectedCount > 0 ? `Seçili ${selectedCount} kaydı güncelle` : `${flaggedCount} kaydı güncelle`
-            if (lockedCount > 0) {
-              label += ` (${lockedCount} kilitli atlanacak)`
-            }
-            const onClick = async () => {
-              if (bulkProgress && !bulkProgress.finished && !bulkProgress.cancelled) {
-                showNotification('Bir toplu işlem zaten yürütülüyor', 'info')
-                return
-              }
-
-              const ids = selectedCount > 0
-                ? Array.from(selected)
-                : list.filter(isQuoteFlaggedForPricing).map(item => item.id)
-
-              if (!ids.length) {
-                showNotification('Güncellenecek kayıt bulunamadı', 'info')
-                return
-              }
-
-              performBulkUpdate(ids, selectedCount > 0 ? 'selected' : 'all')
-            }
-            return React.createElement('button', {
-              onClick,
+        React.createElement('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: '100%', justifyContent: 'space-between' } },
+          // Sol taraf - arama ve filter butonları
+          React.createElement('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } },
+            React.createElement('input', {
+              type: 'text',
+              placeholder: 'Tüm veriler içinde arama...',
+              value: globalSearch,
+              onChange: (e) => setGlobalSearch(e.target.value),
+              style: { padding: '6px 12px', border: '1px solid #ddd', borderRadius: '4px', minWidth: '200px' }
+            }),
+            React.createElement('button', {
+              onClick: () => setFilterPopup(true),
               className: 'btn',
               style: {
-                backgroundColor: '#17a2b8',
+                backgroundColor: getActiveFilterCount(filters) > 0 ? '#28a745' : '#6c757d',
+                color: 'white',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                position: 'relative'
+              }
+            }, 
+              '🔍 Filtreler',
+              getActiveFilterCount(filters) > 0 && React.createElement('span', {
+                style: {
+                  position: 'absolute',
+                  top: '-6px',
+                  right: '-6px',
+                  backgroundColor: '#dc3545',
+                  color: 'white',
+                  borderRadius: '50%',
+                  width: '20px',
+                  height: '20px',
+                  fontSize: '11px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }
+              }, getActiveFilterCount(filters))
+            ),
+            
+            // Koşullu Temizle butonu - sadece aktif filtreler varsa görün
+            (function() {
+              const activeFilterCount = getActiveFilterCount(filters)
+              const hasGlobalSearch = globalSearch && globalSearch.trim().length > 0
+              const hasLockedFilter = filters.lockedOnly
+              
+              // Eğer hiç aktif filtre yoksa butonu gösterme
+              if (activeFilterCount === 0 && !hasGlobalSearch && !hasLockedFilter) {
+                return null
+              }
+              
+              return React.createElement('button', {
+                onClick: () => clearFilters(setFilters, setGlobalSearch),
+                className: 'btn',
+                style: {
+                  backgroundColor: '#dc3545',
+                  color: 'white',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }
+              }, 'Seçili Filtreleri Kaldır')
+            })(),
+            
+            // Add Record button
+            React.createElement('button', {
+              onClick: () => {
+                console.log('🔧 DEBUG: Kayıt Ekle button clicked')
+                setShowAddModal(true)
+                console.log('🔧 DEBUG: showAddModal set to true')
+              },
+              className: 'btn',
+              style: {
+                backgroundColor: '#28a745',
                 color: 'white',
                 border: 'none',
                 padding: '6px 12px',
                 borderRadius: '4px',
                 cursor: 'pointer'
               }
-            }, label)
-          })()
+            }, 'Kayıt Ekle'),
+            
+            // Locked quotes filter button
+            React.createElement('button', {
+              onClick: () => {
+                setFilters(prev => ({ ...prev, lockedOnly: !prev.lockedOnly }))
+              },
+              className: 'btn',
+              title: filters.lockedOnly ? 'Kilitli filtresi aktif - kaldırmak için tekrar tıkla' : 'Sadece fiyatı kilitli kayıtları göster',
+              style: {
+                backgroundColor: filters.lockedOnly ? '#28a745' : '#6c757d',
+                color: 'white',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                minWidth: '40px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px'
+              }
+            }, '🔒'),
+            
+            // Bulk price update button (dynamic label)
+            (function () {
+              const selectedCount = selected.size
+              const flaggedCount = list.filter(isQuoteFlaggedForPricing).length
+              const lockedCount = selectedCount > 0 
+                ? Array.from(selected).filter(id => {
+                    const quote = list.find(q => q.id === id)
+                    return quote?.manualOverride?.active
+                  }).length
+                : list.filter(item => isQuoteFlaggedForPricing(item) && item.manualOverride?.active).length
+              
+              if (selectedCount === 0 && flaggedCount === 0) return null
+              
+              let label = selectedCount > 0 ? `Seçili ${selectedCount} kaydı güncelle` : `${flaggedCount} kaydı güncelle`
+              if (lockedCount > 0) {
+                label += ` (${lockedCount} kilitli atlanacak)`
+              }
+              const onClick = async () => {
+                if (bulkProgress && !bulkProgress.finished && !bulkProgress.cancelled) {
+                  showNotification('Bir toplu işlem zaten yürütülüyor', 'info')
+                  return
+                }
+
+                const ids = selectedCount > 0
+                  ? Array.from(selected)
+                  : list.filter(isQuoteFlaggedForPricing).map(item => item.id)
+
+                if (!ids.length) {
+                  showNotification('Güncellenecek kayıt bulunamadı', 'info')
+                  return
+                }
+
+                performBulkUpdate(ids, selectedCount > 0 ? 'selected' : 'all')
+              }
+              return React.createElement('button', {
+                onClick,
+                className: 'btn',
+                style: {
+                  backgroundColor: '#17a2b8',
+                  color: 'white',
+                  border: 'none',
+                  padding: '6px 12px',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }
+              }, label)
+            })()
+          ),
+          
+          // Sağ taraf - CSV Export butonu
+          React.createElement('button', {
+            onClick: () => exportToCSV(),
+            className: 'btn',
+            style: {
+              backgroundColor: '#6f42c1',
+              color: 'white',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }
+          }, 
+            '📊 CSV Export',
+            React.createElement('span', { style: { fontSize: '12px', opacity: 0.8 } }, 
+              selected.size > 0 ? `(${selected.size} seçili kayıt)` : `(${filtered.length} kayıt)`
+            )
+          )
         )
       ),
 

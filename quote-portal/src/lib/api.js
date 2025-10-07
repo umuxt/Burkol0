@@ -159,6 +159,11 @@ export const API = {
     if (!res.ok) throw new Error('delete_user_failed')
     return await res.json()
   },
+  async permanentDeleteUser(email) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/auth/users/${encodeURIComponent(email)}/permanent`, { method: 'DELETE', headers: withAuth() })
+    if (!res.ok) throw new Error('permanent_delete_user_failed')
+    return await res.json()
+  },
   async updateUser(email, updates) {
     const res = await fetchWithTimeout(`${API_BASE}/api/auth/users/${encodeURIComponent(email)}`, {
       method: 'PUT',
