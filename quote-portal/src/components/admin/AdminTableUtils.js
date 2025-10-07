@@ -215,16 +215,56 @@ export function formatFieldValue(value, column, item, context) {
         
       case 'status':
         const statusText = statusLabel(value || 'new', t);
-        return React.createElement('span', {
-          style: {
-            padding: '2px 8px',
-            borderRadius: '12px',
-            fontSize: '11px',
-            fontWeight: 'bold',
-            backgroundColor: getStatusColor(value),
-            color: getStatusTextColor(value)
-          }
-        }, statusText);
+        const statusOptions = [
+          { value: 'new', label: statusLabel('new', t) },
+          { value: 'review', label: statusLabel('review', t) },
+          { value: 'feasible', label: statusLabel('feasible', t) },
+          { value: 'not', label: statusLabel('not', t) },
+          { value: 'quoted', label: statusLabel('quoted', t) },
+          { value: 'approved', label: statusLabel('approved', t) }
+        ];
+        
+        return React.createElement('div', { 
+          style: { position: 'relative', display: 'inline-block' } 
+        },
+          React.createElement('select', {
+            value: value || 'new',
+            onChange: (e) => {
+              e.stopPropagation();
+              const newStatus = e.target.value;
+              if (context?.setItemStatus && typeof context.setItemStatus === 'function') {
+                context.setItemStatus(item.id, newStatus);
+              }
+            },
+            onClick: (e) => e.stopPropagation(),
+            style: {
+              padding: '2px 8px',
+              paddingRight: '20px',
+              borderRadius: '12px',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              backgroundColor: getStatusColor(value),
+              color: getStatusTextColor(value),
+              border: `1px solid ${getStatusTextColor(value)}20`,
+              cursor: 'pointer',
+              appearance: 'none',
+              backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iNiIgdmlld0JveD0iMCAwIDEwIDYiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik01IDZMMCAzTDEuNSAxLjVMNSAzTDguNSAxLjVMMTAgM0w1IDZaIiBmaWxsPSIke getStatusTextColor(value)}Ii8+KPHN2Zz4K")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 6px center',
+              backgroundSize: '8px',
+              minWidth: '80px',
+              transition: 'all 0.2s ease'
+            }
+          },
+            ...statusOptions.map(option =>
+              React.createElement('option', { 
+                key: option.value, 
+                value: option.value,
+                style: { backgroundColor: 'white', color: 'black' }
+              }, option.label)
+            )
+          )
+        );
         
       default:
         if (column.type === 'currency') {
@@ -251,10 +291,11 @@ export function formatFieldValue(value, column, item, context) {
 function getStatusColor(status) {
   switch (status) {
     case 'new': return '#e3f2fd';
-    case 'pending': return '#fff3e0';
+    case 'review': return '#fff3e0';
+    case 'feasible': return '#e8f5e8';
+    case 'not': return '#ffebee';
+    case 'quoted': return '#f3e5f5';
     case 'approved': return '#e8f5e8';
-    case 'rejected': return '#ffebee';
-    case 'completed': return '#f3e5f5';
     default: return '#f5f5f5';
   }
 }
@@ -262,10 +303,11 @@ function getStatusColor(status) {
 function getStatusTextColor(status) {
   switch (status) {
     case 'new': return '#1976d2';
-    case 'pending': return '#f57c00';
-    case 'approved': return '#388e3c';
-    case 'rejected': return '#d32f2f';
-    case 'completed': return '#7b1fa2';
+    case 'review': return '#f57c00';
+    case 'feasible': return '#388e3c';
+    case 'not': return '#d32f2f';
+    case 'quoted': return '#7b1fa2';
+    case 'approved': return '#2e7d32';
     default: return '#666';
   }
 }

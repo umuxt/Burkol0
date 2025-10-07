@@ -100,6 +100,13 @@ export function createFilteredList(list, filters, globalSearch, formConfig) {
         }
       }
 
+      // Locked quotes filter
+      if (filters.lockedOnly) {
+        if (!item.manualOverride?.active) {
+          return false
+        }
+      }
+
       return true
     })
   }, [list, filters, globalSearch])
@@ -174,7 +181,8 @@ export function clearFilters(setFilters, setGlobalSearch) {
     process: [],
     dateRange: { from: '', to: '' },
     qtyRange: { min: '', max: '' },
-    country: []
+    country: [],
+    lockedOnly: false
   })
   setGlobalSearch('')
 }
@@ -203,6 +211,8 @@ export function getActiveFilterCount(filters) {
     } else if (key === 'dateRange' && (filters[key].from || filters[key].to)) {
       count++
     } else if (key === 'qtyRange' && (filters[key].min || filters[key].max)) {
+      count++
+    } else if (key === 'lockedOnly' && filters[key]) {
       count++
     }
   })

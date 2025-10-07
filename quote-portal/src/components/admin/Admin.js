@@ -47,7 +47,8 @@ function Admin({ t, onLogout, showNotification }) {
   const [filters, setFilters] = useState({
     status: [],
     dateRange: { from: '', to: '' },
-    qtyRange: { min: '', max: '' }
+    qtyRange: { min: '', max: '' },
+    lockedOnly: false
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -477,10 +478,26 @@ function Admin({ t, onLogout, showNotification }) {
       return
     }
 
-    const total = targetIds.length
-    bulkCancelRef.current = false
-
     const idToQuote = new Map(list.map(q => [q.id, q]))
+    
+    // Filter out locked quotes (manual override active)
+    const unlockedIds = targetIds.filter(id => {
+      const quote = idToQuote.get(id)
+      return !quote?.manualOverride?.active
+    })
+    
+    const lockedIds = targetIds.filter(id => {
+      const quote = idToQuote.get(id)
+      return quote?.manualOverride?.active
+    })
+    
+    if (lockedIds.length > 0) {
+      console.log(`🔒 Skipping ${lockedIds.length} locked quotes:`, lockedIds)
+    }
+
+    const total = unlockedIds.length
+    const skipped = lockedIds.length
+    bulkCancelRef.current = false
 
     setBulkProgress({
       active: true,
@@ -493,6 +510,7 @@ function Admin({ t, onLogout, showNotification }) {
       finished: false,
       cancelled: false,
       errors: [],
+      skipped,
       mode
     })
 
@@ -505,7 +523,7 @@ function Admin({ t, onLogout, showNotification }) {
         break
       }
 
-      const id = targetIds[i]
+      const id = unlockedIds[i]
       const quoteRef = idToQuote.get(id)
       setBulkProgress(prev => prev ? {
         ...prev,
@@ -554,10 +572,15 @@ function Admin({ t, onLogout, showNotification }) {
     }
 
     if (!cancelled) {
+      let message = `${successCount} fiyat güncellendi`
+      if (skipped > 0) {
+        message += `, ${skipped} kilitli kayıt atlandı`
+      }
       if (errors.length > 0) {
-        showNotification(`${successCount} kayıt güncellendi, ${errors.length} hata oluştu`, 'warning')
+        message += `, ${errors.length} hata oluştu`
+        showNotification(message, 'warning')
       } else {
-        showNotification(`${successCount} fiyat güncellendi`, 'success')
+        showNotification(message, 'success')
       }
     } else {
       showNotification(`Toplu güncelleme iptal edildi (${processedCount}/${total})`, errors.length ? 'warning' : 'info')
@@ -847,12 +870,46 @@ function Admin({ t, onLogout, showNotification }) {
               cursor: 'pointer'
             }
           }, 'Kayıt Ekle'),
+          
+          // Locked quotes filter button
+          React.createElement('button', {
+            onClick: () => {
+              setFilters(prev => ({ ...prev, lockedOnly: !prev.lockedOnly }))
+            },
+            className: 'btn',
+            title: filters.lockedOnly ? 'Kilitli filtresi aktif - kaldırmak için tekrar tıkla' : 'Sadece fiyatı kilitli kayıtları göster',
+            style: {
+              backgroundColor: filters.lockedOnly ? '#28a745' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              minWidth: '40px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px'
+            }
+          }, '🔒'),
+          
           // Bulk price update button (dynamic label)
           (function () {
             const selectedCount = selected.size
             const flaggedCount = list.filter(isQuoteFlaggedForPricing).length
+            const lockedCount = selectedCount > 0 
+              ? Array.from(selected).filter(id => {
+                  const quote = list.find(q => q.id === id)
+                  return quote?.manualOverride?.active
+                }).length
+              : list.filter(item => isQuoteFlaggedForPricing(item) && item.manualOverride?.active).length
+            
             if (selectedCount === 0 && flaggedCount === 0) return null
-            const label = selectedCount > 0 ? 'Seçilen kayıtların fiyatlarını güncelle' : 'Tümü güncelle'
+            
+            let label = selectedCount > 0 ? `Seçili ${selectedCount} kaydı güncelle` : `${flaggedCount} kaydı güncelle`
+            if (lockedCount > 0) {
+              label += ` (${lockedCount} kilitli atlanacak)`
+            }
             const onClick = async () => {
               if (bulkProgress && !bulkProgress.finished && !bulkProgress.cancelled) {
                 showNotification('Bir toplu işlem zaten yürütülüyor', 'info')
@@ -1752,7 +1809,7 @@ function BulkProgressOverlay({ progress, onAction }) {
       ),
       React.createElement('p', {
         style: { margin: '12px 0 0 0', fontSize: '13px', color: '#ddd' }
-      }, `Tamamlanan: ${progress.completed}/${progress.total}`),
+      }, `Tamamlanan: ${progress.completed}/${progress.total}${progress.skipped > 0 ? ` (${progress.skipped} kilitli atlandı)` : ''}`),
       errorPreview.length > 0 && React.createElement('div', {
         style: { marginTop: '12px', backgroundColor: 'rgba(220,53,69,0.1)', padding: '12px', borderRadius: '8px', color: '#f5c6cb' }
       },

@@ -64,8 +64,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     // Add system fields first
     fields.push(
       info('ID', item.id),
-      info(t.th_date || 'Tarih', (item.createdAt||'').replace('T',' ').slice(0,16)),
-      info(t.a_status || 'Durum', statusLabel(currStatus, t))
+      info(t.th_date || 'Tarih', (item.createdAt||'').replace('T',' ').slice(0,16))
     )
     
     // Add dynamic fields from form config
@@ -150,12 +149,38 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     // Add system fields first
     fields.push(
       info('ID', item.id),
-      info(t.th_date || 'Tarih', (item.createdAt||'').replace('T',' ').slice(0,16)),
-      info(t.a_status || 'Durum', statusLabel(currStatus, t))
+      info(t.th_date || 'Tarih', (item.createdAt||'').replace('T',' ').slice(0,16))
     )
+    
+    // Add default fields (company, proj, etc.) - always show these
+    const defaultFields = [
+      { key: 'company', label: 'Şirket' },
+      { key: 'proj', label: 'Proje' },
+      { key: 'material', label: 'Malzeme Türü' },
+      { key: 'thickness', label: 'Kalınlık (mm)' },
+      { key: 'qty', label: 'Adet' },
+      { key: 'notes', label: 'Ek Notlar' }
+    ]
+    
+    defaultFields.forEach(defaultField => {
+      let value = item[defaultField.key] || '—'
+      let label = defaultField.label
+      
+      // Special formatting
+      if (defaultField.key === 'thickness' && value !== '—') {
+        value = value + ' mm'
+      }
+      
+      fields.push(info(label, value))
+    })
     
     // Add dynamic fields from form config
     formConfig.formStructure.fields.forEach(field => {
+      // Skip default fields that are already handled above
+      const defaultFieldKeys = ['company', 'proj', 'material', 'thickness', 'qty', 'notes']
+      if (defaultFieldKeys.includes(field.id)) {
+        return
+      }
       
         let value = item.customFields?.[field.id] || item[field.id] || '—'
         let label = field.label || field.id
@@ -352,6 +377,12 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     
     setManualLoading(true)
     try {
+      // First check if quote has manual override (is locked)
+      if (item.manualOverride?.active) {
+        console.log('🔧 Quote is locked, clearing manual override first...')
+        await API.clearManualPrice(item.id, 'Manuel kilit kaldırıldı ve güncel fiyat uygulandı')
+      }
+      
       const response = await API.applyCurrentPriceToQuote(item.id)
       if (!response || response.success === false) {
         throw new Error(response?.error || 'Fiyat güncellemesi başarısız')

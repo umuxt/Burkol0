@@ -1600,7 +1600,16 @@ export async function compareQuotePriceVersions(quoteId) {
     }
   } catch (error) {
     console.error('Error comparing quote price versions:', error)
-    throw error
+    
+    // Add more context to the error
+    if (error.status === 404) {
+      throw error // Already well-formatted
+    }
+    
+    const contextError = new Error(`Price comparison failed for quote ${quoteId}: ${error.message}`)
+    contextError.originalError = error
+    contextError.quoteId = quoteId
+    throw contextError
   }
 }
 
@@ -1616,8 +1625,9 @@ export async function updateQuotePrice(quoteId, newPrice, userInfo = {}) {
 
     const quoteData = quoteDoc.data()
     if (quoteData.manualOverride?.active) {
-      const error = new Error('Manual price override is active for this quote')
+      const error = new Error('Cannot update price: quote is manually locked')
       error.code = 'MANUAL_OVERRIDE_ACTIVE'
+      error.quoteId = quoteId
       throw error
     }
     const currentPriceSettings = getPriceSettings()
@@ -1684,7 +1694,13 @@ export async function updateQuotePrice(quoteId, newPrice, userInfo = {}) {
     }
   } catch (error) {
     console.error('Error updating quote price:', error)
-    throw error
+    
+    // Add context to the error
+    const contextError = new Error(`Failed to update price for quote ${quoteId}: ${error.message}`)
+    contextError.originalError = error
+    contextError.quoteId = quoteId
+    contextError.code = error.code || 'PRICE_UPDATE_FAILED'
+    throw contextError
   }
 }
 
@@ -1840,5 +1856,7 @@ export default {
   updateQuotePrice,
   setManualOverride,
   clearManualOverride,
-  findPriceSettingsDifferences
+  findPriceSettingsDifferences,
+  // Firebase collections
+  getQuotesCollection: () => quotesRef
 }
