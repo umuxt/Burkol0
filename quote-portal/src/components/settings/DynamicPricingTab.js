@@ -490,16 +490,8 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
   }
 
   return React.createElement(React.Fragment, null,
-    // Başlık ve açıklama
-    React.createElement('div', { className: 'card', style: { marginBottom: '20px', backgroundColor: '#f8f9fa' } },
-      React.createElement('h2', null, '🔧 Dinamik Fiyatlandırma Sistemi'),
-      React.createElement('p', { style: { margin: '10px 0', color: '#666' } },
-        'Form verilerinize dayalı dinamik fiyatlandırma parametreleri oluşturun. Parametreler otomatik olarak A, B, C... harfleriyle etiketlenir.'
-      )
-    ),
-
     // Parameters section
-    React.createElement('div', { className: 'card', style: { marginBottom: '12px' } },
+    React.createElement('div', { className: 'card' },
       React.createElement('h3', null, '📊 Fiyat Parametreleri'),
       
       isLoadingFields && React.createElement('div', { className: 'alert alert-info' },
@@ -508,12 +500,13 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
       
       !isLoadingFields && React.createElement(React.Fragment, null,
         // Add parameter form
-        React.createElement('div', { className: 'form-group' },
-          React.createElement('label', null, t.pricing_param_type || 'Parametre Türü'),
+        React.createElement('div', { className: 'form-group inline' },
+          React.createElement('label', null, 'Eklenecek Parametre Türü'),
           React.createElement('select', {
             value: parameterType,
             onChange: (e) => setParameterType(e.target.value),
-            className: 'form-control'
+            className: 'form-control',
+            style: { width: 'auto', minWidth: '180px', maxWidth: '200px' }
           },
             React.createElement('option', { value: '' }, t.pricing_select || 'Seçiniz...'),
             React.createElement('option', { value: 'fixed' }, '🔢 ' + (t.pricing_fixed_param || 'Sabit Değer')),
@@ -630,7 +623,7 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
       ),
 
       // Parameters list with user-friendly IDs
-      parameters.length > 0 && React.createElement('div', { style: { marginTop: '12px' } },
+      parameters.length > 0 && React.createElement('div', { style: { marginTop: '5px' } },
         React.createElement('h4', null, '📋 Mevcut Parametreler'),
         
         // Orphan parameter uyarı sistemi
@@ -647,12 +640,12 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
               )
             )
           ),
-          systemIntegrity.orphansInFormula.length > 0 && React.createElement('div', { style: { marginTop: '10px', padding: '8px', backgroundColor: '#dc3545', color: 'white', borderRadius: '4px' } },
+          systemIntegrity.orphansInFormula.length > 0 && React.createElement('div', { style: { marginTop: '3px', padding: '8px', backgroundColor: '#dc3545', color: 'white', borderRadius: '4px' } },
             React.createElement('strong', null, '⚠️ Bu parametreler hala formülde kullanılıyor!'),
             React.createElement('br'),
             'Önce formülden kaldırın, sonra parametreyi silin.'
           ),
-          React.createElement('div', { style: { marginTop: '10px', fontSize: '0.9em' } },
+          React.createElement('div', { style: { marginTop: '3px', fontSize: '0.9em' } },
             React.createElement('strong', null, '🔒 Bloke Edilen İşlemler:'),
             React.createElement('br'),
             '• Form kaydetme engellenmiştir',
@@ -663,9 +656,6 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
           )
         ),
         
-        React.createElement('div', { className: 'alert alert-info', style: { fontSize: '0.9em' } },
-          'Parametreler formülde A, B, C... harfleri ile kullanılır'
-        ),
         React.createElement('table', { className: 'table' },
           React.createElement('thead', null,
             React.createElement('tr', null,
@@ -695,7 +685,8 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
                         value: paramDraft.name,
                         onChange: (e) => setParamDraft({ ...paramDraft, name: e.target.value }),
                         className: 'form-control',
-                        placeholder: 'Parametre adı'
+                        placeholder: 'Parametre adı',
+                        style: { padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
                       })
                     : param.name
                 ),
@@ -711,12 +702,13 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
                             onChange: (e) => setParamDraft({ ...paramDraft, value: e.target.value }),
                             className: 'form-control',
                             step: '0.01',
-                            style: { width: '140px' }
+                            style: { width: '110px', padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
                           })
                         : React.createElement('select', {
                             className: 'form-control',
                             value: paramDraft.formField,
-                            onChange: (e) => setParamDraft({ ...paramDraft, formField: e.target.value })
+                            onChange: (e) => setParamDraft({ ...paramDraft, formField: e.target.value }),
+                            style: { padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
                           },
                             React.createElement('option', { value: '' }, 'Seçiniz...'),
                             ...formFields.map(f => React.createElement('option', { key: f.value, value: f.value }, `${f.label} (${f.type})`))
@@ -750,15 +742,16 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
                       canEdit && !isOrphan && React.createElement('button', {
                         onClick: () => editParameter(param),
                         className: 'btn btn-sm btn-primary',
-                        style: { marginRight: '6px' }
+                        style: { marginRight: '6px', marginTop: '2px', marginBottom: '2px' }
                       }, 'Düzenle'),
                       isOrphan ? React.createElement('button', {
                         onClick: () => removeOrphanParameter(param.id),
                         className: 'btn btn-sm btn-warning',
-                        style: { marginRight: '6px' }
+                        style: { marginRight: '6px', marginTop: '2px', marginBottom: '2px' }
                       }, '🧹 Orphan Temizle') : React.createElement('button', {
                         onClick: () => deleteParameter(param.id),
-                        className: 'btn btn-sm btn-danger'
+                        className: 'btn btn-sm btn-danger',
+                        style: { marginTop: '2px', marginBottom: '2px' }
                       }, 'Sil')
                     )
                   })()
@@ -893,7 +886,7 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
         )
       ),
 
-      React.createElement('div', { style: { marginTop: '20px' } },
+      React.createElement('div', { style: { marginTop: '8px' } },
         React.createElement('button', {
           onClick: savePriceSettings,
           className: systemIntegrity.canSave ? 'btn btn-success btn-lg' : 'btn btn-danger btn-lg',

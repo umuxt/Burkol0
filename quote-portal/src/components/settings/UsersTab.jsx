@@ -57,6 +57,8 @@ export default function UsersTab({ t, showNotification }) {
         return []
       }
 
+      console.log('Raw session data:', sessionList)
+
       const uniqueSessionsMap = new Map()
       sessionList.forEach(item => {
         if (!item || !item.sessionId) return
@@ -79,8 +81,12 @@ export default function UsersTab({ t, showNotification }) {
         return bTime - aTime
       })
 
-      setSessions(sortedSessions)
-      return sortedSessions
+      // Son 20 session'ı al (en yeniden eskiye doğru)
+      const latestSessions = sortedSessions.slice(0, 20)
+
+      console.log('Processed sessions:', latestSessions)
+      setSessions(latestSessions)
+      return latestSessions
     } catch (e) {
       console.error('Sessions load error:', e)
       showNotification(t.sessions_load_error || 'Oturumlar yüklenemedi', 'error')
@@ -214,19 +220,34 @@ export default function UsersTab({ t, showNotification }) {
   function formatDateTime(dateString) {
     if (!dateString) return '-'
     const date = new Date(dateString)
-    if (isNaN(date.getTime())) return '-'
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid date string:', dateString)
+      return '-'
+    }
+    
     return date.toLocaleString('tr-TR', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'Europe/Istanbul'
     })
   }
 
   function isSessionActive(session) {
-    if (!session?.expires) return false
-    return new Date(session.expires) > new Date()
+    if (!session) return false
+    
+    // Eğer logoutTime varsa session pasif
+    if (session.logoutTime) return false
+    
+    // Eğer isActive false ise session pasif
+    if (session.isActive === false) return false
+    
+    // Eğer expires geçtiyse session pasif
+    if (session.expires && new Date(session.expires) <= new Date()) return false
+    
+    return true
   }
 
   function getRoleLabel(role) {
@@ -353,58 +374,100 @@ export default function UsersTab({ t, showNotification }) {
       ),
 
       isLogView
-        ? (sessionsLoading
-            ? React.createElement('p', null, t.loading || 'Yükleniyor...')
-            : (sessions.length === 0
-                ? React.createElement('p', null, t.sessions_empty || 'Henüz oturum kaydı yok.')
-                : React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse', border: '1px solid #ddd' } },
-                    React.createElement('thead', null,
-                      React.createElement('tr', { style: { backgroundColor: '#f5f5f5' } },
-                        React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' } }, t.sessions_session_id || 'Oturum ID'),
-                        React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' } }, t.sessions_user || 'Kullanıcı'),
-                        React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' } }, t.users_email || 'Email'),
-                        React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' } }, t.sessions_login || 'Giriş'),
-                        React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' } }, t.sessions_expires || 'Sona Erme'),
-                        React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd' } }, t.users_status || 'Durum'),
-                        React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd' } }, t.sessions_actions || 'İşlemler')
-                      )
-                    ),
-                    React.createElement('tbody', null,
-                      sessions.map(session =>
-                        React.createElement('tr', { key: session.sessionId || session.token, style: { borderBottom: '1px solid #eee' } },
-                          React.createElement('td', { style: { padding: '12px' } }, session.sessionId || '—'),
-                          React.createElement('td', { style: { padding: '12px' } }, session.userName || '—'),
-                          React.createElement('td', { style: { padding: '12px' } }, session.email || '—'),
-                          React.createElement('td', { style: { padding: '12px' } }, formatDateTime(session.loginTime)),
-                          React.createElement('td', { style: { padding: '12px' } }, formatDateTime(session.expires)),
-                          React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
-                            React.createElement('span', {
-                              style: {
-                                padding: '4px 8px',
-                                borderRadius: '4px',
-                                fontSize: '12px',
-                                fontWeight: 'bold',
-                                backgroundColor: isSessionActive(session) ? '#d4edda' : '#f8d7da',
-                                color: isSessionActive(session) ? '#155724' : '#721c24'
-                              }
-                            }, isSessionActive(session) ? (t.users_active || 'Aktif') : (t.sessions_expired || 'Süresi Dolmuş'))
-                          ),
-                          React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
-                            React.createElement('div', { style: { display: 'flex', justifyContent: 'center' } },
-                              React.createElement('button', {
-                                type: 'button',
-                                className: 'btn btn-secondary',
-                                style: { fontSize: '12px', padding: '4px 8px' },
-                                disabled: sessionsLoading,
-                                onClick: () => openSessionDetails(session)
-                              }, t.sessions_details || 'Detaylar')
+        ? React.createElement(React.Fragment, null,
+            (sessionsLoading
+              ? React.createElement('p', null, t.loading || 'Yükleniyor...')
+              : (sessions.length === 0
+                  ? React.createElement('p', null, t.sessions_empty || 'Henüz oturum kaydı yok.')
+                  : React.createElement('div', { style: { overflowX: 'auto', marginBottom: '20px' } },
+                      React.createElement('table', { style: { width: '100%', minWidth: '1200px', borderCollapse: 'collapse', border: '1px solid #ddd' } },
+                      React.createElement('thead', null,
+                        React.createElement('tr', { style: { backgroundColor: '#f5f5f5' } },
+                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '12%' } }, t.sessions_session_id || 'Oturum ID'),
+                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '10%' } }, t.sessions_user || 'Kullanıcı'),
+                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '18%' } }, t.users_email || 'Email'),
+                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '13%' } }, t.sessions_login || 'Giriş'),
+                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '13%' } }, 'Çıkış'),
+                          React.createElement('th', { style: { padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '13%' } }, t.sessions_expires || 'Token Süresi'),
+                          React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd', width: '8%' } }, t.users_status || 'Durum'),
+                          React.createElement('th', { style: { padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd', width: '13%' } }, t.sessions_actions || 'İşlemler')
+                        )
+                      ),
+                      React.createElement('tbody', null,
+                        sessions.map(session =>
+                          React.createElement('tr', { key: session.sessionId || session.token, style: { borderBottom: '1px solid #eee' } },
+                            React.createElement('td', { style: { padding: '12px' } }, session.sessionId || '—'),
+                            React.createElement('td', { style: { padding: '12px' } }, session.userName || '—'),
+                            React.createElement('td', { style: { padding: '12px' } }, session.email || '—'),
+                            React.createElement('td', { style: { padding: '12px' } }, 
+                              React.createElement('span', {
+                                title: `Raw data: ${session.loginTime}`,
+                                style: { cursor: 'help' }
+                              }, formatDateTime(session.loginTime))
+                            ),
+                            React.createElement('td', { style: { padding: '12px' } }, 
+                              React.createElement('span', {
+                                title: `Raw data: ${session.logoutTime || 'Henüz çıkış yapılmamış'}`,
+                                style: { cursor: 'help' }
+                              }, session.logoutTime ? formatDateTime(session.logoutTime) : '—')
+                            ),
+                            React.createElement('td', { style: { padding: '12px' } }, 
+                              React.createElement('span', {
+                                title: `Raw data: ${session.expires}`,
+                                style: { cursor: 'help' }
+                              }, formatDateTime(session.expires))
+                            ),
+                            React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
+                              React.createElement('span', {
+                                style: {
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  fontWeight: 'bold',
+                                  backgroundColor: isSessionActive(session) ? '#d4edda' : '#f8d7da',
+                                  color: isSessionActive(session) ? '#155724' : '#721c24'
+                                }
+                              }, isSessionActive(session) ? (t.users_active || 'Aktif') : (t.sessions_expired || 'Süresi Dolmuş'))
+                            ),
+                            React.createElement('td', { style: { padding: '12px', textAlign: 'center' } },
+                              React.createElement('div', { style: { display: 'flex', justifyContent: 'center' } },
+                                React.createElement('button', {
+                                  type: 'button',
+                                  className: 'btn btn-secondary',
+                                  style: { fontSize: '12px', padding: '4px 8px' },
+                                  disabled: sessionsLoading,
+                                  onClick: () => openSessionDetails(session)
+                                }, t.sessions_details || 'Detaylar')
+                              )
                             )
                           )
                         )
                       )
                     )
                   )
-              ))
+                )),
+            // Firebase button container
+            React.createElement('div', {
+              style: {
+                marginTop: '20px',
+                padding: '15px',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                backgroundColor: '#f9f9f9',
+                textAlign: 'center'
+              }
+            },
+              React.createElement('button', {
+                onClick: () => window.open('https://console.firebase.google.com/u/0/project/burkolmetal-726f3/firestore/databases/-default-/data/~2Fsessions', '_blank'),
+                className: 'btn btn-info',
+                style: {
+                  padding: '2px',
+                  whiteSpace: 'nowrap',
+                  fontSize: '14px'
+                }
+              }, 'Tüm session geçmişini görmek için Firebase göz atın')
+            )
+          )
         : (users.length === 0 
             ? React.createElement('p', null, t.users_no_users || 'Henüz kullanıcı eklenmemiş.')
             : React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse', border: '1px solid #ddd' } },

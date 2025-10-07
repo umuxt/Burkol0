@@ -74,18 +74,10 @@ export function createSession(email, days = 30) {
   const user = jsondb.getUser(email)
   const userName = user?.name || user?.email?.split('@')[0] || 'Unknown User'
   
-  const sessionData = {
-    sessionId,
-    token,
-    userName,
-    email,
-    loginTime: loginTime.toISOString(),
-    loginDate: loginTime.toISOString().split('T')[0], // YYYY-MM-DD format
-    expires: expires.toISOString()
-  }
-  
-  jsondb.putSession(sessionData)
-  jsondb.appendSessionActivity(sessionId, {
+  // Create login activity data
+  const loginActivity = {
+    id: `act-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    timestamp: loginTime.toISOString(),
     type: 'session',
     action: 'login',
     scope: 'auth',
@@ -93,9 +85,30 @@ export function createSession(email, days = 30) {
     description: `${email} oturumu başlatıldı`,
     metadata: {
       email,
-      expires: sessionData.expires
+      expires: expires.toISOString()
+    },
+    performedBy: {
+      email,
+      userName,
+      sessionId
     }
-  })
+  }
+  
+  const sessionData = {
+    sessionId,
+    token,
+    userName,
+    email,
+    loginTime: loginTime.toISOString(),
+    loginDate: loginTime.toISOString().split('T')[0], // YYYY-MM-DD format
+    expires: expires.toISOString(),
+    lastActivityAt: loginTime.toISOString(),
+    isActive: true, // Session aktif durumda
+    logoutTime: null, // Henüz çıkış yapılmamış
+    activityLog: [loginActivity]
+  }
+  
+  jsondb.putSession(sessionData)
   return token
 }
 

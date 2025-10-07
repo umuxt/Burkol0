@@ -8,30 +8,8 @@ import { ToastNotification, useNotifications } from './hooks/useNotifications.js
 
 const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin' : 'quote';
 
-function Nav({ onLang, lang, t }) {
-  const isAdmin = PAGE === 'admin';
-  return (
-    <div className='nav'>
-      <div className='nav-inner container'>
-        <div className='brand'>
-          <div className='dot'></div>
-          <a href={isAdmin ? './quote-dashboard.html' : './index.html'}>BURKOL</a>
-        </div>
-        <div className='row wrap'>
-          <div className='tabs'></div>
-          <div style={{ width: 12 }}></div>
-          <select value={lang} onChange={(e) => onLang(e.target.value)}>
-            <option value='tr'>Türkçe</option>
-            <option value='en'>English</option>
-          </select>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function App() {
-  const { t, lang, setLang } = useI18n();
+  const { t, lang } = useI18n();
   const [loggedIn, setLoggedIn] = useState(false);
   const { notifications, showNotification, removeNotification } = useNotifications();
 
@@ -81,7 +59,6 @@ function App() {
           onClose={() => removeNotification(notification.id)}
         />
       ))}
-      <Nav onLang={setLang} lang={lang} t={t} />
       {PAGE === 'admin'
         ? (loggedIn ? (
             <Admin 

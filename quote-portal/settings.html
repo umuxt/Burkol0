@@ -17,6 +17,7 @@
     <link rel="icon" type="image/png" sizes="192x192" href="./img/icon-192.png" />
     <link rel="apple-touch-icon" href="./img/icon-192.png" />
     <link rel="manifest" href="./manifest.json" />
+    <script src="./components/BurkolNavigation.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -68,35 +69,18 @@
       }
 
       .settings-container {
-        max-width: 1200px;
+        max-width: 1400px;
         margin: 0 auto;
-        padding: 1.25rem 0.75rem;
+        padding: 2rem 1.5rem;
+        width: 100%;
       }
 
-      .settings-header {
-        background: var(--surface);
-        border-bottom: 1px solid var(--card-border);
-        padding: 1rem 0;
-        margin: -1.25rem -0.75rem 1rem;
-        padding-left: 0.75rem;
-        padding-right: 0.75rem;
-      }
 
-      .settings-title {
-        font-size: 1.75rem;
-        font-weight: 600;
-        color: var(--text);
-        margin-bottom: 0.5rem;
-      }
-
-      .settings-subtitle {
-        color: var(--muted);
-        font-size: 1rem;
-      }
 
       .tab-navigation {
         display: flex;
-        gap: 0.5rem;
+        gap: 8px;
+        flex-wrap: wrap;
         margin-bottom: 1rem;
         border-bottom: 1px solid var(--card-border);
         padding-bottom: 0;
@@ -127,66 +111,114 @@
 
       .tab-content {
         background: var(--card-bg);
-        border-radius: 0.5rem;
-        box-shadow: var(--card-shadow);
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         border: 1px solid var(--card-border);
-        padding: 1.25rem;
+        padding: 0.5rem !important;
         min-height: 60vh;
+        width: 100%;
       }
 
       .card {
         background: var(--card-bg);
         border: 1px solid var(--card-border);
-        border-radius: 0.5rem;
+        border-radius: 15px;
         padding: 1rem;
-        box-shadow: var(--card-shadow);
-        margin-bottom: 1rem;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        margin-bottom: 0.5rem !important;
+        width: 100%;
       }
 
       .card h3 {
         color: var(--text);
-        margin-bottom: 0.75rem;
-        font-size: 1.125rem;
+        margin-bottom: 0.75rem !important;
+        font-size: 1.5rem;
         font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 12px;
       }
 
-      .form-group { margin-bottom: 0.75rem; }
+      /* Genel başlık margin optimizasyonu */
+      h4 {
+        margin: 0.5rem 0 !important;
+      }
+
+      .alert {
+        margin: 0.5rem 0 !important;
+        padding: 0.5rem !important;
+      }
+
+      .form-group { 
+        margin-bottom: 0.5rem !important; 
+        width: 100%;
+      }
+
+      /* Parametre türü için inline layout */
+      .form-group.inline {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        flex-wrap: wrap;
+      }
+
+      .form-group.inline label {
+        display: inline-block !important;
+        margin-bottom: 0 !important;
+        margin-right: 0 !important;
+        min-width: 120px;
+        flex-shrink: 0;
+      }
+
+      .form-group.inline .form-control {
+        flex: 0 0 auto !important;
+        min-width: 180px;
+        max-width: 200px;
+        width: auto !important;
+      }
 
       .form-group label {
         display: block;
-        margin-bottom: 0.4rem;
-        font-weight: 500;
+        margin-bottom: 0.75rem;
+        font-weight: 600;
         color: var(--text);
+        font-size: 1rem;
       }
 
       .form-control {
         width: 100%;
-        padding: 0.5rem 0.6rem;
+        padding: 0.875rem 1rem;
         border: 1px solid var(--form-border);
-        border-radius: 0.375rem;
+        border-radius: 10px;
         background: var(--form-bg);
         color: var(--text);
-        font-size: 0.875rem;
-        transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        min-height: 48px;
       }
 
       .form-control:focus {
         outline: none;
         border-color: var(--form-focus);
-        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        transform: translateY(-1px);
       }
 
       .btn {
-        display: inline-block;
-        padding: 0.5rem 1rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 0.875rem 1.5rem;
         border: none;
-        border-radius: 0.375rem;
-        font-weight: 500;
+        border-radius: 10px;
+        font-weight: 600;
         text-align: center;
         cursor: pointer;
-        transition: all 0.15s ease-in-out;
-        font-size: 0.875rem;
+        transition: all 0.3s ease;
+        font-size: 1rem;
         text-decoration: none;
+        min-height: 48px;
       }
 
       .btn:disabled {
@@ -197,64 +229,137 @@
       .btn-primary {
         background: var(--btn-primary);
         color: white;
+        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
       }
 
       .btn-primary:hover:not(:disabled) {
         background: #0056b3;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4);
       }
 
       .btn-secondary {
         background: var(--btn-secondary);
         color: white;
+        box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
       }
 
       .btn-secondary:hover:not(:disabled) {
         background: #545b62;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(108, 117, 125, 0.4);
       }
 
       .btn-danger {
         background: var(--btn-danger);
         color: white;
+        box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
       }
 
       .btn-danger:hover:not(:disabled) {
         background: #c82333;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
       }
 
       .btn-success {
         background: var(--btn-success);
         color: white;
+        box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
       }
 
       .btn-success:hover:not(:disabled) {
         background: #1e7e34;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
       }
 
       .btn-sm {
-        padding: 0.5rem 1rem;
-        font-size: 0.8rem;
+        padding: 0.3rem 0.7rem !important;
+        font-size: 0.75rem;
+        margin: 2px !important;
+        line-height: 1.2;
+      }
+
+      /* Tablo butonları için özel stil */
+      .table .btn-sm {
+        padding: 0.25rem 0.5rem !important;
+        margin: 1px 3px !important;
+        font-size: 0.7rem;
+        min-height: auto;
+        transition: all 0.2s ease !important;
+        transform: none !important;
+      }
+
+      /* Genel buton hover efektini sınırla */
+      .btn:not(.table .btn-sm):hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      /* Tablo butonları hover efekti - merkezi sabit genişleme */
+      .table .btn-sm:hover {
+        transform: scale(1.05) !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2) !important;
+      }
+
+      /* Tablo input field'ları için kompakt padding */
+      .table .form-control {
+        padding: 1px 6px !important;
+        font-size: 0.8rem !important;
+        line-height: 1.1 !important;
+        min-height: 24px !important;
+        max-height: 24px !important;
+        height: 24px !important;
+        border-radius: 3px !important;
+        border: 1px solid #ccc !important;
+        box-sizing: border-box !important;
+      }
+
+      /* Tablo hücrelerinin sabit boyutunu koruma */
+      .table td {
+        vertical-align: middle !important;
+        white-space: nowrap;
       }
 
       .table-container {
         overflow-x: auto;
+        background: var(--card-bg);
+        border-radius: 15px;
+        border: 1px solid var(--card-border);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        margin-top: 1.5rem;
       }
 
       table {
         width: 100%;
         border-collapse: collapse;
-        background: var(--card-bg);
+        background: transparent;
+        table-layout: fixed !important;
       }
 
+      /* Sabit sütun genişlikleri */
+      .table th:nth-child(1) { width: 60px; } /* Formül ID */
+      .table th:nth-child(2) { width: 150px; } /* Ad */
+      .table th:nth-child(3) { width: 80px; } /* Tür */
+      .table th:nth-child(4) { width: 120px; } /* Değer/Alan */
+      .table th:nth-child(5) { width: 140px; } /* İşlem */
+
       th, td {
-        padding: 0.5rem;
+        padding: 0.5rem 1rem;
         text-align: left;
         border-bottom: 1px solid var(--card-border);
+        font-size: 0.9rem;
+        vertical-align: middle;
+        height: 40px !important;
+        max-height: 40px !important;
       }
 
       th {
         background: var(--surface);
         font-weight: 600;
         color: var(--text);
+        font-size: 1.1rem;
       }
 
       tr:hover {
@@ -262,14 +367,14 @@
       }
 
       .spinner {
-        border: 2px solid var(--surface);
-        border-top: 2px solid var(--accent);
+        border: 3px solid var(--surface);
+        border-top: 3px solid var(--accent);
         border-radius: 50%;
-        width: 20px;
-        height: 20px;
+        width: 24px;
+        height: 24px;
         animation: spin 1s linear infinite;
         display: inline-block;
-        margin-right: 0.5rem;
+        margin-right: 0.75rem;
       }
 
       @keyframes spin {
@@ -277,42 +382,49 @@
         100% { transform: rotate(360deg); }
       }
 
-      .back-to-admin {
-        position: fixed;
-        top: 1rem;
-        left: 1rem;
-        z-index: 1000;
-      }
-
       @media (max-width: 768px) {
         .settings-container {
-          padding: 0.75rem 0.5rem;
+          padding: 1rem 0.75rem;
+          max-width: 100%;
+        }
+        
+
+        
+        .card {
+          padding: 0.5rem !important;
+          margin-bottom: 0.25rem !important;
+        }
+        
+        .tab-content {
+          padding: 0.25rem !important;
         }
         
         .tab-navigation {
           flex-wrap: wrap;
+          gap: 4px;
         }
         
-        .tab-content {
-          padding: 0.75rem;
+        .btn {
+          padding: 0.75rem 1.25rem;
+          font-size: 0.9rem;
         }
         
-        .card {
+        .form-control {
           padding: 0.75rem;
+          font-size: 0.9rem;
+        }
+        
+        th, td {
+          padding: 0.75rem 1rem;
+          font-size: 0.9rem;
         }
       }
     </style>
     
   </head>
   <body>
-    <a href="./admin-dashboard.html" class="btn btn-secondary back-to-admin">← Yönetim Paneline Dön</a>
     
     <div class="settings-container">
-      <div class="settings-header">
-        <h1 class="settings-title">Sistem Ayarları</h1>
-        <p class="settings-subtitle">Burkol teklif sistemi yapılandırması</p>
-      </div>
-      
       <div id="settings-root"></div>
     </div>
 

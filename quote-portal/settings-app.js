@@ -61,8 +61,62 @@ function NotificationContainer({ notifications, onRemove }) {
 
 // Main Settings App Component
 function SettingsApp() {
-  const [activeTab, setActiveTab] = useState('pricing') // 'pricing' | 'form' | 'users'
+  // URL'den veya localStorage'dan aktif sekmeyi belirle
+  function getInitialTab() {
+    // URL search params kontrolü (?tab=form)
+    const urlParams = new URLSearchParams(window.location.search)
+    const tabParam = urlParams.get('tab')
+    if (['pricing', 'form', 'users'].includes(tabParam)) {
+      return tabParam
+    }
+    
+    // URL'de hash varsa onu kullan (#form, #users, #pricing)
+    const hash = window.location.hash.replace('#', '')
+    if (['pricing', 'form', 'users'].includes(hash)) {
+      return hash
+    }
+    
+    // localStorage'dan son seçilen sekmeyi al
+    const savedTab = localStorage.getItem('burkol-settings-tab')
+    if (['pricing', 'form', 'users'].includes(savedTab)) {
+      return savedTab
+    }
+    
+    // Varsayılan olarak fiyatlandırma
+    return 'pricing'
+  }
+  
+  const [activeTab, setActiveTab] = useState(getInitialTab) // 'pricing' | 'form' | 'users'
   const { notifications, showNotification, removeNotification } = useNotifications()
+
+  // Sayfa ilk yüklendiğinde URL hash'ini doğru sekmeye ayarla
+  useEffect(() => {
+    const currentTab = getInitialTab()
+    if (window.location.hash !== `#${currentTab}`) {
+      window.location.hash = currentTab
+    }
+  }, [])
+
+  // Sekme değiştiğinde URL ve localStorage'ı güncelle
+  function handleTabChange(newTab) {
+    setActiveTab(newTab)
+    localStorage.setItem('burkol-settings-tab', newTab)
+    window.location.hash = newTab
+  }
+
+  // URL hash değişikliklerini dinle (geri/ileri butonları için)
+  useEffect(() => {
+    function handleHashChange() {
+      const hash = window.location.hash.replace('#', '')
+      if (['pricing', 'form', 'users'].includes(hash)) {
+        setActiveTab(hash)
+        localStorage.setItem('burkol-settings-tab', hash)
+      }
+    }
+
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
 
   // Simple translation object
   const t = {
@@ -90,17 +144,17 @@ function SettingsApp() {
     React.createElement('div', { className: 'tab-navigation' },
       React.createElement('button', {
         className: `tab-button ${activeTab === 'pricing' ? 'active' : ''}`,
-        onClick: () => setActiveTab('pricing')
+        onClick: () => handleTabChange('pricing')
       }, 'Fiyatlandırma'),
       
       React.createElement('button', {
         className: `tab-button ${activeTab === 'form' ? 'active' : ''}`,
-        onClick: () => setActiveTab('form')
+        onClick: () => handleTabChange('form')
       }, 'Form Yapısı'),
 
       React.createElement('button', {
         className: `tab-button ${activeTab === 'users' ? 'active' : ''}`,
-        onClick: () => setActiveTab('users')
+        onClick: () => handleTabChange('users')
       }, 'Kullanıcılar')
     ),
 

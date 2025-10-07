@@ -49,6 +49,41 @@ export function setupAuthRoutes(app) {
     const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null
     
     if (token) {
+      const session = getSession(token)
+      if (session) {
+        // Session'a logout bilgisi ekle
+        const logoutActivity = {
+          id: `act-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+          timestamp: new Date().toISOString(),
+          type: 'session',
+          action: 'logout', 
+          scope: 'auth',
+          title: 'Admin panel çıkış yapıldı',
+          description: `${session.email} oturumu sonlandırıldı`,
+          metadata: {
+            email: session.email,
+            sessionDuration: new Date() - new Date(session.loginTime)
+          },
+          performedBy: {
+            email: session.email,
+            userName: session.userName,
+            sessionId: session.sessionId
+          }
+        }
+
+        // Session'ı güncelle - logout time ekle
+        const updatedSession = {
+          ...session,
+          logoutTime: new Date().toISOString(),
+          isActive: false,
+          lastActivityAt: new Date().toISOString(),
+          activityLog: [...(session.activityLog || []), logoutActivity]
+        }
+        
+        // Firebase'de session'ı güncelle (sil değil)
+        jsondb.putSession(updatedSession)
+      }
+      
       deleteSession(token)
     }
     

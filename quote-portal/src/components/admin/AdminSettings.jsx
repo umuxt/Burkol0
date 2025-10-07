@@ -7,38 +7,8 @@ function AdminSettings({ t, onLogout, showNotification, onNavigate }) {
     }
   };
 
-  const handleLogout = () => {
-    if (onLogout) {
-      onLogout();
-    }
-  };
-
   return (
     <div className="admin-settings">
-      <div className="page-header">
-        <div className="header-left">
-          <button 
-            className="back-btn"
-            onClick={handleBack}
-            title="Yönetim Paneline Dön"
-          >
-            ← Yönetim Paneli
-          </button>
-          <div className="header-title">
-            <h1>Sistem Ayarları</h1>
-            <p>Uygulama ayarları ve parametreler</p>
-          </div>
-        </div>
-        <div className="header-actions">
-          <button 
-            className="logout-btn"
-            onClick={handleLogout}
-            title="Çıkış Yap"
-          >
-            🚪 Çıkış
-          </button>
-        </div>
-      </div>
       
       <div className="content-container">
         <div className="settings-card">
@@ -164,30 +134,15 @@ function AdminSettings({ t, onLogout, showNotification, onNavigate }) {
           margin: 0;
         }
 
-        .logout-btn {
-          padding: 0.75rem 1.5rem;
-          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-          color: white;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 1rem;
-          font-weight: 500;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 15px rgba(238, 90, 36, 0.3);
+        .admin-settings {
+          padding: 2rem;
+          min-height: 100vh;
+
+          background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
         }
 
-        .logout-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(238, 90, 36, 0.4);
-        }
-
-        .content-container {
-          max-width: 1200px;
-          margin: 0 auto;
-        }
-
-        .settings-card {
+        .content-container {        .settings-card {
           background: rgba(255, 255, 255, 0.95);
           backdrop-filter: blur(10px);
           border: 1px solid rgba(255, 255, 255, 0.2);
@@ -317,18 +272,6 @@ function AdminSettings({ t, onLogout, showNotification, onNavigate }) {
         @media (max-width: 768px) {
           .admin-settings {
             padding: 1rem;
-          }
-          
-          .page-header {
-            flex-direction: column;
-            gap: 1rem;
-            text-align: center;
-            padding: 1rem;
-          }
-
-          .header-left {
-            flex-direction: column;
-            text-align: center;
           }
           
           .settings-card {

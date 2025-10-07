@@ -6,8 +6,8 @@ import UsersTab from '../settings/UsersTab.jsx'
 
 const { useState, useEffect } = React;
 
-function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates }) {
-  const [activeTab, setActiveTab] = useState('pricing') // 'pricing' | 'form' | 'users'
+function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, initialTab = 'pricing' }) {
+  const [activeTab, setActiveTab] = useState(initialTab) // 'pricing' | 'form' | 'users'
 
   // Body scroll lock on mount/unmount
   useEffect(() => {

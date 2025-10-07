@@ -7,12 +7,6 @@ function AdminProduction({ t, onLogout, showNotification, onNavigate }) {
     }
   };
 
-  const handleLogout = () => {
-    if (onLogout) {
-      onLogout();
-    }
-  };
-
   // Mock production data
   const productionStats = {
     activeJobs: 12,
@@ -59,30 +53,6 @@ function AdminProduction({ t, onLogout, showNotification, onNavigate }) {
 
   return (
     <div className="admin-production">
-      <div className="page-header">
-        <div className="header-left">
-          <button 
-            className="back-btn"
-            onClick={handleBack}
-            title="Yönetim Paneline Dön"
-          >
-            ← Yönetim Paneli
-          </button>
-          <div className="header-title">
-            <h1>Üretim Paneli</h1>
-            <p>Üretim süreçlerini izle ve yönet</p>
-          </div>
-        </div>
-        <div className="header-actions">
-          <button 
-            className="logout-btn"
-            onClick={handleLogout}
-            title="Çıkış Yap"
-          >
-            🚪 Çıkış
-          </button>
-        </div>
-      </div>
       
       <div className="content-container">
         {/* Production Statistics */}
@@ -246,24 +216,6 @@ function AdminProduction({ t, onLogout, showNotification, onNavigate }) {
           font-size: 1rem;
           color: #666;
           margin: 0;
-        }
-
-        .logout-btn {
-          padding: 0.75rem 1.5rem;
-          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-          color: white;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 1rem;
-          font-weight: 500;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 15px rgba(238, 90, 36, 0.3);
-        }
-
-        .logout-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(238, 90, 36, 0.4);
         }
 
         .content-container {

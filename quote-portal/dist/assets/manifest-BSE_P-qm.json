@@ -55,7 +55,7 @@
       "name": "Admin Panel",
       "short_name": "Admin",
       "description": "Access admin dashboard",
-      "url": "/qupte-dashboard.html",
+      "url": "/quote-dashboard.html",
       "icons": [
         {
           "src": "./img/shortcut-admin.png",

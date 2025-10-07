@@ -4,14 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Form Input Test</title>
+    <script src="./components/BurkolNavigation.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; }
+        body { 
+          font-family: Arial, sans-serif; 
+          padding: 0;
+          margin: 0;
+          background: #f5f6f8;
+          color: #1f2933;
+        }
+        
+        .content {
+          padding: 20px;
+        }
+        
         input, textarea { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; }
         .test-section { margin-bottom: 30px; border: 1px solid #ddd; padding: 15px; }
     </style>
 </head>
 <body>
-    <h1>Form Input Debug Test</h1>
+    <div class="content">
+      <h1>Form Input Debug Test</h1>
     
     <div class="test-section">
         <h2>1. Basic HTML Input Test</h2>
@@ -114,5 +127,6 @@
             root.render(React.createElement(ReactInputTest));
         }
     </script>
+    </div>
 </body>
 </html>

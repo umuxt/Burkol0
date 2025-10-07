@@ -46,30 +46,8 @@ function AdminDashboard({ t, onLogout, showNotification, onNavigate }) {
     }
   };
 
-  const handleLogout = () => {
-    if (onLogout) {
-      onLogout();
-    }
-  };
-
   return (
     <div className="admin-dashboard">
-      {/* Dashboard Header */}
-      <div className="dashboard-header">
-        <div className="header-content">
-          <h1>Yönetim Paneli</h1>
-          <p>Burkol Metal Yönetim Sistemi</p>
-        </div>
-        <div className="header-actions">
-          <button 
-            className="logout-btn"
-            onClick={handleLogout}
-            title="Çıkış Yap"
-          >
-            🚪 Çıkış
-          </button>
-        </div>
-      </div>
       
       {/* Menu Grid */}
       <div className="menu-grid">
@@ -101,49 +79,6 @@ function AdminDashboard({ t, onLogout, showNotification, onNavigate }) {
           min-height: 100vh;
           background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-        }
-
-        .dashboard-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 3rem;
-          background: rgba(255, 255, 255, 0.1);
-          backdrop-filter: blur(10px);
-          padding: 1.5rem 2rem;
-          border-radius: 15px;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .header-content h1 {
-          font-size: 2.5rem;
-          color: #333;
-          margin-bottom: 0.5rem;
-          font-weight: 600;
-        }
-
-        .header-content p {
-          font-size: 1.2rem;
-          color: #666;
-          margin: 0;
-        }
-
-        .logout-btn {
-          padding: 0.75rem 1.5rem;
-          background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
-          color: white;
-          border: none;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 1rem;
-          font-weight: 500;
-          transition: all 0.3s ease;
-          box-shadow: 0 4px 15px rgba(238, 90, 36, 0.3);
-        }
-
-        .logout-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(238, 90, 36, 0.4);
         }
 
         .menu-grid {
