@@ -12,20 +12,65 @@ const copyComponents = () => {
       if (!existsSync(componentsDir)) {
         mkdirSync(componentsDir, { recursive: true })
       }
-      // Copy BurkolNavigation.js
-      copyFileSync(
-        resolve(__dirname, 'components/BurkolNavigation.js'),
-        resolve(__dirname, 'dist/components/BurkolNavigation.js')
-      )
-      // Copy settings-app.js
-      copyFileSync(
-        resolve(__dirname, 'settings-app.js'),
-        resolve(__dirname, 'dist/settings-app.js')
-      )
+      
+      // Copy components
+      const componentFiles = ['BurkolNavigation.js', 'AuthGuard.js']
+      componentFiles.forEach(file => {
+        const sourcePath = resolve(__dirname, `components/${file}`)
+        if (existsSync(sourcePath)) {
+          copyFileSync(sourcePath, resolve(__dirname, `dist/components/${file}`))
+        }
+      })
+      
+      // Copy essential JS files
+      const jsFiles = [
+        'settings-app.js',
+        'sw.js',
+        'i18n.js',
+        'debug-console.js'
+      ]
+      
+      jsFiles.forEach(file => {
+        const sourcePath = resolve(__dirname, file)
+        if (existsSync(sourcePath)) {
+          copyFileSync(sourcePath, resolve(__dirname, `dist/${file}`))
+        }
+      })
+      
+      // Copy src files that might be needed
+      const srcDir = resolve(__dirname, 'dist/src')
+      if (!existsSync(srcDir)) {
+        mkdirSync(srcDir, { recursive: true })
+      }
+      
+      const srcFiles = ['firebase-config.js', 'i18n.js']
+      srcFiles.forEach(file => {
+        const sourcePath = resolve(__dirname, `src/${file}`)
+        if (existsSync(sourcePath)) {
+          copyFileSync(sourcePath, resolve(__dirname, `dist/src/${file}`))
+        }
+      })
+      
       // Copy manifest.json if it exists
       const manifestPath = resolve(__dirname, 'manifest.json')
       if (existsSync(manifestPath)) {
         copyFileSync(manifestPath, resolve(__dirname, 'dist/manifest.json'))
+      }
+      
+      // Copy img directory
+      const imgSourceDir = resolve(__dirname, 'img')
+      const imgDestDir = resolve(__dirname, 'dist/img')
+      if (existsSync(imgSourceDir)) {
+        if (!existsSync(imgDestDir)) {
+          mkdirSync(imgDestDir, { recursive: true })
+        }
+        const imgFiles = ['filter-icon.png', 'info.png']
+        imgFiles.forEach(file => {
+          const sourcePath = resolve(imgSourceDir, file)
+          if (existsSync(sourcePath)) {
+            copyFileSync(sourcePath, resolve(imgDestDir, file))
+          }
+        })
       }
     }
   }
@@ -54,11 +99,15 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
+        login: resolve(__dirname, 'login.html'),
         admin: resolve(__dirname, 'quote-dashboard.html'),
         adminDashboard: resolve(__dirname, 'admin-dashboard.html'),
         materials: resolve(__dirname, 'materials.html'),
         production: resolve(__dirname, 'production.html'),
-        settings: resolve(__dirname, 'settings.html')
+        settings: resolve(__dirname, 'settings.html'),
+        addRecordDebug: resolve(__dirname, 'add-record-debug.html'),
+        inputTest: resolve(__dirname, 'input-test.html'),
+        debugTest: resolve(__dirname, 'debug-test.html')
       }
     }
   }
