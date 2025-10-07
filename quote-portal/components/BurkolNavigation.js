@@ -453,7 +453,9 @@ class BurkolNavigation {
     if (confirm('Çıkış yapmak istediğinizden emin misiniz?')) {
       localStorage.removeItem('bk_admin_token');
       localStorage.removeItem('burkol_user_data');
-      window.location.href = './admin-dashboard.html';
+      
+      // Login sayfasına yönlendir
+      window.location.href = './login.html';
     }
   }
 
