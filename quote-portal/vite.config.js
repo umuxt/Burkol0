@@ -26,6 +26,9 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         admin: resolve(__dirname, 'quote-dashboard.html'),
+        adminDashboard: resolve(__dirname, 'admin-dashboard.html'),
+        materials: resolve(__dirname, 'materials.html'),
+        production: resolve(__dirname, 'production.html'),
         settings: resolve(__dirname, 'settings.html')
       }
     }

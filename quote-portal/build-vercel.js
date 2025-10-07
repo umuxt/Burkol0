@@ -2,8 +2,12 @@
 // Advanced build script for Vercel deployment
 // Bundles all components into single files for Vercel compatibility
 
-const fs = require('fs')
-const path = require('path')
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 
 console.log('Building optimized version for Vercel...')
 
@@ -93,6 +97,10 @@ function createVercelHTML(template, outputName) {
 
 createVercelHTML('index.html', 'index.html')
 createVercelHTML('quote-dashboard.html', 'quote-dashboard.html')
+createVercelHTML('admin-dashboard.html', 'admin-dashboard.html')
+createVercelHTML('materials.html', 'materials.html')
+createVercelHTML('production.html', 'production.html')
+createVercelHTML('settings.html', 'settings.html')
 
 // Copy img directory
 const imgSrc = path.join(__dirname, 'img')
