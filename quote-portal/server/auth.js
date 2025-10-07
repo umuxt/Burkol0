@@ -64,7 +64,7 @@ export function generateSessionId() {
   return `ss-${dateKey}-${counterStr}`
 }
 
-export function createSession(email, days = 30) {
+export function createSession(email, days = 7) {
   const token = newToken()
   const sessionId = generateSessionId()
   const loginTime = new Date()

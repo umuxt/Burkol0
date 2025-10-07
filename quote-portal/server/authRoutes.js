@@ -137,6 +137,49 @@ export function setupAuthRoutes(app) {
     })
   })
 
+  // Admin panel access verification (no new session creation, just log access)
+  app.post('/api/auth/verify-admin', requireAuth, async (req, res) => {
+    const { email, password } = req.body
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password required' })
+    }
+
+    try {
+      // Kullanıcı doğrulaması (yeni session oluşturmadan) - verifyUser fonksiyonunu kullan
+      const result = verifyUser(email, password)
+      
+      if (!result || result.error) {
+        return res.status(401).json({ error: 'Invalid credentials' })
+      }
+      
+      // Admin kontrolü
+      if (result.role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' })
+      }
+
+      // Mevcut session'a admin panel erişim logu ekle (yeni session oluşturmadan)
+      const currentSession = req.user // requireAuth middleware'den gelen session
+      if (currentSession && currentSession.sessionId) {
+        await auditSessionActivity(req, 'admin-panel', 'access', 'Admin panel kullanıcı yönetimi paneline erişim', {
+          targetPanel: 'users-management',
+          verifiedWith: email,
+          accessTime: new Date().toISOString()
+        })
+      }
+
+      res.json({ 
+        success: true,
+        user: result,
+        message: 'Admin access verified'
+      })
+      
+    } catch (error) {
+      console.error('Admin verification error:', error)
+      res.status(500).json({ error: 'Verification failed' })
+    }
+  })
+
     // Register endpoint (for initial setup)
   app.post('/api/auth/register', (req, res) => {
     const { email, password } = req.body
@@ -170,6 +213,13 @@ export function setupAuthRoutes(app) {
     }
     
     const allSessions = jsondb.getAllSessions()
+    console.log('DEBUG: /api/admin/sessions called by:', session?.email, 'token:', token.slice(0, 10) + '...')
+    console.log('DEBUG: allSessions count:', allSessions.length)
+    
+    // Bu çağrıda yeni session oluşturulmadığını doğrula
+    const currentSessionsCount = allSessions.length
+    console.log('DEBUG: Current sessions count before response:', currentSessionsCount)
+    
     res.json({ sessions: allSessions })
   })
 

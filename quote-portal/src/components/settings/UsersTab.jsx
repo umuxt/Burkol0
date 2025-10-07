@@ -34,6 +34,26 @@ export default function UsersTab({ t, showNotification }) {
     }
   }, [isVerified, activeView])
 
+  // ESC key handling for session details modal
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        if (selectedSession) {
+          closeSessionDetails()
+        } else if (editingUser) {
+          setEditingUser(null)
+        } else if (showAccessModal) {
+          // Don't allow closing access modal with ESC for security
+        }
+      }
+    }
+
+    if (selectedSession || editingUser) {
+      document.addEventListener('keydown', handleKeyDown)
+      return () => document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [selectedSession, editingUser, showAccessModal])
+
   async function loadUsers() {
     try {
       setLoading(true)
@@ -107,10 +127,10 @@ export default function UsersTab({ t, showNotification }) {
 
       setLoading(true)
 
-      // Merkezi API istemcisini kullanarak login ol (token depolama dahil)
-      const result = await API.login(accessCredentials.email, accessCredentials.password, true)
+      // Admin paneli erişim doğrulaması (yeni session oluşturmadan)
+      const result = await API.verifyAdminAccess(accessCredentials.email, accessCredentials.password)
 
-      if (!result || !result.user) {
+      if (!result || !result.success) {
         showNotification(t.admin_access_invalid || 'Geçersiz kullanıcı bilgileri', 'error')
         return
       }
@@ -121,7 +141,7 @@ export default function UsersTab({ t, showNotification }) {
         return
       }
 
-      // Başarılı doğrulama
+      // Başarılı doğrulama - yeni session oluşturmadan sadece erişimi onaylı olarak işaretle
       setIsVerified(true)
       setShowAccessModal(false)
       setAccessCredentials({ email: '', password: '' })
@@ -557,7 +577,8 @@ export default function UsersTab({ t, showNotification }) {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000
-        }
+        },
+        onClick: closeSessionDetails
       },
         React.createElement('div', {
           style: {
@@ -568,9 +589,35 @@ export default function UsersTab({ t, showNotification }) {
             maxWidth: '90vw',
             maxHeight: '80vh',
             overflowY: 'auto'
-          }
+          },
+          onClick: (e) => e.stopPropagation()
         },
-          React.createElement('h4', null, t.sessions_details_title || 'Log Detayları'),
+          React.createElement('div', {
+            style: {
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px'
+            }
+          },
+            React.createElement('h4', { style: { margin: 0 } }, t.sessions_details_title || 'Log Detayları'),
+            React.createElement('button', {
+              onClick: closeSessionDetails,
+              style: {
+                background: 'none',
+                border: 'none',
+                color: '#888',
+                fontSize: '24px',
+                cursor: 'pointer',
+                padding: 0,
+                width: '30px',
+                height: '30px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }
+            }, '×')
+          ),
           React.createElement('p', { style: { color: '#666', marginTop: '4px', marginBottom: '16px' } },
             selectedSession.userName || selectedSession.email || 'Oturum'),
           React.createElement('div', {
@@ -631,12 +678,6 @@ export default function UsersTab({ t, showNotification }) {
                 )
               : React.createElement('div', { style: { color: '#666', fontSize: '14px' } },
                   t.sessions_activity_placeholder || 'Bu oturum için sistem aktiviteleri yakında eklenecek.')
-          ),
-          React.createElement('div', { style: { marginTop: '24px', display: 'flex', justifyContent: 'flex-end' } },
-            React.createElement('button', {
-              onClick: closeSessionDetails,
-              className: 'btn btn-secondary'
-            }, t.sessions_close_details || 'Kapat')
           )
         )
       ),
@@ -654,7 +695,8 @@ export default function UsersTab({ t, showNotification }) {
           alignItems: 'center',
           justifyContent: 'center',
           zIndex: 1000
-        }
+        },
+        onClick: () => setEditingUser(null)
       },
         React.createElement('div', {
           style: {
@@ -663,9 +705,35 @@ export default function UsersTab({ t, showNotification }) {
             borderRadius: '8px',
             width: '400px',
             maxWidth: '90vw'
-          }
+          },
+          onClick: (e) => e.stopPropagation()
         },
-          React.createElement('h4', null, t.users_edit_user || 'Kullanıcı Düzenle'),
+          React.createElement('div', {
+            style: {
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px'
+            }
+          },
+            React.createElement('h4', { style: { margin: 0 } }, t.users_edit_user || 'Kullanıcı Düzenle'),
+            React.createElement('button', {
+              onClick: () => setEditingUser(null),
+              style: {
+                background: 'none',
+                border: 'none',
+                color: '#888',
+                fontSize: '24px',
+                cursor: 'pointer',
+                padding: 0,
+                width: '30px',
+                height: '30px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }
+            }, '×')
+          ),
           React.createElement('div', { className: 'form-group' },
             React.createElement('label', null, t.users_email || 'Email'),
             React.createElement('input', {

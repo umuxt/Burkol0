@@ -393,6 +393,23 @@ export const API = {
     if (!res.ok) throw new Error('unauthorized')
     return await res.json()
   },
+  async verifyAdminAccess(email, password) {
+    try {
+      const res = await fetchWithTimeout(`${API_BASE}/api/auth/verify-admin`, { 
+        method: 'POST', 
+        headers: withAuth({ 'Content-Type': 'application/json' }), 
+        body: JSON.stringify({ email, password }) 
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'verification_failed')
+      }
+      return data
+    } catch (e) {
+      if (e && e.message) throw e
+      throw new Error('network_error')
+    }
+  },
   async logout() {
     try { await fetchWithTimeout(`${API_BASE}/api/auth/logout`, { method: 'POST', headers: withAuth() }) } catch {}
     setToken('')
