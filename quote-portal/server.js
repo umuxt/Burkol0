@@ -132,9 +132,37 @@ app.use((req, res, next) => {
 if (process.env.NODE_ENV !== 'development') {
   app.use(express.static(ROOT))
   
+  // Serve specific HTML files directly
+  app.get('/admin-dashboard.html', (req, res) => {
+    res.sendFile(path.join(ROOT, 'admin-dashboard.html'))
+  })
+  
+  app.get('/quote-dashboard.html', (req, res) => {
+    res.sendFile(path.join(ROOT, 'quote-dashboard.html'))
+  })
+  
+  app.get('/materials.html', (req, res) => {
+    res.sendFile(path.join(ROOT, 'materials.html'))
+  })
+  
+  app.get('/production.html', (req, res) => {
+    res.sendFile(path.join(ROOT, 'production.html'))
+  })
+  
+  app.get('/settings.html', (req, res) => {
+    res.sendFile(path.join(ROOT, 'settings.html'))
+  })
+  
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
       return res.status(404).json({ error: 'Not found' })
+    }
+    // Check if it's an HTML file that exists
+    if (req.path.endsWith('.html')) {
+      const filePath = path.join(ROOT, req.path)
+      if (existsSync(filePath)) {
+        return res.sendFile(filePath)
+      }
     }
     res.sendFile(path.join(ROOT, 'index.html'))
   })
