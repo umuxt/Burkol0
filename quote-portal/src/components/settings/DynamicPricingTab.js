@@ -54,8 +54,13 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
   // Inline lookup editor simplified: direct edit inputs; no per-row edit state needed
 
   useEffect(() => {
+    console.log('🔧 DEBUG: DynamicPricingTab useEffect - component mount')
     loadDynamicFormFields()
     loadPriceSettings()
+    
+    // Test için version history'yi de yükleyelim
+    console.log('🔧 DEBUG: Version history yüklenecek...')
+    loadVersionHistory()
   }, [])
 
   // Track changes for unsaved indicator
@@ -126,7 +131,9 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
 
   async function loadPriceSettings() {
     try {
+      console.log('🔧 DEBUG: DynamicPricingTab.loadPriceSettings başlatıldı')
       const settings = await API.getPriceSettings()
+      console.log('🔧 DEBUG: DynamicPricingTab.loadPriceSettings result:', settings)
       const loadedParameters = settings.parameters || []
       setParameters(loadedParameters)
       setFormula(settings.formula || '')
@@ -143,7 +150,7 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
       // Check system integrity
       checkSystemIntegrity(loadedParameters)
     } catch (e) {
-      console.error('Price settings load error:', e)
+      console.error('🔧 DEBUG: DynamicPricingTab.loadPriceSettings error:', e)
     }
   }
 
@@ -191,14 +198,35 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
   // VERSION MANAGEMENT FUNCTIONS
 
   async function loadVersionHistory() {
+    console.log('🔧 DEBUG: DynamicPricingTab.loadVersionHistory - BAŞLADI')
     setIsLoadingVersions(true)
+    
     try {
+      console.log('🔧 DEBUG: API.getPriceSettingsVersions çağrılacak...')
       const result = await API.getPriceSettingsVersions()
-      setVersions(result.versions || [])
+      console.log('🔧 DEBUG: API.getPriceSettingsVersions tamamlandı')
+      console.log('🔧 DEBUG: Result:', result)
+      console.log('🔧 DEBUG: Result.versions:', result.versions)
+      
+      if (result && result.versions) {
+        console.log('🔧 DEBUG: Versions array length:', result.versions.length)
+        setVersions(result.versions)
+        console.log('🔧 DEBUG: setVersions çağrıldı')
+      } else {
+        console.warn('🔧 DEBUG: Result.versions bulunamadı, boş array set ediliyor')
+        setVersions([])
+      }
     } catch (e) {
-      console.error('Failed to load version history:', e)
-      showNotification('Sürüm geçmişi yüklenemedi!', 'error')
+      console.error('❌ DEBUG: loadVersionHistory HATA:', e)
+      console.error('❌ DEBUG: Hata detayları:', {
+        name: e.name,
+        message: e.message,
+        stack: e.stack
+      })
+      showNotification('Sürüm geçmişi yüklenemedi: ' + e.message, 'error')
+      setVersions([])
     } finally {
+      console.log('🔧 DEBUG: setIsLoadingVersions(false) çağrılacak')
       setIsLoadingVersions(false)
     }
   }

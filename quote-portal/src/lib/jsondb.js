@@ -2,7 +2,7 @@ import admin from 'firebase-admin'
 import { readFile } from 'fs/promises'
 import path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
-import { existsSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import PriceStatus from '../../server/models/PriceStatus.js'
 import dotenv from 'dotenv'
 
@@ -11,12 +11,14 @@ if (!process.env.FIREBASE_PROJECT_ID) {
   dotenv.config()
 }
 
-// Initialize Firebase Admin SDK if not already done by server.js
+// Initialize Firebase Admin SDK synchronously to avoid top-level await issues
 if (!admin.apps.length) {
+  console.log('🔧 DEBUG: Firebase Admin SDK initialization başlatıldı')
   let credential;
   
   // Try to use environment variables first (recommended for production)
   if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PROJECT_ID) {
+    console.log('🔧 DEBUG: Environment variables ile Firebase credentials kullanılıyor')
     const serviceAccount = {
       type: process.env.FIREBASE_TYPE || "service_account",
       project_id: process.env.FIREBASE_PROJECT_ID,
@@ -31,32 +33,53 @@ if (!admin.apps.length) {
       universe_domain: process.env.FIREBASE_UNIVERSE_DOMAIN || "googleapis.com"
     }
     credential = admin.credential.cert(serviceAccount)
+    console.log('🔧 DEBUG: Firebase credentials oluşturuldu')
   } else {
-    // Fallback to serviceAccountKey.json file (development only)
+    console.log('🔧 DEBUG: serviceAccountKey.json dosyası aranıyor')
+    // Fallback to serviceAccountKey.json file (development only) - SYNC READ
     const __filename = fileURLToPath(import.meta.url)
     const __dirname = path.dirname(__filename)
     const serviceAccountPath = path.join(__dirname, '..', '..', 'serviceAccountKey.json')
     if (existsSync(serviceAccountPath)) {
-      const raw = await readFile(serviceAccountPath, 'utf8')
-      const serviceAccount = JSON.parse(raw)
-      credential = admin.credential.cert(serviceAccount)
+      console.log('🔧 DEBUG: serviceAccountKey.json dosyası bulundu')
+      try {
+        // Use synchronous read to avoid top-level await
+        const raw = readFileSync(serviceAccountPath, 'utf8')
+        const serviceAccount = JSON.parse(raw)
+        credential = admin.credential.cert(serviceAccount)
+        console.log('🔧 DEBUG: serviceAccountKey.json başarıyla okundu')
+      } catch (error) {
+        console.error('❌ DEBUG: serviceAccountKey.json okuma hatası:', error)
+        throw new Error('Failed to read serviceAccountKey.json: ' + error.message)
+      }
     } else {
+      console.error('❌ DEBUG: Firebase credentials bulunamadı!')
       throw new Error('Firebase credentials not found! Please set environment variables or create serviceAccountKey.json')
     }
   }
   
-  admin.initializeApp({
-    credential: credential
-  })
+  try {
+    admin.initializeApp({
+      credential: credential
+    })
+    console.log('🔧 DEBUG: Firebase Admin SDK başarıyla initialize edildi')
+  } catch (error) {
+    console.error('❌ DEBUG: Firebase Admin SDK initialization hatası:', error)
+    throw new Error('Firebase Admin SDK initialization failed: ' + error.message)
+  }
+} else {
+  console.log('🔧 DEBUG: Firebase Admin SDK zaten initialize edilmiş')
 }
 
 const db = admin.firestore()
+console.log('🔧 DEBUG: Firebase Firestore instance oluşturuldu')
 const quotesRef = db.collection('quotes')
 const usersRef = db.collection('users')
 const sessionsRef = db.collection('sessions')
 const settingsDoc = db.collection('settings').doc('main')
 const systemDoc = db.collection('system').doc('config')
 const priceSettingsVersionsRef = db.collection('priceSettingsVersions')
+console.log('🔧 DEBUG: priceSettingsVersionsRef oluşturuldu')
 const priceSettingsMetaDoc = priceSettingsVersionsRef.doc('_meta')
 const formVersionsRef = db.collection('formVersions')
 const formVersionsMetaDoc = formVersionsRef.doc('_meta')
@@ -1028,10 +1051,16 @@ async function getPriceSettingsVersions(limit = 15) {
   ensureReady()
 
   try {
+    console.log('🔧 DEBUG: jsondb.getPriceSettingsVersions başlatıldı, limit:', limit)
+    console.log('🔧 DEBUG: Firebase db instance:', !!db)
+    console.log('🔧 DEBUG: priceSettingsVersionsRef:', !!priceSettingsVersionsRef)
+    
     const snapshot = await priceSettingsVersionsRef
       .orderBy('versionNumber', 'desc')
       .limit(limit)
       .get()
+
+    console.log('🔧 DEBUG: Firebase snapshot alındı, doc count:', snapshot.docs.length)
 
     const versions = snapshot.docs
       .filter(doc => doc.id !== '_meta')
@@ -1057,10 +1086,16 @@ async function getPriceSettingsVersions(limit = 15) {
         }
       })
 
-    return { versions }
+    console.log('🔧 DEBUG: getPriceSettingsVersions sonuç:', { versions: versions.length })
+    return { success: true, versions }
   } catch (error) {
-    console.error('❌ Failed to get versions:', error)
-    return { versions: [] }
+    console.error('❌ DEBUG: getPriceSettingsVersions error:', error)
+    console.error('❌ DEBUG: Error details:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    })
+    return { success: false, versions: [], error: error.message }
   }
 }
 
