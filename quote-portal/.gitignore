@@ -3,6 +3,10 @@ db.json
 uploads/
 logs/
 
+# Build output
+dist/
+build/
+
 # Environment variables
 .env
 .env.local
