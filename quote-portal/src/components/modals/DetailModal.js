@@ -285,48 +285,18 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     }
   }
 
-  async function handlePriceStatusClick() {
+  function handlePriceStatusClick() {
     if (!item.priceStatus || !item.priceStatus.calculatedPrice) return
     
     const currentPrice = parseFloat(item.price) || 0
     const newPrice = parseFloat(item.priceStatus.calculatedPrice) || 0
     const priceDifference = newPrice - currentPrice
     
-    // Get current price settings version info
-    let originalVersion = 'Bilinmiyor'
-    let currentVersion = 'Bilinmiyor' 
-    let latestVersion = 'Bilinmiyor'
-    
-    try {
-      // Get current price settings version
-      const priceSettings = await API.getPriceSettings()
-      latestVersion = priceSettings.version || priceSettings.versionId || 'Bilinmiyor'
-      
-      // Get version from quote's price status
-      if (item.priceStatus?.settingsVersion) {
-        currentVersion = item.priceStatus.settingsVersion
-      } else if (item.priceStatus?.settingsVersionId) {
-        currentVersion = item.priceStatus.settingsVersionId
-      }
-      
-      // Original version from quote creation or current as fallback
-      if (item.originalPriceVersion) {
-        originalVersion = item.originalPriceVersion
-      } else if (item.priceStatus?.settingsVersionId) {
-        originalVersion = item.priceStatus.settingsVersionId
-      } else {
-        originalVersion = currentVersion // Final fallback
-      }
-      
-      console.log('🔧 DEBUG: Version info calculated:', {
-        originalVersion, currentVersion, latestVersion
-      })
-    } catch (error) {
-      console.error('🔧 DEBUG: Error getting version info:', error)
-    }
-    
     // Prepare version information
     const versionInfo = item.priceStatus?.versionInfo || {}
+    const originalVersion = versionInfo.originalVersion || 'Bilinmiyor'
+    const currentVersion = versionInfo.currentVersion || 'Bilinmiyor'
+    const latestVersion = versionInfo.latestVersion || 'Bilinmiyor'
     const comparisonBasis = versionInfo.comparisonBasis || 'Mevcut → Güncel'
     
     // Prepare parameter changes
