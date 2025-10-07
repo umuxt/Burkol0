@@ -174,6 +174,42 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       fields.push(info(label, value))
     })
     
+    // Add price field with status badge
+    const priceValue = formatPriceDisplay(item.price)
+    const priceField = React.createElement('div', { className: 'card', style: { padding: 10, fontSize: 13 } },
+      React.createElement('div', { className: 'help', style: { fontSize: 11 } }, 'Fiyat'),
+      React.createElement('div', { 
+        style: { 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between',
+          gap: '8px'
+        } 
+      },
+        React.createElement('span', null, priceValue),
+        // Add price status badge if there's version difference or price status
+        (item.priceStatus && (
+          item.priceStatus.status === 'outdated' || 
+          item.priceStatus.status === 'drift' ||
+          item.priceStatus.status === 'price-drift' ||
+          item.priceStatus.status === 'content-drift' ||
+          item.priceStatus.status === 'unknown' ||
+          (item.priceStatus.calculatedPrice && Math.abs(item.priceStatus.calculatedPrice - item.price) > 0.01)
+        )) && React.createElement(PriceStatusBadge, {
+          quote: item,
+          compact: true,
+          showActions: true,
+          onUpdate: () => {
+            // Trigger modal refresh or callback
+            if (typeof onSaved === 'function') {
+              onSaved()
+            }
+          }
+        })
+      )
+    )
+    fields.push(priceField)
+    
     // Add dynamic fields from form config
     formConfig.formStructure.fields.forEach(field => {
       // Skip default fields that are already handled above
@@ -285,22 +321,142 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     }
   }
 
-  function handlePriceStatusClick() {
+  async function handlePriceStatusClick() {
     if (!item.priceStatus || !item.priceStatus.calculatedPrice) return
+    
+    console.log('🔧 DEBUG: handlePriceStatusClick - item data:', item)
+    console.log('🔧 DEBUG: item.priceStatus:', item.priceStatus)
+    console.log('🔧 DEBUG: item.priceSettings:', item.priceSettings)
     
     const currentPrice = parseFloat(item.price) || 0
     const newPrice = parseFloat(item.priceStatus.calculatedPrice) || 0
     const priceDifference = newPrice - currentPrice
     
-    // Prepare version information
-    const versionInfo = item.priceStatus?.versionInfo || {}
-    const originalVersion = versionInfo.originalVersion || 'Bilinmiyor'
-    const currentVersion = versionInfo.currentVersion || 'Bilinmiyor'
-    const latestVersion = versionInfo.latestVersion || 'Bilinmiyor'
-    const comparisonBasis = versionInfo.comparisonBasis || 'Mevcut → Güncel'
+    // ALWAYS fetch fresh version information from backend to avoid cache issues
+    console.log('🔧 DEBUG: Fetching fresh version information...')
+    let versionInfo = {}
+    let itemOriginalVersion = 'Bilinmiyor'
+    let itemCurrentVersion = 'Bilinmiyor'
+    let latestVersionId = 'Bilinmiyor'
     
-    // Prepare parameter changes
-    const parameterChanges = versionInfo.parameterChanges || []
+    try {
+      console.log('🔧 DEBUG: Getting price settings versions for version comparison')
+      const versionsResponse = await API.getPriceSettingsVersions()
+      console.log('🔧 DEBUG: Versions response:', versionsResponse)
+      
+      // Also get current price settings to find the version this item was calculated with
+      const currentSettings = await API.getPriceSettings()
+      console.log('🔧 DEBUG: Current price settings:', currentSettings)
+      
+      if (versionsResponse?.success && versionsResponse.versions?.length > 0) {
+        const versions = versionsResponse.versions
+        const latestVersion = versions[0] // En son version
+        latestVersionId = latestVersion.versionId || 'Bilinmiyor'
+        
+        console.log('🔧 DEBUG: Latest version from API:', latestVersionId)
+        
+        // Try to find original version from item data
+        if (item.priceStatus?.originalVersion) {
+          itemOriginalVersion = item.priceStatus.originalVersion
+        } else if (item.priceVersionOriginal?.versionId) {
+          itemOriginalVersion = item.priceVersionOriginal.versionId
+        } else if (item.priceSettings?.versionId) {
+          itemOriginalVersion = item.priceSettings.versionId
+        } else if (item.calculatedWith?.versionId) {
+          itemOriginalVersion = item.calculatedWith.versionId
+        } else if (item.priceCalculation?.versionId) {
+          itemOriginalVersion = item.priceCalculation.versionId
+        } else if (versions.length >= 3) {
+          // Fallback: use 3rd latest version as "original"
+          itemOriginalVersion = versions[2].versionId
+        } else if (versions.length >= 2) {
+          // Fallback: use 2nd latest version as "original"  
+          itemOriginalVersion = versions[1].versionId
+        }
+        
+        // For current version, prioritize fresh data from latest applied version
+        if (item.priceVersionApplied?.versionId) {
+          itemCurrentVersion = item.priceVersionApplied.versionId
+          console.log('🔧 DEBUG: Using currentVersion from priceVersionApplied:', itemCurrentVersion)
+        } else if (item.priceStatus?.currentVersion) {
+          itemCurrentVersion = item.priceStatus.currentVersion
+          console.log('🔧 DEBUG: Using currentVersion from priceStatus:', itemCurrentVersion)
+        } else if (item.priceStatus?.settingsVersionId) {
+          itemCurrentVersion = item.priceStatus.settingsVersionId
+          console.log('🔧 DEBUG: Using currentVersion from settingsVersionId:', itemCurrentVersion)
+        } else if (item.priceStatus?.lastUpdated) {
+          // If recently updated, assume it's using latest version
+          const lastUpdate = new Date(item.priceStatus.lastUpdated)
+          const now = new Date()
+          const timeDiff = now - lastUpdate
+          if (timeDiff < 300000) { // Less than 5 minutes ago
+            itemCurrentVersion = latestVersionId
+            console.log('🔧 DEBUG: Recently updated item, using latest version:', itemCurrentVersion)
+          }
+        } else if (item.priceSettings?.versionId) {
+          itemCurrentVersion = item.priceSettings.versionId
+        } else if (item.calculatedWith?.versionId) {
+          itemCurrentVersion = item.calculatedWith.versionId
+        } else if (item.priceCalculation?.versionId) {
+          itemCurrentVersion = item.priceCalculation.versionId
+        } else if (versions.length >= 2) {
+          // Fallback: use 2nd latest version as "current"
+          itemCurrentVersion = versions[1].versionId  
+        } else {
+          // Fallback: use latest version as "current"
+          itemCurrentVersion = latestVersionId
+        }
+        
+        console.log('🔧 DEBUG: Version tracking - original:', itemOriginalVersion, 'current:', itemCurrentVersion, 'latest:', latestVersionId)
+        
+        // Update item status based on version comparison to ensure accurate display
+        if (!item.priceStatus.status || item.priceStatus.status === 'unknown') {
+          if (itemCurrentVersion !== latestVersionId) {
+            item.priceStatus.status = 'outdated'
+            console.log('🔧 DEBUG: Set status to outdated due to version difference')
+          } else if (Math.abs(priceDifference) > 0.01) {
+            item.priceStatus.status = 'drift'
+            console.log('🔧 DEBUG: Set status to drift due to price difference')
+          } else {
+            item.priceStatus.status = 'current'
+            console.log('🔧 DEBUG: Set status to current')
+          }
+        }
+        
+        versionInfo = {
+          originalVersion: itemOriginalVersion,
+          currentVersion: itemCurrentVersion, 
+          latestVersion: latestVersionId,
+          comparisonBasis: 'Mevcut → Güncel',
+          parameterChanges: item.priceStatus?.parameterChanges || []
+        }
+        
+        console.log('🔧 DEBUG: Final version info for modal:', versionInfo)
+      } else {
+        console.log('🔧 DEBUG: No versions found in API response, using fallback')
+        // Fallback with current item data
+        versionInfo = {
+          originalVersion: item.priceStatus?.originalVersion || itemOriginalVersion,
+          currentVersion: item.priceStatus?.currentVersion || item.priceStatus?.settingsVersionId || itemCurrentVersion,
+          latestVersion: latestVersionId,
+          comparisonBasis: 'Mevcut → Güncel',
+          parameterChanges: item.priceStatus?.parameterChanges || []
+        }
+      }
+    } catch (error) {
+      console.error('🔧 DEBUG: Error fetching version info:', error)
+      // Fallback to existing data
+      const existingVersionInfo = item.priceStatus?.versionInfo || {}
+      versionInfo = {
+        originalVersion: existingVersionInfo.originalVersion || 'Bilinmiyor',
+        currentVersion: existingVersionInfo.currentVersion || 'Bilinmiyor',
+        latestVersion: existingVersionInfo.latestVersion || 'Bilinmiyor',
+        comparisonBasis: existingVersionInfo.comparisonBasis || 'Mevcut → Güncel',
+        parameterChanges: existingVersionInfo.parameterChanges || []
+      }
+    }
+    
+    console.log('🔧 DEBUG: Final version info for modal:', versionInfo)
     
     setPriceUpdateData({
       customerName: item.name || 'Bilinmiyor',
@@ -308,11 +464,11 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       currentPrice,
       newPrice,
       priceDifference,
-      originalVersion,
-      currentVersion,
-      latestVersion,
-      comparisonBasis,
-      parameterChanges
+      originalVersion: versionInfo.originalVersion,
+      currentVersion: versionInfo.currentVersion,
+      latestVersion: versionInfo.latestVersion,
+      comparisonBasis: versionInfo.comparisonBasis,
+      parameterChanges: versionInfo.parameterChanges
     })
     
     setShowPriceUpdateModal(true)
@@ -388,18 +544,108 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
         throw new Error(response?.error || 'Fiyat güncellemesi başarısız')
       }
       
+      console.log('🔧 DEBUG: Apply price response:', response)
+      
+      console.log('🔧 DEBUG: Raw API response:', response)
+      
+      // Update item with new price and version information
+      if (response.quote) {
+        // Update the item object with new data from backend
+        console.log('🔧 DEBUG: Updating item with backend quote data')
+        console.log('🔧 DEBUG: Before update - item.priceStatus:', item.priceStatus)
+        console.log('🔧 DEBUG: Before update - item.priceVersionApplied:', item.priceVersionApplied)
+        
+        Object.assign(item, response.quote)
+        
+        console.log('🔧 DEBUG: After assign - item.priceStatus:', item.priceStatus)
+        console.log('🔧 DEBUG: After assign - item.priceVersionApplied:', item.priceVersionApplied)
+        console.log('🔧 DEBUG: Backend response quote:', response.quote)
+        console.log('🔧 DEBUG: Applied version from backend:', response.appliedVersion)
+        console.log('🔧 DEBUG: Price version snapshot:', response.priceVersion)
+      }
+        
+      // Update price status with version information from backend response
+      if (response.appliedVersion || response.priceVersion) {
+        if (!item.priceStatus) item.priceStatus = {}
+        
+        // The response contains the latest applied version info
+        const appliedVersionId = response.priceVersion?.versionId || response.appliedVersion
+        const appliedVersionNumber = response.priceVersion?.versionNumber
+        
+        if (appliedVersionId) {
+          // Set version information - now the item has current version info
+          item.priceStatus.currentVersion = appliedVersionId
+          item.priceStatus.originalVersion = item.priceStatus.originalVersion || appliedVersionId
+          item.priceStatus.lastUpdated = new Date().toISOString()
+          
+          // Update status to current since we just applied the latest version
+          item.priceStatus.status = 'current'
+          item.priceStatus.settingsVersionId = appliedVersionId
+          if (appliedVersionNumber) {
+            item.priceStatus.settingsVersion = appliedVersionNumber
+          }
+          
+          // Clear any cached version info to force refresh
+          if (item.priceStatus.versionInfo) {
+            item.priceStatus.versionInfo.currentVersion = appliedVersionId
+          }
+          
+          console.log('🔧 DEBUG: Updated item priceStatus with version:', appliedVersionId)
+          console.log('🔧 DEBUG: Complete priceStatus:', item.priceStatus)
+        }
+      }
+      
+      // Also update any cached price calculation version info
+      if (response.priceVersion?.versionId) {
+        const versionId = response.priceVersion.versionId
+        if (item.priceCalculation) {
+          item.priceCalculation.versionId = versionId
+        }
+        if (item.calculatedWith) {
+          item.calculatedWith.versionId = versionId
+        }
+        if (item.priceSettings) {
+          item.priceSettings.versionId = versionId
+        }
+        if (item.priceVersionApplied) {
+          item.priceVersionApplied.versionId = versionId
+        }
+      }
+      
       showNotification?.('Fiyat başarıyla güncellendi', 'success')
       setShowPriceUpdateModal(false)
       setPriceUpdateData(null)
       
+      // Force refresh of item data to reflect changes
       if (typeof onSaved === 'function') {
+        console.log('🔧 DEBUG: Calling onSaved callback to refresh data')
         await onSaved()
       }
       
+      // Force UI update by triggering component re-render
+      React.startTransition(() => {
+        // Force a re-render by updating form state
+        setForm(prev => ({ ...prev, _refresh: Date.now() }))
+        // Also update manual price input to reflect new price if no manual override
+        if (!item.manualOverride?.active && response.updatedPrice) {
+          setManualPriceInput(formatManualPriceInput(response.updatedPrice))
+        }
+        // Force re-evaluation of component state
+        setCurrStatus(prev => prev) // Trigger re-render
+      })
+      
       // Check for version updates after price update
       if (checkAndProcessVersionUpdates && setGlobalProcessing) {
+        console.log('🔧 DEBUG: Triggering version updates check after price application')
         await checkAndProcessVersionUpdates(currentQuotes)
       }
+      
+      // Additional cleanup: clear any cached price status modal data
+      setTimeout(() => {
+        console.log('🔧 DEBUG: Post-update cleanup - current item status:', item.priceStatus?.status)
+        console.log('🔧 DEBUG: Post-update cleanup - current version:', item.priceStatus?.currentVersion)
+        console.log('🔧 DEBUG: Post-update cleanup - settings version ID:', item.priceStatus?.settingsVersionId)
+      }, 100)
     } catch (error) {
       console.error('Price update error:', error)
       showNotification?.(`Fiyat güncellemesi başarısız: ${error.message || 'Beklenmeyen hata'}`, 'error')
