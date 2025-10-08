@@ -3,7 +3,6 @@ import { statusLabel, procLabel, materialLabel } from '../../i18n.js'
 import { getTableColumns, getFieldValue, formatFieldValue } from './AdminTableUtils.js'
 import { calculatePrice, needsPriceUpdate, getPriceChangeType, getChanges, getChangeReason, applyNewPrice } from './AdminPriceCalculator.js'
 import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from './AdminFilterUtils.js'
-import { calculateStatistics, BarChart } from './AdminStatistics.js'
 
 const React = typeof React !== 'undefined' ? React : (typeof window !== 'undefined' ? window.React : undefined)
 if (!React) {
@@ -678,107 +677,6 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
     showNotification('CSV dosyası başarıyla indirildi!', 'success')
   }
 
-  // Stats
-  const statsAll = useMemo(() => {
-    const src = list
-    const byStatus = {}
-    const byProcess = {}
-    const byMaterial = {}
-    const byDay = {}
-    for (const it of src) {
-      const status = statusLabel(it.status, t)
-      byStatus[status] = (byStatus[status] || 0) + 1
-      for (const p of it.process || []) {
-        const proc = procLabel(p, t)
-        byProcess[proc] = (byProcess[proc] || 0) + 1
-      }
-      const m = materialLabel(it.material || 'Other', t)
-      byMaterial[m] = (byMaterial[m] || 0) + 1
-      const day = (it.createdAt || '').slice(0, 10)
-      byDay[day] = (byDay[day] || 0) + 1
-    }
-    return { byStatus, byProcess, byMaterial, byDay }
-  }, [list, t])
-
-  function metricLabel() { return t.metric_count }
-
-  function sortEntriesGeneric(obj, byKeyAlpha) {
-    const entries = Object.entries(obj || {})
-    if (byKeyAlpha) return entries.sort((a,b) => a[0].localeCompare(b[0]))
-    return entries.sort((a,b) => b[1]-a[1])
-  }
-
-  function BarChart({ data, xLabel, yLabel, byKeyAlpha }) {
-    const entries = sortEntriesGeneric(data, byKeyAlpha)
-    if (!entries.length) return React.createElement('div', { className: 'help' }, t.empty_data)
-    const w = 420, h = 200, ml = 46, mr = 8, mt = 8, mb = 34
-    const cw = w - ml - mr, ch = h - mt - mb
-    const max = Math.max(1, ...entries.map(e => e[1]))
-    const barW = cw / entries.length * 0.7
-    const xStep = cw / entries.length
-    return React.createElement('svg', { width: '100%', viewBox: `0 0 ${w} ${h}` },
-      // axes
-      React.createElement('line', { x1: ml, y1: h - mb, x2: w - mr, y2: h - mb, stroke: '#999' }),
-      React.createElement('line', { x1: ml, y1: mt, x2: ml, y2: h - mb, stroke: '#999' }),
-      // y ticks
-      [0, 0.25, 0.5, 0.75, 1].map((tck, i) => {
-        const y = h - mb - tck * ch
-        const val = Math.round(tck * max)
-        return React.createElement(React.Fragment, { key: i },
-          React.createElement('line', { x1: ml, y1: y, x2: w - mr, y2: y, stroke: '#eee' }),
-          React.createElement('text', { x: ml - 8, y: y + 4, fontSize: 10, textAnchor: 'end', fill: '#666' }, String(val))
-        )
-      }),
-      // bars + x labels
-      entries.map(([k, v], i) => {
-        const x = ml + i * xStep + (xStep - barW) / 2
-        const bh = (v / max) * ch
-        const y = h - mb - bh
-        return React.createElement(React.Fragment, { key: k },
-          React.createElement('rect', { x, y, width: barW, height: bh, fill: '#0a84ff', rx: 3 }),
-          React.createElement('text', { x: ml + i * xStep + xStep / 2, y: h - mb + 14, fontSize: 10, textAnchor: 'middle', fill: '#444' }, k)
-        )
-      }),
-      // axis titles
-      React.createElement('text', { x: ml + cw / 2, y: h - 6, fontSize: 12, textAnchor: 'middle', fill: '#fff' }, xLabel || ''),
-      React.createElement('text', { x: 12, y: mt + ch / 2, fontSize: 12, textAnchor: 'middle', fill: '#fff', transform: `rotate(-90 12 ${mt + ch / 2})` }, yLabel || metricLabel())
-    )
-  }
-
-  function LineChart({ data, xLabel, yLabel, byKeyAlpha }) {
-    const entries = sortEntriesGeneric(data, byKeyAlpha)
-    const w = 520, h = 240, ml = 50, mr = 10, mt = 10, mb = 40
-    const cw = w - ml - mr, ch = h - mt - mb
-    const max = Math.max(1, ...entries.map(e => e[1]))
-    if (!entries.length) return React.createElement('div', { className: 'help' }, t.empty_data)
-    const pts = entries.map((e, i) => {
-      const x = ml + (i * cw) / Math.max(1, entries.length - 1)
-      const y = h - mb - (e[1] / max) * ch
-      return `${x},${y}`
-    }).join(' ')
-    return React.createElement('svg', { width: '100%', viewBox: `0 0 ${w} ${h}` },
-      // axes
-      React.createElement('line', { x1: ml, y1: h - mb, x2: w - mr, y2: h - mb, stroke: '#999' }),
-      React.createElement('line', { x1: ml, y1: mt, x2: ml, y2: h - mb, stroke: '#999' }),
-      // y ticks
-      [0, 0.25, 0.5, 0.75, 1].map((tck, i) => {
-        const y = h - mb - tck * ch
-        const val = Math.round(tck * max)
-        return React.createElement(React.Fragment, { key: i },
-          React.createElement('line', { x1: ml, y1: y, x2: w - mr, y2: y, stroke: '#eee' }),
-          React.createElement('text', { x: ml - 8, y: y + 4, fontSize: 10, textAnchor: 'end', fill: '#666' }, String(val))
-        )
-      }),
-      // x labels
-      entries.map((e, i) => React.createElement('text', { key: i, x: ml + (i * cw) / Math.max(1, entries.length - 1), y: h - mb + 14, fontSize: 10, textAnchor: 'middle', fill: '#444' }, e[0])),
-      // line
-      React.createElement('polyline', { fill: 'none', stroke: '#0a84ff', strokeWidth: 2, points: pts }),
-      // axis titles
-      React.createElement('text', { x: ml + cw / 2, y: h - 6, fontSize: 12, textAnchor: 'middle', fill: '#333' }, xLabel || ''),
-      React.createElement('text', { x: 12, y: mt + ch / 2, fontSize: 12, textAnchor: 'middle', fill: '#333', transform: `rotate(-90 12 ${mt + ch / 2})` }, yLabel || metricLabel())
-    )
-  }
-
   return React.createElement('div', { className: 'container admin-panel' },
     React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 } },
       React.createElement('div', null,
@@ -817,22 +715,6 @@ function Admin({ t, onLogout, showNotification, SettingsModal, DetailModal, Filt
         }, t.logout_btn || 'Çıkış Yap')
       )
     ),
-    // Default multi-charts (unfiltered)
-    React.createElement('div', { className: 'card', style: { marginBottom: 12 } },
-      React.createElement('label', null, t.a_charts),
-      React.createElement('div', { className: 'row wrap', style: { gap: 12, marginTop: 6 } },
-        React.createElement('div', { style: { flex: '1 1 300px', minWidth: 280 } },
-          React.createElement(BarChart, { data: statsAll.byStatus, xLabel: t.dim_status, yLabel: metricLabel(), byKeyAlpha: false })
-        ),
-        React.createElement('div', { style: { flex: '1 1 300px', minWidth: 280 } },
-          React.createElement(BarChart, { data: statsAll.byProcess, xLabel: t.dim_process, yLabel: metricLabel(), byKeyAlpha: false })
-        ),
-        React.createElement('div', { style: { flex: '1 1 300px', minWidth: 280 } },
-          React.createElement(BarChart, { data: statsAll.byMaterial, xLabel: t.dim_material, yLabel: metricLabel(), byKeyAlpha: false })
-        ),
-      )
-    ),
-
     React.createElement('div', { className: 'card', style: { marginTop: 16 } },
       React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' } },
         React.createElement('label', { style: { fontSize: '16px', fontWeight: '600', margin: 0, minWidth: '120px' } }, t.a_list),

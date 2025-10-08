@@ -43,7 +43,7 @@ function MaterialHandling({ t, onLogout, showNotification, onNavigate }) {
 
             <div className="feature-item">
               <div className="feature-icon">📈</div>
-              <h4>Analitik Raporlar</h4>
+              <h4>Performans Raporları</h4>
               <p>Malzeme kullanım analizleri ve trend raporları</p>
             </div>
 

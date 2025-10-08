@@ -4,7 +4,6 @@ import { statusLabel, procLabel, materialLabel } from '../../i18n.js'
 import { getTableColumns, getFieldValue, formatFieldValue } from './AdminTableUtils.js'
 import { calculatePrice, getPriceChangeType } from './AdminPriceCalculator.js'
 import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from './AdminFilterUtils.js'
-import { calculateStatistics, BarChart } from './AdminStatistics.js'
 import { DetailModal } from '../modals/DetailModal.js'
 import SettingsModalCompact from '../modals/SettingsModal.js'
 import { FilterPopup } from '../modals/FilterPopup.js'
@@ -28,7 +27,6 @@ function Admin({ t, onLogout, showNotification }) {
   const [selected, setSelected] = useState(new Set())
   const [settingsModal, setSettingsModal] = useState(false)
   const [priceReview, setPriceReview] = useState(null)
-  const [metric, setMetric] = useState('count')
   const [filterPopup, setFilterPopup] = useState(false)
   const [globalSearch, setGlobalSearch] = useState('')
   const [formConfig, setFormConfig] = useState(null)
@@ -49,9 +47,9 @@ function Admin({ t, onLogout, showNotification }) {
     dateRange: { from: '', to: '' },
     qtyRange: { min: '', max: '' },
     lockedOnly: false
-  });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [bulkProgress, setBulkProgress] = useState(null)
   const [globalProcessing, setGlobalProcessing] = useState(false) // Global processing state
   const [processingMessage, setProcessingMessage] = useState('') // Processing message
@@ -521,14 +519,6 @@ function Admin({ t, onLogout, showNotification }) {
     setPagination(prev => ({ ...prev, totalItems: totalItems }))
   }, [totalItems])
 
-  // Calculate statistics
-  const statsAll = calculateStatistics(list, metric)
-  const statsFiltered = calculateStatistics(filtered, metric)
-
-  function metricLabel() {
-    return metric === 'value' ? 'Toplam Değer (₺)' : 'Adet'
-  }
-
   async function setItemStatus(id, st) { 
     await API.updateStatus(id, st)
     refresh()
@@ -884,31 +874,6 @@ function Admin({ t, onLogout, showNotification }) {
         }
       }),
       React.createElement('div', null, t.a_processing || 'Değişiklikler uygulanıyor...')
-    ),
-
-    // Statistics charts
-    React.createElement('div', { className: 'card', style: { marginBottom: 12 } },
-      React.createElement('label', null, t.a_charts),
-      React.createElement('div', { 
-        className: 'row wrap', 
-        style: { 
-          gap: 12, 
-          marginTop: 6, 
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between'
-        } 
-      },
-        React.createElement('div', { style: { flex: '1 1 calc(33.333% - 8px)', minWidth: 250, maxWidth: '100%' } },
-          React.createElement(BarChart, { data: statsAll.byStatus, xLabel: t.dim_status, yLabel: metricLabel(), byKeyAlpha: false })
-        ),
-        React.createElement('div', { style: { flex: '1 1 calc(33.333% - 8px)', minWidth: 250, maxWidth: '100%' } },
-          React.createElement(BarChart, { data: statsAll.byProcess, xLabel: t.dim_process, yLabel: metricLabel(), byKeyAlpha: false })
-        ),
-        React.createElement('div', { style: { flex: '1 1 calc(33.333% - 8px)', minWidth: 250, maxWidth: '100%' } },
-          React.createElement(BarChart, { data: statsAll.byMaterial, xLabel: t.dim_material, yLabel: metricLabel(), byKeyAlpha: false })
-        )
-      )
     ),
 
     // Filters and search
