@@ -1038,6 +1038,60 @@ function Admin({ t, onLogout, showNotification }) {
             })()
           ),
           
+          // Seçili kayıtlar için işlem butonları (sadece seçim varsa görünür)
+          selected.size > 0 && React.createElement(React.Fragment, null,
+            React.createElement('button', {
+              onClick: (e) => {
+                const selectedItems = Array.from(selected);
+                console.log('ℹ️ Bulk Production transfer for items:', selectedItems);
+                // TODO: Bulk production transfer implementation
+              },
+              className: 'btn',
+              style: {
+                fontSize: '12px',
+                padding: '6px 12px',
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              },
+              title: 'Seçili kayıtları üretime aktar'
+            }, 
+              '🏭 Üretime Aktar',
+              React.createElement('span', { style: { fontSize: '11px', opacity: 0.8 } }, `(${selected.size})`)
+            ),
+            React.createElement('button', {
+              onClick: (e) => {
+                if (confirm(`${selected.size} kayıt silinecek. Emin misiniz?`)) {
+                  const selectedItems = Array.from(selected);
+                  selectedItems.forEach(id => remove(id));
+                  setSelected(new Set());
+                }
+              },
+              className: 'btn',
+              style: {
+                fontSize: '12px',
+                padding: '6px 12px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              },
+              title: 'Seçili kayıtları sil'
+            }, 
+              '🗑️ Sil',
+              React.createElement('span', { style: { fontSize: '11px', opacity: 0.8 } }, `(${selected.size})`)
+            )
+          ),
+          
           // Sağ taraf - CSV Export butonu
           React.createElement('button', {
             onClick: () => exportToCSV(),
@@ -1119,7 +1173,10 @@ function Admin({ t, onLogout, showNotification }) {
             ...tableColumns.map(col => {
               const isActive = sortConfig?.columnId === col.id
               const indicator = isActive ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'
-              return React.createElement('th', { key: col.id, style: { whiteSpace: 'nowrap' } },
+              return React.createElement('th', { 
+                key: col.id, 
+                style: col.id === 'date' ? { whiteSpace: 'nowrap', minWidth: '90px' } : { whiteSpace: 'nowrap' }
+              },
                 React.createElement('button', {
                   type: 'button',
                   onClick: () => handleSort(col.id),
@@ -1139,8 +1196,7 @@ function Admin({ t, onLogout, showNotification }) {
                   React.createElement('span', { style: { fontSize: '12px', opacity: isActive ? 1 : 0.6 } }, indicator)
                 )
               )
-            }),
-            React.createElement('th', null, 'İşlemler')
+            })
           )
         ),
         React.createElement('tbody', null,
@@ -1162,7 +1218,10 @@ function Admin({ t, onLogout, showNotification }) {
                 })
               ),
               ...tableColumns.map(col => 
-                React.createElement('td', { key: col.id },
+                React.createElement('td', { 
+                  key: col.id,
+                  style: col.id === 'date' ? { whiteSpace: 'nowrap', minWidth: '90px' } : {}
+                },
                   formatFieldValue(
                     getFieldValue(item, col.id),
                     col,
@@ -1176,39 +1235,6 @@ function Admin({ t, onLogout, showNotification }) {
                       t
                     }
                   )
-                )
-              ),
-              React.createElement('td', null,
-                React.createElement('div', { style: { display: 'flex', gap: '4px' } },
-                  React.createElement('button', {
-                    onClick: (e) => { 
-                      e.stopPropagation(); 
-                      console.log('🔧 DEBUG: Detay button clicked for item:', item.id, item);
-                      setDetail(item);
-                    },
-                    className: 'btn btn-sm',
-                    style: { fontSize: '12px', padding: '2px 6px' }
-                  }, 'Detay'),
-                  React.createElement('button', {
-                    onClick: (e) => {
-                      e.stopPropagation();
-                      console.log('ℹ️ TODO: Production transfer placeholder for item:', item.id);
-                    },
-                    className: 'btn btn-sm',
-                    style: {
-                      fontSize: '12px',
-                      padding: '2px 6px',
-                      backgroundColor: '#28a745',
-                      color: 'white',
-                      border: 'none'
-                    },
-                    title: t.send_to_production_btn || 'Üretim Paneline Aktar'
-                  }, '🏭'),
-                  React.createElement('button', {
-                    onClick: (e) => { e.stopPropagation(); remove(item.id) },
-                    className: 'btn btn-sm btn-danger',
-                    style: { fontSize: '12px', padding: '2px 6px' }
-                  }, 'Sil')
                 )
               )
             )

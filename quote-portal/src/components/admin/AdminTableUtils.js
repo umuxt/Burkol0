@@ -112,7 +112,16 @@ export function formatFieldValue(value, column, item, context) {
     
     switch (column.id) {
       case 'date':
-        return (value || '').slice(0, 10);
+        const dateStr = value || '';
+        if (dateStr) {
+          // YYYY-MM-DD formatından DD-MM-YYYY formatına çevir
+          const datePart = dateStr.slice(0, 10);
+          if (datePart.includes('-') && datePart.length === 10) {
+            const [year, month, day] = datePart.split('-');
+            return `${day}-${month}-${year}`;
+          }
+        }
+        return dateStr.slice(0, 10);
         
       case 'customer':
         return (item.name || '') + (item.company ? ' — ' + item.company : '');

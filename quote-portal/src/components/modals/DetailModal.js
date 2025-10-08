@@ -862,8 +862,28 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
   }, onClick: onClose },
     React.createElement('div', { className: 'card detail-modal', style: { width: 'min(680px, 96vw)', maxHeight: '85vh', overflowY: 'auto', position: 'relative', padding: 12, fontSize: 13 }, onClick: (e) => e.stopPropagation() },
       React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, position: 'sticky', top: 0, zIndex: 5, background: 'linear-gradient(180deg, #0f1e2c, #0c1924)', padding: '8px 6px', borderBottom: '1px solid rgba(255,255,255,0.08)' } },
-        React.createElement('h3', { style: { margin: 0, fontSize: 16 } }, t.a_detail),
-      React.createElement('div', { className: 'row', style: { alignItems: 'center', gap: '8px' } },
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+          React.createElement('h3', { style: { margin: 0, fontSize: 16 } }, t.a_detail),
+          React.createElement('button', { 
+            className: 'btn', 
+            onClick: onClose, 
+            title: t.tt_close,
+            onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
+            onMouseOut: (e) => e.target.style.backgroundColor = '',
+            style: { 
+              transition: 'all 0.2s ease',
+              fontSize: '20px',
+              width: '32px',
+              height: '32px',
+              padding: '0',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '50%'
+            }
+          }, '×')
+        ),
+        React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
           (!editing && !isNew) ? React.createElement('button', { 
             className: 'btn', 
             onClick: () => setEditing(true),
@@ -896,31 +916,21 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
               display: 'inline-flex',
               alignItems: 'center',
               gap: '4px',
-              padding: '2px 6px',
+              padding: '6px 12px',
               borderRadius: '4px',
-              fontSize: '10px',
+              fontSize: '12px',
               fontWeight: '500',
               border: '1px solid rgba(239, 68, 68, 0.3)',
               cursor: 'pointer',
               opacity: 1,
               transition: '0.2s',
               backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              color: '#ef4444'
+              color: '#ef4444',
+              height: '32px' // Düzenle butonu ile aynı yükseklik
             }
           }, 
-            React.createElement('span', null, '❓'),
-            React.createElement('span', null, item.priceStatus?.status === 'drift' ? 'Sapma' : 
-              item.priceStatus?.status === 'outdated' ? 'Güncel Değil' : 
-              item.priceStatus?.status === 'unknown' ? 'Bilinmeyen' : 'Durum')
-          ),
-          React.createElement('button', { 
-            className: 'btn', 
-            onClick: onClose, 
-            title: t.tt_close,
-            onMouseOver: (e) => e.target.style.backgroundColor = 'rgba(0,0,0,0.1)',
-            onMouseOut: (e) => e.target.style.backgroundColor = '',
-            style: { transition: 'all 0.2s ease' }
-          }, '×')
+            React.createElement('span', null, 'Fiyatlandırma Bilgileri')
+          )
         )
       ),
       
