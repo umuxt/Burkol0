@@ -12,15 +12,58 @@ const { useState, useEffect, useMemo, useRef } = React;
 
 const DRIFT_STATUSES = ['price-drift', 'content-drift', 'outdated', 'unknown', 'error']
 
+// Uyarı türlerini belirle ve renkleri tanımla
+function getQuoteWarningInfo(quote) {
+  if (!quote || !quote.priceStatus) {
+    return { type: 'none', color: null, priority: 0 }
+  }
+
+  const status = quote.priceStatus.status
+  const diffSummary = quote.priceStatus.differenceSummary
+  const priceDiff = Math.abs(diffSummary?.priceDiff || 0)
+  
+  // Eğer uyarı gizlenmişse warning yok
+  if (quote.versionWarningHidden === true) {
+    return { type: 'none', color: null, priority: 0 }
+  }
+
+  // Kırmızı uyarı: Fiyat farkı var
+  if (priceDiff > 0 || status === 'price-drift') {
+    return { 
+      type: 'price', 
+      color: '#dc3545', // Kırmızı
+      bgColor: 'rgba(220, 53, 69, 0.1)',
+      priority: 2 
+    }
+  }
+
+  // Sarı uyarı: Sadece versiyon/parametre farkı var, fiyat aynı
+  if (status === 'content-drift' || status === 'outdated') {
+    const hasParameterChanges = diffSummary?.parameterChanges && 
+      (diffSummary.parameterChanges.added?.length > 0 ||
+       diffSummary.parameterChanges.removed?.length > 0 ||
+       diffSummary.parameterChanges.modified?.length > 0)
+    const hasFormulaChange = diffSummary?.formulaChanged === true
+    
+    if (hasParameterChanges || hasFormulaChange) {
+      return { 
+        type: 'version', 
+        color: '#ffc107', // Sarı
+        bgColor: 'rgba(255, 193, 7, 0.1)',
+        priority: 1 
+      }
+    }
+  }
+
+  return { type: 'none', color: null, priority: 0 }
+}
+
 function isQuoteFlaggedForPricing(quote) {
-  if (!quote) return false
-  if (DRIFT_STATUSES.includes(quote.priceStatus?.status)) return true
-  if (quote.needsPriceUpdate === true) return true
-  if (quote.formStructureChanged) return true
-  return false
+  return getQuoteWarningInfo(quote).priority > 0
 }
 
 function Admin({ t, onLogout, showNotification }) {
+  console.log('🔄 Admin component loaded at:', new Date().toLocaleTimeString())
   const [list, setList] = useState([])
   const [detail, setDetail] = useState(null)
   const [creating, setCreating] = useState(false)
@@ -57,6 +100,9 @@ function Admin({ t, onLogout, showNotification }) {
   const [sortConfig, setSortConfig] = useState({ columnId: 'date', direction: 'desc' })
 
   useEffect(() => {
+    // Clear localStorage to ensure only Firebase data is shown
+    console.log('🔧 Admin: Clearing localStorage quotes to show only Firebase data');
+    API.clearLocalStorageQuotes();
     loadQuotes();
   }, []);
 
@@ -102,26 +148,50 @@ function Admin({ t, onLogout, showNotification }) {
       // Check if there are quotes that need version comparison
       const quotesNeedingUpdate = dataToCheck.filter(quote => 
         !quote.manualOverride?.active && // Skip manually locked quotes
-        (quote.priceStatus?.status === 'outdated' || 
-         quote.priceStatus?.status === 'drift' ||
-         quote.priceStatus?.status === 'unknown' ||
-         !quote.priceStatus)
+        quote.priceStatus && // Only process quotes that have priceStatus
+        (quote.priceStatus.status === 'outdated' || 
+         quote.priceStatus.status === 'price-drift' ||
+         quote.priceStatus.status === 'content-drift' ||
+         quote.priceStatus.status === 'unknown' ||
+         quote.priceStatus.status === 'error')
       );
 
       if (quotesNeedingUpdate.length > 0) {
-        setGlobalProcessing(true);
-        setProcessingMessage(`Değişiklikler uygulanıyor... (${quotesNeedingUpdate.length} teklif)`);
+        console.log(`🔧 Processing ${quotesNeedingUpdate.length} quotes silently in background`);
 
         // Process quotes in batches to avoid overwhelming the backend
         const batchSize = 5;
         for (let i = 0; i < quotesNeedingUpdate.length; i += batchSize) {
           const batch = quotesNeedingUpdate.slice(i, i + batchSize);
           
-          setProcessingMessage(`Değişiklikler uygulanıyor... (${i + batch.length}/${quotesNeedingUpdate.length})`);
-          
           // Process batch
           await Promise.all(batch.map(async (quote) => {
             try {
+              // Önce lokal olarak diff summary kontrol et
+              const diffSummary = quote.priceStatus?.differenceSummary
+              if (diffSummary && Math.abs(diffSummary.priceDiff || 0) === 0) {
+                const hasParameterChanges = diffSummary.parameterChanges && 
+                  (diffSummary.parameterChanges.added?.length > 0 ||
+                   diffSummary.parameterChanges.removed?.length > 0 ||
+                   diffSummary.parameterChanges.modified?.length > 0)
+                const hasFormulaChange = diffSummary.formulaChanged === true
+                
+                // Eğer gerçek bir değişiklik yoksa status'ü current yap
+                if (!hasParameterChanges && !hasFormulaChange) {
+                  console.log(`🔧 Quote ${quote.id}: No real changes detected, updating status to current`)
+                  const updatedQuote = { 
+                    ...quote, 
+                    priceStatus: { 
+                      ...quote.priceStatus, 
+                      status: 'current',
+                      statusReason: null
+                    } 
+                  }
+                  setList(prev => prev.map(q => q.id === quote.id ? updatedQuote : q))
+                  return
+                }
+              }
+              
               const comparison = await API.compareQuotePriceVersions(quote.id);
               if (comparison.needsUpdate) {
                 // Update the quote with new price status
@@ -136,14 +206,10 @@ function Admin({ t, onLogout, showNotification }) {
           // Small delay between batches
           await new Promise(resolve => setTimeout(resolve, 200));
         }
-
-        setGlobalProcessing(false);
-        setProcessingMessage('');
       }
     } catch (error) {
       console.error('Version update check failed:', error);
-      setGlobalProcessing(false);
-      setProcessingMessage('');
+      // Just log the error, don't show any UI feedback
     }
   }
 
@@ -521,13 +587,20 @@ function Admin({ t, onLogout, showNotification }) {
 
   async function setItemStatus(id, st) { 
     await API.updateStatus(id, st)
-    refresh()
+    // Update the specific quote in the list instead of full refresh
+    setList(prevList => prevList.map(quote => quote.id === id ? { ...quote, status: st } : quote))
     showNotification('Kayıt durumu güncellendi!', 'success')
   }
 
   async function remove(id) { 
     await API.remove(id) 
-    refresh() 
+    // Remove the specific quote from the list instead of full refresh
+    setList(prevList => prevList.filter(quote => quote.id !== id))
+    // If this was the detail view, close it
+    if (detail && detail.id === id) {
+      setDetail(null)
+    }
+    showNotification('Kayıt silindi!', 'success')
   }
 
   function toggleOne(id, checked) {
@@ -597,13 +670,48 @@ function Admin({ t, onLogout, showNotification }) {
       return quote?.manualOverride?.active
     })
     
+    // Filter out quotes that don't need updates (current price = calculated price)
+    const needsUpdateIds = []
+    const alreadyCurrentIds = []
+    
+    unlockedIds.forEach(id => {
+      const quote = idToQuote.get(id)
+      if (!quote) return
+      
+      const currentPrice = parseFloat(quote.price) || 0
+      const calculatedPrice = parseFloat(quote.priceStatus?.calculatedPrice) || 0
+      
+      // Check if prices are exactly the same and status is current
+      const isAlreadyCurrent = (currentPrice === calculatedPrice) && (quote.priceStatus?.status === 'current')
+      
+      if (isAlreadyCurrent) {
+        console.log(`💡 Quote ${id}: Already current - current: ${currentPrice}, calculated: ${calculatedPrice}`)
+        alreadyCurrentIds.push(id)
+      } else {
+        needsUpdateIds.push(id)
+      }
+    })
+    
     if (lockedIds.length > 0) {
       console.log(`🔒 Skipping ${lockedIds.length} locked quotes:`, lockedIds)
     }
+    
+    if (alreadyCurrentIds.length > 0) {
+      console.log(`✅ Skipping ${alreadyCurrentIds.length} already current quotes:`, alreadyCurrentIds)
+    }
 
-    const total = unlockedIds.length
-    const skipped = lockedIds.length
+    const total = needsUpdateIds.length
+    const skipped = lockedIds.length + alreadyCurrentIds.length
     bulkCancelRef.current = false
+
+    // If no quotes need updating, show message and return
+    if (total === 0) {
+      const message = skipped > 0 
+        ? `Tüm kayıtlar zaten güncel veya kilitli (${skipped} kayıt atlandı)`
+        : 'Güncellenecek kayıt bulunamadı'
+      showNotification(message, 'info')
+      return
+    }
 
     setBulkProgress({
       active: true,
@@ -629,7 +737,7 @@ function Admin({ t, onLogout, showNotification }) {
         break
       }
 
-      const id = unlockedIds[i]
+      const id = needsUpdateIds[i]
       const quoteRef = idToQuote.get(id)
       setBulkProgress(prev => prev ? {
         ...prev,
@@ -680,7 +788,12 @@ function Admin({ t, onLogout, showNotification }) {
     if (!cancelled) {
       let message = `${successCount} fiyat güncellendi`
       if (skipped > 0) {
-        message += `, ${skipped} kilitli kayıt atlandı`
+        const lockedSkipped = lockedIds.length
+        const currentSkipped = alreadyCurrentIds.length
+        const skipDetails = []
+        if (lockedSkipped > 0) skipDetails.push(`${lockedSkipped} kilitli`)
+        if (currentSkipped > 0) skipDetails.push(`${currentSkipped} zaten güncel`)
+        message += `, ${skipped} kayıt atlandı (${skipDetails.join(', ')})`
       }
       if (errors.length > 0) {
         message += `, ${errors.length} hata oluştu`
@@ -714,16 +827,19 @@ function Admin({ t, onLogout, showNotification }) {
     const initialDiff = snapshot.differenceSummary ?? item.priceStatus?.differenceSummary ?? null
     const fallbackVersions = snapshot.versions || {
       original: {
-        version: item.priceCalculation?.version,
-        versionId: item.priceCalculation?.versionId || item.priceVersion?.versionId || null,
-        timestamp: item.priceCalculation?.timestamp || item.createdAt || null
+        // Orijinal versiyon: Quote oluşturulduğu zamanki versiyon (statik)
+        version: item.originalPriceVersion?.versionNumber || item.createdAtVersion?.versionNumber || 'N/A',
+        versionId: item.originalPriceVersion?.versionId || item.createdAtVersion?.versionId || '—',
+        timestamp: item.originalPriceVersion?.capturedAt || item.createdAt || null
       },
       applied: {
+        // Mevcut versiyon: Şu an aktif olan fiyat hesaplama versiyonu
         version: item.priceVersionApplied?.versionNumber || item.priceVersion?.versionNumber || item.priceStatus?.settingsVersion || priceSettings?.version || null,
         versionId: item.priceVersionApplied?.versionId || item.priceVersion?.versionId || item.priceStatus?.settingsVersionId || priceSettings?.versionId || null,
         timestamp: item.priceVersionApplied?.capturedAt || item.priceVersion?.capturedAt || item.priceStatus?.lastApplied || null
       },
       latest: {
+        // Güncel versiyon: Sistemdeki en yeni fiyat hesaplama versiyonu
         version: priceSettings?.version || null,
         versionId: priceSettings?.versionId || null,
         timestamp: priceSettings?.updatedAt || null
@@ -782,6 +898,17 @@ function Admin({ t, onLogout, showNotification }) {
     if (!priceReview) return
     
     try {
+      // Check if update is actually needed before API call
+      const currentPrice = parseFloat(priceReview.originalPrice) || 0
+      const newPrice = parseFloat(priceReview.newPrice) || 0
+      
+      if (currentPrice === newPrice) {
+        console.log('💡 Price review: No actual price change needed', { currentPrice, newPrice })
+        showNotification('Fiyat zaten güncel, güncelleme gerekmedi', 'info')
+        setPriceReview(null)
+        return
+      }
+      
       console.log('🔧 Applying price update for quote:', priceReview.item.id)
       setPriceReview(prev => prev ? { ...prev, updating: true } : prev)
       
@@ -790,15 +917,17 @@ function Admin({ t, onLogout, showNotification }) {
         throw new Error(response?.error || 'apply price failed')
       }
 
+      // Always use the response.quote if available, only fallback if needed
       const updatedQuote = response.quote || {
         ...priceReview.item,
-        price: response.updatedPrice,
-        calculatedPrice: response.calculatedPrice ?? response.updatedPrice,
+        price: response.updatedPrice || priceReview.newPrice,
         priceStatus: {
           ...(priceReview.item.priceStatus || {}),
           status: 'current',
           differenceSummary: null
-        }
+        },
+        // Make sure originalPriceVersion is preserved
+        originalPriceVersion: priceReview.item.originalPriceVersion
       }
 
       setList(prevList => prevList.map(quote => quote.id === priceReview.item.id ? { ...quote, ...updatedQuote } : quote))
@@ -810,12 +939,89 @@ function Admin({ t, onLogout, showNotification }) {
       showNotification('Fiyat güncellendi!', 'success')
       setPriceReview(null)
 
-      setTimeout(() => {
-        refresh()
-      }, 100)
+      // No need to refresh - quote is already updated in list via setList() above
     } catch (error) {
       console.error('Price review apply error:', error)
       showNotification('Fiyat güncellenirken hata oluştu', 'error')
+      setPriceReview(prev => prev ? { ...prev, updating: false } : prev)
+    }
+  }
+
+  async function handleVersionUpdate() {
+    if (!priceReview) return
+    
+    try {
+      console.log('🔧 Updating version for quote:', priceReview.item.id)
+      setPriceReview(prev => prev ? { ...prev, updating: true } : prev)
+      
+      const response = await API.updateQuoteVersion(priceReview.item.id)
+      if (!response || response.success === false) {
+        throw new Error(response?.error || 'version update failed')
+      }
+
+      const updatedQuote = response.quote || {
+        ...priceReview.item,
+        priceStatus: {
+          ...(priceReview.item.priceStatus || {}),
+          status: 'current',
+          differenceSummary: null
+        },
+        priceVersionApplied: priceReview.versions?.latest || null,
+        // Make sure originalPriceVersion is preserved
+        originalPriceVersion: priceReview.item.originalPriceVersion
+      }
+
+      setList(prevList => prevList.map(quote => quote.id === priceReview.item.id ? { ...quote, ...updatedQuote } : quote))
+
+      if (detail && detail.id === priceReview.item.id) {
+        setDetail(prev => ({ ...prev, ...updatedQuote }))
+      }
+
+      showNotification('Versiyon güncellendi!', 'success')
+      setPriceReview(null)
+
+    } catch (error) {
+      console.error('Version update error:', error)
+      showNotification('Versiyon güncellenirken hata oluştu', 'error')
+      setPriceReview(prev => prev ? { ...prev, updating: false } : prev)
+    }
+  }
+
+  async function handleHideWarning() {
+    if (!priceReview) return
+    
+    try {
+      console.log('🔧 Hiding warning for quote:', priceReview.item.id)
+      setPriceReview(prev => prev ? { ...prev, updating: true } : prev)
+      
+      const response = await API.hideVersionWarning(priceReview.item.id)
+      if (!response || response.success === false) {
+        throw new Error(response?.error || 'hide warning failed')
+      }
+
+      const updatedQuote = response.quote || {
+        ...priceReview.item,
+        versionWarningHidden: true,
+        priceStatus: {
+          ...(priceReview.item.priceStatus || {}),
+          status: 'current'
+        },
+        // Make sure originalPriceVersion is preserved
+        originalPriceVersion: priceReview.item.originalPriceVersion
+      }
+
+      setList(prevList => prevList.map(quote => quote.id === priceReview.item.id ? { ...quote, ...updatedQuote } : quote))
+
+      if (detail && detail.id === priceReview.item.id) {
+        setDetail(prev => ({ ...prev, ...updatedQuote }))
+      }
+
+      showNotification('Uyarı gizlendi', 'success')
+      setPriceReview(null)
+
+    } catch (error) {
+      console.error('Hide warning error:', error)
+      showNotification('Uyarı gizlenirken hata oluştu', 'error')
       setPriceReview(prev => prev ? { ...prev, updating: false } : prev)
     }
   }
@@ -993,6 +1199,28 @@ function Admin({ t, onLogout, showNotification }) {
             (function () {
               const selectedCount = selected.size
               const flaggedCount = list.filter(isQuoteFlaggedForPricing).length
+              
+              console.log('🔍 DEBUG - Buton Durumu:', {
+                totalQuotes: list.length,
+                selectedCount,
+                flaggedCount,
+                firstThreeQuotes: list.slice(0, 3).map(q => ({
+                  id: q.id,
+                  priceStatus: q.priceStatus,
+                  needsPriceUpdate: q.needsPriceUpdate,
+                  formStructureChanged: q.formStructureChanged,
+                  flagged: isQuoteFlaggedForPricing(q)
+                }))
+              })
+              
+              // Eğer hiç güncelleme durumu yoksa buton gözükmesin
+              if (flaggedCount === 0) {
+                console.log('🚫 Buton gizleniyor - flaggedCount = 0')
+                return null
+              }
+              
+              // Seçili kayıt varsa sadece seçilmiş olanları işle, yoksa tüm flagged kayıtları işle
+              const targetCount = selectedCount > 0 ? selectedCount : flaggedCount
               const lockedCount = selectedCount > 0 
                 ? Array.from(selected).filter(id => {
                     const quote = list.find(q => q.id === id)
@@ -1000,9 +1228,19 @@ function Admin({ t, onLogout, showNotification }) {
                   }).length
                 : list.filter(item => isQuoteFlaggedForPricing(item) && item.manualOverride?.active).length
               
-              if (selectedCount === 0 && flaggedCount === 0) return null
+              // Effectual updateable count = flagged - locked
+              const effectualUpdateableCount = selectedCount > 0 ? selectedCount : (flaggedCount - lockedCount)
               
-              let label = selectedCount > 0 ? `Seçili ${selectedCount} kaydı güncelle` : `${flaggedCount} kaydı güncelle`
+              // Eğer güncellnecek kayıt kalmadıysa buton gösterme
+              if (selectedCount === 0 && effectualUpdateableCount <= 0) {
+                console.log('🚫 Buton gizleniyor - effectualUpdateableCount =', effectualUpdateableCount, '(flagged:', flaggedCount, 'locked:', lockedCount, ')')
+                return null
+              }
+              
+              let label = selectedCount > 0 
+                ? `Seçili ${selectedCount} kaydı güncelle` 
+                : `${effectualUpdateableCount} kaydı güncelle`
+              
               if (lockedCount > 0) {
                 label += ` (${lockedCount} kilitli atlanacak)`
               }
@@ -1143,7 +1381,7 @@ function Admin({ t, onLogout, showNotification }) {
               top: '50%',
               transform: 'translateY(-50%)',
               cursor: 'pointer',
-              fontWeight: 'bold',
+              fontWeight: '600',
               fontSize: '12px'
             },
             onClick: (e) => { e.stopPropagation(); clearSpecificFilter(setFilters, 'status') }
@@ -1158,7 +1396,65 @@ function Admin({ t, onLogout, showNotification }) {
     ),
 
     // Data table
-    React.createElement('div', { className: 'table-container', style: { marginTop: '16px', overflowX: 'auto' } },
+    React.createElement('div', { className: 'table-container', style: { marginTop: '16px', overflowX: 'auto', position: 'relative' } },
+      // Loading overlay for table only (but not during bulk operations)
+      loading && !bulkProgress && React.createElement('div', {
+        style: {
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(255, 255, 255, 0.9)',
+          backdropFilter: 'blur(1px)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          fontSize: '14px',
+          color: '#666',
+          minHeight: '200px'
+        }
+      },
+        React.createElement('div', {
+          style: {
+            width: '32px',
+            height: '32px',
+            border: '3px solid #f3f3f3',
+            borderTop: '3px solid #007bff',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            marginBottom: '12px'
+          }
+        }),
+        React.createElement('div', null, 'Veriler yükleniyor...')
+      ),
+      // Error overlay for table only (but not during bulk operations)
+      error && !loading && !bulkProgress && React.createElement('div', {
+        style: {
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          fontSize: '14px',
+          color: '#dc3545',
+          minHeight: '200px',
+          textAlign: 'center',
+          padding: '20px'
+        }
+      },
+        React.createElement('div', { style: { fontSize: '24px', marginBottom: '12px' } }, '⚠️'),
+        React.createElement('div', { style: { fontWeight: '500', marginBottom: '8px' } }, 'Veri yükleme hatası'),
+        React.createElement('div', null, error)
+      ),
       React.createElement('table', { className: 'table' },
         React.createElement('thead', null,
           React.createElement('tr', null,
@@ -1406,7 +1702,15 @@ function Admin({ t, onLogout, showNotification }) {
           React.createElement('p', { style: { margin: '8px 0' } }, `Proje: ${priceReview.item.proj || 'N/A'}`),
           React.createElement('p', { style: { margin: '8px 0' } }, `Mevcut Fiyat: ${Number.isFinite(Number(priceReview.originalPrice)) ? `₺${Number(priceReview.originalPrice).toFixed(2)}` : 'N/A'}`),
           React.createElement('p', { style: { margin: '8px 0' } }, `Yeni Fiyat: ${Number.isFinite(Number(priceReview.newPrice)) ? `₺${Number(priceReview.newPrice).toFixed(2)}` : 'N/A'}`),
-          priceReview.differenceSummary?.priceDiff !== undefined && React.createElement('p', { style: { margin: '8px 0', color: '#dc3545', fontWeight: 'bold' } }, `Fiyat Farkı: ₺${Number(priceReview.differenceSummary.priceDiff).toFixed(2)}`),
+          priceReview.differenceSummary?.priceDiff !== undefined && (() => {
+            const priceDiff = Number(priceReview.differenceSummary.priceDiff)
+            const warningInfo = getQuoteWarningInfo(priceReview.item)
+            // Fiyat farkı varsa kırmızı, yoksa sarı (versiyon farkı)
+            const color = Math.abs(priceDiff) > 0 ? '#dc3545' : '#ffc107'
+            return React.createElement('p', { 
+              style: { margin: '8px 0', color, fontWeight: '600' } 
+            }, `Fiyat Farkı: ₺${priceDiff.toFixed(2)}`)
+          })(),
           priceReview.versions && React.createElement('div', { style: { margin: '8px 0', fontSize: '13px', color: '#666' } },
             React.createElement('div', null, `Orijinal Versiyon: ${priceReview.versions.original?.version ?? 'N/A'} (${priceReview.versions.original?.versionId || '—'})`),
             React.createElement('div', null, `Mevcut Versiyon: ${priceReview.versions.applied?.version ?? 'N/A'} (${priceReview.versions.applied?.versionId || '—'})`),
@@ -1467,15 +1771,42 @@ function Admin({ t, onLogout, showNotification }) {
             paddingTop: '15px'
           } 
         },
-          React.createElement('button', {
-            onClick: () => setPriceReview(null),
-            className: 'btn btn-secondary'
-          }, 'İptal'),
-          React.createElement('button', {
-            onClick: handlePriceReviewApply,
-            className: 'btn btn-primary',
-            disabled: priceReview.loading || priceReview.updating
-          }, priceReview.updating ? 'Güncelleniyor...' : 'Fiyatı Güncelle')
+          (() => {
+            const priceDiff = priceReview.differenceSummary?.priceDiff || 0
+            const hasPriceDifference = Math.abs(priceDiff) > 0
+            const hasVersionDifference = priceReview.versions?.applied?.version !== priceReview.versions?.latest?.version
+            
+            if (hasPriceDifference) {
+              // Normal fiyat güncelleme durumu
+              return [
+                React.createElement('button', {
+                  key: 'apply',
+                  onClick: handlePriceReviewApply,
+                  className: 'btn btn-primary',
+                  disabled: priceReview.loading || priceReview.updating
+                }, priceReview.updating ? 'Güncelleniyor...' : 'Fiyatı Güncelle')
+              ]
+            } else if (hasVersionDifference) {
+              // Sadece versiyon farkı var, fiyat farkı yok
+              return [
+                React.createElement('button', {
+                  key: 'version',
+                  onClick: handleVersionUpdate,
+                  className: 'btn btn-primary',
+                  disabled: priceReview.loading || priceReview.updating
+                }, priceReview.updating ? 'Güncelleniyor...' : 'Versiyonu Güncelle'),
+                React.createElement('button', {
+                  key: 'hide',
+                  onClick: handleHideWarning,
+                  className: 'btn btn-secondary',
+                  disabled: priceReview.loading || priceReview.updating
+                }, priceReview.updating ? 'İşleniyor...' : 'Uyarıyı Gizle')
+              ]
+            } else {
+              // Ne fiyat farkı ne versiyon farkı yok
+              return []
+            }
+          })()
         )
       )
     ),

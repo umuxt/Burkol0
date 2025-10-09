@@ -4,7 +4,7 @@ import API from '../../lib/api.js'
 
 const { useState, useEffect } = React;
 
-export default function UsersTab({ t, showNotification }) {
+export default function UsersTab({ t, showNotification, isEmbedded = false }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
   const [newUser, setNewUser] = useState({ email: '', password: '', role: 'admin' })
@@ -23,16 +23,22 @@ export default function UsersTab({ t, showNotification }) {
 
   useEffect(() => {
     // Admin panel erişimi için doğrulama gerekli
-    if (!isVerified) {
+    if (!isVerified && !isEmbedded) {
       setShowAccessModal(true)
       return
     }
+    
+    // Embedded modda direkt yükleme yapılır (zaten doğrulama AccountTab'de yapıldı)
+    if (isEmbedded) {
+      setIsVerified(true)
+    }
+    
     if (activeView === 'sessions') {
       loadSessions()
     } else {
       loadUsers()
     }
-  }, [isVerified, activeView])
+  }, [isVerified, activeView, isEmbedded])
 
   // ESC key handling for session details modal
   useEffect(() => {
@@ -816,8 +822,8 @@ export default function UsersTab({ t, showNotification }) {
       )
     ), // Ana içerik bloğunu kapat
 
-    // Admin Erişim Modal
-    showAccessModal && React.createElement('div', {
+    // Admin Erişim Modal (sadece standalone modda göster)
+    !isEmbedded && showAccessModal && React.createElement('div', {
       style: {
         position: 'fixed',
         top: 0,

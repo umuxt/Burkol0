@@ -9,8 +9,61 @@ const formatPrice = Utils.formatPrice || function(price, currency = 'TL') {
   return `₺${formatted}`
 }
 
-// Price change button helper functions
+// Import warning info from Admin.js to avoid duplication
+// We'll use a helper function instead of duplicating the logic
+
+// Helper function to get warning info - will be passed from Admin.js
+function getWarningInfoForQuote(quote) {
+  if (!quote || !quote.priceStatus) {
+    return { type: 'none', color: null, priority: 0 }
+  }
+
+  const status = quote.priceStatus.status
+  const diffSummary = quote.priceStatus.differenceSummary
+  const priceDiff = Math.abs(diffSummary?.priceDiff || 0)
+  
+  // Eğer uyarı gizlenmişse warning yok
+  if (quote.versionWarningHidden === true) {
+    return { type: 'none', color: null, priority: 0 }
+  }
+
+  // Kırmızı uyarı: Fiyat farkı var
+  if (priceDiff > 0 || status === 'price-drift') {
+    return { 
+      type: 'price', 
+      color: '#dc3545', // Kırmızı
+      textColor: 'white',
+      symbol: '!',
+      title: 'Fiyat değişti - Güncelleme gerekli',
+      priority: 2 
+    }
+  }
+
+  // Sarı uyarı: Sadece versiyon/parametre farkı var, fiyat aynı
+  if (status === 'content-drift' || status === 'outdated') {
+    const hasParameterChanges = diffSummary?.parameterChanges && 
+      (diffSummary.parameterChanges.added?.length > 0 ||
+       diffSummary.parameterChanges.removed?.length > 0 ||
+       diffSummary.parameterChanges.modified?.length > 0)
+    const hasFormulaChange = diffSummary?.formulaChanged === true
+    
+    if (hasParameterChanges || hasFormulaChange) {
+      return { 
+        type: 'version', 
+        color: '#ffc107', // Sarı
+        textColor: '#000',
+        symbol: '~',
+        title: 'Versiyon değişti - Parametre/formül güncellemesi',
+        priority: 1 
+      }
+    }
+  }
+
+  return { type: 'none', color: null, priority: 0 }
+}
+
 function getPriceChangeButtonColor(changeType) {
+  // Legacy support for old changeType system
   switch (changeType) {
     case 'price-changed':
       return '#dc3545' // 🔴 Kırmızı - Fiyat gerçekten değişti
@@ -22,6 +75,7 @@ function getPriceChangeButtonColor(changeType) {
 }
 
 function getPriceChangeButtonTextColor(changeType) {
+  // Legacy support for old changeType system
   switch (changeType) {
     case 'price-changed':
       return 'white' // Kırmızı arkaplan için beyaz yazı
@@ -33,6 +87,7 @@ function getPriceChangeButtonTextColor(changeType) {
 }
 
 function getPriceChangeButtonTitle(changeType) {
+  // Legacy support for old changeType system
   switch (changeType) {
     case 'price-changed':
       return 'Fiyat değişti - Yeni hesaplama mevcut fiyattan farklı'
@@ -44,6 +99,7 @@ function getPriceChangeButtonTitle(changeType) {
 }
 
 function getPriceChangeButtonSymbol(changeType) {
+  // Legacy support for old changeType system
   switch (changeType) {
     case 'price-changed':
       return '!' // Ünlem - Fiyat değişti
@@ -132,10 +188,7 @@ export function formatFieldValue(value, column, item, context) {
         
       case 'price':
         const priceStatus = item?.priceStatus || null
-        const priceChangeType = getPriceChangeType(item)
-        const status = priceStatus?.status
-        const differenceSummary = priceStatus?.differenceSummary || null
-        const manualOverrideActive = item?.manualOverride?.active === true || status === 'manual'
+        const manualOverrideActive = item?.manualOverride?.active === true || priceStatus?.status === 'manual'
 
         if (manualOverrideActive) {
           return React.createElement('span', {
@@ -147,24 +200,22 @@ export function formatFieldValue(value, column, item, context) {
           }, `${formatPrice(parseFloat(value) || 0)}🔒`)
         }
 
-        const shouldShowButton = ['price-drift', 'content-drift', 'outdated', 'unknown', 'error'].includes(status) || !!priceChangeType
-
-        if (!shouldShowButton) {
+        // Yeni uyarı sistemi kullan
+        const warningInfo = getWarningInfoForQuote(item)
+        
+        if (warningInfo.priority === 0) {
+          // Uyarı yok, normal fiyat göster
           return formatPrice(parseFloat(value) || 0)
         }
 
+        // Uyarı var, buton ve indicator ile göster
+        const differenceSummary = priceStatus?.differenceSummary || null
         const originalPrice = differenceSummary?.oldPrice ?? (parseFloat(item.price) || 0)
         const fallbackCalculated = typeof calculatePrice === 'function'
           ? parseFloat(calculatePrice(item)) || 0
           : (item.pendingCalculatedPrice !== undefined ? parseFloat(item.pendingCalculatedPrice) || 0 : 0)
         const recalculatedPrice = differenceSummary?.newPrice
           ?? (parseFloat(priceStatus?.calculatedPrice) || fallbackCalculated || originalPrice)
-
-        let indicatorColor = '#ffc107'
-        if (status === 'price-drift' || status === 'content-drift' || priceChangeType === 'price-changed') {
-          indicatorColor = '#dc3545'
-        }
-        if (!differenceSummary) indicatorColor = '#ffc107'
 
         const priceDiffValue = Number(differenceSummary?.priceDiff ?? (recalculatedPrice - originalPrice))
         const baseTitle = differenceSummary
@@ -181,7 +232,7 @@ export function formatFieldValue(value, column, item, context) {
               width: '8px',
               height: '8px',
               borderRadius: '50%',
-              backgroundColor: indicatorColor
+              backgroundColor: warningInfo.color
             },
             title: indicatorTitle
           }),
@@ -197,27 +248,27 @@ export function formatFieldValue(value, column, item, context) {
               }
             },
             style: {
-              backgroundColor: getPriceChangeButtonColor(priceChangeType || (['price-drift', 'content-drift'].includes(status) ? 'price-changed' : 'formula-changed')),
-              color: getPriceChangeButtonTextColor(priceChangeType || (['price-drift', 'content-drift'].includes(status) ? 'price-changed' : 'formula-changed')),
+              backgroundColor: warningInfo.color,
+              color: warningInfo.textColor,
               border: 'none',
               padding: '2px 6px',
               borderRadius: '4px',
               fontSize: '10px',
               cursor: 'pointer',
-              fontWeight: 'bold'
+              fontWeight: '600'
             },
-            title: getPriceChangeButtonTitle(priceChangeType || (['price-drift', 'content-drift'].includes(status) ? 'price-changed' : 'formula-changed'))
-          }, getPriceChangeButtonSymbol(priceChangeType || (['price-drift', 'content-drift'].includes(status) ? 'price-changed' : 'formula-changed')))
+            title: warningInfo.title
+          }, warningInfo.symbol)
         )
 
       case 'due':
         const due = value || '';
         if (due.includes('Gecikti')) {
-          return React.createElement('span', { style: { color: '#dc3545', fontWeight: 'bold' } }, due);
+          return React.createElement('span', { style: { color: '#dc3545', fontWeight: '600' } }, due);
         } else if (due.includes('gün')) {
           const days = parseInt(due.match(/\d+/)?.[0] || '0');
           if (days <= 3) {
-            return React.createElement('span', { style: { color: '#ffc107', fontWeight: 'bold' } }, due);
+            return React.createElement('span', { style: { color: '#ffc107', fontWeight: '600' } }, due);
           }
         }
         return due;
@@ -251,7 +302,7 @@ export function formatFieldValue(value, column, item, context) {
               paddingRight: '20px',
               borderRadius: '12px',
               fontSize: '11px',
-              fontWeight: 'bold',
+              fontWeight: '600',
               backgroundColor: getStatusColor(value),
               color: getStatusTextColor(value),
               border: `1px solid ${getStatusTextColor(value)}20`,

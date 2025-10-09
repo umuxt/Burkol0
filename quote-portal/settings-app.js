@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import PricingTab from './src/components/settings/DynamicPricingTab.js'
 import FormTab from './src/components/settings/FormTab.js'
-import UsersTab from './src/components/settings/UsersTab.jsx'
+import AccountTab from './src/components/settings/AccountTab.jsx'
 
 // Notification Hook
 function useNotifications() {
@@ -66,27 +66,27 @@ function SettingsApp() {
     // URL search params kontrolü (?tab=form)
     const urlParams = new URLSearchParams(window.location.search)
     const tabParam = urlParams.get('tab')
-    if (['pricing', 'form', 'users'].includes(tabParam)) {
+    if (['account', 'pricing', 'form'].includes(tabParam)) {
       return tabParam
     }
     
-    // URL'de hash varsa onu kullan (#form, #users, #pricing)
+    // URL'de hash varsa onu kullan (#form, #pricing, #account)
     const hash = window.location.hash.replace('#', '')
-    if (['pricing', 'form', 'users'].includes(hash)) {
+    if (['account', 'pricing', 'form'].includes(hash)) {
       return hash
     }
     
     // localStorage'dan son seçilen sekmeyi al
     const savedTab = localStorage.getItem('burkol-settings-tab')
-    if (['pricing', 'form', 'users'].includes(savedTab)) {
+    if (['account', 'pricing', 'form'].includes(savedTab)) {
       return savedTab
     }
     
-    // Varsayılan olarak fiyatlandırma
-    return 'pricing'
+    // Varsayılan olarak hesap ayarları
+    return 'account'
   }
   
-  const [activeTab, setActiveTab] = useState(getInitialTab) // 'pricing' | 'form' | 'users'
+  const [activeTab, setActiveTab] = useState(getInitialTab) // 'account' | 'pricing' | 'form'
   const { notifications, showNotification, removeNotification } = useNotifications()
 
   // Sayfa ilk yüklendiğinde URL hash'ini doğru sekmeye ayarla
@@ -108,7 +108,7 @@ function SettingsApp() {
   useEffect(() => {
     function handleHashChange() {
       const hash = window.location.hash.replace('#', '')
-      if (['pricing', 'form', 'users'].includes(hash)) {
+      if (['account', 'pricing', 'form'].includes(hash)) {
         setActiveTab(hash)
         localStorage.setItem('burkol-settings-tab', hash)
       }
@@ -121,6 +121,7 @@ function SettingsApp() {
   // Simple translation object
   const t = {
     settings_title: 'Sistem Ayarları',
+    account: 'Hesap Ayarları',
     pricing: 'Fiyatlandırma',
     form_structure: 'Form Yapısı',
     users: 'Kullanıcılar',
@@ -143,6 +144,11 @@ function SettingsApp() {
     // Tab navigation
     React.createElement('div', { className: 'tab-navigation' },
       React.createElement('button', {
+        className: `tab-button ${activeTab === 'account' ? 'active' : ''}`,
+        onClick: () => handleTabChange('account')
+      }, 'Hesap Ayarları'),
+
+      React.createElement('button', {
         className: `tab-button ${activeTab === 'pricing' ? 'active' : ''}`,
         onClick: () => handleTabChange('pricing')
       }, 'Fiyatlandırma'),
@@ -150,27 +156,22 @@ function SettingsApp() {
       React.createElement('button', {
         className: `tab-button ${activeTab === 'form' ? 'active' : ''}`,
         onClick: () => handleTabChange('form')
-      }, 'Form Yapısı'),
-
-      React.createElement('button', {
-        className: `tab-button ${activeTab === 'users' ? 'active' : ''}`,
-        onClick: () => handleTabChange('users')
-      }, 'Kullanıcılar')
+      }, 'Form Yapısı')
     ),
 
     // Tab content
     React.createElement('div', { className: 'tab-content' },
+      activeTab === 'account' && React.createElement(AccountTab, {
+        t,
+        showNotification
+      }),
+
       activeTab === 'pricing' && React.createElement(PricingTab, {
         t,
         showNotification
       }),
       
       activeTab === 'form' && React.createElement(FormTab, {
-        t,
-        showNotification
-      }),
-
-      activeTab === 'users' && React.createElement(UsersTab, {
         t,
         showNotification
       })

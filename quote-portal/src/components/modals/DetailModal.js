@@ -820,6 +820,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
           React.createElement('div', null, `Orijinal Versiyon: ${priceUpdateData.originalVersion}`),
           React.createElement('div', null, `Mevcut Versiyon: ${priceUpdateData.currentVersion}`),
           React.createElement('div', null, `Güncel Versiyon: ${priceUpdateData.latestVersion}`),
+          (Math.abs(priceUpdateData.priceDifference) > 0.01) &&
           React.createElement('div', null, `Karşılaştırma Bazı: ${priceUpdateData.comparisonBasis}`)
         ),
         priceUpdateData.parameterChanges && priceUpdateData.parameterChanges.length > 0 &&
