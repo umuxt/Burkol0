@@ -5,8 +5,223 @@ import API from './lib/api.js';
 import DynamicFormRenderer from './components/DynamicFormRenderer.js';
 import Admin from './components/admin/Admin.js';
 import { ToastNotification, useNotifications } from './hooks/useNotifications.js';
+import MaterialsDashboard from './components/MaterialsDashboard.jsx';
+import MaterialsFilters from './components/MaterialsFilters.jsx';
+import MaterialsTable from './components/MaterialsTable.jsx';
+import MaterialsActions from './components/MaterialsActions.jsx';
+import AddMaterialModal from './components/AddMaterialModal.jsx';
+import EditMaterialModal from './components/EditMaterialModal.jsx';
+import CategoryManagementModal from './components/CategoryManagementModal.jsx';
 
-const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin' : 'quote';
+const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin' 
+  : window.location.pathname.includes('materials.html') ? 'materials'
+  : 'quote';
+
+const dummyMaterials = [
+  { code: 'M-001', name: 'Çelik Levha', type: 'raw_material', category: 'demir_celik', unit: 'kg', stock: 1200, reorderPoint: 200, status: 'Aktif' },
+  { code: 'M-002', name: 'Alüminyum Profil', type: 'wip', category: 'aluminyum', unit: 'adet', stock: 300, reorderPoint: 50, status: 'Aktif' },
+  { code: 'M-003', name: 'Somun M8', type: 'raw_material', category: 'baglanti_elemani', unit: 'adet', stock: 850, reorderPoint: 100, status: 'Pasif' },
+  { code: 'M-004', name: 'Hazır Panel', type: 'final_product', category: 'panel_sistemleri', unit: 'adet', stock: 45, reorderPoint: 60, status: 'Aktif' },
+  { code: 'M-005', name: 'Galvaniz Sac', type: 'raw_material', category: 'demir_celik', unit: 'kg', stock: 2500, reorderPoint: 300, status: 'Aktif' }
+];
+
+const materialTypes = [
+  { id: 'raw_material', label: 'Ham Madde' },
+  { id: 'wip', label: 'Yarı Mamül' },
+  { id: 'final_product', label: 'Bitmiş Ürün' }
+];
+
+const materialCategories = [
+  { id: 'demir_celik', label: 'Demir-Çelik' },
+  { id: 'aluminyum', label: 'Alüminyum' },
+  { id: 'plastik', label: 'Plastik' },
+  { id: 'baglanti_elemani', label: 'Bağlantı Elemanı' },
+  { id: 'panel_sistemleri', label: 'Panel Sistemleri' }
+];
+
+function MaterialsApp() {
+  const [materials, setMaterials] = useState(dummyMaterials);
+  const [categories, setCategories] = useState(materialCategories);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [editingMaterial, setEditingMaterial] = useState(null);
+  const [filters, setFilters] = useState({
+    search: '',
+    categories: [],
+    types: [],
+    status: '',
+    lowStock: false
+  });
+
+  const handleFilterChange = (newFilters) => {
+    setFilters(newFilters);
+  };
+
+  // Filtrelenmiş malzemeler
+  const filteredMaterials = materials.filter(material => {
+    // Arama filtresi
+    if (filters.search) {
+      const searchTerm = filters.search.toLowerCase();
+      if (!material.name.toLowerCase().includes(searchTerm) && 
+          !material.code.toLowerCase().includes(searchTerm) &&
+          !material.category.toLowerCase().includes(searchTerm)) {
+        return false;
+      }
+    }
+
+    // Kategori filtresi (multi-select)
+    if (filters.categories && filters.categories.length > 0) {
+      if (!filters.categories.includes(material.category)) {
+        return false;
+      }
+    }
+
+    // Tip filtresi (multi-select)
+    if (filters.types && filters.types.length > 0) {
+      if (!filters.types.includes(material.type)) {
+        return false;
+      }
+    }
+
+    // Durum filtresi
+    if (filters.status && material.status !== filters.status) {
+      return false;
+    }
+
+    // Düşük stok filtresi
+    if (filters.lowStock && material.stock > material.reorderPoint) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const handleAddMaterial = () => {
+    setIsModalOpen(true);
+  };
+
+  const handleEditMaterial = (material) => {
+    setEditingMaterial(material);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCategoryManage = () => {
+    setIsCategoryModalOpen(true);
+  };
+
+  const handleCloseCategoryModal = () => {
+    setIsCategoryModalOpen(false);
+  };
+
+  const handleSaveCategories = (updatedCategories) => {
+    setCategories(updatedCategories);
+  };
+
+  const handleSaveMaterial = (materialData, newCategory) => {
+    // Yeni kategori eklendiyse kategoriler listesine ekle
+    if (newCategory && !categories.some(cat => cat.label === newCategory)) {
+      const newCat = {
+        id: newCategory.toLowerCase().replace(/\s+/g, '_'),
+        label: newCategory
+      };
+      setCategories([...categories, newCat]);
+    }
+
+    // Malzemeyi listeye ekle
+    setMaterials(prev => [...prev, materialData]);
+    setIsModalOpen(false);
+  };
+
+  const handleSaveEditMaterial = (materialData, newCategory) => {
+    // Yeni kategori eklendiyse kategoriler listesine ekle
+    if (newCategory && !categories.some(cat => cat.label === newCategory)) {
+      const newCat = {
+        id: newCategory.toLowerCase().replace(/\s+/g, '_'),
+        label: newCategory
+      };
+      setCategories([...categories, newCat]);
+    }
+
+    // Malzemeyi güncelle
+    setMaterials(prev => 
+      prev.map(material => 
+        material.code === editingMaterial.code 
+          ? { ...materialData }
+          : material
+      )
+    );
+    
+    setIsEditModalOpen(false);
+    setEditingMaterial(null);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+  };
+
+  const handleCloseEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingMaterial(null);
+  };
+
+  return (
+    <div className="materials-page">
+      <div className="materials-header-section">
+        <MaterialsDashboard materials={filteredMaterials} />
+        <div className="materials-controls">
+          <div className="materials-actions">
+            <button 
+              type="button" 
+              className="add-material-btn"
+              onClick={handleAddMaterial}
+            >
+              + Yeni Malzeme
+            </button>
+            {/* Gelecekteki aksiyon butonları buraya gelecek */}
+          </div>
+          <MaterialsFilters 
+            categories={categories}
+            types={materialTypes}
+            onFilterChange={handleFilterChange}
+          />
+        </div>
+        <MaterialsActions />
+      </div>
+      <MaterialsTable 
+        materials={filteredMaterials} 
+        types={materialTypes} 
+        onEditMaterial={handleEditMaterial}
+        onCategoryManage={handleCategoryManage}
+      />
+      
+      <AddMaterialModal 
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        onSave={handleSaveMaterial}
+        categories={categories}
+        types={materialTypes}
+        materials={materials}
+      />
+
+      <EditMaterialModal 
+        isOpen={isEditModalOpen}
+        onClose={handleCloseEditModal}
+        onSave={handleSaveEditMaterial}
+        categories={categories}
+        types={materialTypes}
+        material={editingMaterial}
+      />
+
+      <CategoryManagementModal 
+        isOpen={isCategoryModalOpen}
+        onClose={handleCloseCategoryModal}
+        onSave={handleSaveCategories}
+        categories={categories}
+      />
+    </div>
+  );
+}
 
 function App() {
   const { t, lang } = useI18n();
@@ -77,6 +292,8 @@ function App() {
               showNotification={showNotification}
             />
           ) : <AdminGate onLogin={handleLogin} t={t} />)
+        : PAGE === 'materials'
+        ? <MaterialsApp />
         : <DynamicFormRenderer onSubmit={handleQuoteSubmit} showNotification={showNotification} t={t} />
       }
     </React.Fragment>
