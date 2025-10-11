@@ -5,6 +5,10 @@ import API from './lib/api.js';
 import DynamicFormRenderer from './components/DynamicFormRenderer.js';
 import Admin from './components/admin/Admin.js';
 import { ToastNotification, useNotifications } from './hooks/useNotifications.js';
+import MaterialsTabs from './components/MaterialsTabs.jsx';
+import StocksTabContent from './components/StocksTabContent.jsx';
+import SuppliersTabContent from './components/SuppliersTabContent.jsx';
+import OrdersTabContent from './components/OrdersTabContent.jsx';
 import MaterialsDashboard from './components/MaterialsDashboard.jsx';
 import MaterialsFilters from './components/MaterialsFilters.jsx';
 import MaterialsTable from './components/MaterialsTable.jsx';
@@ -167,33 +171,19 @@ function MaterialsApp() {
 
   return (
     <div className="materials-page">
-      <div className="materials-header-section">
-        <MaterialsDashboard materials={filteredMaterials} />
-        <div className="materials-controls">
-          <div className="materials-actions">
-            <button 
-              type="button" 
-              className="add-material-btn"
-              onClick={handleAddMaterial}
-            >
-              + Yeni Malzeme
-            </button>
-            {/* Gelecekteki aksiyon butonları buraya gelecek */}
-          </div>
-          <MaterialsFilters 
-            categories={categories}
-            types={materialTypes}
-            onFilterChange={handleFilterChange}
-          />
-        </div>
-        <MaterialsActions />
-      </div>
-      <MaterialsTable 
-        materials={filteredMaterials} 
-        types={materialTypes} 
-        onEditMaterial={handleEditMaterial}
-        onCategoryManage={handleCategoryManage}
-      />
+      <MaterialsTabs>
+        <StocksTabContent 
+          filteredMaterials={filteredMaterials}
+          categories={categories}
+          materialTypes={materialTypes}
+          handleFilterChange={handleFilterChange}
+          handleAddMaterial={handleAddMaterial}
+          handleEditMaterial={handleEditMaterial}
+          handleCategoryManage={handleCategoryManage}
+        />
+        <SuppliersTabContent />
+        <OrdersTabContent />
+      </MaterialsTabs>
       
       <AddMaterialModal 
         isOpen={isModalOpen}
