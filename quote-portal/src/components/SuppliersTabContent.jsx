@@ -1,4 +1,5 @@
 import React from 'react'
+import SuppliersTable from './SuppliersTable.jsx'
 
 // Geçici suppliers dashboard component
 function SuppliersDashboard() {
@@ -42,15 +43,11 @@ function SuppliersFilters() {
 }
 
 // Geçici suppliers table component
-function SuppliersTable() {
-  return (
-    <div className="suppliers-table-placeholder">
-      <p>Tedarikçi tablosu burada görünecek...</p>
-    </div>
-  )
+function SuppliersTablePlaceholder() {
+  return <SuppliersTable />
 }
 
-export default function SuppliersTabContent() {
+export default function SuppliersTabContent({ categories }) {
   return (
     <div className="stocks-tab-content">
       <div className="materials-header-section">
@@ -71,7 +68,7 @@ export default function SuppliersTabContent() {
           <SuppliersFilters />
         </div>
       </div>
-      <SuppliersTable />
+      <SuppliersTable categories={categories} />
     </div>
   )
 }

@@ -171,7 +171,15 @@ function MaterialsApp() {
 
   return (
     <div className="materials-page">
-      <MaterialsTabs>
+            <MaterialsTabs
+        filteredMaterials={filteredMaterials}
+        categories={categories}
+        materialTypes={materialTypes}
+        handleFilterChange={handleFilterChange}
+        handleAddMaterial={handleAddMaterial}
+        handleEditMaterial={handleEditMaterial}
+        handleCategoryManage={handleCategoryManage}
+      >
         <StocksTabContent 
           filteredMaterials={filteredMaterials}
           categories={categories}
@@ -181,7 +189,7 @@ function MaterialsApp() {
           handleEditMaterial={handleEditMaterial}
           handleCategoryManage={handleCategoryManage}
         />
-        <SuppliersTabContent />
+        <SuppliersTabContent categories={categories} />
         <OrdersTabContent />
       </MaterialsTabs>
       
