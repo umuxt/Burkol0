@@ -1,11 +1,20 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useMaterials } from '../hooks/useFirebaseMaterials'
 import { useSuppliers } from '../hooks/useSuppliers'
 
 export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMaterial }) {
   // Malzemeleri yükle
   const { materials, loading: materialsLoading } = useMaterials(true)
-  const { suppliers } = useSuppliers()
+  const { suppliers, loading: suppliersLoading } = useSuppliers()
+  
+  // Debug: Suppliers verisi
+  useEffect(() => {
+    console.log('🔍 AddSupplierModal: Suppliers listesi güncellendi:', {
+      count: suppliers?.length || 0,
+      loading: suppliersLoading,
+      suppliers: suppliers?.map(s => ({ id: s.id, code: s.code, name: s.name || s.companyName }))
+    })
+  }, [suppliers, suppliersLoading])
   
   // Malzeme yönetimi için state'ler
   const [selectedMaterials, setSelectedMaterials] = useState([])
@@ -14,17 +23,35 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
   
   // Otomatik tedarikçi kodu üretimi - minimum unique değer bulma
   const generateNextCode = () => {
-    if (!suppliers || suppliers.length === 0) return 'T-0001';
+    console.log('🔍 generateNextCode çağrıldı - suppliers:', suppliers)
+    
+    if (!suppliers || suppliers.length === 0) {
+      console.log('🏷️ AddSupplierModal: Henüz tedarikçi yok, T-0001 kullanılıyor')
+      return 'T-0001';
+    }
+    
+    // Tüm supplier verilerini detaylı logla
+    console.log('🔍 Tüm suppliers detaylı:', suppliers.map(s => ({
+      id: s.id,
+      code: s.code,
+      name: s.name || s.companyName || 'İsimsiz',
+      rawData: s
+    })))
     
     // Mevcut tüm kodlardan sayıları çıkar ve sırala
     const existingNumbers = suppliers
       .map(supplier => {
         const code = supplier.code || '';
+        console.log(`🔍 Supplier ${supplier.id}: code="${code}"`)
         const match = code.match(/^T-(\d+)$/);
-        return match ? parseInt(match[1]) : null;
+        const number = match ? parseInt(match[1]) : null;
+        console.log(`🔍 Code "${code}" -> number: ${number}`)
+        return number;
       })
       .filter(num => num !== null)
       .sort((a, b) => a - b);
+    
+    console.log('🏷️ AddSupplierModal: Mevcut tedarikçi numaraları:', existingNumbers)
     
     // Minimum boş değeri bul
     let nextNumber = 1;
@@ -37,10 +64,18 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
       }
     }
     
-    return `T-${String(nextNumber).padStart(4, '0')}`;
+    const newCode = `T-${String(nextNumber).padStart(4, '0')}`;
+    console.log('🏷️ AddSupplierModal: Yeni tedarikçi kodu oluşturuldu:', newCode)
+    return newCode;
   };
 
-  const nextCode = generateNextCode();
+  // nextCode'u suppliers değiştiğinde yeniden hesapla
+  const nextCode = useMemo(() => {
+    console.log('🔄 useMemo: nextCode hesaplanıyor, suppliers.length:', suppliers?.length || 0)
+    const code = generateNextCode()
+    console.log('🔄 useMemo: Hesaplanan nextCode:', code)
+    return code
+  }, [suppliers]);
   
   const [formData, setFormData] = useState({
     code: '',
@@ -88,6 +123,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
   // Modal açıldığında form'u sıfırla
   useEffect(() => {
     if (isOpen) {
+      console.log('🔄 Modal açıldı, form sıfırlanıyor. nextCode:', nextCode)
       setFormData({
         code: '',
         name: '',

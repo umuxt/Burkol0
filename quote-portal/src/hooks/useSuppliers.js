@@ -20,6 +20,8 @@ export function useSuppliers() {
       setLoading(true)
       const token = getAuthToken()
       
+      console.log('🔍 useSuppliers: API çağrısı yapılıyor...')
+      
       const response = await fetch(`${API_BASE_URL}/api/suppliers`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -32,10 +34,15 @@ export function useSuppliers() {
       }
 
       const data = await response.json()
+      console.log('🔍 useSuppliers: API response:', {
+        count: data?.length || 0,
+        data: data?.map(s => ({ id: s.id, code: s.code, name: s.name || s.companyName }))
+      })
+      
       setSuppliers(data)
       setError(null)
     } catch (err) {
-      console.error('Error fetching suppliers:', err)
+      console.error('❌ useSuppliers: Error fetching suppliers:', err)
       setError(err.message)
       setSuppliers([])
     } finally {
@@ -200,6 +207,7 @@ export function useSuppliers() {
 
   // Load suppliers on mount
   useEffect(() => {
+    console.log('🔍 useSuppliers: useEffect çalıştı, fetchSuppliers çağrılıyor...')
     fetchSuppliers()
   }, [])
 
