@@ -28,14 +28,30 @@ export default function AddMaterialModal({
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategory, setNewCategory] = useState('');
 
-  // Otomatik kod oluşturma
+  // Otomatik kod oluşturma - minimum unique değer bulma
   const generateNextCode = () => {
     if (materials.length === 0) return 'M-001';
     
-    // Son malzemenin kodunu al (M-005 formatında)
-    const lastCode = materials[materials.length - 1]?.code || 'M-000';
-    const lastNumber = parseInt(lastCode.split('-')[1]) || 0;
-    const nextNumber = lastNumber + 1;
+    // Mevcut tüm kodlardan sayıları çıkar ve sırala
+    const existingNumbers = materials
+      .map(material => {
+        const code = material.code || '';
+        const match = code.match(/^M-(\d+)$/);
+        return match ? parseInt(match[1]) : null;
+      })
+      .filter(num => num !== null)
+      .sort((a, b) => a - b);
+    
+    // Minimum boş değeri bul
+    let nextNumber = 1;
+    for (const num of existingNumbers) {
+      if (num === nextNumber) {
+        nextNumber++;
+      } else if (num > nextNumber) {
+        // Arada boş bir numara bulundu
+        break;
+      }
+    }
     
     return `M-${String(nextNumber).padStart(3, '0')}`;
   };
@@ -133,10 +149,15 @@ export default function AddMaterialModal({
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Yeni Malzeme Ekle</h2>
-          <button className="modal-close" onClick={handleClose}>×</button>
+          <div className="header-actions">
+            <button type="submit" form="add-material-form" className="btn-save" title="Kaydet">
+              💾 Kaydet
+            </button>
+            <button className="modal-close" onClick={handleClose}>×</button>
+          </div>
         </div>
         
-        <form onSubmit={handleSubmit} className="modal-form">
+        <form id="add-material-form" onSubmit={handleSubmit} className="modal-form">
           <div className="form-row">
             <div className="form-group">
               <label>Malzeme Kodu <span className="optional">(opsiyonel)</span></label>
@@ -320,14 +341,6 @@ export default function AddMaterialModal({
             </div>
           </div>
 
-          <div className="modal-actions">
-            <button type="button" onClick={handleClose} className="btn-cancel">
-              İptal
-            </button>
-            <button type="submit" className="btn-save">
-              Kaydet
-            </button>
-          </div>
         </form>
       </div>
     </div>

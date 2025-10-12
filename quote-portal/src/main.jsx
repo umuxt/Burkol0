@@ -142,6 +142,11 @@ function MaterialsApp() {
     setIsEditModalOpen(true);
   };
 
+  const handleMaterialSelect = (material) => {
+    setEditingMaterial(material);
+    setIsEditModalOpen(true);
+  };
+
   const handleCategoryManage = () => {
     setIsCategoryModalOpen(true);
   };
@@ -287,6 +292,7 @@ function MaterialsApp() {
           materialTypes={materialTypes}
           handleFilterChange={handleFilterChange}
           handleAddMaterial={handleAddMaterial}
+          handleMaterialSelect={handleMaterialSelect}
           handleEditMaterial={handleEditMaterial}
           handleDeleteMaterial={handleDeleteMaterial}
           handleCategoryManage={handleCategoryManage}
@@ -312,6 +318,7 @@ function MaterialsApp() {
         isOpen={isEditModalOpen}
         onClose={handleCloseEditModal}
         onSave={handleSaveEditMaterial}
+        onDelete={handleDeleteMaterial}
         categories={categories}
         types={materialTypes}
         material={editingMaterial}

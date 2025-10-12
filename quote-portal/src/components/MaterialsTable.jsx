@@ -5,13 +5,41 @@ export default function MaterialsTable({
   materials, 
   types, 
   categories,
+  onMaterialSelect,
   onEditMaterial, 
   onDeleteMaterial,
-  onCategoryManage 
+  onCategoryManage,
+  selectedMaterials = new Set(),
+  onSelectedMaterialsChange
 }) {
   const [activeTab, setActiveTab] = useState('all');
   const [sortField, setSortField] = useState('');
   const [sortDirection, setSortDirection] = useState('asc');
+
+  // Tümünü seç/bırak
+  const handleSelectAll = (checked) => {
+    if (!onSelectedMaterialsChange) return;
+    
+    if (checked) {
+      const allIds = sortedMaterials.map(m => m.id).filter(Boolean);
+      onSelectedMaterialsChange(new Set(allIds));
+    } else {
+      onSelectedMaterialsChange(new Set());
+    }
+  };
+
+  // Tekil seçim
+  const handleSelectMaterial = (materialId, checked) => {
+    if (!onSelectedMaterialsChange) return;
+    
+    const newSelected = new Set(selectedMaterials);
+    if (checked) {
+      newSelected.add(materialId);
+    } else {
+      newSelected.delete(materialId);
+    }
+    onSelectedMaterialsChange(newSelected);
+  };
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -116,6 +144,14 @@ export default function MaterialsTable({
         <table>
           <thead>
             <tr>
+              <th style={{ width: '40px', textAlign: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={sortedMaterials.length > 0 && selectedMaterials.size === sortedMaterials.length}
+                  onChange={(e) => handleSelectAll(e.target.checked)}
+                  title="Tümünü seç"
+                />
+              </th>
               <th style={{ whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
@@ -237,45 +273,6 @@ export default function MaterialsTable({
                   Stok Durumu{getSortIcon('stock')}
                 </button>
               </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
-                <button 
-                  type="button"
-                  onClick={() => handleSort('costPrice')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: sortField === 'costPrice' ? '#007bff' : 'inherit'
-                  }}
-                >
-                  Fiyat{getSortIcon('costPrice')}
-                </button>
-              </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
-                <button 
-                  type="button"
-                  onClick={() => handleSort('status')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: sortField === 'status' ? '#007bff' : 'inherit'
-                  }}
-                >
-                  Durum{getSortIcon('status')}
-                </button>
-              </th>
-              <th style={{ width: '120px' }}>İşlemler</th>
             </tr>
           </thead>
           <tbody>
@@ -283,14 +280,26 @@ export default function MaterialsTable({
               <tr 
                 key={material.id || material.code} 
                 className={`${material.status === 'Pasif' ? 'inactive' : ''} ${material.stock <= material.reorderPoint ? 'low-stock' : ''}`}
+                onClick={(e) => {
+                  // Checkbox tıklamasında satır seçimini engelle
+                  if (e.target.type !== 'checkbox') {
+                    onMaterialSelect && onMaterialSelect(material)
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
               >
+                <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={selectedMaterials.has(material.id)}
+                    onChange={(e) => handleSelectMaterial(material.id, e.target.checked)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </td>
                 <td>{material.code}</td>
                 <td>
                   <div className="material-name-cell">
                     <strong>{material.name}</strong>
-                    {material.description && (
-                      <small className="material-description">{material.description}</small>
-                    )}
                   </div>
                 </td>
                 <td>{getTypeLabel(material.type)}</td>
@@ -304,67 +313,11 @@ export default function MaterialsTable({
                     available={material.available || material.stock}
                   />
                 </td>
-                <td className="price-cell">
-                  <div className="price-details">
-                    {material.costPrice && (
-                      <span className="cost-price">
-                        {new Intl.NumberFormat('tr-TR', { 
-                          style: 'currency', 
-                          currency: 'TRY' 
-                        }).format(material.costPrice)}
-                      </span>
-                    )}
-                    {material.sellPrice && (
-                      <span className="sell-price">
-                        Satış: {new Intl.NumberFormat('tr-TR', { 
-                          style: 'currency', 
-                          currency: 'TRY' 
-                        }).format(material.sellPrice)}
-                      </span>
-                    )}
-                    {!material.costPrice && !material.sellPrice && (
-                      <span className="no-price">-</span>
-                    )}
-                  </div>
-                </td>
-                <td>
-                  <span className={`status-badge ${material.status.toLowerCase()}`}>
-                    {material.status}
-                  </span>
-                </td>
-                <td className="actions-cell">
-                  <button
-                    type="button"
-                    className="edit-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEditMaterial && onEditMaterial(material);
-                    }}
-                    title="Düzenle"
-                  >
-                    ✏️
-                  </button>
-                  {onDeleteMaterial && (
-                    <button
-                      type="button"
-                      className="delete-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (confirm(`"${material.name}" malzemesini silmek istediğinizden emin misiniz?`)) {
-                          onDeleteMaterial(material.id);
-                        }
-                      }}
-                      title="Sil"
-                    >
-                      🗑️
-                    </button>
-                  )}
-                </td>
               </tr>
             ))}
             {sortedMaterials.length === 0 && (
               <tr>
-                <td colSpan="8" className="no-data">
+                <td colSpan="5" className="no-data">
                   {activeTab === 'all' 
                     ? 'Henüz malzeme bulunmuyor.' 
                     : `Bu tipte malzeme bulunmuyor: ${tabs.find(t => t.id === activeTab)?.label}`
