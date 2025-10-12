@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useSuppliers } from '../hooks/useSuppliers.js'
 
 export default function AddMaterialModal({ 
   isOpen, 
@@ -8,8 +9,11 @@ export default function AddMaterialModal({
   types, 
   materials = [],
   loading = false,
-  error = null 
+  error = null,
+  targetSupplier = null // Tedarikçi bilgisi - varsa "Kaydet ve Ekle" modu
 }) {
+  // Suppliers listesini al
+  const { suppliers } = useSuppliers()
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -148,10 +152,10 @@ export default function AddMaterialModal({
     <div className="modal-overlay" onClick={handleClose} style={{ zIndex: 2100 }}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', zIndex: 2102 }}>
         <div className="modal-header">
-          <h2>Yeni Malzeme Ekle</h2>
+          <h2>{targetSupplier ? `Yeni Malzeme Ekle ve ${targetSupplier.name}'e Ata` : "Yeni Malzeme Ekle"}</h2>
           <div className="header-actions">
-            <button type="submit" form="add-material-form" className="btn-save" title="Kaydet">
-              💾 Kaydet
+            <button type="submit" form="add-material-form" className="btn-save" title={targetSupplier ? "Kaydet ve Ekle" : "Kaydet"}>
+              💾 {targetSupplier ? "Kaydet ve Ekle" : "Kaydet"}
             </button>
             <button className="modal-close" onClick={handleClose}>×</button>
           </div>
@@ -306,13 +310,18 @@ export default function AddMaterialModal({
           <div className="form-row">
             <div className="form-group">
               <label>Tedarikçi</label>
-              <input
-                type="text"
+              <select
                 name="supplier"
                 value={formData.supplier}
                 onChange={handleInputChange}
-                placeholder="Tedarikçi adı"
-              />
+              >
+                <option value="">Tedarikçi seçin</option>
+                {suppliers.map(supplier => (
+                  <option key={supplier.id} value={supplier.id}>
+                    {supplier.code} - {supplier.name || supplier.companyName}
+                  </option>
+                ))}
+              </select>
             </div>
             
             <div className="form-group">

@@ -294,10 +294,14 @@ export default function SuppliersTabContent({ categories, handleAddMaterial }) {
   }
 
   // Tedarikçi modalından yeni malzeme ekleme
-  const handleAddMaterialFromSupplier = (onMaterialCreated) => {
-    console.log('🔄 Tedarikçi modalından malzeme ekleme modalına geçiş yapılıyor...')
+  const handleAddMaterialFromSupplier = (targetSupplier, onMaterialCreated) => {
+    console.log('🔄 Tedarikçi modalından malzeme ekleme modalına geçiş yapılıyor...', targetSupplier)
     setIsTransitioningToMaterial(true)
-    setIsAddSupplierModalOpen(false) // Önce tedarikçi modalını kapat
+    
+    // Eğer AddSupplierModal açıksa kapat
+    if (isAddSupplierModalOpen) {
+      setIsAddSupplierModalOpen(false)
+    }
     
     // DOM güncellemesini bekle
     requestAnimationFrame(() => {
@@ -305,7 +309,32 @@ export default function SuppliersTabContent({ categories, handleAddMaterial }) {
         console.log('🔄 Malzeme ekleme modalı açılıyor...')
         setIsTransitioningToMaterial(false)
         // Yeni malzeme oluşturulduktan sonra callback'i de ilet
-        handleAddMaterial(onMaterialCreated) // Sonra malzeme modalını aç
+        handleAddMaterial((newMaterial) => {
+          // Malzeme başarıyla oluşturulduysa ve tedarikçi varsa, tedarikçiye ekle
+          if (newMaterial && targetSupplier) {
+            console.log('🔄 Malzeme oluşturuldu, tedarikçiye ekleniyor:', { newMaterial, targetSupplier })
+            addMaterialToSupplier(targetSupplier.id, {
+              materialId: newMaterial.id,
+              price: 0,
+              deliveryTime: '',
+              minQuantity: 1
+            }).then(() => {
+              console.log('✅ Malzeme tedarikçiye başarıyla eklendi')
+              if (onMaterialCreated) {
+                onMaterialCreated(newMaterial)
+              }
+            }).catch(error => {
+              console.error('❌ Malzeme tedarikçiye eklenirken hata:', error)
+            })
+          } else if (onMaterialCreated && newMaterial) {
+            onMaterialCreated(newMaterial)
+          }
+          
+          // Eğer AddSupplierModal'dan geliyorsa, tekrar aç
+          if (isAddSupplierModalOpen) {
+            setIsAddSupplierModalOpen(true)
+          }
+        }, targetSupplier) // targetSupplier'ı da geç
       }, 100)
     })
   }

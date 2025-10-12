@@ -1,7 +1,11 @@
 import React, { useState } from 'react'
 
-export default function MaterialsTabs({ children }) {
-  const [activeTab, setActiveTab] = useState('stocks')
+export default function MaterialsTabs({ children, activeTab, onTabChange }) {
+  // Eğer prop'lar verilmemişse internal state kullan (backward compatibility)
+  const [internalActiveTab, setInternalActiveTab] = useState('stocks')
+  
+  const currentActiveTab = activeTab !== undefined ? activeTab : internalActiveTab
+  const handleTabChange = onTabChange || setInternalActiveTab
 
   const tabs = [
     { id: 'stocks', label: 'Stoklar', icon: '📦' },
@@ -15,8 +19,8 @@ export default function MaterialsTabs({ children }) {
         {tabs.map(tab => (
           <button
             key={tab.id}
-            className={`materials-tab-btn ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
+            className={`materials-tab-btn ${currentActiveTab === tab.id ? 'active' : ''}`}
+            onClick={() => handleTabChange(tab.id)}
           >
             <span className="tab-icon">{tab.icon}</span>
             <span className="tab-label">{tab.label}</span>
@@ -32,8 +36,8 @@ export default function MaterialsTabs({ children }) {
           return (
             <div 
               key={tabId}
-              className={`tab-panel ${activeTab === tabId ? 'active' : ''}`}
-              style={{ display: activeTab === tabId ? 'block' : 'none' }}
+              className={`tab-panel ${currentActiveTab === tabId ? 'active' : ''}`}
+              style={{ display: currentActiveTab === tabId ? 'block' : 'none' }}
             >
               {child}
             </div>

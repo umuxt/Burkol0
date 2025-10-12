@@ -1,9 +1,8 @@
 // Suppliers Routes - Firebase Firestore Integration
-import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where, orderBy, serverTimestamp } from 'firebase/firestore'
+import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, query, where, orderBy, serverTimestamp, setDoc } from 'firebase/firestore'
 import { requireAuth } from './auth.js'
 
 const SUPPLIERS_COLLECTION = 'suppliers'
-const SUPPLIER_CATEGORIES_COLLECTION = 'supplierCategories'
 
 // Initialize Firestore
 let db
@@ -22,6 +21,35 @@ try {
   db = getFirestore(app)
 } catch (error) {
   console.error('Firebase initialization error:', error)
+}
+
+// Helper function to generate next supplier code
+async function generateNextSupplierCode() {
+  try {
+    const suppliersRef = collection(db, SUPPLIERS_COLLECTION)
+    const snapshot = await getDocs(suppliersRef)
+    const existingCodes = []
+    
+    snapshot.forEach(doc => {
+      const data = doc.data()
+      if (data.code && data.code.startsWith('T-')) {
+        const number = parseInt(data.code.split('-')[1])
+        if (!isNaN(number)) {
+          existingCodes.push(number)
+        }
+      }
+    })
+    
+    // En büyük sayıyı bul ve 1 ekle
+    const maxNumber = existingCodes.length > 0 ? Math.max(...existingCodes) : 0
+    const nextNumber = maxNumber + 1
+    
+    // T-0001 formatında döndür
+    return `T-${String(nextNumber).padStart(4, '0')}`
+  } catch (error) {
+    console.error('❌ Supplier code oluşturulurken hata:', error)
+    return `T-${String(Date.now()).slice(-4)}` // Fallback
+  }
 }
 
 // ================================
@@ -57,23 +85,40 @@ export async function getAllSuppliers(req, res) {
 export async function addSupplier(req, res) {
   try {
     requireAuth(req, res, async () => {
-      const supplierData = {
-        ...req.body,
+      const { suppliedMaterials, ...supplierData } = req.body
+      
+      // Custom ID kullan - eğer code varsa onu ID olarak kullan
+      const customId = supplierData.code || await generateNextSupplierCode()
+      
+      // Eğer code yok ise otomatik oluştur ve data'ya ekle
+      if (!supplierData.code) {
+        supplierData.code = customId
+      }
+      
+      const finalSupplierData = {
+        ...supplierData,
+        suppliedMaterials: suppliedMaterials || [], // suppliedMaterials array'ini direkt supplier'a ekle
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        status: req.body.status || 'active'
+        status: supplierData.status || 'active'
       }
 
-      const docRef = await addDoc(collection(db, SUPPLIERS_COLLECTION), supplierData)
+      console.log('📦 API: Custom Supplier ID kullanılıyor:', customId)
+      
+      // Custom ID ile document oluştur
+      const docRef = doc(db, SUPPLIERS_COLLECTION, customId)
+      await setDoc(docRef, finalSupplierData)
+      
+      console.log(`✅ Supplier ${customId} created with ${(suppliedMaterials || []).length} materials`)
       
       const newSupplier = {
-        id: docRef.id,
-        ...supplierData,
+        id: customId,
+        ...finalSupplierData,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }
 
-      console.log('✅ New supplier added:', newSupplier.companyName)
+      console.log('✅ New supplier added:', newSupplier.name || newSupplier.companyName)
       res.status(201).json(newSupplier)
     })
   } catch (error) {
@@ -122,58 +167,177 @@ export async function deleteSupplier(req, res) {
   }
 }
 
-// Get suppliers by category
-export async function getSuppliersByCategory(req, res) {
+// ================================
+// SUPPLIER CATEGORY MANAGEMENT
+// ================================
+
+// ================================
+// MATERIAL-SUPPLIER OPERATIONS
+// ================================
+
+// Add material to supplier's suppliedMaterials array
+export async function addMaterialToSupplier(req, res) {
   try {
     requireAuth(req, res, async () => {
-      const { category } = req.params
+      const { supplierId } = req.params
+      const { materialId, materialCode, materialName, price, deliveryTime, minQuantity } = req.body
+
+      // Supplier dokümanını al
+      const supplierRef = doc(db, SUPPLIERS_COLLECTION, supplierId)
+      const supplierDoc = await getDoc(supplierRef)
+      
+      if (!supplierDoc.exists()) {
+        return res.status(404).json({ error: 'Supplier not found' })
+      }
+
+      const supplierData = supplierDoc.data()
+      const currentMaterials = supplierData.suppliedMaterials || []
+      
+      // Malzeme zaten ekli mi kontrol et
+      const materialExists = currentMaterials.some(m => m.materialId === materialId)
+      if (materialExists) {
+        return res.status(400).json({ error: 'Material already added to supplier' })
+      }
+
+      // Yeni malzemeyi ekle
+      const newMaterial = {
+        materialId,
+        materialCode,
+        materialName,
+        price: parseFloat(price) || 0,
+        deliveryTime: deliveryTime || '',
+        minQuantity: parseInt(minQuantity) || 1,
+        addedAt: new Date().toISOString()
+      }
+
+      const updatedMaterials = [...currentMaterials, newMaterial]
+      
+      await updateDoc(supplierRef, {
+        suppliedMaterials: updatedMaterials,
+        updatedAt: serverTimestamp()
+      })
+
+      console.log(`✅ Material ${materialCode} added to supplier ${supplierId}`)
+      res.status(201).json(newMaterial)
+    })
+  } catch (error) {
+    console.error('Error adding material to supplier:', error)
+    res.status(500).json({ error: 'Failed to add material to supplier' })
+  }
+}
+
+// Get suppliers that supply a specific material
+export async function getSuppliersForMaterial(req, res) {
+  try {
+    requireAuth(req, res, async () => {
+      const { materialId } = req.params
       
       const suppliersRef = collection(db, SUPPLIERS_COLLECTION)
-      const q = query(
-        suppliersRef, 
-        where('category', '==', category),
-        orderBy('companyName', 'asc')
-      )
+      const q = query(suppliersRef, where('status', '==', 'active'))
       const snapshot = await getDocs(q)
       
       const suppliers = []
       snapshot.forEach((doc) => {
-        suppliers.push({
-          id: doc.id,
-          ...doc.data()
-        })
+        const data = doc.data()
+        const suppliedMaterials = data.suppliedMaterials || []
+        
+        // Bu supplier bu malzemeyi sağlıyor mu?
+        const suppliesMaterial = suppliedMaterials.some(m => m.materialId === materialId)
+        if (suppliesMaterial) {
+          suppliers.push({
+            id: doc.id,
+            ...data
+          })
+        }
       })
 
-      console.log(`📋 Fetched ${suppliers.length} suppliers for category: ${category}`)
+      console.log(`📋 Found ${suppliers.length} suppliers for material ${materialId}`)
       res.json(suppliers)
     })
   } catch (error) {
-    console.error('Error fetching suppliers by category:', error)
-    res.status(500).json({ error: 'Failed to fetch suppliers by category' })
+    console.error('Error fetching suppliers for material:', error)
+    res.status(500).json({ error: 'Failed to fetch suppliers for material' })
+  }
+}
+
+// Get materials supplied by a specific supplier
+export async function getMaterialsForSupplier(req, res) {
+  try {
+    requireAuth(req, res, async () => {
+      const { supplierId } = req.params
+      
+      const supplierRef = doc(db, SUPPLIERS_COLLECTION, supplierId)
+      const supplierDoc = await getDoc(supplierRef)
+      
+      if (!supplierDoc.exists()) {
+        return res.status(404).json({ error: 'Supplier not found' })
+      }
+
+      const supplierData = supplierDoc.data()
+      const materials = supplierData.suppliedMaterials || []
+
+      console.log(`📋 Found ${materials.length} materials for supplier ${supplierId}`)
+      res.json(materials)
+    })
+  } catch (error) {
+    console.error('Error fetching materials for supplier:', error)
+    res.status(500).json({ error: 'Failed to fetch materials for supplier' })
   }
 }
 
 // ================================
-// SUPPLIER CATEGORIES OPERATIONS
+// DYNAMIC SUPPLIER CATEGORIES
 // ================================
 
-// Get all supplier categories
+// Get supplier categories dynamically from supplied materials
 export async function getSupplierCategories(req, res) {
   try {
     requireAuth(req, res, async () => {
-      const categoriesRef = collection(db, SUPPLIER_CATEGORIES_COLLECTION)
-      const q = query(categoriesRef, orderBy('name', 'asc'))
-      const snapshot = await getDocs(q)
+      // Önce tüm materyalleri çek
+      const materialsRef = collection(db, 'materials')
+      const materialsSnapshot = await getDocs(materialsRef)
       
-      const categories = []
-      snapshot.forEach((doc) => {
-        categories.push({
-          id: doc.id,
-          ...doc.data()
+      const materialCategories = new Map()
+      materialsSnapshot.forEach((doc) => {
+        const material = doc.data()
+        if (material.category) {
+          materialCategories.set(doc.id, material.category)
+        }
+      })
+
+      // Tüm supplier'ları çek
+      const suppliersRef = collection(db, SUPPLIERS_COLLECTION)
+      const suppliersSnapshot = await getDocs(suppliersRef)
+      
+      const categoryCount = new Map()
+      
+      suppliersSnapshot.forEach((doc) => {
+        const supplier = doc.data()
+        const suppliedMaterials = supplier.suppliedMaterials || []
+        
+        // Bu supplier'ın sağladığı malzemelerin kategorilerini bul
+        const supplierCategories = new Set()
+        suppliedMaterials.forEach(material => {
+          const category = materialCategories.get(material.materialId)
+          if (category) {
+            supplierCategories.add(category)
+          }
+        })
+        
+        // Her kategori için sayacı artır
+        supplierCategories.forEach(category => {
+          categoryCount.set(category, (categoryCount.get(category) || 0) + 1)
         })
       })
 
-      console.log(`📋 Fetched ${categories.length} supplier categories`)
+      // Kategorileri array olarak döndür
+      const categories = Array.from(categoryCount.entries()).map(([category, count]) => ({
+        id: category.toLowerCase().replace(/\s+/g, '-'),
+        name: category,
+        count: count
+      }))
+
+      console.log(`📋 Found ${categories.length} dynamic supplier categories`)
       res.json(categories)
     })
   } catch (error) {
@@ -182,101 +346,53 @@ export async function getSupplierCategories(req, res) {
   }
 }
 
-// Add new supplier category
-export async function addSupplierCategory(req, res) {
+// Get suppliers by category (dinamik olarak malzeme kategorilerine göre)
+export async function getSuppliersByCategory(req, res) {
   try {
     requireAuth(req, res, async () => {
-      const categoryData = {
-        ...req.body,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      }
-
-      const docRef = await addDoc(collection(db, SUPPLIER_CATEGORIES_COLLECTION), categoryData)
+      const { category } = req.params
       
-      const newCategory = {
-        id: docRef.id,
-        ...categoryData,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-
-      console.log('✅ New supplier category added:', newCategory.name)
-      res.status(201).json(newCategory)
-    })
-  } catch (error) {
-    console.error('Error adding supplier category:', error)
-    res.status(500).json({ error: 'Failed to add supplier category' })
-  }
-}
-
-// ================================
-// MATERIAL-SUPPLIER RELATIONS
-// ================================
-
-// Add material to supplier
-export async function addMaterialToSupplier(req, res) {
-  try {
-    requireAuth(req, res, async () => {
-      const { supplierId } = req.params
-      const { materialId, price, deliveryTime, minQuantity } = req.body
-
-      const relationData = {
-        supplierId,
-        materialId,
-        price: parseFloat(price) || 0,
-        deliveryTime: deliveryTime || '',
-        minQuantity: parseInt(minQuantity) || 1,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        isActive: true
-      }
-
-      const docRef = await addDoc(collection(db, 'materialSupplierRelations'), relationData)
+      // Önce bu kategorideki materyalleri bul
+      const materialsRef = collection(db, 'materials')
+      const materialsQuery = query(materialsRef, where('category', '==', category))
+      const materialsSnapshot = await getDocs(materialsQuery)
       
-      const newRelation = {
-        id: docRef.id,
-        ...relationData,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-
-      console.log('✅ Material-supplier relation added:', newRelation)
-      res.status(201).json(newRelation)
-    })
-  } catch (error) {
-    console.error('Error adding material to supplier:', error)
-    res.status(500).json({ error: 'Failed to add material to supplier' })
-  }
-}
-
-// Get suppliers for a material
-export async function getSuppliersForMaterial(req, res) {
-  try {
-    requireAuth(req, res, async () => {
-      const { materialId } = req.params
-      
-      const relationsRef = collection(db, 'materialSupplierRelations')
-      const q = query(
-        relationsRef, 
-        where('materialId', '==', materialId),
-        where('isActive', '==', true)
-      )
-      const snapshot = await getDocs(q)
-      
-      const relations = []
-      snapshot.forEach((doc) => {
-        relations.push({
-          id: doc.id,
-          ...doc.data()
-        })
+      const materialIds = []
+      materialsSnapshot.forEach((doc) => {
+        materialIds.push(doc.id)
       })
 
-      console.log(`📋 Fetched ${relations.length} suppliers for material: ${materialId}`)
-      res.json(relations)
+      if (materialIds.length === 0) {
+        return res.json([])
+      }
+
+      // Bu materyalleri sağlayan supplier'ları bul
+      const suppliersRef = collection(db, SUPPLIERS_COLLECTION)
+      const suppliersSnapshot = await getDocs(suppliersRef)
+      
+      const suppliers = []
+      suppliersSnapshot.forEach((doc) => {
+        const supplier = doc.data()
+        const suppliedMaterials = supplier.suppliedMaterials || []
+        
+        // Bu supplier bu kategoriden malzeme sağlıyor mu?
+        const suppliesCategory = suppliedMaterials.some(material => 
+          materialIds.includes(material.materialId)
+        )
+        
+        if (suppliesCategory) {
+          suppliers.push({
+            id: doc.id,
+            ...supplier
+          })
+        }
+      })
+
+      console.log(`📋 Found ${suppliers.length} suppliers for category ${category}`)
+      res.json(suppliers)
     })
   } catch (error) {
-    console.error('Error fetching suppliers for material:', error)
-    res.status(500).json({ error: 'Failed to fetch suppliers for material' })
+    console.error('Error fetching suppliers by category:', error)
+    res.status(500).json({ error: 'Failed to fetch suppliers by category' })
   }
 }

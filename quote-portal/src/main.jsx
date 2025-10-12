@@ -20,6 +20,7 @@ import CategoryManagementModal from './components/CategoryManagementModal.jsx';
 // Firebase hooks
 import { useMaterials, useMaterialActions } from './hooks/useFirebaseMaterials.js';
 import { useCategories, useCategoryActions } from './hooks/useFirebaseCategories.js';
+import { useSuppliers } from './hooks/useSuppliers.js';
 
 const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin' 
   : window.location.pathname.includes('materials.html') ? 'materials'
@@ -67,11 +68,19 @@ function MaterialsApp() {
     loading: categoryActionLoading 
   } = useCategoryActions();
 
+  const { 
+    suppliers,
+    addMaterialToSupplier
+  } = useSuppliers();
+
   // UI state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState(null);
+  const [materialCreatedCallback, setMaterialCreatedCallback] = useState(null);
+  const [targetSupplier, setTargetSupplier] = useState(null);
+  const [activeTab, setActiveTab] = useState('stocks');
   const [filters, setFilters] = useState({
     search: '',
     categories: [],
@@ -133,7 +142,9 @@ function MaterialsApp() {
     return true;
   });
 
-  const handleAddMaterial = () => {
+  const handleAddMaterial = (onMaterialCreated = null, targetSupplier = null) => {
+    setMaterialCreatedCallback(onMaterialCreated);
+    setTargetSupplier(targetSupplier);
     setIsModalOpen(true);
   };
 
@@ -183,10 +194,102 @@ function MaterialsApp() {
       }
 
       // Malzemeyi Firebase'e kaydet
-      await addMaterial(materialData);
+      const newMaterial = await addMaterial(materialData);
+      
+      // Eğer malzeme bir tedarikçiye atanmış ise ve targetSupplier varsa, tedarikçiye ekle
+      if (targetSupplier && targetSupplier.id && newMaterial) {
+        try {
+          console.log('🔄 Malzeme tedarikçiye ekleniyor:', { 
+            supplierId: targetSupplier.id, 
+            materialId: newMaterial.id 
+          });
+          
+          await addMaterialToSupplier(targetSupplier.id, {
+            materialId: newMaterial.id,
+            materialCode: newMaterial.code,
+            materialName: newMaterial.name,
+            price: materialData.costPrice || 0,
+            deliveryTime: '',
+            minQuantity: 1
+          });
+          
+          console.log('✅ Malzeme başarıyla tedarikçiye eklendi');
+        } catch (supplierError) {
+          console.error('❌ Malzeme tedarikçiye eklenirken hata:', supplierError);
+          // Hata olsa bile devam et, malzeme zaten kaydedildi
+        }
+      }
+      
+      // Eğer malzemede supplier ID'si varsa (dropdown'dan seçilmişse) ama targetSupplier yoksa
+      else if (materialData.supplier && !targetSupplier) {
+        try {
+          // Supplier listesinden seçilen supplier'ı bul
+          const selectedSupplier = suppliers.find(s => s.id === materialData.supplier)
+          
+          if (selectedSupplier) {
+            console.log('🔄 Dropdown\'dan seçilen tedarikçiye malzeme ekleniyor:', { 
+              supplierId: selectedSupplier.id, 
+              materialId: newMaterial.id 
+            });
+            
+            await addMaterialToSupplier(selectedSupplier.id, {
+              materialId: newMaterial.id,
+              materialCode: newMaterial.code,
+              materialName: newMaterial.name,
+              price: materialData.costPrice || 0,
+              deliveryTime: '',
+              minQuantity: 1
+            });
+            
+            console.log('✅ Dropdown\'dan seçilen tedarikçiye malzeme eklendi');
+          }
+        } catch (supplierError) {
+          console.error('❌ Dropdown tedarikçiye eklenirken hata:', supplierError);
+        }
+      }
+      if (materialData.supplier && !targetSupplier) {
+        try {
+          console.log('🔄 Malzeme seçilen tedarikçiye ekleniyor:', { 
+            supplierId: materialData.supplier, 
+            materialId: newMaterial.id 
+          });
+          
+          await addMaterialToSupplier(materialData.supplier, {
+            materialId: newMaterial.id,
+            price: materialData.costPrice || 0,
+            deliveryTime: '',
+            minQuantity: 1
+          });
+          
+          console.log('✅ Malzeme başarıyla seçilen tedarikçiye eklendi');
+        } catch (supplierError) {
+          console.error('❌ Malzeme seçilen tedarikçiye eklenirken hata:', supplierError);
+        }
+      }
+      
       setIsModalOpen(false);
-      // Malzemeleri yenile
-      await refreshMaterials();
+      
+      // Eğer tedarikçiye ekleme işlemiyse tab'ı suppliers'ta tut
+      if (targetSupplier) {
+        setActiveTab('suppliers');
+      }
+      
+      // Callback'i çağır (eğer varsa)
+      if (materialCreatedCallback) {
+        materialCreatedCallback(newMaterial);
+        setMaterialCreatedCallback(null); // Callback'i temizle
+      }
+      
+      // Supplier context'inde değilsek materials'ı yenile
+      const isSupplierContext = !!targetSupplier;
+      
+      // Target supplier'ı temizle
+      setTargetSupplier(null);
+      
+      // Sadece supplier context'inde değilsek materials'ı yenile
+      if (!isSupplierContext) {
+        await refreshMaterials();
+      }
     } catch (error) {
       console.error('Material save error:', error);
     }
@@ -237,6 +340,8 @@ function MaterialsApp() {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setMaterialCreatedCallback(null);
+    setTargetSupplier(null);
   };
 
   const handleCloseEditModal = () => {
@@ -275,6 +380,8 @@ function MaterialsApp() {
   return (
     <div className="materials-page">
                   <MaterialsTabs
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
         filteredMaterials={filteredMaterials}
         categories={categories}
         materialTypes={materialTypes}
@@ -315,6 +422,7 @@ function MaterialsApp() {
         materials={materials}
         loading={actionLoading}
         error={actionError}
+        targetSupplier={targetSupplier}
       />
 
       <EditMaterialModal 

@@ -8,6 +8,34 @@ const db = admin.firestore()
 const materialsCollection = db.collection('materials')
 const categoriesCollection = db.collection('materials-categories')
 
+// Helper function to generate next material code
+async function generateNextMaterialCode() {
+  try {
+    const snapshot = await materialsCollection.get()
+    const existingCodes = []
+    
+    snapshot.forEach(doc => {
+      const data = doc.data()
+      if (data.code && data.code.startsWith('M-')) {
+        const number = parseInt(data.code.split('-')[1])
+        if (!isNaN(number)) {
+          existingCodes.push(number)
+        }
+      }
+    })
+    
+    // En büyük sayıyı bul ve 1 ekle
+    const maxNumber = existingCodes.length > 0 ? Math.max(...existingCodes) : 0
+    const nextNumber = maxNumber + 1
+    
+    // M-001 formatında döndür
+    return `M-${String(nextNumber).padStart(3, '0')}`
+  } catch (error) {
+    console.error('❌ Material code oluşturulurken hata:', error)
+    return `M-${String(Date.now()).slice(-3)}` // Fallback
+  }
+}
+
 export function setupMaterialsRoutes(app) {
   
   // GET /api/materials - Tüm malzemeleri listele
@@ -43,9 +71,21 @@ export function setupMaterialsRoutes(app) {
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }
       
-      const docRef = await materialsCollection.add(materialData)
-      const newDoc = await docRef.get()
+      // Custom ID kullan - eğer code varsa onu ID olarak kullan
+      const customId = materialData.code || await generateNextMaterialCode()
       
+      // Eğer code yok ise otomatik oluştur ve data'ya ekle
+      if (!materialData.code) {
+        materialData.code = customId
+      }
+      
+      console.log('📦 API: Custom ID kullanılıyor:', customId)
+      
+      // Custom ID ile document oluştur
+      const docRef = materialsCollection.doc(customId)
+      await docRef.set(materialData)
+      
+      const newDoc = await docRef.get()
       const newMaterial = {
         id: newDoc.id,
         ...newDoc.data()

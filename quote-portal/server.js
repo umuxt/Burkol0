@@ -12,8 +12,7 @@ import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
 import { setupQuoteRoutes, setupSettingsRoutes, setupExportRoutes } from './server/apiRoutes.js'
 import { setupMaterialsRoutes } from './server/materialsRoutes.js'
-import { createSupplierCategoriesRoutes } from './server/supplierCategoriesRoutes.js'
-import { getAllSuppliers, addSupplier, updateSupplier, deleteSupplier, getSuppliersByCategory, getSupplierCategories, addSupplierCategory, addMaterialToSupplier, getSuppliersForMaterial } from './server/suppliersRoutes.js'
+import { getAllSuppliers, addSupplier, updateSupplier, deleteSupplier, getSuppliersByCategory, getSupplierCategories, addMaterialToSupplier, getSuppliersForMaterial, getMaterialsForSupplier } from './server/suppliersRoutes.js'
 import addMigrationRoutes from './server/migrationRoutes.js'
 import jsondb from './src/lib/jsondb.js'
 import admin from 'firebase-admin'
@@ -117,9 +116,6 @@ setupMaterialsRoutes(app)
 setupSettingsRoutes(app)
 setupExportRoutes(app)
 
-// Setup supplier categories routes
-createSupplierCategoriesRoutes(app)
-
 // Setup suppliers routes
 app.get('/api/suppliers', getAllSuppliers)
 app.post('/api/suppliers', addSupplier)
@@ -127,9 +123,9 @@ app.patch('/api/suppliers/:id', updateSupplier)
 app.delete('/api/suppliers/:id', deleteSupplier)
 app.get('/api/suppliers/category/:category', getSuppliersByCategory)
 app.get('/api/supplier-categories', getSupplierCategories)
-app.post('/api/supplier-categories', addSupplierCategory)
 app.post('/api/suppliers/:supplierId/materials', addMaterialToSupplier)
 app.get('/api/materials/:materialId/suppliers', getSuppliersForMaterial)
+app.get('/api/suppliers/:supplierId/materials', getMaterialsForSupplier)
 
 // Expose migration management API routes used by admin tooling
 addMigrationRoutes(app, jsondb)

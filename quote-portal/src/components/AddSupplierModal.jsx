@@ -240,7 +240,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="code"
-                  value={formData.code}
+                  value={formData.code || ''}
                   onChange={handleInputChange}
                   placeholder={nextCode}
                 />
@@ -252,7 +252,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="name"
-                  value={formData.name}
+                  value={formData.name || ''}
                   onChange={handleInputChange}
                   placeholder="Firma adı"
                   required
@@ -265,7 +265,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Tedarikçi Tipi *</label>
                 <select
                   name="supplierType"
-                  value={formData.supplierType}
+                  value={formData.supplierType || ''}
                   onChange={handleInputChange}
                   required
                 >
@@ -286,7 +286,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="businessRegistrationNumber"
-                  value={formData.businessRegistrationNumber}
+                  value={formData.businessRegistrationNumber || ''}
                   onChange={handleInputChange}
                   placeholder="İş kayıt numarası"
                 />
@@ -303,7 +303,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="contactPerson"
-                  value={formData.contactPerson}
+                  value={formData.contactPerson || ''}
                   onChange={handleInputChange}
                   placeholder="Yetkili kişi"
                   required
@@ -315,7 +315,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="emergencyContact"
-                  value={formData.emergencyContact}
+                  value={formData.emergencyContact || ''}
                   onChange={handleInputChange}
                   placeholder="Acil durum kişisi"
                 />
@@ -328,7 +328,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="tel"
                   name="phone1"
-                  value={formData.phone1}
+                  value={formData.phone1 || ''}
                   onChange={handleInputChange}
                   placeholder="Telefon numarası"
                   required
@@ -340,7 +340,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="tel"
                   name="phone2"
-                  value={formData.phone2}
+                  value={formData.phone2 || ''}
                   onChange={handleInputChange}
                   placeholder="İkinci telefon"
                 />
@@ -353,7 +353,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="tel"
                   name="emergencyPhone"
-                  value={formData.emergencyPhone}
+                  value={formData.emergencyPhone || ''}
                   onChange={handleInputChange}
                   placeholder="Acil telefon"
                 />
@@ -364,7 +364,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="tel"
                   name="fax"
-                  value={formData.fax}
+                  value={formData.fax || ''}
                   onChange={handleInputChange}
                   placeholder="Faks numarası"
                 />
@@ -377,7 +377,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="email"
                   name="email1"
-                  value={formData.email1}
+                  value={formData.email1 || ''}
                   onChange={handleInputChange}
                   placeholder="E-posta adresi"
                   required
@@ -389,7 +389,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="email"
                   name="email2"
-                  value={formData.email2}
+                  value={formData.email2 || ''}
                   onChange={handleInputChange}
                   placeholder="İkinci e-posta"
                 />
@@ -402,7 +402,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="url"
                   name="website"
-                  value={formData.website}
+                  value={formData.website || ''}
                   onChange={handleInputChange}
                   placeholder="Web sitesi"
                 />
@@ -412,7 +412,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Tercih Edilen İletişim</label>
                 <select
                   name="preferredCommunication"
-                  value={formData.preferredCommunication}
+                  value={formData.preferredCommunication || ''}
                   onChange={handleInputChange}
                 >
                   <option value="email">E-posta</option>
@@ -432,7 +432,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Adres</label>
                 <textarea
                   name="address"
-                  value={formData.address}
+                  value={formData.address || ''}
                   onChange={handleInputChange}
                   placeholder="Adres"
                   rows="2"
@@ -446,7 +446,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="city"
-                  value={formData.city}
+                  value={formData.city || ''}
                   onChange={handleInputChange}
                   placeholder="Şehir"
                 />
@@ -457,7 +457,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="state"
-                  value={formData.state}
+                  value={formData.state || ''}
                   onChange={handleInputChange}
                   placeholder="İlçe/Bölge"
                 />
@@ -470,7 +470,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="postalCode"
-                  value={formData.postalCode}
+                  value={formData.postalCode || ''}
                   onChange={handleInputChange}
                   placeholder="Posta kodu"
                 />
@@ -480,7 +480,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Ülke</label>
                 <select
                   name="country"
-                  value={formData.country}
+                  value={formData.country || ''}
                   onChange={handleInputChange}
                 >
                   <option value="Türkiye">Türkiye</option>
@@ -506,7 +506,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="taxNumber"
-                  value={formData.taxNumber}
+                  value={formData.taxNumber || ''}
                   onChange={handleInputChange}
                   placeholder="Vergi numarası"
                 />
@@ -517,7 +517,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="taxOffice"
-                  value={formData.taxOffice}
+                  value={formData.taxOffice || ''}
                   onChange={handleInputChange}
                   placeholder="Vergi dairesi"
                 />
@@ -529,7 +529,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Para Birimi</label>
                 <select
                   name="currency"
-                  value={formData.currency}
+                  value={formData.currency || ''}
                   onChange={handleInputChange}
                 >
                   <option value="TRY">TRY - Türk Lirası</option>
@@ -544,7 +544,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="number"
                   name="creditLimit"
-                  value={formData.creditLimit}
+                  value={formData.creditLimit || ''}
                   onChange={handleInputChange}
                   placeholder="Kredi limiti"
                   min="0"
@@ -558,7 +558,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Kredi Notu</label>
                 <select
                   name="creditRating"
-                  value={formData.creditRating}
+                  value={formData.creditRating || ''}
                   onChange={handleInputChange}
                 >
                   <option value="">Kredi notu seçin</option>
@@ -575,7 +575,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="number"
                   name="annualRevenue"
-                  value={formData.annualRevenue}
+                  value={formData.annualRevenue || ''}
                   onChange={handleInputChange}
                   placeholder="Yıllık ciro"
                   min="0"
@@ -592,7 +592,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Ödeme Koşulları</label>
                 <select
                   name="paymentTerms"
-                  value={formData.paymentTerms}
+                  value={formData.paymentTerms || ''}
                   onChange={handleInputChange}
                 >
                   <option value="">Ödeme koşulu seçin</option>
@@ -610,7 +610,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Ödeme Yöntemi</label>
                 <select
                   name="paymentMethod"
-                  value={formData.paymentMethod}
+                  value={formData.paymentMethod || ''}
                   onChange={handleInputChange}
                 >
                   <option value="">Ödeme yöntemi seçin</option>
@@ -630,7 +630,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="bankName"
-                  value={formData.bankName}
+                  value={formData.bankName || ''}
                   onChange={handleInputChange}
                   placeholder="Banka adı"
                 />
@@ -641,7 +641,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="bankAccount"
-                  value={formData.bankAccount}
+                  value={formData.bankAccount || ''}
                   onChange={handleInputChange}
                   placeholder="Hesap numarası"
                 />
@@ -654,7 +654,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="iban"
-                  value={formData.iban}
+                  value={formData.iban || ''}
                   onChange={handleInputChange}
                   placeholder="IBAN"
                 />
@@ -671,7 +671,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="deliveryCapability"
-                  value={formData.deliveryCapability}
+                  value={formData.deliveryCapability || ''}
                   onChange={handleInputChange}
                   placeholder="Teslimat kapasitesi"
                 />
@@ -682,7 +682,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="number"
                   name="leadTime"
-                  value={formData.leadTime}
+                  value={formData.leadTime || ''}
                   onChange={handleInputChange}
                   placeholder="Tedarik süresi"
                   min="0"
@@ -696,7 +696,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="text"
                   name="minimumOrderQuantity"
-                  value={formData.minimumOrderQuantity}
+                  value={formData.minimumOrderQuantity || ''}
                   onChange={handleInputChange}
                   placeholder="Minimum sipariş miktarı"
                 />
@@ -706,7 +706,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Kalite Sertifikası</label>
                 <select
                   name="qualityCertification"
-                  value={formData.qualityCertification}
+                  value={formData.qualityCertification || ''}
                   onChange={handleInputChange}
                 >
                   <option value="">Sertifika seçin</option>
@@ -967,7 +967,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <input
                   type="number"
                   name="yearEstablished"
-                  value={formData.yearEstablished}
+                  value={formData.yearEstablished || ''}
                   onChange={handleInputChange}
                   placeholder="Kuruluş yılı"
                   min="1900"
@@ -979,7 +979,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Çalışan Sayısı</label>
                 <select
                   name="employeeCount"
-                  value={formData.employeeCount}
+                  value={formData.employeeCount || ''}
                   onChange={handleInputChange}
                 >
                   <option value="">Çalışan sayısı seçin</option>
@@ -998,7 +998,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Risk Seviyesi</label>
                 <select
                   name="riskLevel"
-                  value={formData.riskLevel}
+                  value={formData.riskLevel || ''}
                   onChange={handleInputChange}
                 >
                   <option value="low">Düşük Risk</option>
@@ -1011,7 +1011,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Uyumluluk Durumu</label>
                 <select
                   name="complianceStatus"
-                  value={formData.complianceStatus}
+                  value={formData.complianceStatus || ''}
                   onChange={handleInputChange}
                 >
                   <option value="pending">Beklemede</option>
@@ -1027,7 +1027,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Durum</label>
                 <select
                   name="status"
-                  value={formData.status}
+                  value={formData.status || ''}
                   onChange={handleInputChange}
                 >
                   <option value="Aktif">Aktif</option>
@@ -1047,7 +1047,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                 <label>Notlar ve Açıklamalar</label>
                 <textarea
                   name="notes"
-                  value={formData.notes}
+                  value={formData.notes || ''}
                   onChange={handleInputChange}
                   placeholder="Notlar ve açıklamalar"
                   rows="3"

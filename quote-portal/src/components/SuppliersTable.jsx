@@ -16,6 +16,7 @@ export default function SuppliersTable({
   const { categories, loading: categoriesLoading } = useCategories(true)
   const [activeTab, setActiveTab] = useState('all')
   const [selectedSupplier, setSelectedSupplier] = useState(null)
+  const [selectedSupplierId, setSelectedSupplierId] = useState(null)
   const [showMaterialModal, setShowMaterialModal] = useState(false)
   const [sortField, setSortField] = useState(null)
   const [sortDirection, setSortDirection] = useState('asc')
@@ -127,11 +128,29 @@ export default function SuppliersTable({
 
   const handleRowClick = (supplier) => {
     setSelectedSupplier(supplier)
+    setSelectedSupplierId(supplier.id)
   }
+
+  // Suppliers listesi değiştiğinde selectedSupplier'ı koru
+  useEffect(() => {
+    if (selectedSupplierId && suppliers && suppliers.length > 0) {
+      const currentSupplier = suppliers.find(s => s.id === selectedSupplierId)
+      if (currentSupplier) {
+        // Mevcut selectedSupplier ile yeni bulunan supplier arasında fark varsa güncelle
+        if (!selectedSupplier || selectedSupplier.id !== currentSupplier.id) {
+          setSelectedSupplier(currentSupplier)
+        } else {
+          // ID aynı ama içerik güncellenmiş olabilir (örn: suppliedMaterials)
+          setSelectedSupplier(currentSupplier)
+        }
+      }
+    }
+  }, [suppliers, selectedSupplierId])
 
   const handleCloseModal = () => {
     setIsDetailModalOpen(false)
     setSelectedSupplier(null)
+    setSelectedSupplierId(null)
     setIsEditing(false)
   }
 
@@ -502,7 +521,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="code"
-                      value={formData.code}
+                      value={formData.code || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -515,7 +534,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="name"
-                      value={formData.name}
+                      value={formData.name || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -531,7 +550,7 @@ export default function SuppliersTable({
                     {isEditing ? (
                       <select 
                         name="supplierType" 
-                        value={formData.supplierType} 
+                        value={formData.supplierType || ''} 
                         onChange={handleInputChange}
                         style={getInputStyle(isEditing)}
                       >
@@ -559,7 +578,7 @@ export default function SuppliersTable({
                   <input
                     type="text"
                     name="businessRegistrationNumber"
-                    value={formData.businessRegistrationNumber}
+                    value={formData.businessRegistrationNumber || ''}
                     readOnly={!isEditing}
                     onChange={handleInputChange}
                     style={getInputStyle(isEditing)}
@@ -573,7 +592,7 @@ export default function SuppliersTable({
                   {isEditing ? (
                     <select 
                       name="status" 
-                      value={formData.status} 
+                      value={formData.status || ''} 
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
                     >
@@ -620,7 +639,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="contactPerson"
-                      value={formData.contactPerson}
+                      value={formData.contactPerson || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -633,7 +652,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="emergencyContact"
-                      value={formData.emergencyContact}
+                      value={formData.emergencyContact || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -649,7 +668,7 @@ export default function SuppliersTable({
                     <input
                       type="tel"
                       name="phone1"
-                      value={formData.phone1}
+                      value={formData.phone1 || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -662,7 +681,7 @@ export default function SuppliersTable({
                     <input
                       type="tel"
                       name="phone2"
-                      value={formData.phone2}
+                      value={formData.phone2 || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -678,7 +697,7 @@ export default function SuppliersTable({
                     <input
                       type="tel"
                       name="emergencyPhone"
-                      value={formData.emergencyPhone}
+                      value={formData.emergencyPhone || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -691,7 +710,7 @@ export default function SuppliersTable({
                     <input
                       type="tel"
                       name="fax"
-                      value={formData.fax}
+                      value={formData.fax || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -707,7 +726,7 @@ export default function SuppliersTable({
                     <input
                       type="email"
                       name="email1"
-                      value={formData.email1}
+                      value={formData.email1 || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -720,7 +739,7 @@ export default function SuppliersTable({
                     <input
                       type="email"
                       name="email2"
-                      value={formData.email2}
+                      value={formData.email2 || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -736,7 +755,7 @@ export default function SuppliersTable({
                     <input
                       type="url"
                       name="website"
-                      value={formData.website}
+                      value={formData.website || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -749,7 +768,7 @@ export default function SuppliersTable({
                     {isEditing ? (
                       <select 
                         name="preferredCommunication" 
-                        value={formData.preferredCommunication} 
+                        value={formData.preferredCommunication || ''} 
                         onChange={handleInputChange}
                         style={getInputStyle(isEditing)}
                       >
@@ -787,7 +806,7 @@ export default function SuppliersTable({
                   </label>
                   <textarea
                     name="address"
-                    value={formData.address}
+                    value={formData.address || ''}
                     readOnly={!isEditing}
                     onChange={handleInputChange}
                     rows="2"
@@ -806,7 +825,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="city"
-                      value={formData.city}
+                      value={formData.city || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -819,7 +838,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="state"
-                      value={formData.state}
+                      value={formData.state || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -835,7 +854,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="postalCode"
-                      value={formData.postalCode}
+                      value={formData.postalCode || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -848,7 +867,7 @@ export default function SuppliersTable({
                     {isEditing ? (
                       <select 
                         name="country" 
-                        value={formData.country} 
+                        value={formData.country || ''} 
                         onChange={handleInputChange}
                         style={getInputStyle(isEditing)}
                       >
@@ -893,7 +912,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="taxNumber"
-                      value={formData.taxNumber}
+                      value={formData.taxNumber || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -906,7 +925,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="taxOffice"
-                      value={formData.taxOffice}
+                      value={formData.taxOffice || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -922,7 +941,7 @@ export default function SuppliersTable({
                     {isEditing ? (
                       <select 
                         name="currency" 
-                        value={formData.currency} 
+                        value={formData.currency || ''} 
                         onChange={handleInputChange}
                         style={getInputStyle(isEditing)}
                       >
@@ -945,7 +964,7 @@ export default function SuppliersTable({
                     <input
                       type="number"
                       name="creditLimit"
-                      value={formData.creditLimit}
+                      value={formData.creditLimit || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -961,7 +980,7 @@ export default function SuppliersTable({
                     {isEditing ? (
                       <select 
                         name="creditRating" 
-                        value={formData.creditRating} 
+                        value={formData.creditRating || ''} 
                         onChange={handleInputChange}
                         style={getInputStyle(isEditing)}
                       >
@@ -985,7 +1004,7 @@ export default function SuppliersTable({
                     <input
                       type="number"
                       name="annualRevenue"
-                      value={formData.annualRevenue}
+                      value={formData.annualRevenue || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -1000,7 +1019,7 @@ export default function SuppliersTable({
                   {isEditing ? (
                     <select 
                       name="paymentTerms" 
-                      value={formData.paymentTerms} 
+                      value={formData.paymentTerms || ''} 
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
                     >
@@ -1043,7 +1062,7 @@ export default function SuppliersTable({
                     {isEditing ? (
                       <select 
                         name="paymentMethod" 
-                        value={formData.paymentMethod} 
+                        value={formData.paymentMethod || ''} 
                         onChange={handleInputChange}
                         style={getInputStyle(isEditing)}
                       >
@@ -1068,7 +1087,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="bankName"
-                      value={formData.bankName}
+                      value={formData.bankName || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -1084,7 +1103,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="bankAccount"
-                      value={formData.bankAccount}
+                      value={formData.bankAccount || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -1097,7 +1116,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="iban"
-                      value={formData.iban}
+                      value={formData.iban || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -1128,7 +1147,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="deliveryCapability"
-                      value={formData.deliveryCapability}
+                      value={formData.deliveryCapability || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -1141,7 +1160,7 @@ export default function SuppliersTable({
                     <input
                       type="number"
                       name="leadTime"
-                      value={formData.leadTime}
+                      value={formData.leadTime || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -1157,7 +1176,7 @@ export default function SuppliersTable({
                     <input
                       type="text"
                       name="minimumOrderQuantity"
-                      value={formData.minimumOrderQuantity}
+                      value={formData.minimumOrderQuantity || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       style={getInputStyle(isEditing)}
@@ -1170,7 +1189,7 @@ export default function SuppliersTable({
                     {isEditing ? (
                       <select 
                         name="qualityCertification" 
-                        value={formData.qualityCertification} 
+                        value={formData.qualityCertification || ''} 
                         onChange={handleInputChange}
                         style={getInputStyle(isEditing)}
                       >
@@ -1214,7 +1233,7 @@ export default function SuppliersTable({
                     <input
                       type="number"
                       name="yearEstablished"
-                      value={formData.yearEstablished}
+                      value={formData.yearEstablished || ''}
                       readOnly={!isEditing}
                       onChange={handleInputChange}
                       min="1900"
@@ -1229,7 +1248,7 @@ export default function SuppliersTable({
                     {isEditing ? (
                       <select 
                         name="employeeCount" 
-                        value={formData.employeeCount} 
+                        value={formData.employeeCount || ''} 
                         onChange={handleInputChange}
                         style={getInputStyle(isEditing)}
                       >
@@ -1257,7 +1276,7 @@ export default function SuppliersTable({
                     {isEditing ? (
                       <select 
                         name="riskLevel" 
-                        value={formData.riskLevel} 
+                        value={formData.riskLevel || ''} 
                         onChange={handleInputChange}
                         style={getInputStyle(isEditing)}
                       >
@@ -1279,7 +1298,7 @@ export default function SuppliersTable({
                     {isEditing ? (
                       <select 
                         name="complianceStatus" 
-                        value={formData.complianceStatus} 
+                        value={formData.complianceStatus || ''} 
                         onChange={handleInputChange}
                         style={getInputStyle(isEditing)}
                       >
@@ -1317,7 +1336,7 @@ export default function SuppliersTable({
                 </label>
                 <textarea
                   name="notes"
-                  value={formData.notes}
+                  value={formData.notes || ''}
                   readOnly={!isEditing}
                   onChange={handleInputChange}
                   rows="3"
@@ -1377,7 +1396,21 @@ export default function SuppliersTable({
                     onClick={(e) => {
                       e.stopPropagation();
                       if (onAddNewMaterial) {
-                        onAddNewMaterial();
+                        onAddNewMaterial(selectedSupplier, (newMaterial) => {
+                          // Yeni malzeme eklendikten sonra selectedSupplier'ın suppliedMaterials array'ini güncelle
+                          setSelectedSupplier(prev => ({
+                            ...prev,
+                            suppliedMaterials: [...(prev.suppliedMaterials || []), {
+                              materialId: newMaterial.id,
+                              materialCode: newMaterial.code,
+                              materialName: newMaterial.name,
+                              price: 0,
+                              deliveryTime: '',
+                              minQuantity: 1,
+                              addedAt: new Date().toISOString()
+                            }]
+                          }));
+                        });
                       }
                     }}
                     style={{
@@ -1403,9 +1436,9 @@ export default function SuppliersTable({
               </div>
               
               <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                {selectedSupplier?.materials && selectedSupplier.materials.length > 0 ? (
+                {selectedSupplier?.suppliedMaterials && selectedSupplier.suppliedMaterials.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                    {selectedSupplier.materials.map((material, index) => (
+                    {selectedSupplier.suppliedMaterials.map((material, index) => (
                       <div 
                         key={index}
                         style={{ 
@@ -1525,15 +1558,54 @@ export default function SuppliersTable({
                           materialSearchTerm === '' || 
                           material.name?.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
                           material.code?.toLowerCase().includes(materialSearchTerm.toLowerCase())
-                        ).map((material) => (
+                        )
+                        .filter(material => 
+                          // Zaten eklenmiş malzemeleri gösterme
+                          !selectedSupplier?.suppliedMaterials?.some(m => m.materialId === material.id)
+                        )
+                        .map((material) => (
                         <div
                           key={material.id}
-                          onClick={() => {
-                            // Malzemeyi tedarikçiye ekle
-                            if (onAddMaterialToSupplier) {
-                              onAddMaterialToSupplier(selectedSupplier, material);
+                          onClick={async () => {
+                            try {
+                              // Malzeme zaten ekli mi kontrol et
+                              const isAlreadyAdded = selectedSupplier?.suppliedMaterials?.some(m => m.materialId === material.id);
+                              if (isAlreadyAdded) {
+                                alert('Bu malzeme zaten tedarikçiye eklenmiş!');
+                                setShowExistingMaterials(false);
+                                return;
+                              }
+
+                              // Malzemeyi tedarikçiye ekle
+                              if (onAddMaterialToSupplier) {
+                                await onAddMaterialToSupplier(selectedSupplier.id, {
+                                  materialId: material.id,
+                                  materialCode: material.code,
+                                  materialName: material.name,
+                                  price: 0,
+                                  deliveryTime: '',
+                                  minQuantity: 1
+                                });
+                                
+                                // Başarılı olduğunda selectedSupplier'ın suppliedMaterials array'ini güncelle
+                                setSelectedSupplier(prev => ({
+                                  ...prev,
+                                  suppliedMaterials: [...(prev.suppliedMaterials || []), {
+                                    materialId: material.id,
+                                    materialCode: material.code,
+                                    materialName: material.name,
+                                    price: 0,
+                                    deliveryTime: '',
+                                    minQuantity: 1,
+                                    addedAt: new Date().toISOString()
+                                  }]
+                                }));
+                              }
+                              setShowExistingMaterials(false);
+                            } catch (error) {
+                              console.error('Malzeme eklenirken hata:', error);
+                              alert('Malzeme eklenirken bir hata oluştu!');
                             }
-                            setShowExistingMaterials(false);
                           }}
                           style={{
                             padding: '16px',
