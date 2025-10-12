@@ -1468,3 +1468,218 @@ textarea.loading {
 /* =============================================================================
    BİTİŞ - KAPSAMLI FORM ELEMANLARİ STİLLERİ
    ============================================================================= */
+
+/* =============================================================================
+   SUPPLIERS TABLE STİLLERİ
+   ============================================================================= */
+
+/* Suppliers Container */
+.suppliers-container {
+  min-height: calc(100vh - 200px);
+}
+
+/* Suppliers Table Panel */
+.suppliers-table-panel {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+/* Suppliers Table */
+.suppliers-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Suppliers Filters */
+.suppliers-filters {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.suppliers-filters .search-input {
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.suppliers-filters .search-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+/* Suppliers Tabs */
+.suppliers-tabs {
+  display: flex;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+.suppliers-tabs::-webkit-scrollbar {
+  height: 6px;
+}
+
+.suppliers-tabs::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.suppliers-tabs::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.suppliers-tabs::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.tab-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+
+.tab-button:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.tab-button.active {
+  background: white;
+  color: #1e293b;
+  border-bottom-color: #3b82f6;
+}
+
+.tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  background: #e2e8f0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 9px;
+  transition: all 0.2s;
+}
+
+.tab-button.active .tab-count {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Suppliers Table Grid */
+.suppliers-table-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.suppliers-table-header th {
+  background: #f8fafc;
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: #374151;
+  border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.suppliers-table-header th:first-child {
+  border-left: 1px solid #e2e8f0;
+}
+
+.suppliers-table-header th:last-child {
+  border-right: 1px solid #e2e8f0;
+}
+
+.suppliers-table-body td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #374151;
+}
+
+.suppliers-table-body td:first-child {
+  border-left: 1px solid #e2e8f0;
+}
+
+.suppliers-table-body td:last-child {
+  border-right: 1px solid #e2e8f0;
+}
+
+/* Clickable Row States */
+.clickable-row {
+  transition: all 0.2s ease;
+}
+
+.clickable-row:hover {
+  background: #f8fafc !important;
+}
+
+.clickable-row.selected {
+  background: #f0f9ff !important;
+  border-color: #3b82f6;
+}
+
+/* Inactive Suppliers */
+.clickable-row.inactive {
+  opacity: 0.6;
+  color: #dc2626 !important;
+}
+
+.clickable-row.inactive:hover {
+  background: #fef2f2 !important;
+}
+
+/* Sort Button Styles */
+.suppliers-table-header button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  transition: color 0.2s;
+}
+
+.suppliers-table-header button:hover {
+  color: #1e293b;
+}
+
+.suppliers-table-header button.active {
+  color: #3b82f6;
+}
+
+/* Category Checkboxes */
+.category-checkboxes label {
+  transition: all 0.2s;
+}
+
+.category-checkboxes label:hover {
+  background: #f1f5f9 !important;
+  border-color: #94a3b8;
+}
+
+/* =============================================================================
+   BİTİŞ - SUPPLIERS TABLE STİLLERİ
+   ============================================================================= */

@@ -16,7 +16,13 @@
     <script type="module" src="/src/main.jsx"></script>
     <script>
       // AuthGuard'ı başlat
-      new AuthGuard();
+      document.addEventListener('DOMContentLoaded', function() {
+        try {
+          new AuthGuard();
+        } catch (error) {
+          console.error('AuthGuard initialization error:', error);
+        }
+      });
     </script>
   </body>
 </html>

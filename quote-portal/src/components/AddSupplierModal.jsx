@@ -1,23 +1,50 @@
 import React, { useState, useEffect } from 'react'
-import { useSupplierCategories, useSupplierCategoryActions } from '../hooks/useSupplierCategories'
 import { useMaterials } from '../hooks/useFirebaseMaterials'
+import { useSuppliers } from '../hooks/useSuppliers'
 
 export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMaterial }) {
-  // Tedarikçi kategorilerini yükle
-  const { categories: supplierCategories, loading: categoriesLoading } = useSupplierCategories(true)
-  const { addCategory } = useSupplierCategoryActions()
-  
   // Malzemeleri yükle
   const { materials, loading: materialsLoading } = useMaterials(true)
+  const { suppliers } = useSuppliers()
   
   // Malzeme yönetimi için state'ler
   const [selectedMaterials, setSelectedMaterials] = useState([])
   const [showMaterialSelector, setShowMaterialSelector] = useState(false)
   const [materialSearchTerm, setMaterialSearchTerm] = useState('')
+  
+  // Otomatik tedarikçi kodu üretimi - minimum unique değer bulma
+  const generateNextCode = () => {
+    if (!suppliers || suppliers.length === 0) return 'T-0001';
+    
+    // Mevcut tüm kodlardan sayıları çıkar ve sırala
+    const existingNumbers = suppliers
+      .map(supplier => {
+        const code = supplier.code || '';
+        const match = code.match(/^T-(\d+)$/);
+        return match ? parseInt(match[1]) : null;
+      })
+      .filter(num => num !== null)
+      .sort((a, b) => a - b);
+    
+    // Minimum boş değeri bul
+    let nextNumber = 1;
+    for (const num of existingNumbers) {
+      if (num === nextNumber) {
+        nextNumber++;
+      } else if (num > nextNumber) {
+        // Arada boş bir numara bulundu
+        break;
+      }
+    }
+    
+    return `T-${String(nextNumber).padStart(4, '0')}`;
+  };
+
+  const nextCode = generateNextCode();
+  
   const [formData, setFormData] = useState({
     code: '',
     name: '',
-    category: '',
     contactPerson: '',
     phone1: '',
     phone2: '',
@@ -58,16 +85,12 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
     riskLevel: 'medium'
   });
 
-  const [showNewCategory, setShowNewCategory] = useState(false);
-  const [newCategory, setNewCategory] = useState('');
-
   // Modal açıldığında form'u sıfırla
   useEffect(() => {
     if (isOpen) {
       setFormData({
         code: '',
         name: '',
-        category: '',
         contactPerson: '',
         phone1: '',
         phone2: '',
@@ -107,8 +130,6 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
         complianceStatus: 'pending',
         riskLevel: 'medium'
       });
-      setShowNewCategory(false);
-      setNewCategory('');
       setSelectedMaterials([]);
       setShowMaterialSelector(false);
       setMaterialSearchTerm('');
@@ -121,17 +142,6 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
       ...prev,
       [name]: value
     }));
-  };
-
-  const handleCategoryChange = (e) => {
-    const value = e.target.value;
-    if (value === 'new-category') {
-      setShowNewCategory(true);
-      setFormData(prev => ({ ...prev, category: '' }));
-    } else {
-      setShowNewCategory(false);
-      setFormData(prev => ({ ...prev, category: value }));
-    }
   };
 
   // Malzeme yönetimi fonksiyonları
@@ -155,32 +165,17 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const finalCategory = showNewCategory ? newCategory : formData.category;
+    const finalCode = formData.code.trim() || nextCode; // Boşsa otomatik kod kullan
     
-    if (!formData.name || !finalCategory || !formData.contactPerson || !formData.phone1 || !formData.email1) {
-      alert('Lütfen tüm zorunlu alanları doldurun! (Firma Adı, Kategori, Yetkili Kişi, Telefon 1, E-posta 1)');
+    if (!finalCode || !formData.name || !formData.contactPerson || !formData.phone1 || !formData.email1) {
+      alert('Lütfen tüm zorunlu alanları doldurun! (Firma Adı, Yetkili Kişi, Telefon 1, E-posta 1)');
       return;
     }
 
     try {
-      let categoryToUse = finalCategory;
-      
-      // Yeni kategori eklenmişse önce kategorini kaydet
-      if (showNewCategory && newCategory.trim()) {
-        const newCategoryData = {
-          name: newCategory.trim(),
-          description: `${newCategory} tedarikçi kategorisi`,
-          color: '#6b7280',
-          status: 'active'
-        };
-        
-        const savedCategory = await addCategory(newCategoryData);
-        categoryToUse = savedCategory.id;
-      }
-
       const supplierData = {
         ...formData,
-        category: categoryToUse,
+        code: finalCode, // Otomatik üretilen veya kullanıcının girdiği kodu kullan
         creditLimit: formData.creditLimit ? parseFloat(formData.creditLimit) : 0,
         suppliedMaterials: selectedMaterials.map(m => ({
           materialId: m.id,
@@ -190,7 +185,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
         }))
       };
 
-      onSave(supplierData, showNewCategory ? newCategory : null);
+      console.log('🔢 Kullanılan tedarikçi kodu:', finalCode);
+      onSave(supplierData);
     } catch (error) {
       console.error('Tedarikçi kaydedilirken hata:', error);
       alert('Tedarikçi kaydedilirken bir hata oluştu!');
@@ -201,7 +197,6 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
     setFormData({
       code: '',
       name: '',
-      category: '',
       contactPerson: '',
       phone1: '',
       phone2: '',
@@ -214,8 +209,6 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
       fax1: '',
       creditLimit: ''
     });
-    setShowNewCategory(false);
-    setNewCategory('');
     setSelectedMaterials([]);
     setShowMaterialSelector(false);
     setMaterialSearchTerm('');
@@ -243,15 +236,15 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
             <h3 className="form-section-title">Temel Firma Bilgileri</h3>
             <div className="form-row">
               <div className="form-group">
-                <label>Tedarikçi Kodu <span className="optional">(opsiyonel)</span></label>
+                <label>Tedarikçi Kodu <span className="optional">(otomatik: {nextCode})</span></label>
                 <input
                   type="text"
                   name="code"
                   value={formData.code}
                   onChange={handleInputChange}
-                  placeholder="TED-001"
+                  placeholder={nextCode}
                 />
-                <small className="form-help">Boş bırakılırsa otomatik olarak TED-001 atanacak</small>
+                <small className="form-help">Boş bırakılırsa otomatik olarak {nextCode} atanacak</small>
               </div>
               
               <div className="form-group">
@@ -261,7 +254,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="name"
                   value={formData.name}
                   onChange={handleInputChange}
-                  placeholder="Firma adını girin"
+                  placeholder="Firma adı"
                   required
                 />
               </div>
@@ -285,37 +278,6 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   <option value="consultant">Danışman</option>
                 </select>
               </div>
-              
-              <div className="form-group">
-                <label>Kategori *</label>
-                {!showNewCategory ? (
-                  <select
-                    name="category"
-                    value={formData.category}
-                    onChange={handleCategoryChange}
-                    required
-                    disabled={categoriesLoading}
-                  >
-                    <option value="">
-                      {categoriesLoading ? 'Kategoriler yükleniyor...' : 'Kategori seçin'}
-                    </option>
-                    {supplierCategories.map(cat => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                    <option value="new-category">+ Yeni Kategori Ekle</option>
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={newCategory}
-                    onChange={(e) => setNewCategory(e.target.value)}
-                    placeholder="Yeni kategori adı"
-                    required
-                  />
-                )}
-              </div>
             </div>
 
             <div className="form-row">
@@ -326,7 +288,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="businessRegistrationNumber"
                   value={formData.businessRegistrationNumber}
                   onChange={handleInputChange}
-                  placeholder="Ticaret sicil numarası"
+                  placeholder="İş kayıt numarası"
                 />
               </div>
             </div>
@@ -343,7 +305,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="contactPerson"
                   value={formData.contactPerson}
                   onChange={handleInputChange}
-                  placeholder="Yetkili kişi adı"
+                  placeholder="Yetkili kişi"
                   required
                 />
               </div>
@@ -355,7 +317,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="emergencyContact"
                   value={formData.emergencyContact}
                   onChange={handleInputChange}
-                  placeholder="Acil durum yetkili kişi"
+                  placeholder="Acil durum kişisi"
                 />
               </div>
             </div>
@@ -368,7 +330,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="phone1"
                   value={formData.phone1}
                   onChange={handleInputChange}
-                  placeholder="+90 555 123 4567"
+                  placeholder="Telefon numarası"
                   required
                 />
               </div>
@@ -380,7 +342,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="phone2"
                   value={formData.phone2}
                   onChange={handleInputChange}
-                  placeholder="+90 555 123 4568"
+                  placeholder="İkinci telefon"
                 />
               </div>
             </div>
@@ -393,7 +355,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="emergencyPhone"
                   value={formData.emergencyPhone}
                   onChange={handleInputChange}
-                  placeholder="+90 555 123 4569"
+                  placeholder="Acil telefon"
                 />
               </div>
               
@@ -404,7 +366,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="fax"
                   value={formData.fax}
                   onChange={handleInputChange}
-                  placeholder="+90 555 123 4570"
+                  placeholder="Faks numarası"
                 />
               </div>
             </div>
@@ -417,7 +379,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="email1"
                   value={formData.email1}
                   onChange={handleInputChange}
-                  placeholder="info@firma.com"
+                  placeholder="E-posta adresi"
                   required
                 />
               </div>
@@ -429,7 +391,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="email2"
                   value={formData.email2}
                   onChange={handleInputChange}
-                  placeholder="muhasebe@firma.com"
+                  placeholder="İkinci e-posta"
                 />
               </div>
             </div>
@@ -442,7 +404,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="website"
                   value={formData.website}
                   onChange={handleInputChange}
-                  placeholder="https://www.firma.com"
+                  placeholder="Web sitesi"
                 />
               </div>
               
@@ -472,7 +434,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="address"
                   value={formData.address}
                   onChange={handleInputChange}
-                  placeholder="Sokak, cadde, mahalle"
+                  placeholder="Adres"
                   rows="2"
                 />
               </div>
@@ -486,7 +448,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="city"
                   value={formData.city}
                   onChange={handleInputChange}
-                  placeholder="İstanbul"
+                  placeholder="Şehir"
                 />
               </div>
               
@@ -497,7 +459,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="state"
                   value={formData.state}
                   onChange={handleInputChange}
-                  placeholder="Kadıköy"
+                  placeholder="İlçe/Bölge"
                 />
               </div>
             </div>
@@ -510,7 +472,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="postalCode"
                   value={formData.postalCode}
                   onChange={handleInputChange}
-                  placeholder="34000"
+                  placeholder="Posta kodu"
                 />
               </div>
               
@@ -546,7 +508,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="taxNumber"
                   value={formData.taxNumber}
                   onChange={handleInputChange}
-                  placeholder="1234567890"
+                  placeholder="Vergi numarası"
                 />
               </div>
               
@@ -557,7 +519,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="taxOffice"
                   value={formData.taxOffice}
                   onChange={handleInputChange}
-                  placeholder="Kadıköy Vergi Dairesi"
+                  placeholder="Vergi dairesi"
                 />
               </div>
             </div>
@@ -584,7 +546,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="creditLimit"
                   value={formData.creditLimit}
                   onChange={handleInputChange}
-                  placeholder="0.00"
+                  placeholder="Kredi limiti"
                   min="0"
                   step="0.01"
                 />
@@ -615,7 +577,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="annualRevenue"
                   value={formData.annualRevenue}
                   onChange={handleInputChange}
-                  placeholder="0"
+                  placeholder="Yıllık ciro"
                   min="0"
                 />
               </div>
@@ -670,7 +632,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="bankName"
                   value={formData.bankName}
                   onChange={handleInputChange}
-                  placeholder="İş Bankası"
+                  placeholder="Banka adı"
                 />
               </div>
               
@@ -681,7 +643,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="bankAccount"
                   value={formData.bankAccount}
                   onChange={handleInputChange}
-                  placeholder="123456789"
+                  placeholder="Hesap numarası"
                 />
               </div>
             </div>
@@ -694,7 +656,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="iban"
                   value={formData.iban}
                   onChange={handleInputChange}
-                  placeholder="TR00 0000 0000 0000 0000 0000 00"
+                  placeholder="IBAN"
                 />
               </div>
             </div>
@@ -711,7 +673,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="deliveryCapability"
                   value={formData.deliveryCapability}
                   onChange={handleInputChange}
-                  placeholder="Günlük/Haftalık/Aylık kapasite"
+                  placeholder="Teslimat kapasitesi"
                 />
               </div>
               
@@ -722,7 +684,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="leadTime"
                   value={formData.leadTime}
                   onChange={handleInputChange}
-                  placeholder="7"
+                  placeholder="Tedarik süresi"
                   min="0"
                 />
               </div>
@@ -736,7 +698,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="minimumOrderQuantity"
                   value={formData.minimumOrderQuantity}
                   onChange={handleInputChange}
-                  placeholder="100 adet, 1 ton vb."
+                  placeholder="Minimum sipariş miktarı"
                 />
               </div>
               
@@ -1007,7 +969,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="yearEstablished"
                   value={formData.yearEstablished}
                   onChange={handleInputChange}
-                  placeholder="1995"
+                  placeholder="Kuruluş yılı"
                   min="1900"
                   max="2025"
                 />
@@ -1087,7 +1049,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
                   name="notes"
                   value={formData.notes}
                   onChange={handleInputChange}
-                  placeholder="Tedarikçi hakkında ek notlar, özel koşullar, geçmiş deneyimler..."
+                  placeholder="Notlar ve açıklamalar"
                   rows="3"
                 />
               </div>

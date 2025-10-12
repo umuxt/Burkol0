@@ -1,150 +1,72 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useMaterials } from '../hooks/useFirebaseMaterials'
-
-const dummySuppliers = [
-  {
-    id: 1,
-    code: 'TED-001',
-    name: 'Kocaeli Metal San. A.Ş.',
-    category: 'demir_celik',
-    contactPerson: 'Mehmet Yılmaz',
-    phone1: '+90 262 555 0101',
-    phone2: '+90 262 555 0102',
-    email1: 'mehmet@kocaelimetal.com',
-    email2: 'info@kocaelimetal.com',
-    address: 'Gebze OSB, Kocaeli',
-    taxNumber: '1234567890',
-    paymentTerms: '30 gün vade',
-    rating: 4.8,
-    status: 'Aktif',
-    totalOrders: 45,
-    lastOrderDate: '2024-10-08',
-    creditLimit: 500000
-  },
-  {
-    id: 2,
-    code: 'TED-002',
-    name: 'Ankara Plastik Ltd.',
-    category: 'plastik',
-    contactPerson: 'Ayşe Kaya',
-    phone1: '+90 312 555 0202',
-    phone2: '+90 312 555 0203',
-    email1: 'ayse@ankaraplastik.com',
-    email2: 'satis@ankaraplastik.com',
-    address: 'Ostim OSB, Ankara',
-    taxNumber: '2345678901',
-    paymentTerms: '45 gün vade',
-    rating: 4.5,
-    status: 'Aktif',
-    totalOrders: 32,
-    lastOrderDate: '2024-10-05',
-    creditLimit: 300000
-  },
-  {
-    id: 3,
-    code: 'TED-003',
-    name: 'İzmir Alüminyum A.Ş.',
-    category: 'aluminyum',
-    contactPerson: 'Ali Demir',
-    phone1: '+90 232 555 0303',
-    phone2: '+90 232 555 0304',
-    email1: 'ali@izmiraluminyum.com',
-    email2: 'genel@izmiraluminyum.com',
-    address: 'Atatürk OSB, İzmir',
-    taxNumber: '3456789012',
-    paymentTerms: '60 gün vade',
-    rating: 4.9,
-    status: 'Aktif',
-    totalOrders: 67,
-    lastOrderDate: '2024-10-10',
-    creditLimit: 750000
-  },
-  {
-    id: 4,
-    code: 'TED-004',
-    name: 'Bursa Bağlantı Elemanları',
-    category: 'baglanti_elemani',
-    contactPerson: 'Fatma Özkan',
-    phone1: '+90 224 555 0404',
-    phone2: '+90 224 555 0405',
-    email1: 'fatma@bursabaglanti.com',
-    email2: 'siparis@bursabaglanti.com',
-    address: 'Nilüfer OSB, Bursa',
-    taxNumber: '4567890123',
-    paymentTerms: '15 gün vade',
-    rating: 4.2,
-    status: 'Aktif',
-    totalOrders: 89,
-    lastOrderDate: '2024-10-09',
-    creditLimit: 200000
-  },
-  {
-    id: 5,
-    code: 'TED-005',
-    name: 'Antalya Panel Sistemleri',
-    category: 'panel_sistemleri',
-    contactPerson: 'Hasan Çelik',
-    phone1: '+90 242 555 0505',
-    phone2: '+90 242 555 0506',
-    email1: 'hasan@antalyapanel.com',
-    email2: 'muhasebe@antalyapanel.com',
-    address: 'AOSB, Antalya',
-    taxNumber: '5678901234',
-    paymentTerms: '30 gün vade',
-    rating: 3.8,
-    status: 'Pasif',
-    totalOrders: 12,
-    lastOrderDate: '2024-09-15',
-    creditLimit: 150000
-  }
-]
+import { useCategories } from '../hooks/useFirebaseCategories'
 
 export default function SuppliersTable({ 
-  categories = [], 
+  suppliers = [],
   onEditSupplier, 
   onSupplierDetails,
-  onAddNewMaterial
+  onAddNewMaterial,
+  loading = false,
+  onUpdateSupplier,
+  onDeleteSupplier,
+  onAddMaterialToSupplier
 }) {
-  // Firebase'den malzemeleri getir
   const { materials, loading: materialsLoading } = useMaterials(true)
-  
+  const { categories, loading: categoriesLoading } = useCategories(true)
   const [activeTab, setActiveTab] = useState('all')
-  const [sortField, setSortField] = useState('')
-  const [sortDirection, setSortDirection] = useState('asc')
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [selectedSupplier, setSelectedSupplier] = useState(null)
+  const [showMaterialModal, setShowMaterialModal] = useState(false)
+  const [sortField, setSortField] = useState(null)
+  const [sortDirection, setSortDirection] = useState('asc')
   const [isEditing, setIsEditing] = useState(false)
-  const [showMaterialAddOptions, setShowMaterialAddOptions] = useState(false)
-  const [showExistingMaterials, setShowExistingMaterials] = useState(false)
-  const [materialSearchTerm, setMaterialSearchTerm] = useState('')
-  const [supplierMaterials, setSupplierMaterials] = useState([]) // Tedarikçiye eklenen malzemeler
-  const [formData, setFormData] = useState({
-    code: '',
-    name: '',
-    category: '',
-    contactPerson: '',
-    phone1: '',
-    phone2: '',
-    email1: '',
-    email2: '',
-    address: '',
-    taxNumber: '',
-    paymentTerms: '',
-    status: 'Aktif',
-    totalOrders: 0,
-    lastOrderDate: '',
-    fax1: ''
-  })
+  const [formData, setFormData] = useState({})
 
-  // Dinamik kategoriler - main.jsx'den gelen categories kullanılacak
-  const supplierCategories = categories.length > 0 ? categories : [
-    { id: 'demir_celik', label: 'Demir-Çelik' },
-    { id: 'plastik', label: 'Plastik' },
-    { id: 'aluminyum', label: 'Alüminyum' },
-    { id: 'baglanti_elemani', label: 'Bağlantı Elemanı' },
-    { id: 'panel_sistemleri', label: 'Panel Sistemleri' }
-  ]
+  // Firebase'den malzeme kategorilerini çıkar
+  const materialCategories = React.useMemo(() => {
+    // Önce Firebase categories kullan
+    if (categories && categories.length > 0) {
+      return categories.map(category => ({
+        id: category.id,
+        label: category.name || category.label || category.id
+      }))
+    }
 
+    // Eğer categories yoksa, materials'dan çıkar
+    if (!materials || materials.length === 0) return []
+    
+    // Benzersiz kategorileri topla ve daha anlamlı isimler oluştur
+    const uniqueCategories = [...new Set(materials.map(material => material.category).filter(Boolean))]
+    return uniqueCategories.map(category => {
+      // Eğer category bir ID ise, daha kullanıcı dostu bir isim oluştur
+      let displayName = category
+      
+      // Genel kategorileri tanı ve daha iyi isimler ver
+      if (category.toLowerCase().includes('metal')) displayName = 'Metal Malzemeler'
+      else if (category.toLowerCase().includes('plastik') || category.toLowerCase().includes('plastic')) displayName = 'Plastik Malzemeler'
+      else if (category.toLowerCase().includes('celik') || category.toLowerCase().includes('steel')) displayName = 'Çelik Malzemeler'
+      else if (category.toLowerCase().includes('alüminyum') || category.toLowerCase().includes('aluminum')) displayName = 'Alüminyum Malzemeler'
+      else if (category.toLowerCase().includes('bakır') || category.toLowerCase().includes('copper')) displayName = 'Bakır Malzemeler'
+      else if (category.toLowerCase().includes('paslanmaz') || category.toLowerCase().includes('stainless')) displayName = 'Paslanmaz Çelik'
+      else if (category.length > 15) {
+        // Eğer çok uzun bir ID ise, kısalt
+        displayName = category.substring(0, 15) + '...'
+      }
+      
+      return {
+        id: category,
+        label: displayName
+      }
+    })
+  }, [categories, materials])
+
+  // Tab yapısı - Firebase kategorilerini kullan
+  const tabs = React.useMemo(() => [
+    { id: 'all', label: 'Tümünü Göster' },
+    ...materialCategories
+  ], [materialCategories])
+
+  // Sıralama fonksiyonu
   const handleSort = (field) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
@@ -154,6 +76,7 @@ export default function SuppliersTable({
     }
   }
 
+  // Sıralama ikonu
   const getSortIcon = (field) => {
     if (sortField !== field) {
       return <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
@@ -163,17 +86,13 @@ export default function SuppliersTable({
       : <span style={{ fontSize: '12px', opacity: 1 }}>↓</span>
   }
 
-  const tabs = [
-    { id: 'all', label: 'Tümünü Göster' },
-    ...supplierCategories.map(category => ({
-      id: category.id,
-      label: category.label
-    }))
-  ]
-
-  const filteredSuppliers = activeTab === 'all' 
-    ? dummySuppliers 
-    : dummySuppliers.filter(supplier => supplier.category === activeTab)
+  // Tedarikçileri sadece seçili tabına göre filtrele
+  const filteredSuppliers = React.useMemo(() => {
+    if (activeTab === 'all') {
+      return suppliers
+    }
+    return suppliers.filter(supplier => supplier.category === activeTab)
+  }, [suppliers, activeTab])
 
   // Sıralama işlemi
   const filteredAndSortedSuppliers = [...filteredSuppliers].sort((a, b) => {
@@ -184,8 +103,8 @@ export default function SuppliersTable({
 
     // Kategori alanı için özel işlem
     if (sortField === 'category') {
-      aValue = supplierCategories.find(c => c.id === a.category)?.label || a.category
-      bValue = supplierCategories.find(c => c.id === b.category)?.label || b.category
+      aValue = materialCategories.find(c => c.id === a.category)?.label || a.category
+      bValue = materialCategories.find(c => c.id === b.category)?.label || b.category
     }
 
     // Numerik değerler için
@@ -199,14 +118,7 @@ export default function SuppliersTable({
   })
 
   const getCategoryLabel = (categoryId) => {
-    return supplierCategories.find(c => c.id === categoryId)?.label || categoryId
-  }
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('tr-TR', {
-      style: 'currency',
-      currency: 'TRY'
-    }).format(amount)
+    return materialCategories.find(c => c.id === categoryId)?.label || categoryId
   }
 
   const getStatusColor = (status) => {
@@ -215,918 +127,1607 @@ export default function SuppliersTable({
 
   const handleRowClick = (supplier) => {
     setSelectedSupplier(supplier)
-    setFormData({
-      code: supplier.code,
-      name: supplier.name,
-      category: supplier.category,
-      contactPerson: supplier.contactPerson,
-      phone1: supplier.phone1,
-      phone2: supplier.phone2,
-      email1: supplier.email1,
-      email2: supplier.email2,
-      address: supplier.address,
-      taxNumber: supplier.taxNumber,
-      paymentTerms: supplier.paymentTerms,
-      status: supplier.status,
-      totalOrders: supplier.totalOrders,
-      lastOrderDate: supplier.lastOrderDate,
-      fax1: supplier.fax1 || ''
-    })
-    // Tedarikçi değiştiğinde malzemeler listesini temizle
-    setSupplierMaterials([])
-    setIsEditing(false)
-    setIsDetailModalOpen(true)
-  }
-
-  // Mevcut malzeme ekleme fonksiyonu
-  const handleAddExistingMaterial = (material) => {
-    const isAlreadyAdded = supplierMaterials.some(sm => sm.id === material.id)
-    
-    if (isAlreadyAdded) {
-      alert('Bu malzeme zaten eklenmiş!')
-      return
-    }
-
-    const newSupplierMaterial = {
-      ...material,
-      addedDate: new Date().toISOString().split('T')[0],
-      lastSupplyDate: formData.lastOrderDate || new Date().toISOString().split('T')[0],
-      totalSupplied: 0,
-      lastPrice: material.unitPrice || 0
-    }
-
-    setSupplierMaterials(prev => [...prev, newSupplierMaterial])
-    setShowExistingMaterials(false)
-    setMaterialSearchTerm('')
-    
-    // Otomatik kaydet - Firebase'e malzeme-tedarikçi ilişkisini kaydet
-    saveSupplierMaterial(newSupplierMaterial)
-    console.log('Tedarikçiye malzeme eklendi ve kaydedildi:', newSupplierMaterial)
-  }
-
-  // Yeni malzeme oluşturulduğunda çağırılacak
-  const handleNewMaterialCreated = (newMaterial) => {
-    // Yeni malzeme otomatik olarak tedarikçiye eklenir ve kaydedilir
-    handleAddExistingMaterial(newMaterial)
-  }
-
-  // Tedarikçi-malzeme ilişkisini Firebase'e kaydetme
-  const saveSupplierMaterial = async (supplierMaterial) => {
-    try {
-      // Firebase'e tedarikçi-malzeme ilişkisini kaydet
-      const supplierMaterialData = {
-        supplierId: selectedSupplier?.id,
-        supplierCode: formData.code,
-        materialId: supplierMaterial.id,
-        materialCode: supplierMaterial.code,
-        addedDate: supplierMaterial.addedDate,
-        lastSupplyDate: supplierMaterial.lastSupplyDate,
-        lastPrice: supplierMaterial.lastPrice,
-        totalSupplied: supplierMaterial.totalSupplied,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-
-      // API call yapılacak
-      console.log('Firebase\'e kaydedilecek tedarikçi-malzeme ilişkisi:', supplierMaterialData)
-      
-      // Burada gerçek API call'u yapacağız:
-      // const response = await fetch('/api/supplier-materials', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(supplierMaterialData)
-      // })
-      
-    } catch (error) {
-      console.error('Tedarikçi-malzeme ilişkisi kaydedilirken hata:', error)
-      alert('Malzeme eklenirken bir hata oluştu!')
-    }
-  }
-
-  // Malzeme silme fonksiyonu - sadece düzenleme modunda
-  const handleRemoveMaterial = async (materialId) => {
-    if (!isEditing) {
-      alert('Malzeme silmek için önce düzenleme moduna geçin!')
-      return
-    }
-
-    const confirmed = window.confirm('Bu malzemeyi tedarikçiden kaldırmak istediğinizden emin misiniz?')
-    if (!confirmed) return
-
-    try {
-      // Firebase'den tedarikçi-malzeme ilişkisini sil
-      await deleteSupplierMaterial(materialId)
-      
-      setSupplierMaterials(prev => prev.filter(sm => sm.id !== materialId))
-      console.log('Malzeme tedarikçiden kaldırıldı:', materialId)
-      
-    } catch (error) {
-      console.error('Malzeme silinirken hata:', error)
-      alert('Malzeme silinirken bir hata oluştu!')
-    }
-  }
-
-  // Tedarikçi-malzeme ilişkisini Firebase'den silme
-  const deleteSupplierMaterial = async (materialId) => {
-    try {
-      console.log('Firebase\'den silinecek malzeme:', materialId)
-      
-      // Burada gerçek API call'u yapacağız:
-      // const response = await fetch(`/api/supplier-materials/${selectedSupplier?.id}/${materialId}`, {
-      //   method: 'DELETE'
-      // })
-      
-    } catch (error) {
-      throw error
-    }
   }
 
   const handleCloseModal = () => {
     setIsDetailModalOpen(false)
     setSelectedSupplier(null)
     setIsEditing(false)
-    setShowMaterialAddOptions(false)
-    setShowExistingMaterials(false)
-    setMaterialSearchTerm('') // Arama terimini temizle
-    setFormData({
+  }
+
+  // SupplierDetailPanel component
+  const SupplierDetailPanel = () => {
+    const [showExistingMaterials, setShowExistingMaterials] = useState(false)
+    const [materialSearchTerm, setMaterialSearchTerm] = useState('')
+    
+    // Ortak stil tanımları
+    const labelStyle = {
+      fontSize: '12px',
+      fontWeight: '500',
+      color: '#374151',
+      minWidth: '130px',
+      flexShrink: 0
+    }
+    
+    const inputStyle = {
+      flex: 1,
+      padding: '6px 8px',
+      border: '1px solid #d1d5db',
+      borderRadius: '4px',
+      fontSize: '13px',
+      boxSizing: 'border-box'
+    }
+    
+    const getInputStyle = (editing) => ({
+      ...inputStyle,
+      background: !editing ? '#f3f4f6' : 'white',
+      color: !editing ? '#374151' : '#111827'
+    })
+    
+    const fieldContainerStyle = {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    }
+    
+    const [formData, setFormData] = useState({
       code: '',
       name: '',
+      supplierType: '',
       category: '',
+      businessRegistrationNumber: '',
+      status: 'Aktif',
       contactPerson: '',
+      emergencyContact: '',
       phone1: '',
       phone2: '',
+      emergencyPhone: '',
+      fax: '',
       email1: '',
       email2: '',
+      website: '',
+      preferredCommunication: 'email',
       address: '',
+      city: '',
+      state: '',
+      postalCode: '',
+      country: 'Türkiye',
       taxNumber: '',
+      taxOffice: '',
+      currency: 'TRY',
+      creditLimit: '',
+      creditRating: '',
+      annualRevenue: '',
       paymentTerms: '',
-      status: 'Aktif',
-      totalOrders: 0,
-      lastOrderDate: '',
-      fax1: ''
+      paymentMethod: '',
+      bankName: '',
+      bankAccount: '',
+      iban: '',
+      deliveryCapability: '',
+      leadTime: '',
+      minimumOrderQuantity: '',
+      qualityCertification: '',
+      yearEstablished: '',
+      employeeCount: '',
+      riskLevel: 'low',
+      complianceStatus: 'pending',
+      lastOrderDate: 'Henüz sipariş yok',
+      totalOrders: '0',
+      notes: ''
     })
-  }
 
-  const handleUnlock = () => {
-    setIsEditing(true)
-  }
+    // selectedSupplier değiştiğinde formData'yı güncelle
+    useEffect(() => {
+      if (selectedSupplier) {
+        setFormData({
+          code: selectedSupplier?.code || '',
+          name: selectedSupplier?.name || '',
+          supplierType: selectedSupplier?.supplierType || '',
+          businessRegistrationNumber: selectedSupplier?.businessRegistrationNumber || '',
+          status: selectedSupplier?.status || 'Aktif',
+          contactPerson: selectedSupplier?.contactPerson || '',
+          emergencyContact: selectedSupplier?.emergencyContact || '',
+          phone1: selectedSupplier?.phone1 || '',
+          phone2: selectedSupplier?.phone2 || '',
+          emergencyPhone: selectedSupplier?.emergencyPhone || '',
+          fax: selectedSupplier?.fax || '',
+          email1: selectedSupplier?.email1 || '',
+          email2: selectedSupplier?.email2 || '',
+          website: selectedSupplier?.website || '',
+          preferredCommunication: selectedSupplier?.preferredCommunication || '',
+          address: selectedSupplier?.address || '',
+          city: selectedSupplier?.city || '',
+          state: selectedSupplier?.state || '',
+          postalCode: selectedSupplier?.postalCode || '',
+          country: selectedSupplier?.country || '',
+          taxNumber: selectedSupplier?.taxNumber || '',
+          taxOffice: selectedSupplier?.taxOffice || '',
+          currency: selectedSupplier?.currency || '',
+          creditLimit: selectedSupplier?.creditLimit || '',
+          creditRating: selectedSupplier?.creditRating || '',
+          annualRevenue: selectedSupplier?.annualRevenue || '',
+          paymentTerms: selectedSupplier?.paymentTerms || '',
+          paymentMethod: selectedSupplier?.paymentMethod || '',
+          bankName: selectedSupplier?.bankName || '',
+          bankAccount: selectedSupplier?.bankAccount || '',
+          iban: selectedSupplier?.iban || '',
+          deliveryCapability: selectedSupplier?.deliveryCapability || '',
+          leadTime: selectedSupplier?.leadTime || '',
+          minimumOrderQuantity: selectedSupplier?.minimumOrderQuantity || '',
+          qualityCertification: selectedSupplier?.qualityCertification || '',
+          yearEstablished: selectedSupplier?.yearEstablished || '',
+          employeeCount: selectedSupplier?.employeeCount || '',
+          riskLevel: selectedSupplier?.riskLevel || '',
+          complianceStatus: selectedSupplier?.complianceStatus || '',
+          lastOrderDate: selectedSupplier?.lastOrderDate || '',
+          totalOrders: selectedSupplier?.totalOrders || '0',
+          notes: selectedSupplier?.notes || ''
+        })
+        // setIsEditing(false) kaldırıldı - editing durumunu koru
+      }
+    }, [selectedSupplier?.id]) // sadece ID değiştiğinde tetikle
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    
-    // Sadece editing mode'dayken submit et
-    if (!isEditing) {
-      return
+    // isEditing state değişimini takip et
+    useEffect(() => {
+      console.log('🟢 isEditing state değişti:', isEditing)
+    }, [isEditing])
+
+    const handleInputChange = (e) => {
+      const { name, value } = e.target
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }))
     }
-    
-    // Burada Firebase'e kaydetme işlemi yapılacak
-    console.log('Tedarikçi kaydediliyor:', formData)
-    
-    // Şimdilik sadece state'i güncelleyelim
-    setSelectedSupplier(formData)
-    
-    // Kaydet işleminden sonra kilitli moda dön
-    setIsEditing(false)
-    
-    // onEditSupplier callback'ini çağır
-    if (onEditSupplier) {
-      onEditSupplier(formData)
-    }
-  }
 
-  const handleInputChange = (e) => {
-    // Sadece editing mode'dayken input değişikliğine izin ver
-    if (!isEditing) {
-      return
+    const handleUnlock = (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+      console.log('🔵 Düzenle butonuna basıldı')
+      console.log('🔵 Önceki isEditing değeri:', isEditing)
+      setIsEditing(true)
+      console.log('🔵 setIsEditing(true) çağrıldı')
     }
-    
-    const { name, value } = e.target
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }))
-  }
 
-  const SupplierDetailModal = ({ supplier, isOpen, onClose }) => {
-    if (!isOpen || !supplier) return null
+    const handleSave = async () => {
+      try {
+        if (onUpdateSupplier) {
+          await onUpdateSupplier(selectedSupplier.id, formData)
+        }
+        setIsEditing(false)
+      } catch (error) {
+        console.error('Tedarikçi güncellenirken hata:', error)
+        alert('Tedarikçi güncellenirken bir hata oluştu!')
+      }
+    }
+
+    const handleCancel = () => {
+      // Form verilerini orijinal değerlere geri yükle
+      setFormData({
+        code: selectedSupplier?.code || '',
+        name: selectedSupplier?.name || '',
+        supplierType: selectedSupplier?.supplierType || '',
+        businessRegistrationNumber: selectedSupplier?.businessRegistrationNumber || '',
+        status: selectedSupplier?.status || 'Aktif',
+        contactPerson: selectedSupplier?.contactPerson || '',
+        emergencyContact: selectedSupplier?.emergencyContact || '',
+        phone1: selectedSupplier?.phone1 || '',
+        phone2: selectedSupplier?.phone2 || '',
+        emergencyPhone: selectedSupplier?.emergencyPhone || '',
+        fax: selectedSupplier?.fax || '',
+        email1: selectedSupplier?.email1 || '',
+        email2: selectedSupplier?.email2 || '',
+        website: selectedSupplier?.website || '',
+        preferredCommunication: selectedSupplier?.preferredCommunication || '',
+        address: selectedSupplier?.address || '',
+        city: selectedSupplier?.city || '',
+        state: selectedSupplier?.state || '',
+        postalCode: selectedSupplier?.postalCode || '',
+        country: selectedSupplier?.country || '',
+        taxNumber: selectedSupplier?.taxNumber || '',
+        taxOffice: selectedSupplier?.taxOffice || '',
+        currency: selectedSupplier?.currency || '',
+        creditLimit: selectedSupplier?.creditLimit || '',
+        creditRating: selectedSupplier?.creditRating || '',
+        annualRevenue: selectedSupplier?.annualRevenue || '',
+        paymentTerms: selectedSupplier?.paymentTerms || '',
+        leadTime: selectedSupplier?.leadTime || '',
+        minimumOrderQuantity: selectedSupplier?.minimumOrderQuantity || '',
+        yearEstablished: selectedSupplier?.yearEstablished || '',
+        employeeCount: selectedSupplier?.employeeCount || '',
+        certifications: selectedSupplier?.certifications || '',
+        complianceStatus: selectedSupplier?.complianceStatus || '',
+        lastOrderDate: selectedSupplier?.lastOrderDate || '',
+        totalOrders: selectedSupplier?.totalOrders || '',
+        notes: selectedSupplier?.notes || ''
+      })
+      setIsEditing(false)
+    }
+
+    const handleSaveSupplier = async (e) => {
+      e.preventDefault()
+      
+      try {
+        if (onUpdateSupplier && selectedSupplier) {
+          await onUpdateSupplier(selectedSupplier.id, formData)
+        }
+        setIsEditing(false)
+      } catch (error) {
+        console.error('Tedarikçi güncellenirken hata:', error)
+        alert('Tedarikçi güncellenirken bir hata oluştu.')
+      }
+    }
 
     return (
-      <div className="modal-overlay" onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          handleCloseModal();
-        }
-      }}>
-        <div className="modal-content" onClick={(e) => {
-          e.stopPropagation();
-          setShowMaterialAddOptions(false);
-        }} style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh', position: 'relative' }}>
-          <div className="modal-header" style={{ flexShrink: 0 }}>
-            <h2>Tedarikçi Detayları</h2>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <div style={{ 
+          paddingBottom: '16px', 
+          borderBottom: '1px solid #e5e7eb', 
+          marginBottom: '20px',
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+              {selectedSupplier.name}
+            </h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {console.log('🟡 Button render - isEditing:', isEditing) || null}
               {!isEditing ? (
-                <button type="button" onClick={(e) => { e.preventDefault(); handleUnlock(); }} className="btn-edit">
+                <button 
+                  type="button" 
+                  onClick={handleUnlock}
+                  style={{
+                    padding: '6px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    background: 'white',
+                    color: '#374151',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
                   🔒 Düzenle
                 </button>
               ) : (
-                <button type="submit" form="supplier-form" className="btn-save">
+                <button 
+                  type="submit" 
+                  form="supplier-detail-form"
+                  style={{
+                    padding: '6px 12px',
+                    border: '1px solid #3b82f6',
+                    borderRadius: '6px',
+                    background: '#3b82f6',
+                    color: 'white',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
                   🔓 Kaydet
                 </button>
               )}
-              <button className="modal-close" onClick={handleCloseModal}>×</button>
+              
+              {/* İptal Butonu - sadece düzenleme modunda göster */}
+              {isEditing && (
+                <button 
+                  type="button" 
+                  onClick={handleCancel}
+                  style={{
+                    padding: '6px 12px',
+                    border: '1px solid #6b7280',
+                    borderRadius: '6px',
+                    background: 'white',
+                    color: '#6b7280',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  ❌ İptal
+                </button>
+              )}
+              
+              {/* Tedarikçiyi Sil Butonu */}
+              <button 
+                type="button" 
+                onClick={() => {
+                  if (window.confirm(`"${selectedSupplier.name}" tedarikçisini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`)) {
+                    if (onDeleteSupplier) {
+                      onDeleteSupplier(selectedSupplier.id)
+                      setSelectedSupplier(null) // Silindikten sonra detay panelini kapat
+                    }
+                  }
+                }}
+                style={{
+                  padding: '6px 12px',
+                  border: '1px solid #dc2626',
+                  borderRadius: '6px',
+                  background: '#dc2626',
+                  color: 'white',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.background = '#b91c1c'
+                  e.target.style.borderColor = '#b91c1c'
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.background = '#dc2626'
+                  e.target.style.borderColor = '#dc2626'
+                }}
+              >
+                🗑️ Sil
+              </button>
             </div>
           </div>
-          
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            <form onSubmit={handleSubmit} className="modal-form" id="supplier-form" style={{ height: '100%' }}>
-            {/* Üst Bölüm: Yan yana iki div - Firma Bilgileri ve İletişim */}
-            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+          <div style={{ fontSize: '12px', color: '#6b7280' }}>
+            Kod: {selectedSupplier.code} | Kategori: {getCategoryLabel(selectedSupplier.category)}
+          </div>
+        </div>
+
+        {/* Scrollable Content */}
+        <div style={{ flex: 1, overflowY: 'auto', paddingRight: '8px' }}>
+          <form onSubmit={handleSaveSupplier} id="supplier-detail-form">
+            
+            {/* Temel Bilgiler */}
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '12px', 
+              background: 'white', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                Temel Firma Bilgileri
+              </h3>
               
-              {/* Sol Div: Firma Bilgileri */}
-              <div style={{ flex: 1, border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Firma Bilgileri</h3>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '100px', color: '#374151' }}>Tedarikçi No:</span>
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', minWidth: '130px', flexShrink: 0 }}>
+                      Tedarikçi Kodu
+                    </label>
                     <input
                       type="text"
                       name="code"
                       value={formData.code}
-                      readOnly
-                      className="readonly-input"
-                      style={{ border: 'none', background: 'transparent', padding: '2px', flex: 1 }}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
                     />
                   </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '100px', color: '#374151' }}>Firma Adı:</span>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        name="name"
-                        value={formData.name}
-                        onChange={handleInputChange}
-                        className="editable-input"
-                        style={{ flex: 1 }}
-                      />
-                    ) : (
-                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.name}</span>
-                    )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '500', color: '#374151', minWidth: '130px', flexShrink: 0 }}>
+                      Firma Adı
+                    </label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={formData.name}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
                   </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '100px', color: '#374151' }}>Vergi No:</span>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Tedarikçi Tipi
+                    </label>
                     {isEditing ? (
-                      <input
-                        type="text"
-                        name="taxNumber"
-                        value={formData.taxNumber}
+                      <select 
+                        name="supplierType" 
+                        value={formData.supplierType} 
                         onChange={handleInputChange}
-                        className="editable-input"
-                        style={{ flex: 1 }}
-                      />
-                    ) : (
-                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.taxNumber}</span>
-                    )}
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '100px', color: '#374151' }}>Yetkili Kişi:</span>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        name="contactPerson"
-                        value={formData.contactPerson}
-                        onChange={handleInputChange}
-                        className="editable-input"
-                        style={{ flex: 1 }}
-                      />
-                    ) : (
-                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.contactPerson}</span>
-                    )}
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '100px', color: '#374151' }}>Durum:</span>
-                    {isEditing ? (
-                      <select
-                        name="status"
-                        value={formData.status}
-                        onChange={handleInputChange}
-                        className="editable-input"
-                        style={{ flex: 1 }}
+                        style={getInputStyle(isEditing)}
                       >
-                        <option value="Aktif">Aktif</option>
-                        <option value="Pasif">Pasif</option>
+                        <option value="">Tedarikçi tipi seçin</option>
+                        <option value="manufacturer">Üretici</option>
+                        <option value="distributor">Distribütör</option>
+                        <option value="wholesaler">Toptancı</option>
+                        <option value="service_provider">Hizmet Sağlayıcı</option>
+                        <option value="contractor">Yüklenici</option>
+                        <option value="consultant">Danışman</option>
                       </select>
                     ) : (
-                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.status}</span>
+                      <div style={getInputStyle(isEditing)}>
+                        {formData.supplierType || ''}
+                      </div>
                     )}
                   </div>
+
                 </div>
-              </div>
-              
-              {/* Sağ Div: İletişim Bilgileri */}
-              <div style={{ flex: 1, border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
-                <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>İletişim</h3>
                 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '80px', color: '#374151' }}>Mail1:</span>
-                    {isEditing ? (
-                      <input
-                        type="email"
-                        name="email1"
-                        value={formData.email1}
-                        onChange={handleInputChange}
-                        className="editable-input"
-                        style={{ flex: 1 }}
-                      />
-                    ) : (
-                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.email1}</span>
-                    )}
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '80px', color: '#374151' }}>Mail2:</span>
-                    {isEditing ? (
-                      <input
-                        type="email"
-                        name="email2"
-                        value={formData.email2}
-                        onChange={handleInputChange}
-                        className="editable-input"
-                        style={{ flex: 1 }}
-                      />
-                    ) : (
-                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.email2}</span>
-                    )}
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '80px', color: '#374151' }}>Tel1:</span>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        name="phone1"
-                        value={formData.phone1}
-                        onChange={handleInputChange}
-                        className="editable-input"
-                        style={{ flex: 1 }}
-                      />
-                    ) : (
-                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.phone1}</span>
-                    )}
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '80px', color: '#374151' }}>Tel2:</span>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        name="phone2"
-                        value={formData.phone2}
-                        onChange={handleInputChange}
-                        className="editable-input"
-                        style={{ flex: 1 }}
-                      />
-                    ) : (
-                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.phone2}</span>
-                    )}
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '80px', color: '#374151' }}>Fax1:</span>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        name="fax1"
-                        value={formData.fax1 || ''}
-                        onChange={handleInputChange}
-                        className="editable-input"
-                        style={{ flex: 1 }}
-                      />
-                    ) : (
-                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.fax1}</span>
-                    )}
-                  </div>
+                <div style={fieldContainerStyle}>
+                  <label style={labelStyle}>
+                    İş Kayıt Numarası
+                  </label>
+                  <input
+                    type="text"
+                    name="businessRegistrationNumber"
+                    value={formData.businessRegistrationNumber}
+                    readOnly={!isEditing}
+                    onChange={handleInputChange}
+                    style={getInputStyle(isEditing)}
+                  />
+                </div>
+
+                <div style={fieldContainerStyle}>
+                  <label style={labelStyle}>
+                    Durum
+                  </label>
+                  {isEditing ? (
+                    <select 
+                      name="status" 
+                      value={formData.status} 
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    >
+                      <option value="Aktif">Aktif</option>
+                      <option value="Pasif">Pasif</option>
+                      <option value="Onay Bekliyor">Onay Bekliyor</option>
+                      <option value="Askıda">Askıda</option>
+                    </select>
+                  ) : (
+                    <span style={{ 
+                      display: 'inline-block',
+                      color: formData.status === 'Aktif' ? '#10b981' : '#ef4444',
+                      fontWeight: '600',
+                      padding: '6px 10px',
+                      borderRadius: '12px',
+                      background: formData.status === 'Aktif' ? '#dcfce7' : '#fee2e2',
+                      fontSize: '12px'
+                    }}>
+                      {formData.status}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
-            
-            {/* Orta Bölüm: Adres */}
-            <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px', marginBottom: '20px' }}>
-              <div>
-                {isEditing ? (
-                  <div>
-                    <strong style={{ color: '#000000' }}>Adres:</strong>{' '}
-                    <textarea
-                      name="address"
-                      value={formData.address}
+
+            {/* İletişim Bilgileri */}
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '12px', 
+              background: 'white', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                İletişim Bilgileri
+              </h3>
+              
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Yetkili Kişi
+                    </label>
+                    <input
+                      type="text"
+                      name="contactPerson"
+                      value={formData.contactPerson}
+                      readOnly={!isEditing}
                       onChange={handleInputChange}
-                      className="editable-input"
-                      rows="3"
-                      style={{ width: '100%', resize: 'vertical', marginTop: '5px' }}
+                      style={getInputStyle(isEditing)}
                     />
                   </div>
-                ) : (
-                  <div>
-                    <strong style={{ color: '#000000' }}>Adres:</strong>{' '}
-                    <span style={{ lineHeight: '1.4', color: '#1f2937' }}>{formData.address}</span>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Acil Durum İletişim
+                    </label>
+                    <input
+                      type="text"
+                      name="emergencyContact"
+                      value={formData.emergencyContact}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
                   </div>
-                )}
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Telefon 1
+                    </label>
+                    <input
+                      type="tel"
+                      name="phone1"
+                      value={formData.phone1}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Telefon 2
+                    </label>
+                    <input
+                      type="tel"
+                      name="phone2"
+                      value={formData.phone2}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Acil Durum Telefon
+                    </label>
+                    <input
+                      type="tel"
+                      name="emergencyPhone"
+                      value={formData.emergencyPhone}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Faks
+                    </label>
+                    <input
+                      type="tel"
+                      name="fax"
+                      value={formData.fax}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      E-posta 1
+                    </label>
+                    <input
+                      type="email"
+                      name="email1"
+                      value={formData.email1}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      E-posta 2
+                    </label>
+                    <input
+                      type="email"
+                      name="email2"
+                      value={formData.email2}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Web Sitesi
+                    </label>
+                    <input
+                      type="url"
+                      name="website"
+                      value={formData.website}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Tercih Edilen İletişim
+                    </label>
+                    {isEditing ? (
+                      <select 
+                        name="preferredCommunication" 
+                        value={formData.preferredCommunication} 
+                        onChange={handleInputChange}
+                        style={getInputStyle(isEditing)}
+                      >
+                        <option value="email">E-posta</option>
+                        <option value="phone">Telefon</option>
+                        <option value="fax">Faks</option>
+                        <option value="whatsapp">WhatsApp</option>
+                      </select>
+                    ) : (
+                      <div style={getInputStyle(isEditing)}>
+                        {formData.preferredCommunication}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
-            
-            {/* Alt Bölüm: Tedarik Bilgileri */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+
+            {/* Adres Bilgileri */}
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '12px', 
+              background: 'white', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                Adres Bilgileri
+              </h3>
               
-              {/* Üst Bölüm: Tedarik Edilen Malzemeler */}
-              <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', position: 'relative' }}>
-                  <h3 style={{ margin: '0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Tedarik Edilen Malzemeler</h3>
-                  <div style={{ position: 'relative' }}>
-                    <button 
-                      type="button" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowMaterialAddOptions(!showMaterialAddOptions);
-                      }}
-                      className="btn btn-primary btn-sm"
-                      style={{ 
-                        fontSize: '12px', 
-                        padding: '6px 12px',
-                        background: '#d4af37',
-                        border: 'none',
-                        borderRadius: '4px',
-                        color: 'white',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px'
-                      }}
-                    >
-                      + Malzeme Ekle
-                      <span style={{ fontSize: '10px' }}>
-                        {showMaterialAddOptions ? '▲' : '▼'}
-                      </span>
-                    </button>
-                    
-                    {/* Malzeme Ekleme Seçenekleri Dropdown */}
-                    {showMaterialAddOptions && (
-                      <div 
-                        style={{
-                          position: 'absolute',
-                          right: '0',
-                          top: '100%',
-                          background: 'white',
-                          border: '1px solid #e0e0e0',
-                          borderRadius: '6px',
-                          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                          zIndex: 1001,
-                          minWidth: '200px',
-                          marginTop: '4px'
-                        }}
-                        onClick={(e) => e.stopPropagation()}
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <div style={fieldContainerStyle}>
+                  <label style={labelStyle}>
+                    Adres
+                  </label>
+                  <textarea
+                    name="address"
+                    value={formData.address}
+                    readOnly={!isEditing}
+                    onChange={handleInputChange}
+                    rows="2"
+                    style={{ 
+                      ...getInputStyle(isEditing),
+                      resize: 'vertical'
+                    }}
+                  />
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Şehir
+                    </label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={formData.city}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      İlçe/Bölge
+                    </label>
+                    <input
+                      type="text"
+                      name="state"
+                      value={formData.state}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Posta Kodu
+                    </label>
+                    <input
+                      type="text"
+                      name="postalCode"
+                      value={formData.postalCode}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Ülke
+                    </label>
+                    {isEditing ? (
+                      <select 
+                        name="country" 
+                        value={formData.country} 
+                        onChange={handleInputChange}
+                        style={getInputStyle(isEditing)}
                       >
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowMaterialAddOptions(false);
-                            setShowExistingMaterials(true);
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            border: 'none',
-                            background: 'white',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            borderBottom: '1px solid #f0f0f0',
-                            borderRadius: '6px 6px 0 0'
-                          }}
-                          onMouseEnter={(e) => e.target.style.background = '#f8f9fa'}
-                          onMouseLeave={(e) => e.target.style.background = 'white'}
-                        >
-                          📋 Mevcut Malzemelerden Seç
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowMaterialAddOptions(false);
-                            if (onAddNewMaterial) {
-                              onAddNewMaterial(handleNewMaterialCreated);
-                            }
-                          }}
-                          style={{
-                            width: '100%',
-                            padding: '12px 16px',
-                            border: 'none',
-                            background: 'white',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            borderRadius: '0 0 6px 6px'
-                          }}
-                          onMouseEnter={(e) => e.target.style.background = '#f8f9fa'}
-                          onMouseLeave={(e) => e.target.style.background = 'white'}
-                        >
-                          ➕ Yeni Malzeme Ekle
-                        </button>
+                        <option value="Türkiye">Türkiye</option>
+                        <option value="Almanya">Almanya</option>
+                        <option value="Fransa">Fransa</option>
+                        <option value="İtalya">İtalya</option>
+                        <option value="İngiltere">İngiltere</option>
+                        <option value="ABD">ABD</option>
+                        <option value="Çin">Çin</option>
+                        <option value="Japonya">Japonya</option>
+                        <option value="Other">Diğer</option>
+                      </select>
+                    ) : (
+                      <div style={getInputStyle(isEditing)}>
+                        {formData.country}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Mali Bilgiler */}
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '12px', 
+              background: 'white', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                Mali Bilgiler
+              </h3>
+              
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Vergi Numarası
+                    </label>
+                    <input
+                      type="text"
+                      name="taxNumber"
+                      value={formData.taxNumber}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Vergi Dairesi
+                    </label>
+                    <input
+                      type="text"
+                      name="taxOffice"
+                      value={formData.taxOffice}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Para Birimi
+                    </label>
+                    {isEditing ? (
+                      <select 
+                        name="currency" 
+                        value={formData.currency} 
+                        onChange={handleInputChange}
+                        style={getInputStyle(isEditing)}
+                      >
+                        <option value="">Para birimi seçin</option>
+                        <option value="TRY">TRY - Türk Lirası</option>
+                        <option value="USD">USD - Amerikan Doları</option>
+                        <option value="EUR">EUR - Euro</option>
+                        <option value="GBP">GBP - İngiliz Sterlini</option>
+                      </select>
+                    ) : (
+                      <div style={getInputStyle(isEditing)}>
+                        {formData.currency}
+                      </div>
+                    )}
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Kredi Limiti
+                    </label>
+                    <input
+                      type="number"
+                      name="creditLimit"
+                      value={formData.creditLimit}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Kredi Notu
+                    </label>
+                    {isEditing ? (
+                      <select 
+                        name="creditRating" 
+                        value={formData.creditRating} 
+                        onChange={handleInputChange}
+                        style={getInputStyle(isEditing)}
+                      >
+                        <option value="">Kredi notu seçin</option>
+                        <option value="A">A - Mükemmel</option>
+                        <option value="B">B - İyi</option>
+                        <option value="C">C - Orta</option>
+                        <option value="D">D - Zayıf</option>
+                        <option value="F">F - Riskli</option>
+                      </select>
+                    ) : (
+                      <div style={getInputStyle(isEditing)}>
+                        {formData.creditRating}
+                      </div>
+                    )}
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Yıllık Ciro
+                    </label>
+                    <input
+                      type="number"
+                      name="annualRevenue"
+                      value={formData.annualRevenue}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                </div>
+                
+                <div style={fieldContainerStyle}>
+                  <label style={labelStyle}>
+                    Ödeme Koşulları
+                  </label>
+                  {isEditing ? (
+                    <select 
+                      name="paymentTerms" 
+                      value={formData.paymentTerms} 
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    >
+                      <option value="">Ödeme koşulu seçin</option>
+                      <option value="Peşin">Peşin</option>
+                      <option value="15 gün vade">15 gün vade</option>
+                      <option value="30 gün vade">30 gün vade</option>
+                      <option value="45 gün vade">45 gün vade</option>
+                      <option value="60 gün vade">60 gün vade</option>
+                      <option value="90 gün vade">90 gün vade</option>
+                      <option value="120 gün vade">120 gün vade</option>
+                    </select>
+                  ) : (
+                    <div style={getInputStyle(isEditing)}>
+                      {formData.paymentTerms}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Ödeme Bilgileri */}
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '12px', 
+              background: 'white', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                Ödeme Bilgileri
+              </h3>
+              
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Ödeme Yöntemi
+                    </label>
+                    {isEditing ? (
+                      <select 
+                        name="paymentMethod" 
+                        value={formData.paymentMethod} 
+                        onChange={handleInputChange}
+                        style={getInputStyle(isEditing)}
+                      >
+                        <option value="">Ödeme yöntemi seçin</option>
+                        <option value="bank_transfer">Havale/EFT</option>
+                        <option value="check">Çek</option>
+                        <option value="cash">Nakit</option>
+                        <option value="credit_card">Kredi Kartı</option>
+                        <option value="letter_of_credit">Akreditif</option>
+                        <option value="promissory_note">Senet</option>
+                      </select>
+                    ) : (
+                      <div style={getInputStyle(isEditing)}>
+                        {formData.paymentMethod}
+                      </div>
+                    )}
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Banka Adı
+                    </label>
+                    <input
+                      type="text"
+                      name="bankName"
+                      value={formData.bankName}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Hesap Numarası
+                    </label>
+                    <input
+                      type="text"
+                      name="bankAccount"
+                      value={formData.bankAccount}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      IBAN
+                    </label>
+                    <input
+                      type="text"
+                      name="iban"
+                      value={formData.iban}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Operasyonel Bilgiler */}
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '12px', 
+              background: 'white', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                Operasyonel Bilgiler
+              </h3>
+              
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Teslimat Kapasitesi
+                    </label>
+                    <input
+                      type="text"
+                      name="deliveryCapability"
+                      value={formData.deliveryCapability}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Tedarik Süresi (gün)
+                    </label>
+                    <input
+                      type="number"
+                      name="leadTime"
+                      value={formData.leadTime}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Minimum Sipariş Miktarı
+                    </label>
+                    <input
+                      type="text"
+                      name="minimumOrderQuantity"
+                      value={formData.minimumOrderQuantity}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Kalite Sertifikası
+                    </label>
+                    {isEditing ? (
+                      <select 
+                        name="qualityCertification" 
+                        value={formData.qualityCertification} 
+                        onChange={handleInputChange}
+                        style={getInputStyle(isEditing)}
+                      >
+                        <option value="">Sertifika seçin</option>
+                        <option value="ISO_9001">ISO 9001</option>
+                        <option value="ISO_14001">ISO 14001</option>
+                        <option value="TS_EN_ISO">TS EN ISO</option>
+                        <option value="CE">CE İşareti</option>
+                        <option value="TSE">TSE</option>
+                        <option value="OHSAS_18001">OHSAS 18001</option>
+                        <option value="other">Diğer</option>
+                      </select>
+                    ) : (
+                      <div style={getInputStyle(isEditing)}>
+                        {formData.qualityCertification}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Şirket Bilgileri */}
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '12px', 
+              background: 'white', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                Şirket Bilgileri
+              </h3>
+              
+              <div style={{ display: 'grid', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Kuruluş Yılı
+                    </label>
+                    <input
+                      type="number"
+                      name="yearEstablished"
+                      value={formData.yearEstablished}
+                      readOnly={!isEditing}
+                      onChange={handleInputChange}
+                      min="1900"
+                      max="2025"
+                      style={getInputStyle(isEditing)}
+                    />
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Çalışan Sayısı
+                    </label>
+                    {isEditing ? (
+                      <select 
+                        name="employeeCount" 
+                        value={formData.employeeCount} 
+                        onChange={handleInputChange}
+                        style={getInputStyle(isEditing)}
+                      >
+                        <option value="">Çalışan sayısı seçin</option>
+                        <option value="1-10">1-10 kişi</option>
+                        <option value="11-50">11-50 kişi</option>
+                        <option value="51-100">51-100 kişi</option>
+                        <option value="101-500">101-500 kişi</option>
+                        <option value="501-1000">501-1000 kişi</option>
+                        <option value="1000+">1000+ kişi</option>
+                      </select>
+                    ) : (
+                      <div style={getInputStyle(isEditing)}>
+                        {formData.employeeCount}
                       </div>
                     )}
                   </div>
                 </div>
                 
-                {/* Malzemeler Listesi */}
-                <div style={{ minHeight: '100px' }}>
-                  {supplierMaterials.length === 0 ? (
-                    <div style={{ 
-                      textAlign: 'center', 
-                      padding: '40px 20px', 
-                      color: '#6b7280', 
-                      fontSize: '13px',
-                      border: '2px dashed #e5e7eb',
-                      borderRadius: '6px',
-                      backgroundColor: '#f9fafb'
-                    }}>
-                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>📦</div>
-                      <div style={{ fontWeight: '500', marginBottom: '4px' }}>Henüz malzeme eklenmedi</div>
-                      <div style={{ fontSize: '11px', color: '#9ca3af' }}>Yukarıdaki "Malzeme Ekle" butonunu kullanarak malzeme ekleyebilirsiniz</div>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {supplierMaterials.map((material, index) => (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Risk Seviyesi
+                    </label>
+                    {isEditing ? (
+                      <select 
+                        name="riskLevel" 
+                        value={formData.riskLevel} 
+                        onChange={handleInputChange}
+                        style={getInputStyle(isEditing)}
+                      >
+                        <option value="">Risk seviyesi seçin</option>
+                        <option value="low">Düşük Risk</option>
+                        <option value="medium">Orta Risk</option>
+                        <option value="high">Yüksek Risk</option>
+                      </select>
+                    ) : (
+                      <div style={getInputStyle(isEditing)}>
+                        {formData.riskLevel}
+                      </div>
+                    )}
+                  </div>
+                  <div style={fieldContainerStyle}>
+                    <label style={labelStyle}>
+                      Uyumluluk Durumu
+                    </label>
+                    {isEditing ? (
+                      <select 
+                        name="complianceStatus" 
+                        value={formData.complianceStatus} 
+                        onChange={handleInputChange}
+                        style={getInputStyle(isEditing)}
+                      >
+                        <option value="">Uyumluluk durumu seçin</option>
+                        <option value="pending">Beklemede</option>
+                        <option value="approved">Onaylandı</option>
+                        <option value="rejected">Reddedildi</option>
+                        <option value="under_review">İnceleniyor</option>
+                      </select>
+                    ) : (
+                      <div style={getInputStyle(isEditing)}>
+                        {formData.complianceStatus}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Notlar */}
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '12px', 
+              background: 'white', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                Notlar
+              </h3>
+              
+              <div style={fieldContainerStyle}>
+                <label style={labelStyle}>
+                  Notlar
+                </label>
+                <textarea
+                  name="notes"
+                  value={formData.notes}
+                  readOnly={!isEditing}
+                  onChange={handleInputChange}
+                  rows="3"
+                  placeholder="Tedarikçi hakkında notlar..."
+                  style={{ 
+                    ...getInputStyle(isEditing),
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Malzemeler */}
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '12px', 
+              background: 'white', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827' }}>
+                Tedarik Edilen Malzemeler
+              </h3>
+              
+              {/* Malzeme Ekleme Butonları */}
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                <div style={{ width: '60%' }}>
+                  <button 
+                    type="button" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowExistingMaterials(true);
+                    }}
+                    style={{
+                      padding: '12px 24px',
+                      border: '2px dashed #d1d5db',
+                      borderRadius: '8px',
+                      background: '#f9fafb',
+                      color: '#374151',
+                      cursor: 'pointer',
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      fontSize: '14px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    <span style={{ fontSize: '18px' }}>📋</span>
+                    Mevcut Malzeme Seç
+                  </button>
+                </div>
+                <div style={{ width: '40%' }}>
+                  <button 
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onAddNewMaterial) {
+                        onAddNewMaterial();
+                      }
+                    }}
+                    style={{
+                      padding: '12px 16px',
+                      border: 'none',
+                      borderRadius: '8px',
+                      background: '#3b82f6',
+                      color: 'white',
+                      cursor: 'pointer',
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      fontSize: '14px',
+                      fontWeight: '500'
+                    }}
+                  >
+                    <span style={{ fontSize: '18px' }}>➕</span>
+                    Yeni Malzeme Ekle
+                  </button>
+                </div>
+              </div>
+              
+              <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                {selectedSupplier?.materials && selectedSupplier.materials.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {selectedSupplier.materials.map((material, index) => (
+                      <div 
+                        key={index}
+                        style={{ 
+                          padding: '6px 8px', 
+                          background: '#f8fafc', 
+                          border: '1px solid #e5e7eb', 
+                          borderRadius: '4px',
+                          fontSize: '12px'
+                        }}
+                      >
+                        <div style={{ fontWeight: '500', color: '#374151' }}>
+                          {material.name || material.materialName}
+                        </div>
+                        {material.code && (
+                          <div style={{ color: '#6b7280', fontSize: '11px' }}>
+                            Kod: {material.code}
+                          </div>
+                        )}
+                        {material.price && (
+                          <div style={{ color: '#6b7280', fontSize: '11px' }}>
+                            Fiyat: {material.price} {material.currency || 'TRY'}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: '20px', 
+                    color: '#9ca3af',
+                    fontStyle: 'italic'
+                  }}>
+                    Bu tedarikçiye henüz malzeme eklenmemiş
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Mevcut Malzemeler Seçim Modalı */}
+            {showExistingMaterials && (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 2000
+              }}
+              onClick={() => setShowExistingMaterials(false)}
+              >
+                <div style={{
+                  backgroundColor: 'white',
+                  borderRadius: '8px',
+                  width: '90%',
+                  maxWidth: '800px',
+                  maxHeight: '80vh',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}
+                onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Modal Header */}
+                  <div style={{
+                    padding: '20px',
+                    borderBottom: '1px solid #e5e7eb',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+                      Mevcut Malzemelerden Seç
+                    </h3>
+                    <button
+                      onClick={() => setShowExistingMaterials(false)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        fontSize: '24px',
+                        cursor: 'pointer',
+                        color: '#6b7280'
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  {/* Arama */}
+                  <div style={{ padding: '20px', borderBottom: '1px solid #e5e7eb' }}>
+                    <input
+                      type="text"
+                      placeholder="Malzeme ara..."
+                      value={materialSearchTerm}
+                      onChange={(e) => setMaterialSearchTerm(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '12px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        fontSize: '14px',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  {/* Malzemeler Listesi */}
+                  <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      {/* Gerçek malzemeler listesi */}
+                      {(materialsLoading ? [] : materials || [])
+                        .filter(material => 
+                          materialSearchTerm === '' || 
+                          material.name?.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
+                          material.code?.toLowerCase().includes(materialSearchTerm.toLowerCase())
+                        ).map((material) => (
                         <div
                           key={material.id}
+                          onClick={() => {
+                            // Malzemeyi tedarikçiye ekle
+                            if (onAddMaterialToSupplier) {
+                              onAddMaterialToSupplier(selectedSupplier, material);
+                            }
+                            setShowExistingMaterials(false);
+                          }}
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '12px',
+                            padding: '16px',
                             border: '1px solid #e5e7eb',
                             borderRadius: '6px',
-                            backgroundColor: 'white',
-                            transition: 'all 0.2s ease'
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            backgroundColor: '#f9fafb'
                           }}
                           onMouseEnter={(e) => {
-                            e.target.style.backgroundColor = '#f9fafb';
+                            e.target.style.backgroundColor = '#f3f4f6';
                             e.target.style.borderColor = '#d1d5db';
                           }}
                           onMouseLeave={(e) => {
-                            e.target.style.backgroundColor = 'white';
+                            e.target.style.backgroundColor = '#f9fafb';
                             e.target.style.borderColor = '#e5e7eb';
                           }}
                         >
-                          <div style={{ flex: 1 }}>
-                            <div style={{ 
-                              display: 'flex', 
-                              alignItems: 'center', 
-                              gap: '12px',
-                              marginBottom: '4px'
-                            }}>
-                              <span style={{ 
-                                fontWeight: '600', 
-                                fontSize: '13px', 
-                                color: '#111827' 
-                              }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={fieldContainerStyle}>
+                              <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '4px' }}>
                                 {material.code} - {material.name}
-                              </span>
-                              <span style={{
-                                fontSize: '10px',
-                                color: '#6b7280',
-                                backgroundColor: '#f3f4f6',
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontWeight: '500'
-                              }}>
-                                {getCategoryLabel(material.category)}
-                              </span>
+                              </div>
+                              <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                Kategori: {getCategoryLabel(material.category)}
+                              </div>
                             </div>
-                            <div style={{ 
-                              fontSize: '11px', 
-                              color: '#6b7280',
-                              display: 'flex',
-                              gap: '12px'
-                            }}>
-                              <span>📦 {material.stock} {material.unit}</span>
-                              <span>💰 {material.lastPrice || material.unitPrice || 0} ₺</span>
-                              <span>📅 {material.addedDate}</span>
+                            <div style={{ fontSize: '14px', fontWeight: '600', color: '#059669' }}>
+                              {material.unitPrice || material.lastPrice || 0} ₺
                             </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveMaterial(material.id)}
-                            disabled={!isEditing}
-                            style={{
-                              padding: '6px',
-                              border: 'none',
-                              background: 'transparent',
-                              color: isEditing ? '#ef4444' : '#9ca3af',
-                              cursor: isEditing ? 'pointer' : 'not-allowed',
-                              borderRadius: '4px',
-                              fontSize: '16px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              opacity: isEditing ? 1 : 0.5
-                            }}
-                            onMouseEnter={(e) => {
-                              if (isEditing) {
-                                e.target.style.backgroundColor = '#fef2f2'
-                              }
-                            }}
-                            onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                            title={isEditing ? "Malzemeyi kaldır" : "Düzenleme moduna geçin"}
-                          >
-                            🗑️
-                          </button>
                         </div>
                       ))}
+                      
+                      {/* Yükleniyor durumu */}
+                      {materialsLoading && (
+                        <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+                          Malzemeler yükleniyor...
+                        </div>
+                      )}
+                      
+                      {/* Malzeme bulunamadı */}
+                      {!materialsLoading && materials && materials.length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+                          Henüz malzeme eklenmemiş.
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                
-                {/* Tedarik Özeti */}
-                <div style={{ 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '8px', 
-                  marginTop: '15px',
-                  padding: '12px',
-                  backgroundColor: '#f8fafc',
-                  borderRadius: '4px',
-                  border: '1px solid #e5e7eb'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151', fontSize: '12px' }}>Ödeme Koşulları:</span>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        name="paymentTerms"
-                        value={formData.paymentTerms}
-                        onChange={handleInputChange}
-                        className="editable-input"
-                        style={{ flex: 1 }}
-                      />
-                    ) : (
-                      <span style={{ flex: 1, padding: '2px', color: '#1f2937', fontSize: '12px' }}>{formData.paymentTerms}</span>
-                    )}
                   </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151', fontSize: '12px' }}>Son Sipariş Tarihi:</span>
-                    <span style={{ flex: 1, padding: '2px', color: '#1f2937', fontSize: '12px' }}>{formData.lastOrderDate}</span>
-                    <small style={{ color: '#9ca3af', fontSize: '10px', fontStyle: 'italic', marginLeft: '8px' }}>*Otomatik güncellenir</small>
-                  </div>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151', fontSize: '12px' }}>Toplam Sipariş:</span>
-                    <span style={{ flex: 1, padding: '2px', color: '#1f2937', fontSize: '12px' }}>{formData.totalOrders}</span>
-                    <small style={{ color: '#9ca3af', fontSize: '10px', fontStyle: 'italic', marginLeft: '8px' }}>*Otomatik hesaplanır</small>
-                  </div>
-                </div>
-              </div>
 
-              {/* Alt Bölüm: Tedarik Geçmişi */}
-              <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h3 style={{ margin: '0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Tedarik Geçmişi</h3>
-                  <div style={{ fontSize: '11px', color: '#6b7280', fontStyle: 'italic' }}>
-                    Son 12 aylık tedarik hareketleri
+                  {/* Modal Footer */}
+                  <div style={{
+                    padding: '20px',
+                    borderTop: '1px solid #e5e7eb',
+                    display: 'flex',
+                    justifyContent: 'end'
+                  }}>
+                    <button
+                      onClick={() => setShowExistingMaterials(false)}
+                      style={{
+                        padding: '8px 16px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        background: 'white',
+                        color: '#374151',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      İptal
+                    </button>
                   </div>
                 </div>
-                
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#f8fafc' }}>
-                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Tarih</th>
-                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Malzeme No</th>
-                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Malzeme Adı</th>
-                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Miktar</th>
-                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Birim Fiyat</th>
-                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Toplam</th>
-                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'center' }}>Durum</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td colSpan="7" style={{ 
-                        border: '1px solid #e0e0e0', 
-                        padding: '40px 20px', 
-                        textAlign: 'center',
-                        color: '#6b7280',
-                        fontSize: '13px',
-                        backgroundColor: '#f9fafb'
-                      }}>
-                        <div style={{ fontSize: '20px', marginBottom: '8px' }}>📊</div>
-                        <div style={{ fontWeight: '500', marginBottom: '4px' }}>Henüz tedarik geçmişi bulunmuyor</div>
-                        <div style={{ fontSize: '11px', color: '#9ca3af' }}>İlk tedarik işleminizden sonra geçmiş burada görünecektir</div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
               </div>
-            </div>
-            </form>
-          </div>
+            )}
+
+          </form>
         </div>
       </div>
     )
   }
 
-  // Mevcut Malzemeler Modal'ı
-  const ExistingMaterialsModal = () => {
-    if (!showExistingMaterials) return null
-
-    // Malzemeleri filtrele
-    const filteredMaterials = materials.filter(material => {
-      const searchLower = materialSearchTerm.toLowerCase();
-      return material.code.toLowerCase().includes(searchLower) ||
-             material.name.toLowerCase().includes(searchLower) ||
-             material.category.toLowerCase().includes(searchLower);
-    });
-
+  if (loading || materialsLoading || categoriesLoading) {
     return (
-      <div className="modal-overlay" style={{ zIndex: 1002 }} onClick={() => setShowExistingMaterials(false)}>
-        <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', zIndex: 1002 }}>
-          <div className="modal-header">
-            <h2>Mevcut Malzemelerden Seç</h2>
-            <button className="modal-close" onClick={() => setShowExistingMaterials(false)}>×</button>
-          </div>
-          
-          <div className="modal-form">
-            {/* Arama Kutusu */}
-            <div style={{ marginBottom: '8px' }}>
-              <input 
-                type="text" 
-                placeholder="Malzeme kodu veya adı ile ara..." 
-                value={materialSearchTerm}
-                onChange={(e) => setMaterialSearchTerm(e.target.value)}
-                style={{ 
-                  width: '100%', 
-                  padding: '6px 10px', 
-                  border: '1px solid #e5e7eb', 
-                  borderRadius: '4px',
-                  fontSize: '12px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-              />
-            </div>
-            
-            {/* Malzemeler Listesi */}
-            <div style={{ maxHeight: '380px', overflowY: 'auto' }}>
-              {materialsLoading ? (
-                <div style={{ textAlign: 'center', padding: '24px', color: '#6b7280', fontSize: '12px' }}>
-                  <div style={{ fontSize: '14px', marginBottom: '4px' }}>🔄</div>
-                  Malzemeler yükleniyor...
-                </div>
-              ) : filteredMaterials.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '24px', color: '#6b7280', fontSize: '12px' }}>
-                  <div style={{ fontSize: '16px', marginBottom: '4px' }}>📦</div>
-                  {materialSearchTerm ? 'Arama kriterine uygun malzeme bulunamadı' : 'Hiç malzeme bulunamadı'}
-                </div>
-              ) : (
-                filteredMaterials.map(material => {
-                  const isInactive = material.status === 'Pasif';
-                  return (
-                    <div 
-                      key={material.id}
-                      style={{ 
-                        padding: '8px', 
-                        border: '1px solid #f3f4f6', 
-                        borderRadius: '4px', 
-                        marginBottom: '4px',
-                        cursor: isInactive ? 'not-allowed' : 'pointer',
-                        transition: 'all 0.1s ease',
-                        background: isInactive ? '#fef7f7' : 'white',
-                        opacity: isInactive ? 0.7 : 1,
-                        color: isInactive ? '#9ca3af' : '#111827'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isInactive) {
-                          e.target.style.backgroundColor = '#f9fafb';
-                          e.target.style.borderColor = '#e5e7eb';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isInactive) {
-                          e.target.style.backgroundColor = 'white';
-                          e.target.style.borderColor = '#f3f4f6';
-                        }
-                      }}
-                      onClick={() => {
-                        if (!isInactive) {
-                          handleAddExistingMaterial(material);
-                        }
-                      }}
-                    >
-                      {/* Malzeme Başlığı */}
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'flex-start',
-                        marginBottom: '4px'
-                      }}>
-                        <div style={{ 
-                          fontWeight: '600', 
-                          fontSize: '12px',
-                          color: isInactive ? '#9ca3af' : '#111827',
-                          lineHeight: '1.3'
-                        }}>
-                          {material.code} - {material.name}
-                        </div>
-                        {isInactive && (
-                          <span style={{
-                            fontSize: '8px',
-                            color: '#ef4444',
-                            backgroundColor: '#fef2f2',
-                            padding: '1px 4px',
-                            borderRadius: '6px',
-                            border: '1px solid #fecaca',
-                            fontWeight: '600',
-                            letterSpacing: '0.3px',
-                            flexShrink: 0
-                          }}>
-                            PASİF
-                          </span>
-                        )}
-                      </div>
-                      
-                      {/* Malzeme Detayları */}
-                      <div style={{ 
-                        fontSize: '10px', 
-                        color: isInactive ? '#9ca3af' : '#6b7280',
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '6px',
-                        lineHeight: '1.2'
-                      }}>
-                        <span>📁 {material.category}</span>
-                        <span>📦 {material.stock} {material.unit}</span>
-                        {material.unitPrice && (
-                          <span>💰 {material.unitPrice} ₺</span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div className="flex justify-center items-center h-48">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <span className="ml-2 text-gray-600">
+            {loading ? 'Tedarikçiler yükleniyor...' : 
+             materialsLoading ? 'Malzemeler yükleniyor...' : 
+             'Kategoriler yükleniyor...'}
+          </span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="materials-table">
-      {/* Tab Navigation */}
-      <div className="materials-tabs">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.label}
-            <span className="tab-count">
-              ({tab.id === 'all' ? dummySuppliers.length : dummySuppliers.filter(s => s.category === tab.id).length})
-            </span>
-          </button>
-        ))}
-      </div>
+    <div className="suppliers-container" style={{ 
+      display: 'flex', 
+      gap: '20px', 
+      height: 'calc(100vh - 200px)',
+      flexDirection: window.innerWidth <= 768 ? 'column' : 'row'
+    }}>
+      {/* Sol Panel - Tablo */}
+      <div className="suppliers-table-panel" style={{ 
+        flex: window.innerWidth <= 768 ? 'none' : '1', 
+        minWidth: window.innerWidth <= 768 ? 'auto' : '300px', 
+        display: 'flex', 
+        flexDirection: 'column',
+        height: window.innerWidth <= 768 ? '50vh' : 'auto'
+      }}>
+        <div className="suppliers-table">
+          {/* Tab Navigation - Yatayda Kaydırılabilir */}
+          <div className="suppliers-tabs" style={{
+            display: 'flex',
+            background: '#f8fafc',
+            borderBottom: '1px solid #e5e7eb',
+            overflowX: 'auto',
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#cbd5e1 #f1f5f9',
+            whiteSpace: 'nowrap'
+          }}>
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '12px 16px',
+                  border: 'none',
+                  background: activeTab === tab.id ? 'white' : 'transparent',
+                  color: activeTab === tab.id ? '#1e293b' : '#64748b',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  borderBottom: activeTab === tab.id ? '2px solid #3b82f6' : '2px solid transparent',
+                  transition: 'all 0.2s',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0
+                }}
+              >
+                {tab.label}
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: '20px',
+                  height: '18px',
+                  padding: '0 6px',
+                  background: activeTab === tab.id ? '#dbeafe' : '#e2e8f0',
+                  color: activeTab === tab.id ? '#1d4ed8' : '#64748b',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  borderRadius: '9px'
+                }}>
+                  {tab.id === 'all' ? filteredSuppliers.length : suppliers.filter(s => s.category === tab.id).length}
+                </span>
+              </button>
+            ))}
+          </div>
 
-      {/* Table Content */}
-      <div 
-        className="table-content"
-        style={{
-          backgroundColor: '#ffffff',
-          borderRadius: '0 0 8px 8px',
-          overflow: 'hidden'
-        }}
-      >
-        <table 
-          className="table"
-          style={{
-            width: '100%',
-            borderCollapse: 'collapse',
-            fontSize: '13px',
-            backgroundColor: '#ffffff'
-          }}
-        >
-          <thead>
-            <tr 
+          {/* Table Content */}
+          <div 
+            className="table-content"
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '0 0 8px 8px',
+              overflow: 'hidden',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <table 
+                className="suppliers-table-grid"
+                style={{
+                  width: '100%',
+                  borderCollapse: 'collapse',
+                  fontSize: '13px',
+                  backgroundColor: '#ffffff'
+                }}
+              >
+          <thead className="suppliers-table-header">
+            <tr className="suppliers-header-row"
               style={{
                 backgroundColor: '#f8fafc',
                 borderBottom: '2px solid #e2e8f0'
               }}
             >
-                            <th 
+              <th 
                 style={{ 
                   whiteSpace: 'nowrap',
                   padding: '12px 8px',
@@ -1178,195 +1779,117 @@ export default function SuppliersTable({
                   Firma Adı {getSortIcon('name')}
                 </button>
               </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
-                <button 
-                  type="button"
-                  onClick={() => handleSort('contactPerson')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: sortField === 'contactPerson' ? '#007bff' : 'inherit'
-                  }}
-                >
-                  Yetkili Kişi {getSortIcon('contactPerson')}
-                </button>
-              </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
-                <button 
-                  type="button"
-                  onClick={() => handleSort('phone1')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: sortField === 'phone1' ? '#007bff' : 'inherit'
-                  }}
-                >
-                  Tel1 {getSortIcon('phone1')}
-                </button>
-              </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
-                <button 
-                  type="button"
-                  onClick={() => handleSort('email1')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: sortField === 'email1' ? '#007bff' : 'inherit'
-                  }}
-                >
-                  Mail1 {getSortIcon('email1')}
-                </button>
-              </th>
             </tr>
           </thead>
-          <tbody>
-            {filteredAndSortedSuppliers.map((supplier, index) => (
-              <tr 
-                key={supplier.id} 
-                className="clickable-row"
-                style={{
-                  backgroundColor: '#ffffff',
-                  borderBottom: '1px solid #e2e8f0',
-                  cursor: 'pointer'
-                }}
-                onClick={() => handleRowClick(supplier)}
-              >
-                <td
-                  style={{
-                    padding: '8px 12px',
-                    borderBottom: '1px solid #e2e8f0',
-                    fontSize: '13px'
-                  }}
-                >
-                  {supplier.code}
+          <tbody className="suppliers-table-body">
+            {filteredAndSortedSuppliers.length === 0 ? (
+              <tr>
+                <td colSpan="2" style={{ 
+                  textAlign: 'center', 
+                  padding: '40px 20px', 
+                  color: '#6b7280', 
+                  fontSize: '13px'
+                }}>
+                  Henüz tedarikçi eklenmemiş.
                 </td>
-                <td
+              </tr>
+            ) : (
+              filteredAndSortedSuppliers.map((supplier, index) => (
+                <tr 
+                  key={supplier.id} 
+                  className={supplier.status === 'Pasif' ? 'inactive' : 'clickable-row'}
                   style={{
+                    backgroundColor: selectedSupplier?.id === supplier.id ? '#f0f9ff' : 
+                                   supplier.status === 'Pasif' ? '#fef2f2' : '#ffffff',
+                    borderBottom: '1px solid #e2e8f0',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s',
+                    opacity: supplier.status === 'Pasif' ? 0.6 : 1
+                  }}
+                  onClick={() => handleRowClick(supplier)}
+                >
+                  <td style={{
                     padding: '8px 12px',
                     borderBottom: '1px solid #e2e8f0',
                     fontSize: '13px'
-                  }}
-                >
-                  <div style={{ background: 'transparent' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent' }}>
-                      <strong style={{ background: 'transparent' }}>{supplier.name}</strong>
-                      <span 
-                        className="status-badge"
-                        style={{ 
-                          backgroundColor: supplier.status === 'Aktif' ? '#dcfce7' : '#fee2e2',
-                          color: getStatusColor(supplier.status),
+                  }}>
+                    {supplier.status === 'Pasif' ? (
+                      <div className="material-name-cell">
+                        <strong style={{ color: '#000000' }}>{supplier.code}</strong>
+                      </div>
+                    ) : (
+                      <strong style={{ color: '#000000' }}>{supplier.code}</strong>
+                    )}
+                  </td>
+                  <td style={{
+                    padding: '8px 12px',
+                    borderBottom: '1px solid #e2e8f0',
+                    fontSize: '13px'
+                  }}>
+                    {supplier.status === 'Pasif' ? (
+                      <div className="material-name-cell">
+                        <strong style={{ color: '#000000' }}>{supplier.name}</strong>
+                        <span style={{ 
+                          backgroundColor: '#fee2e2',
+                          color: '#dc2626',
                           padding: '2px 6px',
                           borderRadius: '8px',
                           fontSize: '10px',
                           fontWeight: '500',
-                          flexShrink: 0
-                        }}
-                      >
-                        {supplier.status}
-                      </span>
-                    </div>
-                  </div>
-                </td>
-                <td
-                  style={{
-                    padding: '8px 12px',
-                    borderBottom: '1px solid #e2e8f0',
-                    fontSize: '13px'
-                  }}
-                >
-                  <span style={{ background: 'transparent' }}>{supplier.contactPerson}</span>
-                </td>
-                <td
-                  style={{
-                    padding: '8px 12px',
-                    borderBottom: '1px solid #e2e8f0',
-                    fontSize: '13px'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent' }}>
-                    <span style={{ background: 'transparent' }}>{supplier.phone1}</span>
-                    <button 
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '4px',
-                        borderRadius: '4px',
-                        transition: 'background 0.2s'
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        window.open(`tel:${supplier.phone1}`)
-                      }}
-                      title={`Telefon: ${supplier.phone1}`}
-                      onMouseOver={(e) => e.target.style.background = '#dbeafe'}
-                      onMouseOut={(e) => e.target.style.background = 'none'}
-                    >
-                      📞
-                    </button>
-                  </div>
-                </td>
-                <td
-                  style={{
-                    padding: '8px 12px',
-                    borderBottom: '1px solid #e2e8f0',
-                    fontSize: '13px'
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent' }}>
-                    <span style={{ background: 'transparent' }}>{supplier.email1}</span>
-                    <button 
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        padding: '4px',
-                        borderRadius: '4px',
-                        transition: 'background 0.2s'
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        window.open(`mailto:${supplier.email1}`)
-                      }}
-                      title={`Email: ${supplier.email1}`}
-                      onMouseOver={(e) => e.target.style.background = '#fef3c7'}
-                      onMouseOut={(e) => e.target.style.background = 'none'}
-                    >
-                      ✉️
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                          marginLeft: '8px'
+                        }}>
+                          Pasif
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <strong style={{ color: '#000000' }}>{supplier.name}</strong>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
+            </div>
+          </div>
+        </div>
       </div>
-      
-      {/* Modal Renders */}
-      <SupplierDetailModal 
-        supplier={selectedSupplier}
-        isOpen={isDetailModalOpen}
-        onClose={handleCloseModal}
-      />
-      <ExistingMaterialsModal />
+
+      {/* Sağ Panel - Detaylar */}
+      <div className="supplier-details-panel" style={{ 
+        flex: window.innerWidth <= 768 ? 'none' : '3',
+        width: window.innerWidth <= 768 ? '100%' : 'auto',
+        height: window.innerWidth <= 768 ? '50vh' : 'auto',
+        background: '#f8fafc', 
+        border: '1px solid #e5e7eb', 
+        borderRadius: '8px',
+        padding: '20px',
+        overflowY: 'auto'
+      }}>
+        {selectedSupplier ? (
+          <SupplierDetailPanel />
+        ) : (
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            height: '100%',
+            color: '#6b7280',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600' }}>
+              Tedarikçi Seçin
+            </h3>
+            <p style={{ margin: 0, fontSize: '14px' }}>
+              Detayları görüntülemek için sol taraftan bir tedarikçi seçin
+            </p>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
