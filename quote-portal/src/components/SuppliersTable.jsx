@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useMaterials } from '../hooks/useFirebaseMaterials'
 
 const dummySuppliers = [
   {
@@ -101,8 +102,12 @@ const dummySuppliers = [
 export default function SuppliersTable({ 
   categories = [], 
   onEditSupplier, 
-  onSupplierDetails 
+  onSupplierDetails,
+  onAddNewMaterial
 }) {
+  // Firebase'den malzemeleri getir
+  const { materials, loading: materialsLoading } = useMaterials(true)
+  
   const [activeTab, setActiveTab] = useState('all')
   const [sortField, setSortField] = useState('')
   const [sortDirection, setSortDirection] = useState('asc')
@@ -111,7 +116,8 @@ export default function SuppliersTable({
   const [isEditing, setIsEditing] = useState(false)
   const [showMaterialAddOptions, setShowMaterialAddOptions] = useState(false)
   const [showExistingMaterials, setShowExistingMaterials] = useState(false)
-  const [showNewMaterialModal, setShowNewMaterialModal] = useState(false)
+  const [materialSearchTerm, setMaterialSearchTerm] = useState('')
+  const [supplierMaterials, setSupplierMaterials] = useState([]) // Tedarikçiye eklenen malzemeler
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -207,18 +213,6 @@ export default function SuppliersTable({
     return status === 'Aktif' ? '#10b981' : '#ef4444'
   }
 
-  const getRatingStars = (rating) => {
-    const fullStars = Math.floor(rating)
-    const hasHalfStar = rating % 1 !== 0
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-        {'⭐'.repeat(fullStars)}
-        {hasHalfStar && '⭐'}
-        <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '4px' }}>({rating})</span>
-      </div>
-    )
-  }
-
   const handleRowClick = (supplier) => {
     setSelectedSupplier(supplier)
     setFormData({
@@ -238,8 +232,113 @@ export default function SuppliersTable({
       lastOrderDate: supplier.lastOrderDate,
       fax1: supplier.fax1 || ''
     })
+    // Tedarikçi değiştiğinde malzemeler listesini temizle
+    setSupplierMaterials([])
     setIsEditing(false)
     setIsDetailModalOpen(true)
+  }
+
+  // Mevcut malzeme ekleme fonksiyonu
+  const handleAddExistingMaterial = (material) => {
+    const isAlreadyAdded = supplierMaterials.some(sm => sm.id === material.id)
+    
+    if (isAlreadyAdded) {
+      alert('Bu malzeme zaten eklenmiş!')
+      return
+    }
+
+    const newSupplierMaterial = {
+      ...material,
+      addedDate: new Date().toISOString().split('T')[0],
+      lastSupplyDate: formData.lastOrderDate || new Date().toISOString().split('T')[0],
+      totalSupplied: 0,
+      lastPrice: material.unitPrice || 0
+    }
+
+    setSupplierMaterials(prev => [...prev, newSupplierMaterial])
+    setShowExistingMaterials(false)
+    setMaterialSearchTerm('')
+    
+    // Otomatik kaydet - Firebase'e malzeme-tedarikçi ilişkisini kaydet
+    saveSupplierMaterial(newSupplierMaterial)
+    console.log('Tedarikçiye malzeme eklendi ve kaydedildi:', newSupplierMaterial)
+  }
+
+  // Yeni malzeme oluşturulduğunda çağırılacak
+  const handleNewMaterialCreated = (newMaterial) => {
+    // Yeni malzeme otomatik olarak tedarikçiye eklenir ve kaydedilir
+    handleAddExistingMaterial(newMaterial)
+  }
+
+  // Tedarikçi-malzeme ilişkisini Firebase'e kaydetme
+  const saveSupplierMaterial = async (supplierMaterial) => {
+    try {
+      // Firebase'e tedarikçi-malzeme ilişkisini kaydet
+      const supplierMaterialData = {
+        supplierId: selectedSupplier?.id,
+        supplierCode: formData.code,
+        materialId: supplierMaterial.id,
+        materialCode: supplierMaterial.code,
+        addedDate: supplierMaterial.addedDate,
+        lastSupplyDate: supplierMaterial.lastSupplyDate,
+        lastPrice: supplierMaterial.lastPrice,
+        totalSupplied: supplierMaterial.totalSupplied,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }
+
+      // API call yapılacak
+      console.log('Firebase\'e kaydedilecek tedarikçi-malzeme ilişkisi:', supplierMaterialData)
+      
+      // Burada gerçek API call'u yapacağız:
+      // const response = await fetch('/api/supplier-materials', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json' },
+      //   body: JSON.stringify(supplierMaterialData)
+      // })
+      
+    } catch (error) {
+      console.error('Tedarikçi-malzeme ilişkisi kaydedilirken hata:', error)
+      alert('Malzeme eklenirken bir hata oluştu!')
+    }
+  }
+
+  // Malzeme silme fonksiyonu - sadece düzenleme modunda
+  const handleRemoveMaterial = async (materialId) => {
+    if (!isEditing) {
+      alert('Malzeme silmek için önce düzenleme moduna geçin!')
+      return
+    }
+
+    const confirmed = window.confirm('Bu malzemeyi tedarikçiden kaldırmak istediğinizden emin misiniz?')
+    if (!confirmed) return
+
+    try {
+      // Firebase'den tedarikçi-malzeme ilişkisini sil
+      await deleteSupplierMaterial(materialId)
+      
+      setSupplierMaterials(prev => prev.filter(sm => sm.id !== materialId))
+      console.log('Malzeme tedarikçiden kaldırıldı:', materialId)
+      
+    } catch (error) {
+      console.error('Malzeme silinirken hata:', error)
+      alert('Malzeme silinirken bir hata oluştu!')
+    }
+  }
+
+  // Tedarikçi-malzeme ilişkisini Firebase'den silme
+  const deleteSupplierMaterial = async (materialId) => {
+    try {
+      console.log('Firebase\'den silinecek malzeme:', materialId)
+      
+      // Burada gerçek API call'u yapacağız:
+      // const response = await fetch(`/api/supplier-materials/${selectedSupplier?.id}/${materialId}`, {
+      //   method: 'DELETE'
+      // })
+      
+    } catch (error) {
+      throw error
+    }
   }
 
   const handleCloseModal = () => {
@@ -248,7 +347,7 @@ export default function SuppliersTable({
     setIsEditing(false)
     setShowMaterialAddOptions(false)
     setShowExistingMaterials(false)
-    setShowNewMaterialModal(false)
+    setMaterialSearchTerm('') // Arama terimini temizle
     setFormData({
       code: '',
       name: '',
@@ -540,182 +639,294 @@ export default function SuppliersTable({
             </div>
             
             {/* Alt Bölüm: Tedarik Bilgileri */}
-            <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', position: 'relative' }}>
-                <h3 style={{ margin: '0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Tedarik Bilgileri</h3>
-                <div style={{ position: 'relative' }}>
-                  <button 
-                    type="button" 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowMaterialAddOptions(!showMaterialAddOptions);
-                    }}
-                    className="btn btn-primary btn-sm"
-                    style={{ 
-                      fontSize: '12px', 
-                      padding: '6px 12px',
-                      background: '#d4af37',
-                      border: 'none',
-                      borderRadius: '4px',
-                      color: 'white',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    + Malzeme Ekle
-                    <span style={{ fontSize: '10px' }}>
-                      {showMaterialAddOptions ? '▲' : '▼'}
-                    </span>
-                  </button>
-                  
-                  {/* Malzeme Ekleme Seçenekleri Dropdown */}
-                  {showMaterialAddOptions && (
-                    <div 
-                      style={{
-                        position: 'absolute',
-                        right: '0',
-                        top: '100%',
-                        background: 'white',
-                        border: '1px solid #e0e0e0',
-                        borderRadius: '6px',
-                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                        zIndex: 1001,
-                        minWidth: '200px',
-                        marginTop: '4px'
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              
+              {/* Üst Bölüm: Tedarik Edilen Malzemeler */}
+              <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', position: 'relative' }}>
+                  <h3 style={{ margin: '0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Tedarik Edilen Malzemeler</h3>
+                  <div style={{ position: 'relative' }}>
+                    <button 
+                      type="button" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowMaterialAddOptions(!showMaterialAddOptions);
                       }}
-                      onClick={(e) => e.stopPropagation()}
+                      className="btn btn-primary btn-sm"
+                      style={{ 
+                        fontSize: '12px', 
+                        padding: '6px 12px',
+                        background: '#d4af37',
+                        border: 'none',
+                        borderRadius: '4px',
+                        color: 'white',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
                     >
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowMaterialAddOptions(false);
-                          setShowExistingMaterials(true);
-                        }}
+                      + Malzeme Ekle
+                      <span style={{ fontSize: '10px' }}>
+                        {showMaterialAddOptions ? '▲' : '▼'}
+                      </span>
+                    </button>
+                    
+                    {/* Malzeme Ekleme Seçenekleri Dropdown */}
+                    {showMaterialAddOptions && (
+                      <div 
                         style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          border: 'none',
+                          position: 'absolute',
+                          right: '0',
+                          top: '100%',
                           background: 'white',
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid #f0f0f0',
-                          borderRadius: '6px 6px 0 0'
+                          border: '1px solid #e0e0e0',
+                          borderRadius: '6px',
+                          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                          zIndex: 1001,
+                          minWidth: '200px',
+                          marginTop: '4px'
                         }}
-                        onMouseEnter={(e) => e.target.style.background = '#f8f9fa'}
-                        onMouseLeave={(e) => e.target.style.background = 'white'}
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        📋 Mevcut Malzemelerden Seç
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowMaterialAddOptions(false);
-                          setShowNewMaterialModal(true);
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '12px 16px',
-                          border: 'none',
-                          background: 'white',
-                          textAlign: 'left',
-                          cursor: 'pointer',
-                          borderRadius: '0 0 6px 6px'
-                        }}
-                        onMouseEnter={(e) => e.target.style.background = '#f8f9fa'}
-                        onMouseLeave={(e) => e.target.style.background = 'white'}
-                      >
-                        ➕ Yeni Malzeme Ekle
-                      </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMaterialAddOptions(false);
+                            setShowExistingMaterials(true);
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            border: 'none',
+                            background: 'white',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            borderBottom: '1px solid #f0f0f0',
+                            borderRadius: '6px 6px 0 0'
+                          }}
+                          onMouseEnter={(e) => e.target.style.background = '#f8f9fa'}
+                          onMouseLeave={(e) => e.target.style.background = 'white'}
+                        >
+                          📋 Mevcut Malzemelerden Seç
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMaterialAddOptions(false);
+                            if (onAddNewMaterial) {
+                              onAddNewMaterial(handleNewMaterialCreated);
+                            }
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            border: 'none',
+                            background: 'white',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            borderRadius: '0 0 6px 6px'
+                          }}
+                          onMouseEnter={(e) => e.target.style.background = '#f8f9fa'}
+                          onMouseLeave={(e) => e.target.style.background = 'white'}
+                        >
+                          ➕ Yeni Malzeme Ekle
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Malzemeler Listesi */}
+                <div style={{ minHeight: '100px' }}>
+                  {supplierMaterials.length === 0 ? (
+                    <div style={{ 
+                      textAlign: 'center', 
+                      padding: '40px 20px', 
+                      color: '#6b7280', 
+                      fontSize: '13px',
+                      border: '2px dashed #e5e7eb',
+                      borderRadius: '6px',
+                      backgroundColor: '#f9fafb'
+                    }}>
+                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>📦</div>
+                      <div style={{ fontWeight: '500', marginBottom: '4px' }}>Henüz malzeme eklenmedi</div>
+                      <div style={{ fontSize: '11px', color: '#9ca3af' }}>Yukarıdaki "Malzeme Ekle" butonunu kullanarak malzeme ekleyebilirsiniz</div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {supplierMaterials.map((material, index) => (
+                        <div
+                          key={material.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '12px',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '6px',
+                            backgroundColor: 'white',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.backgroundColor = '#f9fafb';
+                            e.target.style.borderColor = '#d1d5db';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.backgroundColor = 'white';
+                            e.target.style.borderColor = '#e5e7eb';
+                          }}
+                        >
+                          <div style={{ flex: 1 }}>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '12px',
+                              marginBottom: '4px'
+                            }}>
+                              <span style={{ 
+                                fontWeight: '600', 
+                                fontSize: '13px', 
+                                color: '#111827' 
+                              }}>
+                                {material.code} - {material.name}
+                              </span>
+                              <span style={{
+                                fontSize: '10px',
+                                color: '#6b7280',
+                                backgroundColor: '#f3f4f6',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: '500'
+                              }}>
+                                {getCategoryLabel(material.category)}
+                              </span>
+                            </div>
+                            <div style={{ 
+                              fontSize: '11px', 
+                              color: '#6b7280',
+                              display: 'flex',
+                              gap: '12px'
+                            }}>
+                              <span>📦 {material.stock} {material.unit}</span>
+                              <span>💰 {material.lastPrice || material.unitPrice || 0} ₺</span>
+                              <span>📅 {material.addedDate}</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveMaterial(material.id)}
+                            disabled={!isEditing}
+                            style={{
+                              padding: '6px',
+                              border: 'none',
+                              background: 'transparent',
+                              color: isEditing ? '#ef4444' : '#9ca3af',
+                              cursor: isEditing ? 'pointer' : 'not-allowed',
+                              borderRadius: '4px',
+                              fontSize: '16px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: isEditing ? 1 : 0.5
+                            }}
+                            onMouseEnter={(e) => {
+                              if (isEditing) {
+                                e.target.style.backgroundColor = '#fef2f2'
+                              }
+                            }}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                            title={isEditing ? "Malzemeyi kaldır" : "Düzenleme moduna geçin"}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
+                
+                {/* Tedarik Özeti */}
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '8px', 
+                  marginTop: '15px',
+                  padding: '12px',
+                  backgroundColor: '#f8fafc',
+                  borderRadius: '4px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151', fontSize: '12px' }}>Ödeme Koşulları:</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        name="paymentTerms"
+                        value={formData.paymentTerms}
+                        onChange={handleInputChange}
+                        className="editable-input"
+                        style={{ flex: 1 }}
+                      />
+                    ) : (
+                      <span style={{ flex: 1, padding: '2px', color: '#1f2937', fontSize: '12px' }}>{formData.paymentTerms}</span>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151', fontSize: '12px' }}>Son Sipariş Tarihi:</span>
+                    <span style={{ flex: 1, padding: '2px', color: '#1f2937', fontSize: '12px' }}>{formData.lastOrderDate}</span>
+                    <small style={{ color: '#9ca3af', fontSize: '10px', fontStyle: 'italic', marginLeft: '8px' }}>*Otomatik güncellenir</small>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151', fontSize: '12px' }}>Toplam Sipariş:</span>
+                    <span style={{ flex: 1, padding: '2px', color: '#1f2937', fontSize: '12px' }}>{formData.totalOrders}</span>
+                    <small style={{ color: '#9ca3af', fontSize: '10px', fontStyle: 'italic', marginLeft: '8px' }}>*Otomatik hesaplanır</small>
+                  </div>
+                </div>
               </div>
-              
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginBottom: '15px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#f8fafc' }}>
-                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Kategori</th>
-                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Malzeme No</th>
-                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Malzeme Adı</th>
-                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Son Fiyat</th>
-                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'center' }}>Son Tedarik</th>
-                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Toplam Miktar</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>{getCategoryLabel(formData.category)}</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'center' }}>{formData.lastOrderDate}</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>{formData.totalOrders}</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                  </tr>
-                  <tr>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr style={{ backgroundColor: '#f8fafc', fontWeight: '600' }}>
-                    <td colSpan="5" style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>#Toplam Tedarik</td>
-                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>{formData.totalOrders}</td>
-                  </tr>
-                </tfoot>
-              </table>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151' }}>Ödeme Koşulları:</span>
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      name="paymentTerms"
-                      value={formData.paymentTerms}
-                      onChange={handleInputChange}
-                      className="editable-input"
-                      style={{ flex: 1 }}
-                    />
-                  ) : (
-                    <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.paymentTerms}</span>
-                  )}
+
+              {/* Alt Bölüm: Tedarik Geçmişi */}
+              <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 style={{ margin: '0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Tedarik Geçmişi</h3>
+                  <div style={{ fontSize: '11px', color: '#6b7280', fontStyle: 'italic' }}>
+                    Son 12 aylık tedarik hareketleri
+                  </div>
                 </div>
                 
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151' }}>Son Sipariş Tarihi:</span>
-                  <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.lastOrderDate}</span>
-                  <small style={{ color: '#9ca3af', fontSize: '11px', fontStyle: 'italic', marginLeft: '8px' }}>*Otomatik güncellenir</small>
-                </div>
-                
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151' }}>Toplam Sipariş:</span>
-                  <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.totalOrders}</span>
-                  <small style={{ color: '#9ca3af', fontSize: '11px', fontStyle: 'italic', marginLeft: '8px' }}>*Otomatik hesaplanır</small>
-                </div>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f8fafc' }}>
+                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Tarih</th>
+                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Malzeme No</th>
+                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Malzeme Adı</th>
+                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Miktar</th>
+                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Birim Fiyat</th>
+                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Toplam</th>
+                      <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'center' }}>Durum</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colSpan="7" style={{ 
+                        border: '1px solid #e0e0e0', 
+                        padding: '40px 20px', 
+                        textAlign: 'center',
+                        color: '#6b7280',
+                        fontSize: '13px',
+                        backgroundColor: '#f9fafb'
+                      }}>
+                        <div style={{ fontSize: '20px', marginBottom: '8px' }}>📊</div>
+                        <div style={{ fontWeight: '500', marginBottom: '4px' }}>Henüz tedarik geçmişi bulunmuyor</div>
+                        <div style={{ fontSize: '11px', color: '#9ca3af' }}>İlk tedarik işleminizden sonra geçmiş burada görünecektir</div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
             </form>
@@ -729,13 +940,13 @@ export default function SuppliersTable({
   const ExistingMaterialsModal = () => {
     if (!showExistingMaterials) return null
 
-    // Örnek malzemeler listesi - gerçekte stok tablosundan gelecek
-    const existingMaterials = [
-      { id: 1, code: 'MAL-001', name: 'Çelik Profil 40x40', category: 'Demir-Çelik' },
-      { id: 2, code: 'MAL-002', name: 'Alüminyum Levha 2mm', category: 'Alüminyum' },
-      { id: 3, code: 'MAL-003', name: 'Demir Çubuk 12mm', category: 'Demir-Çelik' },
-      { id: 4, code: 'MAL-004', name: 'Bakır Boru 15mm', category: 'Bakır' }
-    ]
+    // Malzemeleri filtrele
+    const filteredMaterials = materials.filter(material => {
+      const searchLower = materialSearchTerm.toLowerCase();
+      return material.code.toLowerCase().includes(searchLower) ||
+             material.name.toLowerCase().includes(searchLower) ||
+             material.category.toLowerCase().includes(searchLower);
+    });
 
     return (
       <div className="modal-overlay" style={{ zIndex: 1002 }} onClick={() => setShowExistingMaterials(false)}>
@@ -746,176 +957,125 @@ export default function SuppliersTable({
           </div>
           
           <div className="modal-form">
-            <div style={{ marginBottom: '20px' }}>
+            {/* Arama Kutusu */}
+            <div style={{ marginBottom: '8px' }}>
               <input 
                 type="text" 
-                placeholder="Malzeme ara..." 
+                placeholder="Malzeme kodu veya adı ile ara..." 
+                value={materialSearchTerm}
+                onChange={(e) => setMaterialSearchTerm(e.target.value)}
                 style={{ 
                   width: '100%', 
-                  padding: '10px', 
-                  border: '1px solid #e0e0e0', 
-                  borderRadius: '4px' 
+                  padding: '6px 10px', 
+                  border: '1px solid #e5e7eb', 
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
                 }}
+                onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
               />
             </div>
             
-            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
-              {existingMaterials.map(material => (
-                <div 
-                  key={material.id}
-                  style={{ 
-                    padding: '12px', 
-                    border: '1px solid #f0f0f0', 
-                    borderRadius: '4px', 
-                    marginBottom: '8px',
-                    cursor: 'pointer',
-                    transition: 'background-color 0.2s'
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
-                  onClick={() => {
-                    // Malzemeyi tedarikçiye ekle
-                    console.log('Malzeme eklendi:', material);
-                    setShowExistingMaterials(false);
-                  }}
-                >
-                  <div style={{ fontWeight: '600' }}>{material.code} - {material.name}</div>
-                  <div style={{ fontSize: '12px', color: '#666' }}>Kategori: {material.category}</div>
+            {/* Malzemeler Listesi */}
+            <div style={{ maxHeight: '380px', overflowY: 'auto' }}>
+              {materialsLoading ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: '#6b7280', fontSize: '12px' }}>
+                  <div style={{ fontSize: '14px', marginBottom: '4px' }}>🔄</div>
+                  Malzemeler yükleniyor...
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Yeni Malzeme Modal'ı  
-  const NewMaterialModal = () => {
-    if (!showNewMaterialModal) return null
-
-    return (
-      <div className="modal-overlay" style={{ zIndex: 1002 }} onClick={() => setShowNewMaterialModal(false)}>
-        <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', zIndex: 1002 }}>
-          <div className="modal-header">
-            <h2>Yeni Malzeme Ekle</h2>
-            <button className="modal-close" onClick={() => setShowNewMaterialModal(false)}>×</button>
-          </div>
-          
-          <div className="modal-form">
-            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Malzeme Kodu</label>
-                <input 
-                  type="text" 
-                  placeholder="MAL-001" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e0e0e0', 
-                    borderRadius: '4px' 
-                  }}
-                />
-              </div>
-              <div style={{ flex: 2 }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Malzeme Adı</label>
-                <input 
-                  type="text" 
-                  placeholder="Çelik Profil 40x40" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e0e0e0', 
-                    borderRadius: '4px' 
-                  }}
-                />
-              </div>
-            </div>
-            
-            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Kategori</label>
-                <select 
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e0e0e0', 
-                    borderRadius: '4px' 
-                  }}
-                >
-                  <option value="">Kategori seçin</option>
-                  <option value="demir-celik">Demir-Çelik</option>
-                  <option value="aluminyum">Alüminyum</option>
-                  <option value="bakir">Bakır</option>
-                  <option value="plastik">Plastik</option>
-                </select>
-              </div>
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Birim</label>
-                <select 
-                  style={{ 
-                    width: '100%', 
-                    padding: '10px', 
-                    border: '1px solid #e0e0e0', 
-                    borderRadius: '4px' 
-                  }}
-                >
-                  <option value="">Birim seçin</option>
-                  <option value="kg">kg</option>
-                  <option value="adet">Adet</option>
-                  <option value="metre">Metre</option>
-                  <option value="m2">m²</option>
-                </select>
-              </div>
-            </div>
-            
-            <div style={{ marginBottom: '20px' }}>
-              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Açıklama</label>
-              <textarea 
-                rows="3" 
-                placeholder="Malzeme açıklaması..." 
-                style={{ 
-                  width: '100%', 
-                  padding: '10px', 
-                  border: '1px solid #e0e0e0', 
-                  borderRadius: '4px',
-                  resize: 'vertical'
-                }}
-              />
-            </div>
-            
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-              <button
-                type="button"
-                onClick={() => setShowNewMaterialModal(false)}
-                style={{
-                  padding: '10px 20px',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '4px',
-                  background: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                İptal
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  // Malzemeyi kaydet ve tedarikçiye ekle
-                  console.log('Yeni malzeme kaydedildi ve tedarikçiye eklendi');
-                  setShowNewMaterialModal(false);
-                }}
-                style={{
-                  padding: '10px 20px',
-                  border: 'none',
-                  borderRadius: '4px',
-                  background: '#d4af37',
-                  color: 'white',
-                  cursor: 'pointer'
-                }}
-              >
-                Malzemeyi Kaydet ve Tedarikçiye Ekle
-              </button>
+              ) : filteredMaterials.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px', color: '#6b7280', fontSize: '12px' }}>
+                  <div style={{ fontSize: '16px', marginBottom: '4px' }}>📦</div>
+                  {materialSearchTerm ? 'Arama kriterine uygun malzeme bulunamadı' : 'Hiç malzeme bulunamadı'}
+                </div>
+              ) : (
+                filteredMaterials.map(material => {
+                  const isInactive = material.status === 'Pasif';
+                  return (
+                    <div 
+                      key={material.id}
+                      style={{ 
+                        padding: '8px', 
+                        border: '1px solid #f3f4f6', 
+                        borderRadius: '4px', 
+                        marginBottom: '4px',
+                        cursor: isInactive ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.1s ease',
+                        background: isInactive ? '#fef7f7' : 'white',
+                        opacity: isInactive ? 0.7 : 1,
+                        color: isInactive ? '#9ca3af' : '#111827'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isInactive) {
+                          e.target.style.backgroundColor = '#f9fafb';
+                          e.target.style.borderColor = '#e5e7eb';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isInactive) {
+                          e.target.style.backgroundColor = 'white';
+                          e.target.style.borderColor = '#f3f4f6';
+                        }
+                      }}
+                      onClick={() => {
+                        if (!isInactive) {
+                          handleAddExistingMaterial(material);
+                        }
+                      }}
+                    >
+                      {/* Malzeme Başlığı */}
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'flex-start',
+                        marginBottom: '4px'
+                      }}>
+                        <div style={{ 
+                          fontWeight: '600', 
+                          fontSize: '12px',
+                          color: isInactive ? '#9ca3af' : '#111827',
+                          lineHeight: '1.3'
+                        }}>
+                          {material.code} - {material.name}
+                        </div>
+                        {isInactive && (
+                          <span style={{
+                            fontSize: '8px',
+                            color: '#ef4444',
+                            backgroundColor: '#fef2f2',
+                            padding: '1px 4px',
+                            borderRadius: '6px',
+                            border: '1px solid #fecaca',
+                            fontWeight: '600',
+                            letterSpacing: '0.3px',
+                            flexShrink: 0
+                          }}>
+                            PASİF
+                          </span>
+                        )}
+                      </div>
+                      
+                      {/* Malzeme Detayları */}
+                      <div style={{ 
+                        fontSize: '10px', 
+                        color: isInactive ? '#9ca3af' : '#6b7280',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '6px',
+                        lineHeight: '1.2'
+                      }}>
+                        <span>📁 {material.category}</span>
+                        <span>📦 {material.stock} {material.unit}</span>
+                        {material.unitPrice && (
+                          <span>💰 {material.unitPrice} ₺</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
@@ -1021,7 +1181,7 @@ export default function SuppliersTable({
               <th style={{ whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
-                  onClick={() => handleSort('category')}
+                  onClick={() => handleSort('contactPerson')}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1031,36 +1191,16 @@ export default function SuppliersTable({
                     cursor: 'pointer',
                     padding: 0,
                     font: 'inherit',
-                    color: sortField === 'category' ? '#007bff' : 'inherit'
+                    color: sortField === 'contactPerson' ? '#007bff' : 'inherit'
                   }}
                 >
-                  Kategori {getSortIcon('category')}
-                </button>
-              </th>
-              <th>İletişim</th>
-              <th style={{ whiteSpace: 'nowrap' }}>
-                <button 
-                  type="button"
-                  onClick={() => handleSort('rating')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: sortField === 'rating' ? '#007bff' : 'inherit'
-                  }}
-                >
-                  Değerlendirme {getSortIcon('rating')}
+                  Yetkili Kişi {getSortIcon('contactPerson')}
                 </button>
               </th>
               <th style={{ whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
-                  onClick={() => handleSort('totalOrders')}
+                  onClick={() => handleSort('phone1')}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1070,26 +1210,16 @@ export default function SuppliersTable({
                     cursor: 'pointer',
                     padding: 0,
                     font: 'inherit',
-                    color: sortField === 'totalOrders' ? '#007bff' : 'inherit'
+                    color: sortField === 'phone1' ? '#007bff' : 'inherit'
                   }}
                 >
-                  Sipariş Sayısı {getSortIcon('totalOrders')}
+                  Tel1 {getSortIcon('phone1')}
                 </button>
               </th>
-              <th 
-                style={{ 
-                  whiteSpace: 'nowrap',
-                  padding: '12px 8px',
-                  textAlign: 'left',
-                  fontWeight: '600',
-                  fontSize: '12px',
-                  color: '#374151',
-                  borderBottom: '2px solid #e2e8f0'
-                }}
-              >
+              <th style={{ whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
-                  onClick={() => handleSort('status')}
+                  onClick={() => handleSort('email1')}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -1097,30 +1227,13 @@ export default function SuppliersTable({
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    padding: '0',
-                    margin: '0',
-                    fontWeight: '600',
-                    fontSize: '12px',
-                    color: sortField === 'status' ? '#007bff' : '#374151',
-                    fontFamily: 'inherit'
+                    padding: 0,
+                    font: 'inherit',
+                    color: sortField === 'email1' ? '#007bff' : 'inherit'
                   }}
                 >
-                  Durum
-                  {getSortIcon('status')}
+                  Mail1 {getSortIcon('email1')}
                 </button>
-              </th>
-              <th 
-                style={{ 
-                  whiteSpace: 'nowrap',
-                  padding: '12px 8px',
-                  textAlign: 'center',
-                  fontWeight: '600',
-                  fontSize: '12px',
-                  color: '#374151',
-                  borderBottom: '2px solid #e2e8f0'
-                }}
-              >
-                İşlemler
               </th>
             </tr>
           </thead>
@@ -1128,18 +1241,11 @@ export default function SuppliersTable({
             {filteredAndSortedSuppliers.map((supplier, index) => (
               <tr 
                 key={supplier.id} 
-                className={`clickable-row ${index % 2 === 0 ? 'even' : 'odd'}`}
+                className="clickable-row"
                 style={{
-                  backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8fafc',
+                  backgroundColor: '#ffffff',
                   borderBottom: '1px solid #e2e8f0',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = '#f9fafb'
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f8fafc'
+                  cursor: 'pointer'
                 }}
                 onClick={() => handleRowClick(supplier)}
               >
@@ -1160,14 +1266,22 @@ export default function SuppliersTable({
                   }}
                 >
                   <div style={{ background: 'transparent' }}>
-                    <strong>{supplier.name}</strong>
-                    <div style={{ 
-                      fontSize: '12px', 
-                      color: '#6b7280', 
-                      marginTop: '2px',
-                      background: 'transparent'
-                    }}>
-                      {supplier.contactPerson}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent' }}>
+                      <strong style={{ background: 'transparent' }}>{supplier.name}</strong>
+                      <span 
+                        className="status-badge"
+                        style={{ 
+                          backgroundColor: supplier.status === 'Aktif' ? '#dcfce7' : '#fee2e2',
+                          color: getStatusColor(supplier.status),
+                          padding: '2px 6px',
+                          borderRadius: '8px',
+                          fontSize: '10px',
+                          fontWeight: '500',
+                          flexShrink: 0
+                        }}
+                      >
+                        {supplier.status}
+                      </span>
                     </div>
                   </div>
                 </td>
@@ -1178,9 +1292,7 @@ export default function SuppliersTable({
                     fontSize: '13px'
                   }}
                 >
-                  <span className="material-type">
-                    {getCategoryLabel(supplier.category)}
-                  </span>
+                  <span style={{ background: 'transparent' }}>{supplier.contactPerson}</span>
                 </td>
                 <td
                   style={{
@@ -1189,16 +1301,27 @@ export default function SuppliersTable({
                     fontSize: '13px'
                   }}
                 >
-                  <div style={{ 
-                    fontSize: '12px', 
-                    lineHeight: '1.4',
-                    background: 'transparent'
-                  }}>
-                    <div style={{ background: 'transparent' }}>{supplier.phone1}</div>
-                    <div style={{ 
-                      color: '#6b7280',
-                      background: 'transparent'
-                    }}>{supplier.email1}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent' }}>
+                    <span style={{ background: 'transparent' }}>{supplier.phone1}</span>
+                    <button 
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        borderRadius: '4px',
+                        transition: 'background 0.2s'
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        window.open(`tel:${supplier.phone1}`)
+                      }}
+                      title={`Telefon: ${supplier.phone1}`}
+                      onMouseOver={(e) => e.target.style.background = '#dbeafe'}
+                      onMouseOut={(e) => e.target.style.background = 'none'}
+                    >
+                      📞
+                    </button>
                   </div>
                 </td>
                 <td
@@ -1208,97 +1331,28 @@ export default function SuppliersTable({
                     fontSize: '13px'
                   }}
                 >
-                  {getRatingStars(supplier.rating)}
-                </td>
-                <td 
-                  style={{ 
-                    textAlign: 'center',
-                    padding: '8px 12px',
-                    borderBottom: '1px solid #e2e8f0',
-                    fontSize: '13px'
-                  }}
-                >
-                  <strong>{supplier.totalOrders}</strong>
-                  <div style={{ 
-                    fontSize: '10px', 
-                    color: '#6b7280', 
-                    marginTop: '2px',
-                    background: 'transparent'
-                  }}>
-                    Son: {supplier.lastOrderDate}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'transparent' }}>
+                    <span style={{ background: 'transparent' }}>{supplier.email1}</span>
+                    <button 
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        borderRadius: '4px',
+                        transition: 'background 0.2s'
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        window.open(`mailto:${supplier.email1}`)
+                      }}
+                      title={`Email: ${supplier.email1}`}
+                      onMouseOver={(e) => e.target.style.background = '#fef3c7'}
+                      onMouseOut={(e) => e.target.style.background = 'none'}
+                    >
+                      ✉️
+                    </button>
                   </div>
-                </td>
-                <td
-                  style={{
-                    padding: '8px 12px',
-                    borderBottom: '1px solid #e2e8f0',
-                    fontSize: '13px'
-                  }}
-                >
-                  <span 
-                    className="status-badge"
-                    style={{ 
-                      backgroundColor: supplier.status === 'Aktif' ? '#dcfce7' : '#fee2e2',
-                      color: getStatusColor(supplier.status),
-                      padding: '4px 8px',
-                      borderRadius: '12px',
-                      fontSize: '11px',
-                      fontWeight: '500'
-                    }}
-                  >
-                    {supplier.status}
-                  </span>
-                </td>
-                <td 
-                  style={{ 
-                    textAlign: 'center',
-                    padding: '8px 12px',
-                    borderBottom: '1px solid #e2e8f0',
-                    fontSize: '13px'
-                  }}
-                >
-                  <button 
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '4px',
-                      margin: '0 2px',
-                      borderRadius: '4px',
-                      transition: 'background 0.2s'
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      // Telefon arama işlemi
-                      window.open(`tel:${supplier.phone1}`)
-                    }}
-                    title={`Telefon: ${supplier.phone1}`}
-                    onMouseOver={(e) => e.target.style.background = '#dbeafe'}
-                    onMouseOut={(e) => e.target.style.background = 'none'}
-                  >
-                    📞
-                  </button>
-                  <button 
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '4px',
-                      margin: '0 2px',
-                      borderRadius: '4px',
-                      transition: 'background 0.2s'
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      // Mail gönderme işlemi
-                      window.open(`mailto:${supplier.email1}`)
-                    }}
-                    title={`Email: ${supplier.email1}`}
-                    onMouseOver={(e) => e.target.style.background = '#fef3c7'}
-                    onMouseOut={(e) => e.target.style.background = 'none'}
-                  >
-                    ✉️
-                  </button>
                 </td>
               </tr>
             ))}
@@ -1313,7 +1367,6 @@ export default function SuppliersTable({
         onClose={handleCloseModal}
       />
       <ExistingMaterialsModal />
-      <NewMaterialModal />
     </div>
   )
 }

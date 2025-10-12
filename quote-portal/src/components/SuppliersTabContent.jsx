@@ -1,5 +1,6 @@
-import React from 'react'
-import SuppliersTable from './SuppliersTable.jsx'
+import React, { useState } from 'react'
+import SuppliersTable from './SuppliersTable'
+import AddSupplierModal from './AddSupplierModal'
 
 // Geçici suppliers dashboard component
 function SuppliersDashboard() {
@@ -47,7 +48,39 @@ function SuppliersTablePlaceholder() {
   return <SuppliersTable />
 }
 
-export default function SuppliersTabContent({ categories }) {
+export default function SuppliersTabContent({ categories, handleAddMaterial }) {
+  const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false)
+  const [isTransitioningToMaterial, setIsTransitioningToMaterial] = useState(false)
+
+  const handleAddSupplier = (supplierData, newCategory) => {
+    console.log('📝 Yeni tedarikçi ekleniyor:', supplierData)
+    if (newCategory) {
+      console.log('📝 Yeni kategori ekleniyor:', newCategory)
+    }
+    
+    // Firebase/backend işlemleri burada yapılacak
+    // Şimdilik sadece console'a yazdırıyoruz
+    
+    setIsAddSupplierModalOpen(false)
+  }
+
+  // Tedarikçi modalından yeni malzeme ekleme
+  const handleAddMaterialFromSupplier = (onMaterialCreated) => {
+    console.log('🔄 Tedarikçi modalından malzeme ekleme modalına geçiş yapılıyor...')
+    setIsTransitioningToMaterial(true)
+    setIsAddSupplierModalOpen(false) // Önce tedarikçi modalını kapat
+    
+    // DOM güncellemesini bekle
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        console.log('🔄 Malzeme ekleme modalı açılıyor...')
+        setIsTransitioningToMaterial(false)
+        // Yeni malzeme oluşturulduktan sonra callback'i de ilet
+        handleAddMaterial(onMaterialCreated) // Sonra malzeme modalını aç
+      }, 100)
+    })
+  }
+
   return (
     <div className="stocks-tab-content">
       <div className="materials-header-section">
@@ -59,6 +92,7 @@ export default function SuppliersTabContent({ categories }) {
             <button 
               type="button" 
               className="add-material-btn"
+              onClick={() => setIsAddSupplierModalOpen(true)}
             >
               + Yeni Tedarikçi
             </button>
@@ -68,7 +102,17 @@ export default function SuppliersTabContent({ categories }) {
           <SuppliersFilters />
         </div>
       </div>
-      <SuppliersTable categories={categories} />
+      <SuppliersTable 
+        categories={categories} 
+        onAddNewMaterial={handleAddMaterialFromSupplier}
+      />
+      
+      <AddSupplierModal
+        isOpen={isAddSupplierModalOpen}
+        onClose={() => setIsAddSupplierModalOpen(false)}
+        onSave={handleAddSupplier}
+        onAddNewMaterial={handleAddMaterialFromSupplier}
+      />
     </div>
   )
 }

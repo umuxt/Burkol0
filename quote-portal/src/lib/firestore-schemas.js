@@ -3,7 +3,8 @@
 
 export const COLLECTIONS = {
   MATERIALS: 'materials',
-  CATEGORIES: 'categories', 
+  CATEGORIES: 'materials-categories', 
+  SUPPLIER_CATEGORIES: 'suppliers-categories',
   MATERIAL_TYPES: 'material_types',
   STOCK_MOVEMENTS: 'stock_movements',
   STOCK_ALERTS: 'stock_alerts',

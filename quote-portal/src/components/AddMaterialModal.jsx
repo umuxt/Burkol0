@@ -145,8 +145,8 @@ export default function AddMaterialModal({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+    <div className="modal-overlay" onClick={handleClose} style={{ zIndex: 2100 }}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', zIndex: 2102 }}>
         <div className="modal-header">
           <h2>Yeni Malzeme Ekle</h2>
           <div className="header-actions">

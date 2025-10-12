@@ -299,7 +299,10 @@ function MaterialsApp() {
           loading={materialsLoading}
           error={materialsError}
         />
-        <SuppliersTabContent categories={categories} />
+        <SuppliersTabContent 
+          categories={categories} 
+          handleAddMaterial={handleAddMaterial}
+        />
         <OrdersTabContent />
       </MaterialsTabs>
       

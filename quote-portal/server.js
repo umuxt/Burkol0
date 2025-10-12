@@ -12,6 +12,7 @@ import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
 import { setupQuoteRoutes, setupSettingsRoutes, setupExportRoutes } from './server/apiRoutes.js'
 import { setupMaterialsRoutes } from './server/materialsRoutes.js'
+import { createSupplierCategoriesRoutes } from './server/supplierCategoriesRoutes.js'
 import addMigrationRoutes from './server/migrationRoutes.js'
 import jsondb from './src/lib/jsondb.js'
 import admin from 'firebase-admin'
@@ -114,6 +115,9 @@ setupQuoteRoutes(app, uploadsDir)
 setupMaterialsRoutes(app)
 setupSettingsRoutes(app)
 setupExportRoutes(app)
+
+// Setup supplier categories routes
+createSupplierCategoriesRoutes(app)
 
 // Expose migration management API routes used by admin tooling
 addMigrationRoutes(app, jsondb)

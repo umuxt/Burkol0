@@ -6,7 +6,7 @@ const db = admin.firestore()
 
 // Materials collection reference
 const materialsCollection = db.collection('materials')
-const categoriesCollection = db.collection('categories')
+const categoriesCollection = db.collection('materials-categories')
 
 export function setupMaterialsRoutes(app) {
   

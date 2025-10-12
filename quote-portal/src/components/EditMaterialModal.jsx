@@ -1,5 +1,36 @@
 import React, { useState, useEffect } from 'react'
 
+// Geçici mock data - Firebase bağlandığında kaldırılacak
+const mockSuppliers = [
+  {
+    name: 'Kocaeli Metal San. A.Ş.',
+    contactPerson: 'Mehmet Yılmaz',
+    phone: '+90 262 555 0101',
+    email: 'mehmet@kocaelimetal.com',
+    status: 'Aktif',
+    lastPrice: 45.50,
+    lastSupplyDate: '2024-10-08'
+  },
+  {
+    name: 'Ankara Plastik Ltd.',
+    contactPerson: 'Ayşe Kaya',
+    phone: '+90 312 555 0202',
+    email: 'ayse@ankaraplastik.com',
+    status: 'Aktif',
+    lastPrice: 32.75,
+    lastSupplyDate: '2024-10-05'
+  },
+  {
+    name: 'İzmir Alüminyum A.Ş.',
+    contactPerson: 'Ali Demir',
+    phone: '+90 232 555 0303',
+    email: 'ali@izmiraluminyum.com',
+    status: 'Pasif',
+    lastPrice: 28.90,
+    lastSupplyDate: '2024-09-20'
+  }
+];
+
 export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, categories, types, material }) {
   const [formData, setFormData] = useState({
     code: '',
@@ -290,10 +321,185 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
               </div>
             </div>
             
-            {/* Sağ kolon - Şu an boş */}
+            {/* Sağ kolon - Tedarikçiler */}
             <div className="details-right-section">
-              <div className="placeholder-content">
-                {/* Gelecekte eklenecek içerik */}
+              <div className="suppliers-section" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <h3 style={{ 
+                  fontSize: '14px', 
+                  fontWeight: '600', 
+                  marginBottom: '12px',
+                  color: '#374151',
+                  borderBottom: '1px solid #e5e7eb',
+                  paddingBottom: '6px',
+                  flexShrink: 0
+                }}>
+                  Tedarikçiler
+                </h3>
+                
+                {/* Kaydırılabilir Tedarikçiler Listesi */}
+                <div 
+                  className="suppliers-list" 
+                  style={{ 
+                    flex: 1,
+                    overflowY: 'auto',
+                    paddingRight: '4px'
+                  }}
+                >
+                  {/* Geçici veri - Firebase bağlandığında dinamik olacak */}
+                  {mockSuppliers.map((supplier, index) => (
+                    <div 
+                      key={index}
+                      className="supplier-card"
+                      style={{
+                        padding: '6px',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '6px',
+                        marginBottom: '4px',
+                        backgroundColor: '#ffffff',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {/* Tek Satır - Tüm İçerik */}
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        {/* Sol Taraf - Tedarikçi Adı ve Durum */}
+                        <div style={{ 
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          flex: 1,
+                          minWidth: 0
+                        }}>
+                          <div style={{ 
+                            fontWeight: '600', 
+                            fontSize: '11px',
+                            color: '#111827',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            flex: 1
+                          }}>
+                            {supplier.name}
+                          </div>
+                          <span 
+                            style={{ 
+                              backgroundColor: supplier.status === 'Aktif' ? '#dcfce7' : '#fee2e2',
+                              color: supplier.status === 'Aktif' ? '#16a34a' : '#dc2626',
+                              padding: '1px 3px',
+                              borderRadius: '3px',
+                              fontSize: '7px',
+                              fontWeight: '500',
+                              flexShrink: 0
+                            }}
+                          >
+                            {supplier.status}
+                          </span>
+                        </div>
+                        
+                        {/* Sağ Taraf - Butonlar */}
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center',
+                          gap: '4px',
+                          flexShrink: 0
+                        }}>
+                          {/* Info Butonu */}
+                          <button
+                            style={{
+                              background: '#f3f4f6',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '3px',
+                              padding: '2px 4px',
+                              cursor: 'pointer',
+                              fontSize: '8px',
+                              fontWeight: '500',
+                              color: '#374151',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              console.log('Tedarikçi detayı açılacak:', supplier.name);
+                            }}
+                            title={`${supplier.name} detaylarını görüntüle`}
+                            onMouseOver={(e) => {
+                              e.target.style.background = '#e5e7eb';
+                              e.target.style.borderColor = '#9ca3af';
+                            }}
+                            onMouseOut={(e) => {
+                              e.target.style.background = '#f3f4f6';
+                              e.target.style.borderColor = '#d1d5db';
+                            }}
+                          >
+                            ℹ️
+                          </button>
+                          
+                          {/* İletişim Butonları */}
+                          <button
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '2px',
+                              borderRadius: '3px',
+                              fontSize: '10px',
+                              lineHeight: 1
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`tel:${supplier.phone}`);
+                            }}
+                            title={`Telefon: ${supplier.phone}`}
+                            onMouseOver={(e) => e.target.style.background = '#dbeafe'}
+                            onMouseOut={(e) => e.target.style.background = 'none'}
+                          >
+                            📞
+                          </button>
+                          <button
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '2px',
+                              borderRadius: '3px',
+                              fontSize: '10px',
+                              lineHeight: 1
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`mailto:${supplier.email}`);
+                            }}
+                            title={`Email: ${supplier.email}`}
+                            onMouseOver={(e) => e.target.style.background = '#fef3c7'}
+                            onMouseOut={(e) => e.target.style.background = 'none'}
+                          >
+                            ✉️
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* Boş Durum */}
+                  {mockSuppliers.length === 0 && (
+                    <div style={{ 
+                      textAlign: 'center', 
+                      padding: '16px 8px', 
+                      color: '#6b7280', 
+                      fontSize: '11px',
+                      border: '1px dashed #e5e7eb',
+                      borderRadius: '6px',
+                      backgroundColor: '#f9fafb'
+                    }}>
+                      <div style={{ fontSize: '16px', marginBottom: '4px' }}>🏢</div>
+                      <div style={{ fontWeight: '500', marginBottom: '2px' }}>Tedarikçi yok</div>
+                      <div style={{ fontSize: '9px', color: '#9ca3af' }}>Bu malzemeyi tedarik eden firma bulunmuyor</div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
