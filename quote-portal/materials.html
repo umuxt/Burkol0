@@ -6,11 +6,17 @@
     <title>Burkol | Admin - Materials</title>
     <link rel="stylesheet" href="/src/styles/main.css">
     <link rel="stylesheet" href="/src/styles/materials.css">
+    <link rel="stylesheet" href="/styles/firebase-integration.css">
     <link rel="manifest" href="/manifest.json">
     <script src="./components/BurkolNavigation.js"></script>
+    <script src="./components/AuthGuard.js"></script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // AuthGuard'ı başlat
+      new AuthGuard();
+    </script>
   </body>
 </html>

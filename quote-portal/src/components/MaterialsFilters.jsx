@@ -169,12 +169,15 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
                   <label key={category.id} className="multi-select-option">
                     <input
                       type="checkbox"
-                      checked={filters.categories?.includes(category.label) || false}
-                      onChange={() => handleMultiSelectChange('categories', category.label)}
+                      checked={filters.categories?.includes(category.id) || false}
+                      onChange={() => handleMultiSelectChange('categories', category.id)}
                     />
-                    <span>{category.label}</span>
+                    <span>{category.name || category.label}</span>
                   </label>
                 ))}
+                {(!categories || categories.length === 0) && (
+                  <div className="no-options">Kategori bulunamadı</div>
+                )}
               </div>
             </div>
           </div>

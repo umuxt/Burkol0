@@ -18,8 +18,7 @@ const dummySuppliers = [
     status: 'Aktif',
     totalOrders: 45,
     lastOrderDate: '2024-10-08',
-    creditLimit: 500000,
-    balance: 125000
+    creditLimit: 500000
   },
   {
     id: 2,
@@ -38,8 +37,7 @@ const dummySuppliers = [
     status: 'Aktif',
     totalOrders: 32,
     lastOrderDate: '2024-10-05',
-    creditLimit: 300000,
-    balance: 75000
+    creditLimit: 300000
   },
   {
     id: 3,
@@ -58,8 +56,7 @@ const dummySuppliers = [
     status: 'Aktif',
     totalOrders: 67,
     lastOrderDate: '2024-10-10',
-    creditLimit: 750000,
-    balance: 200000
+    creditLimit: 750000
   },
   {
     id: 4,
@@ -78,8 +75,7 @@ const dummySuppliers = [
     status: 'Aktif',
     totalOrders: 89,
     lastOrderDate: '2024-10-09',
-    creditLimit: 200000,
-    balance: 45000
+    creditLimit: 200000
   },
   {
     id: 5,
@@ -98,8 +94,7 @@ const dummySuppliers = [
     status: 'Pasif',
     totalOrders: 12,
     lastOrderDate: '2024-09-15',
-    creditLimit: 150000,
-    balance: 0
+    creditLimit: 150000
   }
 ]
 
@@ -111,6 +106,29 @@ export default function SuppliersTable({
   const [activeTab, setActiveTab] = useState('all')
   const [sortField, setSortField] = useState('')
   const [sortDirection, setSortDirection] = useState('asc')
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
+  const [selectedSupplier, setSelectedSupplier] = useState(null)
+  const [isEditing, setIsEditing] = useState(false)
+  const [showMaterialAddOptions, setShowMaterialAddOptions] = useState(false)
+  const [showExistingMaterials, setShowExistingMaterials] = useState(false)
+  const [showNewMaterialModal, setShowNewMaterialModal] = useState(false)
+  const [formData, setFormData] = useState({
+    code: '',
+    name: '',
+    category: '',
+    contactPerson: '',
+    phone1: '',
+    phone2: '',
+    email1: '',
+    email2: '',
+    address: '',
+    taxNumber: '',
+    paymentTerms: '',
+    status: 'Aktif',
+    totalOrders: 0,
+    lastOrderDate: '',
+    fax1: ''
+  })
 
   // Dinamik kategoriler - main.jsx'den gelen categories kullanılacak
   const supplierCategories = categories.length > 0 ? categories : [
@@ -197,6 +215,710 @@ export default function SuppliersTable({
         {'⭐'.repeat(fullStars)}
         {hasHalfStar && '⭐'}
         <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: '4px' }}>({rating})</span>
+      </div>
+    )
+  }
+
+  const handleRowClick = (supplier) => {
+    setSelectedSupplier(supplier)
+    setFormData({
+      code: supplier.code,
+      name: supplier.name,
+      category: supplier.category,
+      contactPerson: supplier.contactPerson,
+      phone1: supplier.phone1,
+      phone2: supplier.phone2,
+      email1: supplier.email1,
+      email2: supplier.email2,
+      address: supplier.address,
+      taxNumber: supplier.taxNumber,
+      paymentTerms: supplier.paymentTerms,
+      status: supplier.status,
+      totalOrders: supplier.totalOrders,
+      lastOrderDate: supplier.lastOrderDate,
+      fax1: supplier.fax1 || ''
+    })
+    setIsEditing(false)
+    setIsDetailModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsDetailModalOpen(false)
+    setSelectedSupplier(null)
+    setIsEditing(false)
+    setShowMaterialAddOptions(false)
+    setShowExistingMaterials(false)
+    setShowNewMaterialModal(false)
+    setFormData({
+      code: '',
+      name: '',
+      category: '',
+      contactPerson: '',
+      phone1: '',
+      phone2: '',
+      email1: '',
+      email2: '',
+      address: '',
+      taxNumber: '',
+      paymentTerms: '',
+      status: 'Aktif',
+      totalOrders: 0,
+      lastOrderDate: '',
+      fax1: ''
+    })
+  }
+
+  const handleUnlock = () => {
+    setIsEditing(true)
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    
+    // Sadece editing mode'dayken submit et
+    if (!isEditing) {
+      return
+    }
+    
+    // Burada Firebase'e kaydetme işlemi yapılacak
+    console.log('Tedarikçi kaydediliyor:', formData)
+    
+    // Şimdilik sadece state'i güncelleyelim
+    setSelectedSupplier(formData)
+    
+    // Kaydet işleminden sonra kilitli moda dön
+    setIsEditing(false)
+    
+    // onEditSupplier callback'ini çağır
+    if (onEditSupplier) {
+      onEditSupplier(formData)
+    }
+  }
+
+  const handleInputChange = (e) => {
+    // Sadece editing mode'dayken input değişikliğine izin ver
+    if (!isEditing) {
+      return
+    }
+    
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const SupplierDetailModal = ({ supplier, isOpen, onClose }) => {
+    if (!isOpen || !supplier) return null
+
+    return (
+      <div className="modal-overlay" onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleCloseModal();
+        }
+      }}>
+        <div className="modal-content" onClick={(e) => {
+          e.stopPropagation();
+          setShowMaterialAddOptions(false);
+        }} style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh', position: 'relative' }}>
+          <div className="modal-header" style={{ flexShrink: 0 }}>
+            <h2>Tedarikçi Detayları</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {!isEditing ? (
+                <button type="button" onClick={(e) => { e.preventDefault(); handleUnlock(); }} className="btn-edit">
+                  🔒 Düzenle
+                </button>
+              ) : (
+                <button type="submit" form="supplier-form" className="btn-save">
+                  🔓 Kaydet
+                </button>
+              )}
+              <button className="modal-close" onClick={handleCloseModal}>×</button>
+            </div>
+          </div>
+          
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <form onSubmit={handleSubmit} className="modal-form" id="supplier-form" style={{ height: '100%' }}>
+            {/* Üst Bölüm: Yan yana iki div - Firma Bilgileri ve İletişim */}
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+              
+              {/* Sol Div: Firma Bilgileri */}
+              <div style={{ flex: 1, border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Firma Bilgileri</h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '100px', color: '#374151' }}>Tedarikçi No:</span>
+                    <input
+                      type="text"
+                      name="code"
+                      value={formData.code}
+                      readOnly
+                      className="readonly-input"
+                      style={{ border: 'none', background: 'transparent', padding: '2px', flex: 1 }}
+                    />
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '100px', color: '#374151' }}>Firma Adı:</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        name="name"
+                        value={formData.name}
+                        onChange={handleInputChange}
+                        className="editable-input"
+                        style={{ flex: 1 }}
+                      />
+                    ) : (
+                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.name}</span>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '100px', color: '#374151' }}>Vergi No:</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        name="taxNumber"
+                        value={formData.taxNumber}
+                        onChange={handleInputChange}
+                        className="editable-input"
+                        style={{ flex: 1 }}
+                      />
+                    ) : (
+                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.taxNumber}</span>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '100px', color: '#374151' }}>Yetkili Kişi:</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        name="contactPerson"
+                        value={formData.contactPerson}
+                        onChange={handleInputChange}
+                        className="editable-input"
+                        style={{ flex: 1 }}
+                      />
+                    ) : (
+                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.contactPerson}</span>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '100px', color: '#374151' }}>Durum:</span>
+                    {isEditing ? (
+                      <select
+                        name="status"
+                        value={formData.status}
+                        onChange={handleInputChange}
+                        className="editable-input"
+                        style={{ flex: 1 }}
+                      >
+                        <option value="Aktif">Aktif</option>
+                        <option value="Pasif">Pasif</option>
+                      </select>
+                    ) : (
+                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.status}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Sağ Div: İletişim Bilgileri */}
+              <div style={{ flex: 1, border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>İletişim</h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '80px', color: '#374151' }}>Mail1:</span>
+                    {isEditing ? (
+                      <input
+                        type="email"
+                        name="email1"
+                        value={formData.email1}
+                        onChange={handleInputChange}
+                        className="editable-input"
+                        style={{ flex: 1 }}
+                      />
+                    ) : (
+                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.email1}</span>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '80px', color: '#374151' }}>Mail2:</span>
+                    {isEditing ? (
+                      <input
+                        type="email"
+                        name="email2"
+                        value={formData.email2}
+                        onChange={handleInputChange}
+                        className="editable-input"
+                        style={{ flex: 1 }}
+                      />
+                    ) : (
+                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.email2}</span>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '80px', color: '#374151' }}>Tel1:</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        name="phone1"
+                        value={formData.phone1}
+                        onChange={handleInputChange}
+                        className="editable-input"
+                        style={{ flex: 1 }}
+                      />
+                    ) : (
+                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.phone1}</span>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '80px', color: '#374151' }}>Tel2:</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        name="phone2"
+                        value={formData.phone2}
+                        onChange={handleInputChange}
+                        className="editable-input"
+                        style={{ flex: 1 }}
+                      />
+                    ) : (
+                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.phone2}</span>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span style={{ fontWeight: '600', minWidth: '80px', color: '#374151' }}>Fax1:</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        name="fax1"
+                        value={formData.fax1 || ''}
+                        onChange={handleInputChange}
+                        className="editable-input"
+                        style={{ flex: 1 }}
+                      />
+                    ) : (
+                      <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.fax1}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            {/* Orta Bölüm: Adres */}
+            <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px', marginBottom: '20px' }}>
+              <div>
+                {isEditing ? (
+                  <div>
+                    <strong style={{ color: '#000000' }}>Adres:</strong>{' '}
+                    <textarea
+                      name="address"
+                      value={formData.address}
+                      onChange={handleInputChange}
+                      className="editable-input"
+                      rows="3"
+                      style={{ width: '100%', resize: 'vertical', marginTop: '5px' }}
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <strong style={{ color: '#000000' }}>Adres:</strong>{' '}
+                    <span style={{ lineHeight: '1.4', color: '#1f2937' }}>{formData.address}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Alt Bölüm: Tedarik Bilgileri */}
+            <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', position: 'relative' }}>
+                <h3 style={{ margin: '0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Tedarik Bilgileri</h3>
+                <div style={{ position: 'relative' }}>
+                  <button 
+                    type="button" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowMaterialAddOptions(!showMaterialAddOptions);
+                    }}
+                    className="btn btn-primary btn-sm"
+                    style={{ 
+                      fontSize: '12px', 
+                      padding: '6px 12px',
+                      background: '#d4af37',
+                      border: 'none',
+                      borderRadius: '4px',
+                      color: 'white',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    + Malzeme Ekle
+                    <span style={{ fontSize: '10px' }}>
+                      {showMaterialAddOptions ? '▲' : '▼'}
+                    </span>
+                  </button>
+                  
+                  {/* Malzeme Ekleme Seçenekleri Dropdown */}
+                  {showMaterialAddOptions && (
+                    <div 
+                      style={{
+                        position: 'absolute',
+                        right: '0',
+                        top: '100%',
+                        background: 'white',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: '6px',
+                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                        zIndex: 1001,
+                        minWidth: '200px',
+                        marginTop: '4px'
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowMaterialAddOptions(false);
+                          setShowExistingMaterials(true);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          border: 'none',
+                          background: 'white',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f0f0f0',
+                          borderRadius: '6px 6px 0 0'
+                        }}
+                        onMouseEnter={(e) => e.target.style.background = '#f8f9fa'}
+                        onMouseLeave={(e) => e.target.style.background = 'white'}
+                      >
+                        📋 Mevcut Malzemelerden Seç
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowMaterialAddOptions(false);
+                          setShowNewMaterialModal(true);
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '12px 16px',
+                          border: 'none',
+                          background: 'white',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          borderRadius: '0 0 6px 6px'
+                        }}
+                        onMouseEnter={(e) => e.target.style.background = '#f8f9fa'}
+                        onMouseLeave={(e) => e.target.style.background = 'white'}
+                      >
+                        ➕ Yeni Malzeme Ekle
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginBottom: '15px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc' }}>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Kategori</th>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Malzeme No</th>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Malzeme Adı</th>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Son Fiyat</th>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'center' }}>Son Tedarik</th>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Toplam Miktar</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>{getCategoryLabel(formData.category)}</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'center' }}>{formData.lastOrderDate}</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>{formData.totalOrders}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr style={{ backgroundColor: '#f8fafc', fontWeight: '600' }}>
+                    <td colSpan="5" style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>#Toplam Tedarik</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>{formData.totalOrders}</td>
+                  </tr>
+                </tfoot>
+              </table>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151' }}>Ödeme Koşulları:</span>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      name="paymentTerms"
+                      value={formData.paymentTerms}
+                      onChange={handleInputChange}
+                      className="editable-input"
+                      style={{ flex: 1 }}
+                    />
+                  ) : (
+                    <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.paymentTerms}</span>
+                  )}
+                </div>
+                
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151' }}>Son Sipariş Tarihi:</span>
+                  <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.lastOrderDate}</span>
+                  <small style={{ color: '#9ca3af', fontSize: '11px', fontStyle: 'italic', marginLeft: '8px' }}>*Otomatik güncellenir</small>
+                </div>
+                
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: '600', minWidth: '120px', color: '#374151' }}>Toplam Sipariş:</span>
+                  <span style={{ flex: 1, padding: '2px', color: '#1f2937' }}>{formData.totalOrders}</span>
+                  <small style={{ color: '#9ca3af', fontSize: '11px', fontStyle: 'italic', marginLeft: '8px' }}>*Otomatik hesaplanır</small>
+                </div>
+              </div>
+            </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Mevcut Malzemeler Modal'ı
+  const ExistingMaterialsModal = () => {
+    if (!showExistingMaterials) return null
+
+    // Örnek malzemeler listesi - gerçekte stok tablosundan gelecek
+    const existingMaterials = [
+      { id: 1, code: 'MAL-001', name: 'Çelik Profil 40x40', category: 'Demir-Çelik' },
+      { id: 2, code: 'MAL-002', name: 'Alüminyum Levha 2mm', category: 'Alüminyum' },
+      { id: 3, code: 'MAL-003', name: 'Demir Çubuk 12mm', category: 'Demir-Çelik' },
+      { id: 4, code: 'MAL-004', name: 'Bakır Boru 15mm', category: 'Bakır' }
+    ]
+
+    return (
+      <div className="modal-overlay" style={{ zIndex: 1002 }} onClick={() => setShowExistingMaterials(false)}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', zIndex: 1002 }}>
+          <div className="modal-header">
+            <h2>Mevcut Malzemelerden Seç</h2>
+            <button className="modal-close" onClick={() => setShowExistingMaterials(false)}>×</button>
+          </div>
+          
+          <div className="modal-form">
+            <div style={{ marginBottom: '20px' }}>
+              <input 
+                type="text" 
+                placeholder="Malzeme ara..." 
+                style={{ 
+                  width: '100%', 
+                  padding: '10px', 
+                  border: '1px solid #e0e0e0', 
+                  borderRadius: '4px' 
+                }}
+              />
+            </div>
+            
+            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              {existingMaterials.map(material => (
+                <div 
+                  key={material.id}
+                  style={{ 
+                    padding: '12px', 
+                    border: '1px solid #f0f0f0', 
+                    borderRadius: '4px', 
+                    marginBottom: '8px',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+                  onClick={() => {
+                    // Malzemeyi tedarikçiye ekle
+                    console.log('Malzeme eklendi:', material);
+                    setShowExistingMaterials(false);
+                  }}
+                >
+                  <div style={{ fontWeight: '600' }}>{material.code} - {material.name}</div>
+                  <div style={{ fontSize: '12px', color: '#666' }}>Kategori: {material.category}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Yeni Malzeme Modal'ı  
+  const NewMaterialModal = () => {
+    if (!showNewMaterialModal) return null
+
+    return (
+      <div className="modal-overlay" style={{ zIndex: 1002 }} onClick={() => setShowNewMaterialModal(false)}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', zIndex: 1002 }}>
+          <div className="modal-header">
+            <h2>Yeni Malzeme Ekle</h2>
+            <button className="modal-close" onClick={() => setShowNewMaterialModal(false)}>×</button>
+          </div>
+          
+          <div className="modal-form">
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Malzeme Kodu</label>
+                <input 
+                  type="text" 
+                  placeholder="MAL-001" 
+                  style={{ 
+                    width: '100%', 
+                    padding: '10px', 
+                    border: '1px solid #e0e0e0', 
+                    borderRadius: '4px' 
+                  }}
+                />
+              </div>
+              <div style={{ flex: 2 }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Malzeme Adı</label>
+                <input 
+                  type="text" 
+                  placeholder="Çelik Profil 40x40" 
+                  style={{ 
+                    width: '100%', 
+                    padding: '10px', 
+                    border: '1px solid #e0e0e0', 
+                    borderRadius: '4px' 
+                  }}
+                />
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Kategori</label>
+                <select 
+                  style={{ 
+                    width: '100%', 
+                    padding: '10px', 
+                    border: '1px solid #e0e0e0', 
+                    borderRadius: '4px' 
+                  }}
+                >
+                  <option value="">Kategori seçin</option>
+                  <option value="demir-celik">Demir-Çelik</option>
+                  <option value="aluminyum">Alüminyum</option>
+                  <option value="bakir">Bakır</option>
+                  <option value="plastik">Plastik</option>
+                </select>
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Birim</label>
+                <select 
+                  style={{ 
+                    width: '100%', 
+                    padding: '10px', 
+                    border: '1px solid #e0e0e0', 
+                    borderRadius: '4px' 
+                  }}
+                >
+                  <option value="">Birim seçin</option>
+                  <option value="kg">kg</option>
+                  <option value="adet">Adet</option>
+                  <option value="metre">Metre</option>
+                  <option value="m2">m²</option>
+                </select>
+              </div>
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '5px', fontWeight: '600' }}>Açıklama</label>
+              <textarea 
+                rows="3" 
+                placeholder="Malzeme açıklaması..." 
+                style={{ 
+                  width: '100%', 
+                  padding: '10px', 
+                  border: '1px solid #e0e0e0', 
+                  borderRadius: '4px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowNewMaterialModal(false)}
+                style={{
+                  padding: '10px 20px',
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '4px',
+                  background: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                İptal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // Malzemeyi kaydet ve tedarikçiye ekle
+                  console.log('Yeni malzeme kaydedildi ve tedarikçiye eklendi');
+                  setShowNewMaterialModal(false);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  background: '#d4af37',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Malzemeyi Kaydet ve Tedarikçiye Ekle
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
@@ -354,26 +1076,17 @@ export default function SuppliersTable({
                   Sipariş Sayısı {getSortIcon('totalOrders')}
                 </button>
               </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
-                <button 
-                  type="button"
-                  onClick={() => handleSort('balance')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: sortField === 'balance' ? '#007bff' : 'inherit'
-                  }}
-                >
-                  Bakiye {getSortIcon('balance')}
-                </button>
-              </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
+              <th 
+                style={{ 
+                  whiteSpace: 'nowrap',
+                  padding: '12px 8px',
+                  textAlign: 'left',
+                  fontWeight: '600',
+                  fontSize: '12px',
+                  color: '#374151',
+                  borderBottom: '2px solid #e2e8f0'
+                }}
+              >
                 <button 
                   type="button"
                   onClick={() => handleSort('status')}
@@ -384,15 +1097,31 @@ export default function SuppliersTable({
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: sortField === 'status' ? '#007bff' : 'inherit'
+                    padding: '0',
+                    margin: '0',
+                    fontWeight: '600',
+                    fontSize: '12px',
+                    color: sortField === 'status' ? '#007bff' : '#374151',
+                    fontFamily: 'inherit'
                   }}
                 >
-                  Durum {getSortIcon('status')}
+                  Durum
+                  {getSortIcon('status')}
                 </button>
               </th>
-              <th>İşlemler</th>
+              <th 
+                style={{ 
+                  whiteSpace: 'nowrap',
+                  padding: '12px 8px',
+                  textAlign: 'center',
+                  fontWeight: '600',
+                  fontSize: '12px',
+                  color: '#374151',
+                  borderBottom: '2px solid #e2e8f0'
+                }}
+              >
+                İşlemler
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -412,9 +1141,7 @@ export default function SuppliersTable({
                 onMouseLeave={(e) => {
                   e.target.style.backgroundColor = index % 2 === 0 ? '#ffffff' : '#f8fafc'
                 }}
-                onClick={() => {
-                  onSupplierDetails && onSupplierDetails(supplier)
-                }}
+                onClick={() => handleRowClick(supplier)}
               >
                 <td
                   style={{
@@ -423,9 +1150,7 @@ export default function SuppliersTable({
                     fontSize: '13px'
                   }}
                 >
-                  <span style={{ fontFamily: 'monospace', fontWeight: '600' }}>
-                    {supplier.code}
-                  </span>
+                  {supplier.code}
                 </td>
                 <td
                   style={{
@@ -503,30 +1228,6 @@ export default function SuppliersTable({
                     Son: {supplier.lastOrderDate}
                   </div>
                 </td>
-                <td 
-                  style={{ 
-                    textAlign: 'right',
-                    padding: '8px 12px',
-                    borderBottom: '1px solid #e2e8f0',
-                    fontSize: '13px'
-                  }}
-                >
-                  <div style={{ 
-                    fontWeight: '600', 
-                    color: '#059669',
-                    background: 'transparent'
-                  }}>
-                    {formatCurrency(supplier.balance)}
-                  </div>
-                  <div style={{ 
-                    fontSize: '10px', 
-                    color: '#6b7280', 
-                    marginTop: '2px',
-                    background: 'transparent'
-                  }}>
-                    Limit: {formatCurrency(supplier.creditLimit)}
-                  </div>
-                </td>
                 <td
                   style={{
                     padding: '8px 12px',
@@ -568,13 +1269,14 @@ export default function SuppliersTable({
                     }}
                     onClick={(e) => {
                       e.stopPropagation()
-                      onEditSupplier && onEditSupplier(supplier)
+                      // Telefon arama işlemi
+                      window.open(`tel:${supplier.phone1}`)
                     }}
-                    title="Tedarikçiyi Düzenle"
-                    onMouseOver={(e) => e.target.style.background = '#fef3c7'}
+                    title={`Telefon: ${supplier.phone1}`}
+                    onMouseOver={(e) => e.target.style.background = '#dbeafe'}
                     onMouseOut={(e) => e.target.style.background = 'none'}
                   >
-                    ✏️
+                    📞
                   </button>
                   <button 
                     style={{
@@ -588,13 +1290,14 @@ export default function SuppliersTable({
                     }}
                     onClick={(e) => {
                       e.stopPropagation()
-                      // İletişim modal'ı açılacak
+                      // Mail gönderme işlemi
+                      window.open(`mailto:${supplier.email1}`)
                     }}
-                    title="İletişim Bilgileri"
-                    onMouseOver={(e) => e.target.style.background = '#d1fae5'}
+                    title={`Email: ${supplier.email1}`}
+                    onMouseOver={(e) => e.target.style.background = '#fef3c7'}
                     onMouseOut={(e) => e.target.style.background = 'none'}
                   >
-                    📞
+                    ✉️
                   </button>
                 </td>
               </tr>
@@ -602,6 +1305,15 @@ export default function SuppliersTable({
           </tbody>
         </table>
       </div>
+      
+      {/* Modal Renders */}
+      <SupplierDetailModal 
+        supplier={selectedSupplier}
+        isOpen={isDetailModalOpen}
+        onClose={handleCloseModal}
+      />
+      <ExistingMaterialsModal />
+      <NewMaterialModal />
     </div>
   )
 }

@@ -1,6 +1,15 @@
 import React, { useState } from 'react'
 
-export default function AddMaterialModal({ isOpen, onClose, onSave, categories, types, materials = [] }) {
+export default function AddMaterialModal({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  categories, 
+  types, 
+  materials = [],
+  loading = false,
+  error = null 
+}) {
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -9,6 +18,10 @@ export default function AddMaterialModal({ isOpen, onClose, onSave, categories, 
     unit: '',
     stock: '',
     reorderPoint: '',
+    costPrice: '',
+    sellPrice: '',
+    supplier: '',
+    description: '',
     status: 'Aktif'
   });
   
@@ -59,12 +72,20 @@ export default function AddMaterialModal({ isOpen, onClose, onSave, categories, 
       return;
     }
 
+    // Firebase için malzeme verisi hazırla
     const materialData = {
-      ...formData,
       code: finalCode,
+      name: formData.name,
+      type: formData.type,
       category: finalCategory,
-      stock: parseInt(formData.stock),
-      reorderPoint: parseInt(formData.reorderPoint)
+      unit: formData.unit,
+      stock: parseInt(formData.stock) || 0,
+      reorderPoint: parseInt(formData.reorderPoint) || 0,
+      costPrice: parseFloat(formData.costPrice) || 0,
+      sellPrice: parseFloat(formData.sellPrice) || 0,
+      supplier: formData.supplier || '',
+      description: formData.description || '',
+      status: formData.status || 'Aktif'
     };
 
     onSave(materialData, showNewCategory ? newCategory : null);
@@ -73,10 +94,15 @@ export default function AddMaterialModal({ isOpen, onClose, onSave, categories, 
     setFormData({
       code: '',
       name: '',
+      type: '',
       category: '',
       unit: '',
       stock: '',
-      reserved: '0',
+      reorderPoint: '',
+      costPrice: '',
+      sellPrice: '',
+      supplier: '',
+      description: '',
       status: 'Aktif'
     });
     setShowNewCategory(false);
@@ -162,7 +188,7 @@ export default function AddMaterialModal({ isOpen, onClose, onSave, categories, 
               >
                 <option value="">Kategori seçin</option>
                 {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.label}</option>
+                  <option key={cat.id} value={cat.id}>{cat.name || cat.label}</option>
                 ))}
                 <option value="new-category">+ Yeni Kategori Ekle</option>
               </select>
@@ -224,6 +250,58 @@ export default function AddMaterialModal({ isOpen, onClose, onSave, categories, 
                 placeholder="Minimum stok seviyesi"
                 min="0"
                 required
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Maliyet Fiyatı</label>
+              <input
+                type="number"
+                name="costPrice"
+                value={formData.costPrice}
+                onChange={handleInputChange}
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>Satış Fiyatı</label>
+              <input
+                type="number"
+                name="sellPrice"
+                value={formData.sellPrice}
+                onChange={handleInputChange}
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+              />
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group">
+              <label>Tedarikçi</label>
+              <input
+                type="text"
+                name="supplier"
+                value={formData.supplier}
+                onChange={handleInputChange}
+                placeholder="Tedarikçi adı"
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>Açıklama</label>
+              <textarea
+                name="description"
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="Malzeme açıklaması"
+                rows="2"
               />
             </div>
           </div>

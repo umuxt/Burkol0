@@ -17,35 +17,57 @@ import AddMaterialModal from './components/AddMaterialModal.jsx';
 import EditMaterialModal from './components/EditMaterialModal.jsx';
 import CategoryManagementModal from './components/CategoryManagementModal.jsx';
 
+// Firebase hooks
+import { useMaterials, useMaterialActions } from './hooks/useFirebaseMaterials.js';
+import { useCategories, useCategoryActions } from './hooks/useFirebaseCategories.js';
+
 const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin' 
   : window.location.pathname.includes('materials.html') ? 'materials'
   : 'quote';
 
-const dummyMaterials = [
-  { code: 'M-001', name: 'Çelik Levha', type: 'raw_material', category: 'demir_celik', unit: 'kg', stock: 1200, reorderPoint: 200, status: 'Aktif' },
-  { code: 'M-002', name: 'Alüminyum Profil', type: 'wip', category: 'aluminyum', unit: 'adet', stock: 300, reorderPoint: 50, status: 'Aktif' },
-  { code: 'M-003', name: 'Somun M8', type: 'raw_material', category: 'baglanti_elemani', unit: 'adet', stock: 850, reorderPoint: 100, status: 'Pasif' },
-  { code: 'M-004', name: 'Hazır Panel', type: 'final_product', category: 'panel_sistemleri', unit: 'adet', stock: 45, reorderPoint: 60, status: 'Aktif' },
-  { code: 'M-005', name: 'Galvaniz Sac', type: 'raw_material', category: 'demir_celik', unit: 'kg', stock: 2500, reorderPoint: 300, status: 'Aktif' }
-];
-
+// Material types - Bu sabit kalabilir
 const materialTypes = [
   { id: 'raw_material', label: 'Ham Madde' },
   { id: 'wip', label: 'Yarı Mamül' },
   { id: 'final_product', label: 'Bitmiş Ürün' }
 ];
 
-const materialCategories = [
-  { id: 'demir_celik', label: 'Demir-Çelik' },
-  { id: 'aluminyum', label: 'Alüminyum' },
-  { id: 'plastik', label: 'Plastik' },
-  { id: 'baglanti_elemani', label: 'Bağlantı Elemanı' },
-  { id: 'panel_sistemleri', label: 'Panel Sistemleri' }
-];
-
 function MaterialsApp() {
-  const [materials, setMaterials] = useState(dummyMaterials);
-  const [categories, setCategories] = useState(materialCategories);
+  // Firebase hooks ile veri yönetimi (manuel yükleme)
+  const { 
+    materials, 
+    loading: materialsLoading, 
+    error: materialsError, 
+    initialized: materialsInitialized,
+    loadMaterials,
+    refreshMaterials 
+  } = useMaterials(false); // autoLoad = false
+  
+  const { 
+    categories, 
+    loading: categoriesLoading, 
+    error: categoriesError, 
+    initialized: categoriesInitialized,
+    loadCategories,
+    refreshCategories 
+  } = useCategories(false); // autoLoad = false
+  
+  const { 
+    addMaterial, 
+    updateMaterial, 
+    deleteMaterial, 
+    loading: actionLoading, 
+    error: actionError 
+  } = useMaterialActions();
+  
+  const { 
+    addCategory, 
+    updateCategory, 
+    deleteCategory,
+    loading: categoryActionLoading 
+  } = useCategoryActions();
+
+  // UI state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -58,11 +80,21 @@ function MaterialsApp() {
     lowStock: false
   });
 
+  // İlk yükleme - sadece sayfa açıldığında
+  useEffect(() => {
+    if (!materialsInitialized) {
+      loadMaterials();
+    }
+    if (!categoriesInitialized) {
+      loadCategories();
+    }
+  }, [materialsInitialized, categoriesInitialized, loadMaterials, loadCategories]);
+
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters);
   };
 
-  // Filtrelenmiş malzemeler
+  // Filtrelenmiş malzemeler - Client-side filtering
   const filteredMaterials = materials.filter(material => {
     // Arama filtresi
     if (filters.search) {
@@ -118,46 +150,84 @@ function MaterialsApp() {
     setIsCategoryModalOpen(false);
   };
 
-  const handleSaveCategories = (updatedCategories) => {
-    setCategories(updatedCategories);
+  // Firebase ile kategori kaydetme
+  const handleSaveCategories = async (updatedCategories) => {
+    try {
+      // Bu fonksiyon CategoryManagementModal'dan gelecek kategori güncellemelerini işler
+      // Şimdilik kategorileri yeniden yükleyelim
+      await reloadCategories();
+    } catch (error) {
+      console.error('Category save error:', error);
+    }
   };
 
-  const handleSaveMaterial = (materialData, newCategory) => {
-    // Yeni kategori eklendiyse kategoriler listesine ekle
-    if (newCategory && !categories.some(cat => cat.label === newCategory)) {
-      const newCat = {
-        id: newCategory.toLowerCase().replace(/\s+/g, '_'),
-        label: newCategory
-      };
-      setCategories([...categories, newCat]);
-    }
+  // Firebase ile yeni malzeme kaydetme
+  const handleSaveMaterial = async (materialData, newCategory) => {
+    try {
+      // Yeni kategori eklendiyse önce kategoriyi oluştur
+      if (newCategory && !categories.some(cat => cat.name === newCategory)) {
+        const newCat = {
+          name: newCategory,
+          code: newCategory.substring(0, 4).toUpperCase(),
+          description: `${newCategory} kategorisi`,
+          color: '#007bff',
+          sortOrder: categories.length + 1
+        };
+        await addCategory(newCat);
+        await refreshCategories(); // Kategorileri yenile
+      }
 
-    // Malzemeyi listeye ekle
-    setMaterials(prev => [...prev, materialData]);
-    setIsModalOpen(false);
+      // Malzemeyi Firebase'e kaydet
+      await addMaterial(materialData);
+      setIsModalOpen(false);
+      // Malzemeleri yenile
+      await refreshMaterials();
+    } catch (error) {
+      console.error('Material save error:', error);
+    }
   };
 
-  const handleSaveEditMaterial = (materialData, newCategory) => {
-    // Yeni kategori eklendiyse kategoriler listesine ekle
-    if (newCategory && !categories.some(cat => cat.label === newCategory)) {
-      const newCat = {
-        id: newCategory.toLowerCase().replace(/\s+/g, '_'),
-        label: newCategory
-      };
-      setCategories([...categories, newCat]);
-    }
+  // Firebase ile malzeme güncelleme
+  const handleSaveEditMaterial = async (materialData, newCategory) => {
+    try {
+      // Yeni kategori eklendiyse önce kategoriyi oluştur
+      if (newCategory && !categories.some(cat => cat.name === newCategory)) {
+        const newCat = {
+          name: newCategory,
+          code: newCategory.substring(0, 4).toUpperCase(),
+          description: `${newCategory} kategorisi`,
+          color: '#007bff',
+          sortOrder: categories.length + 1
+        };
+        await addCategory(newCat);
+        await refreshCategories();
+      }
 
-    // Malzemeyi güncelle
-    setMaterials(prev => 
-      prev.map(material => 
-        material.code === editingMaterial.code 
-          ? { ...materialData }
-          : material
-      )
-    );
-    
-    setIsEditModalOpen(false);
-    setEditingMaterial(null);
+      // Malzemeyi Firebase'de güncelle
+      if (editingMaterial && editingMaterial.id) {
+        await updateMaterial(editingMaterial.id, materialData);
+      }
+      
+      setIsEditModalOpen(false);
+      setEditingMaterial(null);
+      // Malzemeleri yenile
+      await refreshMaterials();
+    } catch (error) {
+      console.error('Material update error:', error);
+    }
+  };
+
+  // Material silme fonksiyonu
+  const handleDeleteMaterial = async (materialId) => {
+    if (confirm('Bu malzemeyi silmek istediğinizden emin misiniz?')) {
+      try {
+        await deleteMaterial(materialId);
+        // Malzemeleri yenile
+        await refreshMaterials();
+      } catch (error) {
+        console.error('Material delete error:', error);
+      }
+    }
   };
 
   const handleCloseModal = () => {
@@ -169,25 +239,59 @@ function MaterialsApp() {
     setEditingMaterial(null);
   };
 
+  // Loading state
+  if (materialsLoading || categoriesLoading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner">
+          <div className="spinner"></div>
+          <p>Veriler yükleniyor...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (materialsError || categoriesError) {
+    return (
+      <div className="error-container">
+        <h3>Hata Oluştu</h3>
+        <p>{materialsError || categoriesError}</p>
+        <button onClick={() => {
+          refreshMaterials();
+          reloadCategories();
+        }}>
+          Tekrar Dene
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="materials-page">
-            <MaterialsTabs
+                  <MaterialsTabs
         filteredMaterials={filteredMaterials}
         categories={categories}
         materialTypes={materialTypes}
         handleFilterChange={handleFilterChange}
         handleAddMaterial={handleAddMaterial}
         handleEditMaterial={handleEditMaterial}
+        handleDeleteMaterial={handleDeleteMaterial}
         handleCategoryManage={handleCategoryManage}
+        loading={materialsLoading || actionLoading}
+        error={materialsError || actionError}
       >
         <StocksTabContent 
-          filteredMaterials={filteredMaterials}
+          materials={filteredMaterials}
           categories={categories}
           materialTypes={materialTypes}
           handleFilterChange={handleFilterChange}
           handleAddMaterial={handleAddMaterial}
           handleEditMaterial={handleEditMaterial}
+          handleDeleteMaterial={handleDeleteMaterial}
           handleCategoryManage={handleCategoryManage}
+          loading={materialsLoading}
+          error={materialsError}
         />
         <SuppliersTabContent categories={categories} />
         <OrdersTabContent />
@@ -200,6 +304,8 @@ function MaterialsApp() {
         categories={categories}
         types={materialTypes}
         materials={materials}
+        loading={actionLoading}
+        error={actionError}
       />
 
       <EditMaterialModal 
@@ -209,13 +315,20 @@ function MaterialsApp() {
         categories={categories}
         types={materialTypes}
         material={editingMaterial}
+        loading={actionLoading}
+        error={actionError}
       />
 
       <CategoryManagementModal 
         isOpen={isCategoryModalOpen}
         onClose={handleCloseCategoryModal}
         onSave={handleSaveCategories}
+        onRefresh={refreshCategories}
         categories={categories}
+        loading={categoryActionLoading}
+        createCategory={addCategory}
+        updateCategory={updateCategory}
+        deleteCategory={deleteCategory}
       />
     </div>
   );

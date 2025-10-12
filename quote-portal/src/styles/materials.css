@@ -928,17 +928,19 @@ section.materials-dashboard div.card {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 50;
+  z-index: 1000;
 }
 
 .modal-content {
   background: #fff;
   border-radius: 8px;
   width: 100%;
-  max-width: 600px;
+  max-width: 750px;
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-header {
@@ -972,6 +974,8 @@ section.materials-dashboard div.card {
 
 .modal-form {
   padding: 1.5rem;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .form-row {
@@ -1026,15 +1030,55 @@ section.materials-dashboard div.card {
 
 /* Readonly input styling */
 .readonly-input {
-  background-color: #f5f5f5 !important;
-  color: #666 !important;
-  cursor: not-allowed !important;
-  border: 1px solid #ddd !important;
+  background-color: transparent !important;
+  color: #374151 !important;
+  cursor: default !important;
+  border: none !important;
+  padding: 1px !important;
+  box-shadow: none !important;
 }
 
 .readonly-input:focus {
   outline: none !important;
   box-shadow: none !important;
+}
+
+/* Editable input styling */
+.editable-input {
+  background-color: white !important;
+  color: #374151 !important;
+  cursor: text !important;
+  border: 1px solid #d1d5db !important;
+  padding: 8px 12px !important;
+  border-radius: 4px !important;
+  transition: border-color 0.2s ease !important;
+}
+
+.editable-input:focus {
+  outline: none !important;
+  border-color: #d4af37 !important;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.1) !important;
+}
+
+/* Select specific styling */
+select.readonly-input {
+  appearance: none !important;
+  background-image: none !important;
+}
+
+select.editable-input {
+  appearance: auto !important;
+}
+
+/* Textarea specific styling */
+textarea.readonly-input {
+  resize: none !important;
+  min-height: auto !important;
+}
+
+textarea.editable-input {
+  resize: vertical !important;
+  min-height: 80px !important;
 }
 
 /* Category info button */
@@ -1223,8 +1267,11 @@ section.materials-dashboard div.card {
   gap: 1rem;
   justify-content: flex-end;
   margin-top: 1.5rem;
-  padding-top: 1rem;
+  padding: 1rem 1.5rem;
   border-top: 1px solid #e5e7eb;
+  background: #fff;
+  position: sticky;
+  bottom: 0;
 }
 
 .btn-cancel {
@@ -1407,4 +1454,32 @@ section.materials-dashboard div.card {
   .btn-save {
     width: 100%;
   }
+}
+
+/* Fiyat sütunu stilleri */
+.price-cell {
+  min-width: 120px;
+  text-align: right;
+}
+
+.price-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.cost-price {
+  font-weight: 600;
+  color: #059669;
+}
+
+.sell-price {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.no-price {
+  color: #9ca3af;
+  font-style: italic;
 }

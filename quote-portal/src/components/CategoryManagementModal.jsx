@@ -1,50 +1,75 @@
 import React, { useState, useEffect } from 'react';
 
-export default function CategoryManagementModal({ isOpen, onClose, categories, onSave }) {
-  const [localCategories, setLocalCategories] = useState([]);
+export default function CategoryManagementModal({ 
+  isOpen, 
+  onClose, 
+  categories, 
+  onSave,
+  onRefresh,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  loading = false
+}) {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [editingIndex, setEditingIndex] = useState(-1);
   const [editingName, setEditingName] = useState('');
 
   useEffect(() => {
     if (isOpen) {
-      setLocalCategories([...categories]);
       setNewCategoryName('');
       setEditingIndex(-1);
       setEditingName('');
     }
   }, [isOpen, categories]);
 
-  const handleAddCategory = () => {
-    if (newCategoryName.trim()) {
-      const newId = newCategoryName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-      const newCategory = {
-        id: newId,
-        label: newCategoryName.trim()
-      };
-      const updatedCategories = [...localCategories, newCategory];
-      setLocalCategories(updatedCategories);
-      onSave(updatedCategories); // Otomatik kaydet
-      setNewCategoryName('');
+  const handleAddCategory = async () => {
+    if (newCategoryName.trim() && createCategory) {
+      try {
+        const newCategory = {
+          name: newCategoryName.trim(),
+          code: newCategoryName.substring(0, 4).toUpperCase(),
+          description: `${newCategoryName.trim()} kategorisi`,
+          color: '#007bff',
+          sortOrder: categories.length + 1
+        };
+        await createCategory(newCategory);
+        setNewCategoryName('');
+        // Kategori listesini yenile
+        if (onRefresh) {
+          await onRefresh();
+        }
+      } catch (error) {
+        console.error('Kategori ekleme hatası:', error);
+        alert('Kategori eklenirken bir hata oluştu.');
+      }
     }
   };
 
   const handleEditCategory = (index) => {
     setEditingIndex(index);
-    setEditingName(localCategories[index].label);
+    setEditingName(categories[index].name || categories[index].label);
   };
 
-  const handleSaveEdit = () => {
-    if (editingName.trim()) {
-      const updatedCategories = [...localCategories];
-      updatedCategories[editingIndex] = {
-        ...updatedCategories[editingIndex],
-        label: editingName.trim()
-      };
-      setLocalCategories(updatedCategories);
-      onSave(updatedCategories); // Otomatik kaydet
-      setEditingIndex(-1);
-      setEditingName('');
+  const handleSaveEdit = async () => {
+    if (editingName.trim() && updateCategory && categories[editingIndex]) {
+      try {
+        const categoryToUpdate = categories[editingIndex];
+        const updatedData = {
+          ...categoryToUpdate,
+          name: editingName.trim()
+        };
+        await updateCategory(categoryToUpdate.id, updatedData);
+        setEditingIndex(-1);
+        setEditingName('');
+        // Kategori listesini yenile
+        if (onRefresh) {
+          await onRefresh();
+        }
+      } catch (error) {
+        console.error('Kategori güncelleme hatası:', error);
+        alert('Kategori güncellenirken bir hata oluştu.');
+      }
     }
   };
 
@@ -53,17 +78,19 @@ export default function CategoryManagementModal({ isOpen, onClose, categories, o
     setEditingName('');
   };
 
-  const handleDeleteCategory = (index) => {
-    if (confirm('Bu kategoriyi silmek istediğinizden emin misiniz?')) {
-      const updatedCategories = localCategories.filter((_, i) => i !== index);
-      setLocalCategories(updatedCategories);
-      onSave(updatedCategories); // Otomatik kaydet
+  const handleDeleteCategory = async (index) => {
+    if (confirm('Bu kategoriyi silmek istediğinizden emin misiniz?') && deleteCategory && categories[index]) {
+      try {
+        await deleteCategory(categories[index].id);
+        // Kategori listesini yenile
+        if (onRefresh) {
+          await onRefresh();
+        }
+      } catch (error) {
+        console.error('Kategori silme hatası:', error);
+        alert('Kategori silinirken bir hata oluştu.');
+      }
     }
-  };
-
-  const handleSave = () => {
-    onSave(localCategories);
-    onClose();
   };
 
   const handleKeyPress = (e, action) => {
@@ -80,7 +107,6 @@ export default function CategoryManagementModal({ isOpen, onClose, categories, o
         <div className="modal-header">
           <h3>Kategori Yönetimi</h3>
           <div className="header-actions">
-            <button className="save-header-btn" onClick={handleSave}>Kaydet</button>
             <button className="close-btn" onClick={onClose}>&times;</button>
           </div>
         </div>
@@ -90,7 +116,7 @@ export default function CategoryManagementModal({ isOpen, onClose, categories, o
           <div className="categories-section">
             <h4>Mevcut Kategoriler</h4>
             <div className="categories-list">
-              {localCategories.map((category, index) => (
+              {categories.map((category, index) => (
                 <div key={category.id} className="category-item">
                   {editingIndex === index ? (
                     <div className="category-edit">
@@ -100,18 +126,19 @@ export default function CategoryManagementModal({ isOpen, onClose, categories, o
                         onChange={(e) => setEditingName(e.target.value)}
                         onKeyPress={(e) => handleKeyPress(e, handleSaveEdit)}
                         autoFocus
+                        disabled={loading}
                       />
                       <div className="edit-actions">
-                        <button onClick={handleSaveEdit} className="save-btn">✓</button>
+                        <button onClick={handleSaveEdit} className="save-btn" disabled={loading}>✓</button>
                         <button onClick={handleCancelEdit} className="cancel-btn">✗</button>
                       </div>
                     </div>
                   ) : (
                     <div className="category-display">
-                      <span className="category-name">{category.label}</span>
+                      <span className="category-name">{category.name || category.label}</span>
                       <div className="category-actions">
-                        <button onClick={() => handleEditCategory(index)} className="edit-btn">✏️</button>
-                        <button onClick={() => handleDeleteCategory(index)} className="delete-btn">🗑️</button>
+                        <button onClick={() => handleEditCategory(index)} className="edit-btn" disabled={loading}>✏️</button>
+                        <button onClick={() => handleDeleteCategory(index)} className="delete-btn" disabled={loading}>🗑️</button>
                       </div>
                     </div>
                   )}
@@ -130,8 +157,11 @@ export default function CategoryManagementModal({ isOpen, onClose, categories, o
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
                 onKeyPress={(e) => handleKeyPress(e, handleAddCategory)}
+                disabled={loading}
               />
-              <button onClick={handleAddCategory} className="add-btn">Ekle</button>
+              <button onClick={handleAddCategory} className="add-btn" disabled={loading || !newCategoryName.trim()}>
+                {loading ? 'Ekleniyor...' : 'Ekle'}
+              </button>
             </div>
           </div>
         </div>

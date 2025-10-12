@@ -1,0 +1,206 @@
+// Yeni modal form yapısı - görsel referansına göre
+            {/* Üst Bölüm: Yan yana iki div */}
+            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+              
+              {/* Sol Div: Firma Bilgileri */}
+              <div style={{ flex: 1, border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Firma Bilgileri</h3>
+                
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label>Tedarikçi No</label>
+                  <input
+                    type="text"
+                    name="code"
+                    value={formData.code}
+                    readOnly
+                    className="readonly-input"
+                  />
+                </div>
+                
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label>Firma Adı</label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={!isEditing ? 'readonly-input' : ''}
+                  />
+                </div>
+                
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label>Vergi No</label>
+                  <input
+                    type="text"
+                    name="taxNumber"
+                    value={formData.taxNumber}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={!isEditing ? 'readonly-input' : ''}
+                  />
+                </div>
+                
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label>Yetkili Kişi</label>
+                  <input
+                    type="text"
+                    name="contactPerson"
+                    value={formData.contactPerson}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={!isEditing ? 'readonly-input' : ''}
+                  />
+                </div>
+                
+                <div className="form-group" style={{ marginBottom: '0' }}>
+                  <label>Durum</label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={!isEditing ? 'readonly-input' : ''}
+                  >
+                    <option value="Aktif">Aktif</option>
+                    <option value="Pasif">Pasif</option>
+                  </select>
+                </div>
+                
+                <div style={{ marginTop: '15px' }}>
+                  <label style={{ display: 'block', marginBottom: '5px' }}>Adres</label>
+                  <textarea
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={!isEditing ? 'readonly-input' : ''}
+                    rows="3"
+                    style={{ width: '100%', resize: 'vertical' }}
+                  />
+                </div>
+              </div>
+              
+              {/* Sağ Div: İletişim Bilgileri */}
+              <div style={{ flex: 1, border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
+                <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>İletişim</h3>
+                
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label>Mail1</label>
+                  <input
+                    type="email"
+                    name="email1"
+                    value={formData.email1}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={!isEditing ? 'readonly-input' : ''}
+                  />
+                </div>
+                
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label>Mail2</label>
+                  <input
+                    type="email"
+                    name="email2"
+                    value={formData.email2}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={!isEditing ? 'readonly-input' : ''}
+                  />
+                </div>
+                
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label>Tel1</label>
+                  <input
+                    type="text"
+                    name="phone1"
+                    value={formData.phone1}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={!isEditing ? 'readonly-input' : ''}
+                  />
+                </div>
+                
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label>Tel2</label>
+                  <input
+                    type="text"
+                    name="phone2"
+                    value={formData.phone2}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={!isEditing ? 'readonly-input' : ''}
+                  />
+                </div>
+                
+                <div className="form-group" style={{ marginBottom: '12px' }}>
+                  <label>Fax1</label>
+                  <input
+                    type="text"
+                    name="fax1"
+                    value={formData.fax1 || ''}
+                    onChange={handleInputChange}
+                    disabled={!isEditing}
+                    className={!isEditing ? 'readonly-input' : ''}
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Alt Bölüm: Sipariş Tablosu */}
+            <div style={{ border: '1px solid #e0e0e0', padding: '15px', borderRadius: '6px' }}>
+              <h3 style={{ margin: '0 0 15px 0', fontSize: '14px', fontWeight: '600', color: '#374151' }}>Sipariş Geçmişi</h3>
+              
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f8fafc' }}>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Kategori</th>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Malzeme No</th>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'left' }}>Malzeme Adı</th>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Ödeme Koşulu</th>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'center' }}>Son Sipariş Tarihi</th>
+                    <th style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>Toplam Sipariş</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>{formData.category}</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>{formData.paymentTerms}</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'center' }}>{formData.lastOrderDate}</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>{formData.totalOrders}</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                  </tr>
+                  <tr>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px' }}>-</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr style={{ backgroundColor: '#f8fafc', fontWeight: '600' }}>
+                    <td colSpan="5" style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>#Toplam Sipariş</td>
+                    <td style={{ border: '1px solid #e0e0e0', padding: '8px', textAlign: 'right' }}>{formData.totalOrders}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>

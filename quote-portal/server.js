@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url'
 import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
 import { setupQuoteRoutes, setupSettingsRoutes, setupExportRoutes } from './server/apiRoutes.js'
+import { setupMaterialsRoutes } from './server/materialsRoutes.js'
 import addMigrationRoutes from './server/migrationRoutes.js'
 import jsondb from './src/lib/jsondb.js'
 import admin from 'firebase-admin'
@@ -110,6 +111,7 @@ app.use((req, res, next) => {
 // Setup API routes
 setupAuthRoutes(app)
 setupQuoteRoutes(app, uploadsDir)
+setupMaterialsRoutes(app)
 setupSettingsRoutes(app)
 setupExportRoutes(app)
 

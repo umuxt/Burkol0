@@ -1,7 +1,14 @@
 import React, { useState } from 'react'
 import StockBar from './StockBar.jsx'
 
-export default function MaterialsTable({ materials, types, onEditMaterial, onCategoryManage }) {
+export default function MaterialsTable({ 
+  materials, 
+  types, 
+  categories,
+  onEditMaterial, 
+  onDeleteMaterial,
+  onCategoryManage 
+}) {
   const [activeTab, setActiveTab] = useState('all');
   const [sortField, setSortField] = useState('');
   const [sortDirection, setSortDirection] = useState('asc');
@@ -22,6 +29,18 @@ export default function MaterialsTable({ materials, types, onEditMaterial, onCat
     return sortDirection === 'asc' 
       ? <span style={{ fontSize: '12px', opacity: 1 }}>↑</span>
       : <span style={{ fontSize: '12px', opacity: 1 }}>↓</span>;
+  };
+
+  // Helper function to get category name
+  const getCategoryName = (categoryId) => {
+    const category = categories.find(cat => cat.id === categoryId);
+    return category ? category.name : categoryId;
+  };
+
+  // Helper function to get type label
+  const getTypeLabel = (typeId) => {
+    const type = types.find(t => t.id === typeId);
+    return type ? type.label : typeId;
   };
 
   const tabs = [
@@ -45,8 +64,14 @@ export default function MaterialsTable({ materials, types, onEditMaterial, onCat
 
     // Tip alanı için özel işlem
     if (sortField === 'type') {
-      aValue = types.find(t => t.id === a.type)?.label || a.type;
-      bValue = types.find(t => t.id === b.type)?.label || b.type;
+      aValue = getTypeLabel(a.type);
+      bValue = getTypeLabel(b.type);
+    }
+
+    // Kategori alanı için özel işlem  
+    if (sortField === 'category') {
+      aValue = getCategoryName(a.category);
+      bValue = getCategoryName(b.category);
     }
 
     // Stok alanı için sayısal karşılaştırma
@@ -215,6 +240,25 @@ export default function MaterialsTable({ materials, types, onEditMaterial, onCat
               <th style={{ whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
+                  onClick={() => handleSort('costPrice')}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    font: 'inherit',
+                    color: sortField === 'costPrice' ? '#007bff' : 'inherit'
+                  }}
+                >
+                  Fiyat{getSortIcon('costPrice')}
+                </button>
+              </th>
+              <th style={{ whiteSpace: 'nowrap' }}>
+                <button 
+                  type="button"
                   onClick={() => handleSort('status')}
                   style={{
                     display: 'inline-flex',
@@ -231,27 +275,103 @@ export default function MaterialsTable({ materials, types, onEditMaterial, onCat
                   Durum{getSortIcon('status')}
                 </button>
               </th>
+              <th style={{ width: '120px' }}>İşlemler</th>
             </tr>
           </thead>
           <tbody>
-            {sortedMaterials.map((m, i) => (
+            {sortedMaterials.map((material) => (
               <tr 
-                key={i} 
-                className={`${m.status === 'Pasif' ? 'inactive' : ''} clickable-row`}
-                onClick={() => onEditMaterial && onEditMaterial(m)}
-                title="Düzenlemek için tıklayın"
+                key={material.id || material.code} 
+                className={`${material.status === 'Pasif' ? 'inactive' : ''} ${material.stock <= material.reorderPoint ? 'low-stock' : ''}`}
               >
-                <td>{m.code}</td>
-                <td>{m.name}</td>
-                <td>{types.find(t => t.id === m.type)?.label || m.type}</td>
-                <td>{m.category}</td>
-                <td>{m.unit}</td>
-                <td className="stock-cell">
-                  <StockBar stock={m.stock} reorderPoint={m.reorderPoint} />
+                <td>{material.code}</td>
+                <td>
+                  <div className="material-name-cell">
+                    <strong>{material.name}</strong>
+                    {material.description && (
+                      <small className="material-description">{material.description}</small>
+                    )}
+                  </div>
                 </td>
-                <td>{m.status}</td>
+                <td>{getTypeLabel(material.type)}</td>
+                <td>{getCategoryName(material.category)}</td>
+                <td>{material.unit}</td>
+                <td className="stock-cell">
+                  <StockBar 
+                    stock={material.stock} 
+                    reorderPoint={material.reorderPoint} 
+                    reserved={material.reserved || 0}
+                    available={material.available || material.stock}
+                  />
+                </td>
+                <td className="price-cell">
+                  <div className="price-details">
+                    {material.costPrice && (
+                      <span className="cost-price">
+                        {new Intl.NumberFormat('tr-TR', { 
+                          style: 'currency', 
+                          currency: 'TRY' 
+                        }).format(material.costPrice)}
+                      </span>
+                    )}
+                    {material.sellPrice && (
+                      <span className="sell-price">
+                        Satış: {new Intl.NumberFormat('tr-TR', { 
+                          style: 'currency', 
+                          currency: 'TRY' 
+                        }).format(material.sellPrice)}
+                      </span>
+                    )}
+                    {!material.costPrice && !material.sellPrice && (
+                      <span className="no-price">-</span>
+                    )}
+                  </div>
+                </td>
+                <td>
+                  <span className={`status-badge ${material.status.toLowerCase()}`}>
+                    {material.status}
+                  </span>
+                </td>
+                <td className="actions-cell">
+                  <button
+                    type="button"
+                    className="edit-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEditMaterial && onEditMaterial(material);
+                    }}
+                    title="Düzenle"
+                  >
+                    ✏️
+                  </button>
+                  {onDeleteMaterial && (
+                    <button
+                      type="button"
+                      className="delete-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`"${material.name}" malzemesini silmek istediğinizden emin misiniz?`)) {
+                          onDeleteMaterial(material.id);
+                        }
+                      }}
+                      title="Sil"
+                    >
+                      🗑️
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
+            {sortedMaterials.length === 0 && (
+              <tr>
+                <td colSpan="8" className="no-data">
+                  {activeTab === 'all' 
+                    ? 'Henüz malzeme bulunmuyor.' 
+                    : `Bu tipte malzeme bulunmuyor: ${tabs.find(t => t.id === activeTab)?.label}`
+                  }
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
