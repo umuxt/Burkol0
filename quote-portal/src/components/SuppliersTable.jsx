@@ -79,11 +79,11 @@ export default function SuppliersTable({
   // Sıralama ikonu
   const getSortIcon = (field) => {
     if (sortField !== field) {
-      return <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+      return <span style={{ fontSize: '12px', opacity: 1, color: '#374151' }}>↕</span>
     }
     return sortDirection === 'asc' 
-      ? <span style={{ fontSize: '12px', opacity: 1 }}>↑</span>
-      : <span style={{ fontSize: '12px', opacity: 1 }}>↓</span>
+      ? <span style={{ fontSize: '12px', opacity: 1, color: '#007bff' }}>↑</span>
+      : <span style={{ fontSize: '12px', opacity: 1, color: '#007bff' }}>↓</span>
   }
 
   // Tedarikçileri sadece seçili tabına göre filtrele
@@ -1773,7 +1773,7 @@ export default function SuppliersTable({
                     cursor: 'pointer',
                     padding: 0,
                     font: 'inherit',
-                    color: sortField === 'name' ? '#007bff' : 'inherit'
+                    color: sortField === 'name' ? '#007bff' : '#374151'
                   }}
                 >
                   Firma Adı {getSortIcon('name')}
@@ -1811,24 +1811,28 @@ export default function SuppliersTable({
                   <td style={{
                     padding: '8px 12px',
                     borderBottom: '1px solid #e2e8f0',
-                    fontSize: '13px'
+                    fontSize: '13px',
+                    color: '#000000',
+                    fontWeight: '400'
                   }}>
                     {supplier.status === 'Pasif' ? (
                       <div className="material-name-cell">
-                        <strong style={{ color: '#000000' }}>{supplier.code}</strong>
+                        {supplier.code}
                       </div>
                     ) : (
-                      <strong style={{ color: '#000000' }}>{supplier.code}</strong>
+                      supplier.code
                     )}
                   </td>
                   <td style={{
                     padding: '8px 12px',
                     borderBottom: '1px solid #e2e8f0',
-                    fontSize: '13px'
+                    fontSize: '13px',
+                    color: '#000000',
+                    fontWeight: '400'
                   }}>
                     {supplier.status === 'Pasif' ? (
                       <div className="material-name-cell">
-                        <strong style={{ color: '#000000' }}>{supplier.name}</strong>
+                        {supplier.name}
                         <span style={{ 
                           backgroundColor: '#fee2e2',
                           color: '#dc2626',
@@ -1843,7 +1847,7 @@ export default function SuppliersTable({
                       </div>
                     ) : (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <strong style={{ color: '#000000' }}>{supplier.name}</strong>
+                        {supplier.name}
                       </div>
                     )}
                   </td>

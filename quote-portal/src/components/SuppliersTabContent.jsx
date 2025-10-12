@@ -29,20 +29,208 @@ function SuppliersDashboard({ suppliers }) {
 }
 
 // Suppliers filters component with search functionality
-function SuppliersFilters({ onSearch, searchQuery }) {
+function SuppliersFilters({ onSearch, searchQuery, isExpanded, onToggleExpanded }) {
+  const toggleExpanded = () => {
+    onToggleExpanded(!isExpanded)
+  }
+
   return (
     <section className="materials-filters">
-      <div className="filters-container">
-        <div className="search-section">
-          <div className="search-input-container">
-            <input 
-              placeholder="Tedarikçi adı veya kategoriye göre ara..." 
-              className="search-input" 
-              type="text" 
-              value={searchQuery}
-              onChange={(e) => onSearch(e.target.value)}
-            />
-            <span className="search-icon">🔍</span>
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'flex-start', 
+        gap: '8px',
+        width: '100%',
+        flexDirection: isExpanded ? 'row' : 'row-reverse'
+      }}>
+        {/* Sol taraf - Genişletme butonu */}
+        <div style={{
+          paddingLeft: '4px',
+          display: 'flex',
+          alignItems: 'center',
+          height: '100%'
+        }}>
+          <button
+            onClick={toggleExpanded}
+            style={{
+              background: 'none',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '8px 6px',
+              cursor: 'pointer',
+              color: '#6b7280',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              minHeight: '40px'
+            }}
+            title={isExpanded ? 'Daralt' : 'Genişlet'}
+          >
+            {isExpanded ? '»' : '«'}
+          </button>
+        </div>
+
+        {/* Sağ taraf - Filtre container */}
+        <div className="filters-container" style={{ 
+          flex: isExpanded ? 1 : 'none',
+          width: isExpanded ? '100%' : 'auto'
+        }}>
+          <div className="search-section">
+            <div className="search-input-container">
+              <input 
+                placeholder="Tedarikçi adı, kodu veya kategoriye göre ara..." 
+                className="search-input" 
+                type="text" 
+                value={searchQuery}
+                onChange={(e) => onSearch(e.target.value)}
+              />
+              <span className="search-icon">🔍</span>
+            </div>
+            <div className="quick-filters">
+              <button type="button" className="quick-filter-btn ">🔴 Pasif Tedarikçiler</button>
+              {isExpanded && (
+                <>
+                  <button type="button" className="quick-filter-btn ">⭐ A Kredi Notu</button>
+                  <button type="button" className="quick-filter-btn ">🏭 Üreticiler</button>
+                  <button type="button" className="quick-filter-btn ">🌍 Yurtdışı</button>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="dropdown-filters">
+            <div className="filter-group">
+              <div className="multi-select-container">
+                <div className="multi-select-header">
+                  Tedarikçi Tipi seçin...
+                  <span className="dropdown-arrow">▼</span>
+                </div>
+                <div id="supplier-types-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Üretici</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Distribütör</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Toptancı</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Hizmet Sağlayıcı</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Yüklenici</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Danışman</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="filter-group">
+              <div className="multi-select-container">
+                <div className="multi-select-header">
+                  Ülke seçin...
+                  <span className="dropdown-arrow">▼</span>
+                </div>
+                <div id="countries-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Türkiye</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Almanya</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Fransa</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>İtalya</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>ABD</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Çin</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            {isExpanded && (
+              <>
+                <div className="filter-group">
+                  <div className="multi-select-container">
+                    <div className="multi-select-header">
+                      Kredi Notu seçin...
+                      <span className="dropdown-arrow">▼</span>
+                    </div>
+                    <div id="credit-rating-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
+                      <label className="multi-select-option">
+                        <input type="checkbox" />
+                        <span>A - Mükemmel</span>
+                      </label>
+                      <label className="multi-select-option">
+                        <input type="checkbox" />
+                        <span>B - İyi</span>
+                      </label>
+                      <label className="multi-select-option">
+                        <input type="checkbox" />
+                        <span>C - Orta</span>
+                      </label>
+                      <label className="multi-select-option">
+                        <input type="checkbox" />
+                        <span>D - Zayıf</span>
+                      </label>
+                      <label className="multi-select-option">
+                        <input type="checkbox" />
+                        <span>F - Riskli</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div className="filter-group">
+                  <div className="multi-select-container">
+                    <div className="multi-select-header">
+                      Risk Seviyesi seçin...
+                      <span className="dropdown-arrow">▼</span>
+                    </div>
+                    <div id="risk-level-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
+                      <label className="multi-select-option">
+                        <input type="checkbox" />
+                        <span>Düşük Risk</span>
+                      </label>
+                      <label className="multi-select-option">
+                        <input type="checkbox" />
+                        <span>Orta Risk</span>
+                      </label>
+                      <label className="multi-select-option">
+                        <input type="checkbox" />
+                        <span>Yüksek Risk</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            <div className="filter-group">
+              <div className="status-toggle-container">
+                <div className="status-toggle-header ">
+                  <span className="status-icon">🔄</span>
+                  <span>Filtresiz</span>
+                  <span className="toggle-arrow">🔄</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -59,6 +247,7 @@ export default function SuppliersTabContent({ categories, handleAddMaterial }) {
   const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false)
   const [isTransitioningToMaterial, setIsTransitioningToMaterial] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
   
   // Firebase hooks
   const { 
@@ -131,25 +320,34 @@ export default function SuppliersTabContent({ categories, handleAddMaterial }) {
   return (
     <div className="stocks-tab-content">
       <div className="materials-header-section">
-        <div className="materials-dashboard-container">
-          <SuppliersDashboard suppliers={filteredSuppliers} />
-        </div>
-        <div className="materials-actions-container">
-          <div className="materials-actions">
-            <button 
-              type="button" 
-              className="add-material-btn"
-              onClick={() => setIsAddSupplierModalOpen(true)}
-              disabled={suppliersLoading}
-            >
-              + Yeni Tedarikçi
-            </button>
-          </div>
-        </div>
-        <div className="materials-filters-container">
+        {!isFiltersExpanded && (
+          <>
+            <div className="materials-dashboard-container">
+              <SuppliersDashboard suppliers={filteredSuppliers} />
+            </div>
+            <div className="materials-actions-container">
+              <div className="materials-actions">
+                <button 
+                  type="button" 
+                  className="add-material-btn"
+                  onClick={() => setIsAddSupplierModalOpen(true)}
+                  disabled={suppliersLoading}
+                >
+                  + Yeni Tedarikçi
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+        <div className="materials-filters-container" style={{ 
+          flex: isFiltersExpanded ? 1 : 'initial',
+          maxWidth: isFiltersExpanded ? '100%' : 'initial'
+        }}>
           <SuppliersFilters 
             onSearch={setSearchQuery}
             searchQuery={searchQuery}
+            isExpanded={isFiltersExpanded}
+            onToggleExpanded={setIsFiltersExpanded}
           />
         </div>
       </div>
