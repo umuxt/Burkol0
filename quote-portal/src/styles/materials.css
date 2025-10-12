@@ -191,14 +191,15 @@
 .materials-actions-container {
   background: white;
   border-radius: 8px;
-  padding: 16px;
+  padding: 8px 4px; /* Yatay padding düşürüldü: 8px -> 4px */
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  min-width: 300px;
+  min-width: 250px; /* Container daraltıldı: 300px -> 250px */
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   max-height: 100%;
-  justify-content: center;
+  justify-content: center; /* Grid'i dikey olarak ortala */
+  align-items: center; /* Grid'i yatay olarak ortala */
 }
 
 /* Materials Filters Container */
@@ -221,30 +222,89 @@
 
 /* Materials Actions */
 .materials-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  justify-content: center;
-  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* 2 kolon */
+  grid-template-rows: 34px 34px;    /* Search input ile aynı yükseklik */
+  gap: 6px; /* %50 azaltıldı: 12px -> 6px */
+  align-items: stretch;
+  justify-items: stretch;
+  width: fit-content; /* Grid'in genişliğini içeriğe göre ayarla */
+  max-width: 100%; /* Container'dan taşmasını engelle */
 }
 
 .materials-actions .add-material-btn {
   background: linear-gradient(135deg, #28a745, #20c997);
   color: white;
   border: none;
-  padding: 8px 16px;
+  padding: 8px 8px; /* %50 azaltıldı: 16px -> 8px */
   border-radius: 6px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
   font-size: 13px;
+  width: 100%; /* Grid cell'i tamamen doldur */
+  height: 34px; /* Search input ile aynı yükseklik */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .materials-actions .add-material-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+}
+
+/* CSV Export Button */
+.materials-actions .csv-export-btn {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: white;
+  border: none;
+  padding: 8px 8px; /* %50 azaltıldı: 16px -> 8px */
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+  font-size: 13px;
+  width: 100%; /* Grid cell'i tamamen doldur */
+  height: 34px; /* Search input ile aynı yükseklik */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.materials-actions .csv-export-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+}
+
+/* Delete Selected Button */
+.materials-actions .delete-selected-btn {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  color: white;
+  border: none;
+  padding: 8px 8px; /* %50 azaltıldı: 16px -> 8px */
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
+  font-size: 13px;
+  width: 100%; /* Grid cell'i tamamen doldur */
+  height: 34px; /* Search input ile aynı yükseklik */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.materials-actions .delete-selected-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+  background: linear-gradient(135deg, #c82333, #bd2130);
 }
 
 /* Materials Dashboard */
@@ -452,13 +512,17 @@ section.materials-dashboard div.card {
 }
 
 .quick-filter-btn {
-  padding: 4px 8px;
+  padding: 8px 12px; /* Search input ile aynı padding */
   border: 1px solid #ddd;
   border-radius: 4px;
   background: white;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 13px; /* Search input ile aynı font size */
   transition: all 0.2s;
+  height: 34px; /* Search input ile aynı yükseklik */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .quick-filter-btn:hover {
@@ -958,6 +1022,55 @@ section.materials-dashboard div.card {
   color: #ffffff;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-actions .btn-edit,
+.header-actions .btn-save,
+.header-actions .btn-delete {
+  padding: 0.25rem; /* Modal-close ile aynı boyut */
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  line-height: 1; /* Modal-close ile aynı */
+  min-width: auto; /* Genişlik otomatik */
+}
+
+.header-actions .btn-edit {
+  background: #f59e0b;
+  color: white;
+}
+
+.header-actions .btn-edit:hover {
+  background: #d97706;
+}
+
+.header-actions .btn-save {
+  background: #10b981;
+  color: white;
+}
+
+.header-actions .btn-save:hover {
+  background: #059669;
+}
+
+.header-actions .btn-delete {
+  background: #ef4444;
+  color: white;
+}
+
+.header-actions .btn-delete:hover {
+  background: #dc2626;
+}
+
 .modal-close {
   background: none;
   border: none;
@@ -1095,6 +1208,174 @@ textarea.editable-input {
 
 .category-info-btn:hover {
   background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Material Details Layout - Yeniden düzenlenmiş */
+.modal-form.material-details-layout {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 20px !important;
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: 1.5rem !important; /* Genel modal-form padding'ini koruyoruz */
+  margin: 0 !important;
+}
+
+/* Üst kısım - 2 kolon */
+.modal-form.material-details-layout .details-top-section {
+  display: grid !important;
+  grid-template-columns: 2fr 1fr !important;
+  gap: 20px !important;
+  margin: 0 !important;
+}
+
+/* Alt kısımlar - margin sıfırla */
+.modal-form.material-details-layout > div {
+  margin: 0 !important;
+}
+
+/* Container stili - Sol ve sağ kolonlar */
+.modal-form.material-details-layout .details-left-section, 
+.modal-form.material-details-layout .details-right-section,
+.modal-form.material-details-layout .details-bottom-section,
+.modal-form.material-details-layout .supply-history-section {
+  flex: 1;
+  border: 1px solid #e0e0e0;
+  padding: 15px;
+  border-radius: 6px;
+  margin: 0 !important;
+}
+
+/* Başlık stili */
+.modal-form.material-details-layout .details-left-section h3,
+.modal-form.material-details-layout .details-right-section h3,
+.modal-form.material-details-layout .details-bottom-section h3,
+.modal-form.material-details-layout .supply-history-section h3 {
+  margin: 0 0 15px 0 !important;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+/* Detail item stilleri kaldırıldı - ana layout kuralları kullanılıyor */
+
+/* Modal içindeki detay öğeleri için yeni kurallar */
+.modal-form.material-details-layout .details-content {
+  display: flex;
+  flex-direction: column;
+  gap: 3px; /* %75 azaltıldı: 12px -> 3px */
+}
+
+.modal-form.material-details-layout .detail-item {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 2px 0; /* %75 azaltıldı: 8px -> 2px */
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.modal-form.material-details-layout .detail-item:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-weight: 600;
+  min-width: 100px;
+  color: #374151;
+  font-size: 13px;
+}
+
+.detail-value {
+  flex: 1;
+  padding: 2px;
+  color: #1f2937;
+  font-size: 14px;
+}
+
+.detail-input {
+  border: none;
+  background: none;
+  padding: 2px;
+  flex: 1;
+  font-size: 14px;
+  color: #1f2937;
+}
+
+.detail-input:focus {
+  outline: none;
+  border-color: #d4af37;
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.1);
+}
+
+/* 2x2 Grid için stok bilgileri */
+.material-details-layout .stock-info-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  grid-template-rows: auto auto !important;
+  gap: 3px !important; /* Grid öğeleri arası gap - %75 azaltıldı: 12px -> 3px */
+}
+
+/* Stock grid içindeki detail-item'lar için özel spacing */
+.modal-form.material-details-layout .stock-info-grid .detail-item {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 2px 0; /* Ana detail-item ile aynı sıkışık spacing */
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.modal-form.material-details-layout .stock-info-grid .detail-item:last-child {
+  border-bottom: none;
+}
+
+/* Sağ kolon placeholder */
+.details-right-section {
+  background: #f8f9fa;
+  border: 2px dashed #dee2e6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.placeholder-content {
+  color: #6c757d;
+  font-style: italic;
+  text-align: center;
+}
+
+/* Tedarik geçmişi tablosu */
+.supply-history-table {
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.supply-history-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.supply-history-table th {
+  background: #f8f9fa;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: #374151;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.supply-history-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+}
+
+.supply-history-table .no-data {
+  text-align: center;
+  color: #6b7280;
+  font-style: italic;
+  padding: 20px;
 }
 
 /* Category Management Modal */
