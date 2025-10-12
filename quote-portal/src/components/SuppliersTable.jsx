@@ -10,7 +10,8 @@ export default function SuppliersTable({
   loading = false,
   onUpdateSupplier,
   onDeleteSupplier,
-  onAddMaterialToSupplier
+  onAddMaterialToSupplier,
+  onRefreshSuppliers
 }) {
   const { materials, loading: materialsLoading } = useMaterials(true)
   const { categories, loading: categoriesLoading } = useCategories(true)
@@ -1396,7 +1397,24 @@ export default function SuppliersTable({
                     onClick={(e) => {
                       e.stopPropagation();
                       if (onAddNewMaterial) {
-                        onAddNewMaterial(selectedSupplier, (newMaterial) => {
+                        onAddNewMaterial(selectedSupplier, (materialOrCallbackData) => {
+                          // Null check ekle
+                          if (!materialOrCallbackData) {
+                            console.error('❌ materialOrCallbackData null geldi:', materialOrCallbackData)
+                            return
+                          }
+                          
+                          // Hem eski format (direkt material) hem yeni format (callbackData) destekle
+                          const newMaterial = materialOrCallbackData.material || materialOrCallbackData;
+                          
+                          // Material validation
+                          if (!newMaterial || !newMaterial.id) {
+                            console.error('❌ Geçersiz newMaterial:', newMaterial)
+                            return
+                          }
+                          
+                          console.log('✅ SuppliersTable: Tedarikçi detayında malzeme UI\'a ekleniyor:', newMaterial)
+                          
                           // Yeni malzeme eklendikten sonra selectedSupplier'ın suppliedMaterials array'ini güncelle
                           setSelectedSupplier(prev => ({
                             ...prev,
@@ -1410,6 +1428,12 @@ export default function SuppliersTable({
                               addedAt: new Date().toISOString()
                             }]
                           }));
+                          
+                          // Ana suppliers listesini de güncelle
+                          if (onRefreshSuppliers) {
+                            console.log('🔄 SuppliersTable: Suppliers listesi yenileniyor...')
+                            onRefreshSuppliers()
+                          }
                         });
                       }
                     }}
@@ -1600,6 +1624,12 @@ export default function SuppliersTable({
                                     addedAt: new Date().toISOString()
                                   }]
                                 }));
+                                
+                                // Ana suppliers listesini de güncelle
+                                if (onRefreshSuppliers) {
+                                  console.log('🔄 Mevcut malzeme eklendi - Suppliers listesi yenileniyor...')
+                                  onRefreshSuppliers()
+                                }
                               }
                               setShowExistingMaterials(false);
                             } catch (error) {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useSuppliers } from '../hooks/useSuppliers.js'
 
 export default function AddMaterialModal({ 
@@ -14,6 +14,7 @@ export default function AddMaterialModal({
 }) {
   // Suppliers listesini al
   const { suppliers } = useSuppliers()
+  
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -28,6 +29,19 @@ export default function AddMaterialModal({
     description: '',
     status: 'Aktif'
   });
+  
+  // targetSupplier değiştiğinde supplier field'ını güncelle
+  useEffect(() => {
+    if (targetSupplier && targetSupplier.id) {
+      console.log('🎯 AddMaterialModal: targetSupplier set edildi:', targetSupplier)
+      setFormData(prev => ({
+        ...prev,
+        supplier: targetSupplier.id
+      }));
+    } else {
+      console.log('🎯 AddMaterialModal: targetSupplier yok veya ID yok:', targetSupplier)
+    }
+  }, [targetSupplier]);
   
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategory, setNewCategory] = useState('');
@@ -110,7 +124,7 @@ export default function AddMaterialModal({
 
     onSave(materialData, showNewCategory ? newCategory : null);
     
-    // Form'u sıfırla
+    // Form'u sıfırla ama targetSupplier varsa supplier'ı koru
     setFormData({
       code: '',
       name: '',
@@ -121,7 +135,7 @@ export default function AddMaterialModal({
       reorderPoint: '',
       costPrice: '',
       sellPrice: '',
-      supplier: '',
+      supplier: targetSupplier ? targetSupplier.id : '', // targetSupplier varsa ID'sini koru
       description: '',
       status: 'Aktif'
     });
@@ -139,6 +153,10 @@ export default function AddMaterialModal({
       unit: '',
       stock: '',
       reorderPoint: '',
+      costPrice: '',
+      sellPrice: '',
+      supplier: '', // Modal kapandığında supplier'ı da sıfırla
+      description: '',
       status: 'Aktif'
     });
     setShowNewCategory(false);
@@ -152,7 +170,7 @@ export default function AddMaterialModal({
     <div className="modal-overlay" onClick={handleClose} style={{ zIndex: 2100 }}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', zIndex: 2102 }}>
         <div className="modal-header">
-          <h2>{targetSupplier ? `Yeni Malzeme Ekle ve ${targetSupplier.name}'e Ata` : "Yeni Malzeme Ekle"}</h2>
+          <h2>{targetSupplier ? `Yeni Malzeme Ekle ve ${targetSupplier.name || targetSupplier.companyName}'e Ata` : "Yeni Malzeme Ekle"}</h2>
           <div className="header-actions">
             <button type="submit" form="add-material-form" className="btn-save" title={targetSupplier ? "Kaydet ve Ekle" : "Kaydet"}>
               💾 {targetSupplier ? "Kaydet ve Ekle" : "Kaydet"}
@@ -319,9 +337,16 @@ export default function AddMaterialModal({
                 {suppliers.map(supplier => (
                   <option key={supplier.id} value={supplier.id}>
                     {supplier.code} - {supplier.name || supplier.companyName}
+                    {targetSupplier && targetSupplier.id === supplier.id ? ' (Seçili)' : ''}
                   </option>
                 ))}
               </select>
+              {/* Debug: Seçili değeri göster */}
+              {targetSupplier && (
+                <small style={{ color: '#666', fontSize: '11px' }}>
+                  Varsayılan: {targetSupplier.code} - {targetSupplier.name || targetSupplier.companyName}
+                </small>
+              )}
             </div>
             
             <div className="form-group">

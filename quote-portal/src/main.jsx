@@ -196,15 +196,26 @@ function MaterialsApp() {
       // Malzemeyi Firebase'e kaydet
       const newMaterial = await addMaterial(materialData);
       
-      // Eğer malzeme bir tedarikçiye atanmış ise ve targetSupplier varsa, tedarikçiye ekle
-      if (targetSupplier && targetSupplier.id && newMaterial) {
+      // newMaterial validation
+      if (!newMaterial || !newMaterial.id) {
+        console.error('❌ addMaterial başarısız - newMaterial:', newMaterial)
+        throw new Error('Malzeme kaydedilemedi')
+      }
+      
+      console.log('✅ Malzeme başarıyla kaydedildi:', newMaterial)
+      
+      // NOT: targetSupplier varsa tedarikçiye ekleme işlemi SuppliersTabContent'te yapılıyor
+      // Burada sadece dropdown'dan seçilen tedarikçi için işlem yapalım
+      
+      // Eğer malzemede supplier ID'si varsa (dropdown'dan seçilmişse) ama targetSupplier yoksa
+      if (materialData.supplier && !targetSupplier) {
         try {
-          console.log('🔄 Malzeme tedarikçiye ekleniyor:', { 
-            supplierId: targetSupplier.id, 
+          console.log('🔄 Dropdown\'dan seçilen tedarikçiye malzeme ekleniyor:', { 
+            supplierId: materialData.supplier, 
             materialId: newMaterial.id 
           });
           
-          await addMaterialToSupplier(targetSupplier.id, {
+          await addMaterialToSupplier(materialData.supplier, {
             materialId: newMaterial.id,
             materialCode: newMaterial.code,
             materialName: newMaterial.name,
@@ -213,57 +224,9 @@ function MaterialsApp() {
             minQuantity: 1
           });
           
-          console.log('✅ Malzeme başarıyla tedarikçiye eklendi');
-        } catch (supplierError) {
-          console.error('❌ Malzeme tedarikçiye eklenirken hata:', supplierError);
-          // Hata olsa bile devam et, malzeme zaten kaydedildi
-        }
-      }
-      
-      // Eğer malzemede supplier ID'si varsa (dropdown'dan seçilmişse) ama targetSupplier yoksa
-      else if (materialData.supplier && !targetSupplier) {
-        try {
-          // Supplier listesinden seçilen supplier'ı bul
-          const selectedSupplier = suppliers.find(s => s.id === materialData.supplier)
-          
-          if (selectedSupplier) {
-            console.log('🔄 Dropdown\'dan seçilen tedarikçiye malzeme ekleniyor:', { 
-              supplierId: selectedSupplier.id, 
-              materialId: newMaterial.id 
-            });
-            
-            await addMaterialToSupplier(selectedSupplier.id, {
-              materialId: newMaterial.id,
-              materialCode: newMaterial.code,
-              materialName: newMaterial.name,
-              price: materialData.costPrice || 0,
-              deliveryTime: '',
-              minQuantity: 1
-            });
-            
-            console.log('✅ Dropdown\'dan seçilen tedarikçiye malzeme eklendi');
-          }
+          console.log('✅ Dropdown\'dan seçilen tedarikçiye malzeme eklendi');
         } catch (supplierError) {
           console.error('❌ Dropdown tedarikçiye eklenirken hata:', supplierError);
-        }
-      }
-      if (materialData.supplier && !targetSupplier) {
-        try {
-          console.log('🔄 Malzeme seçilen tedarikçiye ekleniyor:', { 
-            supplierId: materialData.supplier, 
-            materialId: newMaterial.id 
-          });
-          
-          await addMaterialToSupplier(materialData.supplier, {
-            materialId: newMaterial.id,
-            price: materialData.costPrice || 0,
-            deliveryTime: '',
-            minQuantity: 1
-          });
-          
-          console.log('✅ Malzeme başarıyla seçilen tedarikçiye eklendi');
-        } catch (supplierError) {
-          console.error('❌ Malzeme seçilen tedarikçiye eklenirken hata:', supplierError);
         }
       }
       
@@ -275,9 +238,25 @@ function MaterialsApp() {
       }
       
       // Callback'i çağır (eğer varsa)
-      if (materialCreatedCallback) {
-        materialCreatedCallback(newMaterial);
+      if (materialCreatedCallback && newMaterial) {
+        console.log('🔄 Callback çağrılıyor - newMaterial:', newMaterial)
+        
+        // Önce basit format dene (geriye uyumluluk)
+        try {
+          materialCreatedCallback(newMaterial);
+        } catch (error) {
+          console.warn('⚠️ Basit callback başarısız, obje formatı deneniyor:', error)
+          // Obje formatı dene
+          const callbackData = {
+            material: newMaterial,
+            supplier: targetSupplier || (materialData.supplier ? suppliers.find(s => s.id === materialData.supplier) : null)
+          }
+          materialCreatedCallback(callbackData);
+        }
+        
         setMaterialCreatedCallback(null); // Callback'i temizle
+      } else if (materialCreatedCallback) {
+        console.warn('⚠️ Callback var ama newMaterial yok:', { materialCreatedCallback, newMaterial })
       }
       
       // Supplier context'inde değilsek materials'ı yenile

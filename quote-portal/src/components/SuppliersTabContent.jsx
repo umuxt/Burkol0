@@ -257,7 +257,8 @@ export default function SuppliersTabContent({ categories, handleAddMaterial }) {
     addSupplier: createSupplier, 
     updateSupplier, 
     deleteSupplier,
-    addMaterialToSupplier 
+    addMaterialToSupplier,
+    refetch: refetchSuppliers
   } = useSuppliers()
   
   const { 
@@ -309,25 +310,50 @@ export default function SuppliersTabContent({ categories, handleAddMaterial }) {
         console.log('🔄 Malzeme ekleme modalı açılıyor...')
         setIsTransitioningToMaterial(false)
         // Yeni malzeme oluşturulduktan sonra callback'i de ilet
-        handleAddMaterial((newMaterial) => {
+        handleAddMaterial((callbackData) => {
+          // Null check ekle
+          if (!callbackData) {
+            console.error('❌ callbackData null geldi:', callbackData)
+            return
+          }
+          
+          // callbackData.material ve callbackData.supplier bilgilerini al
+          const newMaterial = callbackData.material || callbackData; // Geriye uyumluluk için
+          
+          // Material validation
+          if (!newMaterial || !newMaterial.id) {
+            console.error('❌ Geçersiz newMaterial:', newMaterial)
+            return
+          }
+          
           // Malzeme başarıyla oluşturulduysa ve tedarikçi varsa, tedarikçiye ekle
           if (newMaterial && targetSupplier) {
-            console.log('🔄 Malzeme oluşturuldu, tedarikçiye ekleniyor:', { newMaterial, targetSupplier })
+            console.log('🔄 SuppliersTabContent: Malzeme oluşturuldu, tedarikçiye ekleniyor:', { newMaterial, targetSupplier })
             addMaterialToSupplier(targetSupplier.id, {
               materialId: newMaterial.id,
+              materialCode: newMaterial.code,
+              materialName: newMaterial.name,
               price: 0,
               deliveryTime: '',
               minQuantity: 1
             }).then(() => {
-              console.log('✅ Malzeme tedarikçiye başarıyla eklendi')
+              console.log('✅ SuppliersTabContent: Malzeme tedarikçiye başarıyla eklendi')
+              // Suppliers listesini yenile ki güncel malzeme ilişkileri görünsün
+              setTimeout(() => {
+                refetchSuppliers()
+                console.log('🔄 SuppliersTabContent: Suppliers listesi 500ms sonra yenilendi')
+              }, 500) // Biraz gecikme ekle ki backend işlemi tamamlansin
+              
               if (onMaterialCreated) {
-                onMaterialCreated(newMaterial)
+                console.log('🔄 SuppliersTabContent: onMaterialCreated callback çağrılıyor')
+                onMaterialCreated(callbackData)
               }
             }).catch(error => {
-              console.error('❌ Malzeme tedarikçiye eklenirken hata:', error)
+              console.error('❌ SuppliersTabContent: Malzeme tedarikçiye eklenirken hata:', error)
             })
           } else if (onMaterialCreated && newMaterial) {
-            onMaterialCreated(newMaterial)
+            console.log('🔄 SuppliersTabContent: Sadece callback çağrılıyor (targetSupplier yok)')
+            onMaterialCreated(newMaterial) // Basit obje gönder
           }
           
           // Eğer AddSupplierModal'dan geliyorsa, tekrar aç
@@ -403,6 +429,7 @@ export default function SuppliersTabContent({ categories, handleAddMaterial }) {
         onUpdateSupplier={updateSupplier}
         onDeleteSupplier={deleteSupplier}
         onAddMaterialToSupplier={addMaterialToSupplier}
+        onRefreshSuppliers={refetchSuppliers}
       />
       
       <AddSupplierModal
