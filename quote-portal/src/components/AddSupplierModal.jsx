@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { useMaterials } from '../hooks/useFirebaseMaterials'
 import { useSuppliers } from '../hooks/useSuppliers'
 
-export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMaterial }) {
-  // Malzemeleri yükle
-  const { materials, loading: materialsLoading } = useMaterials(true)
+export default function AddSupplierModal({ isOpen, onClose, onSave, categories = [] }) {
   const { suppliers, loading: suppliersLoading } = useSuppliers()
   
   // Debug: Suppliers verisi
@@ -16,10 +13,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
     })
   }, [suppliers, suppliersLoading])
   
-  // Malzeme yönetimi için state'ler
-  const [selectedMaterials, setSelectedMaterials] = useState([])
-  const [showMaterialSelector, setShowMaterialSelector] = useState(false)
-  const [materialSearchTerm, setMaterialSearchTerm] = useState('')
+  // Malzeme yönetimi kaldırıldı - sadece tedarikçi bilgileri
   
   // Otomatik tedarikçi kodu üretimi - minimum unique değer bulma
   const generateNextCode = () => {
@@ -166,9 +160,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
         complianceStatus: 'pending',
         riskLevel: 'medium'
       });
-      setSelectedMaterials([]);
-      setShowMaterialSelector(false);
-      setMaterialSearchTerm('');
+      // Malzeme yönetimi kaldırıldı
     }
   }, [isOpen]);
 
@@ -180,23 +172,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
     }));
   };
 
-  // Malzeme yönetimi fonksiyonları
-  const handleAddMaterial = (material) => {
-    if (!selectedMaterials.find(m => m.id === material.id)) {
-      setSelectedMaterials(prev => [...prev, material]);
-    }
-    setShowMaterialSelector(false);
-    setMaterialSearchTerm('');
-  };
-
-  const handleRemoveMaterial = (materialId) => {
-    setSelectedMaterials(prev => prev.filter(m => m.id !== materialId));
-  };
-
-  const filteredMaterials = materials.filter(material =>
-    material.name.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
-    material.code.toLowerCase().includes(materialSearchTerm.toLowerCase())
-  ).filter(material => !selectedMaterials.find(m => m.id === material.id));
+  // Malzeme yönetimi fonksiyonları kaldırıldı
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -212,13 +188,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
       const supplierData = {
         ...formData,
         code: finalCode, // Otomatik üretilen veya kullanıcının girdiği kodu kullan
-        creditLimit: formData.creditLimit ? parseFloat(formData.creditLimit) : 0,
-        suppliedMaterials: selectedMaterials.map(m => ({
-          materialId: m.id,
-          materialCode: m.code,
-          materialName: m.name,
-          addedAt: new Date().toISOString()
-        }))
+        creditLimit: formData.creditLimit ? parseFloat(formData.creditLimit) : 0
       };
 
       console.log('🔢 Kullanılan tedarikçi kodu:', finalCode);
@@ -245,9 +215,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
       fax1: '',
       creditLimit: ''
     });
-    setSelectedMaterials([]);
-    setShowMaterialSelector(false);
-    setMaterialSearchTerm('');
+    // Malzeme yönetimi kaldırıldı
     onClose();
   };
 
@@ -758,241 +726,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, onAddNewMate
             </div>
           </div>
 
-          {/* Tedarik Edilen Malzemeler */}
-          <div className="form-section">
-            <h3 className="form-section-title">Tedarik Edilen Malzemeler</h3>
-            
-            {/* Malzeme Ekleme Butonları */}
-            <div className="form-row">
-              <div className="form-group" style={{ width: '60%' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowMaterialSelector(true)}
-                  className="btn btn-secondary"
-                  style={{
-                    padding: '12px 24px',
-                    border: '2px dashed #d1d5db',
-                    borderRadius: '8px',
-                    background: '#f9fafb',
-                    color: '#374151',
-                    cursor: 'pointer',
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    fontSize: '14px',
-                    fontWeight: '500'
-                  }}
-                >
-                  <span style={{ fontSize: '18px' }}>📋</span>
-                  Mevcut Malzeme Seç
-                </button>
-              </div>
-              <div className="form-group" style={{ width: '40%' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onAddNewMaterial) {
-                      onAddNewMaterial();
-                    }
-                  }}
-                  className="btn btn-primary"
-                  style={{
-                    padding: '12px 16px',
-                    border: 'none',
-                    borderRadius: '8px',
-                    background: '#3b82f6',
-                    color: 'white',
-                    cursor: 'pointer',
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '8px',
-                    fontSize: '14px',
-                    fontWeight: '500'
-                  }}
-                >
-                  <span style={{ fontSize: '18px' }}>➕</span>
-                  Yeni Malzeme Ekle
-                </button>
-              </div>
-            </div>
-
-            {/* Seçilen Malzemeler Listesi */}
-            {selectedMaterials.length > 0 && (
-              <div className="form-row">
-                <div className="form-group full-width">
-                  <label>Seçilen Malzemeler ({selectedMaterials.length})</label>
-                  <div style={{
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    padding: '12px',
-                    background: '#f8f9fa',
-                    maxHeight: '200px',
-                    overflowY: 'auto'
-                  }}>
-                    {selectedMaterials.map(material => (
-                      <div
-                        key={material.id}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '8px 12px',
-                          background: 'white',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: '4px',
-                          marginBottom: '6px'
-                        }}
-                      >
-                        <div>
-                          <strong>{material.code}</strong> - {material.name}
-                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                            {material.category} • {material.unit}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveMaterial(material.id)}
-                          style={{
-                            background: '#ef4444',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            padding: '4px 8px',
-                            cursor: 'pointer',
-                            fontSize: '12px'
-                          }}
-                        >
-                          Kaldır
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Malzeme Seçici Modal */}
-            {showMaterialSelector && (
-              <div
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: 'rgba(0, 0, 0, 0.5)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  zIndex: 2000
-                }}
-                onClick={() => setShowMaterialSelector(false)}
-              >
-                <div
-                  style={{
-                    background: 'white',
-                    borderRadius: '8px',
-                    padding: '20px',
-                    maxWidth: '600px',
-                    width: '90%',
-                    maxHeight: '70vh',
-                    overflow: 'hidden',
-                    display: 'flex',
-                    flexDirection: 'column'
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '20px',
-                    paddingBottom: '15px',
-                    borderBottom: '2px solid #e5e7eb'
-                  }}>
-                    <h3 style={{ margin: 0, fontSize: '18px', color: '#374151' }}>
-                      Malzeme Seç
-                    </h3>
-                    <button
-                      onClick={() => setShowMaterialSelector(false)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        fontSize: '24px',
-                        cursor: 'pointer',
-                        color: '#6b7280'
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-
-                  <div style={{ marginBottom: '15px' }}>
-                    <input
-                      type="text"
-                      placeholder="Malzeme ara... (kod veya isim)"
-                      value={materialSearchTerm}
-                      onChange={(e) => setMaterialSearchTerm(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '6px',
-                        fontSize: '14px'
-                      }}
-                    />
-                  </div>
-
-                  <div style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px',
-                    padding: '10px'
-                  }}>
-                    {materialsLoading ? (
-                      <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
-                        Malzemeler yükleniyor...
-                      </div>
-                    ) : filteredMaterials.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
-                        {materialSearchTerm ? 'Arama kriterine uygun malzeme bulunamadı' : 'Tüm malzemeler zaten seçilmiş'}
-                      </div>
-                    ) : (
-                      filteredMaterials.map(material => (
-                        <div
-                          key={material.id}
-                          onClick={() => handleAddMaterial(material)}
-                          style={{
-                            padding: '12px',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '6px',
-                            marginBottom: '8px',
-                            cursor: 'pointer',
-                            background: 'white',
-                            transition: 'background-color 0.2s'
-                          }}
-                          onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
-                          onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
-                        >
-                          <div style={{ fontWeight: '600', marginBottom: '4px' }}>
-                            {material.code} - {material.name}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                            Kategori: {material.category} • Birim: {material.unit} • Stok: {material.stock}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Tedarik Edilen Malzemeler kısmı kaldırıldı */}
 
           {/* Şirket Bilgileri */}
           <div className="form-section">

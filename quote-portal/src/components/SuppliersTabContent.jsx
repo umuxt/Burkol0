@@ -243,9 +243,10 @@ function SuppliersTablePlaceholder() {
   return <SuppliersTable />
 }
 
-export default function SuppliersTabContent({ categories, handleAddMaterial }) {
+export default function SuppliersTabContent({ 
+  categories
+}) {
   const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false)
-  const [isTransitioningToMaterial, setIsTransitioningToMaterial] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
   
@@ -257,7 +258,6 @@ export default function SuppliersTabContent({ categories, handleAddMaterial }) {
     addSupplier: createSupplier, 
     updateSupplier, 
     deleteSupplier,
-    addMaterialToSupplier,
     refetch: refetchSuppliers
   } = useSuppliers()
   
@@ -294,76 +294,7 @@ export default function SuppliersTabContent({ categories, handleAddMaterial }) {
     }
   }
 
-  // Tedarikçi modalından yeni malzeme ekleme
-  const handleAddMaterialFromSupplier = (targetSupplier, onMaterialCreated) => {
-    console.log('🔄 Tedarikçi modalından malzeme ekleme modalına geçiş yapılıyor...', targetSupplier)
-    setIsTransitioningToMaterial(true)
-    
-    // Eğer AddSupplierModal açıksa kapat
-    if (isAddSupplierModalOpen) {
-      setIsAddSupplierModalOpen(false)
-    }
-    
-    // DOM güncellemesini bekle
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        console.log('🔄 Malzeme ekleme modalı açılıyor...')
-        setIsTransitioningToMaterial(false)
-        // Yeni malzeme oluşturulduktan sonra callback'i de ilet
-        handleAddMaterial((callbackData) => {
-          // Null check ekle
-          if (!callbackData) {
-            console.error('❌ callbackData null geldi:', callbackData)
-            return
-          }
-          
-          // callbackData.material ve callbackData.supplier bilgilerini al
-          const newMaterial = callbackData.material || callbackData; // Geriye uyumluluk için
-          
-          // Material validation
-          if (!newMaterial || !newMaterial.id) {
-            console.error('❌ Geçersiz newMaterial:', newMaterial)
-            return
-          }
-          
-          // Malzeme başarıyla oluşturulduysa ve tedarikçi varsa, tedarikçiye ekle
-          if (newMaterial && targetSupplier) {
-            console.log('🔄 SuppliersTabContent: Malzeme oluşturuldu, tedarikçiye ekleniyor:', { newMaterial, targetSupplier })
-            addMaterialToSupplier(targetSupplier.id, {
-              materialId: newMaterial.id,
-              materialCode: newMaterial.code,
-              materialName: newMaterial.name,
-              price: 0,
-              deliveryTime: '',
-              minQuantity: 1
-            }).then(() => {
-              console.log('✅ SuppliersTabContent: Malzeme tedarikçiye başarıyla eklendi')
-              // Suppliers listesini yenile ki güncel malzeme ilişkileri görünsün
-              setTimeout(() => {
-                refetchSuppliers()
-                console.log('🔄 SuppliersTabContent: Suppliers listesi 500ms sonra yenilendi')
-              }, 500) // Biraz gecikme ekle ki backend işlemi tamamlansin
-              
-              if (onMaterialCreated) {
-                console.log('🔄 SuppliersTabContent: onMaterialCreated callback çağrılıyor')
-                onMaterialCreated(callbackData)
-              }
-            }).catch(error => {
-              console.error('❌ SuppliersTabContent: Malzeme tedarikçiye eklenirken hata:', error)
-            })
-          } else if (onMaterialCreated && newMaterial) {
-            console.log('🔄 SuppliersTabContent: Sadece callback çağrılıyor (targetSupplier yok)')
-            onMaterialCreated(newMaterial) // Basit obje gönder
-          }
-          
-          // Eğer AddSupplierModal'dan geliyorsa, tekrar aç
-          if (isAddSupplierModalOpen) {
-            setIsAddSupplierModalOpen(true)
-          }
-        }, targetSupplier) // targetSupplier'ı da geç
-      }, 100)
-    })
-  }
+
 
   // Tedarikçi detaylarını görüntüle
   const handleSupplierDetails = (supplier) => {
@@ -424,19 +355,18 @@ export default function SuppliersTabContent({ categories, handleAddMaterial }) {
         suppliers={filteredSuppliers}
         categories={supplierCategories} 
         onSupplierDetails={handleSupplierDetails}
-        onAddNewMaterial={handleAddMaterialFromSupplier}
         loading={suppliersLoading}
         onUpdateSupplier={updateSupplier}
         onDeleteSupplier={deleteSupplier}
-        onAddMaterialToSupplier={addMaterialToSupplier}
         onRefreshSuppliers={refetchSuppliers}
       />
       
       <AddSupplierModal
         isOpen={isAddSupplierModalOpen}
-        onClose={() => setIsAddSupplierModalOpen(false)}
+        onClose={() => {
+          setIsAddSupplierModalOpen(false)
+        }}
         onSave={handleAddSupplier}
-        onAddNewMaterial={handleAddMaterialFromSupplier}
         categories={supplierCategories}
       />
     </div>

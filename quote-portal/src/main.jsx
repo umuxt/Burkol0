@@ -77,10 +77,21 @@ function MaterialsApp() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  // AddSupplierModal için ayrı modal kaldırıldı
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [materialCreatedCallback, setMaterialCreatedCallback] = useState(null);
-  const [targetSupplier, setTargetSupplier] = useState(null);
-  const [activeTab, setActiveTab] = useState('stocks');
+  // Tedarikçi context state'leri kaldırıldı
+  
+  // Debug: Callback state'ini takip et
+  useEffect(() => {
+    console.log('🔍 main.jsx: Callback state değişti:', {
+      hasCallback: !!materialCreatedCallback
+    });
+  }, [materialCreatedCallback]);
+  const [activeTab, setActiveTab] = useState(() => {
+    // F5 sonrası da aynı tab'da kalabilmek için localStorage kullan
+    return localStorage.getItem('bk_active_tab') || 'stocks';
+  });
   const [filters, setFilters] = useState({
     search: '',
     categories: [],
@@ -142,9 +153,33 @@ function MaterialsApp() {
     return true;
   });
 
-  const handleAddMaterial = (onMaterialCreated = null, targetSupplier = null) => {
+  // === YENİ BASIT FONKSİYONLAR ===
+  
+  // 1. Stock context'i için - basit malzeme ekleme
+  const handleAddMaterialForStock = () => {
+    console.log('📦 main.jsx: Stock için malzeme ekleme modalı açılıyor...');
+    setMaterialCreatedCallback(null); // Callback yok
+    setIsModalOpen(true);
+  };
+  
+  // Tedarikçi detayı için malzeme ekleme kaldırıldı
+  
+  // Yeni tedarikçi için malzeme ekleme kaldırıldı
+
+  // === ESKİ KARMAŞIK FONKSİYON (GEÇİCİ) ===
+  const handleAddMaterial = (onMaterialCreated = null) => {
+    console.log('⚠️ main.jsx: ESKİ handleAddMaterial kullanılıyor! Yeni fonksiyonlara geçin.');
+    console.log('🔄 main.jsx: handleAddMaterial çağrıldı:', {
+      newCallback: !!onMaterialCreated,
+      currentCallback: !!materialCreatedCallback
+    });
+    
+    // Eğer zaten bir callback varsa ve modal açıksa, uyarı ver
+    if (materialCreatedCallback && onMaterialCreated) {
+      console.warn('⚠️ main.jsx: Callback override edildi! Modal zaten açık mı?');
+    }
+    
     setMaterialCreatedCallback(onMaterialCreated);
-    setTargetSupplier(targetSupplier);
     setIsModalOpen(true);
   };
 
@@ -204,11 +239,8 @@ function MaterialsApp() {
       
       console.log('✅ Malzeme başarıyla kaydedildi:', newMaterial)
       
-      // NOT: targetSupplier varsa tedarikçiye ekleme işlemi SuppliersTabContent'te yapılıyor
-      // Burada sadece dropdown'dan seçilen tedarikçi için işlem yapalım
-      
-      // Eğer malzemede supplier ID'si varsa (dropdown'dan seçilmişse) ama targetSupplier yoksa
-      if (materialData.supplier && !targetSupplier) {
+      // Eğer malzemede supplier ID'si varsa (dropdown'dan seçilmişse)
+      if (materialData.supplier) {
         try {
           console.log('🔄 Dropdown\'dan seçilen tedarikçiye malzeme ekleniyor:', { 
             supplierId: materialData.supplier, 
@@ -230,45 +262,26 @@ function MaterialsApp() {
         }
       }
       
-      setIsModalOpen(false);
+      // Tedarikçiye ekleme kodları kaldırıldı
       
-      // Eğer tedarikçiye ekleme işlemiyse tab'ı suppliers'ta tut
-      if (targetSupplier) {
-        setActiveTab('suppliers');
+      // Materials listesini her zaman yenile - hem stok hem supplier context'inde
+      console.log('🔄 main.jsx: Materials listesi yenileniyor...')
+      await refreshMaterials();
+      
+      // Callback varsa çağır (malzeme bilgisiyle) - MODAL KAPATMADAN ÖNCE
+      if (materialCreatedCallback) {
+        console.log('🔄 main.jsx: Callback çağrılıyor...', newMaterial);
+        materialCreatedCallback(newMaterial);
       }
       
-      // Callback'i çağır (eğer varsa)
-      if (materialCreatedCallback && newMaterial) {
-        console.log('🔄 Callback çağrılıyor - newMaterial:', newMaterial)
-        
-        // Önce basit format dene (geriye uyumluluk)
-        try {
-          materialCreatedCallback(newMaterial);
-        } catch (error) {
-          console.warn('⚠️ Basit callback başarısız, obje formatı deneniyor:', error)
-          // Obje formatı dene
-          const callbackData = {
-            material: newMaterial,
-            supplier: targetSupplier || (materialData.supplier ? suppliers.find(s => s.id === materialData.supplier) : null)
-          }
-          materialCreatedCallback(callbackData);
-        }
-        
-        setMaterialCreatedCallback(null); // Callback'i temizle
-      } else if (materialCreatedCallback) {
-        console.warn('⚠️ Callback var ama newMaterial yok:', { materialCreatedCallback, newMaterial })
+      // MODAL KAPANMASI CALLBACK'TEN SONRA OLACAK
+      // Eğer callback varsa modal kapatmayı callback'e bırak
+      if (!materialCreatedCallback) {
+        setIsModalOpen(false);
       }
       
-      // Supplier context'inde değilsek materials'ı yenile
-      const isSupplierContext = !!targetSupplier;
-      
-      // Target supplier'ı temizle
-      setTargetSupplier(null);
-      
-      // Sadece supplier context'inde değilsek materials'ı yenile
-      if (!isSupplierContext) {
-        await refreshMaterials();
-      }
+      // Callback mechaism'ini temizle
+      setMaterialCreatedCallback(null);
     } catch (error) {
       console.error('Material save error:', error);
     }
@@ -320,7 +333,6 @@ function MaterialsApp() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setMaterialCreatedCallback(null);
-    setTargetSupplier(null);
   };
 
   const handleCloseEditModal = () => {
@@ -356,11 +368,17 @@ function MaterialsApp() {
     );
   }
 
+  // Tab değişikliği handler'ı - localStorage'a kaydet
+  const handleTabChange = (newTab) => {
+    setActiveTab(newTab);
+    localStorage.setItem('bk_active_tab', newTab);
+  }
+
   return (
     <div className="materials-page">
                   <MaterialsTabs
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         filteredMaterials={filteredMaterials}
         categories={categories}
         materialTypes={materialTypes}
@@ -386,8 +404,7 @@ function MaterialsApp() {
           error={materialsError}
         />
         <SuppliersTabContent 
-          categories={categories} 
-          handleAddMaterial={handleAddMaterial}
+          categories={categories}
         />
         <OrdersTabContent />
       </MaterialsTabs>
@@ -401,7 +418,6 @@ function MaterialsApp() {
         materials={materials}
         loading={actionLoading}
         error={actionError}
-        targetSupplier={targetSupplier}
       />
 
       <EditMaterialModal 
@@ -415,6 +431,8 @@ function MaterialsApp() {
         loading={actionLoading}
         error={actionError}
       />
+
+
 
       <CategoryManagementModal 
         isOpen={isCategoryModalOpen}
