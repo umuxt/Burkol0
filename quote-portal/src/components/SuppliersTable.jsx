@@ -141,7 +141,7 @@ export default function SuppliersTable({
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead style={{ 
-                background: '#f8f9fa', 
+                background: 'rgb(248, 249, 250)', 
                 position: 'sticky', 
                 top: 0, 
                 zIndex: 1 
@@ -155,11 +155,15 @@ export default function SuppliersTable({
                       cursor: 'pointer',
                       fontSize: '12px',
                       fontWeight: '600',
-                      color: '#374151',
-                      borderBottom: '1px solid #e5e7eb'
+                      color: 'rgb(55, 65, 81)',
+                      borderBottomWidth: '1px',
+                      borderBottomStyle: 'solid',
+                      borderBottomColor: 'rgb(229, 231, 235)'
                     }}
                   >
-                    Kod {sortField === 'code' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    Kod <span style={{ fontSize: '12px', opacity: '0.6' }}>
+                      {sortField === 'code' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
                   </th>
                   <th 
                     onClick={() => handleSort('name')}
@@ -169,40 +173,51 @@ export default function SuppliersTable({
                       cursor: 'pointer',
                       fontSize: '12px',
                       fontWeight: '600',
-                      color: '#374151',
-                      borderBottom: '1px solid #e5e7eb'
+                      color: 'rgb(55, 65, 81)',
+                      borderBottomWidth: '1px',
+                      borderBottomStyle: 'solid',
+                      borderBottomColor: 'rgb(229, 231, 235)'
                     }}
                   >
-                    Firma Adı {sortField === 'name' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    Firma Adı <span style={{ fontSize: '12px', opacity: '0.6' }}>
+                      {sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
                   </th>
                   <th 
-                    onClick={() => handleSort('contactPerson')}
+                    onClick={() => handleSort('categories')}
                     style={{ 
                       padding: '12px 8px', 
                       textAlign: 'left', 
                       cursor: 'pointer',
                       fontSize: '12px',
                       fontWeight: '600',
-                      color: '#374151',
-                      borderBottom: '1px solid #e5e7eb'
+                      color: 'rgb(55, 65, 81)',
+                      borderBottomWidth: '1px',
+                      borderBottomStyle: 'solid',
+                      borderBottomColor: 'rgb(229, 231, 235)'
                     }}
                   >
-                    Yetkili {sortField === 'contactPerson' && (sortDirection === 'asc' ? '↑' : '↓')}
+                    Kategoriler <span style={{ fontSize: '12px', opacity: '0.6' }}>
+                      {sortField === 'categories' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                    </span>
                   </th>
-                  <th 
-                    onClick={() => handleSort('status')}
-                    style={{ 
-                      padding: '12px 8px', 
-                      textAlign: 'left', 
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#374151',
-                      borderBottom: '1px solid #e5e7eb'
-                    }}
-                  >
-                    Durum {sortField === 'status' && (sortDirection === 'asc' ? '↑' : '↓')}
-                  </th>
+                  {!selectedSupplier && (
+                    <th 
+                      style={{ 
+                        padding: '12px 8px', 
+                        textAlign: 'center', 
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        color: 'rgb(55, 65, 81)',
+                        borderBottomWidth: '1px',
+                        borderBottomStyle: 'solid',
+                        borderBottomColor: 'rgb(229, 231, 235)',
+                        width: '180px'
+                      }}
+                    >
+                      Aksiyonlar
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -212,8 +227,10 @@ export default function SuppliersTable({
                     onClick={() => handleRowClick(supplier)}
                     style={{
                       cursor: 'pointer',
-                      backgroundColor: selectedSupplier?.id === supplier.id ? '#eff6ff' : 'white',
-                      borderBottom: '1px solid #f3f4f6'
+                      backgroundColor: selectedSupplier?.id === supplier.id ? 'rgb(239, 246, 255)' : 'white',
+                      borderBottomWidth: '1px',
+                      borderBottomStyle: 'solid',
+                      borderBottomColor: 'rgb(243, 244, 246)'
                     }}
                     onMouseEnter={(e) => {
                       if (selectedSupplier?.id !== supplier.id) {
@@ -226,29 +243,120 @@ export default function SuppliersTable({
                       }
                     }}
                   >
-                    <td style={{ padding: '12px 8px', fontSize: '13px', fontWeight: '500' }}>
+                    <td style={{ padding: '12px 8px', fontSize: '13px', fontWeight: '500', color: '#000' }}>
                       {supplier.code}
                     </td>
-                    <td style={{ padding: '12px 8px', fontSize: '13px' }}>
+                    <td style={{ padding: '12px 8px', fontSize: '13px', color: '#000' }}>
                       {supplier.name || supplier.companyName}
                     </td>
                     <td style={{ padding: '12px 8px', fontSize: '13px' }}>
-                      {supplier.contactPerson}
-                    </td>
-                    <td style={{ padding: '12px 8px', fontSize: '13px' }}>
-                      <span
-                        style={{
-                          padding: '2px 8px',
-                          borderRadius: '12px',
-                          fontSize: '11px',
-                          fontWeight: '500',
-                          backgroundColor: supplier.status === 'Aktif' ? '#dcfce7' : '#fef3c7',
-                          color: supplier.status === 'Aktif' ? '#166534' : '#92400e'
-                        }}
-                      >
-                        {supplier.status}
+                      <span style={{ color: '#6b7280', fontStyle: 'italic' }}>
+                        Kategoriler
                       </span>
                     </td>
+                    {!selectedSupplier && (
+                      <td style={{ padding: '12px 8px', fontSize: '13px', textAlign: 'center' }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (supplier.phone1) {
+                              window.open(`tel:${supplier.phone1}`, '_self');
+                            }
+                          }}
+                          style={{
+                            padding: '2px',
+                            border: 'none',
+                            borderRadius: '3px',
+                            background: 'transparent',
+                            color: '#374151',
+                            fontSize: '10px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '16px',
+                            height: '16px',
+                            lineHeight: 1,
+                            transition: 'all 0.2s ease',
+                            marginRight: '4px'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.transform = 'scale(1.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.transform = 'scale(1)';
+                          }}
+                          title={`Ara: ${supplier.phone1 || 'Telefon bulunamadı'}`}
+                        >
+                          📞
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (supplier.email1) {
+                              window.open(`mailto:${supplier.email1}`, '_blank');
+                            }
+                          }}
+                          style={{
+                            padding: '2px',
+                            border: 'none',
+                            borderRadius: '3px',
+                            background: 'transparent',
+                            color: '#374151',
+                            fontSize: '10px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '16px',
+                            height: '16px',
+                            lineHeight: 1,
+                            transition: 'all 0.2s ease',
+                            marginRight: '4px'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.transform = 'scale(1.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.transform = 'scale(1)';
+                          }}
+                          title={`Mail At: ${supplier.email1 || 'Email bulunamadı'}`}
+                        >
+                          📧
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Sipariş ver fonksiyonu henüz atanmayacak
+                          }}
+                          style={{
+                            padding: '2px',
+                            border: 'none',
+                            borderRadius: '3px',
+                            background: 'transparent',
+                            color: '#374151',
+                            fontSize: '10px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '16px',
+                            height: '16px',
+                            lineHeight: 1,
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.transform = 'scale(1.1)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.transform = 'scale(1)';
+                          }}
+                          title="Sipariş Ver"
+                        >
+                          🛒
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -280,10 +388,125 @@ export default function SuppliersTable({
               justifyContent: 'space-between',
               alignItems: 'center'
             }}>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
-                Tedarikçi Detayları
-              </h3>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button
+                  onClick={() => setSelectedSupplier(null)}
+                  style={{
+                    padding: '6px 12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '4px',
+                    background: 'white',
+                    color: '#374151',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                  title="Detayları Kapat"
+                >
+                  ←
+                </button>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
+                  Tedarikçi Detayları
+                </h3>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (selectedSupplier.phone1) {
+                      window.open(`tel:${selectedSupplier.phone1}`, '_self');
+                    }
+                  }}
+                  style={{
+                    padding: '6px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    background: 'transparent',
+                    color: '#374151',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '24px',
+                    height: '24px',
+                    lineHeight: 1,
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'scale(1.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'scale(1)';
+                  }}
+                  title={`Ara: ${selectedSupplier.phone1 || 'Telefon bulunamadı'}`}
+                >
+                  📞
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (selectedSupplier.email1) {
+                      window.open(`mailto:${selectedSupplier.email1}`, '_blank');
+                    }
+                  }}
+                  style={{
+                    padding: '6px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    background: 'transparent',
+                    color: '#374151',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '24px',
+                    height: '24px',
+                    lineHeight: 1,
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'scale(1.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'scale(1)';
+                  }}
+                  title={`Mail At: ${selectedSupplier.email1 || 'Email bulunamadı'}`}
+                >
+                  📧
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Sipariş ver fonksiyonu henüz atanmayacak
+                  }}
+                  style={{
+                    padding: '6px',
+                    border: 'none',
+                    borderRadius: '4px',
+                    background: 'transparent',
+                    color: '#374151',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '24px',
+                    height: '24px',
+                    lineHeight: 1,
+                    transition: 'all 0.2s ease',
+                    marginRight: '8px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'scale(1.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'scale(1)';
+                  }}
+                  title="Sipariş Ver"
+                >
+                  🛒
+                </button>
                 {!isEditing ? (
                   <button
                     onClick={handleEdit}
