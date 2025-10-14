@@ -30,6 +30,52 @@ function SuppliersDashboard({ suppliers }) {
 
 // Suppliers filters component with search functionality
 function SuppliersFilters({ onSearch, searchQuery, isExpanded, onToggleExpanded }) {
+  
+  // Quick filter state
+  const [activeFilters, setActiveFilters] = useState({
+    inactive: false,
+    payment30Days: false,
+    fastDelivery: false,
+    aCredit: false,
+    manufacturers: false,
+    international: false
+  });
+
+  // Quick filter handler
+  const toggleQuickFilter = (filterName) => {
+    setActiveFilters(prev => ({
+      ...prev,
+      [filterName]: !prev[filterName]
+    }));
+  };
+  
+  // Dropdown toggle functionality
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.multi-select-container')) {
+        document.querySelectorAll('.multi-select-dropdown').forEach(dropdown => {
+          dropdown.style.display = 'none';
+        });
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
+  const toggleDropdown = (dropdownId) => {
+    const dropdown = document.getElementById(dropdownId);
+    const isVisible = dropdown.style.display === 'block';
+    
+    // Close all dropdowns first
+    document.querySelectorAll('.multi-select-dropdown').forEach(dd => {
+      dd.style.display = 'none';
+    });
+    
+    // Toggle current dropdown
+    dropdown.style.display = isVisible ? 'none' : 'block';
+  };
+  
   const toggleExpanded = () => {
     onToggleExpanded(!isExpanded)
   }
@@ -40,15 +86,15 @@ function SuppliersFilters({ onSearch, searchQuery, isExpanded, onToggleExpanded 
         display: 'flex', 
         alignItems: 'flex-start', 
         gap: '8px',
-        width: '100%',
-        flexDirection: isExpanded ? 'row' : 'row-reverse'
+        width: '100%'
       }}>
         {/* Sol taraf - Genişletme butonu */}
         <div style={{
           paddingLeft: '4px',
           display: 'flex',
           alignItems: 'center',
-          height: '100%'
+          height: '100%',
+          order: 1
         }}>
           <button
             onClick={toggleExpanded}
@@ -71,10 +117,7 @@ function SuppliersFilters({ onSearch, searchQuery, isExpanded, onToggleExpanded 
         </div>
 
         {/* Sağ taraf - Filtre container */}
-        <div className="filters-container" style={{ 
-          flex: isExpanded ? 1 : 'none',
-          width: isExpanded ? '100%' : 'auto'
-        }}>
+        <div className="filters-container" style={{ order: 2 }}>
           <div className="search-section">
             <div className="search-input-container">
               <input 
@@ -87,12 +130,50 @@ function SuppliersFilters({ onSearch, searchQuery, isExpanded, onToggleExpanded 
               <span className="search-icon">🔍</span>
             </div>
             <div className="quick-filters">
-              <button type="button" className="quick-filter-btn ">🔴 Pasif Tedarikçiler</button>
+              <button 
+                type="button" 
+                className={`quick-filter-btn ${activeFilters.inactive ? 'active' : ''}`}
+                onClick={() => toggleQuickFilter('inactive')}
+              >
+                🔴 Pasif Tedarikçiler
+              </button>
+              <button 
+                type="button" 
+                className={`quick-filter-btn ${activeFilters.payment30Days ? 'active' : ''}`}
+                onClick={() => toggleQuickFilter('payment30Days')}
+              >
+                💰 30 Gün Vade
+              </button>
+              <button 
+                type="button" 
+                className={`quick-filter-btn ${activeFilters.fastDelivery ? 'active' : ''}`}
+                onClick={() => toggleQuickFilter('fastDelivery')}
+              >
+                ⚡ Hızlı Teslimat
+              </button>
               {isExpanded && (
                 <>
-                  <button type="button" className="quick-filter-btn ">⭐ A Kredi Notu</button>
-                  <button type="button" className="quick-filter-btn ">🏭 Üreticiler</button>
-                  <button type="button" className="quick-filter-btn ">🌍 Yurtdışı</button>
+                  <button 
+                    type="button" 
+                    className={`quick-filter-btn ${activeFilters.aCredit ? 'active' : ''}`}
+                    onClick={() => toggleQuickFilter('aCredit')}
+                  >
+                    ⭐ A Kredi Notu
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`quick-filter-btn ${activeFilters.manufacturers ? 'active' : ''}`}
+                    onClick={() => toggleQuickFilter('manufacturers')}
+                  >
+                    🏭 Üreticiler
+                  </button>
+                  <button 
+                    type="button" 
+                    className={`quick-filter-btn ${activeFilters.international ? 'active' : ''}`}
+                    onClick={() => toggleQuickFilter('international')}
+                  >
+                    🌍 Yurtdışı
+                  </button>
                 </>
               )}
             </div>
@@ -100,7 +181,7 @@ function SuppliersFilters({ onSearch, searchQuery, isExpanded, onToggleExpanded 
           <div className="dropdown-filters">
             <div className="filter-group">
               <div className="multi-select-container">
-                <div className="multi-select-header">
+                <div className="multi-select-header" onClick={() => toggleDropdown('supplier-types-dropdown')}>
                   Tedarikçi Tipi seçin...
                   <span className="dropdown-arrow">▼</span>
                 </div>
@@ -134,7 +215,7 @@ function SuppliersFilters({ onSearch, searchQuery, isExpanded, onToggleExpanded 
             </div>
             <div className="filter-group">
               <div className="multi-select-container">
-                <div className="multi-select-header">
+                <div className="multi-select-header" onClick={() => toggleDropdown('countries-dropdown')}>
                   Ülke seçin...
                   <span className="dropdown-arrow">▼</span>
                 </div>
@@ -170,7 +251,7 @@ function SuppliersFilters({ onSearch, searchQuery, isExpanded, onToggleExpanded 
               <>
                 <div className="filter-group">
                   <div className="multi-select-container">
-                    <div className="multi-select-header">
+                    <div className="multi-select-header" onClick={() => toggleDropdown('credit-rating-dropdown')}>
                       Kredi Notu seçin...
                       <span className="dropdown-arrow">▼</span>
                     </div>
@@ -200,7 +281,7 @@ function SuppliersFilters({ onSearch, searchQuery, isExpanded, onToggleExpanded 
                 </div>
                 <div className="filter-group">
                   <div className="multi-select-container">
-                    <div className="multi-select-header">
+                    <div className="multi-select-header" onClick={() => toggleDropdown('risk-level-dropdown')}>
                       Risk Seviyesi seçin...
                       <span className="dropdown-arrow">▼</span>
                     </div>
@@ -222,6 +303,78 @@ function SuppliersFilters({ onSearch, searchQuery, isExpanded, onToggleExpanded 
                 </div>
               </>
             )}
+            
+            {/* Yeni Eklenen Filtreler */}
+            <div className="filter-group">
+              <div className="multi-select-container">
+                <div className="multi-select-header" onClick={() => toggleDropdown('certificates-dropdown')}>
+                  Sertifikalar seçin...
+                  <span className="dropdown-arrow">▼</span>
+                </div>
+                <div id="certificates-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>ISO 9001</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>ISO 14001</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>CE Belgesi</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>TSE Belgesi</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>OHSAS 18001</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Diğer</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            
+            <div className="filter-group">
+              <div className="multi-select-container">
+                <div className="multi-select-header" onClick={() => toggleDropdown('min-order-dropdown')}>
+                  Min. Sipariş Tutarı...
+                  <span className="dropdown-arrow">▼</span>
+                </div>
+                <div id="min-order-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>1.000 TL ve altı</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>1.000 - 5.000 TL</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>5.000 - 10.000 TL</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>10.000 - 50.000 TL</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>50.000 TL ve üzeri</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input type="checkbox" />
+                    <span>Minimum yok</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            
             <div className="filter-group">
               <div className="status-toggle-container">
                 <div className="status-toggle-header ">
@@ -325,10 +478,7 @@ export default function SuppliersTabContent({
             </div>
           </>
         )}
-        <div className="materials-filters-container" style={{ 
-          flex: isFiltersExpanded ? 1 : 'initial',
-          maxWidth: isFiltersExpanded ? '100%' : 'initial'
-        }}>
+        <div className="materials-filters-container">
           <SuppliersFilters 
             onSearch={setSearchQuery}
             searchQuery={searchQuery}

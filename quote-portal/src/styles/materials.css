@@ -554,8 +554,15 @@ section.materials-dashboard div.card {
 /* Dropdown Filters */
 .dropdown-filters {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
   gap: 12px;
+}
+
+/* Large screens (Ultra wide) */
+@media (min-width: 1600px) {
+  .dropdown-filters {
+    grid-template-columns: repeat(6, 1fr);
+  }
 }
 
 .filter-group {
@@ -796,6 +803,12 @@ section.materials-dashboard div.card {
 }
 
 @media (max-width: 1024px) {
+  .dropdown-filters {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+@media (max-width: 900px) {
   .dropdown-filters {
     grid-template-columns: 1fr 1fr;
   }
