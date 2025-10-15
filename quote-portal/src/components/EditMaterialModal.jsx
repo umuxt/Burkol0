@@ -31,7 +31,35 @@ const mockSuppliers = [
   }
 ];
 
-export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, categories, types, material }) {
+export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, categories, types, material, loading = false }) {
+  // Loading timeout için timer
+  const [loadingTimeout, setLoadingTimeout] = useState(false)
+  
+  // Loading state 15 saniyeden fazla sürerse timeout yap
+  useEffect(() => {
+    if (loading && isOpen) {
+      const timer = setTimeout(() => {
+        setLoadingTimeout(true)
+      }, 15000)
+      
+      return () => clearTimeout(timer)
+    } else {
+      setLoadingTimeout(false)
+    }
+  }, [loading, isOpen])
+  // Güvenli değer render fonksiyonu
+  const safeRender = (value, fallback = '') => {
+    if (value === null || value === undefined || value === '' || Number.isNaN(value)) {
+      return fallback;
+    }
+    // Eğer number ise ve NaN ise fallback dön
+    if (typeof value === 'number' && Number.isNaN(value)) {
+      console.warn('🚨 NaN detected in safeRender:', value);
+      return fallback;
+    }
+    return value.toString();
+  };
+
   const [formData, setFormData] = useState({
     code: '',
     name: '',
@@ -59,20 +87,56 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
       console.log('🔍 EditMaterialModal - Categories:', categories);
       console.log('🔍 EditMaterialModal - Material category:', material.category);
       
+      // Her property'yi ayrı ayrı kontrol et
+      Object.keys(material).forEach(key => {
+        const value = material[key];
+        if (Number.isNaN(value)) {
+          console.warn(`🚨 NaN detected in material.${key}:`, value);
+        }
+      });
+      
+      // NaN değerlerini kontrol et ve temizle
+      const safeNumber = (value) => {
+        console.log('🔍 Processing value:', value, 'Type:', typeof value, 'isNaN:', Number.isNaN(value));
+        
+        if (value === null || value === undefined || value === '' || Number.isNaN(value)) {
+          return '0';
+        }
+        
+        // String'i number'a çevirmeye çalış
+        const numValue = Number(value);
+        if (Number.isNaN(numValue)) {
+          console.warn('🚨 Failed to convert to number:', value);
+          return '0';
+        }
+        
+        return numValue.toString();
+      };
+      
       const materialFormData = {
-        code: material.code,
-        name: material.name,
-        type: material.type,
-        category: material.category,
-        unit: material.unit,
-        stock: material.stock.toString(),
-        reorderPoint: material.reorderPoint.toString(),
-        costPrice: material.costPrice ? material.costPrice.toString() : '',
-        sellPrice: material.sellPrice ? material.sellPrice.toString() : '',
+        code: material.code || '',
+        name: material.name || '',
+        type: material.type || '',
+        category: material.category || '',
+        unit: material.unit || '',
+        stock: safeNumber(material.stock),
+        reorderPoint: safeNumber(material.reorderPoint),
+        costPrice: safeNumber(material.costPrice),
+        sellPrice: safeNumber(material.sellPrice),
         supplier: material.supplier || '',
         description: material.description || '',
-        status: material.status
+        status: material.status || 'Aktif'
       };
+      
+      console.log('📝 Processed form data:', materialFormData);
+      
+      // FormData'daki her değeri kontrol et
+      Object.keys(materialFormData).forEach(key => {
+        const value = materialFormData[key];
+        if (Number.isNaN(value) || (typeof value === 'number' && Number.isNaN(value))) {
+          console.error(`🚨 NaN in formData.${key}:`, value);
+        }
+      });
       
       setFormData(materialFormData);
       setOriginalData(materialFormData); // Orijinal veriyi sakla
@@ -89,6 +153,15 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
     }
     
     const { name, value } = e.target;
+    
+    // NaN kontrolü ekle
+    if (Number.isNaN(value)) {
+      console.warn('🚨 NaN value detected in input change:', name, value);
+      return;
+    }
+    
+    console.log('📝 Input change:', name, '=', value, typeof value);
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -156,8 +229,10 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
     const materialData = {
       ...formData,
       category: finalCategory,
-      stock: parseInt(formData.stock),
-      reorderPoint: parseInt(formData.reorderPoint)
+      stock: parseInt(formData.stock) || 0,
+      reorderPoint: parseInt(formData.reorderPoint) || 0,
+      costPrice: parseFloat(formData.costPrice) || 0,
+      sellPrice: parseFloat(formData.sellPrice) || 0
     };
 
     onSave(materialData, showNewCategory ? newCategory : null);
@@ -176,8 +251,12 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
       type: '',
       category: '',
       unit: '',
-      stock: '',
-      reorderPoint: '',
+      stock: '0',
+      reorderPoint: '0',
+      costPrice: '0',
+      sellPrice: '0',
+      supplier: '',
+      description: '',
       status: 'Aktif'
     });
     setOriginalData(null); // Orijinal veriyi de temizle
@@ -188,6 +267,68 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
   };
 
   if (!isOpen) return null;
+
+  // Loading state göster (material henüz yüklenmemişse)
+  if (loading || (!material && isOpen)) {
+    return (
+      <div className="modal-overlay" onClick={handleClose}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h2>Malzeme Detayları</h2>
+            <button className="modal-close" onClick={handleClose}>×</button>
+          </div>
+          <div className="modal-form" style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+            {!loadingTimeout ? (
+              <>
+                <div style={{ fontSize: '24px', marginBottom: '16px' }}>⏳</div>
+                <p style={{ margin: 0, fontSize: '16px', fontWeight: '500' }}>Malzeme detayları yükleniyor...</p>
+                <p style={{ margin: '8px 0 0', fontSize: '14px', color: '#9ca3af' }}>Lütfen bekleyin</p>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: '24px', marginBottom: '16px' }}>⚠️</div>
+                <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: '#dc2626' }}>Yükleme çok uzun sürüyor</p>
+                <p style={{ margin: '8px 0 16px', fontSize: '14px', color: '#9ca3af' }}>Bağlantı problemi olabilir</p>
+                <button 
+                  onClick={handleClose}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Kapat ve Tekrar Dene
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Material verisi yoksa ve loading de yapılmıyorsa hata göster
+  if (!material && !loading) {
+    return (
+      <div className="modal-overlay" onClick={handleClose}>
+        <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <h2>Malzeme Detayları</h2>
+            <button className="modal-close" onClick={handleClose}>×</button>
+          </div>
+          <div className="modal-form" style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔍</div>
+            <p style={{ margin: 0, fontSize: '16px', fontWeight: '500', color: '#374151' }}>Malzeme bulunamadı</p>
+            <p style={{ margin: '8px 0 0', fontSize: '14px', color: '#9ca3af' }}>Bu malzeme silinmiş olabilir veya erişim yetkiniz bulunmuyor</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
@@ -231,18 +372,18 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
               <div className="details-content">
                 <div className="detail-item">
                   <span className="detail-label">Malzeme Kodu:</span>
-                  <span className="detail-value">{formData.code}</span>
+                  <span className="detail-value">{safeRender(formData.code)}</span>
                 </div>
                 
                 <div className="detail-item">
                   <span className="detail-label">Malzeme Adı:</span>
                   {!isEditing ? (
-                    <span className="detail-value">{formData.name}</span>
+                    <span className="detail-value">{safeRender(formData.name)}</span>
                   ) : (
                     <input
                       type="text"
                       name="name"
-                      value={formData.name}
+                      value={safeRender(formData.name)}
                       onChange={handleInputChange}
                       className="detail-input"
                       required
@@ -253,11 +394,11 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                 <div className="detail-item">
                   <span className="detail-label">Malzeme Tipi:</span>
                   {!isEditing ? (
-                    <span className="detail-value">{types.find(type => type.id === formData.type)?.label || formData.type || 'Tip seçilmemiş'}</span>
+                    <span className="detail-value">{types.find(type => type.id === formData.type)?.label || safeRender(formData.type, 'Tip seçilmemiş')}</span>
                   ) : (
                     <select
                       name="type"
-                      value={formData.type}
+                      value={safeRender(formData.type)}
                       onChange={handleInputChange}
                       className="detail-input"
                       required
@@ -273,12 +414,12 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                 <div className="detail-item">
                   <span className="detail-label">Kategori:</span>
                   {!isEditing ? (
-                    <span className="detail-value">{categories.find(cat => cat.id === formData.category)?.name || formData.category || 'Kategori seçilmemiş'}</span>
+                    <span className="detail-value">{categories.find(cat => cat.id === formData.category)?.name || safeRender(formData.category, 'Kategori seçilmemiş')}</span>
                   ) : (
                     <>
                       {!showNewCategory ? (
                         <select
-                          value={formData.category}
+                          value={safeRender(formData.category)}
                           onChange={handleCategoryChange}
                           className="detail-input"
                           required
@@ -306,11 +447,11 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                 <div className="detail-item">
                   <span className="detail-label">Açıklama:</span>
                   {!isEditing ? (
-                    <span className="detail-value description">{formData.description || 'Açıklama girilmemiş'}</span>
+                    <span className="detail-value description">{safeRender(formData.description, 'Açıklama girilmemiş')}</span>
                   ) : (
                     <textarea
                       name="description"
-                      value={formData.description}
+                      value={safeRender(formData.description)}
                       onChange={handleInputChange}
                       placeholder="Malzeme açıklaması"
                       className="detail-input"
@@ -512,18 +653,18 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
               <div className="stock-info-grid">
                 <div className="detail-item">
                   <span className="detail-label">Birim:</span>
-                  <span className="detail-value">{formData.unit}</span>
+                  <span className="detail-value">{safeRender(formData.unit)}</span>
                 </div>
                 
                 <div className="detail-item">
                   <span className="detail-label">Mevcut Stok:</span>
                   {!isEditing ? (
-                    <span className="detail-value">{formData.stock}</span>
+                    <span className="detail-value">{safeRender(formData.stock, '0')}</span>
                   ) : (
                     <input
                       type="number"
                       name="stock"
-                      value={formData.stock}
+                      value={safeRender(formData.stock, '0')}
                       onChange={handleInputChange}
                       className="detail-input"
                       min="0"
@@ -535,12 +676,12 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                 <div className="detail-item">
                   <span className="detail-label">Reorder Point:</span>
                   {!isEditing ? (
-                    <span className="detail-value">{formData.reorderPoint}</span>
+                    <span className="detail-value">{safeRender(formData.reorderPoint, '0')}</span>
                   ) : (
                     <input
                       type="number"
                       name="reorderPoint"
-                      value={formData.reorderPoint}
+                      value={safeRender(formData.reorderPoint, '0')}
                       onChange={handleInputChange}
                       className="detail-input"
                       min="0"
@@ -552,11 +693,11 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                 <div className="detail-item">
                   <span className="detail-label">Durum:</span>
                   {!isEditing ? (
-                    <span className="detail-value">{formData.status}</span>
+                    <span className="detail-value">{safeRender(formData.status, 'Aktif')}</span>
                   ) : (
                     <select
                       name="status"
-                      value={formData.status}
+                      value={safeRender(formData.status, 'Aktif')}
                       onChange={handleInputChange}
                       className="detail-input"
                     >

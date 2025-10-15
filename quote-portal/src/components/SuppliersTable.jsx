@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { useMaterials, useMaterialActions } from '../hooks/useFirebaseMaterials'
+import { categoriesService } from '../services/categories-service'
+import EditMaterialModal from './EditMaterialModal'
 
 export default function SuppliersTable({ 
   suppliers = [],
@@ -12,6 +15,34 @@ export default function SuppliersTable({
   const [sortDirection, setSortDirection] = useState('asc')
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({})
+
+  // Material management state
+  const { materials, loading: materialsLoading, loadMaterials } = useMaterials(false)
+  const { addMaterial } = useMaterialActions()
+  const [materialMode, setMaterialMode] = useState('existing')
+  const [selectedMaterials, setSelectedMaterials] = useState([])
+  const [materialSearchTerm, setMaterialSearchTerm] = useState('')
+  const [showMaterialPopup, setShowMaterialPopup] = useState(false)
+  const [materialCategories, setMaterialCategories] = useState([])
+  const [showNewCategory, setShowNewCategory] = useState(false)
+  const [newCategory, setNewCategory] = useState('')
+  
+  // Material detail modal state
+  const [showMaterialDetailModal, setShowMaterialDetailModal] = useState(false)
+  const [selectedMaterialForDetail, setSelectedMaterialForDetail] = useState(null)
+  const [loadingMaterialDetail, setLoadingMaterialDetail] = useState(false)
+  
+  const [newMaterial, setNewMaterial] = useState({
+    name: '',
+    category: '',
+    unit: '',
+    description: '',
+    code: '',
+    reorderPoint: '',
+    stockLevel: '',
+    price: '',
+    supplier: ''
+  })
 
   const handleRowClick = (supplier) => {
     setSelectedSupplier(supplier)
@@ -30,6 +61,19 @@ export default function SuppliersTable({
       }
     }
   }, [suppliers, selectedSupplierId])
+
+  // Load categories for material detail modal
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const categories = await categoriesService.getCategories()
+        setMaterialCategories(categories)
+      } catch (error) {
+        console.error('Kategoriler yüklenirken hata:', error)
+      }
+    }
+    loadCategories()
+  }, [])
 
   const handleEdit = () => {
     if (selectedSupplier) {
@@ -67,6 +111,345 @@ export default function SuppliersTable({
         setSelectedSupplier(null)
         setSelectedSupplierId(null)
       }
+    }
+  }
+
+  // Material management functions
+  const generateNextMaterialCode = () => {
+    if (!materials || materials.length === 0) {
+      return 'M-001';
+    }
+    
+    const existingNumbers = materials
+      .map(material => {
+        const code = material.code || '';
+        const match = code.match(/^M-(\d+)$/);
+        return match ? parseInt(match[1]) : null;
+      })
+      .filter(num => num !== null)
+      .sort((a, b) => a - b);
+    
+    let nextNumber = 1;
+    for (const num of existingNumbers) {
+      if (num === nextNumber) {
+        nextNumber++;
+      } else if (num > nextNumber) {
+        break;
+      }
+    }
+    
+    return `M-${String(nextNumber).padStart(3, '0')}`;
+  };
+
+  const extractMaterialCategories = async () => {
+    try {
+      const categoriesFromService = await categoriesService.getCategories()
+      const materialCategories = categoriesFromService.filter(cat => 
+        cat.type === 'material' || !cat.type
+      )
+      setMaterialCategories(materialCategories)
+    } catch (error) {
+      console.error('Categories yüklenirken hata:', error)
+      if (materials && materials.length > 0) {
+        const categories = [...new Set(materials
+          .map(material => material.category)
+          .filter(category => category && category.trim() !== '')
+        )].sort().map(name => ({ id: name, name }))
+        setMaterialCategories(categories)
+      }
+    }
+  }
+
+  const getCategoryName = (categoryId) => {
+    const category = materialCategories.find(cat => cat.id === categoryId)
+    return category ? (category.name || category.label || categoryId) : categoryId
+  }
+
+  const handleOpenMaterialPopup = async () => {
+    setShowMaterialPopup(true)
+    if (!materials || materials.length === 0) {
+      await loadMaterials()
+    }
+    await extractMaterialCategories()
+  }
+
+  const filteredMaterials = useMemo(() => {
+    if (!materials || !Array.isArray(materials)) return []
+    
+    return materials.filter(material => 
+      material.name?.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
+      material.code?.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
+      getCategoryName(material.category)?.toLowerCase().includes(materialSearchTerm.toLowerCase())
+    )
+  }, [materials, materialSearchTerm, materialCategories])
+
+  const handleMaterialSelect = (material) => {
+    const isAlreadySelected = selectedMaterials.find(m => m.id === material.id)
+    
+    if (isAlreadySelected) {
+      setSelectedMaterials(prev => prev.filter(m => m.id !== material.id))
+    } else {
+      setSelectedMaterials(prev => [...prev, material])
+    }
+  }
+
+  const handleMaterialRemove = (materialId) => {
+    setSelectedMaterials(prev => prev.filter(m => m.id !== materialId))
+  }
+
+  const handleNewMaterialChange = (e) => {
+    const { name, value } = e.target
+    setNewMaterial(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const handleCategoryChange = (e) => {
+    const value = e.target.value
+    if (value === 'new-category') {
+      setShowNewCategory(true)
+      setNewMaterial(prev => ({ ...prev, category: '' }))
+    } else {
+      setShowNewCategory(false)
+      setNewMaterial(prev => ({ ...prev, category: value }))
+    }
+  }
+
+  const handleAddNewMaterial = async () => {
+    const finalCategory = showNewCategory ? newCategory : newMaterial.category
+    
+    if (!newMaterial.name || !finalCategory || !newMaterial.unit) {
+      alert('Lütfen malzeme adı, kategori ve birim alanlarını doldurun!')
+      return
+    }
+
+    try {
+      if (showNewCategory && newCategory.trim()) {
+        try {
+          await categoriesService.addCategory({
+            name: newCategory.trim(),
+            createdAt: new Date(),
+            type: 'material'
+          })
+          console.log('✅ New category added:', newCategory)
+        } catch (categoryError) {
+          console.error('❌ Category creation failed:', categoryError)
+        }
+      }
+
+      const finalCode = newMaterial.code.trim() || generateNextMaterialCode()
+      
+      const materialData = {
+        ...newMaterial,
+        category: finalCategory,
+        code: finalCode,
+        createdAt: new Date(),
+        suppliers: selectedSupplier ? [selectedSupplier.id] : [],
+        reorderPoint: newMaterial.reorderPoint ? parseFloat(newMaterial.reorderPoint) : 0,
+        stockLevel: newMaterial.stockLevel ? parseFloat(newMaterial.stockLevel) : 0,
+        price: newMaterial.price ? parseFloat(newMaterial.price) : 0
+      }
+      
+      const addedMaterial = await addMaterial(materialData)
+      
+      // Add to selected materials and update supplier
+      setSelectedMaterials(prev => [...prev, addedMaterial])
+      
+      // Update supplier's supplied materials
+      if (selectedSupplier && onUpdateSupplier) {
+        const updatedSuppliedMaterials = [
+          ...(selectedSupplier.suppliedMaterials || []),
+          {
+            id: addedMaterial.id,
+            name: addedMaterial.name,
+            category: addedMaterial.category,
+            unit: addedMaterial.unit,
+            addedAt: new Date(),
+            status: 'aktif' // Default status when adding new material
+          }
+        ]
+        
+        await onUpdateSupplier(selectedSupplier.id, {
+          ...selectedSupplier,
+          suppliedMaterials: updatedSuppliedMaterials
+        })
+      }
+      
+      // Reset form
+      setNewMaterial({
+        name: '',
+        category: '',
+        unit: '',
+        description: '',
+        code: '',
+        reorderPoint: '',
+        stockLevel: '',
+        price: '',
+        supplier: ''
+      })
+      
+      setShowNewCategory(false)
+      setNewCategory('')
+      setMaterialMode('existing')
+      
+      alert('Malzeme başarıyla eklendi!')
+    } catch (error) {
+      console.error('Malzeme eklenirken hata:', error)
+      alert('Malzeme eklenirken bir hata oluştu!')
+    }
+  }
+
+  const handleAddExistingMaterials = async () => {
+    if (selectedMaterials.length === 0 || !selectedSupplier) return
+
+    try {
+      const updatedSuppliedMaterials = [
+        ...(selectedSupplier.suppliedMaterials || []),
+        ...selectedMaterials.map(material => ({
+          id: material.id,
+          name: material.name,
+          category: material.category,
+          unit: material.unit,
+          addedAt: new Date(),
+          status: 'aktif' // Default status when adding materials
+        }))
+      ]
+
+      // Remove duplicates
+      const uniqueMaterials = updatedSuppliedMaterials.filter((material, index, self) =>
+        index === self.findIndex(m => m.id === material.id)
+      )
+
+      if (onUpdateSupplier) {
+        await onUpdateSupplier(selectedSupplier.id, {
+          ...selectedSupplier,
+          suppliedMaterials: uniqueMaterials
+        })
+      }
+
+      setSelectedMaterials([])
+      setShowMaterialPopup(false)
+      alert('Malzemeler başarıyla eklendi!')
+    } catch (error) {
+      console.error('Malzemeler eklenirken hata:', error)
+      alert('Malzemeler eklenirken bir hata oluştu!')
+    }
+  }
+
+  // Material status management
+  const handleMaterialStatusChange = async (materialId, newStatus) => {
+    if (!selectedSupplier || !onUpdateSupplier) return
+
+    try {
+      const updatedSuppliedMaterials = selectedSupplier.suppliedMaterials.map(material =>
+        material.id === materialId
+          ? { ...material, status: newStatus, statusUpdatedAt: new Date() }
+          : material
+      )
+
+      await onUpdateSupplier(selectedSupplier.id, {
+        ...selectedSupplier,
+        suppliedMaterials: updatedSuppliedMaterials
+      })
+
+      console.log(`Malzeme durumu güncellendi: ${materialId} -> ${newStatus}`)
+    } catch (error) {
+      console.error('Malzeme durumu güncellenirken hata:', error)
+      alert('Malzeme durumu güncellenirken bir hata oluştu!')
+    }
+  }
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'aktif':
+        return '#059669' // green
+      case 'pasif':
+        return '#dc2626' // red
+      case 'değerlendirmede':
+        return '#d97706' // orange
+      default:
+        return '#6b7280' // gray
+    }
+  }
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'aktif':
+        return 'Aktif'
+      case 'pasif':
+        return 'Pasif'
+      case 'değerlendirmede':
+        return 'Değerlendirmede'
+      default:
+        return 'Aktif'
+    }
+  }
+
+  // Material detail modal functions
+  const handleShowMaterialDetail = async (materialId) => {
+    // Modal'ı hemen aç
+    setShowMaterialDetailModal(true)
+    setSelectedMaterialForDetail(null) // Önce null set et ki loading gösterilsin
+    setLoadingMaterialDetail(true)
+    
+    try {
+      console.log('🔍 Attempting to show material detail for ID:', materialId)
+      console.log('🔍 Current materials count:', materials.length)
+      console.log('🔍 Materials loading state:', materialsLoading)
+      console.log('🔍 loadMaterials function type:', typeof loadMaterials)
+      
+      // Load materials if not already loaded
+      if (materials.length === 0) {
+        console.log('🔄 Loading materials...')
+        
+        // loadMaterials fonksiyonunu kontrol et
+        if (typeof loadMaterials !== 'function') {
+          throw new Error('loadMaterials is not a function')
+        }
+        
+        // Timeout ekle - 10 saniye sonra hata ver
+        const loadPromise = loadMaterials(false)
+        console.log('🔄 loadMaterials promise created:', loadPromise)
+        
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Materials loading timeout')), 10000)
+        )
+        
+        await Promise.race([loadPromise, timeoutPromise])
+        console.log('✅ Materials loading completed, new count:', materials.length)
+        
+        // Kısa bir delay ekle state'in güncellenmesi için
+        await new Promise(resolve => setTimeout(resolve, 100))
+        console.log('✅ After delay, materials count:', materials.length)
+        
+        // Eğer hala materials boşsa hata ver
+        if (materials.length === 0) {
+          throw new Error('No materials loaded after successful load call')
+        }
+      }
+      
+      // Find material in the loaded materials
+      const material = materials.find(m => m.id === materialId)
+      
+      if (material) {
+        console.log('✅ Found material in materials list:', material.name)
+        setSelectedMaterialForDetail(material)
+      } else {
+        console.log('❌ Material not found in materials list, ID:', materialId)
+        console.log('🔍 Available materials:', materials.map(m => ({id: m.id, name: m.name})))
+        // Material bulunamadığında modal açık kalsın, sadece loading state'i kapat
+        // Böylece EditMaterialModal hata durumunu handle edecek
+        setSelectedMaterialForDetail(null)
+      }
+    } catch (error) {
+      console.error('❌ Malzeme detayları yüklenirken hata:', error)
+      // Hata durumunda modal'ı kapat
+      setShowMaterialDetailModal(false)
+      setSelectedMaterialForDetail(null)
+      alert(`Malzeme detayları yüklenirken bir hata oluştu: ${error.message}`)
+    } finally {
+      setLoadingMaterialDetail(false)
     }
   }
 
@@ -1494,6 +1877,412 @@ export default function SuppliersTable({
                   </div>
                 </div>
 
+                {/* Tedarik Edilen Malzemeler */}
+                <div style={{ 
+                  marginBottom: '16px', 
+                  padding: '12px', 
+                  background: 'white', 
+                  borderRadius: '6px',
+                  border: '1px solid #e5e7eb'
+                }}>
+                  <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
+                    Tedarik Edilen Malzemeler
+                  </h3>
+
+                  {/* Material Mode Toggle */}
+                  <div style={{ marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={handleOpenMaterialPopup}
+                        style={{
+                          padding: '6px 12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          background: 'white',
+                          color: '#374151',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Mevcut Malzemelerden Ekle
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setMaterialMode('new')
+                          if ((!materials || materials.length === 0) && !materialsLoading) {
+                            await loadMaterials()
+                            await extractMaterialCategories()
+                          } else {
+                            await extractMaterialCategories()
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          background: materialMode === 'new' ? '#3b82f6' : 'white',
+                          color: materialMode === 'new' ? 'white' : '#374151',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Yeni Malzeme Ekle
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Current Supplied Materials */}
+                  {selectedSupplier?.suppliedMaterials && selectedSupplier.suppliedMaterials.length > 0 && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: '600', color: '#111827' }}>
+                        Mevcut Malzemeler ({selectedSupplier.suppliedMaterials.length})
+                      </h4>
+                      <div style={{ 
+                        border: '1px solid #e5e7eb', 
+                        borderRadius: '4px'
+                      }}>
+                        {selectedSupplier.suppliedMaterials.map((material, index) => (
+                          <div
+                            key={material.id || index}
+                            style={{
+                              padding: '6px 12px',
+                              borderBottom: index < selectedSupplier.suppliedMaterials.length - 1 ? '1px solid #f3f4f6' : 'none',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              fontSize: '12px'
+                            }}
+                          >
+                            <div>
+                              <div style={{ 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                gap: '8px',
+                                marginBottom: '2px'
+                              }}>
+                                <span style={{ 
+                                  fontWeight: '600', 
+                                  color: material.status === 'pasif' ? '#dc2626' : material.status === 'değerlendirmede' ? '#eab308' : '#111827',
+                                  opacity: material.status === 'pasif' ? 0.6 : 1
+                                }}>
+                                  {material.name}
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                                {material.category && `${getCategoryName(material.category)} • `}
+                                {material.unit}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <button
+                                onClick={() => handleShowMaterialDetail(material.id)}
+                                style={{
+                                  padding: '2px 4px',
+                                  fontSize: '10px',
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: '3px',
+                                  background: '#f9fafb',
+                                  color: '#374151',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  minWidth: '24px',
+                                  height: '20px'
+                                }}
+                                title="Malzeme Detayları"
+                              >
+                                ℹ️
+                              </button>
+                              <select
+                                value={material.status || 'aktif'}
+                                onChange={(e) => handleMaterialStatusChange(material.id, e.target.value)}
+                                style={{
+                                  padding: '1px 4px',
+                                  fontSize: '10px',
+                                  border: '1px solid #d1d5db',
+                                  borderRadius: '3px',
+                                  background: 'white',
+                                  color: '#374151',
+                                  cursor: 'pointer',
+                                  minWidth: '60px',
+                                  maxWidth: '80px',
+                                  textAlign: 'right'
+                                }}
+                              >
+                                <option value="aktif">Aktif</option>
+                                <option value="pasif">Pasif</option>
+                                <option value="değerlendirmede">Değerlendirmede</option>
+                              </select>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* New Material Mode */}
+                  {materialMode === 'new' && (
+                    <div>
+                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                          Malzeme Adı:
+                        </span>
+                        <input
+                          type="text"
+                          name="name"
+                          value={newMaterial.name}
+                          onChange={handleNewMaterialChange}
+                          placeholder="Malzeme adını girin"
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'white'
+                          }}
+                        />
+                      </div>
+
+                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                          Kategori:
+                        </span>
+                        <select
+                          name="category"
+                          value={showNewCategory ? 'new-category' : newMaterial.category}
+                          onChange={handleCategoryChange}
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'white'
+                          }}
+                        >
+                          <option value="">Kategori seçin</option>
+                          {materialCategories.map(category => (
+                            <option key={category.id} value={category.id}>
+                              {category.name || category.label || category.id}
+                            </option>
+                          ))}
+                          <option value="new-category">+ Yeni Kategori Ekle</option>
+                        </select>
+                      </div>
+
+                      {showNewCategory && (
+                        <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                          <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                            Yeni Kategori:
+                          </span>
+                          <input
+                            type="text"
+                            value={newCategory}
+                            onChange={(e) => setNewCategory(e.target.value)}
+                            placeholder="Yeni kategori adını girin"
+                            style={{
+                              flex: 1,
+                              padding: '6px 8px',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              background: 'white'
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                          Birim:
+                        </span>
+                        <select
+                          name="unit"
+                          value={newMaterial.unit}
+                          onChange={handleNewMaterialChange}
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'white'
+                          }}
+                        >
+                          <option value="">Birim seçin</option>
+                          <option value="kg">Kilogram (kg)</option>
+                          <option value="g">Gram (g)</option>
+                          <option value="lt">Litre (lt)</option>
+                          <option value="ml">Mililitre (ml)</option>
+                          <option value="m">Metre (m)</option>
+                          <option value="cm">Santimetre (cm)</option>
+                          <option value="m²">Metrekare (m²)</option>
+                          <option value="adet">Adet</option>
+                          <option value="paket">Paket</option>
+                          <option value="kutu">Kutu</option>
+                        </select>
+                      </div>
+
+                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                          Kod:
+                        </span>
+                        <input
+                          type="text"
+                          name="code"
+                          value={newMaterial.code || generateNextMaterialCode()}
+                          onChange={handleNewMaterialChange}
+                          placeholder={`Otomatik kod: ${generateNextMaterialCode()}`}
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'white'
+                          }}
+                        />
+                      </div>
+
+                      <div className="detail-item" style={{ display: 'flex', alignItems: 'flex-start', marginBottom: '8px' }}>
+                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px', marginTop: '6px' }}>
+                          Açıklama:
+                        </span>
+                        <textarea
+                          name="description"
+                          value={newMaterial.description}
+                          onChange={handleNewMaterialChange}
+                          placeholder="Malzeme açıklaması (opsiyonel)"
+                          rows="2"
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'white',
+                            resize: 'vertical'
+                          }}
+                        />
+                      </div>
+
+                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                          Minimum Stok:
+                        </span>
+                        <input
+                          type="number"
+                          name="reorderPoint"
+                          value={newMaterial.reorderPoint}
+                          onChange={handleNewMaterialChange}
+                          placeholder="Minimum stok seviyesi"
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'white'
+                          }}
+                        />
+                      </div>
+
+                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                          Mevcut Stok:
+                        </span>
+                        <input
+                          type="number"
+                          name="stockLevel"
+                          value={newMaterial.stockLevel}
+                          onChange={handleNewMaterialChange}
+                          placeholder="Şu anki stok miktarı"
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'white'
+                          }}
+                        />
+                      </div>
+
+                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                          Fiyat:
+                        </span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="price"
+                          value={newMaterial.price}
+                          onChange={handleNewMaterialChange}
+                          placeholder="Birim fiyat (TRY)"
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'white'
+                          }}
+                        />
+                      </div>
+
+                      <div style={{ textAlign: 'right', marginTop: '8px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          onClick={() => setMaterialMode('existing')}
+                          style={{
+                            padding: '6px 12px',
+                            background: '#6b7280',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          İptal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAddNewMaterial}
+                          style={{
+                            padding: '6px 12px',
+                            background: '#10b981',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Malzeme Ekle
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Show message when no materials */}
+                  {(!selectedSupplier?.suppliedMaterials || selectedSupplier.suppliedMaterials.length === 0) && materialMode !== 'new' && (
+                    <div style={{ 
+                      padding: '20px', 
+                      textAlign: 'center', 
+                      color: '#6b7280', 
+                      fontSize: '12px',
+                      fontStyle: 'italic'
+                    }}>
+                      Henüz malzeme eklenmemiş. Yukarıdaki butonları kullanarak malzeme ekleyebilirsiniz.
+                    </div>
+                  )}
+                </div>
+
                 {/* Supply History - Tedarik Geçmişi */}
                 <div style={{ 
                   marginBottom: '16px', 
@@ -1554,6 +2343,226 @@ export default function SuppliersTable({
           </div>
         </div>
       )}
+
+      {/* Material Selection Popup */}
+      {showMaterialPopup && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1001
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '20px',
+            maxWidth: '600px',
+            maxHeight: '80vh',
+            width: '90%',
+            overflowY: 'auto',
+            position: 'relative'
+          }}>
+            {/* Popup Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+              borderBottom: '1px solid #e5e7eb',
+              paddingBottom: '12px'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
+                Mevcut Malzemelerden Seç
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowMaterialPopup(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '20px',
+                  cursor: 'pointer',
+                  color: '#6b7280',
+                  padding: '4px'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Search Input */}
+            <div style={{ marginBottom: '12px' }}>
+              <input
+                type="text"
+                value={materialSearchTerm}
+                onChange={(e) => setMaterialSearchTerm(e.target.value)}
+                placeholder="Malzeme adı, kodu veya kategorisi ile ara..."
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  background: 'white'
+                }}
+              />
+            </div>
+
+            {/* Materials List */}
+            {materialsLoading ? (
+              <div style={{ padding: '40px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                Malzemeler yükleniyor...
+              </div>
+            ) : (
+              <div style={{ 
+                maxHeight: '400px', 
+                overflowY: 'auto', 
+                border: '1px solid #e5e7eb', 
+                borderRadius: '4px',
+                marginBottom: '16px'
+              }}>
+                {filteredMaterials.length === 0 ? (
+                  <div style={{ padding: '40px', textAlign: 'center', fontSize: '14px', color: '#6b7280' }}>
+                    {materialSearchTerm ? 'Arama kriterine uygun malzeme bulunamadı' : 'Henüz malzeme bulunmuyor'}
+                  </div>
+                ) : (
+                  filteredMaterials.map(material => (
+                    <div
+                      key={material.id}
+                      onClick={() => handleMaterialSelect(material)}
+                      style={{
+                        padding: '12px 16px',
+                        borderBottom: '1px solid #f3f4f6',
+                        cursor: 'pointer',
+                        background: selectedMaterials.find(m => m.id === material.id) ? '#f0f9ff' : 'white',
+                        fontSize: '14px',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!selectedMaterials.find(m => m.id === material.id)) {
+                          e.target.style.backgroundColor = '#f9fafb'
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!selectedMaterials.find(m => m.id === material.id)) {
+                          e.target.style.backgroundColor = 'white'
+                        }
+                      }}
+                    >
+                      <div style={{ fontWeight: '600', color: '#111827', marginBottom: '4px' }}>
+                        {material.name}
+                        {selectedMaterials.find(m => m.id === material.id) && (
+                          <span style={{ color: '#10b981', marginLeft: '8px' }}>✓ Seçildi</span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                        {material.code && `Kod: ${material.code} • `}
+                        {material.category && `Kategori: ${getCategoryName(material.category)} • `}
+                        {material.unit && `Birim: ${material.unit}`}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Selected Materials Summary */}
+            {selectedMaterials.length > 0 && (
+              <div style={{
+                background: '#f0f9ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '4px',
+                padding: '12px',
+                marginBottom: '16px'
+              }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e40af', marginBottom: '8px' }}>
+                  Seçilen Malzemeler ({selectedMaterials.length})
+                </div>
+                <div style={{ fontSize: '12px', color: '#1e40af' }}>
+                  {selectedMaterials.map(m => m.name).join(', ')}
+                </div>
+              </div>
+            )}
+
+            {/* Popup Footer */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '8px',
+              borderTop: '1px solid #e5e7eb',
+              paddingTop: '12px'
+            }}>
+              <button
+                type="button"
+                onClick={() => setShowMaterialPopup(false)}
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  background: 'white',
+                  color: '#374151',
+                  cursor: 'pointer'
+                }}
+              >
+                İptal
+              </button>
+              <button
+                type="button"
+                onClick={handleAddExistingMaterials}
+                style={{
+                  padding: '8px 16px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                  background: '#3b82f6',
+                  color: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Seçimi Tamamla ({selectedMaterials.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Material Detail Modal */}
+      <EditMaterialModal
+        isOpen={showMaterialDetailModal}
+        onClose={() => {
+          setShowMaterialDetailModal(false)
+          setSelectedMaterialForDetail(null)
+          setLoadingMaterialDetail(false)
+        }}
+        onSave={() => {
+          // Material saved, you might want to refresh data
+          setShowMaterialDetailModal(false)
+          setSelectedMaterialForDetail(null)
+          setLoadingMaterialDetail(false)
+        }}
+        onDelete={() => {
+          // Material deleted, you might want to refresh data
+          setShowMaterialDetailModal(false)
+          setSelectedMaterialForDetail(null)
+          setLoadingMaterialDetail(false)
+        }}
+        categories={materialCategories}
+        types={[
+          { id: 'raw_material', label: 'Ham Madde' },
+          { id: 'wip', label: 'Yarı Mamül' },
+          { id: 'final_product', label: 'Bitmiş Ürün' }
+        ]}
+        material={selectedMaterialForDetail}
+        loading={loadingMaterialDetail}
+        error={null}
+      />
     </div>
   )
 }
