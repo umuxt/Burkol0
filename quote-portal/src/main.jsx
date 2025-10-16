@@ -16,6 +16,7 @@ import MaterialsActions from './components/MaterialsActions.jsx';
 import AddMaterialModal from './components/AddMaterialModal.jsx';
 import EditMaterialModal from './components/EditMaterialModal.jsx';
 import CategoryManagementModal from './components/CategoryManagementModal.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 // Firebase hooks
 import { useMaterials, useMaterialActions } from './hooks/useFirebaseMaterials.js';
@@ -108,6 +109,50 @@ function MaterialsApp() {
     if (!categoriesInitialized) {
       loadCategories();
     }
+    
+    // Hash kontrolü - suppliers tab ve supplier detayı açma
+    const checkHashAndOpenSupplier = () => {
+      const hash = window.location.hash;
+      
+      if (hash.includes('suppliers-tab') && hash.includes('supplier-')) {
+        // Suppliers tab'ını aktif yap
+        setActiveTab('suppliers');
+        
+        // Supplier ID'sini çıkar
+        const supplierMatch = hash.match(/supplier-([^&]+)/);
+        
+        if (supplierMatch) {
+          const supplierId = supplierMatch[1];
+          
+          // Suppliers yüklendiyse supplier detayını aç
+          const checkAndDispatch = () => {
+            // Suppliers state'ini kontrol et
+            if (suppliers && suppliers.length > 0) {
+              const supplierEvent = new CustomEvent('openSupplierDetail', {
+                detail: { supplierId }
+              });
+              window.dispatchEvent(supplierEvent);
+              
+              // Event gönderildikten sonra hash'i temizle
+              setTimeout(() => {
+                window.history.replaceState(null, null, window.location.pathname);
+              }, 1000);
+            } else {
+              // Suppliers henüz yüklenmemişse 200ms sonra tekrar dene
+              setTimeout(checkAndDispatch, 200);
+            }
+          };
+          
+          // Hemen kontrol et
+          checkAndDispatch();
+        } else {
+          // Hash'i temizle (supplier ID yoksa)
+          window.history.replaceState(null, null, window.location.pathname);
+        }
+      }
+    };
+    
+    checkHashAndOpenSupplier();
   }, [materialsInitialized, categoriesInitialized, loadMaterials, loadCategories]);
 
   const handleFilterChange = (newFilters) => {
@@ -420,17 +465,20 @@ function MaterialsApp() {
         error={actionError}
       />
 
-      <EditMaterialModal 
-        isOpen={isEditModalOpen}
-        onClose={handleCloseEditModal}
-        onSave={handleSaveEditMaterial}
-        onDelete={handleDeleteMaterial}
-        categories={categories}
-        types={materialTypes}
-        material={editingMaterial}
-        loading={actionLoading}
-        error={actionError}
-      />
+      <ErrorBoundary>
+        <EditMaterialModal 
+          isOpen={isEditModalOpen}
+          onClose={handleCloseEditModal}
+          onSave={handleSaveEditMaterial}
+          onDelete={handleDeleteMaterial}
+          categories={categories}
+          types={materialTypes}
+          material={editingMaterial}
+          suppliers={suppliers}
+          loading={actionLoading}
+          error={actionError}
+        />
+      </ErrorBoundary>
 
 
 

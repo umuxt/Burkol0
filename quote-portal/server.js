@@ -71,7 +71,7 @@ if (!admin.apps.length) {
 mime.types['jsx'] = 'application/javascript'
 
 const app = express()
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT || 3000
 const ROOT = __dirname
 const uploadsDir = path.join(ROOT, 'uploads')
 
@@ -82,13 +82,17 @@ app.use(express.json({ limit: '5mb' }))
 app.use((req, res, next) => {
   const allowedOrigins = process.env.NODE_ENV === 'production' 
     ? ['https://burkol.com', 'https://admin.burkol.com', `http://${req.get('host')}`, '*'] 
-    : [req.headers.origin || 'http://localhost:3000']
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', req.headers.origin || 'http://localhost:3001']
 
   const origin = req.headers.origin
+  console.log('🌐 CORS check:', { origin, allowedOrigins })
+  
   if (origin && allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin)
+    console.log('✅ CORS allowed for:', origin)
   } else {
     res.header('Access-Control-Allow-Origin', '*')
+    console.log('🔓 CORS wildcard allowed for:', origin)
   }
 
   // Security headers

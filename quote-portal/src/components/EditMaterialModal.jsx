@@ -1,39 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 
-// Geçici mock data - Firebase bağlandığında kaldırılacak
-const mockSuppliers = [
-  {
-    name: 'Kocaeli Metal San. A.Ş.',
-    contactPerson: 'Mehmet Yılmaz',
-    phone: '+90 262 555 0101',
-    email: 'mehmet@kocaelimetal.com',
-    status: 'Aktif',
-    lastPrice: 45.50,
-    lastSupplyDate: '2024-10-08'
-  },
-  {
-    name: 'Ankara Plastik Ltd.',
-    contactPerson: 'Ayşe Kaya',
-    phone: '+90 312 555 0202',
-    email: 'ayse@ankaraplastik.com',
-    status: 'Aktif',
-    lastPrice: 32.75,
-    lastSupplyDate: '2024-10-05'
-  },
-  {
-    name: 'İzmir Alüminyum A.Ş.',
-    contactPerson: 'Ali Demir',
-    phone: '+90 232 555 0303',
-    email: 'ali@izmiraluminyum.com',
-    status: 'Pasif',
-    lastPrice: 28.90,
-    lastSupplyDate: '2024-09-20'
-  }
-];
-
-export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, categories, types, material, loading = false }) {
+export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, categories, types, material, suppliers = [], loading = false, suppliersLoading = false, onRefreshSuppliers }) {
   // Loading timeout için timer
   const [loadingTimeout, setLoadingTimeout] = useState(false)
+  
+  // Force refresh key for suppliers
+  const [suppliersKey, setSuppliersKey] = useState(0)
   
   // Loading state 15 saniyeden fazla sürerse timeout yap
   useEffect(() => {
@@ -47,6 +19,29 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
       setLoadingTimeout(false)
     }
   }, [loading, isOpen])
+
+  // Modal açıldığında suppliers'ları yenile - authentication olmadan
+  useEffect(() => {
+    if (isOpen && material) {
+      console.log('🔄 EditMaterialModal: Modal açıldı, prop suppliers kullanılıyor...')
+      
+      // Ana suppliers'ı refresh etmeye gerek yok - prop'tan gelen data kullan
+      console.log('📦 Modal açıldı, mevcut suppliers:', suppliers?.length || 0)
+    }
+  }, [isOpen, material, suppliers])
+
+  // Suppliers prop'u değiştiğinde debug
+  useEffect(() => {
+    console.log('📦 EditMaterialModal: Suppliers prop updated:', {
+      suppliersCount: suppliers?.length || 0,
+      suppliersTimestamp: Date.now(),
+      supplierIds: suppliers?.map(s => s.id) || []
+    })
+    
+    // Force refresh suppliers key
+    setSuppliersKey(prev => prev + 1)
+  }, [suppliers])
+
   // Güvenli değer render fonksiyonu
   const safeRender = (value, fallback = '') => {
     if (value === null || value === undefined || value === '' || Number.isNaN(value)) {
@@ -79,6 +74,37 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategory, setNewCategory] = useState('');
   const [isEditing, setIsEditing] = useState(false); // Düzenleme modu kontrolü
+
+  // Get suppliers that supply this material - sadece prop suppliers kullan
+  const materialSuppliers = useMemo(() => {
+    const suppliersToUse = suppliers || []
+    
+    console.log('🔄 materialSuppliers recalculating:', {
+      material: material?.id,
+      suppliersCount: suppliersToUse?.length || 0,
+      suppliersKey
+    })
+    
+    if (!material || !suppliersToUse || suppliersToUse.length === 0) {
+      console.log('⚠️ materialSuppliers: No material or suppliers data')
+      return [];
+    }
+    
+    const filtered = suppliersToUse.filter(supplier => {
+      if (!supplier.suppliedMaterials || supplier.suppliedMaterials.length === 0) {
+        return false;
+      }
+      
+      return supplier.suppliedMaterials.some(suppliedMaterial => 
+        suppliedMaterial.id === material.id || 
+        suppliedMaterial.code === material.code ||
+        suppliedMaterial.name === material.name
+      );
+    });
+    
+    console.log('✅ materialSuppliers filtered result:', filtered)
+    return filtered;
+  }, [material, suppliers, suppliersKey]);
 
   // Material değiştiğinde form'u doldur
   useEffect(() => {
@@ -331,7 +357,31 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
   }
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
+    <>
+      {console.log('🎯 EditMaterialModal RENDER:', { 
+        isOpen, 
+        materialId: material?.id, 
+        materialName: material?.name,
+        suppliersCount: suppliers?.length,
+        loading,
+        suppliersLoading
+      })}
+      {!isOpen && console.log('❌ Modal kapalı - isOpen false')}
+      {isOpen && (
+        <>
+          <style>
+            {`
+              @keyframes pulse {
+                0%, 100% {
+                  opacity: 1;
+                }
+                50% {
+                  opacity: 0.5;
+                }
+              }
+            `}
+          </style>
+          <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Malzeme Detayları</h2>
@@ -486,10 +536,88 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                     paddingRight: '4px'
                   }}
                 >
-                  {/* Geçici veri - Firebase bağlandığında dinamik olacak */}
-                  {mockSuppliers.map((supplier, index) => (
+                  {/* Loading State için Tedarikçiler */}
+                  {suppliersLoading ? (
+                    <div style={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      gap: '8px',
+                      padding: '12px 8px' 
+                    }}>
+                      {[1, 2, 3].map((_, index) => (
+                        <div 
+                          key={index}
+                          style={{
+                            padding: '6px',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '6px',
+                            backgroundColor: '#f9fafb',
+                            animation: 'pulse 1.5s ease-in-out infinite'
+                          }}
+                        >
+                          <div style={{ 
+                            display: 'flex', 
+                            justifyContent: 'space-between', 
+                            alignItems: 'center',
+                            gap: '8px'
+                          }}>
+                            <div style={{ 
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              flex: 1
+                            }}>
+                              <div style={{ 
+                                height: '12px',
+                                backgroundColor: '#e5e7eb',
+                                borderRadius: '3px',
+                                flex: 1,
+                                animation: 'pulse 1.5s ease-in-out infinite'
+                              }}></div>
+                              <div style={{ 
+                                width: '35px',
+                                height: '14px',
+                                backgroundColor: '#e5e7eb',
+                                borderRadius: '3px',
+                                animation: 'pulse 1.5s ease-in-out infinite'
+                              }}></div>
+                            </div>
+                            <div style={{ 
+                              display: 'flex', 
+                              gap: '4px' 
+                            }}>
+                              {[1, 2, 3].map((_, btnIndex) => (
+                                <div 
+                                  key={btnIndex}
+                                  style={{
+                                    width: '16px',
+                                    height: '16px',
+                                    backgroundColor: '#e5e7eb',
+                                    borderRadius: '3px',
+                                    animation: 'pulse 1.5s ease-in-out infinite'
+                                  }}
+                                ></div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      <div style={{ 
+                        textAlign: 'center', 
+                        color: '#6b7280', 
+                        fontSize: '11px',
+                        marginTop: '8px',
+                        fontStyle: 'italic'
+                      }}>
+                        🔄 Tedarikçiler yükleniyor...
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Gerçek tedarikçiler listesi */}
+                      {materialSuppliers.map((supplier, index) => (
                     <div 
-                      key={index}
+                      key={supplier.id || index}
                       className="supplier-card"
                       style={{
                         padding: '6px',
@@ -524,7 +652,7 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                             textOverflow: 'ellipsis',
                             flex: 1
                           }}>
-                            {supplier.name}
+                            {supplier.name || supplier.companyName}
                           </div>
                           <span 
                             style={{ 
@@ -537,7 +665,7 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                               flexShrink: 0
                             }}
                           >
-                            {supplier.status}
+                            {supplier.status || 'Bilinmiyor'}
                           </span>
                         </div>
                         
@@ -549,6 +677,7 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                           flexShrink: 0
                         }}>
                           {/* Info Butonu */}
+                          {/* Tedarikçi Info Butonu - Yeni pencerede tedarikçi detaylarını aç */}
                           <button
                             style={{
                               background: '#f3f4f6',
@@ -563,9 +692,13 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                             }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              console.log('Tedarikçi detayı açılacak:', supplier.name);
+                              console.log('Tedarikçi detayı açılacak:', supplier.name || supplier.companyName);
+                              
+                              // Yeni pencerede materials.html'de suppliers sekmesinde tedarikçi detaylarını aç
+                              const supplierDetailsUrl = `/materials.html#suppliers-tab&supplier-${supplier.id}`;
+                              window.open(supplierDetailsUrl, '_blank');
                             }}
-                            title={`${supplier.name} detaylarını görüntüle`}
+                            title={`${supplier.name || supplier.companyName} detaylarını görüntüle`}
                             onMouseOver={(e) => {
                               e.target.style.background = '#e5e7eb';
                               e.target.style.borderColor = '#9ca3af';
@@ -579,53 +712,57 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                           </button>
                           
                           {/* İletişim Butonları */}
-                          <button
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '2px',
-                              borderRadius: '3px',
-                              fontSize: '10px',
-                              lineHeight: 1
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(`tel:${supplier.phone}`);
-                            }}
-                            title={`Telefon: ${supplier.phone}`}
-                            onMouseOver={(e) => e.target.style.background = '#dbeafe'}
-                            onMouseOut={(e) => e.target.style.background = 'none'}
-                          >
-                            📞
-                          </button>
-                          <button
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              cursor: 'pointer',
-                              padding: '2px',
-                              borderRadius: '3px',
-                              fontSize: '10px',
-                              lineHeight: 1
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.open(`mailto:${supplier.email}`);
-                            }}
-                            title={`Email: ${supplier.email}`}
-                            onMouseOver={(e) => e.target.style.background = '#fef3c7'}
-                            onMouseOut={(e) => e.target.style.background = 'none'}
-                          >
-                            ✉️
-                          </button>
+                          {(supplier.phone1 || supplier.phone) && (
+                            <button
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '2px',
+                                borderRadius: '3px',
+                                fontSize: '10px',
+                                lineHeight: 1
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(`tel:${supplier.phone1 || supplier.phone}`);
+                              }}
+                              title={`Telefon: ${supplier.phone1 || supplier.phone}`}
+                              onMouseOver={(e) => e.target.style.background = '#dbeafe'}
+                              onMouseOut={(e) => e.target.style.background = 'none'}
+                            >
+                              📞
+                            </button>
+                          )}
+                          {(supplier.email1 || supplier.email) && (
+                            <button
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: '2px',
+                                borderRadius: '3px',
+                                fontSize: '10px',
+                                lineHeight: 1
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(`mailto:${supplier.email1 || supplier.email}`);
+                              }}
+                              title={`Email: ${supplier.email1 || supplier.email}`}
+                              onMouseOver={(e) => e.target.style.background = '#fef3c7'}
+                              onMouseOut={(e) => e.target.style.background = 'none'}
+                            >
+                              ✉️
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
                   ))}
                   
                   {/* Boş Durum */}
-                  {mockSuppliers.length === 0 && (
+                  {materialSuppliers.length === 0 && (
                     <div style={{ 
                       textAlign: 'center', 
                       padding: '16px 8px', 
@@ -639,6 +776,8 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                       <div style={{ fontWeight: '500', marginBottom: '2px' }}>Tedarikçi yok</div>
                       <div style={{ fontSize: '9px', color: '#9ca3af' }}>Bu malzemeyi tedarik eden firma bulunmuyor</div>
                     </div>
+                  )}
+                  </>
                   )}
                 </div>
               </div>
@@ -737,5 +876,8 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
         </form>
       </div>
     </div>
+        </>
+      )}
+    </>
   )
 }

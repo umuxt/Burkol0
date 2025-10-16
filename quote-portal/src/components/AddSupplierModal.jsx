@@ -124,19 +124,28 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
   const [materialSearchTerm, setMaterialSearchTerm] = useState('')
   const [showMaterialPopup, setShowMaterialPopup] = useState(false) // Pop-up state
   const [materialCategories, setMaterialCategories] = useState([]) // Categories from Firebase
+  const [materialTypes] = useState([
+    { id: 'raw_material', label: 'Ham Madde' },
+    { id: 'wip', label: 'Yarı Mamül' },
+    { id: 'final_product', label: 'Bitmiş Ürün' }
+  ])
   const [showNewCategory, setShowNewCategory] = useState(false) // Show new category input
   const [newCategory, setNewCategory] = useState('') // New category name
   const [newMaterial, setNewMaterial] = useState({
     name: '',
+    type: '',
     category: '',
     unit: '',
     description: '',
     code: '',
     // Add missing fields
     reorderPoint: '',
-    stockLevel: '',
-    price: '',
-    supplier: ''
+    stockLevel: '', // stock olarak da kullanılabilir
+    costPrice: '',
+    sellPrice: '',
+    price: '', // backward compatibility için
+    supplier: '',
+    status: 'Aktif'
   })
 
   // Remove automatic material loading - will load only when popup opens
@@ -196,14 +205,18 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
       setNewCategory('') // Reset new category name
       setNewMaterial({
         name: '',
+        type: '',
         category: '',
         unit: '',
         description: '',
         code: '',
         reorderPoint: '',
         stockLevel: '',
+        costPrice: '',
+        sellPrice: '',
         price: '',
-        supplier: ''
+        supplier: '',
+        status: 'Aktif'
       })
     }
   }, [isOpen]);
@@ -330,8 +343,8 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
   const handleAddNewMaterial = async () => {
     const finalCategory = showNewCategory ? newCategory : newMaterial.category
     
-    if (!newMaterial.name || !finalCategory || !newMaterial.unit) {
-      alert('Lütfen malzeme adı, kategori ve birim alanlarını doldurun!')
+    if (!newMaterial.name || !newMaterial.type || !finalCategory || !newMaterial.unit) {
+      alert('Lütfen malzeme adı, tip, kategori ve birim alanlarını doldurun!')
       return
     }
 
@@ -362,7 +375,10 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
         suppliers: [], // Will be updated when supplier is saved
         reorderPoint: newMaterial.reorderPoint ? parseFloat(newMaterial.reorderPoint) : 0,
         stockLevel: newMaterial.stockLevel ? parseFloat(newMaterial.stockLevel) : 0,
-        price: newMaterial.price ? parseFloat(newMaterial.price) : 0
+        stock: newMaterial.stockLevel ? parseFloat(newMaterial.stockLevel) : 0, // stock alanı da ekle
+        costPrice: newMaterial.costPrice ? parseFloat(newMaterial.costPrice) : 0,
+        sellPrice: newMaterial.sellPrice ? parseFloat(newMaterial.sellPrice) : 0,
+        price: newMaterial.sellPrice ? parseFloat(newMaterial.sellPrice) : 0 // backward compatibility
       }
       
       const addedMaterial = await addMaterial(materialData)
@@ -373,14 +389,18 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
       // Reset new material form
       setNewMaterial({
         name: '',
+        type: '',
         category: '',
         unit: '',
         description: '',
         code: '',
         reorderPoint: '',
         stockLevel: '',
+        costPrice: '',
+        sellPrice: '',
         price: '',
-        supplier: ''
+        supplier: '',
+        status: 'Aktif'
       })
       
       // Reset category states
@@ -1590,6 +1610,30 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
 
                   <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                     <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      Tip:
+                    </span>
+                    <select
+                      name="type"
+                      value={newMaterial.type}
+                      onChange={handleNewMaterialChange}
+                      style={{
+                        flex: 1,
+                        padding: '6px 8px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        background: 'white'
+                      }}
+                    >
+                      <option value="">Tip seçin</option>
+                      {materialTypes.map(type => (
+                        <option key={type.id} value={type.id}>{type.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
                       Kategori:
                     </span>
                     <select
@@ -1756,15 +1800,15 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
 
                   <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                     <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
-                      Fiyat:
+                      Maliyet Fiyatı:
                     </span>
                     <input
                       type="number"
                       step="0.01"
-                      name="price"
-                      value={newMaterial.price}
+                      name="costPrice"
+                      value={newMaterial.costPrice}
                       onChange={handleNewMaterialChange}
-                      placeholder="Birim fiyat (TRY)"
+                      placeholder="Maliyet fiyatı (TRY)"
                       style={{
                         flex: 1,
                         padding: '6px 8px',
@@ -1774,6 +1818,50 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
                         background: 'white'
                       }}
                     />
+                  </div>
+
+                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      Satış Fiyatı:
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      name="sellPrice"
+                      value={newMaterial.sellPrice}
+                      onChange={handleNewMaterialChange}
+                      placeholder="Satış fiyatı (TRY)"
+                      style={{
+                        flex: 1,
+                        padding: '6px 8px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        background: 'white'
+                      }}
+                    />
+                  </div>
+
+                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                    <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                      Durum:
+                    </span>
+                    <select
+                      name="status"
+                      value={newMaterial.status}
+                      onChange={handleNewMaterialChange}
+                      style={{
+                        flex: 1,
+                        padding: '6px 8px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        background: 'white'
+                      }}
+                    >
+                      <option value="Aktif">Aktif</option>
+                      <option value="Pasif">Pasif</option>
+                    </select>
                   </div>
 
                   <div style={{ textAlign: 'right', marginTop: '8px' }}>

@@ -1,22 +1,22 @@
 // Categories Service - Backend API kullanarak (quote-dashboard tarzı)
 // Firebase Admin SDK backend'de çalışıyor, client'da API call'lar yapıyoruz
 
+import { fetchWithTimeout } from '../lib/api.js'
+
 console.log('✅ Categories Service: Backend API kullanımı aktif');
 
 // Auth header helper (API.js'den alındı)
-function withAuth() {
-  const headers = { 'Content-Type': 'application/json' }
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('bk_admin_token') : null
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  return headers
-}
-
-// Fetch helper with timeout
-async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
-  return await Promise.race([
-    fetch(url, options),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs))
-  ])
+function withAuth(headers = {}) {
+  try {
+    const token = localStorage.getItem('bk_admin_token')
+    // Development mode: use dev token if no real token exists
+    if (!token && window.location.hostname === 'localhost') {
+      return { ...headers, Authorization: 'Bearer dev-admin-token', 'Content-Type': 'application/json' }
+    }
+    return token ? { ...headers, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { ...headers, 'Content-Type': 'application/json' }
+  } catch {
+    return { ...headers, 'Content-Type': 'application/json' }
+  }
 }
 
 // Categories CRUD Operations

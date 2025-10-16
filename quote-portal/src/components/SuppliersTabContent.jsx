@@ -419,6 +419,30 @@ export default function SuppliersTabContent({
     addCategory: createSupplierCategory 
   } = useSupplierCategories()
 
+  // Hash-based supplier detail açma event listener
+  useEffect(() => {
+    const handleOpenSupplierDetail = (event) => {
+      const { supplierId } = event.detail;
+      
+      // Suppliers listesi varsa direkt supplier detayını aç
+      if (suppliers && suppliers.length > 0) {
+        const supplier = suppliers.find(s => s.id === supplierId);
+        if (supplier) {
+          // SuppliersTable'a supplier seçimini bildir
+          setTimeout(() => {
+            window.location.hash = `supplier-${supplierId}`;
+            setTimeout(() => {
+              window.history.replaceState(null, null, window.location.pathname);
+            }, 50);
+          }, 50);
+        }
+      }
+    };
+    
+    window.addEventListener('openSupplierDetail', handleOpenSupplierDetail);
+    return () => window.removeEventListener('openSupplierDetail', handleOpenSupplierDetail);
+  }, [suppliers]);
+
   // Filter suppliers based on search query
   const filteredSuppliers = suppliers.filter(supplier => 
     supplier.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -506,6 +530,7 @@ export default function SuppliersTabContent({
         categories={supplierCategories} 
         onSupplierDetails={handleSupplierDetails}
         loading={suppliersLoading}
+        suppliersLoading={suppliersLoading}
         onUpdateSupplier={updateSupplier}
         onDeleteSupplier={deleteSupplier}
         onRefreshSuppliers={refetchSuppliers}

@@ -2,12 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useMaterials, useMaterialActions } from '../hooks/useFirebaseMaterials'
 import { categoriesService } from '../services/categories-service'
 import EditMaterialModal from './EditMaterialModal'
+import ErrorBoundary from './ErrorBoundary'
 
 export default function SuppliersTable({ 
   suppliers = [],
   loading = false,
+  suppliersLoading = false,
   onUpdateSupplier,
-  onDeleteSupplier
+  onDeleteSupplier,
+  onRefreshSuppliers
 }) {
   const [selectedSupplier, setSelectedSupplier] = useState(null)
   const [selectedSupplierId, setSelectedSupplierId] = useState(null)
@@ -24,6 +27,11 @@ export default function SuppliersTable({
   const [materialSearchTerm, setMaterialSearchTerm] = useState('')
   const [showMaterialPopup, setShowMaterialPopup] = useState(false)
   const [materialCategories, setMaterialCategories] = useState([])
+  const [materialTypes] = useState([
+    { id: 'raw_material', label: 'Ham Madde' },
+    { id: 'wip', label: 'Yarı Mamül' },
+    { id: 'final_product', label: 'Bitmiş Ürün' }
+  ])
   const [showNewCategory, setShowNewCategory] = useState(false)
   const [newCategory, setNewCategory] = useState('')
   
@@ -34,14 +42,18 @@ export default function SuppliersTable({
   
   const [newMaterial, setNewMaterial] = useState({
     name: '',
+    type: '',
     category: '',
     unit: '',
     description: '',
     code: '',
     reorderPoint: '',
-    stockLevel: '',
-    price: '',
-    supplier: ''
+    stockLevel: '', // stock olarak da kullanılabilir
+    costPrice: '',
+    sellPrice: '',
+    price: '', // backward compatibility için
+    supplier: '',
+    status: 'Aktif'
   })
 
   const handleRowClick = (supplier) => {
@@ -61,6 +73,42 @@ export default function SuppliersTable({
       }
     }
   }, [suppliers, selectedSupplierId])
+
+  // URL hash kontrolü - sayfa yüklendiğinde hash'deki tedarikçiyi aç
+  useEffect(() => {
+    const checkHashAndOpenSupplier = () => {
+      const hash = window.location.hash;
+      
+      if (hash.startsWith('#supplier-')) {
+        const supplierId = hash.replace('#supplier-', '');
+        
+        // Suppliers listesi yüklendiyse tedarikçiyi bul ve aç
+        if (suppliers && suppliers.length > 0) {
+          const supplier = suppliers.find(s => s.id === supplierId);
+          if (supplier) {
+            setSelectedSupplier(supplier);
+            setSelectedSupplierId(supplier.id);
+            // Hash'i temizle
+            window.history.replaceState(null, null, window.location.pathname);
+          }
+        } else {
+          // 200ms sonra tekrar dene
+          setTimeout(checkHashAndOpenSupplier, 200);
+        }
+      }
+    };
+    
+    // Sayfa yüklendiğinde ve suppliers değiştiğinde kontrol et
+    checkHashAndOpenSupplier();
+    
+    // Hash değişikliklerini dinle
+    const handleHashChange = () => {
+      checkHashAndOpenSupplier();
+    };
+    
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [suppliers]);
 
   // Load categories for material detail modal
   useEffect(() => {
@@ -97,10 +145,42 @@ export default function SuppliersTable({
 
   const handleSaveSupplier = async (e) => {
     e.preventDefault()
-    if (onUpdateSupplier) {
-      await onUpdateSupplier(selectedSupplier.id, formData)
-      setIsEditing(false)
-      setFormData({})
+    
+    console.log('💾 Saving supplier:', { 
+      supplierId: selectedSupplier?.id, 
+      selectedSupplier: selectedSupplier,
+      formData 
+    })
+    
+    if (!selectedSupplier?.id) {
+      console.error('❌ No supplier selected for update')
+      alert('Lütfen güncellenecek tedarikçiyi seçin')
+      return
+    }
+    
+    if (!formData || Object.keys(formData).length === 0) {
+      console.error('❌ No form data to update')
+      alert('Güncellenecek veri bulunamadı')
+      return
+    }
+    
+    // Remove unnecessary fields from formData that shouldn't be updated
+    const cleanFormData = { ...formData }
+    delete cleanFormData.id // ID shouldn't be in update data
+    delete cleanFormData.createdAt // Don't update creation timestamp
+    
+    console.log('🧹 Clean form data for update:', cleanFormData)
+    
+    try {
+      if (onUpdateSupplier) {
+        await onUpdateSupplier(selectedSupplier.id, cleanFormData)
+        console.log('✅ Supplier saved successfully')
+        setIsEditing(false)
+        setFormData({})
+      }
+    } catch (error) {
+      console.error('❌ Error saving supplier:', error)
+      alert(`Tedarikçi kaydedilirken hata oluştu: ${error.message}`)
     }
   }
 
@@ -219,8 +299,8 @@ export default function SuppliersTable({
   const handleAddNewMaterial = async () => {
     const finalCategory = showNewCategory ? newCategory : newMaterial.category
     
-    if (!newMaterial.name || !finalCategory || !newMaterial.unit) {
-      alert('Lütfen malzeme adı, kategori ve birim alanlarını doldurun!')
+    if (!newMaterial.name || !newMaterial.type || !finalCategory || !newMaterial.unit) {
+      alert('Lütfen malzeme adı, tip, kategori ve birim alanlarını doldurun!')
       return
     }
 
@@ -248,7 +328,10 @@ export default function SuppliersTable({
         suppliers: selectedSupplier ? [selectedSupplier.id] : [],
         reorderPoint: newMaterial.reorderPoint ? parseFloat(newMaterial.reorderPoint) : 0,
         stockLevel: newMaterial.stockLevel ? parseFloat(newMaterial.stockLevel) : 0,
-        price: newMaterial.price ? parseFloat(newMaterial.price) : 0
+        stock: newMaterial.stockLevel ? parseFloat(newMaterial.stockLevel) : 0, // stock alanı da ekle
+        costPrice: newMaterial.costPrice ? parseFloat(newMaterial.costPrice) : 0,
+        sellPrice: newMaterial.sellPrice ? parseFloat(newMaterial.sellPrice) : 0,
+        price: newMaterial.sellPrice ? parseFloat(newMaterial.sellPrice) : 0 // backward compatibility
       }
       
       const addedMaterial = await addMaterial(materialData)
@@ -279,14 +362,18 @@ export default function SuppliersTable({
       // Reset form
       setNewMaterial({
         name: '',
+        type: '',
         category: '',
         unit: '',
         description: '',
         code: '',
         reorderPoint: '',
         stockLevel: '',
+        costPrice: '',
+        sellPrice: '',
         price: '',
-        supplier: ''
+        supplier: '',
+        status: 'Aktif'
       })
       
       setShowNewCategory(false)
@@ -388,67 +475,82 @@ export default function SuppliersTable({
 
   // Material detail modal functions
   const handleShowMaterialDetail = async (materialId) => {
+    console.clear() // Console'u temizle
+    console.warn('🔍 DEBUG: Modal açılıyor, material ID:', materialId)
+    
     // Modal'ı hemen aç
     setShowMaterialDetailModal(true)
     setSelectedMaterialForDetail(null) // Önce null set et ki loading gösterilsin
     setLoadingMaterialDetail(true)
+    console.warn('🔄 DEBUG: Loading state TRUE yapıldı')
+    
+    // Suppliers'ı da refresh et
+    if (onRefreshSuppliers) {
+      console.log('🔄 Material detail açılıyor, suppliers refresh ediliyor...')
+      onRefreshSuppliers()
+    }
     
     try {
-      console.log('🔍 Attempting to show material detail for ID:', materialId)
-      console.log('🔍 Current materials count:', materials.length)
-      console.log('🔍 Materials loading state:', materialsLoading)
-      console.log('🔍 loadMaterials function type:', typeof loadMaterials)
+      console.warn('🔍 DEBUG: Material aranıyor, ID:', materialId)
+      console.warn('🔍 DEBUG: Mevcut materials sayısı:', materials.length)
       
-      // Load materials if not already loaded
-      if (materials.length === 0) {
-        console.log('🔄 Loading materials...')
-        
-        // loadMaterials fonksiyonunu kontrol et
-        if (typeof loadMaterials !== 'function') {
-          throw new Error('loadMaterials is not a function')
-        }
-        
-        // Timeout ekle - 10 saniye sonra hata ver
-        const loadPromise = loadMaterials(false)
-        console.log('🔄 loadMaterials promise created:', loadPromise)
-        
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Materials loading timeout')), 10000)
-        )
-        
-        await Promise.race([loadPromise, timeoutPromise])
-        console.log('✅ Materials loading completed, new count:', materials.length)
-        
-        // Kısa bir delay ekle state'in güncellenmesi için
-        await new Promise(resolve => setTimeout(resolve, 100))
-        console.log('✅ After delay, materials count:', materials.length)
-        
-        // Eğer hala materials boşsa hata ver
-        if (materials.length === 0) {
-          throw new Error('No materials loaded after successful load call')
+      // Materials'ı prop'tan kullan, API call yapma
+      let materialsList = materials || []
+      
+      // Eğer materials boşsa, loadMaterials'ı çağır VE AWAIT ET
+      if (materialsList.length === 0 && typeof loadMaterials === 'function') {
+        console.warn('🔄 DEBUG: Materials boş, API çağrılıyor...')
+        console.warn('🔍 DEBUG: materialsLoading:', materialsLoading)
+        try {
+          // loadMaterials'dan direkt response al (state timing sorunu için)
+          const freshMaterials = await loadMaterials() // AWAIT ET!
+          console.warn('🔍 DEBUG: loadMaterials response aldı:', freshMaterials?.length || 0, 'materyal');
+          
+          // Fresh materials ile material ara
+          materialsList = freshMaterials || [];
+          console.warn('🔄 DEBUG: Fresh materials kullanılıyor, sayı:', materialsList.length);
+          console.warn('🔍 DEBUG: Fresh materials detay:', materialsList.map(m => ({id: m.id, name: m.name, code: m.code})));
+        } catch (loadError) {
+          console.error('❌ DEBUG: LoadMaterials error:', loadError)
+          materialsList = []
         }
       }
       
       // Find material in the loaded materials
-      const material = materials.find(m => m.id === materialId)
+      const material = materialsList.find(m => m.id === materialId)
       
       if (material) {
-        console.log('✅ Found material in materials list:', material.name)
+        console.warn('✅ DEBUG: Material bulundu:', material.name)
         setSelectedMaterialForDetail(material)
       } else {
-        console.log('❌ Material not found in materials list, ID:', materialId)
-        console.log('🔍 Available materials:', materials.map(m => ({id: m.id, name: m.name})))
-        // Material bulunamadığında modal açık kalsın, sadece loading state'i kapat
-        // Böylece EditMaterialModal hata durumunu handle edecek
-        setSelectedMaterialForDetail(null)
+        console.warn('❌ DEBUG: Material bulunamadı, ID:', materialId)
+        console.warn('🔍 DEBUG: Mevcut material ID\'leri:', materialsList.map(m => m.id))
+        
+        // ID ile bulamazsak code ile dene
+        const materialByCode = materialsList.find(m => m.code === materialId)
+        if (materialByCode) {
+          console.warn('✅ DEBUG: Material code ile bulundu:', materialByCode.name)
+          setSelectedMaterialForDetail(materialByCode)
+        } else {
+          console.warn('❌ DEBUG: Material code ile de bulunamadı')
+          setSelectedMaterialForDetail(null)
+        }
       }
     } catch (error) {
       console.error('❌ Malzeme detayları yüklenirken hata:', error)
-      // Hata durumunda modal'ı kapat
-      setShowMaterialDetailModal(false)
-      setSelectedMaterialForDetail(null)
-      alert(`Malzeme detayları yüklenirken bir hata oluştu: ${error.message}`)
+      console.error('❌ Error stack:', error.stack)
+      console.error('❌ Error details:', {
+        name: error.name,
+        message: error.message,
+        materialId: materialId
+      })
+      // Hata durumunda modal'ı KAPATMA - açık tut
+      // EditMaterialModal kendi error state'ini gösterecek
+      setSelectedMaterialForDetail(null) // Sadece material'ı null yap
+      // Modal açık kalacak böylece error state gösterilecek
     } finally {
+      // Loading state'ini her durumda kapat
+      console.warn('🔄 DEBUG: Finally - Loading state FALSE yapılıyor')
       setLoadingMaterialDetail(false)
     }
   }
@@ -633,9 +735,29 @@ export default function SuppliersTable({
                       {supplier.name || supplier.companyName}
                     </td>
                     <td style={{ padding: '12px 8px', fontSize: '13px' }}>
-                      <span style={{ color: '#6b7280', fontStyle: 'italic' }}>
-                        Kategoriler
-                      </span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {supplier.suppliedMaterials && supplier.suppliedMaterials.length > 0 
+                          ? [...new Set(supplier.suppliedMaterials.map(material => {
+                              const category = materialCategories.find(cat => cat.id === material.category);
+                              return category ? category.name : material.category;
+                            }).filter(Boolean))].map((categoryName, index) => (
+                              <span 
+                                key={index}
+                                style={{ 
+                                  backgroundColor: '#f3f4f6', 
+                                  color: 'rgb(107, 114, 128)', 
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: '500'
+                                }}
+                              >
+                                {categoryName}
+                              </span>
+                            ))
+                          : <span style={{ color: 'rgb(107, 114, 128)', fontStyle: 'italic', fontSize: '11px' }}>Kategoriler</span>
+                        }
+                      </div>
                     </td>
                     {!selectedSupplier && (
                       <td style={{ padding: '12px 8px', fontSize: '13px', textAlign: 'center' }}>
@@ -2049,6 +2171,30 @@ export default function SuppliersTable({
 
                       <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                         <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                          Tip:
+                        </span>
+                        <select
+                          name="type"
+                          value={newMaterial.type}
+                          onChange={handleNewMaterialChange}
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'white'
+                          }}
+                        >
+                          <option value="">Tip seçin</option>
+                          {materialTypes.map(type => (
+                            <option key={type.id} value={type.id}>{type.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
                           Kategori:
                         </span>
                         <select
@@ -2214,15 +2360,15 @@ export default function SuppliersTable({
 
                       <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                         <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
-                          Fiyat:
+                          Maliyet Fiyatı:
                         </span>
                         <input
                           type="number"
                           step="0.01"
-                          name="price"
-                          value={newMaterial.price}
+                          name="costPrice"
+                          value={newMaterial.costPrice}
                           onChange={handleNewMaterialChange}
-                          placeholder="Birim fiyat (TRY)"
+                          placeholder="Maliyet fiyatı (TRY)"
                           style={{
                             flex: 1,
                             padding: '6px 8px',
@@ -2232,6 +2378,50 @@ export default function SuppliersTable({
                             background: 'white'
                           }}
                         />
+                      </div>
+
+                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                          Satış Fiyatı:
+                        </span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          name="sellPrice"
+                          value={newMaterial.sellPrice}
+                          onChange={handleNewMaterialChange}
+                          placeholder="Satış fiyatı (TRY)"
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'white'
+                          }}
+                        />
+                      </div>
+
+                      <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                        <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '100px', marginRight: '8px' }}>
+                          Durum:
+                        </span>
+                        <select
+                          name="status"
+                          value={newMaterial.status}
+                          onChange={handleNewMaterialChange}
+                          style={{
+                            flex: 1,
+                            padding: '6px 8px',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                            background: 'white'
+                          }}
+                        >
+                          <option value="Aktif">Aktif</option>
+                          <option value="Pasif">Pasif</option>
+                        </select>
                       </div>
 
                       <div style={{ textAlign: 'right', marginTop: '8px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
@@ -2534,35 +2724,42 @@ export default function SuppliersTable({
       )}
 
       {/* Material Detail Modal */}
-      <EditMaterialModal
-        isOpen={showMaterialDetailModal}
-        onClose={() => {
-          setShowMaterialDetailModal(false)
-          setSelectedMaterialForDetail(null)
-          setLoadingMaterialDetail(false)
-        }}
-        onSave={() => {
-          // Material saved, you might want to refresh data
-          setShowMaterialDetailModal(false)
-          setSelectedMaterialForDetail(null)
-          setLoadingMaterialDetail(false)
-        }}
-        onDelete={() => {
-          // Material deleted, you might want to refresh data
-          setShowMaterialDetailModal(false)
-          setSelectedMaterialForDetail(null)
-          setLoadingMaterialDetail(false)
-        }}
-        categories={materialCategories}
-        types={[
-          { id: 'raw_material', label: 'Ham Madde' },
-          { id: 'wip', label: 'Yarı Mamül' },
-          { id: 'final_product', label: 'Bitmiş Ürün' }
-        ]}
-        material={selectedMaterialForDetail}
-        loading={loadingMaterialDetail}
-        error={null}
-      />
+      <ErrorBoundary>
+        <EditMaterialModal
+          isOpen={showMaterialDetailModal}
+          onClose={() => {
+            console.log('🚪 Modal onClose called - cleaning up states')
+            setShowMaterialDetailModal(false)
+            setSelectedMaterialForDetail(null)
+            setLoadingMaterialDetail(false)
+            console.log('🚪 Modal states cleaned up')
+          }}
+          onSave={() => {
+            // Material saved, you might want to refresh data
+            setShowMaterialDetailModal(false)
+            setSelectedMaterialForDetail(null)
+            setLoadingMaterialDetail(false)
+          }}
+          onDelete={() => {
+            // Material deleted, you might want to refresh data
+            setShowMaterialDetailModal(false)
+            setSelectedMaterialForDetail(null)
+            setLoadingMaterialDetail(false)
+          }}
+          categories={materialCategories}
+          types={[
+            { id: 'raw_material', label: 'Ham Madde' },
+            { id: 'wip', label: 'Yarı Mamül' },
+            { id: 'final_product', label: 'Bitmiş Ürün' }
+          ]}
+          material={selectedMaterialForDetail}
+          suppliers={suppliers}
+          loading={loadingMaterialDetail}
+          suppliersLoading={suppliersLoading}
+          onRefreshSuppliers={onRefreshSuppliers}
+          error={null}
+        />
+      </ErrorBoundary>
     </div>
   )
 }

@@ -1,22 +1,22 @@
 // Materials Service - Backend API kullanarak (quote-dashboard tarzı)
 // Firebase Admin SDK backend'de çalışıyor, client'da API call'lar yapıyoruz
 
+import { fetchWithTimeout } from '../lib/api.js'
+
 console.log('✅ Materials Service: Backend API kullanımı aktif');
 
 // Auth header helper (API.js'den alındı)
-function withAuth() {
-  const headers = { 'Content-Type': 'application/json' }
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('bk_admin_token') : null
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  return headers
-}
-
-// Fetch helper with timeout
-async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
-  return await Promise.race([
-    fetch(url, options),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs))
-  ])
+function withAuth(headers = {}) {
+  try {
+    const token = localStorage.getItem('bk_admin_token')
+    // Development mode: use dev token if no real token exists
+    if (!token && window.location.hostname === 'localhost') {
+      return { ...headers, Authorization: 'Bearer dev-admin-token', 'Content-Type': 'application/json' }
+    }
+    return token ? { ...headers, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { ...headers, 'Content-Type': 'application/json' }
+  } catch {
+    return { ...headers, 'Content-Type': 'application/json' }
+  }
 }
 
 // Materials CRUD Operations
@@ -24,23 +24,33 @@ export const materialsService = {
   // Tüm materyalleri getir
   getMaterials: async (categoryFilter = null) => {
     try {
+      console.warn('🔄 SERVICE DEBUG: getMaterials başladı');
       const url = categoryFilter 
         ? `/api/materials?category=${encodeURIComponent(categoryFilter)}`
         : '/api/materials'
       
+      console.warn('🔍 SERVICE DEBUG: URL:', url);
+      console.warn('🔍 SERVICE DEBUG: Headers:', withAuth());
+      
       const response = await fetchWithTimeout(url, {
         headers: withAuth()
       })
+      
+      console.warn('🔍 SERVICE DEBUG: Response status:', response.status);
+      console.warn('🔍 SERVICE DEBUG: Response ok:', response.ok);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       
       const materials = await response.json()
+      console.warn('🔍 SERVICE DEBUG: Response parsed:', materials?.length || 0, 'materyal');
+      console.warn('🔍 SERVICE DEBUG: Materials detay:', materials);
       console.log('✅ Materials fetch successful:', materials.length, 'items')
       return materials
     } catch (error) {
       console.error('❌ Materials fetch error:', error)
+      console.warn('❌ SERVICE DEBUG: Error details:', error.message);
       throw error
     }
   },

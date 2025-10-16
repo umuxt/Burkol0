@@ -132,20 +132,80 @@ export async function updateSupplier(req, res) {
   try {
     requireAuth(req, res, async () => {
       const { id } = req.params
+      const requestBody = req.body
+      
+      console.log('🔄 Updating supplier:', { id, updateData: requestBody })
+      
+      // Validate request data
+      if (!id) {
+        console.error('❌ Supplier ID missing')
+        return res.status(400).json({ error: 'Supplier ID is required' })
+      }
+      
+      if (!requestBody || Object.keys(requestBody).length === 0) {
+        console.error('❌ Update data missing')
+        return res.status(400).json({ error: 'Update data is required' })
+      }
+      
+      // Check if supplier exists
+      const supplierRef = doc(db, SUPPLIERS_COLLECTION, id)
+      const supplierDoc = await getDoc(supplierRef)
+      
+      console.log('🔍 Checking supplier existence:', {
+        id,
+        exists: supplierDoc.exists(),
+        data: supplierDoc.exists() ? supplierDoc.data() : null
+      })
+      
+      if (!supplierDoc.exists()) {
+        // Try to find all suppliers to see what IDs exist
+        const allSuppliersRef = collection(db, SUPPLIERS_COLLECTION)
+        const allSnapshot = await getDocs(allSuppliersRef)
+        const existingIds = []
+        allSnapshot.forEach(doc => {
+          existingIds.push(doc.id)
+        })
+        
+        console.error('❌ Supplier not found:', id)
+        console.error('📋 Existing supplier IDs:', existingIds)
+        return res.status(404).json({ 
+          error: 'Supplier not found',
+          requestedId: id,
+          existingIds: existingIds
+        })
+      }
+      
+      // Prepare update data
       const updateData = {
-        ...req.body,
+        ...requestBody,
         updatedAt: serverTimestamp()
       }
+      
+      // Remove any undefined values
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined) {
+          delete updateData[key]
+        }
+      })
 
-      const supplierRef = doc(db, SUPPLIERS_COLLECTION, id)
+      console.log('📝 Final update data:', updateData)
+      
       await updateDoc(supplierRef, updateData)
 
-      console.log('✅ Supplier updated:', id)
+      console.log('✅ Supplier updated successfully:', id)
       res.json({ id, ...updateData, updatedAt: new Date().toISOString() })
     })
   } catch (error) {
-    console.error('Error updating supplier:', error)
-    res.status(500).json({ error: 'Failed to update supplier' })
+    console.error('❌ Error updating supplier:', {
+      error: error.message,
+      stack: error.stack,
+      supplierId: req.params?.id,
+      updateData: req.body
+    })
+    res.status(500).json({ 
+      error: 'Failed to update supplier',
+      details: error.message 
+    })
   }
 }
 

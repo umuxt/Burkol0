@@ -9,21 +9,35 @@ export function useMaterials(autoLoad = false) {
 
   const loadMaterials = async () => {
     try {
+      console.warn('🔄 HOOK DEBUG: loadMaterials başladı');
       setLoading(true);
       setError(null);
       
       // Backend API'den malzemeleri yükle
+      console.warn('🔄 HOOK DEBUG: API çağrısı yapılıyor...');
       const materialsList = await materialsService.getMaterials();
+      console.warn('🔍 HOOK DEBUG: API response aldı:', materialsList?.length || 0, 'materyal');
+      console.warn('🔍 HOOK DEBUG: MaterialsList detay:', materialsList);
+      
       setMaterials(materialsList);
+      console.warn('🔄 HOOK DEBUG: setMaterials çağrıldı');
       setInitialized(true);
+      console.warn('🔄 HOOK DEBUG: setInitialized(true) çağrıldı');
+      
+      // Response'u return et ki caller kullanabilsin
+      return materialsList;
     } catch (err) {
-      console.error('Malzemeler yüklenirken hata:', err);
+      console.error('❌ HOOK DEBUG: Malzemeler yüklenirken hata:', err);
+      console.warn('❌ HOOK DEBUG: Error details:', err.message);
       setError(err.message);
       
       // Hata durumunda boş array döndür
       setMaterials([]);
+      console.warn('🔄 HOOK DEBUG: Error durumunda setMaterials([]) çağrıldı');
+      return [];
     } finally {
       setLoading(false);
+      console.warn('🔄 HOOK DEBUG: setLoading(false) çağrıldı');
     }
   };
 

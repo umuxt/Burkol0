@@ -1,33 +1,38 @@
 import { useState, useEffect } from 'react'
+import { fetchWithTimeout } from '../lib/api.js'
 
-const API_BASE_URL = window.location.hostname === 'localhost' 
-  ? 'http://localhost:3001' 
-  : ''
+function withAuth(headers = {}) {
+  try {
+    const token = localStorage.getItem('bk_admin_token')
+    // Development mode: use dev token if no real token exists
+    if (!token && window.location.hostname === 'localhost') {
+      return { ...headers, Authorization: 'Bearer dev-admin-token', 'Content-Type': 'application/json' }
+    }
+    return token ? { ...headers, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { ...headers, 'Content-Type': 'application/json' }
+  } catch {
+    return { ...headers, 'Content-Type': 'application/json' }
+  }
+}
 
 export function useSuppliers() {
   const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Get authentication token
-  const getAuthToken = () => {
-    return localStorage.getItem('bk_admin_token')
-  }
-
   // Fetch all suppliers
   const fetchSuppliers = async () => {
     try {
       setLoading(true)
-      const token = getAuthToken()
       
-      console.log('🔍 useSuppliers: API çağrısı yapılıyor...')
-      
-      const response = await fetch(`${API_BASE_URL}/api/suppliers`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      console.log('🔍 useSuppliers: API çağrısı yapılıyor...', {
+        timestamp: new Date().toISOString()
       })
+      
+      const response = await fetchWithTimeout('/api/suppliers', {
+        headers: withAuth()
+      })
+
+      console.log('📡 Server response:', response.status, response.statusText)
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -36,6 +41,7 @@ export function useSuppliers() {
       const data = await response.json()
       console.log('🔍 useSuppliers: API response:', {
         count: data?.length || 0,
+        timestamp: new Date().toISOString(),
         data: data?.map(s => ({ id: s.id, code: s.code, name: s.name || s.companyName }))
       })
       
@@ -53,14 +59,9 @@ export function useSuppliers() {
   // Add new supplier
   const addSupplier = async (supplierData) => {
     try {
-      const token = getAuthToken()
-      
-      const response = await fetch(`${API_BASE_URL}/api/suppliers`, {
+      const response = await fetchWithTimeout('/api/suppliers', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: withAuth(),
         body: JSON.stringify(supplierData)
       })
 
@@ -77,31 +78,54 @@ export function useSuppliers() {
     }
   }
 
-  // Update supplier
+    // Update supplier
   const updateSupplier = async (id, updateData) => {
     try {
-      const token = getAuthToken()
+      console.log('🔄 Updating supplier on client:', { id, updateData })
       
-      const response = await fetch(`${API_BASE_URL}/api/suppliers/${id}`, {
+      if (!id) {
+        throw new Error('Supplier ID is required')
+      }
+      
+      if (!updateData || Object.keys(updateData).length === 0) {
+        throw new Error('Update data is required')
+      }
+      
+      // Clean update data - remove read-only fields
+      const cleanUpdateData = { ...updateData }
+      delete cleanUpdateData.id
+      delete cleanUpdateData.createdAt
+      delete cleanUpdateData.updatedAt
+      
+      console.log('🧹 Clean update data:', cleanUpdateData)
+      
+      const response = await fetchWithTimeout(`/api/suppliers/${id}`, {
         method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(updateData)
+        headers: withAuth(),
+        body: JSON.stringify(cleanUpdateData)
       })
 
+      console.log('📡 Server response status:', response.status)
+      
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        const errorData = await response.text()
+        console.error('❌ Server error response:', errorData)
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorData}`)
       }
 
       const updatedSupplier = await response.json()
+      console.log('✅ Supplier updated successfully:', updatedSupplier)
+      
       setSuppliers(prev => prev.map(supplier => 
         supplier.id === id ? { ...supplier, ...updatedSupplier } : supplier
       ))
       return updatedSupplier
     } catch (err) {
-      console.error('Error updating supplier:', err)
+      console.error('❌ Error updating supplier:', {
+        error: err.message,
+        supplierId: id,
+        updateData
+      })
       throw err
     }
   }
@@ -109,14 +133,9 @@ export function useSuppliers() {
   // Delete supplier
   const deleteSupplier = async (id) => {
     try {
-      const token = getAuthToken()
-      
-      const response = await fetch(`${API_BASE_URL}/api/suppliers/${id}`, {
+      const response = await fetchWithTimeout(`/api/suppliers/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: withAuth()
       })
 
       if (!response.ok) {
@@ -136,12 +155,9 @@ export function useSuppliers() {
     try {
       const token = getAuthToken()
       
-      const response = await fetch(`${API_BASE_URL}/api/suppliers/${supplierId}/materials`, {
+      const response = await fetchWithTimeout(`/api/suppliers/${supplierId}/materials`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: withAuth(),
         body: JSON.stringify(materialData)
       })
 
@@ -157,16 +173,11 @@ export function useSuppliers() {
     }
   }
 
-  // Get suppliers for a material
+  // Get suppliers for a specific material
   const getSuppliersForMaterial = async (materialId) => {
     try {
-      const token = getAuthToken()
-      
-      const response = await fetch(`${API_BASE_URL}/api/materials/${materialId}/suppliers`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      const response = await fetchWithTimeout(`/api/materials/${materialId}/suppliers`, {
+        headers: withAuth()
       })
 
       if (!response.ok) {
@@ -184,13 +195,8 @@ export function useSuppliers() {
   // Get suppliers by category
   const getSuppliersByCategory = async (category) => {
     try {
-      const token = getAuthToken()
-      
-      const response = await fetch(`${API_BASE_URL}/api/suppliers/category/${encodeURIComponent(category)}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+      const response = await fetchWithTimeout(`/api/suppliers/category/${encodeURIComponent(category)}`, {
+        headers: withAuth()
       })
 
       if (!response.ok) {
@@ -221,6 +227,7 @@ export function useSuppliers() {
     addMaterialToSupplier,
     getSuppliersForMaterial,
     getSuppliersByCategory,
-    refetch: fetchSuppliers
+    fetchSuppliers,  // Direct function reference
+    refetch: fetchSuppliers  // Alias for compatibility
   }
 }
