@@ -106,8 +106,6 @@ export const getFirebaseStatus = () => {
 export const COLLECTIONS = {
   MATERIALS: 'materials',
   CATEGORIES: 'categories', 
-  STOCK_MOVEMENTS: 'stockMovements',
-  STOCK_ALERTS: 'stockAlerts',
   USERS: 'users',
   SESSIONS: 'sessions',
   AUDIT_LOGS: 'auditLogs'

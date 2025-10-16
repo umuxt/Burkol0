@@ -6,7 +6,6 @@ import {
   useMaterials, 
   useMaterialActions, 
   useCategories, 
-  useStockAlerts,
   useMaterialSearch 
 } from '../hooks/useFirebaseMaterials.js';
 
@@ -482,19 +481,15 @@ export function AddMaterialModalFirebase({ isOpen, onClose, onSuccess }) {
 }
 
 // ================================
-// 4. STOCK ALERTS COMPONENT
+// 4. DASHBOARD STATS COMPONENT
 // ================================
 
-export function StockAlertsFirebase() {
-  const { alerts, loading, error } = useStockAlerts({ 
-    isActive: true 
-  });
+export function DashboardStatsFirebase() {
+  const { stats, loading, error, reload } = useDashboardStats();
   
-  if (loading) return <div>Uyarılar yükleniyor...</div>;
+  if (loading) return <div>İstatistikler yükleniyor...</div>;
   if (error) return <div>Hata: {error}</div>;
-  
-  const criticalAlerts = alerts.filter(alert => alert.severity === 'critical');
-  const warningAlerts = alerts.filter(alert => alert.severity === 'warning');
+  if (!stats) return null;
   
   return (
     <div className="stock-alerts">
@@ -648,7 +643,6 @@ export function MaterialsManagementFirebase() {
       
       <main className="page-content">
         {currentView === 'stats' && <DashboardStatsFirebase />}
-        {currentView === 'alerts' && <StockAlertsFirebase />}
         {currentView === 'list' && <MaterialsTableFirebase />}
       </main>
       
@@ -806,7 +800,6 @@ const styles = `
 export default {
   MaterialsTableFirebase,
   AddMaterialModalFirebase,
-  StockAlertsFirebase,
   DashboardStatsFirebase,
   MaterialsManagementFirebase,
   styles

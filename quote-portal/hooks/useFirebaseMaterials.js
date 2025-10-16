@@ -393,121 +393,6 @@ export function useCategoryActions() {
 }
 
 // ================================
-// STOCK MOVEMENT HOOKS
-// ================================
-
-// **USE STOCK MOVEMENTS HOOK**
-export function useStockMovements(materialId = null, filters = {}) {
-  const [movements, setMovements] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  const { showNotification } = useNotifications();
-  
-  const loadMovements = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const result = await MaterialsService.getStockMovements(materialId, filters);
-      setMovements(result);
-      
-    } catch (err) {
-      setError(err.message);
-      showNotification('Stok hareketleri yüklenirken hata oluştu', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [materialId, filters, showNotification]);
-  
-  useEffect(() => {
-    loadMovements();
-  }, [loadMovements]);
-  
-  return {
-    movements,
-    loading,
-    error,
-    reload: loadMovements
-  };
-}
-
-// ================================
-// STOCK ALERTS HOOKS
-// ================================
-
-// **USE STOCK ALERTS HOOK**
-export function useStockAlerts(filters = {}) {
-  const [alerts, setAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
-  const { showNotification } = useNotifications();
-  const unsubscribeRef = useRef(null);
-  
-  // **LOAD ALERTS**
-  const loadAlerts = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const result = await MaterialsService.getStockAlerts(filters);
-      setAlerts(result);
-      
-    } catch (err) {
-      setError(err.message);
-      showNotification('Stok uyarıları yüklenirken hata oluştu', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, showNotification]);
-  
-  // **REAL-TIME ALERTS**
-  const startRealTimeAlerts = useCallback(() => {
-    if (typeof MaterialsService.subscribeToStockAlerts === 'function') {
-      try {
-        unsubscribeRef.current = MaterialsService.subscribeToStockAlerts(
-          (updatedAlerts) => {
-            setAlerts(updatedAlerts);
-            setLoading(false);
-          },
-          filters
-        );
-      } catch (err) {
-        console.error('Real-time alerts subscription failed:', err);
-        loadAlerts();
-      }
-    } else {
-      loadAlerts();
-    }
-  }, [filters, loadAlerts]);
-  
-  const stopRealTimeAlerts = useCallback(() => {
-    if (unsubscribeRef.current) {
-      unsubscribeRef.current();
-      unsubscribeRef.current = null;
-    }
-  }, []);
-  
-  useEffect(() => {
-    startRealTimeAlerts();
-    
-    return () => {
-      stopRealTimeAlerts();
-    };
-  }, [startRealTimeAlerts, stopRealTimeAlerts]);
-  
-  return {
-    alerts,
-    loading,
-    error,
-    reload: loadAlerts,
-    startRealTime: startRealTimeAlerts,
-    stopRealTime: stopRealTimeAlerts
-  };
-}
-
-// ================================
 // SEARCH HOOKS
 // ================================
 
@@ -658,8 +543,6 @@ export default {
   useMaterialActions,
   useCategories,
   useCategoryActions,
-  useStockMovements,
-  useStockAlerts,
   useMaterialSearch,
   useDashboardStats,
   useDebouncedSearch,

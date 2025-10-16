@@ -66,42 +66,6 @@ const testMaterial = {
   updatedBy: 'test-user'
 };
 
-const testStockMovement = {
-  materialId: 'test-material-001',
-  materialCode: 'TEST-001',
-  type: 'in',
-  subType: 'initial',
-  quantity: 100,
-  unit: 'Adet',
-  stockBefore: 0,
-  stockAfter: 100,
-  reference: 'INITIAL-TEST',
-  referenceType: 'manual',
-  notes: 'Test için ilk stok girişi',
-  movementDate: new Date(),
-  createdAt: new Date(),
-  userId: 'test-user',
-  userName: 'Test User',
-  approved: true,
-  approvedBy: 'test-user',
-  approvedAt: new Date()
-};
-
-const testStockAlert = {
-  materialId: 'test-material-001',
-  materialCode: 'TEST-001',
-  materialName: 'Test Malzemesi',
-  alertType: 'low_stock',
-  severity: 'warning',
-  currentStock: 5,
-  threshold: 10,
-  message: 'Test malzemesi minimum stok seviyesinde',
-  isActive: true,
-  isRead: false,
-  readBy: [],
-  createdAt: new Date()
-};
-
 // Koleksiyonları oluştur
 async function createCollections() {
   try {
@@ -119,22 +83,10 @@ async function createCollections() {
     await setDoc(materialRef, testMaterial);
     console.log('✅ Materials koleksiyonu oluşturuldu');
     
-    // 3. Stock Movements koleksiyonu
-    console.log('3️⃣ Stock Movements koleksiyonu oluşturuluyor...');
-    const movementRef = await addDoc(collection(db, 'stockMovements'), testStockMovement);
-    console.log('✅ Stock Movements koleksiyonu oluşturuldu, ID:', movementRef.id);
-    
-    // 4. Stock Alerts koleksiyonu
-    console.log('4️⃣ Stock Alerts koleksiyonu oluşturuluyor...');
-    const alertRef = await addDoc(collection(db, 'stockAlerts'), testStockAlert);
-    console.log('✅ Stock Alerts koleksiyonu oluşturuldu, ID:', alertRef.id);
-    
     console.log('\n🎉 Tüm koleksiyonlar başarıyla oluşturuldu!');
     console.log('\nFirebase Console\'da şu koleksiyonları görebilmelisiniz:');
     console.log('- categories');
     console.log('- materials');
-    console.log('- stockMovements');
-    console.log('- stockAlerts');
     
   } catch (error) {
     console.error('❌ Koleksiyon oluşturma hatası:', error);
@@ -160,7 +112,7 @@ async function listCollections() {
   try {
     console.log('\n📊 Mevcut koleksiyonlar kontrol ediliyor...');
     
-    const collections = ['categories', 'materials', 'stockMovements', 'stockAlerts'];
+    const collections = ['categories', 'materials'];
     
     for (const collectionName of collections) {
       try {

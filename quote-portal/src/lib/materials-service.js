@@ -23,7 +23,7 @@ import {
 } from 'firebase/firestore';
 
 import { db, COLLECTIONS } from '../firebase-config.js';
-import { validateMaterial, validateStockMovement } from './firestore-schemas.js';
+import { validateMaterial } from './firestore-schemas.js';
 
 // ================================
 // MATERIAL CRUD OPERATIONS
@@ -73,26 +73,6 @@ export class MaterialsService {
       
       // Add to Firestore
       const docRef = await addDoc(collection(db, COLLECTIONS.MATERIALS), newMaterial);
-      
-      // Log initial stock movement
-      if (materialData.stock > 0) {
-        await this.logStockMovement({
-          materialId: docRef.id,
-          materialCode: materialData.code,
-          type: 'in',
-          subType: 'initial',
-          quantity: materialData.stock,
-          unit: materialData.unit,
-          stockBefore: 0,
-          stockAfter: materialData.stock,
-          reference: 'INITIAL_STOCK',
-          referenceType: 'system',
-          notes: 'İlk stok girişi',
-          movementDate: serverTimestamp(),
-          userId: userId,
-          userName: 'System'
-        });
-      }
       
       // Check for low stock alert
       await this.checkAndCreateStockAlert(docRef.id, materialData);
@@ -324,11 +304,15 @@ export class MaterialsService {
         ...movement
       };
       
-    } catch (error) {
-      console.error('Error logging stock movement:', error);
+        } catch (error) {
+      console.error('Error searching materials:', error);
       throw error;
     }
   }
+  
+  // ================================
+  // UTILITY FUNCTIONS
+  // ================================
   
   // **UPDATE STOCK** (With movement logging)
   static async updateStock(materialId, quantity, movementType, details = {}) {

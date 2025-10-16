@@ -6,8 +6,6 @@ export const COLLECTIONS = {
   CATEGORIES: 'materials-categories', 
   SUPPLIER_CATEGORIES: 'suppliers-categories',
   MATERIAL_TYPES: 'material_types',
-  STOCK_MOVEMENTS: 'stock_movements',
-  STOCK_ALERTS: 'stock_alerts',
   SUPPLIERS: 'suppliers',
   AUDIT_LOGS: 'audit_logs'
 };
@@ -342,273 +340,6 @@ export const CategorySchema = {
 };
 
 // ================================
-// STOCK_MOVEMENTS COLLECTION SCHEMA
-// ================================
-export const StockMovementSchema = {
-  id: {
-    type: 'string',
-    required: true,
-    unique: true,
-    description: 'Hareket ID'
-  },
-  
-  materialId: {
-    type: 'string',
-    required: true,
-    description: 'Malzeme referansı'
-  },
-  
-  materialCode: {
-    type: 'string',
-    required: true,
-    description: 'Malzeme kodu (denormalize edilmiş)'
-  },
-  
-  type: {
-    type: 'string',
-    required: true,
-    enum: ['in', 'out', 'adjustment', 'transfer', 'reserve', 'unreserve'],
-    description: 'Hareket tipi'
-  },
-  
-  subType: {
-    type: 'string',
-    required: false,
-    enum: ['purchase', 'sale', 'production', 'waste', 'correction', 'return'],
-    description: 'Alt hareket tipi'
-  },
-  
-  quantity: {
-    type: 'number',
-    required: true,
-    description: 'Hareket miktarı (pozitif/negatif)'
-  },
-  
-  unit: {
-    type: 'string',
-    required: true,
-    description: 'Birim'
-  },
-  
-  // Stok Durumları
-  stockBefore: {
-    type: 'number',
-    required: true,
-    description: 'Hareket öncesi stok'
-  },
-  
-  stockAfter: {
-    type: 'number',
-    required: true,
-    description: 'Hareket sonrası stok'
-  },
-  
-  // Fiyat Bilgileri
-  unitCost: {
-    type: 'number',
-    required: false,
-    description: 'Birim maliyeti'
-  },
-  
-  totalCost: {
-    type: 'number',
-    required: false,
-    description: 'Toplam maliyet'
-  },
-  
-  currency: {
-    type: 'string',
-    default: 'TRY'
-  },
-  
-  // Referans Bilgileri
-  reference: {
-    type: 'string',
-    required: false,
-    description: 'İlgili belge/sipariş numarası'
-  },
-  
-  referenceType: {
-    type: 'string',
-    enum: ['purchase_order', 'sales_order', 'production_order', 'manual', 'system'],
-    description: 'Referans tipi'
-  },
-  
-  supplierId: {
-    type: 'string',
-    required: false,
-    description: 'Tedarikçi referansı (giriş hareketleri için)'
-  },
-  
-  customerId: {
-    type: 'string',
-    required: false,
-    description: 'Müşteri referansı (çıkış hareketleri için)'
-  },
-  
-  // Lokasyon
-  warehouse: {
-    type: 'string',
-    required: false,
-    description: 'Depo bilgisi'
-  },
-  
-  location: {
-    type: 'string',
-    required: false,
-    description: 'Lokasyon bilgisi'
-  },
-  
-  // Not ve Açıklama
-  notes: {
-    type: 'string',
-    required: false,
-    maxLength: 500,
-    description: 'Hareket notu'
-  },
-  
-  reason: {
-    type: 'string',
-    required: false,
-    description: 'Hareket nedeni'
-  },
-  
-  // Tarih ve Kullanıcı Bilgileri
-  movementDate: {
-    type: 'timestamp',
-    required: true,
-    description: 'Hareket tarihi'
-  },
-  
-  createdAt: {
-    type: 'timestamp',
-    required: true,
-    description: 'Kayıt tarihi'
-  },
-  
-  userId: {
-    type: 'string',
-    required: true,
-    description: 'İşlemi yapan kullanıcı'
-  },
-  
-  userName: {
-    type: 'string',
-    required: true,
-    description: 'Kullanıcı adı (denormalize)'
-  },
-  
-  // Onay Sistemi
-  approved: {
-    type: 'boolean',
-    default: true,
-    description: 'Onay durumu'
-  },
-  
-  approvedBy: {
-    type: 'string',
-    required: false,
-    description: 'Onaylayan kullanıcı'
-  },
-  
-  approvedAt: {
-    type: 'timestamp',
-    required: false,
-    description: 'Onay tarihi'
-  }
-};
-
-// ================================
-// STOCK_ALERTS COLLECTION SCHEMA
-// ================================
-export const StockAlertSchema = {
-  id: {
-    type: 'string',
-    required: true,
-    unique: true
-  },
-  
-  materialId: {
-    type: 'string',
-    required: true
-  },
-  
-  materialCode: {
-    type: 'string',
-    required: true
-  },
-  
-  materialName: {
-    type: 'string',
-    required: true
-  },
-  
-  alertType: {
-    type: 'string',
-    required: true,
-    enum: ['low_stock', 'out_of_stock', 'overstock', 'expiry', 'custom'],
-    description: 'Uyarı tipi'
-  },
-  
-  severity: {
-    type: 'string',
-    required: true,
-    enum: ['info', 'warning', 'critical'],
-    description: 'Uyarı seviyesi'
-  },
-  
-  currentStock: {
-    type: 'number',
-    required: true
-  },
-  
-  threshold: {
-    type: 'number',
-    required: true,
-    description: 'Uyarı eşiği'
-  },
-  
-  message: {
-    type: 'string',
-    required: true,
-    description: 'Uyarı mesajı'
-  },
-  
-  isActive: {
-    type: 'boolean',
-    default: true
-  },
-  
-  isRead: {
-    type: 'boolean',
-    default: false
-  },
-  
-  readBy: {
-    type: 'array',
-    items: {
-      userId: { type: 'string' },
-      readAt: { type: 'timestamp' }
-    }
-  },
-  
-  createdAt: {
-    type: 'timestamp',
-    required: true
-  },
-  
-  resolvedAt: {
-    type: 'timestamp',
-    required: false
-  },
-  
-  resolvedBy: {
-    type: 'string',
-    required: false
-  }
-};
-
-// ================================
 // FIRESTORE INDEXES - Performans İçin
 // ================================
 export const REQUIRED_INDEXES = [
@@ -618,20 +349,14 @@ export const REQUIRED_INDEXES = [
   { collection: 'materials', fields: ['type', 'status'] },
   { collection: 'materials', fields: ['status', 'createdAt'] },
   { collection: 'materials', fields: ['category', 'type', 'status'] },
-  { collection: 'materials', fields: ['stock', 'reorderPoint'] }, // Düşük stok sorguları için
+    { collection: 'materials', fields: ['stock', 'reorderPoint'] }, // Düşük stok sorguları için
   
-  // Stock Movements Collection  
-  { collection: 'stock_movements', fields: ['materialId', 'movementDate'] },
-  { collection: 'stock_movements', fields: ['type', 'movementDate'] },
-  { collection: 'stock_movements', fields: ['userId', 'movementDate'] },
-  { collection: 'stock_movements', fields: ['materialId', 'type', 'movementDate'] },
-  
-  // Stock Alerts Collection
-  { collection: 'stock_alerts', fields: ['isActive', 'severity', 'createdAt'] },
-  { collection: 'stock_alerts', fields: ['materialId', 'isActive'] },
-  { collection: 'stock_alerts', fields: ['alertType', 'isActive'] }
+  // Categories Collection
+  { collection: 'categories', fields: ['name'], unique: true },
+  { collection: 'categories', fields: ['parentCategory', 'sortOrder'] },
+  { collection: 'categories', fields: ['isActive', 'sortOrder'] }
 ];
-
+  
 // ================================
 // VALIDATION FUNCTIONS
 // ================================
@@ -656,17 +381,6 @@ export const validateMaterial = (data) => {
   if (data.code && !/^M-\d{3,}$/.test(data.code)) {
     errors.push('Malzeme kodu M-XXX formatında olmalı');
   }
-  
-  return errors;
-};
-
-export const validateStockMovement = (data) => {
-  const errors = [];
-  
-  if (!data.materialId) errors.push('Malzeme ID gerekli');
-  if (!data.type) errors.push('Hareket tipi gerekli');
-  if (!data.quantity) errors.push('Miktar gerekli');
-  if (!data.userId) errors.push('Kullanıcı ID gerekli');
   
   return errors;
 };

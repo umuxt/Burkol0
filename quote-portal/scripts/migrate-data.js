@@ -595,10 +595,6 @@ export async function verifyMigration() {
     const materials = await MaterialsService.getMaterials();
     console.log(`✓ Found ${materials.length} materials`);
     
-    // Check low stock alerts
-    const alerts = await MaterialsService.getStockAlerts({ isActive: true });
-    console.log(`✓ Found ${alerts.length} active stock alerts`);
-    
     // Check sample material
     if (materials.length > 0) {
       const sampleMaterial = materials[0];

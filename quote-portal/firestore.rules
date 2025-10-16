@@ -18,13 +18,5 @@ service cloud.firestore {
     match /categories/{categoryId} {
       allow read, write: if true;
     }
-    
-    match /stockMovements/{movementId} {
-      allow read, write: if true;
-    }
-    
-    match /stockAlerts/{alertId} {
-      allow read, write: if true;
-    }
   }
 }
