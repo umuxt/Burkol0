@@ -397,7 +397,8 @@ function SuppliersTablePlaceholder() {
 }
 
 export default function SuppliersTabContent({ 
-  categories
+  categories,
+  handleDeleteMaterial
 }) {
   const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -534,6 +535,7 @@ export default function SuppliersTabContent({
         onUpdateSupplier={updateSupplier}
         onDeleteSupplier={deleteSupplier}
         onRefreshSuppliers={refetchSuppliers}
+        handleDeleteMaterial={handleDeleteMaterial}
       />
       
       <AddSupplierModal

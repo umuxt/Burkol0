@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useMaterials, useMaterialActions } from '../hooks/useFirebaseMaterials'
 import { categoriesService } from '../services/categories-service'
+import { materialsService } from '../services/materials-service'
 import EditMaterialModal from './EditMaterialModal'
 import ErrorBoundary from './ErrorBoundary'
 
@@ -10,7 +11,8 @@ export default function SuppliersTable({
   suppliersLoading = false,
   onUpdateSupplier,
   onDeleteSupplier,
-  onRefreshSuppliers
+  onRefreshSuppliers,
+  handleDeleteMaterial
 }) {
   const [selectedSupplier, setSelectedSupplier] = useState(null)
   const [selectedSupplierId, setSelectedSupplierId] = useState(null)
@@ -20,8 +22,9 @@ export default function SuppliersTable({
   const [formData, setFormData] = useState({})
 
   // Material management state
-  const { materials, loading: materialsLoading, loadMaterials } = useMaterials(false)
+  const { materials: activeMaterials, loading: materialsLoading, loadMaterials } = useMaterials(false)
   const { addMaterial } = useMaterialActions()
+  const [allMaterials, setAllMaterials] = useState([]) // Local state for all materials including removed
   const [materialMode, setMaterialMode] = useState('existing')
   const [selectedMaterials, setSelectedMaterials] = useState([])
   const [materialSearchTerm, setMaterialSearchTerm] = useState('')
@@ -59,6 +62,11 @@ export default function SuppliersTable({
   const handleRowClick = (supplier) => {
     setSelectedSupplier(supplier)
     setSelectedSupplierId(supplier.id)
+    
+    // Ensure all materials (including removed) are loaded when supplier is selected
+    if (allMaterials.length === 0) {
+      loadAllMaterials()
+    }
   }
 
   // Suppliers listesi değiştiğinde selectedSupplier'ı koru ve güncelle
@@ -123,6 +131,41 @@ export default function SuppliersTable({
     loadCategories()
   }, [])
 
+  // Load materials on component mount
+  useEffect(() => {
+    if (allMaterials.length === 0 && !materialsLoading) {
+      console.log('🔄 SuppliersTable: Loading all materials (including removed)...')
+      loadAllMaterials()
+    }
+    // Also load active materials for the popup
+    if (activeMaterials.length === 0 && !materialsLoading) {
+      console.log('🔄 SuppliersTable: Loading active materials for popup...')
+      loadMaterials()
+    }
+  }, [])
+
+  // Load all materials including removed ones
+  const loadAllMaterials = async () => {
+    try {
+      const materials = await materialsService.getAllMaterials()
+      setAllMaterials(materials)
+      console.log('🔍 SuppliersTable: Loaded all materials:', materials.length)
+    } catch (error) {
+      console.error('❌ SuppliersTable: Error loading all materials:', error)
+    }
+  }
+
+  // Debug materials loading
+  useEffect(() => {
+    console.log('🔍 SuppliersTable: Materials state:', {
+      allMaterialsCount: allMaterials.length,
+      activeMaterialsCount: activeMaterials.length,
+      materialsLoading,
+      selectedSupplier: selectedSupplier?.id,
+      suppliedMaterialsCount: selectedSupplier?.suppliedMaterials?.length || 0
+    })
+  }, [allMaterials, activeMaterials, materialsLoading, selectedSupplier])
+
   const handleEdit = () => {
     if (selectedSupplier) {
       setFormData(selectedSupplier)
@@ -149,12 +192,18 @@ export default function SuppliersTable({
     console.log('💾 Saving supplier:', { 
       supplierId: selectedSupplier?.id, 
       selectedSupplier: selectedSupplier,
-      formData 
+      formData,
+      isEditing
     })
     
     if (!selectedSupplier?.id) {
       console.error('❌ No supplier selected for update')
       alert('Lütfen güncellenecek tedarikçiyi seçin')
+      return
+    }
+
+    if (!isEditing) {
+      console.log('📝 Not in editing mode, skipping save')
       return
     }
     
@@ -254,14 +303,14 @@ export default function SuppliersTable({
   }
 
   const filteredMaterials = useMemo(() => {
-    if (!materials || !Array.isArray(materials)) return []
+    if (!activeMaterials || !Array.isArray(activeMaterials)) return []
     
-    return materials.filter(material => 
+    return activeMaterials.filter(material => 
       material.name?.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
       material.code?.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
       getCategoryName(material.category)?.toLowerCase().includes(materialSearchTerm.toLowerCase())
     )
-  }, [materials, materialSearchTerm, materialCategories])
+  }, [activeMaterials, materialSearchTerm, materialCategories])
 
   const handleMaterialSelect = (material) => {
     const isAlreadySelected = selectedMaterials.find(m => m.id === material.id)
@@ -276,6 +325,8 @@ export default function SuppliersTable({
   const handleMaterialRemove = (materialId) => {
     setSelectedMaterials(prev => prev.filter(m => m.id !== materialId))
   }
+
+
 
   const handleNewMaterialChange = (e) => {
     const { name, value } = e.target
@@ -492,22 +543,22 @@ export default function SuppliersTable({
     
     try {
       console.warn('🔍 DEBUG: Material aranıyor, ID:', materialId)
-      console.warn('🔍 DEBUG: Mevcut materials sayısı:', materials.length)
+      console.warn('🔍 DEBUG: Mevcut allMaterials sayısı:', allMaterials.length)
       
-      // Materials'ı prop'tan kullan, API call yapma
-      let materialsList = materials || []
+      // allMaterials'ı kullan (kaldırılanlar dahil)
+      let materialsList = allMaterials || []
       
-      // Eğer materials boşsa, loadMaterials'ı çağır VE AWAIT ET
-      if (materialsList.length === 0 && typeof loadMaterials === 'function') {
-        console.warn('🔄 DEBUG: Materials boş, API çağrılıyor...')
-        console.warn('🔍 DEBUG: materialsLoading:', materialsLoading)
+      // Eğer allMaterials boşsa, loadAllMaterials'ı çağır
+      if (materialsList.length === 0) {
+        console.warn('🔄 DEBUG: AllMaterials boş, API çağrılıyor...')
         try {
-          // loadMaterials'dan direkt response al (state timing sorunu için)
-          const freshMaterials = await loadMaterials() // AWAIT ET!
-          console.warn('🔍 DEBUG: loadMaterials response aldı:', freshMaterials?.length || 0, 'materyal');
+          // loadAllMaterials'dan direkt response al
+          const freshMaterials = await materialsService.getAllMaterials()
+          console.warn('🔍 DEBUG: getAllMaterials response aldı:', freshMaterials?.length || 0, 'materyal');
           
           // Fresh materials ile material ara
           materialsList = freshMaterials || [];
+          setAllMaterials(materialsList) // State'i de güncelle
           console.warn('🔄 DEBUG: Fresh materials kullanılıyor, sayı:', materialsList.length);
           console.warn('🔍 DEBUG: Fresh materials detay:', materialsList.map(m => ({id: m.id, name: m.name, code: m.code})));
         } catch (loadError) {
@@ -2059,88 +2110,122 @@ export default function SuppliersTable({
                   {selectedSupplier?.suppliedMaterials && selectedSupplier.suppliedMaterials.length > 0 && (
                     <div style={{ marginBottom: '12px' }}>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: '600', color: '#111827' }}>
-                        Mevcut Malzemeler ({selectedSupplier.suppliedMaterials.length})
+                        Tedarik Edilen Malzemeler ({selectedSupplier.suppliedMaterials.length})
                       </h4>
                       <div style={{ 
                         border: '1px solid #e5e7eb', 
                         borderRadius: '4px'
                       }}>
-                        {selectedSupplier.suppliedMaterials.map((material, index) => (
-                          <div
-                            key={material.id || index}
-                            style={{
-                              padding: '6px 12px',
-                              borderBottom: index < selectedSupplier.suppliedMaterials.length - 1 ? '1px solid #f3f4f6' : 'none',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              fontSize: '12px'
-                            }}
-                          >
-                            <div>
-                              <div style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: '8px',
-                                marginBottom: '2px'
-                              }}>
-                                <span style={{ 
-                                  fontWeight: '600', 
-                                  color: material.status === 'pasif' ? '#dc2626' : material.status === 'değerlendirmede' ? '#eab308' : '#111827',
-                                  opacity: material.status === 'pasif' ? 0.6 : 1
+                        {selectedSupplier.suppliedMaterials.map((material, index) => {
+                          // Find full material details from allMaterials array
+                          const fullMaterial = allMaterials.find(m => m.id === material.id)
+                          const isRemoved = fullMaterial?.status === 'Kaldırıldı'
+                          
+                          return (
+                            <div
+                              key={material.id || index}
+                              style={{
+                                padding: '6px 12px',
+                                borderBottom: index < selectedSupplier.suppliedMaterials.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                fontSize: '12px',
+                                opacity: isRemoved ? 0.6 : 1 // 50% opacity for removed materials
+                              }}
+                            >
+                              <div>
+                                <div style={{ 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  gap: '8px',
+                                  marginBottom: '2px'
                                 }}>
-                                  {material.name}
-                                </span>
+                                  <span style={{ 
+                                    fontWeight: '600', 
+                                    color: isRemoved ? '#dc2626' : (material.status === 'pasif' ? '#dc2626' : material.status === 'değerlendirmede' ? '#eab308' : '#111827'),
+                                    textDecoration: isRemoved ? 'line-through' : 'none',
+                                    opacity: (!isRemoved && material.status === 'pasif') ? 0.6 : 1
+                                  }}>
+                                    {fullMaterial?.name || material.name}
+                                  </span>
+                                  {isRemoved && (
+                                    <span style={{
+                                      fontSize: '10px',
+                                      padding: '1px 4px',
+                                      borderRadius: '2px',
+                                      background: '#dc2626',
+                                      color: 'white'
+                                    }}>
+                                      KALDIRILDI
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '11px', color: isRemoved ? '#dc2626' : '#6b7280' }}>
+                                  {(fullMaterial?.category || material.category) && `${getCategoryName(fullMaterial?.category || material.category)} • `}
+                                  {fullMaterial?.unit || material.unit}
+                                </div>
                               </div>
-                              <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                                {material.category && `${getCategoryName(material.category)} • `}
-                                {material.unit}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <button
+                                  onClick={() => handleShowMaterialDetail(material.id)}
+                                  style={{
+                                    padding: '2px 4px',
+                                    fontSize: '10px',
+                                    border: isRemoved ? '1px solid #dc2626' : '1px solid #d1d5db',
+                                    borderRadius: '3px',
+                                    background: isRemoved ? '#fef2f2' : '#f9fafb',
+                                    color: isRemoved ? '#dc2626' : '#374151',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    minWidth: '24px',
+                                    height: '20px'
+                                  }}
+                                  title="Malzeme Detayları"
+                                >
+                                  ℹ️
+                                </button>
+                                {!isRemoved && (
+                                  <select
+                                    value={material.status || 'aktif'}
+                                    onChange={(e) => handleMaterialStatusChange(material.id, e.target.value)}
+                                    style={{
+                                      padding: '1px 4px',
+                                      fontSize: '10px',
+                                      border: '1px solid #d1d5db',
+                                      borderRadius: '3px',
+                                      background: 'white',
+                                      color: '#374151',
+                                      cursor: 'pointer',
+                                      minWidth: '60px',
+                                      maxWidth: '80px',
+                                      textAlign: 'right'
+                                    }}
+                                  >
+                                    <option value="aktif">Aktif</option>
+                                    <option value="pasif">Pasif</option>
+                                    <option value="değerlendirmede">Değerlendirmede</option>
+                                  </select>
+                                )}
                               </div>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <button
-                                onClick={() => handleShowMaterialDetail(material.id)}
-                                style={{
-                                  padding: '2px 4px',
-                                  fontSize: '10px',
-                                  border: '1px solid #d1d5db',
-                                  borderRadius: '3px',
-                                  background: '#f9fafb',
-                                  color: '#374151',
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  minWidth: '24px',
-                                  height: '20px'
-                                }}
-                                title="Malzeme Detayları"
-                              >
-                                ℹ️
-                              </button>
-                              <select
-                                value={material.status || 'aktif'}
-                                onChange={(e) => handleMaterialStatusChange(material.id, e.target.value)}
-                                style={{
-                                  padding: '1px 4px',
-                                  fontSize: '10px',
-                                  border: '1px solid #d1d5db',
-                                  borderRadius: '3px',
-                                  background: 'white',
-                                  color: '#374151',
-                                  cursor: 'pointer',
-                                  minWidth: '60px',
-                                  maxWidth: '80px',
-                                  textAlign: 'right'
-                                }}
-                              >
-                                <option value="aktif">Aktif</option>
-                                <option value="pasif">Pasif</option>
-                                <option value="değerlendirmede">Değerlendirmede</option>
-                              </select>
-                            </div>
+                          )
+                        })}
+                        
+                        {/* Show message when no materials */}
+                        {selectedSupplier.suppliedMaterials.length === 0 && (
+                          <div style={{ 
+                            padding: '20px', 
+                            textAlign: 'center', 
+                            color: '#6b7280', 
+                            fontSize: '12px',
+                            fontStyle: 'italic'
+                          }}>
+                            Henüz malzeme eklenmemiş. Yukarıdaki butonları kullanarak malzeme ekleyebilirsiniz.
                           </div>
-                        ))}
+                        )}
                       </div>
                     </div>
                   )}
@@ -2740,12 +2825,14 @@ export default function SuppliersTable({
             setSelectedMaterialForDetail(null)
             setLoadingMaterialDetail(false)
           }}
-          onDelete={() => {
-            // Material deleted, you might want to refresh data
-            setShowMaterialDetailModal(false)
-            setSelectedMaterialForDetail(null)
-            setLoadingMaterialDetail(false)
-          }}
+          onDelete={handleDeleteMaterial ? (materialId) => {
+            // Call the delete handler from main.jsx
+            handleDeleteMaterial(materialId);
+            // Close modal  
+            setShowMaterialDetailModal(false);
+            setSelectedMaterialForDetail(null);
+            setLoadingMaterialDetail(false);
+          } : undefined}
           categories={materialCategories}
           types={[
             { id: 'raw_material', label: 'Ham Madde' },
@@ -2753,6 +2840,7 @@ export default function SuppliersTable({
             { id: 'final_product', label: 'Bitmiş Ürün' }
           ]}
           material={selectedMaterialForDetail}
+          isRemoved={selectedMaterialForDetail?.status === 'Kaldırıldı'}
           suppliers={suppliers}
           loading={loadingMaterialDetail}
           suppliersLoading={suppliersLoading}

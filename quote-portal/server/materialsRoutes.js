@@ -38,10 +38,36 @@ async function generateNextMaterialCode() {
 
 export function setupMaterialsRoutes(app) {
   
-  // GET /api/materials - Tüm malzemeleri listele
+  // GET /api/materials - Tüm malzemeleri listele (kaldırılanlar hariç)
   app.get('/api/materials', requireAuth, async (req, res) => {
     try {
       console.log('📦 API: Materials listesi istendi')
+      
+      // Kaldırılan malzemeleri hariç tut - Firebase query ile filtrele
+      const snapshot = await materialsCollection
+        .where('status', '!=', 'Kaldırıldı')
+        .get()
+      
+      const materials = []
+      snapshot.forEach(doc => {
+        materials.push({
+          id: doc.id,
+          ...doc.data()
+        })
+      })
+      
+      console.log(`✅ API: ${materials.length} malzeme döndürüldü (kaldırılanlar hariç)`)
+      res.json(materials)
+    } catch (error) {
+      console.error('❌ API: Materials listesi alınırken hata:', error)
+      res.status(500).json({ error: 'Materials listesi alınamadı' })
+    }
+  })
+
+  // GET /api/materials/all - Tüm malzemeleri listele (kaldırılanlar dahil)
+  app.get('/api/materials/all', requireAuth, async (req, res) => {
+    try {
+      console.log('📦 API: Tüm materials listesi istendi (kaldırılanlar dahil)')
       const snapshot = await materialsCollection.get()
       
       const materials = []
@@ -52,11 +78,11 @@ export function setupMaterialsRoutes(app) {
         })
       })
       
-      console.log(`✅ API: ${materials.length} malzeme döndürüldü`)
+      console.log(`✅ API: ${materials.length} malzeme döndürüldü (tümü)`)
       res.json(materials)
     } catch (error) {
-      console.error('❌ API: Materials listesi alınırken hata:', error)
-      res.status(500).json({ error: 'Materials listesi alınamadı' })
+      console.error('❌ API: Tüm materials listesi alınırken hata:', error)
+      res.status(500).json({ error: 'Tüm materials listesi alınamadı' })
     }
   })
 
@@ -67,6 +93,7 @@ export function setupMaterialsRoutes(app) {
       
       const materialData = {
         ...req.body,
+        status: req.body.status || 'Aktif', // Varsayılan status 'Aktif'
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }
@@ -131,11 +158,11 @@ export function setupMaterialsRoutes(app) {
     }
   })
 
-  // DELETE /api/materials/:id - Malzeme sil
+  // DELETE /api/materials/:id - Malzeme sil (Soft Delete)
   app.delete('/api/materials/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params
-      console.log('📦 API: Malzeme siliniyor:', id)
+      console.log('📦 API: Malzeme soft delete yapılıyor:', id)
       
       const docRef = materialsCollection.doc(id)
       const doc = await docRef.get()
@@ -144,13 +171,42 @@ export function setupMaterialsRoutes(app) {
         return res.status(404).json({ error: 'Malzeme bulunamadı' })
       }
       
+      // Hard delete yerine soft delete - status'u 'Kaldırıldı' yap
+      await docRef.update({
+        status: 'Kaldırıldı',
+        removedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      })
+      
+      console.log('✅ API: Malzeme soft delete edildi:', id)
+      res.json({ success: true, id, action: 'soft_delete' })
+    } catch (error) {
+      console.error('❌ API: Malzeme soft delete edilirken hata:', error)
+      res.status(500).json({ error: 'Malzeme silinemedi' })
+    }
+  })
+
+  // DELETE /api/materials/:id/permanent - Malzeme kalıcı sil (Hard Delete - Admin Only)
+  app.delete('/api/materials/:id/permanent', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params
+      console.log('📦 API: Malzeme kalıcı siliniyor (HARD DELETE):', id)
+      
+      const docRef = materialsCollection.doc(id)
+      const doc = await docRef.get()
+      
+      if (!doc.exists) {
+        return res.status(404).json({ error: 'Malzeme bulunamadı' })
+      }
+      
+      // Hard delete - gerçekten sil
       await docRef.delete()
       
-      console.log('✅ API: Malzeme silindi:', id)
-      res.json({ success: true, id })
+      console.log('✅ API: Malzeme kalıcı silindi (HARD DELETE):', id)
+      res.json({ success: true, id, action: 'hard_delete' })
     } catch (error) {
-      console.error('❌ API: Malzeme silinirken hata:', error)
-      res.status(500).json({ error: 'Malzeme silinemedi' })
+      console.error('❌ API: Malzeme kalıcı silinirken hata:', error)
+      res.status(500).json({ error: 'Malzeme kalıcı silinemedi' })
     }
   })
 

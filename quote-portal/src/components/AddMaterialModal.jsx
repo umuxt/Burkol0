@@ -351,7 +351,7 @@ export default function AddMaterialModal({
                 onChange={handleInputChange}
               >
                 <option value="Aktif">Aktif</option>
-                <option value="Pasif">Pasif</option>
+                {/* Removed Pasif option - materials only have 'Aktif' or 'Kaldırıldı' status */}
               </select>
             </div>
           </div>

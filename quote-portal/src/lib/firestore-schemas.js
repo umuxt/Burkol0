@@ -196,9 +196,9 @@ export const MaterialSchema = {
   status: {
     type: 'string',
     required: true,
-    enum: ['Aktif', 'Pasif', 'Kullanımdan Kaldırıldı'],
+    enum: ['Aktif', 'Kaldırıldı'],
     default: 'Aktif',
-    description: 'Malzeme durumu'
+    description: 'Malzeme durumu - Aktif: Normal kullanım, Kaldırıldı: Soft delete'
   },
   
   isActive: {

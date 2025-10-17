@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 
-export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, categories, types, material, suppliers = [], loading = false, suppliersLoading = false, onRefreshSuppliers }) {
+export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, categories, types, material, suppliers = [], loading = false, suppliersLoading = false, onRefreshSuppliers, isRemoved = false }) {
   // Loading timeout için timer
   const [loadingTimeout, setLoadingTimeout] = useState(false)
   
@@ -195,6 +195,11 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
   };
 
   const handleUnlock = () => {
+    // Kaldırılan malzemeler düzenlenemez
+    if (isRemoved) {
+      console.log('❌ Kaldırılan malzemeler düzenlenemez')
+      return;
+    }
     setIsEditing(true);
   };
 
@@ -384,18 +389,19 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
           <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Malzeme Detayları</h2>
+          <h2>Malzeme Detayları {isRemoved && <span style={{ color: '#dc2626', fontSize: '14px' }}>(Kaldırılmış)</span>}</h2>
           <div className="header-actions">
-            {!isEditing ? (
+            {!isRemoved && !isEditing && (
               <button type="button" onClick={(e) => { e.preventDefault(); handleUnlock(); }} className="btn-edit" title="Düzenle">
                 🔒 Düzenle
               </button>
-            ) : (
+            )}
+            {!isRemoved && isEditing && (
               <button type="submit" form="edit-material-form" className="btn-save" title="Kaydet">
                 🔓 Kaydet
               </button>
             )}
-            {onDelete && (
+            {!isRemoved && onDelete && (
               <button 
                 type="button" 
                 onClick={() => {
@@ -841,7 +847,7 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                       className="detail-input"
                     >
                       <option value="Aktif">Aktif</option>
-                      <option value="Pasif">Pasif</option>
+                      {/* Removed Pasif option - materials only have 'Aktif' or 'Kaldırıldı' status */}
                     </select>
                   )}
                 </div>

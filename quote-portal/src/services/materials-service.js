@@ -99,6 +99,27 @@ export const materialsService = {
     }
   },
 
+  // Tüm materyalleri getir (kaldırılanlar dahil)
+  getAllMaterials: async () => {
+    try {
+      console.warn('🔄 SERVICE DEBUG: getAllMaterials başladı (kaldırılanlar dahil)')
+      const response = await fetchWithTimeout('/api/materials/all', {
+        headers: withAuth()
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const materials = await response.json()
+      console.log('✅ All materials fetch successful:', materials.length, 'items (including removed)')
+      return materials
+    } catch (error) {
+      console.error('❌ All materials fetch error:', error)
+      throw error
+    }
+  },
+
   // Materyal sil
   deleteMaterial: async (materialId) => {
     try {

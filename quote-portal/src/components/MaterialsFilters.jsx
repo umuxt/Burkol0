@@ -34,24 +34,21 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
   const handleStatusToggle = () => {
     let nextStatus = '';
     if (filters.status === '') nextStatus = 'Aktif';
-    else if (filters.status === 'Aktif') nextStatus = 'Pasif';
-    else nextStatus = '';
+    else nextStatus = ''; // Only toggle between 'Aktif' and no filter
     
     handleFilterChange('status', nextStatus);
   };
 
   const getStatusLabel = () => {
-    if (filters.status === '') return 'Filtresiz';
+    if (filters.status === '') return 'Tümü';
     if (filters.status === 'Aktif') return 'Aktif';
-    if (filters.status === 'Pasif') return 'Pasif';
-    return 'Filtresiz';
+    return 'Bilinmeyen'; // Fallback
   };
 
   const getStatusIcon = () => {
     if (filters.status === '') return '🔄';
     if (filters.status === 'Aktif') return '✅';
-    if (filters.status === 'Pasif') return '❌';
-    return '🔄';
+    return '🔄'; // Fallback
   };
 
   const handleMultiSelectChange = (key, value) => {

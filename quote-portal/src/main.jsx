@@ -16,6 +16,7 @@ import MaterialsActions from './components/MaterialsActions.jsx';
 import AddMaterialModal from './components/AddMaterialModal.jsx';
 import EditMaterialModal from './components/EditMaterialModal.jsx';
 import CategoryManagementModal from './components/CategoryManagementModal.jsx';
+import MaterialDeletionWarningModal from './components/MaterialDeletionWarningModal.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 // Firebase hooks
@@ -78,9 +79,12 @@ function MaterialsApp() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [isDeletionWarningOpen, setIsDeletionWarningOpen] = useState(false);
   // AddSupplierModal için ayrı modal kaldırıldı
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [materialCreatedCallback, setMaterialCreatedCallback] = useState(null);
+  const [materialsToDelete, setMaterialsToDelete] = useState([]);
+  const [deletionCallback, setDeletionCallback] = useState(null);
   // Tedarikçi context state'leri kaldırıldı
   
   // Debug: Callback state'ini takip et
@@ -161,6 +165,11 @@ function MaterialsApp() {
 
   // Filtrelenmiş malzemeler - Client-side filtering
   const filteredMaterials = materials.filter(material => {
+    // Kaldırılan malzemeleri normal görünümden hariç tut
+    if (material.status === 'Kaldırıldı') {
+      return false;
+    }
+    
     // Arama filtresi
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
@@ -362,22 +371,53 @@ function MaterialsApp() {
     }
   };
 
-  // Material silme fonksiyonu
+  // Material silme fonksiyonu - now with warning modal
   const handleDeleteMaterial = async (materialId, skipConfirmation = false) => {
-    if (skipConfirmation || confirm('Bu malzemeyi silmek istediğinizden emin misiniz?')) {
+    console.log('🗑️ handleDeleteMaterial called:', { materialId, skipConfirmation });
+    
+    const material = materials.find(m => m.id === materialId);
+    if (!material) {
+      console.error('❌ Material not found:', materialId);
+      return false;
+    }
+
+    console.log('📦 Material found:', material.name);
+
+    if (skipConfirmation) {
+      // Bulk delete case - no individual confirmation
+      console.log('⚡ Skipping confirmation, direct delete');
       try {
         await deleteMaterial(materialId);
-        // Malzemeleri yenile (sadece tek silmede, bulk işlemde tüm işlem sonunda yapılacak)
-        if (!skipConfirmation) {
-          await refreshMaterials();
-        }
         return true;
       } catch (error) {
         console.error('Material delete error:', error);
         throw error;
       }
+    } else {
+      // Single delete case - show warning modal
+      console.log('⚠️ Showing warning modal for:', material.name);
+      setMaterialsToDelete([material]);
+      setDeletionCallback(() => async () => {
+        try {
+          await deleteMaterial(materialId);
+          await refreshMaterials();
+        } catch (error) {
+          console.error('Material delete error:', error);
+          throw error;
+        }
+      });
+      setIsDeletionWarningOpen(true);
+      console.log('✅ Modal state set to true');
+      return true;
     }
-    return false;
+  };
+
+  const handleConfirmDeletion = async () => {
+    if (deletionCallback) {
+      await deletionCallback();
+      setDeletionCallback(null);
+      setMaterialsToDelete([]);
+    }
   };
 
   const handleCloseModal = () => {
@@ -456,6 +496,7 @@ function MaterialsApp() {
         />
         <SuppliersTabContent 
           categories={categories}
+          handleDeleteMaterial={handleDeleteMaterial}
         />
         <OrdersTabContent />
       </MaterialsTabs>
@@ -498,6 +539,19 @@ function MaterialsApp() {
         createCategory={addCategory}
         updateCategory={updateCategory}
         deleteCategory={deleteCategory}
+      />
+
+      <MaterialDeletionWarningModal
+        isOpen={isDeletionWarningOpen}
+        onClose={() => {
+          setIsDeletionWarningOpen(false);
+          setMaterialsToDelete([]);
+          setDeletionCallback(null);
+        }}
+        onConfirm={handleConfirmDeletion}
+        materials={materialsToDelete}
+        isBulk={materialsToDelete.length > 1}
+        suppliers={suppliers}
       />
     </div>
   );
