@@ -22,6 +22,18 @@ export default function StocksTabContent({
   const [bulkProgress, setBulkProgress] = useState(null);
   const bulkCancelRef = useRef(false);
 
+  // Helper function to get category name
+  const getCategoryName = (categoryId) => {
+    const category = categories.find(cat => cat.id === categoryId);
+    return category ? category.name : categoryId || 'Kategori Yok';
+  };
+
+  // Helper function to get type label
+  const getTypeLabel = (typeId) => {
+    const type = materialTypes.find(t => t.id === typeId);
+    return type ? type.label : typeId || 'Tip Yok';
+  };
+
   // CSV Export fonksiyonu
   const handleCSVExport = () => {
     const materialsToExport = selectedMaterials.size > 0 
@@ -33,24 +45,58 @@ export default function StocksTabContent({
       return;
     }
 
-    // CSV headers
-    const headers = ['Kod', 'Malzeme Adı', 'Kategori', 'Tür', 'Stok', 'Birim', 'Birim Fiyat', 'Durum'];
+    // Genişletilmiş CSV headers - tüm önemli malzeme bilgileri
+    const headers = [
+      'Kod', 
+      'Malzeme Adı', 
+      'Açıklama',
+      'Kategori', 
+      'Tür', 
+      'Birim',
+      'Stok Miktarı', 
+      'Minimum Stok',
+      'Rezerve Edilen',
+      'Kullanılabilir',
+      'Maliyet Fiyatı',
+      'Satış Fiyatı', 
+      'KDV Oranı',
+      'Para Birimi',
+      'Tedarikçiler',
+      'Durum',
+      'Oluşturma Tarihi',
+      'Son Güncelleme'
+    ];
     
-    // CSV rows
+    // CSV rows - tüm malzeme bilgileri ile
     const rows = materialsToExport.map(material => [
       material.code || '',
       material.name || '',
-      material.category || '',
-      material.type || '',
-      material.stock || 0,
+      material.description || '',
+      getCategoryName(material.category),
+      getTypeLabel(material.type),
       material.unit || '',
-      material.unitPrice || 0,
-      material.status || 'Aktif'
+      material.stock || 0,
+      material.reorderPoint || 0,
+      material.reserved || 0,
+      material.available || material.stock || 0,
+      material.costPrice || 0,
+      material.unitPrice || material.sellPrice || 0,
+      material.taxRate || 0,
+      material.currency || 'TL',
+      material.suppliers ? material.suppliers.join(', ') : '',
+      material.status || 'Aktif',
+      material.createdAt ? new Date(material.createdAt.seconds * 1000).toLocaleDateString('tr-TR') : '',
+      material.updatedAt ? new Date(material.updatedAt.seconds * 1000).toLocaleDateString('tr-TR') : ''
     ]);
 
-    // CSV content oluştur
-    const csvContent = [headers, ...rows]
-      .map(row => row.map(field => `"${field}"`).join(','))
+    // UTF-8 BOM + CSV content oluştur (Türkçe karakter desteği için)
+    const BOM = '\uFEFF';
+    const csvContent = BOM + [headers, ...rows]
+      .map(row => row.map(field => {
+        // Tırnak içindeki tırnakları escape et
+        const escapedField = String(field || '').replace(/"/g, '""');
+        return `"${escapedField}"`;
+      }).join(','))
       .join('\n');
 
     // Download
@@ -58,7 +104,7 @@ export default function StocksTabContent({
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `malzemeler_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `malzemeler_detay_${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
