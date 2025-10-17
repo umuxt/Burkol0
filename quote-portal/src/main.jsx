@@ -363,16 +363,21 @@ function MaterialsApp() {
   };
 
   // Material silme fonksiyonu
-  const handleDeleteMaterial = async (materialId) => {
-    if (confirm('Bu malzemeyi silmek istediğinizden emin misiniz?')) {
+  const handleDeleteMaterial = async (materialId, skipConfirmation = false) => {
+    if (skipConfirmation || confirm('Bu malzemeyi silmek istediğinizden emin misiniz?')) {
       try {
         await deleteMaterial(materialId);
-        // Malzemeleri yenile
-        await refreshMaterials();
+        // Malzemeleri yenile (sadece tek silmede, bulk işlemde tüm işlem sonunda yapılacak)
+        if (!skipConfirmation) {
+          await refreshMaterials();
+        }
+        return true;
       } catch (error) {
         console.error('Material delete error:', error);
+        throw error;
       }
     }
+    return false;
   };
 
   const handleCloseModal = () => {
@@ -445,6 +450,7 @@ function MaterialsApp() {
           handleEditMaterial={handleEditMaterial}
           handleDeleteMaterial={handleDeleteMaterial}
           handleCategoryManage={handleCategoryManage}
+          refreshMaterials={refreshMaterials}
           loading={materialsLoading}
           error={materialsError}
         />

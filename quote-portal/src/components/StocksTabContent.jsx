@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import MaterialsDashboard from './MaterialsDashboard.jsx'
 import MaterialsFilters from './MaterialsFilters.jsx'
 import MaterialsTable from './MaterialsTable.jsx'
+import BulkProgressModal from './BulkProgressModal.jsx'
 
 export default function StocksTabContent({ 
   materials, 
@@ -13,10 +14,13 @@ export default function StocksTabContent({
   handleEditMaterial,
   handleDeleteMaterial,
   handleCategoryManage,
+  refreshMaterials,
   loading = false,
   error = null
 }) {
   const [selectedMaterials, setSelectedMaterials] = useState(new Set());
+  const [bulkProgress, setBulkProgress] = useState(null);
+  const bulkCancelRef = useRef(false);
 
   // CSV Export fonksiyonu
   const handleCSVExport = () => {
@@ -61,27 +65,132 @@ export default function StocksTabContent({
     document.body.removeChild(link);
   };
 
+  // Bulk Progress Modal Actions
+  const handleBulkProgressAction = (action) => {
+    if (action === 'cancel') {
+      setBulkProgress(prev => {
+        if (!prev || prev.finished || prev.cancelling) return prev;
+        bulkCancelRef.current = true;
+        return { ...prev, cancelling: true };
+      });
+    } else if (action === 'close') {
+      bulkCancelRef.current = false;
+      setBulkProgress(null);
+    }
+  };
+
   // Bulk Delete fonksiyonu
   const handleBulkDelete = async () => {
     if (selectedMaterials.size === 0) return;
     
+    // Prevent overlapping bulk operations
+    if (bulkProgress && !bulkProgress.finished && !bulkProgress.cancelled) {
+      return;
+    }
+    
     const selectedCount = selectedMaterials.size;
     const confirmMessage = `${selectedCount} malzemeyi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`;
     
-    if (window.confirm(confirmMessage)) {
-      try {
-        // Her seçili malzeme için delete fonksiyonunu çağır
-        for (const materialId of selectedMaterials) {
-          await handleDeleteMaterial(materialId); // Sadece ID gönder
-        }
-        
-        // Seçimi temizle
-        setSelectedMaterials(new Set());
-        console.log(`${selectedCount} malzeme başarıyla silindi.`);
-      } catch (error) {
-        console.error('Bulk delete error:', error);
-        alert('Malzemeler silinirken bir hata oluştu. Lütfen tekrar deneyin.');
+    if (!window.confirm(confirmMessage)) return;
+
+    // Prepare material list with names for progress display
+    const materialsList = Array.from(selectedMaterials).map(id => {
+      const material = materials.find(m => m.id === id);
+      return {
+        id,
+        name: material ? (material.name || material.code || id) : id
+      };
+    });
+
+    const total = materialsList.length;
+    bulkCancelRef.current = false;
+
+    // Initialize progress state
+    setBulkProgress({
+      active: true,
+      total,
+      completed: 0,
+      currentIndex: 0,
+      currentId: null,
+      currentName: '',
+      finished: false,
+      cancelled: false,
+      cancelling: false,
+      errors: [],
+      skipped: 0,
+      title: 'Toplu Malzeme Silme',
+      message: 'Malzemeler siliniyor...'
+    });
+
+    let processedCount = 0;
+    let successCount = 0;
+    const errors = [];
+
+    // Process each material
+    for (let i = 0; i < total; i++) {
+      if (bulkCancelRef.current) {
+        break;
       }
+
+      const material = materialsList[i];
+      setBulkProgress(prev => prev ? {
+        ...prev,
+        currentIndex: i,
+        currentId: material.id,
+        currentName: material.name,
+        completed: processedCount
+      } : prev);
+
+      try {
+        await handleDeleteMaterial(material.id, true); // skipConfirmation = true
+        successCount += 1;
+      } catch (error) {
+        console.error('Bulk delete material error:', material.id, error);
+        errors.push({ 
+          id: material.id, 
+          name: material.name,
+          error: error?.message || 'Silme hatası' 
+        });
+      }
+
+      processedCount += 1;
+      setBulkProgress(prev => prev ? { ...prev, completed: processedCount } : prev);
+    }
+
+    const cancelled = bulkCancelRef.current;
+    bulkCancelRef.current = false;
+
+    // Finalize progress state
+    setBulkProgress(prev => prev ? {
+      ...prev,
+      completed: processedCount,
+      currentId: null,
+      currentName: '',
+      finished: true,
+      active: false,
+      cancelling: false,
+      cancelled,
+      errors
+    } : prev);
+
+    // Clear selection and refresh materials
+    setSelectedMaterials(new Set());
+    
+    // Refresh materials after bulk operation
+    try {
+      // Since handleDeleteMaterial was called with skipConfirmation=true, 
+      // we need to trigger a refresh here
+      if (typeof refreshMaterials === 'function') {
+        await refreshMaterials();
+      }
+    } catch (error) {
+      console.error('Error refreshing materials after bulk delete:', error);
+    }
+
+    if (!cancelled) {
+      const message = `${successCount} malzeme silindi`;
+      const errorMessage = errors.length > 0 ? `, ${errors.length} hatada hata oluştu` : '';
+      console.log(message + errorMessage);
     }
   };
   
@@ -187,6 +296,14 @@ export default function StocksTabContent({
           />
         )}
       </div>
+
+      {/* Bulk Progress Modal */}
+      {bulkProgress && (
+        <BulkProgressModal
+          progress={bulkProgress}
+          onAction={handleBulkProgressAction}
+        />
+      )}
     </div>
   )
 }
