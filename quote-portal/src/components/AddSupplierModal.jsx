@@ -124,6 +124,11 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
   const [materialSearchTerm, setMaterialSearchTerm] = useState('')
   const [showMaterialPopup, setShowMaterialPopup] = useState(false) // Pop-up state
   const [materialCategories, setMaterialCategories] = useState([]) // Categories from Firebase
+  const [allMaterials, setAllMaterials] = useState([]) // All materials including removed ones for code generation
+  const [nextMaterialCode, setNextMaterialCode] = useState(() => {
+    // Component mount'ta hesapla
+    return 'M-001'; // Will be updated by useEffect
+  }) // Dynamic next code
   const [materialTypes] = useState([
     { id: 'raw_material', label: 'Ham Madde' },
     { id: 'wip', label: 'Yarı Mamül' },
@@ -151,9 +156,25 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
   // Remove automatic material loading - will load only when popup opens
 
   // Modal açıldığında form'u sıfırla
+  // Load all materials for code generation when modal opens
+  const loadAllMaterials = async () => {
+    try {
+      const { materialsService } = await import('../services/materials-service.js');
+      const allMaterialsList = await materialsService.getAllMaterials();
+      console.log('🔢 AddSupplierModal: Kod oluşturma için tüm materyaller yüklendi:', allMaterialsList.length);
+      setAllMaterials(allMaterialsList);
+    } catch (error) {
+      console.error('❌ AddSupplierModal: Tüm materyaller yüklenemedi:', error);
+      // Fallback olarak mevcut materials'ı kullan
+      setAllMaterials(materials || []);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       console.log('🔄 Modal açıldı, form sıfırlanıyor. nextCode:', nextCode)
+      // Load all materials for code generation
+      loadAllMaterials();
       setFormData({
         code: '',
         name: '',
@@ -229,35 +250,6 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
     }));
   };
 
-  // Material management functions
-  const generateNextMaterialCode = () => {
-    if (!materials || materials.length === 0) {
-      return 'M-001';
-    }
-    
-    // Extract existing numbers from material codes
-    const existingNumbers = materials
-      .map(material => {
-        const code = material.code || '';
-        const match = code.match(/^M-(\d+)$/);
-        return match ? parseInt(match[1]) : null;
-      })
-      .filter(num => num !== null)
-      .sort((a, b) => a - b);
-    
-    // Find minimum empty value
-    let nextNumber = 1;
-    for (const num of existingNumbers) {
-      if (num === nextNumber) {
-        nextNumber++;
-      } else if (num > nextNumber) {
-        break;
-      }
-    }
-    
-    return `M-${String(nextNumber).padStart(3, '0')}`;
-  };
-
   const handleOpenMaterialPopup = async () => {
     setShowMaterialPopup(true)
     // Load materials only when popup opens
@@ -288,6 +280,38 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
       }
     }
   }
+
+  // Update next material code when allMaterials changes
+  useEffect(() => {
+    const materialsForCodeGen = allMaterials.length > 0 ? allMaterials : (materials || []);
+    
+    if (materialsForCodeGen.length === 0) {
+      setNextMaterialCode('M-001');
+      return;
+    }
+    
+    const existingNumbers = materialsForCodeGen
+      .map(material => {
+        const code = material.code || '';
+        const match = code.match(/^M-(\d+)$/);
+        return match ? parseInt(match[1]) : null;
+      })
+      .filter(num => num !== null)
+      .sort((a, b) => a - b);
+    
+    let nextNumber = 1;
+    for (const num of existingNumbers) {
+      if (num === nextNumber) {
+        nextNumber++;
+      } else if (num > nextNumber) {
+        break;
+      }
+    }
+    
+    const newCode = `M-${String(nextNumber).padStart(3, '0')}`;
+    console.log('🔢 AddSupplierModal nextMaterialCode güncellendi:', newCode);
+    setNextMaterialCode(newCode);
+  }, [allMaterials, materials]);
 
   // Helper function to get category name from ID
   const getCategoryName = (categoryId) => {
@@ -365,7 +389,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
       }
 
       // Use provided code or generate automatic code
-      const finalCode = newMaterial.code.trim() || generateNextMaterialCode()
+      const finalCode = newMaterial.code.trim() || nextMaterialCode
       
       const materialData = {
         ...newMaterial,
@@ -1720,9 +1744,9 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
                     <input
                       type="text"
                       name="code"
-                      value={newMaterial.code || generateNextMaterialCode()}
+                      value={newMaterial.code || nextMaterialCode}
                       onChange={handleNewMaterialChange}
-                      placeholder={`Otomatik kod: ${generateNextMaterialCode()}`}
+                      placeholder={`Otomatik kod: ${nextMaterialCode}`}
                       style={{
                         flex: 1,
                         padding: '6px 8px',

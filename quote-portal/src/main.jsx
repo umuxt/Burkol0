@@ -207,22 +207,8 @@ function MaterialsApp() {
     return true;
   });
 
-  // === YENİ BASIT FONKSİYONLAR ===
-  
-  // 1. Stock context'i için - basit malzeme ekleme
-  const handleAddMaterialForStock = () => {
-    console.log('📦 main.jsx: Stock için malzeme ekleme modalı açılıyor...');
-    setMaterialCreatedCallback(null); // Callback yok
-    setIsModalOpen(true);
-  };
-  
-  // Tedarikçi detayı için malzeme ekleme kaldırıldı
-  
-  // Yeni tedarikçi için malzeme ekleme kaldırıldı
-
-  // === ESKİ KARMAŞIK FONKSİYON (GEÇİCİ) ===
+  // Malzeme ekleme modalını aç
   const handleAddMaterial = (onMaterialCreated = null) => {
-    console.log('⚠️ main.jsx: ESKİ handleAddMaterial kullanılıyor! Yeni fonksiyonlara geçin.');
     console.log('🔄 main.jsx: handleAddMaterial çağrıldı:', {
       newCallback: !!onMaterialCreated,
       currentCallback: !!materialCreatedCallback
@@ -323,16 +309,18 @@ function MaterialsApp() {
       await refreshMaterials();
       
       // Callback varsa çağır (malzeme bilgisiyle) - MODAL KAPATMADAN ÖNCE
-      if (materialCreatedCallback) {
+      if (materialCreatedCallback && typeof materialCreatedCallback === 'function') {
         console.log('🔄 main.jsx: Callback çağrılıyor...', newMaterial);
-        materialCreatedCallback(newMaterial);
+        try {
+          materialCreatedCallback(newMaterial);
+        } catch (callbackError) {
+          console.error('❌ Callback error:', callbackError);
+        }
       }
       
-      // MODAL KAPANMASI CALLBACK'TEN SONRA OLACAK
-      // Eğer callback varsa modal kapatmayı callback'e bırak
-      if (!materialCreatedCallback) {
-        setIsModalOpen(false);
-      }
+      // Modal'ı her durumda kapat
+      console.log('🔄 main.jsx: Modal kapatılıyor...');
+      setIsModalOpen(false);
       
       // Callback mechaism'ini temizle
       setMaterialCreatedCallback(null);

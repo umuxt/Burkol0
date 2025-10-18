@@ -280,7 +280,7 @@ export default function StocksTabContent({
             <button 
               type="button" 
               className="add-material-btn"
-              onClick={handleAddMaterial}
+              onClick={() => handleAddMaterial()}
             >
               + Yeni Malzeme
             </button>
@@ -323,7 +323,7 @@ export default function StocksTabContent({
             <p>İlk malzemenizi eklemek için "Yeni Malzeme" butonunu kullanın.</p>
             <button 
               className="add-material-btn primary"
-              onClick={handleAddMaterial}
+              onClick={() => handleAddMaterial()}
             >
               + İlk Malzemeyi Ekle
             </button>

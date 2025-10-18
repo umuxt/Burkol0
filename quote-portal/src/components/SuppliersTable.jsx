@@ -25,6 +25,10 @@ export default function SuppliersTable({
   const { materials: activeMaterials, loading: materialsLoading, loadMaterials } = useMaterials(false)
   const { addMaterial } = useMaterialActions()
   const [allMaterials, setAllMaterials] = useState([]) // Local state for all materials including removed
+  const [nextMaterialCode, setNextMaterialCode] = useState(() => {
+    // Component mount'ta hesapla
+    return 'M-001'; // Will be updated by useEffect
+  }) // Dynamic next code
   const [materialMode, setMaterialMode] = useState('existing')
   const [selectedMaterials, setSelectedMaterials] = useState([])
   const [materialSearchTerm, setMaterialSearchTerm] = useState('')
@@ -166,6 +170,38 @@ export default function SuppliersTable({
     })
   }, [allMaterials, activeMaterials, materialsLoading, selectedSupplier])
 
+  // Update next material code when allMaterials changes
+  useEffect(() => {
+    const materialsForCodeGen = allMaterials.length > 0 ? allMaterials : activeMaterials;
+    
+    if (!materialsForCodeGen || materialsForCodeGen.length === 0) {
+      setNextMaterialCode('M-001');
+      return;
+    }
+    
+    const existingNumbers = materialsForCodeGen
+      .map(material => {
+        const code = material.code || '';
+        const match = code.match(/^M-(\d+)$/);
+        return match ? parseInt(match[1]) : null;
+      })
+      .filter(num => num !== null)
+      .sort((a, b) => a - b);
+    
+    let nextNumber = 1;
+    for (const num of existingNumbers) {
+      if (num === nextNumber) {
+        nextNumber++;
+      } else if (num > nextNumber) {
+        break;
+      }
+    }
+    
+    const newCode = `M-${String(nextNumber).padStart(3, '0')}`;
+    console.log('🔢 SuppliersTable nextMaterialCode güncellendi:', newCode);
+    setNextMaterialCode(newCode);
+  }, [allMaterials, activeMaterials]);
+
   const handleEdit = () => {
     if (selectedSupplier) {
       setFormData(selectedSupplier)
@@ -243,33 +279,6 @@ export default function SuppliersTable({
     }
   }
 
-  // Material management functions
-  const generateNextMaterialCode = () => {
-    if (!materials || materials.length === 0) {
-      return 'M-001';
-    }
-    
-    const existingNumbers = materials
-      .map(material => {
-        const code = material.code || '';
-        const match = code.match(/^M-(\d+)$/);
-        return match ? parseInt(match[1]) : null;
-      })
-      .filter(num => num !== null)
-      .sort((a, b) => a - b);
-    
-    let nextNumber = 1;
-    for (const num of existingNumbers) {
-      if (num === nextNumber) {
-        nextNumber++;
-      } else if (num > nextNumber) {
-        break;
-      }
-    }
-    
-    return `M-${String(nextNumber).padStart(3, '0')}`;
-  };
-
   const extractMaterialCategories = async () => {
     try {
       const categoriesFromService = await categoriesService.getCategories()
@@ -279,8 +288,8 @@ export default function SuppliersTable({
       setMaterialCategories(materialCategories)
     } catch (error) {
       console.error('Categories yüklenirken hata:', error)
-      if (materials && materials.length > 0) {
-        const categories = [...new Set(materials
+      if (allMaterials && allMaterials.length > 0) {
+        const categories = [...new Set(allMaterials
           .map(material => material.category)
           .filter(category => category && category.trim() !== '')
         )].sort().map(name => ({ id: name, name }))
@@ -296,7 +305,7 @@ export default function SuppliersTable({
 
   const handleOpenMaterialPopup = async () => {
     setShowMaterialPopup(true)
-    if (!materials || materials.length === 0) {
+    if (!activeMaterials || activeMaterials.length === 0) {
       await loadMaterials()
     }
     await extractMaterialCategories()
@@ -369,7 +378,7 @@ export default function SuppliersTable({
         }
       }
 
-      const finalCode = newMaterial.code.trim() || generateNextMaterialCode()
+      const finalCode = newMaterial.code.trim() || nextMaterialCode
       
       const materialData = {
         ...newMaterial,
@@ -2084,7 +2093,7 @@ export default function SuppliersTable({
                         type="button"
                         onClick={async () => {
                           setMaterialMode('new')
-                          if ((!materials || materials.length === 0) && !materialsLoading) {
+                          if ((!activeMaterials || activeMaterials.length === 0) && !materialsLoading) {
                             await loadMaterials()
                             await extractMaterialCategories()
                           } else {
@@ -2365,9 +2374,9 @@ export default function SuppliersTable({
                         <input
                           type="text"
                           name="code"
-                          value={newMaterial.code || generateNextMaterialCode()}
+                          value={newMaterial.code || nextMaterialCode}
                           onChange={handleNewMaterialChange}
-                          placeholder={`Otomatik kod: ${generateNextMaterialCode()}`}
+                          placeholder={`Otomatik kod: ${nextMaterialCode}`}
                           style={{
                             flex: 1,
                             padding: '6px 8px',

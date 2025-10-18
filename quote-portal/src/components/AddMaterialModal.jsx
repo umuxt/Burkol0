@@ -34,12 +34,87 @@ export default function AddMaterialModal({
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategory, setNewCategory] = useState('');
 
-  // Otomatik kod oluşturma - minimum unique değer bulma
-  const generateNextCode = () => {
-    if (materials.length === 0) return 'M-001';
+  // State for all materials (including removed ones) for code generation
+  const [allMaterials, setAllMaterials] = useState([]);
+  const [nextCode, setNextCode] = useState(() => {
+    // İlk render'da mevcut materials'tan kod hesapla
+    if (materials && materials.length > 0) {
+      const existingNumbers = materials
+        .map(material => {
+          const code = material.code || '';
+          const match = code.match(/^M-(\d+)$/);
+          return match ? parseInt(match[1]) : null;
+        })
+        .filter(num => num !== null)
+        .sort((a, b) => a - b);
+      
+      let nextNumber = 1;
+      for (const num of existingNumbers) {
+        if (num === nextNumber) {
+          nextNumber++;
+        } else if (num > nextNumber) {
+          break;
+        }
+      }
+      
+      return `M-${String(nextNumber).padStart(3, '0')}`;
+    }
+    return 'M-001';
+  }); // Dynamic next code based on all materials
+  
+  // Load all materials for code generation on mount
+  useEffect(() => {
+    const loadAllMaterials = async () => {
+      try {
+        const { materialsService } = await import('../services/materials-service.js');
+        const allMaterialsList = await materialsService.getAllMaterials();
+        console.log('🔢 Kod oluşturma için tüm materyaller yüklendi:', allMaterialsList.length);
+        setAllMaterials(allMaterialsList);
+      } catch (error) {
+        console.error('❌ Tüm materyaller yüklenemedi:', error);
+        // Fallback olarak mevcut materials'ı kullan
+        setAllMaterials(materials);
+      }
+    };
     
-    // Mevcut tüm kodlardan sayıları çıkar ve sırala
-    const existingNumbers = materials
+    // Modal açıldığında hemen yükle
+    if (isOpen && allMaterials.length === 0) {
+      loadAllMaterials();
+    }
+  }, [isOpen]);
+
+  // Reset form when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({
+        code: '',
+        name: '',
+        type: '',
+        category: '',
+        unit: '',
+        stock: '',
+        reorderPoint: '',
+        costPrice: '',
+        sellPrice: '',
+        supplier: '',
+        description: '',
+        status: 'Aktif'
+      });
+      setShowNewCategory(false);
+      setNewCategory('');
+    }
+  }, [isOpen]);
+
+  // Update next code when allMaterials changes
+  useEffect(() => {
+    const materialsForCodeGen = allMaterials.length > 0 ? allMaterials : materials;
+    
+    if (materialsForCodeGen.length === 0) {
+      setNextCode('M-001');
+      return;
+    }
+    
+    const existingNumbers = materialsForCodeGen
       .map(material => {
         const code = material.code || '';
         const match = code.match(/^M-(\d+)$/);
@@ -48,21 +123,19 @@ export default function AddMaterialModal({
       .filter(num => num !== null)
       .sort((a, b) => a - b);
     
-    // Minimum boş değeri bul
     let nextNumber = 1;
     for (const num of existingNumbers) {
       if (num === nextNumber) {
         nextNumber++;
       } else if (num > nextNumber) {
-        // Arada boş bir numara bulundu
         break;
       }
     }
     
-    return `M-${String(nextNumber).padStart(3, '0')}`;
-  };
-
-  const nextCode = generateNextCode();
+    const newCode = `M-${String(nextNumber).padStart(3, '0')}`;
+    console.log('🔢 AddMaterialModal nextCode güncellendi:', newCode);
+    setNextCode(newCode);
+  }, [allMaterials, materials]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -174,7 +247,7 @@ export default function AddMaterialModal({
               <input
                 type="text"
                 name="code"
-                value={formData.code}
+                value={formData.code || nextCode}
                 onChange={handleInputChange}
                 placeholder={nextCode}
               />

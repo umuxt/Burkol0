@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { fetchWithTimeout } from '../lib/api.js'
+import { getAuthToken } from '../utils/auth.js'
 
 function withAuth(headers = {}) {
   try {
