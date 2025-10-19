@@ -42,6 +42,9 @@ export default function SuppliersTable({
   const [showNewCategory, setShowNewCategory] = useState(false)
   const [newCategory, setNewCategory] = useState('')
   
+  // Toggle switch for showing all materials vs active only
+  const [showAllMaterials, setShowAllMaterials] = useState(false)
+  
   // Material detail modal state
   const [showMaterialDetailModal, setShowMaterialDetailModal] = useState(false)
   const [selectedMaterialForDetail, setSelectedMaterialForDetail] = useState(null)
@@ -797,10 +800,17 @@ export default function SuppliersTable({
                     <td style={{ padding: '12px 8px', fontSize: '13px' }}>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         {supplier.suppliedMaterials && supplier.suppliedMaterials.length > 0 
-                          ? [...new Set(supplier.suppliedMaterials.map(material => {
-                              const category = materialCategories.find(cat => cat.id === material.category);
-                              return category ? category.name : material.category;
-                            }).filter(Boolean))].map((categoryName, index) => (
+                          ? [...new Set(supplier.suppliedMaterials
+                              .filter(material => {
+                                // Find full material details from allMaterials array
+                                const fullMaterial = allMaterials.find(m => m.id === material.id);
+                                // Only include categories from materials that are not "Kaldırıldı"
+                                return fullMaterial?.status !== 'Kaldırıldı';
+                              })
+                              .map(material => {
+                                const category = materialCategories.find(cat => cat.id === material.category);
+                                return category ? category.name : material.category;
+                              }).filter(Boolean))].map((categoryName, index) => (
                               <span 
                                 key={index}
                                 style={{ 
@@ -2116,26 +2126,70 @@ export default function SuppliersTable({
                   </div>
 
                   {/* Current Supplied Materials */}
-                  {selectedSupplier?.suppliedMaterials && selectedSupplier.suppliedMaterials.length > 0 && (
-                    <div style={{ marginBottom: '12px' }}>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: '12px', fontWeight: '600', color: '#111827' }}>
-                        Tedarik Edilen Malzemeler ({selectedSupplier.suppliedMaterials.length})
-                      </h4>
+                  {selectedSupplier?.suppliedMaterials && selectedSupplier.suppliedMaterials.length > 0 && (() => {
+                    // Calculate materials count based on toggle state
+                    const filteredMaterials = selectedSupplier.suppliedMaterials.filter(material => {
+                      const fullMaterial = allMaterials.find(m => m.id === material.id)
+                      const materialName = fullMaterial?.name || material.name
+                      
+                      // Filter empty names first
+                      if (!materialName || materialName.trim() === '') return false
+                      
+                      // Then filter by active/all based on toggle
+                      if (showAllMaterials) {
+                        return true // Show all materials (active + removed)
+                      } else {
+                        return fullMaterial?.status !== 'Kaldırıldı' // Show only active materials
+                      }
+                    })
+                    
+                    const validMaterialsCount = filteredMaterials.length
+                    
+                    return (
+                      <div style={{ marginBottom: '12px' }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                          marginBottom: '8px'
+                        }}>
+                          <h4 style={{ margin: '0', fontSize: '12px', fontWeight: '600', color: '#111827' }}>
+                            Tedarik Edilen Malzemeler ({validMaterialsCount})
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => setShowAllMaterials(!showAllMaterials)}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '10px',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '4px',
+                              background: showAllMaterials ? '#3b82f6' : 'white',
+                              color: showAllMaterials ? 'white' : '#6b7280',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            {showAllMaterials ? 'Hepsini Göster' : 'Mevcut Malzemeler'}
+                          </button>
+                        </div>
                       <div style={{ 
                         border: '1px solid #e5e7eb', 
                         borderRadius: '4px'
                       }}>
-                        {selectedSupplier.suppliedMaterials.map((material, index) => {
+                        {filteredMaterials.length > 0 ? (
+                          filteredMaterials.map((material, index) => {
                           // Find full material details from allMaterials array
                           const fullMaterial = allMaterials.find(m => m.id === material.id)
                           const isRemoved = fullMaterial?.status === 'Kaldırıldı'
+                          const materialName = fullMaterial?.name || material.name || 'İsimsiz Malzeme'
                           
                           return (
                             <div
                               key={material.id || index}
                               style={{
                                 padding: '6px 12px',
-                                borderBottom: index < selectedSupplier.suppliedMaterials.length - 1 ? '1px solid #f3f4f6' : 'none',
+                                borderBottom: index < filteredMaterials.length - 1 ? '1px solid #f3f4f6' : 'none',
                                 display: 'flex',
                                 justifyContent: 'space-between',
                                 alignItems: 'center',
@@ -2156,7 +2210,7 @@ export default function SuppliersTable({
                                     textDecoration: isRemoved ? 'line-through' : 'none',
                                     opacity: (!isRemoved && material.status === 'pasif') ? 0.6 : 1
                                   }}>
-                                    {fullMaterial?.name || material.name}
+                                    {materialName}
                                   </span>
                                   {isRemoved && (
                                     <span style={{
@@ -2221,10 +2275,8 @@ export default function SuppliersTable({
                               </div>
                             </div>
                           )
-                        })}
-                        
-                        {/* Show message when no materials */}
-                        {selectedSupplier.suppliedMaterials.length === 0 && (
+                          })
+                        ) : (
                           <div style={{ 
                             padding: '20px', 
                             textAlign: 'center', 
@@ -2232,12 +2284,16 @@ export default function SuppliersTable({
                             fontSize: '12px',
                             fontStyle: 'italic'
                           }}>
-                            Henüz malzeme eklenmemiş. Yukarıdaki butonları kullanarak malzeme ekleyebilirsiniz.
+                            {showAllMaterials 
+                              ? 'Bu tedarikçiye ait malzeme bulunamadı.' 
+                              : 'Bu tedarikçiye ait aktif malzeme bulunamadı. "Hepsini Göster" ile kaldırılmış malzemeleri görebilirsiniz.'
+                            }
                           </div>
                         )}
                       </div>
                     </div>
-                  )}
+                    )
+                  })()}
 
                   {/* New Material Mode */}
                   {materialMode === 'new' && (
