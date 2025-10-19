@@ -3,6 +3,7 @@ import MaterialsDashboard from './MaterialsDashboard.jsx'
 import MaterialsFilters from './MaterialsFilters.jsx'
 import MaterialsTable from './MaterialsTable.jsx'
 import BulkProgressModal from './BulkProgressModal.jsx'
+import { materialsService } from '../services/materials-service.js'
 
 export default function StocksTabContent({ 
   materials, 
@@ -21,6 +22,17 @@ export default function StocksTabContent({
   const [selectedMaterials, setSelectedMaterials] = useState(new Set());
   const [bulkProgress, setBulkProgress] = useState(null);
   const bulkCancelRef = useRef(false);
+
+  // Global function to handle bulk delete from modal
+  React.useEffect(() => {
+    window.handleBulkDeleteFromModal = (materialsToDelete) => {
+      performBulkDeleteOperation(materialsToDelete);
+    };
+    
+    return () => {
+      delete window.handleBulkDeleteFromModal;
+    };
+  }, [materials]);
 
   // Helper function to get category name
   const getCategoryName = (categoryId) => {
@@ -134,19 +146,26 @@ export default function StocksTabContent({
       return;
     }
     
-    const selectedCount = selectedMaterials.size;
-    const confirmMessage = `${selectedCount} malzemeyi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`;
+    // Get selected materials for warning modal
+    const selectedMaterialsList = Array.from(selectedMaterials).map(id => {
+      return materials.find(m => m.id === id);
+    }).filter(Boolean);
     
-    if (!window.confirm(confirmMessage)) return;
+    // Trigger deletion warning modal for bulk delete
+    if (typeof handleDeleteMaterial === 'function') {
+      handleDeleteMaterial(selectedMaterialsList, false, true); // bulk delete flag
+      return;
+    }
+  };
 
-    // Prepare material list with names for progress display
-    const materialsList = Array.from(selectedMaterials).map(id => {
-      const material = materials.find(m => m.id === id);
-      return {
-        id,
-        name: material ? (material.name || material.code || id) : id
-      };
-    });
+  // Perform actual bulk delete operation with progress tracking
+  const performBulkDeleteOperation = async (materialsToDelete) => {
+    if (!Array.isArray(materialsToDelete) || materialsToDelete.length === 0) return;
+
+    const materialsList = materialsToDelete.map(material => ({
+      id: material.id,
+      name: material.name || material.code || material.id
+    }));
 
     const total = materialsList.length;
     bulkCancelRef.current = false;
@@ -160,46 +179,61 @@ export default function StocksTabContent({
       currentId: null,
       currentName: '',
       finished: false,
-      cancelled: false,
       cancelling: false,
+      cancelled: false,
       errors: [],
       skipped: 0,
-      title: 'Toplu Malzeme Silme',
-      message: 'Malzemeler siliniyor...'
+      title: 'Malzemeler Kaldırılıyor'
     });
 
-    let processedCount = 0;
-    let successCount = 0;
     const errors = [];
+    let successCount = 0;
+    let skippedCount = 0;
+    let processedCount = 0;
 
     // Process each material
-    for (let i = 0; i < total; i++) {
+    for (let i = 0; i < materialsList.length; i++) {
       if (bulkCancelRef.current) {
+        console.log('🚫 Bulk delete cancelled by user');
         break;
       }
 
-      const material = materialsList[i];
+      const materialItem = materialsList[i];
+      
+      // Update progress state
       setBulkProgress(prev => prev ? {
         ...prev,
         currentIndex: i,
-        currentId: material.id,
-        currentName: material.name,
-        completed: processedCount
+        currentId: materialItem.id,
+        currentName: materialItem.name
       } : prev);
 
       try {
-        await handleDeleteMaterial(material.id, true); // skipConfirmation = true
-        successCount += 1;
+        console.log(`🗑️ Deleting material ${i + 1}/${total}: ${materialItem.name}`);
+        
+        // Call materials service directly to get detailed response
+        const result = await materialsService.deleteMaterial(materialItem.id);
+        
+        if (result.alreadyRemoved) {
+          console.log(`⚠️ Material already removed, skipped: ${materialItem.name}`);
+          skippedCount++;
+        } else {
+          successCount++;
+          console.log(`✅ Successfully deleted: ${materialItem.name}`);
+        }
+        
       } catch (error) {
-        console.error('Bulk delete material error:', material.id, error);
-        errors.push({ 
-          id: material.id, 
-          name: material.name,
-          error: error?.message || 'Silme hatası' 
+        console.error(`❌ Failed to delete material ${materialItem.name}:`, error);
+        errors.push({
+          id: materialItem.id,
+          name: materialItem.name,
+          error: error.message || 'Silme işlemi başarısız'
         });
       }
 
-      processedCount += 1;
+      processedCount++;
+      
+      // Update progress
       setBulkProgress(prev => prev ? { ...prev, completed: processedCount } : prev);
     }
 
@@ -216,16 +250,15 @@ export default function StocksTabContent({
       active: false,
       cancelling: false,
       cancelled,
-      errors
+      errors,
+      skipped: skippedCount
     } : prev);
 
     // Clear selection and refresh materials
     setSelectedMaterials(new Set());
-    
+
     // Refresh materials after bulk operation
     try {
-      // Since handleDeleteMaterial was called with skipConfirmation=true, 
-      // we need to trigger a refresh here
       if (typeof refreshMaterials === 'function') {
         await refreshMaterials();
       }
@@ -234,9 +267,10 @@ export default function StocksTabContent({
     }
 
     if (!cancelled) {
-      const message = `${successCount} malzeme silindi`;
+      const message = `${successCount} malzeme kaldırıldı`;
+      const skippedMessage = skippedCount > 0 ? `, ${skippedCount} zaten kaldırılmış (atlandı)` : '';
       const errorMessage = errors.length > 0 ? `, ${errors.length} hatada hata oluştu` : '';
-      console.log(message + errorMessage);
+      console.log(message + skippedMessage + errorMessage);
     }
   };
   

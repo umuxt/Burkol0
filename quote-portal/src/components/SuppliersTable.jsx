@@ -2716,7 +2716,10 @@ export default function SuppliersTable({
                     {materialSearchTerm ? 'Arama kriterine uygun malzeme bulunamadı' : 'Henüz malzeme bulunmuyor'}
                   </div>
                 ) : (
-                  filteredMaterials.map(material => (
+                    // Ensure only active materials are shown in this selection popup
+                    filteredMaterials
+                      .filter(material => material.status !== 'Kaldırıldı')
+                      .map(material => (
                     <div
                       key={material.id}
                       onClick={() => handleMaterialSelect(material)}

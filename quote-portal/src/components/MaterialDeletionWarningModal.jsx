@@ -6,7 +6,8 @@ const MaterialDeletionWarningModal = ({
   onConfirm, 
   materials, // Array of materials to delete
   isBulk = false,
-  suppliers = [] // Array of all suppliers for checking relationships
+  suppliers = [], // Array of all suppliers for checking relationships
+  isDeleting = false // New prop for showing deletion progress state
 }) => {
   const [affectedSuppliers, setAffectedSuppliers] = useState([])
   const [loading, setLoading] = useState(false)
@@ -20,13 +21,18 @@ const MaterialDeletionWarningModal = ({
 
   const calculateAffectedSuppliers = () => {
     setLoading(true)
-    const materialIds = materials.map(m => m.id)
+    
+    // Sadece aktif (kaldırılmamış) materyallerin ID'lerini al
+    const activeMaterialIds = materials
+      .filter(m => m.status !== 'Kaldırıldı')
+      .map(m => m.id)
+    
     const affected = []
 
     suppliers.forEach(supplier => {
       if (supplier.suppliedMaterials) {
         const suppliedMaterials = supplier.suppliedMaterials.filter(sm => 
-          materialIds.includes(sm.id)
+          activeMaterialIds.includes(sm.id)
         )
         
         if (suppliedMaterials.length > 0) {
@@ -69,6 +75,11 @@ const MaterialDeletionWarningModal = ({
   const totalMaterials = materials.length
   const totalAffectedSuppliers = affectedSuppliers.length
   const totalAffectedMaterials = affectedSuppliers.reduce((sum, item) => sum + item.materialCount, 0)
+  
+  // Kaldırılmış materyalleri hesapla
+  const alreadyRemovedMaterials = materials.filter(material => material.status === 'Kaldırıldı')
+  const materialsToProcess = materials.filter(material => material.status !== 'Kaldırıldı')
+  const hasAlreadyRemovedMaterials = alreadyRemovedMaterials.length > 0
 
   return (
     <div className="modal-overlay">
@@ -92,11 +103,29 @@ const MaterialDeletionWarningModal = ({
             <div className="warning-message">
               <strong>
                 {isBulk 
-                  ? `${totalMaterials} malzemeyi kaldırmak üzeresiniz.`
+                  ? `${materialsToProcess.length > 0 ? materialsToProcess.length : totalMaterials} malzemeyi kaldırmak üzeresiniz.`
                   : `"${materials[0]?.name}" malzemesini kaldırmak üzeresiniz.`
                 }
               </strong>
             </div>
+            
+            {/* Kaldırılmış malzemeler bilgisi */}
+            {hasAlreadyRemovedMaterials && (
+              <div className="already-removed-info">
+                <p className="already-removed-message">
+                  <span className="info-icon">ℹ️</span>
+                  {isBulk ? (
+                    <>
+                      <strong>Zaten kaldırılmış malzemeler:</strong> {alreadyRemovedMaterials.map(m => m.name).join(', ')}{alreadyRemovedMaterials.length > 3 ? '...' : ''} tekrar kaldırılamaz, bu işlemler atlanacaktır.
+                    </>
+                  ) : (
+                    <>
+                      <strong>Bu malzeme zaten kaldırılmış!</strong> Tekrar kaldırma işlemi gereksizdir ve atlanacaktır.
+                    </>
+                  )}
+                </p>
+              </div>
+            )}
             
             {loading ? (
               <div className="loading-section">
@@ -106,7 +135,7 @@ const MaterialDeletionWarningModal = ({
             ) : totalAffectedSuppliers > 0 ? (
               <div className="supplier-impact">
                 <p className="impact-summary">
-                  Bu malzeme{isBulk && totalMaterials > 1 ? 'ler' : ''} <strong>{totalAffectedSuppliers} tedarikçi</strong> tarafından tedarik edilmektedir.
+                  Bu malzeme{isBulk && materialsToProcess.length > 1 ? 'ler' : ''} <strong>{totalAffectedSuppliers} tedarikçi</strong> tarafından tedarik edilmektedir.
                 </p>
                 <div className="affected-suppliers">
                   <h4>📋 Etkilenen Tedarikçiler:</h4>
@@ -127,7 +156,7 @@ const MaterialDeletionWarningModal = ({
             ) : (
               <div className="no-suppliers">
                 <p className="no-impact">
-                  ✅ Bu malzeme{isBulk && totalMaterials > 1 ? 'ler' : ''} henüz hiçbir tedarikçi tarafından tedarik edilmiyor.
+                  ✅ Bu malzeme{isBulk && materialsToProcess.length > 1 ? 'ler' : ''} henüz hiçbir tedarikçi tarafından tedarik edilmiyor.
                 </p>
               </div>
             )}
@@ -172,7 +201,6 @@ const MaterialDeletionWarningModal = ({
                 checked={confirmChecked}
                 onChange={(e) => setConfirmChecked(e.target.checked)}
               />
-              <span className="checkmark"></span>
               <span className="confirmation-text">
                 Yukarıdaki uyarıları okudum ve anladım. 
                 {totalAffectedSuppliers > 0 && (
@@ -180,23 +208,45 @@ const MaterialDeletionWarningModal = ({
                     {' '}Bu işlemin <strong>{totalAffectedSuppliers} tedarikçiyi</strong> etkileyeceğini biliyorum.
                   </span>
                 )}
-                {' '}Malzeme{isBulk && totalMaterials > 1 ? 'leri' : 'yi'} kaldırmak istiyorum.
+                {' '}Malzeme{isBulk && materialsToProcess.length > 1 ? 'leri' : 'yi'} kaldırmak istiyorum.
               </span>
             </label>
           </div>
+          {/* Show deletion progress if in deleting state */}
+          {isDeleting && (
+            <div className="deletion-progress">
+              <div className="progress-spinner">
+                <div className="spinner"></div>
+              </div>
+              <p className="progress-text">
+                {isBulk 
+                  ? `${materialsToProcess.length > 0 ? materialsToProcess.length : totalMaterials} malzeme kaldırılıyor...`
+                  : `"${materials[0]?.name}" kaldırılıyor...`
+                }
+              </p>
+              <p className="progress-subtext">
+                Bu işlem biraz zaman alabilir, lütfen bekleyin.
+              </p>
+            </div>
+          )}
+          
           <div className="action-buttons">
             <button 
               className="btn btn-secondary" 
               onClick={handleClose}
+              disabled={isDeleting}
             >
               İptal
             </button>
             <button 
               className="btn btn-danger" 
               onClick={handleConfirm}
-              disabled={!confirmChecked || loading}
+              disabled={!confirmChecked || loading || isDeleting}
             >
-              {loading ? 'İşleniyor...' : `${isBulk ? 'Toplu ' : ''}Kaldır (${totalMaterials})`}
+              {isDeleting 
+                ? (isBulk ? 'Kaldırılıyor...' : 'Kaldırılıyor...')
+                : (loading ? 'İşleniyor...' : `${isBulk ? 'Toplu ' : ''}Kaldır (${materialsToProcess.length > 0 ? materialsToProcess.length : totalMaterials})`)
+              }
             </button>
           </div>
         </div>

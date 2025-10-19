@@ -5,7 +5,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
     search: '',
     categories: [],
     types: [],
-    status: '',
+    status: 'Aktif', // Default olarak aktif materyaller gösteriliyor
     lowStock: false
   });
 
@@ -33,21 +33,30 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
 
   const handleStatusToggle = () => {
     let nextStatus = '';
-    if (filters.status === '') nextStatus = 'Aktif';
-    else nextStatus = ''; // Only toggle between 'Aktif' and no filter
+    if (filters.status === '' || filters.status === 'Tümü') {
+      nextStatus = 'Aktif'; // Tümü -> Aktif
+    } else if (filters.status === 'Aktif') {
+      nextStatus = 'Removed'; // Aktif -> Removed  
+    } else if (filters.status === 'Removed') {
+      nextStatus = 'Tümü'; // Removed -> Tümü
+    } else {
+      nextStatus = 'Aktif'; // Fallback
+    }
     
     handleFilterChange('status', nextStatus);
   };
 
   const getStatusLabel = () => {
-    if (filters.status === '') return 'Tümü';
+    if (filters.status === '' || filters.status === 'Tümü') return 'Tümü';
     if (filters.status === 'Aktif') return 'Aktif';
-    return 'Bilinmeyen'; // Fallback
+    if (filters.status === 'Removed') return 'Removed';
+    return 'Tümü'; // Fallback
   };
 
   const getStatusIcon = () => {
-    if (filters.status === '') return '🔄';
+    if (filters.status === '' || filters.status === 'Tümü') return '🔄';
     if (filters.status === 'Aktif') return '✅';
+    if (filters.status === 'Removed') return '🗑️';
     return '🔄'; // Fallback
   };
 
@@ -71,7 +80,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
       search: '',
       categories: [],
       types: [],
-      status: '',
+      status: 'Aktif', // Default olarak aktif materyaller
       lowStock: false
     };
     setFilters(clearedFilters);
@@ -80,7 +89,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
     }
   };
 
-  const hasActiveFilters = filters.search || filters.categories?.length > 0 || filters.types?.length > 0 || filters.status || filters.lowStock;
+  const hasActiveFilters = filters.search || filters.categories?.length > 0 || filters.types?.length > 0 || (filters.status && filters.status !== 'Aktif') || filters.lowStock;
 
   return (
     <section className="materials-filters">
@@ -182,7 +191,11 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
           <div className="filter-group">
             <div className="status-toggle-container">
               <div 
-                className={`status-toggle-header ${filters.status ? 'active' : ''}`}
+                className={`status-toggle-header ${filters.status ? 'active' : ''} ${
+                  filters.status === 'Aktif' ? 'status-aktif' : 
+                  filters.status === 'Removed' ? 'status-removed' : 
+                  'status-tumü'
+                }`}
                 onClick={handleStatusToggle}
               >
                 <span className="status-icon">{getStatusIcon()}</span>

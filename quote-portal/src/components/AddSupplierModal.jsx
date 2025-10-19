@@ -321,12 +321,14 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
 
   const filteredMaterials = useMemo(() => {
     if (!materials || !Array.isArray(materials)) return []
-    
-    return materials.filter(material => 
-      material.name?.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
-      material.code?.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
-      getCategoryName(material.category)?.toLowerCase().includes(materialSearchTerm.toLowerCase())
-    )
+    // Only include active materials (exclude 'Kaldırıldı')
+    return materials
+      .filter(material => material.status !== 'Kaldırıldı')
+      .filter(material => 
+        material.name?.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
+        material.code?.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
+        getCategoryName(material.category)?.toLowerCase().includes(materialSearchTerm.toLowerCase())
+      )
   }, [materials, materialSearchTerm, materialCategories])
 
   const handleMaterialSelect = (material) => {

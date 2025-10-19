@@ -132,8 +132,16 @@ export const materialsService = {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       
-      console.log('✅ Material deleted:', materialId)
-      return true
+      const result = await response.json()
+      console.log('✅ Material deleted:', materialId, result)
+      
+      return {
+        success: true,
+        id: materialId,
+        action: result.action,
+        message: result.message,
+        alreadyRemoved: result.action === 'already_removed'
+      }
     } catch (error) {
       console.error('❌ Material delete error:', error)
       throw error

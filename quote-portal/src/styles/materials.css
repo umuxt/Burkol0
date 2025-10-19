@@ -688,6 +688,25 @@ section.materials-dashboard div.card {
   background: #f8f9ff;
 }
 
+/* Status toggle colors for different states */
+.status-toggle-header.status-aktif {
+  border-color: #28a745;
+  background: #f8fff9;
+  color: #28a745;
+}
+
+.status-toggle-header.status-removed {
+  border-color: #dc3545;
+  background: #fff8f8;
+  color: #dc3545;
+}
+
+.status-toggle-header.status-tumü {
+  border-color: #6c757d;
+  background: #f8f9fa;
+  color: #6c757d;
+}
+
 .status-icon {
   font-size: 12px;
 }
@@ -1682,6 +1701,40 @@ textarea.editable-input {
 .materials-table tr.inactive td {
   color: #9ca3af;
   font-weight: 400;
+}
+
+/* Removed Material Styles */
+.materials-table tr.removed-material {
+  background: rgba(220, 53, 69, 0.05);
+  color: #6c757d;
+  opacity: 0.6;
+}
+
+.materials-table tr.removed-material:hover {
+  background: rgba(220, 53, 69, 0.08);
+  opacity: 0.75;
+}
+
+.materials-table tr.removed-material td {
+  color: #6c757d;
+  font-weight: 400;
+}
+
+.materials-table tr.removed-material .stock-bar-background {
+  opacity: 0.5;
+}
+
+.materials-table tr.removed-material .stock-fill {
+  opacity: 0.5;
+}
+
+.materials-table tr.removed-material .reorder-line {
+  opacity: 0.5;
+}
+
+.materials-table tr.removed-material .stock-current {
+  color: #6c757d;
+  opacity: 0.7;
 }
 
 /* Responsive Design */

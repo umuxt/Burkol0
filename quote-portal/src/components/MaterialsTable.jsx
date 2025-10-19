@@ -279,7 +279,10 @@ export default function MaterialsTable({
             {sortedMaterials.map((material) => (
               <tr 
                 key={material.id || material.code} 
-                className={`${material.stock <= material.reorderPoint ? 'low-stock' : ''}`}
+                className={`
+                  ${material.stock <= material.reorderPoint ? 'low-stock' : ''} 
+                  ${material.status === 'Kaldırıldı' ? 'removed-material' : ''}
+                `.trim()}
                 onClick={(e) => {
                   // Checkbox tıklamasında satır seçimini engelle
                   if (e.target.type !== 'checkbox') {

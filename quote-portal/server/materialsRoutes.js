@@ -171,6 +171,14 @@ export function setupMaterialsRoutes(app) {
         return res.status(404).json({ error: 'Malzeme bulunamadı' })
       }
       
+      const materialData = doc.data()
+      
+      // Zaten kaldırılmış malzemeyi tekrar kaldırmaya çalışılıyorsa
+      if (materialData.status === 'Kaldırıldı') {
+        console.log('⚠️ API: Malzeme zaten kaldırılmış, işlem atlanıyor:', id)
+        return res.json({ success: true, id, action: 'already_removed', message: 'Malzeme zaten kaldırılmış' })
+      }
+      
       // Hard delete yerine soft delete - status'u 'Kaldırıldı' yap
       await docRef.update({
         status: 'Kaldırıldı',

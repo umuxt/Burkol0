@@ -80,6 +80,7 @@ function MaterialsApp() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isDeletionWarningOpen, setIsDeletionWarningOpen] = useState(false);
+  const [isDeletionInProgress, setIsDeletionInProgress] = useState(false);
   // AddSupplierModal için ayrı modal kaldırıldı
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [materialCreatedCallback, setMaterialCreatedCallback] = useState(null);
@@ -101,7 +102,7 @@ function MaterialsApp() {
     search: '',
     categories: [],
     types: [],
-    status: '',
+    status: 'Aktif', // Default olarak aktif materyaller
     lowStock: false
   });
 
@@ -165,10 +166,19 @@ function MaterialsApp() {
 
   // Filtrelenmiş malzemeler - Client-side filtering
   const filteredMaterials = materials.filter(material => {
-    // Kaldırılan malzemeleri normal görünümden hariç tut
-    if (material.status === 'Kaldırıldı') {
-      return false;
+    // Status filtresine göre materyalleri filtrele
+    if (filters.status === 'Aktif') {
+      // Sadece aktif materyaller (Kaldırılmamış)
+      if (material.status === 'Kaldırıldı') {
+        return false;
+      }
+    } else if (filters.status === 'Removed') {
+      // Sadece kaldırılmış materyaller
+      if (material.status !== 'Kaldırıldı') {
+        return false;
+      }
     }
+    // filters.status === 'Tümü' ise hiçbir status filtresi uygulanmaz
     
     // Arama filtresi
     if (filters.search) {
@@ -192,11 +202,6 @@ function MaterialsApp() {
       if (!filters.types.includes(material.type)) {
         return false;
       }
-    }
-
-    // Durum filtresi
-    if (filters.status && material.status !== filters.status) {
-      return false;
     }
 
     // Düşük stok filtresi
@@ -359,10 +364,25 @@ function MaterialsApp() {
     }
   };
 
-  // Material silme fonksiyonu - now with warning modal
-  const handleDeleteMaterial = async (materialId, skipConfirmation = false) => {
-    console.log('🗑️ handleDeleteMaterial called:', { materialId, skipConfirmation });
+  // Material silme fonksiyonu - now with warning modal and bulk support
+  const handleDeleteMaterial = async (materialIdOrList, skipConfirmation = false, isBulkDelete = false) => {
+    console.log('🗑️ handleDeleteMaterial called:', { materialIdOrList, skipConfirmation, isBulkDelete });
     
+    if (isBulkDelete && Array.isArray(materialIdOrList)) {
+      // Bulk delete case - show warning modal for multiple materials
+      console.log('📦 Bulk delete for materials:', materialIdOrList.length);
+      setMaterialsToDelete(materialIdOrList);
+      setDeletionCallback(() => async () => {
+        // This will be called from MaterialDeletionWarningModal
+        // The actual bulk deletion logic will be handled there
+        return { isBulkDelete: true, materials: materialIdOrList };
+      });
+      setIsDeletionWarningOpen(true);
+      return true;
+    }
+    
+    // Single material case
+    const materialId = materialIdOrList;
     const material = materials.find(m => m.id === materialId);
     if (!material) {
       console.error('❌ Material not found:', materialId);
@@ -372,7 +392,7 @@ function MaterialsApp() {
     console.log('📦 Material found:', material.name);
 
     if (skipConfirmation) {
-      // Bulk delete case - no individual confirmation
+      // Bulk delete individual item - no individual confirmation
       console.log('⚡ Skipping confirmation, direct delete');
       try {
         await deleteMaterial(materialId);
@@ -402,9 +422,35 @@ function MaterialsApp() {
 
   const handleConfirmDeletion = async () => {
     if (deletionCallback) {
-      await deletionCallback();
-      setDeletionCallback(null);
-      setMaterialsToDelete([]);
+      setIsDeletionInProgress(true);
+      
+      try {
+        const result = await deletionCallback();
+        
+        // Check if this is a bulk delete operation
+        if (result && result.isBulkDelete) {
+          console.log('🔄 Starting bulk delete operation for', result.materials.length, 'materials');
+          
+          // Clear the modal first
+          setDeletionCallback(null);
+          setMaterialsToDelete([]);
+          setIsDeletionWarningOpen(false);
+          setIsDeletionInProgress(false);
+          
+          // Start the bulk delete process with progress tracking  
+          // We'll delegate this to StocksTabContent
+          if (window.handleBulkDeleteFromModal) {
+            window.handleBulkDeleteFromModal(result.materials);
+          }
+          return;
+        }
+        
+        // Regular single delete
+        setDeletionCallback(null);
+        setMaterialsToDelete([]);
+      } finally {
+        setIsDeletionInProgress(false);
+      }
     }
   };
 
@@ -512,6 +558,7 @@ function MaterialsApp() {
           suppliers={suppliers}
           loading={actionLoading}
           error={actionError}
+          isRemoved={editingMaterial?.status === 'Kaldırıldı'}
         />
       </ErrorBoundary>
 
@@ -535,11 +582,13 @@ function MaterialsApp() {
           setIsDeletionWarningOpen(false);
           setMaterialsToDelete([]);
           setDeletionCallback(null);
+          setIsDeletionInProgress(false);
         }}
         onConfirm={handleConfirmDeletion}
         materials={materialsToDelete}
         isBulk={materialsToDelete.length > 1}
         suppliers={suppliers}
+        isDeleting={isDeletionInProgress}
       />
     </div>
   );

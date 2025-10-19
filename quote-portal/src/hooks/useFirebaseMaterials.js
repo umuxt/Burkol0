@@ -13,10 +13,10 @@ export function useMaterials(autoLoad = false) {
       setLoading(true);
       setError(null);
       
-      // Backend API'den malzemeleri yükle
-      console.warn('🔄 HOOK DEBUG: API çağrısı yapılıyor...');
-      const materialsList = await materialsService.getMaterials();
-      console.warn('🔍 HOOK DEBUG: API response aldı:', materialsList?.length || 0, 'materyal');
+      // Backend API'den tüm malzemeleri yükle (kaldırılanlar dahil)
+      console.warn('🔄 HOOK DEBUG: API çağrısı yapılıyor (getAllMaterials)...');
+      const materialsList = await materialsService.getAllMaterials();
+      console.warn('🔍 HOOK DEBUG: API response aldı:', materialsList?.length || 0, 'materyal (kaldırılanlar dahil)');
       console.warn('🔍 HOOK DEBUG: MaterialsList detay:', materialsList);
       
       setMaterials(materialsList);
