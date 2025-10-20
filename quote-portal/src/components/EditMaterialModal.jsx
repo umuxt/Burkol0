@@ -1,4 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { 
+  getEffectiveMaterialStatus, 
+  createStatusBadgeProps,
+  SUPPLIER_STATUSES,
+  MATERIAL_STATUSES 
+} from '../utils/material-status-utils'
 
 export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, categories, types, material, suppliers = [], loading = false, suppliersLoading = false, onRefreshSuppliers, isRemoved = false }) {
   // Loading timeout için timer
@@ -90,17 +96,32 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
       return [];
     }
     
-    const filtered = suppliersToUse.filter(supplier => {
-      if (!supplier.suppliedMaterials || supplier.suppliedMaterials.length === 0) {
-        return false;
-      }
-      
-      return supplier.suppliedMaterials.some(suppliedMaterial => 
-        suppliedMaterial.id === material.id || 
-        suppliedMaterial.code === material.code ||
-        suppliedMaterial.name === material.name
-      );
-    });
+    const filtered = suppliersToUse
+      .filter(supplier => {
+        if (!supplier.suppliedMaterials || supplier.suppliedMaterials.length === 0) {
+          return false;
+        }
+        
+        return supplier.suppliedMaterials.some(suppliedMaterial => 
+          suppliedMaterial.id === material.id || 
+          suppliedMaterial.code === material.code ||
+          suppliedMaterial.name === material.name
+        );
+      })
+      .map(supplier => {
+        // Find the specific supplied material for this material
+        const suppliedMaterial = supplier.suppliedMaterials.find(sm => 
+          sm.id === material.id || 
+          sm.code === material.code ||
+          sm.name === material.name
+        );
+        
+        // Return supplier with the specific supplied material data
+        return {
+          ...supplier,
+          currentSuppliedMaterial: suppliedMaterial
+        };
+      });
     
     console.log('✅ materialSuppliers filtered result:', filtered)
     return filtered;
@@ -660,19 +681,45 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
                           }}>
                             {supplier.name || supplier.companyName}
                           </div>
-                          <span 
-                            style={{ 
-                              backgroundColor: supplier.status === 'Aktif' ? '#dcfce7' : '#fee2e2',
-                              color: supplier.status === 'Aktif' ? '#16a34a' : '#dc2626',
-                              padding: '1px 3px',
-                              borderRadius: '3px',
+                          {(() => {
+                            // Calculate effective material status for this supplier
+                            const effectiveStatus = getEffectiveMaterialStatus(
+                              material, 
+                              supplier, 
+                              supplier.currentSuppliedMaterial
+                            )
+                            
+                            // Debug log
+                            console.log('🔍 EditMaterialModal Status:', {
+                              materialName: material?.name,
+                              supplierName: supplier?.name || supplier?.companyName,
+                              supplierStatus: supplier?.status,
+                              materialStatus: material?.status,
+                              suppliedMaterialStatus: supplier.currentSuppliedMaterial?.status,
+                              effectiveStatus: effectiveStatus.status,
+                              source: effectiveStatus.source
+                            })
+                            
+                            const badgeProps = createStatusBadgeProps(effectiveStatus, { 
+                              size: 'small', 
+                              showTooltip: true 
+                            })
+                            
+                            // Küçük boyut için stil ayarları
+                            const smallBadgeStyle = {
+                              ...badgeProps.style,
                               fontSize: '7px',
-                              fontWeight: '500',
+                              padding: '1px 3px',
                               flexShrink: 0
-                            }}
-                          >
-                            {supplier.status || 'Bilinmiyor'}
-                          </span>
+                            }
+                            
+                            return (
+                              <span 
+                                {...badgeProps}
+                                style={smallBadgeStyle}
+                              />
+                            )
+                          })()}
                         </div>
                         
                         {/* Sağ Taraf - Butonlar */}

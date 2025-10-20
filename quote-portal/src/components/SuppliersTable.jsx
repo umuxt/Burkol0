@@ -4,6 +4,12 @@ import { categoriesService } from '../services/categories-service'
 import { materialsService } from '../services/materials-service'
 import EditMaterialModal from './EditMaterialModal'
 import ErrorBoundary from './ErrorBoundary'
+import { 
+  getEffectiveMaterialStatus, 
+  createStatusBadgeProps,
+  SUPPLIER_STATUSES,
+  MATERIAL_STATUSES 
+} from '../utils/material-status-utils'
 
 export default function SuppliersTable({ 
   suppliers = [],
@@ -2250,28 +2256,50 @@ export default function SuppliersTable({
                                 >
                                   ℹ️
                                 </button>
-                                {!isRemoved && (
-                                  <select
-                                    value={material.status || 'aktif'}
-                                    onChange={(e) => handleMaterialStatusChange(material.id, e.target.value)}
-                                    style={{
-                                      padding: '1px 4px',
-                                      fontSize: '10px',
-                                      border: '1px solid #d1d5db',
-                                      borderRadius: '3px',
-                                      background: 'white',
-                                      color: '#374151',
-                                      cursor: 'pointer',
-                                      minWidth: '60px',
-                                      maxWidth: '80px',
-                                      textAlign: 'right'
-                                    }}
-                                  >
-                                    <option value="aktif">Aktif</option>
-                                    <option value="pasif">Pasif</option>
-                                    <option value="değerlendirmede">Değerlendirmede</option>
-                                  </select>
-                                )}
+                                {!isRemoved && (() => {
+                                  // Calculate effective status based on supplier status and material status
+                                  const effectiveStatus = getEffectiveMaterialStatus(
+                                    fullMaterial, 
+                                    selectedSupplier, 
+                                    material
+                                  )
+                                  
+                                  // If supplier is not active, show status badge (non-editable)
+                                  if (selectedSupplier.status !== SUPPLIER_STATUSES.ACTIVE) {
+                                    const badgeProps = createStatusBadgeProps(effectiveStatus, { 
+                                      size: 'small', 
+                                      showTooltip: true 
+                                    })
+                                    return (
+                                      <span {...badgeProps} />
+                                    )
+                                  }
+                                  
+                                  // If supplier is active, show editable select for material status
+                                  return (
+                                    <select
+                                      value={material.status || 'aktif'}
+                                      onChange={(e) => handleMaterialStatusChange(material.id, e.target.value)}
+                                      style={{
+                                        padding: '1px 4px',
+                                        fontSize: '10px',
+                                        border: '1px solid #d1d5db',
+                                        borderRadius: '3px',
+                                        background: 'white',
+                                        color: '#374151',
+                                        cursor: 'pointer',
+                                        minWidth: '60px',
+                                        maxWidth: '80px',
+                                        textAlign: 'right'
+                                      }}
+                                      title="Malzeme statüsü (tedarikçi aktif olduğu için düzenlenebilir)"
+                                    >
+                                      <option value="aktif">Aktif</option>
+                                      <option value="pasif">Pasif</option>
+                                      <option value="değerlendirmede">Değerlendirmede</option>
+                                    </select>
+                                  )
+                                })()}
                               </div>
                             </div>
                           )
