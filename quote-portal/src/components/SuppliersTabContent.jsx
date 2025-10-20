@@ -29,7 +29,7 @@ function SuppliersDashboard({ suppliers }) {
 }
 
 // Suppliers filters component with search functionality
-function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpanded }) {
+function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpanded, resultsCount, hasActiveFilters }) {
   
   // Quick filter state (kept locally for UI state)
   const [activeFilters, setActiveFilters] = useState({
@@ -42,7 +42,7 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
 
   // Sync activeFilters with actual filter state
   useEffect(() => {
-    const nonTurkeyCountries = ['Almanya', 'Fransa', 'İtalya', 'ABD', 'Çin'];
+    const nonTurkeyCountries = ['Almanya', 'İtalya', 'Çin']; // Gerçek ülke listesi
     
     setActiveFilters({
       inactive: filters.status === 'Pasif',
@@ -83,55 +83,31 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
     return '🔄'; // Fallback
   };
 
-  // Clear all filters function
+  // Clear all filters function (component içinde, prop olarak onFilterChange kullanır)
   const clearFilters = () => {
     console.log('🧹 Tüm filtreler temizleniyor...');
+    console.log('🔍 Mevcut filters:', filters);
+    console.log('🔍 Mevcut activeFilters:', activeFilters);
     
     // Tüm filter alanlarını sıfırla
     onFilterChange('search', '');
     onFilterChange('status', 'Tümü'); // Default status
     onFilterChange('supplierTypes', []);
     onFilterChange('countries', []);
-    onFilterChange('compliance', []);
     onFilterChange('paymentTerms', []);
     onFilterChange('deliveryTime', []);
-    onFilterChange('certificates', []);
     onFilterChange('creditRating', []);
-    onFilterChange('riskLevel', []);
-    onFilterChange('minOrderAmount', []);
     
-    // activeFilters otomatik olarak useEffect ile senkronize olacak
-    console.log('✅ Tüm filtreler temizlendi');
-  };
-
-  // Check if any filter is applied
-  const hasActiveFilters = () => {
-    const isActive = !!(
-      // Arama filtresi
-      filters.search ||
-      // Status filtresi (varsayılan 'Tümü' değilse)
-      (filters.status && filters.status !== '' && filters.status !== 'Tümü') ||
-      // Array filtrelerinin hepsi
-      (filters.supplierTypes && filters.supplierTypes.length > 0) ||
-      (filters.countries && filters.countries.length > 0) ||
-      (filters.compliance && filters.compliance.length > 0) ||
-      (filters.paymentTerms && filters.paymentTerms.length > 0) ||
-      (filters.deliveryTime && filters.deliveryTime.length > 0) ||
-      (filters.certificates && filters.certificates.length > 0) ||
-      (filters.creditRating && filters.creditRating.length > 0) ||
-      (filters.riskLevel && filters.riskLevel.length > 0) ||
-      (filters.minOrderAmount && filters.minOrderAmount.length > 0)
-    );
-    
-    console.log('🔍 hasActiveFilters kontrol:', {
-      search: !!filters.search,
-      status: filters.status !== '' && filters.status !== 'Tümü',
-      supplierTypes: filters.supplierTypes?.length > 0,
-      countries: filters.countries?.length > 0,
-      result: isActive
+    // ActiveFilters state'ini de sıfırla (quick filters için) - tüm alanları dahil et
+    setActiveFilters({
+      inactive: false,
+      payment30Days: false,
+      aCredit: false,
+      manufacturers: false,
+      international: false
     });
     
-    return isActive;
+    console.log('✅ Tüm filtreler temizlendi');
   };
 
   // Multi-select handler for dropdowns
@@ -183,7 +159,7 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
         break;
       
       case 'international':
-        const nonTurkeyCountries = ['Almanya', 'Fransa', 'İtalya', 'ABD', 'Çin'];
+        const nonTurkeyCountries = ['Almanya', 'İtalya', 'Çin']; // Gerçek ülke listesi
         const currentInternational = nonTurkeyCountries.some(country => filters.countries?.includes(country)) || false;
         if (currentInternational) {
           // Remove all international countries
@@ -239,10 +215,13 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
         {/* Sol taraf - Genişletme butonu */}
         <div style={{
           paddingLeft: '4px',
+          paddingTop: '20px',
           display: 'flex',
           alignItems: 'center',
           height: '100%',
-          order: 1
+          order: 1,
+          flexDirection: 'column',
+          gap: '4px'
         }}>
           <button
             onClick={toggleExpanded}
@@ -262,10 +241,24 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
           >
             {isExpanded ? '»' : '«'}
           </button>
+          
+          {/* Sonuç sayısı - kompakt */}
+          {(resultsCount !== undefined) && (
+            <div style={{
+              fontSize: '11px',
+              color: hasActiveFilters ? '#1e40af' : '#6b7280',
+              fontWeight: hasActiveFilters ? '600' : '400',
+              textAlign: 'center',
+              lineHeight: '1.2'
+            }}>
+              {resultsCount}
+            </div>
+          )}
         </div>
 
         {/* Sağ taraf - Filtre container */}
-        <div className={`filters-container ${hasActiveFilters() ? 'filters-active' : ''}`} style={{ order: 2 }}>
+        <div className={`filters-container ${hasActiveFilters ? 'filters-active' : ''}`} style={{ order: 2 }}>
+          
           <div className="search-section">
             <div className="search-input-container">
               <input 
@@ -304,15 +297,15 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
               >
                 💰 30 Gün Vade
               </button>
+              <button 
+                type="button" 
+                className={`quick-filter-btn ${activeFilters.aCredit ? 'active' : ''}`}
+                onClick={() => toggleQuickFilter('aCredit')}
+              >
+                ⭐ A Kredi Notu
+              </button>
               {isExpanded && (
                 <>
-                  <button 
-                    type="button" 
-                    className={`quick-filter-btn ${activeFilters.aCredit ? 'active' : ''}`}
-                    onClick={() => toggleQuickFilter('aCredit')}
-                  >
-                    ⭐ A Kredi Notu
-                  </button>
                   <button 
                     type="button" 
                     className={`quick-filter-btn ${activeFilters.manufacturers ? 'active' : ''}`}
@@ -335,7 +328,10 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
             <div className="filter-group">
               <div className="multi-select-container">
                 <div className="multi-select-header" onClick={() => toggleDropdown('supplier-types-dropdown')}>
-                  Tedarikçi Tipi seçin...
+                  {filters.supplierTypes?.length > 0 
+                    ? `${filters.supplierTypes.length} tip seçildi`
+                    : 'Tedarikçi Tipi seçin...'
+                  }
                   <span className="dropdown-arrow">▼</span>
                 </div>
                 <div id="supplier-types-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
@@ -390,51 +386,14 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
                 </div>
               </div>
             </div>
-            <div className="filter-group">
-              <div className="multi-select-container">
-                <div className="multi-select-header" onClick={() => toggleDropdown('compliance-dropdown')} style={{ whiteSpace: 'nowrap' }}>
-                  Uyumluluk Durumu seçin...<span className="dropdown-arrow">▼</span>
-                </div>
-                <div id="compliance-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.compliance.includes('Onaylandı')}
-                      onChange={() => handleMultiSelectChange('compliance', 'Onaylandı')}
-                    />
-                    <span>Onaylandı</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.compliance.includes('İnceleniyor')}
-                      onChange={() => handleMultiSelectChange('compliance', 'İnceleniyor')}
-                    />
-                    <span>İnceleniyor</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.compliance.includes('Beklemede')}
-                      onChange={() => handleMultiSelectChange('compliance', 'Beklemede')}
-                    />
-                    <span>Beklemede</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.compliance.includes('Reddedildi')}
-                      onChange={() => handleMultiSelectChange('compliance', 'Reddedildi')}
-                    />
-                    <span>Reddedildi</span>
-                  </label>
-                </div>
-              </div>
-            </div>
+
             <div className="filter-group">
               <div className="multi-select-container">
                 <div className="multi-select-header" onClick={() => toggleDropdown('countries-dropdown')}>
-                  Ülke seçin...
+                  {filters.countries?.length > 0 
+                    ? `${filters.countries.length} ülke seçildi`
+                    : 'Ülke seçin...'
+                  }
                   <span className="dropdown-arrow">▼</span>
                 </div>
                 <div id="countries-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
@@ -457,26 +416,10 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
                   <label className="multi-select-option">
                     <input 
                       type="checkbox" 
-                      checked={filters.countries.includes('Fransa')}
-                      onChange={() => handleMultiSelectChange('countries', 'Fransa')}
-                    />
-                    <span>Fransa</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
                       checked={filters.countries.includes('İtalya')}
                       onChange={() => handleMultiSelectChange('countries', 'İtalya')}
                     />
                     <span>İtalya</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.countries.includes('ABD')}
-                      onChange={() => handleMultiSelectChange('countries', 'ABD')}
-                    />
-                    <span>ABD</span>
                   </label>
                   <label className="multi-select-option">
                     <input 
@@ -489,101 +432,68 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
                 </div>
               </div>
             </div>
-            {isExpanded && (
-              <>
-                <div className="filter-group">
-                  <div className="multi-select-container">
-                    <div className="multi-select-header" onClick={() => toggleDropdown('credit-rating-dropdown')}>
-                      Kredi Notu seçin...
-                      <span className="dropdown-arrow">▼</span>
-                    </div>
-                    <div id="credit-rating-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
-                      <label className="multi-select-option">
-                        <input 
-                          type="checkbox" 
-                          checked={filters.creditRating.includes('A - Mükemmel')}
-                          onChange={() => handleMultiSelectChange('creditRating', 'A - Mükemmel')}
-                        />
-                        <span>A - Mükemmel</span>
-                      </label>
-                      <label className="multi-select-option">
-                        <input 
-                          type="checkbox" 
-                          checked={filters.creditRating.includes('B - İyi')}
-                          onChange={() => handleMultiSelectChange('creditRating', 'B - İyi')}
-                        />
-                        <span>B - İyi</span>
-                      </label>
-                      <label className="multi-select-option">
-                        <input 
-                          type="checkbox" 
-                          checked={filters.creditRating.includes('C - Orta')}
-                          onChange={() => handleMultiSelectChange('creditRating', 'C - Orta')}
-                        />
-                        <span>C - Orta</span>
-                      </label>
-                      <label className="multi-select-option">
-                        <input 
-                          type="checkbox" 
-                          checked={filters.creditRating.includes('D - Zayıf')}
-                          onChange={() => handleMultiSelectChange('creditRating', 'D - Zayıf')}
-                        />
-                        <span>D - Zayıf</span>
-                      </label>
-                      <label className="multi-select-option">
-                        <input 
-                          type="checkbox" 
-                          checked={filters.creditRating.includes('F - Riskli')}
-                          onChange={() => handleMultiSelectChange('creditRating', 'F - Riskli')}
-                        />
-                        <span>F - Riskli</span>
-                      </label>
-                    </div>
-                  </div>
+            <div className="filter-group">
+              <div className="multi-select-container">
+                <div className="multi-select-header" onClick={() => toggleDropdown('credit-rating-dropdown')}>
+                  {filters.creditRating?.length > 0 
+                    ? `${filters.creditRating.length} kredi notu seçildi`
+                    : 'Kredi Notu seçin...'
+                  }
+                  <span className="dropdown-arrow">▼</span>
                 </div>
-                <div className="filter-group">
-                  <div className="multi-select-container">
-                    <div className="multi-select-header" onClick={() => toggleDropdown('risk-level-dropdown')}>
-                      Risk Seviyesi seçin...
-                      <span className="dropdown-arrow">▼</span>
-                    </div>
-                    <div id="risk-level-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
-                      <label className="multi-select-option">
-                        <input 
-                          type="checkbox" 
-                          checked={filters.riskLevel.includes('Düşük Risk')}
-                          onChange={() => handleMultiSelectChange('riskLevel', 'Düşük Risk')}
-                        />
-                        <span>Düşük Risk</span>
-                      </label>
-                      <label className="multi-select-option">
-                        <input 
-                          type="checkbox" 
-                          checked={filters.riskLevel.includes('Orta Risk')}
-                          onChange={() => handleMultiSelectChange('riskLevel', 'Orta Risk')}
-                        />
-                        <span>Orta Risk</span>
-                      </label>
-                      <label className="multi-select-option">
-                        <input 
-                          type="checkbox" 
-                          checked={filters.riskLevel.includes('Yüksek Risk')}
-                          onChange={() => handleMultiSelectChange('riskLevel', 'Yüksek Risk')}
-                        />
-                        <span>Yüksek Risk</span>
-                      </label>
-                    </div>
-                  </div>
+                <div id="credit-rating-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
+                  <label className="multi-select-option">
+                    <input 
+                      type="checkbox" 
+                      checked={filters.creditRating.includes('A - Mükemmel')}
+                      onChange={() => handleMultiSelectChange('creditRating', 'A - Mükemmel')}
+                    />
+                    <span>A - Mükemmel</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input 
+                      type="checkbox" 
+                      checked={filters.creditRating.includes('B - İyi')}
+                      onChange={() => handleMultiSelectChange('creditRating', 'B - İyi')}
+                    />
+                    <span>B - İyi</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input 
+                      type="checkbox" 
+                      checked={filters.creditRating.includes('C - Orta')}
+                      onChange={() => handleMultiSelectChange('creditRating', 'C - Orta')}
+                    />
+                    <span>C - Orta</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input 
+                      type="checkbox" 
+                      checked={filters.creditRating.includes('D - Zayıf')}
+                      onChange={() => handleMultiSelectChange('creditRating', 'D - Zayıf')}
+                    />
+                    <span>D - Zayıf</span>
+                  </label>
+                  <label className="multi-select-option">
+                    <input 
+                      type="checkbox" 
+                      checked={filters.creditRating.includes('F - Riskli')}
+                      onChange={() => handleMultiSelectChange('creditRating', 'F - Riskli')}
+                    />
+                    <span>F - Riskli</span>
+                  </label>
                 </div>
-              </>
-            )}
-            
+              </div>
+            </div>
             {isExpanded && (
               <>
                 <div className="filter-group">
                   <div className="multi-select-container">
                     <div className="multi-select-header" onClick={() => toggleDropdown('payment-terms-dropdown')}>
-                      Ödeme Koşulları seçin...
+                      {filters.paymentTerms?.length > 0 
+                        ? `${filters.paymentTerms.length} ödeme koşulu seçildi`
+                        : 'Ödeme Koşulları seçin...'
+                      }
                       <span className="dropdown-arrow">▼</span>
                     </div>
                     <div id="payment-terms-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
@@ -625,7 +535,10 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
                 <div className="filter-group">
                   <div className="multi-select-container">
                     <div className="multi-select-header" onClick={() => toggleDropdown('delivery-time-dropdown')}>
-                      Teslimat Süresi seçin...
+                      {filters.deliveryTime?.length > 0 
+                        ? `${filters.deliveryTime.length} teslimat süresi seçildi`
+                        : 'Teslimat Süresi seçin...'
+                      }
                       <span className="dropdown-arrow">▼</span>
                     </div>
                     <div id="delivery-time-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
@@ -656,164 +569,45 @@ function SuppliersFilters({ filters, onFilterChange, isExpanded, onToggleExpande
                     </div>
                   </div>
                 </div>
-                <div className="filter-group">
-                  <div className="multi-select-container">
-                    <div className="multi-select-header" onClick={() => toggleDropdown('certificates-dropdown')}>
-                      Sertifikalar seçin...
-                      <span className="dropdown-arrow">▼</span>
-                    </div>
-                <div id="certificates-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.certificates.includes('ISO 9001')}
-                      onChange={() => handleMultiSelectChange('certificates', 'ISO 9001')}
-                    />
-                    <span>ISO 9001</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.certificates.includes('ISO 14001')}
-                      onChange={() => handleMultiSelectChange('certificates', 'ISO 14001')}
-                    />
-                    <span>ISO 14001</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.certificates.includes('CE Belgesi')}
-                      onChange={() => handleMultiSelectChange('certificates', 'CE Belgesi')}
-                    />
-                    <span>CE Belgesi</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.certificates.includes('TSE Belgesi')}
-                      onChange={() => handleMultiSelectChange('certificates', 'TSE Belgesi')}
-                    />
-                    <span>TSE Belgesi</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.certificates.includes('OHSAS 18001')}
-                      onChange={() => handleMultiSelectChange('certificates', 'OHSAS 18001')}
-                    />
-                    <span>OHSAS 18001</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.certificates.includes('Diğer')}
-                      onChange={() => handleMultiSelectChange('certificates', 'Diğer')}
-                    />
-                    <span>Diğer</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-            
-            <div className="filter-group">
-              <div className="multi-select-container">
-                <div className="multi-select-header" onClick={() => toggleDropdown('min-order-dropdown')}>
-                  Min. Sipariş Tutarı...
-                  <span className="dropdown-arrow">▼</span>
-                </div>
-                <div id="min-order-dropdown" className="multi-select-dropdown" style={{ display: 'none' }}>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.minOrderAmount.includes('1.000 TL ve altı')}
-                      onChange={() => handleMultiSelectChange('minOrderAmount', '1.000 TL ve altı')}
-                    />
-                    <span>1.000 TL ve altı</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.minOrderAmount.includes('1.000 - 5.000 TL')}
-                      onChange={() => handleMultiSelectChange('minOrderAmount', '1.000 - 5.000 TL')}
-                    />
-                    <span>1.000 - 5.000 TL</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.minOrderAmount.includes('5.000 - 10.000 TL')}
-                      onChange={() => handleMultiSelectChange('minOrderAmount', '5.000 - 10.000 TL')}
-                    />
-                    <span>5.000 - 10.000 TL</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.minOrderAmount.includes('10.000 - 50.000 TL')}
-                      onChange={() => handleMultiSelectChange('minOrderAmount', '10.000 - 50.000 TL')}
-                    />
-                    <span>10.000 - 50.000 TL</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.minOrderAmount.includes('50.000 TL ve üzeri')}
-                      onChange={() => handleMultiSelectChange('minOrderAmount', '50.000 TL ve üzeri')}
-                    />
-                    <span>50.000 TL ve üzeri</span>
-                  </label>
-                  <label className="multi-select-option">
-                    <input 
-                      type="checkbox" 
-                      checked={filters.minOrderAmount.includes('Minimum yok')}
-                      onChange={() => handleMultiSelectChange('minOrderAmount', 'Minimum yok')}
-                    />
-                    <span>Minimum yok</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-            
+                
               </>
             )}
             
-            {/* Filtreleri Kaldır butonu - her zaman görünür */}
-            {hasActiveFilters() && (
-              <div className="filter-group" style={{
-                position: 'sticky',
-                bottom: '0',
-                backgroundColor: 'white',
-                padding: '8px',
-                borderTop: '1px solid #e5e7eb',
-                marginTop: '8px'
-              }}>
-                <button 
-                  type="button" 
-                  className="clear-filters-btn"
-                  onClick={clearFilters}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    border: '1px solid #ef4444',
-                    borderRadius: '4px',
-                    background: '#fef2f2',
-                    color: '#dc2626',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                    fontWeight: '500',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseOver={(e) => {
-                    e.target.style.background = '#fee2e2';
-                    e.target.style.borderColor = '#dc2626';
-                  }}
-                  onMouseOut={(e) => {
-                    e.target.style.background = '#fef2f2';
-                    e.target.style.borderColor = '#ef4444';
-                  }}
-                >
-                  🗑️ Filtreleri Kaldır
-                </button>
+            {/* Filtreleri Kaldır butonu - diğer filtrelerle aynı hizada */}
+            {hasActiveFilters && (
+              <div className="filter-group">
+                <div className="multi-select-container">
+                  <button 
+                    type="button" 
+                    className="clear-filters-btn"
+                    onClick={clearFilters}
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      border: '1px solid #ef4444',
+                      borderRadius: '4px',
+                      background: '#fef2f2',
+                      color: '#dc2626',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      fontWeight: '500',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                    onMouseOver={(e) => {
+                      e.target.style.background = '#fee2e2';
+                      e.target.style.borderColor = '#dc2626';
+                    }}
+                    onMouseOut={(e) => {
+                      e.target.style.background = '#fef2f2';
+                      e.target.style.borderColor = '#ef4444';
+                    }}
+                  >
+                    🗑️ Filtreleri Kaldır
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -842,13 +636,9 @@ export default function SuppliersTabContent({
     status: 'Tümü', // Aktif, Pasif, Tümü - default Tümü
     supplierTypes: [],
     countries: [],
-    compliance: [],
     paymentTerms: [],
     deliveryTime: [],
-    certificates: [],
-    creditRating: [],
-    riskLevel: [],
-    minOrderAmount: []
+    creditRating: []
   })
 
   // Filter change handler
@@ -927,11 +717,6 @@ export default function SuppliersTabContent({
       filters.supplierTypes.includes(supplier.supplierType) ||
       filters.supplierTypes.includes(supplier.type);
 
-    // Compliance filter
-    const complianceMatch = filters.compliance.length === 0 || 
-      filters.compliance.includes(supplier.complianceStatus) ||
-      filters.compliance.includes(supplier.compliance);
-
     // Payment terms filter
     const paymentMatch = filters.paymentTerms.length === 0 || 
       filters.paymentTerms.includes(supplier.paymentTerms) ||
@@ -951,28 +736,31 @@ export default function SuppliersTabContent({
     const countryMatch = filters.countries.length === 0 || 
       filters.countries.includes(supplier.country);
 
-    // Certificates filter
-    const certificateMatch = filters.certificates.length === 0 || 
-      filters.certificates.includes(supplier.qualityCertification) ||
-      filters.certificates.some(cert => supplier.certificates?.includes(cert));
-
     // Credit rating filter
     const creditMatch = filters.creditRating.length === 0 || 
       filters.creditRating.includes(supplier.creditRating);
 
-    // Risk level filter
-    const riskMatch = filters.riskLevel.length === 0 || 
-      filters.riskLevel.includes(supplier.riskLevel);
-
-    // Min order amount filter (simplified - would need supplier.minOrderAmount field)
-    const minOrderMatch = filters.minOrderAmount.length === 0 || 
-      filters.minOrderAmount.includes(supplier.minOrderAmount) ||
-      (filters.minOrderAmount.includes('Minimum yok') && !supplier.minOrderAmount);
-
-    return searchMatch && statusMatch && typeMatch && complianceMatch && 
-           paymentMatch && deliveryMatch && countryMatch && certificateMatch && 
-           creditMatch && riskMatch && minOrderMatch;
+    return searchMatch && statusMatch && typeMatch && 
+           paymentMatch && deliveryMatch && countryMatch && creditMatch;
   })
+
+  // Check if any filter is applied
+  const hasActiveFilters = () => {
+    const isActive = !!(
+      // Arama filtresi
+      filters.search ||
+      // Status filtresi (varsayılan 'Tümü' değilse)
+      (filters.status && filters.status !== '' && filters.status !== 'Tümü') ||
+      // Array filtrelerinin hepsi
+      (filters.supplierTypes && filters.supplierTypes.length > 0) ||
+      (filters.countries && filters.countries.length > 0) ||
+      (filters.paymentTerms && filters.paymentTerms.length > 0) ||
+      (filters.deliveryTime && filters.deliveryTime.length > 0) ||
+      (filters.creditRating && filters.creditRating.length > 0)
+    );
+    
+    return isActive;
+  };
 
   const handleAddSupplier = async (supplierData, newCategory) => {
     try {
@@ -1032,6 +820,8 @@ export default function SuppliersTabContent({
             onFilterChange={handleFilterChange}
             isExpanded={isFiltersExpanded}
             onToggleExpanded={setIsFiltersExpanded}
+            resultsCount={filteredSuppliers?.length || 0}
+            hasActiveFilters={hasActiveFilters()}
           />
         </div>
       </div>
