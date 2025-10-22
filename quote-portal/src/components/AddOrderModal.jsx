@@ -20,10 +20,13 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
   })
   const [selectedMaterials, setSelectedMaterials] = useState([])
   const [availableMaterials, setAvailableMaterials] = useState([])
+  const [supplierMaterials, setSupplierMaterials] = useState([])
+  const [supplierMaterialsLoading, setSupplierMaterialsLoading] = useState(false)
+  const [supplierMaterialsError, setSupplierMaterialsError] = useState(null)
 
   // Firebase hooks
-  const { suppliers, loading: suppliersLoading } = useSuppliers()
-  const { materials, loading: materialsLoading } = useMaterials()
+  const { suppliers, loading: suppliersLoading, getMaterialsForSupplier } = useSuppliers()
+  const { materials, loading: materialsLoading, initialized: materialsInitialized, loadMaterials } = useMaterials(true)
   const { createOrderWithItems, loading: orderLoading } = useOrderActions()
 
   // Debug hooks
@@ -51,8 +54,50 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
       })
       setSelectedMaterials([])
       setAvailableMaterials([])
+      setSupplierMaterials([])
+      setSupplierMaterialsError(null)
+      setSupplierMaterialsLoading(false)
+
+      if (!materialsInitialized) {
+        loadMaterials()
+      }
     }
-  }, [isOpen])
+  }, [isOpen, materialsInitialized, loadMaterials])
+
+  useEffect(() => {
+    let isCancelled = false
+
+    const fetchSupplierMaterials = async () => {
+      if (!formData.supplierId) {
+        setSupplierMaterials([])
+        return
+      }
+
+      try {
+        setSupplierMaterialsLoading(true)
+        setSupplierMaterialsError(null)
+        const response = await getMaterialsForSupplier(formData.supplierId)
+        if (!isCancelled) {
+          setSupplierMaterials(Array.isArray(response) ? response : [])
+        }
+      } catch (error) {
+        if (!isCancelled) {
+          setSupplierMaterials([])
+          setSupplierMaterialsError(error.message)
+        }
+      } finally {
+        if (!isCancelled) {
+          setSupplierMaterialsLoading(false)
+        }
+      }
+    }
+
+    fetchSupplierMaterials()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [formData.supplierId, getMaterialsForSupplier])
 
   // Update available materials when supplier changes
   useEffect(() => {
@@ -71,17 +116,27 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
         hasSuppliedMaterials: !!selectedSupplier?.suppliedMaterials,
         suppliedMaterialsCount: selectedSupplier?.suppliedMaterials?.length || 0
       });
-      
-      if (selectedSupplier && selectedSupplier.suppliedMaterials) {
+
+      const supplierMaterialSource = supplierMaterials.length > 0
+        ? supplierMaterials
+        : selectedSupplier?.suppliedMaterials
+
+      if (selectedSupplier && supplierMaterialSource) {
         console.log('🔍 AddOrderModal: Tedarikçi bulundu:', selectedSupplier.name || selectedSupplier.companyName);
-        console.log('🔍 AddOrderModal: SuppliedMaterials ham data:', selectedSupplier.suppliedMaterials);
-        
+        console.log('🔍 AddOrderModal: SuppliedMaterials ham data:', supplierMaterialSource);
+
         // Get active materials that this supplier can provide
         // SuppliedMaterials iki format destekler: {id, name, status} ve {materialId, materialCode}
-        const activeMaterialIds = selectedSupplier.suppliedMaterials
+        const normalizeStatus = (status) => {
+          if (!status) return ''
+          return String(status).toLowerCase()
+        }
+
+        const activeMaterialIds = supplierMaterialSource
           .filter(sm => {
             // Sadece aktif malzemeleri al (status kontrolü)
-            const isActive = !sm.status || sm.status === 'aktif'; // status yoksa veya aktifse
+            const relationStatus = normalizeStatus(sm.status)
+            const isActive = relationStatus === '' || relationStatus === 'aktif' || relationStatus === 'active'
             console.log('🔍 Material status check:', {
               id: sm.materialId || sm.id,
               name: sm.materialName || sm.name,
@@ -92,12 +147,21 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
           })
           .map(sm => sm.materialId || sm.id) // Her iki formatı destekle
           .filter(Boolean); // undefined değerleri filtrele
+
+        const activeMaterialCodes = supplierMaterialSource
+          .map(sm => sm.materialCode || sm.code)
+          .filter(Boolean);
           
         console.log('🔍 AddOrderModal: Aktif malzeme ID\'leri:', activeMaterialIds);
+        console.log('🔍 AddOrderModal: Aktif malzeme kodları:', activeMaterialCodes);
         
         // Materials collection'ından bu ID'lere sahip malzemeleri bul
         const available = materials.filter(m => {
-          const isIncluded = activeMaterialIds.includes(m.id);
+          const isIncludedById = activeMaterialIds.includes(m.id);
+          const isIncludedByCode = activeMaterialCodes.includes(m.code);
+          const materialStatus = normalizeStatus(m.status)
+          const isMaterialActive = materialStatus === '' || materialStatus === 'aktif' || materialStatus === 'active'
+          const isIncluded = (isIncludedById || isIncludedByCode) && isMaterialActive;
           if (isIncluded) {
             console.log('🔍 Eşleşen malzeme:', { id: m.id, code: m.code, name: m.name });
           }
@@ -134,6 +198,13 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
     });
   }, [availableMaterials])
 
+  useEffect(() => {
+    console.log('🔍 AddOrderModal: supplierMaterials state güncellendi:', {
+      count: supplierMaterials.length,
+      supplierMaterials
+    })
+  }, [supplierMaterials])
+
   if (!isOpen) return null
 
   // Handle supplier selection
@@ -146,43 +217,64 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
       supplierId,
       supplierName: supplier ? supplier.name || supplier.companyName : ''
     }))
+    setSelectedMaterials([])
+    setAvailableMaterials([])
+    setSupplierMaterials([])
+    setSupplierMaterialsError(null)
     console.log('🔥 FormData güncellendi, yeni supplierId:', supplierId);
   }
 
   // Add material to order
   const addMaterial = (material) => {
-    const isAlreadyAdded = selectedMaterials.some(m => m.materialCode === material.code)
-    if (isAlreadyAdded) {
-      alert('Bu malzeme zaten eklenmiş')
-      return
-    }
-
     // Get supplier-specific pricing if available
     const supplier = suppliers.find(s => s.id === formData.supplierId)
     const supplierMaterial = supplier?.suppliedMaterials?.find(sm => sm.materialCode === material.code)
 
+    const occurrenceCount = selectedMaterials.filter(m => m.materialCode === material.code).length
+    const lineIndex = occurrenceCount + 1
+    const lineId = `${material.code}-${String(lineIndex).padStart(2, '0')}`
+
     const newMaterial = {
+      lineId,
+      lineIndex,
       materialCode: material.code,
       materialName: material.name,
       quantity: 1,
       unitPrice: supplierMaterial?.price || material.costPrice || 0,
       expectedDeliveryDate: formData.expectedDeliveryDate || null,
-      itemStatus: 'Bekleniyor'
+      itemStatus: 'Onay Bekliyor'
     }
 
     setSelectedMaterials(prev => [...prev, newMaterial])
   }
 
   // Remove material from order
-  const removeMaterial = (materialCode) => {
-    setSelectedMaterials(prev => prev.filter(m => m.materialCode !== materialCode))
+  const removeMaterial = (lineId) => {
+    setSelectedMaterials(prev => {
+      const updated = prev.filter(m => m.lineId !== lineId)
+
+      // Recalculate indices for remaining lines per material code
+      const reindexed = []
+      const codeCounters = {}
+      updated.forEach(item => {
+        const counter = (codeCounters[item.materialCode] || 0) + 1
+        codeCounters[item.materialCode] = counter
+        reindexed.push({
+          ...item,
+          lineIndex: counter,
+          lineId: `${item.materialCode}-${String(counter).padStart(2, '0')}`
+        })
+      })
+
+      return reindexed
+    })
   }
 
   // Update material quantity or price
-  const updateMaterial = (materialCode, field, value) => {
+  const updateMaterial = (lineId, field, value) => {
     setSelectedMaterials(prev => 
       prev.map(m => 
-        m.materialCode === materialCode 
+        m.lineId === lineId 
           ? { ...m, [field]: field === 'quantity' || field === 'unitPrice' ? Number(value) : value }
           : m
       )
@@ -250,7 +342,8 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
         maxHeight: '90vh',
         overflow: 'hidden',
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        color: '#1f2937'
       }}>
         {/* Header */}
         <div style={{
@@ -339,12 +432,6 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
           {currentStep === 1 && (
             <div>
               <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Tedarikçi Seçimi</h3>
-              
-              {/* Debug Info */}
-              <div style={{ background: '#f0f9ff', padding: '8px', marginBottom: '16px', fontSize: '12px', borderRadius: '4px' }}>
-                Debug: formData.supplierId = "{formData.supplierId}", 
-                suppliers.length = {suppliers?.length || 0}
-              </div>
               
               {suppliersLoading ? (
                 <p>Tedarikçiler yükleniyor...</p>
@@ -473,14 +560,19 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
               <div style={{ background: '#f0f9ff', padding: '8px', marginBottom: '16px', fontSize: '12px', borderRadius: '4px' }}>
                 Debug: availableMaterials.length = {availableMaterials.length}, 
                 materialsLoading = {materialsLoading.toString()},
+                supplierMaterialsLoading = {supplierMaterialsLoading.toString()},
                 currentStep = {currentStep}
               </div>
               
               {/* Available Materials */}
               <div style={{ marginBottom: '24px' }}>
                 <h4 style={{ marginBottom: '12px' }}>Mevcut Malzemeler</h4>
-                {materialsLoading ? (
+                {materialsLoading || supplierMaterialsLoading ? (
                   <p>Malzemeler yükleniyor...</p>
+                ) : supplierMaterialsError ? (
+                  <p style={{ color: '#dc2626', fontStyle: 'italic' }}>
+                    Malzemeler yüklenirken hata oluştu: {supplierMaterialsError}
+                  </p>
                 ) : availableMaterials.length === 0 ? (
                   <p style={{ color: '#6b7280', fontStyle: 'italic' }}>
                     Bu tedarikçi için mevcut malzeme bulunamadı.
@@ -513,21 +605,17 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                         </div>
                         <button
                           onClick={() => addMaterial(material)}
-                          disabled={selectedMaterials.some(m => m.materialCode === material.code)}
                           style={{
                             padding: '6px 12px',
                             fontSize: '12px',
-                            background: selectedMaterials.some(m => m.materialCode === material.code) 
-                              ? '#e5e7eb' : '#3b82f6',
-                            color: selectedMaterials.some(m => m.materialCode === material.code) 
-                              ? '#6b7280' : 'white',
+                            background: '#3b82f6',
+                            color: 'white',
                             border: 'none',
                             borderRadius: '4px',
-                            cursor: selectedMaterials.some(m => m.materialCode === material.code) 
-                              ? 'not-allowed' : 'pointer'
+                            cursor: 'pointer'
                           }}
                         >
-                          {selectedMaterials.some(m => m.materialCode === material.code) ? 'Eklendi' : 'Ekle'}
+                          Ekle
                         </button>
                       </div>
                     ))}
@@ -549,7 +637,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                   }}>
                     {selectedMaterials.map((material, index) => (
                       <div
-                        key={material.materialCode}
+                        key={material.lineId}
                         style={{
                           padding: '16px',
                           borderBottom: index < selectedMaterials.length - 1 ? '1px solid #f3f4f6' : 'none'
@@ -562,20 +650,26 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                           alignItems: 'center'
                         }}>
                           <div>
-                            <div style={{ fontWeight: '600', fontSize: '14px' }}>
-                              {material.materialName}
+                            <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600', marginBottom: '4px' }}>
+                              {material.lineId}
                             </div>
-                            <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                              {material.materialCode}
-                            </div>
+                          <div style={{ fontWeight: '600', fontSize: '14px' }}>
+                            {material.materialName}
                           </div>
+                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                            {material.materialCode}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                            Durum: {material.itemStatus}
+                          </div>
+                        </div>
                           <div>
                             <label style={{ fontSize: '12px', color: '#6b7280' }}>Miktar</label>
                             <input
-                              type="number"
-                              min="1"
-                              value={material.quantity}
-                              onChange={(e) => updateMaterial(material.materialCode, 'quantity', e.target.value)}
+                            type="number"
+                            min="1"
+                            value={material.quantity}
+                            onChange={(e) => updateMaterial(material.lineId, 'quantity', e.target.value)}
                               style={{
                                 width: '100%',
                                 padding: '6px 8px',
@@ -588,11 +682,11 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                           <div>
                             <label style={{ fontSize: '12px', color: '#6b7280' }}>Birim Fiyat</label>
                             <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={material.unitPrice}
-                              onChange={(e) => updateMaterial(material.materialCode, 'unitPrice', e.target.value)}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={material.unitPrice}
+                            onChange={(e) => updateMaterial(material.lineId, 'unitPrice', e.target.value)}
                               style={{
                                 width: '100%',
                                 padding: '6px 8px',
@@ -603,8 +697,8 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                             />
                           </div>
                           <button
-                            onClick={() => removeMaterial(material.materialCode)}
-                            style={{
+                          onClick={() => removeMaterial(material.lineId)}
+                          style={{
                               background: '#ef4444',
                               color: 'white',
                               border: 'none',
@@ -670,7 +764,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                   <h4 style={{ marginBottom: '12px' }}>Sipariş Kalemleri ({selectedMaterials.length})</h4>
                   {selectedMaterials.map((material, index) => (
                     <div
-                      key={material.materialCode}
+                      key={material.lineId}
                       style={{
                         padding: '12px',
                         background: '#f8f9fa',
@@ -682,9 +776,13 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                       }}
                     >
                       <div>
+                        <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600' }}>{material.lineId}</div>
                         <div style={{ fontWeight: '600' }}>{material.materialName}</div>
                         <div style={{ fontSize: '12px', color: '#6b7280' }}>
                           {material.materialCode} • {material.quantity} adet × {formatCurrency(material.unitPrice)}
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                          Durum: {material.itemStatus}
                         </div>
                       </div>
                       <div style={{ fontWeight: '600' }}>

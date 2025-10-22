@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { materialsService } from '../services/materials-service.js';
 
 export function useMaterials(autoLoad = false) {
@@ -7,7 +7,7 @@ export function useMaterials(autoLoad = false) {
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
 
-  const loadMaterials = async () => {
+  const loadMaterials = useCallback(async () => {
     try {
       console.warn('🔄 HOOK DEBUG: loadMaterials başladı');
       setLoading(true);
@@ -39,13 +39,13 @@ export function useMaterials(autoLoad = false) {
       setLoading(false);
       console.warn('🔄 HOOK DEBUG: setLoading(false) çağrıldı');
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (autoLoad && !initialized) {
       loadMaterials();
     }
-  }, [autoLoad, initialized]);
+  }, [autoLoad, initialized, loadMaterials]);
 
   const refreshMaterials = async () => {
     await loadMaterials();

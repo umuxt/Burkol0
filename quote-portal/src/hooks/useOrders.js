@@ -127,7 +127,7 @@ export function useOrderActions() {
       const newOrder = await OrdersService.createOrder(orderData);
       
       if (showNotification) {
-        showNotification(`Sipariş başarıyla oluşturuldu: ${newOrder.id}`, 'success');
+        showNotification(`Sipariş başarıyla oluşturuldu: ${newOrder.orderCode || newOrder.id}`, 'success');
       }
       
       console.log('✅ Order created:', newOrder);
@@ -229,14 +229,42 @@ export function useOrderActions() {
       }));
       
       const createdItems = await OrderItemsService.createOrderItems(itemsToCreate);
+      const sortedCreatedItems = [...createdItems].sort((a, b) => {
+        const aSeq = a.itemSequence || 0;
+        const bSeq = b.itemSequence || 0;
+        if (aSeq === bSeq) {
+          const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+          const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
+          return aTime - bTime;
+        }
+        return aSeq - bSeq;
+      });
+
+      const embeddedItems = sortedCreatedItems.map(item => ({
+        lineId: item.lineId,
+        itemCode: item.itemCode,
+        itemSequence: item.itemSequence,
+        materialCode: item.materialCode,
+        materialName: item.materialName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        itemStatus: item.itemStatus,
+        expectedDeliveryDate: item.expectedDeliveryDate || null
+      }));
+
+      const syncedOrder = await OrdersService.updateOrder(newOrder.id, {
+        items: embeddedItems,
+        itemCount: embeddedItems.length,
+        totalAmount
+      });
       
       if (showNotification) {
         showNotification(`Sipariş ve ${createdItems.length} kalem başarıyla oluşturuldu`, 'success');
       }
       
       const result = {
-        ...newOrder,
-        items: createdItems
+        ...syncedOrder,
+        items: sortedCreatedItems
       };
       
       console.log('✅ Order with items created:', result);
@@ -277,6 +305,22 @@ export function useOrderItems(orderId) {
   const [error, setError] = useState(null);
   
   const { showNotification } = useNotifications();
+
+  const serializeItemsForOrder = useCallback((list) => (
+    list.map(item => ({
+      lineId: item.lineId,
+      itemCode: item.itemCode,
+      itemSequence: item.itemSequence,
+      materialCode: item.materialCode,
+      materialName: item.materialName,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      itemStatus: item.itemStatus,
+      expectedDeliveryDate: item.expectedDeliveryDate instanceof Date
+        ? item.expectedDeliveryDate
+        : (item.expectedDeliveryDate || null)
+    }))
+  ), []);
   
   // **LOAD ORDER ITEMS**
   const loadOrderItems = useCallback(async () => {
@@ -292,6 +336,15 @@ export function useOrderItems(orderId) {
       
       const fetchedItems = await OrderItemsService.getOrderItems(orderId);
       setItems(fetchedItems);
+
+      try {
+        await OrdersService.updateOrder(orderId, {
+          items: serializeItemsForOrder(fetchedItems),
+          itemCount: fetchedItems.length
+        });
+      } catch (syncError) {
+        console.warn('⚠️ Order items sync skipped:', syncError?.message);
+      }
       
       console.log(`📦 Loaded ${fetchedItems.length} order items for order ${orderId}`);
       
@@ -306,7 +359,7 @@ export function useOrderItems(orderId) {
     } finally {
       setLoading(false);
     }
-  }, [orderId, showNotification]);
+  }, [orderId, showNotification, serializeItemsForOrder]);
   
   // **UPDATE ORDER ITEM WITH STOCK MANAGEMENT**
   const updateOrderItem = useCallback(async (itemId, updateData) => {
@@ -327,11 +380,25 @@ export function useOrderItems(orderId) {
       const updatedItem = await OrderItemsService.updateOrderItem(itemId, updateData);
       
       // Update local state
-      setItems(prevItems => 
-        prevItems.map(item => 
+      let nextItems = [];
+      setItems(prevItems => {
+        const updatedList = prevItems.map(item =>
           item.id === itemId ? updatedItem : item
-        )
-      );
+        );
+        nextItems = updatedList;
+        return updatedList;
+      });
+
+      if (orderId) {
+        try {
+          await OrdersService.updateOrder(orderId, {
+            items: serializeItemsForOrder(nextItems),
+            itemCount: nextItems.length
+          });
+        } catch (syncError) {
+          console.warn('⚠️ Order items sync skipped:', syncError?.message);
+        }
+      }
       
       // If item is delivered, update material stock
       if (isBecomingDelivered) {
@@ -390,7 +457,7 @@ export function useOrderItems(orderId) {
       
       throw error;
     }
-  }, [orderId, showNotification]);
+  }, [orderId, showNotification, serializeItemsForOrder]);
   
   // **DELETE ORDER ITEM**
   const deleteOrderItem = useCallback(async (itemId) => {
@@ -398,9 +465,23 @@ export function useOrderItems(orderId) {
       await OrderItemsService.deleteOrderItem(itemId);
       
       // Update local state
-      setItems(prevItems => 
-        prevItems.filter(item => item.id !== itemId)
-      );
+      let nextItems = [];
+      setItems(prevItems => {
+        const updatedList = prevItems.filter(item => item.id !== itemId);
+        nextItems = updatedList;
+        return updatedList;
+      });
+
+      if (orderId) {
+        try {
+          await OrdersService.updateOrder(orderId, {
+            items: serializeItemsForOrder(nextItems),
+            itemCount: nextItems.length
+          });
+        } catch (syncError) {
+          console.warn('⚠️ Order items sync skipped:', syncError?.message);
+        }
+      }
       
       // Update order status based on remaining items
       if (orderId) {
@@ -422,7 +503,7 @@ export function useOrderItems(orderId) {
       
       throw error;
     }
-  }, [orderId, showNotification]);
+  }, [orderId, showNotification, serializeItemsForOrder]);
   
   // **ADD ORDER ITEM**
   const addOrderItem = useCallback(async (itemData) => {
@@ -437,7 +518,33 @@ export function useOrderItems(orderId) {
       });
       
       // Update local state
-      setItems(prevItems => [...prevItems, newItem]);
+      let nextItems = [];
+      setItems(prevItems => {
+        const updated = [...prevItems, newItem];
+        const sorted = updated.sort((a, b) => {
+          const aSeq = a.itemSequence || 0;
+          const bSeq = b.itemSequence || 0;
+          if (aSeq === bSeq) {
+            const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+            const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
+            return aTime - bTime;
+          }
+          return aSeq - bSeq;
+        });
+        nextItems = sorted;
+        return sorted;
+      });
+
+      if (orderId) {
+        try {
+          await OrdersService.updateOrder(orderId, {
+            items: serializeItemsForOrder(nextItems),
+            itemCount: nextItems.length
+          });
+        } catch (syncError) {
+          console.warn('⚠️ Order items sync skipped:', syncError?.message);
+        }
+      }
       
       if (showNotification) {
         showNotification('Yeni sipariş kalemi eklendi', 'success');
@@ -455,7 +562,7 @@ export function useOrderItems(orderId) {
       
       throw error;
     }
-  }, [orderId, showNotification]);
+  }, [orderId, showNotification, serializeItemsForOrder]);
   
   // **LOAD ITEMS ON ORDER ID CHANGE**
   useEffect(() => {

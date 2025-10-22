@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { fetchWithTimeout } from '../lib/api.js'
 import { getAuthToken } from '../utils/auth.js'
 
@@ -193,6 +193,29 @@ export function useSuppliers() {
     }
   }
 
+  // Get suppliers for selected supplier
+  const getMaterialsForSupplier = useCallback(async (supplierId) => {
+    if (!supplierId) {
+      return []
+    }
+
+    try {
+      const response = await fetchWithTimeout(`/api/suppliers/${supplierId}/materials`, {
+        headers: withAuth()
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      return data || []
+    } catch (err) {
+      console.error('Error fetching materials for supplier:', err)
+      throw err
+    }
+  }, [])
+
   // Get suppliers by category
   const getSuppliersByCategory = async (category) => {
     try {
@@ -227,6 +250,7 @@ export function useSuppliers() {
     deleteSupplier,
     addMaterialToSupplier,
     getSuppliersForMaterial,
+    getMaterialsForSupplier,
     getSuppliersByCategory,
     fetchSuppliers,  // Direct function reference
     refetch: fetchSuppliers  // Alias for compatibility

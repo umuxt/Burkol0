@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useOrders, useOrderActions, useOrderStats } from '../hooks/useOrders.js'
-import { useSuppliers } from '../hooks/useSuppliers.js'
-import { useMaterials } from '../hooks/useFirebaseMaterials.js'
 import AddOrderModal from './AddOrderModal.jsx'
+import { getOrderWithItems } from '../lib/orders-service.js'
 
 // Orders dashboard component with real data
 function OrdersDashboard({ stats, loading }) {
@@ -158,7 +157,10 @@ function OrdersFilters({
                       <option value="Onay Bekliyor">Onay Bekliyor</option>
                       <option value="Onaylandı">Onaylandı</option>
                       <option value="Kısmi Teslimat">Kısmi Teslimat</option>
+                      <option value="Yolda">Yolda</option>
                       <option value="Tamamlandı">Tamamlandı</option>
+                      <option value="Teslim Edildi">Teslim Edildi</option>
+                      <option value="İptal Edildi">İptal Edildi</option>
                     </select>
                   </div>
 
@@ -269,6 +271,8 @@ function OrdersTable({
       'Onay Bekliyor': '#f59e0b',
       'Onaylandı': '#3b82f6',
       'Kısmi Teslimat': '#f97316',
+      'Yolda': '#6366f1',
+      'Teslim Edildi': '#10b981',
       'Tamamlandı': '#10b981',
       'İptal Edildi': '#ef4444'
     };
@@ -321,7 +325,7 @@ function OrdersTable({
                     fontSize: '12px',
                     fontWeight: '600'
                   }}>
-                    {order.id.slice(0, 8)}...
+                    {order.orderCode || order.id}
                   </span>
                 </td>
                 <td>
@@ -370,7 +374,7 @@ function OrdersTable({
                     >
                       Detay
                     </button>
-                    {onUpdateOrderStatus && order.orderStatus !== 'Tamamlandı' && order.orderStatus !== 'İptal Edildi' && (
+                    {onUpdateOrderStatus && !['Tamamlandı', 'Teslim Edildi', 'İptal Edildi'].includes(order.orderStatus) && (
                       <select
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => {
@@ -391,6 +395,8 @@ function OrdersTable({
                         <option value="">Durum Değiştir</option>
                         <option value="Onay Bekliyor">Onay Bekliyor</option>
                         <option value="Onaylandı">Onaylandı</option>
+                        <option value="Yolda">Yolda</option>
+                        <option value="Teslim Edildi">Teslim Edildi</option>
                         <option value="İptal Edildi">İptal Et</option>
                       </select>
                     )}
@@ -409,6 +415,8 @@ export default function OrdersTabContent() {
   const [activeOrdersTab, setActiveOrdersTab] = useState('pending') // 'pending' or 'completed'
   const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [selectedOrderLoading, setSelectedOrderLoading] = useState(false)
+  const [selectedOrderError, setSelectedOrderError] = useState(null)
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
   
   // Debug modal state
@@ -433,7 +441,7 @@ export default function OrdersTabContent() {
     loading: pendingLoading, 
     refreshOrders: refreshPendingOrders 
   } = useOrders({
-    orderStatus: ['Taslak', 'Onay Bekliyor', 'Onaylandı', 'Kısmi Teslimat']
+    orderStatus: ['Taslak', 'Onay Bekliyor', 'Onaylandı', 'Kısmi Teslimat', 'Yolda']
   }, { autoLoad: true })
   
   // Get completed orders
@@ -442,7 +450,7 @@ export default function OrdersTabContent() {
     loading: completedLoading,
     refreshOrders: refreshCompletedOrders 
   } = useOrders({
-    orderStatus: 'Tamamlandı'
+    orderStatus: ['Tamamlandı', 'Teslim Edildi']
   }, { autoLoad: true })
 
   // Filter change handler
@@ -465,7 +473,7 @@ export default function OrdersTabContent() {
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
         const matches = 
-          order.id.toLowerCase().includes(searchLower) ||
+          (order.orderCode || order.id).toLowerCase().includes(searchLower) ||
           order.supplierName?.toLowerCase().includes(searchLower) ||
           order.supplierId?.toLowerCase().includes(searchLower);
         
@@ -514,10 +522,27 @@ export default function OrdersTabContent() {
   const currentLoading = activeOrdersTab === 'pending' ? pendingLoading : completedLoading;
 
   // Handle order click
-  const handleOrderClick = (order) => {
-    setSelectedOrder(order);
+  const handleOrderClick = async (order) => {
     console.log('📋 Sipariş detayı açılıyor:', order);
-    // TODO: Open order detail modal
+    setSelectedOrderLoading(true)
+    setSelectedOrderError(null)
+    setSelectedOrder({ ...order, items: order.items || [] })
+    try {
+      const detailedOrder = await getOrderWithItems(order.id)
+      setSelectedOrder(detailedOrder)
+    } catch (error) {
+      console.error('❌ Sipariş detayı yüklenirken hata:', error)
+      setSelectedOrderError(error.message)
+      setSelectedOrder(prev => prev || order)
+    } finally {
+      setSelectedOrderLoading(false)
+    }
+  }
+
+  const handleCloseOrderDetail = () => {
+    setSelectedOrder(null)
+    setSelectedOrderError(null)
+    setSelectedOrderLoading(false)
   }
 
   // Handle order status update
@@ -653,22 +678,137 @@ export default function OrdersTabContent() {
         }}>
           <div style={{
             background: 'white',
-            padding: '24px',
+            padding: '0',
             borderRadius: '8px',
-            maxWidth: '800px',
+            maxWidth: '720px',
             width: '90%',
             maxHeight: '80vh',
-            overflow: 'auto'
+            overflow: 'hidden',
+            color: '#1f2937',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 10px 35px rgba(15, 23, 42, 0.25)'
           }}>
-            <h3>Sipariş Detayı</h3>
-            <p><strong>Sipariş No:</strong> {selectedOrder.id}</p>
-            <p><strong>Tedarikçi:</strong> {selectedOrder.supplierName}</p>
-            <p><strong>Durum:</strong> {selectedOrder.orderStatus}</p>
-            <p><strong>Toplam:</strong> {new Intl.NumberFormat('tr-TR', {
-              style: 'currency',
-              currency: 'TRY'
-            }).format(selectedOrder.totalAmount || 0)}</p>
-            <button onClick={() => setSelectedOrder(null)}>Kapat</button>
+            <div style={{
+              padding: '18px 24px',
+              borderBottom: '1px solid #e5e7eb',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#f8fafc'
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Sipariş Detayı</h3>
+                <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#6b7280' }}>
+                  {selectedOrder.orderCode || selectedOrder.id}
+                </p>
+              </div>
+              <button
+                onClick={handleCloseOrderDetail}
+                style={{
+                  border: '1px solid #d1d5db',
+                  background: 'white',
+                  color: '#1f2937',
+                  padding: '6px 14px',
+                  borderRadius: '999px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Kapat ×
+              </button>
+            </div>
+
+            <div style={{ padding: '20px 24px 0', overflowY: 'auto' }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '16px',
+                marginBottom: '20px'
+              }}>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Tedarikçi</div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', marginTop: '4px' }}>{selectedOrder.supplierName}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Durum</div>
+                  <div style={{ fontSize: '14px', fontWeight: '600', marginTop: '4px' }}>{selectedOrder.orderStatus}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Toplam</div>
+                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#059669', marginTop: '4px' }}>
+                    {new Intl.NumberFormat('tr-TR', {
+                      style: 'currency',
+                      currency: 'TRY'
+                    }).format(selectedOrder.totalAmount || 0)}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '18px' }}>
+                <h4 style={{ marginBottom: '10px', fontSize: '15px', fontWeight: '700' }}>
+                  Sipariş Kalemleri ({selectedOrder.items?.length || selectedOrder.itemCount || 0})
+                </h4>
+              {selectedOrderLoading ? (
+                <p style={{ padding: '12px 0', color: '#6b7280' }}>Kalemler yükleniyor...</p>
+              ) : selectedOrderError ? (
+                <p style={{ color: '#dc2626', padding: '12px 0' }}>Kalemler yüklenemedi: {selectedOrderError}</p>
+              ) : (selectedOrder.items && selectedOrder.items.length > 0) ? (
+                <div style={{
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  overflow: 'hidden',
+                  background: 'white'
+                }}>
+                  {[...(selectedOrder.items || [])]
+                    .sort((a, b) => (a.itemSequence || 0) - (b.itemSequence || 0))
+                    .map((item, index) => (
+                    <div
+                      key={item.id || item.itemCode || index}
+                      style={{
+                        padding: '12px 14px',
+                        background: index % 2 === 0 ? '#f9fafb' : 'white',
+                        borderBottom: index < selectedOrder.items.length - 1 ? '1px solid #f1f5f9' : 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '6px', gap: '8px' }}>
+                            <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600', minWidth: '56px' }}>
+                              {item.itemCode || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#6366f1', fontWeight: '600', background: '#eef2ff', padding: '2px 6px', borderRadius: '999px' }}>
+                              {item.itemStatus || 'Onay Bekliyor'}
+                            </div>
+                          </div>
+                          <div style={{ fontWeight: '600', marginBottom: '2px' }}>{item.materialName || '-'}</div>
+                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                            {item.materialCode || '—'} • {item.quantity || 0} adet × {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(item.unitPrice || 0)}
+                          </div>
+                          {item.expectedDeliveryDate && (
+                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                              Beklenen Teslim: {item.expectedDeliveryDate instanceof Date ? item.expectedDeliveryDate.toLocaleDateString('tr-TR') : item.expectedDeliveryDate}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ fontWeight: '600', fontSize: '14px', minWidth: '90px', textAlign: 'right' }}>
+                          {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format((item.quantity || 0) * (item.unitPrice || 0))}
+                        </div>
+                      </div>
+                      {item.expectedDeliveryDate && (
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>
+                          Beklenen Teslim: {item.expectedDeliveryDate instanceof Date ? item.expectedDeliveryDate.toLocaleDateString('tr-TR') : item.expectedDeliveryDate}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: '#6b7280', fontStyle: 'italic' }}>Bu sipariş için kayıtlı kalem bulunamadı.</p>
+              )}
+            </div>
+            </div>
           </div>
         </div>
       )}

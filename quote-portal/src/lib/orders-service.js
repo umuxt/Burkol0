@@ -20,7 +20,9 @@ import {
   arrayRemove,
   serverTimestamp,
   onSnapshot,
-  Timestamp
+  Timestamp,
+  setDoc,
+  runTransaction
 } from 'firebase/firestore';
 
 import { db, COLLECTIONS } from '../firebase-config.js';
@@ -30,20 +32,68 @@ import { db, COLLECTIONS } from '../firebase-config.js';
 // ================================
 
 export class OrdersService {
+
+  static async generateOrderCode(customYear = null) {
+    const now = new Date();
+    const year = customYear || now.getFullYear();
+    const yearKey = String(year);
+    const counterDocRef = doc(db, 'systemCounters', 'orderCounters');
+
+    const { orderCode, orderSequence } = await runTransaction(db, async (transaction) => {
+      const docSnap = await transaction.get(counterDocRef);
+      const data = docSnap.exists() ? docSnap.data() : {};
+      const lastIndex = data?.[yearKey]?.lastIndex || 0;
+      const nextIndex = lastIndex + 1;
+
+      transaction.set(counterDocRef, {
+        [yearKey]: {
+          lastIndex: nextIndex,
+          updatedAt: serverTimestamp()
+        }
+      }, { merge: true });
+
+      return {
+        orderCode: `ORD-${year}-${String(nextIndex).padStart(4, '0')}`,
+        orderSequence: nextIndex
+      };
+    });
+
+    return {
+      orderCode,
+      orderYear: year,
+      orderSequence
+    };
+  }
   
   // **CREATE ORDER**
   static async createOrder(orderData) {
     try {
       const ordersRef = collection(db, COLLECTIONS.ORDERS);
-      
+
+      const { orderCode, orderYear, orderSequence } = orderData.orderCode
+        ? (() => {
+            const codeMatch = orderData.orderCode.match(/ORD-(\d{4})-(\d+)/);
+            return {
+              orderCode: orderData.orderCode,
+              orderYear: orderData.orderYear || (codeMatch ? Number(codeMatch[1]) : new Date().getFullYear()),
+              orderSequence: orderData.orderSequence || (codeMatch ? Number(codeMatch[2]) : 0)
+            };
+          })()
+        : await this.generateOrderCode(orderData.orderYear);
+
       // Prepare order data with auto-generated fields
       const orderToCreate = {
         ...orderData,
+        orderCode,
+        orderYear,
+        orderSequence,
         orderDate: serverTimestamp(),
         orderStatus: orderData.orderStatus || 'Taslak',
         totalAmount: orderData.totalAmount || 0,
         createdBy: orderData.createdBy || 'system',
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        items: Array.isArray(orderData.items) ? orderData.items : [],
+        itemCount: Array.isArray(orderData.items) ? orderData.items.length : 0
       };
       
       // Validate required fields
@@ -55,12 +105,13 @@ export class OrdersService {
         throw new Error('Tedarikçi adı gerekli');
       }
       
-      const docRef = await addDoc(ordersRef, orderToCreate);
+      const orderDocRef = doc(ordersRef, orderCode);
+      await setDoc(orderDocRef, orderToCreate);
       
-      console.log('✅ Order created successfully:', docRef.id);
+      console.log('✅ Order created successfully:', orderCode);
       
       return {
-        id: docRef.id,
+        id: orderCode,
         ...orderToCreate,
         orderDate: new Date(),
         updatedAt: new Date()
@@ -126,13 +177,22 @@ export class OrdersService {
       const orders = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
+        const items = Array.isArray(data.items)
+          ? data.items.map(item => ({
+              ...item,
+              expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate
+            }))
+          : [];
         orders.push({
           id: doc.id,
           ...data,
+          orderCode: data.orderCode || doc.id,
           // Convert Timestamps to Date objects
           orderDate: data.orderDate?.toDate ? data.orderDate.toDate() : data.orderDate,
           updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
-          expectedDeliveryDate: data.expectedDeliveryDate?.toDate ? data.expectedDeliveryDate.toDate() : data.expectedDeliveryDate
+          expectedDeliveryDate: data.expectedDeliveryDate?.toDate ? data.expectedDeliveryDate.toDate() : data.expectedDeliveryDate,
+          items,
+          itemCount: data.itemCount ?? items.length
         });
       });
       
@@ -181,11 +241,21 @@ export class OrdersService {
       }
       
       const data = orderSnap.data();
+      const items = Array.isArray(data.items)
+        ? data.items.map(item => ({
+            ...item,
+            expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate
+          }))
+        : [];
+      const itemCount = data.itemCount ?? items.length;
       return {
         id: orderSnap.id,
         ...data,
+        orderCode: data.orderCode || orderSnap.id,
         orderDate: data.orderDate?.toDate ? data.orderDate.toDate() : data.orderDate,
-        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+        items,
+        itemCount
       };
       
     } catch (error) {
@@ -238,6 +308,12 @@ export class OrdersService {
       batch.delete(orderRef);
       
       await batch.commit();
+
+      try {
+        await deleteDoc(doc(db, 'orderItemCounters', orderId));
+      } catch (counterError) {
+        console.warn('⚠️ Order item counter cleanup skipped:', counterError?.message);
+      }
       
       console.log('✅ Order and related items deleted successfully:', orderId);
       
@@ -285,11 +361,20 @@ export class OrdersService {
         const orders = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
+          const items = Array.isArray(data.items)
+            ? data.items.map(item => ({
+                ...item,
+                expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate
+              }))
+            : [];
           orders.push({
             id: doc.id,
             ...data,
+            orderCode: data.orderCode || doc.id,
             orderDate: data.orderDate?.toDate ? data.orderDate.toDate() : data.orderDate,
-            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt
+            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+            items,
+            itemCount: data.itemCount ?? items.length
           });
         });
         
@@ -322,16 +407,55 @@ export class OrdersService {
 // ================================
 
 export class OrderItemsService {
+
+  static async generateItemCodes(orderId, count = 1) {
+    if (!orderId) {
+      throw new Error('Sipariş ID gerekli');
+    }
+
+    const counterDocRef = doc(db, 'orderItemCounters', orderId);
+
+    const { startIndex } = await runTransaction(db, async (transaction) => {
+      const docSnap = await transaction.get(counterDocRef);
+      const data = docSnap.exists() ? docSnap.data() : {};
+      const lastIndex = data.lastIndex || 0;
+      const nextIndex = lastIndex + count;
+
+      transaction.set(counterDocRef, {
+        lastIndex: nextIndex,
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      return {
+        startIndex: lastIndex + 1
+      };
+    });
+
+    return Array.from({ length: count }, (_, i) => {
+      const sequence = startIndex + i;
+      return {
+        itemCode: `item-${String(sequence).padStart(2, '0')}`,
+        itemSequence: sequence
+      };
+    });
+  }
   
   // **CREATE ORDER ITEM**
   static async createOrderItem(itemData) {
     try {
       const orderItemsRef = collection(db, COLLECTIONS.ORDER_ITEMS);
-      
+
+      const [{ itemCode, itemSequence }] = await this.generateItemCodes(itemData.orderId, 1);
+
+      const baseLineId = itemData.lineId || `${itemData.materialCode || itemCode}-${String(itemSequence).padStart(2, '0')}`;
+
       // Prepare item data
       const itemToCreate = {
         ...itemData,
-        itemStatus: itemData.itemStatus || 'Bekleniyor',
+        lineId: baseLineId,
+        itemCode,
+        itemSequence,
+        itemStatus: itemData.itemStatus || 'Onay Bekliyor',
         actualDeliveryDate: null,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
@@ -372,8 +496,7 @@ export class OrderItemsService {
     try {
       const q = query(
         collection(db, COLLECTIONS.ORDER_ITEMS),
-        where('orderId', '==', orderId),
-        orderBy('createdAt', 'asc')
+        where('orderId', '==', orderId)
       );
       
       const snapshot = await getDocs(q);
@@ -384,6 +507,9 @@ export class OrderItemsService {
         items.push({
           id: doc.id,
           ...data,
+          itemCode: data.itemCode || `item-${String(data.itemSequence || 0).padStart(2, '0')}`,
+          itemSequence: data.itemSequence,
+          itemStatus: data.itemStatus || 'Onay Bekliyor',
           expectedDeliveryDate: data.expectedDeliveryDate?.toDate ? data.expectedDeliveryDate.toDate() : data.expectedDeliveryDate,
           actualDeliveryDate: data.actualDeliveryDate?.toDate ? data.actualDeliveryDate.toDate() : data.actualDeliveryDate,
           createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
@@ -391,6 +517,29 @@ export class OrderItemsService {
         });
       });
       
+      items.sort((a, b) => {
+        const aSeq = a.itemSequence || 0;
+        const bSeq = b.itemSequence || 0;
+        if (aSeq === bSeq) {
+          return (a.createdAt?.getTime?.() || 0) - (b.createdAt?.getTime?.() || 0);
+        }
+        return aSeq - bSeq;
+      });
+
+      let fallbackIndex = 1;
+      items.forEach(item => {
+        if (!item.itemSequence) {
+          item.itemSequence = fallbackIndex;
+          item.itemCode = item.itemCode || `item-${String(fallbackIndex).padStart(2, '0')}`;
+          item.lineId = item.lineId || `${item.materialCode || item.itemCode}-${String(fallbackIndex).padStart(2, '0')}`;
+          fallbackIndex += 1;
+        } else {
+          item.itemCode = item.itemCode || `item-${String(item.itemSequence).padStart(2, '0')}`;
+          fallbackIndex = Math.max(fallbackIndex, item.itemSequence + 1);
+          item.lineId = item.lineId || `${item.materialCode || item.itemCode}-${String(item.itemSequence).padStart(2, '0')}`;
+        }
+      });
+
       console.log(`📦 Fetched ${items.length} order items for order ${orderId}`);
       return items;
       
@@ -454,15 +603,32 @@ export class OrderItemsService {
   // **BULK CREATE ORDER ITEMS**
   static async createOrderItems(orderItems) {
     try {
+      if (!orderItems || orderItems.length === 0) {
+        return [];
+      }
+
       const batch = writeBatch(db);
       const orderItemsRef = collection(db, COLLECTIONS.ORDER_ITEMS);
-      
+
+      const orderId = orderItems[0].orderId;
+      const hasDifferentOrder = orderItems.some(item => item.orderId !== orderId);
+      if (hasDifferentOrder) {
+        throw new Error('Toplu oluşturma için tüm sipariş kalemleri aynı siparişe ait olmalıdır');
+      }
+      const mappings = await this.generateItemCodes(orderId, orderItems.length);
+
       const createdItems = [];
-      
-      for (const itemData of orderItems) {
+
+      orderItems.forEach((itemData, index) => {
+        const { itemCode, itemSequence } = mappings[index];
+        const baseLineId = itemData.lineId || `${itemData.materialCode || itemCode}-${String(itemSequence).padStart(2, '0')}`;
+        
         const itemToCreate = {
           ...itemData,
-          itemStatus: itemData.itemStatus || 'Bekleniyor',
+          lineId: baseLineId,
+          itemCode,
+          itemSequence,
+          itemStatus: itemData.itemStatus || 'Onay Bekliyor',
           actualDeliveryDate: null,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
@@ -473,9 +639,11 @@ export class OrderItemsService {
         
         createdItems.push({
           id: newItemRef.id,
-          ...itemToCreate
+          ...itemToCreate,
+          createdAt: new Date(),
+          updatedAt: new Date()
         });
-      }
+      });
       
       await batch.commit();
       
@@ -496,15 +664,21 @@ export class OrderItemsService {
 // **GET ORDER WITH ITEMS**
 export async function getOrderWithItems(orderId) {
   try {
-    const [order, items] = await Promise.all([
-      OrdersService.getOrder(orderId),
-      OrderItemsService.getOrderItems(orderId)
-    ]);
-    
-    return {
-      ...order,
-      items
-    };
+    const order = await OrdersService.getOrder(orderId);
+
+    try {
+      const items = await OrderItemsService.getOrderItems(orderId);
+      return {
+        ...order,
+        items
+      };
+    } catch (itemError) {
+      console.warn('⚠️ Order items fallback to embedded data:', itemError?.message);
+      return {
+        ...order,
+        items: order.items || []
+      };
+    }
     
   } catch (error) {
     console.error('❌ Error fetching order with items:', error);
@@ -534,7 +708,7 @@ export async function updateOrderStatusBasedOnItems(orderId) {
       }
     } else if (deliveredItems.length === totalItems) {
       // All items delivered
-      newStatus = 'Tamamlandı';
+      newStatus = 'Teslim Edildi';
     } else {
       // Partial delivery
       newStatus = 'Kısmi Teslimat';
