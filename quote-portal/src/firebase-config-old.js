@@ -108,7 +108,10 @@ export const COLLECTIONS = {
   CATEGORIES: 'categories', 
   USERS: 'users',
   SESSIONS: 'sessions',
-  AUDIT_LOGS: 'auditLogs'
+  AUDIT_LOGS: 'auditLogs',
+  SUPPLIERS: 'suppliers',
+  ORDERS: 'orders',
+  ORDER_ITEMS: 'orderItems'
 };
 
 // **Error Handler**

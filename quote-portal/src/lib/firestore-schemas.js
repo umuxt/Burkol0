@@ -7,7 +7,10 @@ export const COLLECTIONS = {
   SUPPLIER_CATEGORIES: 'suppliers-categories',
   MATERIAL_TYPES: 'material_types',
   SUPPLIERS: 'suppliers',
-  AUDIT_LOGS: 'audit_logs'
+  AUDIT_LOGS: 'audit_logs',
+  ORDERS: 'orders',
+  ORDER_ITEMS: 'orderItems',
+  STOCK_MOVEMENTS: 'stockMovements'
 };
 
 // ================================

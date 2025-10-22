@@ -87,5 +87,17 @@ export const getFirebaseStatus = () => {
 // EXPORTS
 // ================================
 
+// **Firestore Collection References**
+export const COLLECTIONS = {
+  MATERIALS: 'materials',
+  CATEGORIES: 'categories', 
+  USERS: 'users',
+  SESSIONS: 'sessions',
+  AUDIT_LOGS: 'auditLogs',
+  SUPPLIERS: 'suppliers',
+  ORDERS: 'orders',
+  ORDER_ITEMS: 'orderItems'
+};
+
 export { app, db, auth };
 export default { app, db, auth, isFirebaseAvailable, getFirebaseStatus };

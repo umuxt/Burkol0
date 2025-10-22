@@ -17,6 +17,7 @@ import AddMaterialModal from './components/AddMaterialModal.jsx';
 import EditMaterialModal from './components/EditMaterialModal.jsx';
 import CategoryManagementModal from './components/CategoryManagementModal.jsx';
 import MaterialDeletionWarningModal from './components/MaterialDeletionWarningModal.jsx';
+import AddOrderModal from './components/AddOrderModal.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 // Firebase hooks

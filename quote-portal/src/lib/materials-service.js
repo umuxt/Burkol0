@@ -314,6 +314,24 @@ export class MaterialsService {
   // UTILITY FUNCTIONS
   // ================================
   
+  // **UPDATE STOCK BY MATERIAL CODE** (With movement logging)
+  static async updateStockByCode(materialCode, quantity, movementType, details = {}) {
+    try {
+      // First find the material by code
+      const material = await this.getMaterialByCode(materialCode);
+      if (!material) {
+        throw new Error(`Malzeme bulunamadı: ${materialCode}`);
+      }
+      
+      // Use the existing updateStock method with the found material ID
+      return await this.updateStock(material.id, quantity, movementType, details);
+      
+    } catch (error) {
+      console.error('Error updating stock by code:', error);
+      throw error;
+    }
+  }
+
   // **UPDATE STOCK** (With movement logging)
   static async updateStock(materialId, quantity, movementType, details = {}) {
     try {
