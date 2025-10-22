@@ -233,6 +233,8 @@ function OrdersTable({
   loading,
   title,
   variant = 'pending',
+  tabCounts,
+  onChangeTab,
   onOrderClick,
   onUpdateOrderStatus,
   actionLoading = false,
@@ -242,14 +244,6 @@ function OrdersTable({
     return (
       <div className="orders-table-placeholder">
         <p>Siparişler yükleniyor...</p>
-      </div>
-    )
-  }
-
-  if (!orders || orders.length === 0) {
-    return (
-      <div className="orders-table-placeholder">
-        <p>{emptyMessage}</p>
       </div>
     )
   }
@@ -282,36 +276,59 @@ function OrdersTable({
   }
 
   const renderLineChips = (items = []) => (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
       {items.map((item, index) => (
         <div
           key={item.id || item.lineId || index}
           style={{
-            border: '1px solid #e5e7eb',
-            borderRadius: '6px',
-            padding: '6px 8px',
-            minWidth: '150px',
-            background: '#ffffff'
+            border: '1px solid #e2e8f0',
+            borderRadius: '8px',
+            background: '#fff',
+            padding: '8px 10px',
+            minWidth: '220px',
+            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)'
           }}
         >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-            <span style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 600 }}>
-              {item.itemCode || item.lineId || 'Kalem'}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr auto',
+              alignItems: 'center',
+              marginBottom: '6px',
+              gap: '12px'
+            }}
+          >
+            <span style={{ fontSize: '11px', fontWeight: 600, color: '#1d4ed8' }}>
+              {item.itemCode || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
             </span>
-            <span style={{
-              fontSize: '10px',
-              fontWeight: 600,
-              color: '#334155',
-              background: '#e2e8f0',
-              padding: '2px 6px',
-              borderRadius: '999px'
-            }}>
+            <span
+              style={{
+                fontSize: '10px',
+                fontWeight: 600,
+                color: '#0f172a',
+                background: '#e2e8f0',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                whiteSpace: 'nowrap'
+              }}
+            >
               {item.itemStatus || 'Onay Bekliyor'}
             </span>
           </div>
-          <div style={{ fontSize: '13px', fontWeight: 600 }}>{item.materialName || '-'}</div>
-          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-            {item.materialCode || '—'} • {item.quantity || 0} adet
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '0.9fr 1.3fr auto',
+              gap: '8px',
+              fontSize: '11px',
+              color: '#475569'
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>{item.materialCode || '—'}</div>
+            <div style={{ fontWeight: 500, color: '#111827' }}>{item.materialName || '-'}</div>
+            <div style={{ textAlign: 'right', fontWeight: 600 }}>
+              {item.quantity || 0} adet
+            </div>
           </div>
         </div>
       ))}
@@ -319,43 +336,66 @@ function OrdersTable({
   )
 
   return (
-    <div className="materials-table-container">
-      {title && (
-        <div
-          style={{
-            marginBottom: '16px',
-            padding: '12px 16px',
-            background: '#f8f9fa',
-            borderRadius: '6px',
-            borderLeft: '4px solid #3b82f6'
-          }}
-        >
-          <h3
-            style={{
-              margin: 0,
-              fontSize: '14px',
-              fontWeight: 600,
-              color: '#1f2937'
-            }}
+    <section className="materials-table">
+      <div className="materials-tabs">
+        <div className="orders-tabs" style={{ display: 'flex', gap: '12px' }}>
+          <button
+            type="button"
+            className={`tab-button${variant === 'pending' ? ' active' : ''}`}
+            onClick={() => onChangeTab && onChangeTab('pending')}
           >
-            {title}
-          </h3>
+            Bekleyen Siparişler
+            <span className="tab-count">({tabCounts?.pending ?? 0})</span>
+          </button>
+          <button
+            type="button"
+            className={`tab-button${variant === 'completed' ? ' active' : ''}`}
+            onClick={() => onChangeTab && onChangeTab('completed')}
+          >
+            Tamamlanan Siparişler
+            <span className="tab-count">({tabCounts?.completed ?? 0})</span>
+          </button>
         </div>
-      )}
+      </div>
 
-      <div className="table-wrapper">
-        <table className="materials-table">
+      <div className="table-container">
+        <table>
           <thead>
             <tr>
-              <th style={{ minWidth: '120px' }}>Sipariş</th>
-              <th style={{ minWidth: '160px' }}>Tedarikçi</th>
-              <th style={{ minWidth: '220px' }}>Kalemler</th>
-              <th style={{ minWidth: '100px' }}>Tutar</th>
-              <th style={{ minWidth: '100px' }}>Durum</th>
+              <th style={{ minWidth: '120px' }}>
+                <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  Sipariş
+                  <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                </button>
+              </th>
+              <th style={{ minWidth: '160px' }}>
+                <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  Tedarikçi
+                  <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                </button>
+              </th>
+              <th style={{ minWidth: '220px' }}>
+                <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  Kalemler
+                  <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                </button>
+              </th>
+              <th style={{ minWidth: '100px', textAlign: 'right' }}>
+                <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  Tutar
+                  <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                </button>
+              </th>
+              <th style={{ minWidth: '120px' }}>
+                <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  Durum
+                  <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
-            {orders.map((order) => {
+            {orders && orders.length > 0 ? orders.map((order) => {
               const items = variant === 'pending' ? order.pendingItems : order.deliveredItems
               const relevantTotal = variant === 'pending' ? order.pendingTotal : order.deliveredTotal
               return (
@@ -376,61 +416,65 @@ function OrdersTable({
                     <div style={{ fontWeight: 600, fontSize: '13px' }}>{order.supplierName}</div>
                     <div style={{ fontSize: '11px', color: '#6b7280' }}>{order.supplierId}</div>
                   </td>
-                  <td>{items.length > 0 ? renderLineChips(items) : <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>Kalem bulunmuyor</span>}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                  <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>{items.length > 0 ? renderLineChips(items) : <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>Kalem bulunmuyor</span>}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600, paddingTop: '6px', paddingBottom: '6px' }}>
                     {formatCurrency(relevantTotal || order.totalAmount)}
                   </td>
-                  <td>
-                    <span
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: 'white',
-                        backgroundColor: getStatusColor(order.orderStatus)
-                      }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {order.orderStatus}
-                      {onUpdateOrderStatus && (
-                        <select
-                          value={order.orderStatus}
-                          disabled={actionLoading}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            if (e.target.value && e.target.value !== order.orderStatus) {
-                              onUpdateOrderStatus(order.id, e.target.value)
-                            }
-                          }}
-                          style={{
-                            marginLeft: '4px',
-                            padding: '2px 4px',
-                            fontSize: '10px',
-                            border: '1px solid rgba(255,255,255,0.4)',
-                            borderRadius: '8px',
-                            background: 'rgba(255,255,255,0.15)',
-                            color: '#fff',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi'].map(status => (
-                            <option key={status} value={status}>{status}</option>
-                          ))}
-                        </select>
-                      )}
-                    </span>
+                  <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>
+                    {onUpdateOrderStatus ? (
+                      <select
+                        value={order.orderStatus}
+                        disabled={actionLoading}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          if (e.target.value && e.target.value !== order.orderStatus) {
+                            onUpdateOrderStatus(order.id, e.target.value)
+                          }
+                        }}
+                        style={{
+                          padding: '6px 10px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          border: '1px solid rgba(148, 163, 184, 0.6)',
+                          borderRadius: '10px',
+                          background: getStatusColor(order.orderStatus),
+                          color: '#fff',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi'].map(status => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: 'white',
+                          backgroundColor: getStatusColor(order.orderStatus)
+                        }}
+                      >
+                        {order.orderStatus}
+                      </span>
+                    )}
                   </td>
                 </tr>
               )
-            })}
+            }) : (
+              <tr>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: '#6b7280', fontStyle: 'italic' }}>
+                  {emptyMessage}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -604,8 +648,39 @@ export default function OrdersTabContent() {
     try {
       await updateOrder(orderId, { orderStatus: newStatus });
 
+      let latestItems = []
+      if (['Onay Bekliyor', 'Onaylandı', 'Yolda', 'İptal Edildi'].includes(newStatus)) {
+        const items = await OrderItemsService.getOrderItems(orderId)
+        const updatedItems = []
+        for (const item of items) {
+          if (item.itemStatus === newStatus) {
+            updatedItems.push(item)
+          } else {
+            const updated = await OrderItemsService.updateOrderItem(item.id, { itemStatus: newStatus })
+            updatedItems.push(updated)
+          }
+        }
+        latestItems = updatedItems
+        await OrdersService.updateOrder(orderId, {
+          items: serializeItemsForOrder(updatedItems),
+          itemCount: updatedItems.length,
+          orderStatus: newStatus
+        })
+      } else if (newStatus === 'Teslim Edildi') {
+        latestItems = await OrderItemsService.getOrderItems(orderId)
+        await OrdersService.updateOrder(orderId, {
+          items: serializeItemsForOrder(latestItems),
+          itemCount: latestItems.length,
+          orderStatus: newStatus
+        })
+      }
+
       if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder(prev => prev ? { ...prev, orderStatus: newStatus } : prev)
+        setSelectedOrder(prev => prev ? {
+          ...prev,
+          orderStatus: newStatus,
+          items: latestItems.length > 0 ? latestItems : prev.items
+        } : prev)
       }
       await refreshOrders();
 
@@ -710,50 +785,12 @@ export default function OrdersTabContent() {
         </div>
       </div>
 
-      {/* Orders Tabs */}
-      <div className="orders-tabs" style={{ 
-        marginBottom: '16px',
-        display: 'flex',
-        borderBottom: '2px solid #e5e7eb'
-      }}>
-        <button
-          onClick={() => setActiveOrdersTab('pending')}
-          style={{
-            padding: '12px 24px',
-            border: 'none',
-            background: 'none',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            borderBottom: activeOrdersTab === 'pending' ? '2px solid #3b82f6' : '2px solid transparent',
-            color: activeOrdersTab === 'pending' ? '#3b82f6' : '#6b7280'
-          }}
-        >
-          Bekleyen Siparişler ({pendingOrdersView.length})
-        </button>
-        <button
-          onClick={() => setActiveOrdersTab('completed')}
-          style={{
-            padding: '12px 24px',
-            border: 'none',
-            background: 'none',
-            fontSize: '14px',
-            fontWeight: '600',
-            cursor: 'pointer',
-            borderBottom: activeOrdersTab === 'completed' ? '2px solid #10b981' : '2px solid transparent',
-            color: activeOrdersTab === 'completed' ? '#10b981' : '#6b7280'
-          }}
-        >
-          Tamamlanan Siparişler ({completedOrdersView.length})
-        </button>
-      </div>
-
-      {/* Orders Table */}
       <OrdersTable 
         orders={currentOrders}
         loading={currentLoading}
-        title={activeOrdersTab === 'pending' ? 'Bekleyen Siparişler' : 'Tamamlanan Siparişler'}
         variant={activeOrdersTab}
+        tabCounts={{ pending: pendingOrdersView.length, completed: completedOrdersView.length }}
+        onChangeTab={setActiveOrdersTab}
         onOrderClick={handleOrderClick}
         onUpdateOrderStatus={handleUpdateOrderStatus}
         actionLoading={actionLoading}
@@ -952,9 +989,9 @@ export default function OrdersTabContent() {
                 <p style={{ color: '#6b7280', fontStyle: 'italic' }}>Bu sipariş için kayıtlı kalem bulunamadı.</p>
               )}
             </div>
-            </div>
           </div>
         </div>
+      </div>
       )}
     </div>
   )
