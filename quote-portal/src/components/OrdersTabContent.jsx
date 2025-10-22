@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useOrders, useOrderActions, useOrderStats } from '../hooks/useOrders.js'
 import AddOrderModal from './AddOrderModal.jsx'
-import { getOrderWithItems } from '../lib/orders-service.js'
+import { getOrderWithItems, OrderItemsService, OrdersService, updateOrderStatusBasedOnItems } from '../lib/orders-service.js'
 
 // Orders dashboard component with real data
 function OrdersDashboard({ stats, loading }) {
@@ -228,13 +228,15 @@ function OrdersFilters({
 }
 
 // Orders table component
-function OrdersTable({ 
-  orders, 
-  loading, 
+function OrdersTable({
+  orders,
+  loading,
   title,
+  variant = 'pending',
   onOrderClick,
   onUpdateOrderStatus,
-  emptyMessage = "Sipariş bulunamadı"
+  actionLoading = false,
+  emptyMessage = 'Sipariş bulunamadı'
 }) {
   if (loading) {
     return (
@@ -256,154 +258,175 @@ function OrdersTable({
     return new Intl.NumberFormat('tr-TR', {
       style: 'currency',
       currency: 'TRY'
-    }).format(amount || 0);
-  };
+    }).format(amount || 0)
+  }
 
   const formatDate = (date) => {
-    if (!date) return '-';
-    const dateObj = date instanceof Date ? date : new Date(date);
-    return dateObj.toLocaleDateString('tr-TR');
-  };
+    if (!date) return '-'
+    const dateObj = date instanceof Date ? date : new Date(date)
+    return dateObj.toLocaleDateString('tr-TR')
+  }
 
   const getStatusColor = (status) => {
     const colors = {
-      'Taslak': '#6b7280',
+      Taslak: '#6b7280',
       'Onay Bekliyor': '#f59e0b',
       'Onaylandı': '#3b82f6',
       'Kısmi Teslimat': '#f97316',
-      'Yolda': '#6366f1',
+      Yolda: '#6366f1',
       'Teslim Edildi': '#10b981',
-      'Tamamlandı': '#10b981',
+      Tamamlandı: '#10b981',
       'İptal Edildi': '#ef4444'
-    };
-    return colors[status] || '#6b7280';
-  };
+    }
+    return colors[status] || '#6b7280'
+  }
+
+  const renderLineChips = (items = []) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+      {items.map((item, index) => (
+        <div
+          key={item.id || item.lineId || index}
+          style={{
+            border: '1px solid #e5e7eb',
+            borderRadius: '6px',
+            padding: '6px 8px',
+            minWidth: '150px',
+            background: '#ffffff'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+            <span style={{ fontSize: '11px', color: '#3b82f6', fontWeight: 600 }}>
+              {item.itemCode || item.lineId || 'Kalem'}
+            </span>
+            <span style={{
+              fontSize: '10px',
+              fontWeight: 600,
+              color: '#334155',
+              background: '#e2e8f0',
+              padding: '2px 6px',
+              borderRadius: '999px'
+            }}>
+              {item.itemStatus || 'Onay Bekliyor'}
+            </span>
+          </div>
+          <div style={{ fontSize: '13px', fontWeight: 600 }}>{item.materialName || '-'}</div>
+          <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+            {item.materialCode || '—'} • {item.quantity || 0} adet
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 
   return (
     <div className="materials-table-container">
       {title && (
-        <div style={{ 
-          marginBottom: '16px', 
-          padding: '12px 16px',
-          background: '#f8f9fa',
-          borderRadius: '6px',
-          borderLeft: '4px solid #3b82f6'
-        }}>
-          <h3 style={{ 
-            margin: 0, 
-            fontSize: '14px', 
-            fontWeight: '600',
-            color: '#1f2937'
-          }}>
+        <div
+          style={{
+            marginBottom: '16px',
+            padding: '12px 16px',
+            background: '#f8f9fa',
+            borderRadius: '6px',
+            borderLeft: '4px solid #3b82f6'
+          }}
+        >
+          <h3
+            style={{
+              margin: 0,
+              fontSize: '14px',
+              fontWeight: 600,
+              color: '#1f2937'
+            }}
+          >
             {title}
           </h3>
         </div>
       )}
-      
+
       <div className="table-wrapper">
         <table className="materials-table">
           <thead>
             <tr>
-              <th style={{ minWidth: '120px' }}>Sipariş No</th>
-              <th style={{ minWidth: '180px' }}>Tedarikçi</th>
-              <th style={{ minWidth: '100px' }}>Sipariş Tarihi</th>
-              <th style={{ minWidth: '100px' }}>Toplam Tutar</th>
-              <th style={{ minWidth: '120px' }}>Durum</th>
-              <th style={{ minWidth: '100px' }}>İşlemler</th>
+              <th style={{ minWidth: '120px' }}>Sipariş</th>
+              <th style={{ minWidth: '160px' }}>Tedarikçi</th>
+              <th style={{ minWidth: '220px' }}>Kalemler</th>
+              <th style={{ minWidth: '100px' }}>Tutar</th>
+              <th style={{ minWidth: '100px' }}>Durum</th>
             </tr>
           </thead>
           <tbody>
-            {orders.map((order) => (
-              <tr 
-                key={order.id}
-                onClick={() => onOrderClick && onOrderClick(order)}
-                style={{ cursor: onOrderClick ? 'pointer' : 'default' }}
-              >
-                <td>
-                  <span style={{ 
-                    fontFamily: 'monospace',
-                    fontSize: '12px',
-                    fontWeight: '600'
-                  }}>
-                    {order.orderCode || order.id}
-                  </span>
-                </td>
-                <td>
-                  <div>
-                    <div style={{ fontWeight: '600', fontSize: '13px' }}>
-                      {order.supplierName}
+            {orders.map((order) => {
+              const items = variant === 'pending' ? order.pendingItems : order.deliveredItems
+              const relevantTotal = variant === 'pending' ? order.pendingTotal : order.deliveredTotal
+              return (
+                <tr
+                  key={order.id}
+                  onClick={() => onOrderClick && onOrderClick(order)}
+                  style={{ cursor: onOrderClick ? 'pointer' : 'default' }}
+                >
+                  <td>
+                    <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 600 }}>
+                      {order.orderCode || order.id}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#6b7280' }}>
-                      {order.supplierId}
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                      {formatDate(order.orderDate)}
                     </div>
-                  </div>
-                </td>
-                <td>{formatDate(order.orderDate)}</td>
-                <td style={{ textAlign: 'right', fontWeight: '600' }}>
-                  {formatCurrency(order.totalAmount)}
-                </td>
-                <td>
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '4px 8px',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    fontWeight: '600',
-                    color: 'white',
-                    backgroundColor: getStatusColor(order.orderStatus)
-                  }}>
-                    {order.orderStatus}
-                  </span>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', gap: '4px' }}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOrderClick && onOrderClick(order);
-                      }}
+                  </td>
+                  <td>
+                    <div style={{ fontWeight: 600, fontSize: '13px' }}>{order.supplierName}</div>
+                    <div style={{ fontSize: '11px', color: '#6b7280' }}>{order.supplierId}</div>
+                  </td>
+                  <td>{items.length > 0 ? renderLineChips(items) : <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>Kalem bulunmuyor</span>}</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                    {formatCurrency(relevantTotal || order.totalAmount)}
+                  </td>
+                  <td>
+                    <span
                       style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px',
                         padding: '4px 8px',
+                        borderRadius: '12px',
                         fontSize: '11px',
-                        background: '#3b82f6',
+                        fontWeight: 600,
                         color: 'white',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer'
+                        backgroundColor: getStatusColor(order.orderStatus)
                       }}
+                      onClick={(e) => e.stopPropagation()}
                     >
-                      Detay
-                    </button>
-                    {onUpdateOrderStatus && !['Tamamlandı', 'Teslim Edildi', 'İptal Edildi'].includes(order.orderStatus) && (
-                      <select
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => {
-                          if (e.target.value && e.target.value !== order.orderStatus) {
-                            onUpdateOrderStatus(order.id, e.target.value);
-                          }
-                          e.target.value = order.orderStatus; // Reset
-                        }}
-                        defaultValue=""
-                        style={{
-                          padding: '4px',
-                          fontSize: '10px',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '3px',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        <option value="">Durum Değiştir</option>
-                        <option value="Onay Bekliyor">Onay Bekliyor</option>
-                        <option value="Onaylandı">Onaylandı</option>
-                        <option value="Yolda">Yolda</option>
-                        <option value="Teslim Edildi">Teslim Edildi</option>
-                        <option value="İptal Edildi">İptal Et</option>
-                      </select>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                      {order.orderStatus}
+                      {onUpdateOrderStatus && (
+                        <select
+                          value={order.orderStatus}
+                          disabled={actionLoading}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            if (e.target.value && e.target.value !== order.orderStatus) {
+                              onUpdateOrderStatus(order.id, e.target.value)
+                            }
+                          }}
+                          style={{
+                            marginLeft: '4px',
+                            padding: '2px 4px',
+                            fontSize: '10px',
+                            border: '1px solid rgba(255,255,255,0.4)',
+                            borderRadius: '8px',
+                            background: 'rgba(255,255,255,0.15)',
+                            color: '#fff',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi'].map(status => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      )}
+                    </span>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -434,24 +457,11 @@ export default function OrdersTabContent() {
   // Firebase hooks
   const { stats, loading: statsLoading } = useOrderStats()
   const { updateOrder, loading: actionLoading } = useOrderActions()
-  
-  // Get pending orders
-  const { 
-    orders: pendingOrders, 
-    loading: pendingLoading, 
-    refreshOrders: refreshPendingOrders 
-  } = useOrders({
-    orderStatus: ['Taslak', 'Onay Bekliyor', 'Onaylandı', 'Kısmi Teslimat', 'Yolda']
-  }, { autoLoad: true })
-  
-  // Get completed orders
-  const { 
-    orders: completedOrders, 
-    loading: completedLoading,
-    refreshOrders: refreshCompletedOrders 
-  } = useOrders({
-    orderStatus: ['Tamamlandı', 'Teslim Edildi']
-  }, { autoLoad: true })
+  const { orders, loading: ordersLoading, refreshOrders } = useOrders({}, { autoLoad: true, realTime: true })
+
+  const ORDER_STATUS_OPTIONS = ['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi']
+  const ITEM_STATUS_OPTIONS = ['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi']
+  const [updatingItemIds, setUpdatingItemIds] = useState([])
 
   // Filter change handler
   const handleFilterChange = (key, value) => {
@@ -513,17 +523,56 @@ export default function OrdersTabContent() {
     });
   }
 
-  // Get filtered orders
-  const filteredPendingOrders = applyFilters(pendingOrders);
-  const filteredCompletedOrders = applyFilters(completedOrders);
+  const filteredOrders = applyFilters(orders);
 
-  // Current orders based on active tab
-  const currentOrders = activeOrdersTab === 'pending' ? filteredPendingOrders : filteredCompletedOrders;
-  const currentLoading = activeOrdersTab === 'pending' ? pendingLoading : completedLoading;
+  const enhancedOrders = filteredOrders.map(order => {
+    const items = Array.isArray(order.items) ? order.items : [];
+    const pendingItems = items.filter(item => item.itemStatus !== 'Teslim Edildi');
+    const deliveredItems = items.filter(item => item.itemStatus === 'Teslim Edildi');
+    const pendingTotal = pendingItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0);
+    const deliveredTotal = deliveredItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0);
+    return {
+      ...order,
+      pendingItems,
+      deliveredItems,
+      pendingTotal,
+      deliveredTotal
+    };
+  });
+
+  const pendingOrdersView = enhancedOrders.filter(order => order.pendingItems.length > 0);
+  const completedOrdersView = enhancedOrders.filter(order => order.deliveredItems.length > 0);
+
+  const currentOrders = activeOrdersTab === 'pending' ? pendingOrdersView : completedOrdersView;
+  const currentLoading = ordersLoading;
+
+  const serializeItemsForOrder = (list = []) => (
+    list.map(item => {
+      const fallbackLineId = item.lineId || `${item.materialCode || item.itemCode || item.id}-${String(item.itemSequence || 1).padStart(2, '0')}`
+      return {
+        id: item.id,
+        lineId: fallbackLineId,
+        itemCode: item.itemCode,
+        itemSequence: item.itemSequence,
+        materialCode: item.materialCode,
+        materialName: item.materialName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        itemStatus: item.itemStatus,
+        expectedDeliveryDate: item.expectedDeliveryDate instanceof Date
+          ? item.expectedDeliveryDate
+          : (item.expectedDeliveryDate || null),
+        actualDeliveryDate: item.actualDeliveryDate instanceof Date
+          ? item.actualDeliveryDate
+          : (item.actualDeliveryDate || null)
+      }
+    })
+  )
 
   // Handle order click
   const handleOrderClick = async (order) => {
     console.log('📋 Sipariş detayı açılıyor:', order);
+    setUpdatingItemIds([])
     setSelectedOrderLoading(true)
     setSelectedOrderError(null)
     setSelectedOrder({ ...order, items: order.items || [] })
@@ -543,20 +592,83 @@ export default function OrdersTabContent() {
     setSelectedOrder(null)
     setSelectedOrderError(null)
     setSelectedOrderLoading(false)
+    setUpdatingItemIds([])
   }
 
   // Handle order status update
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
+    if (!newStatus) return;
+    if (selectedOrder && selectedOrder.id === orderId && selectedOrder.orderStatus === newStatus) {
+      return;
+    }
     try {
       await updateOrder(orderId, { orderStatus: newStatus });
-      
-      // Refresh both order lists
-      refreshPendingOrders();
-      refreshCompletedOrders();
-      
+
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder(prev => prev ? { ...prev, orderStatus: newStatus } : prev)
+      }
+      await refreshOrders();
+
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrderLoading(true);
+        try {
+          const refreshed = await getOrderWithItems(orderId);
+          setSelectedOrder(refreshed);
+        } catch (detailError) {
+          console.error('❌ Detay güncellenirken hata:', detailError);
+        } finally {
+          setSelectedOrderLoading(false);
+        }
+      }
+
       console.log(`✅ Order ${orderId} status updated to ${newStatus}`);
     } catch (error) {
       console.error('❌ Error updating order status:', error);
+    }
+  }
+
+  const handleItemStatusChange = async (orderId, item, newStatus) => {
+    if (!item?.id || !newStatus || newStatus === item.itemStatus) {
+      return
+    }
+
+    setUpdatingItemIds(prev => [...new Set([...prev, item.id])])
+
+    try {
+      await OrderItemsService.updateOrderItem(item.id, { itemStatus: newStatus })
+
+      const latestItems = await OrderItemsService.getOrderItems(orderId)
+
+      await OrdersService.updateOrder(orderId, {
+        items: serializeItemsForOrder(latestItems),
+        itemCount: latestItems.length
+      })
+
+      await updateOrderStatusBasedOnItems(orderId)
+
+      await refreshOrders()
+
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder(prev => prev ? {
+          ...prev,
+          orderStatus: prev.orderStatus,
+          items: latestItems
+        } : prev)
+
+        setSelectedOrderLoading(true)
+        try {
+          const refreshed = await getOrderWithItems(orderId)
+          setSelectedOrder(refreshed)
+        } catch (detailError) {
+          console.error('❌ Detay güncellenirken hata:', detailError)
+        } finally {
+          setSelectedOrderLoading(false)
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error updating item status:', error)
+    } finally {
+      setUpdatingItemIds(prev => prev.filter(id => id !== item.id))
     }
   }
 
@@ -617,7 +729,7 @@ export default function OrdersTabContent() {
             color: activeOrdersTab === 'pending' ? '#3b82f6' : '#6b7280'
           }}
         >
-          Bekleyen Siparişler ({filteredPendingOrders.length})
+          Bekleyen Siparişler ({pendingOrdersView.length})
         </button>
         <button
           onClick={() => setActiveOrdersTab('completed')}
@@ -632,7 +744,7 @@ export default function OrdersTabContent() {
             color: activeOrdersTab === 'completed' ? '#10b981' : '#6b7280'
           }}
         >
-          Tamamlanan Siparişler ({filteredCompletedOrders.length})
+          Tamamlanan Siparişler ({completedOrdersView.length})
         </button>
       </div>
 
@@ -641,8 +753,10 @@ export default function OrdersTabContent() {
         orders={currentOrders}
         loading={currentLoading}
         title={activeOrdersTab === 'pending' ? 'Bekleyen Siparişler' : 'Tamamlanan Siparişler'}
+        variant={activeOrdersTab}
         onOrderClick={handleOrderClick}
-        onUpdateOrderStatus={activeOrdersTab === 'pending' ? handleUpdateOrderStatus : null}
+        onUpdateOrderStatus={handleUpdateOrderStatus}
+        actionLoading={actionLoading}
         emptyMessage={
           activeOrdersTab === 'pending' 
             ? "Bekleyen sipariş bulunamadı" 
@@ -656,9 +770,7 @@ export default function OrdersTabContent() {
         onClose={() => setIsAddOrderModalOpen(false)}
         onSave={(newOrder) => {
           console.log('✅ New order created:', newOrder);
-          // Refresh both order lists
-          refreshPendingOrders();
-          refreshCompletedOrders();
+          refreshOrders();
         }}
       />
 
@@ -702,6 +814,24 @@ export default function OrdersTabContent() {
                 <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#6b7280' }}>
                   {selectedOrder.orderCode || selectedOrder.id}
                 </p>
+                <div style={{ marginTop: '10px' }}>
+                  <select
+                    value={selectedOrder.orderStatus || 'Onay Bekliyor'}
+                    disabled={selectedOrderLoading || actionLoading}
+                    onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)}
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: '12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      background: '#fff'
+                    }}
+                  >
+                    {ORDER_STATUS_OPTIONS.map(status => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <button
                 onClick={handleCloseOrderDetail}
@@ -763,46 +893,60 @@ export default function OrdersTabContent() {
                 }}>
                   {[...(selectedOrder.items || [])]
                     .sort((a, b) => (a.itemSequence || 0) - (b.itemSequence || 0))
-                    .map((item, index) => (
-                    <div
-                      key={item.id || item.itemCode || index}
-                      style={{
-                        padding: '12px 14px',
-                        background: index % 2 === 0 ? '#f9fafb' : 'white',
-                        borderBottom: index < selectedOrder.items.length - 1 ? '1px solid #f1f5f9' : 'none'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '6px', gap: '8px' }}>
-                            <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600', minWidth: '56px' }}>
-                              {item.itemCode || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
+                    .map((item, index) => {
+                      const isItemUpdating = updatingItemIds.includes(item.id);
+                      return (
+                        <div
+                          key={item.id || item.itemCode || index}
+                          style={{
+                            padding: '12px 14px',
+                            background: index % 2 === 0 ? '#f9fafb' : 'white',
+                            borderBottom: index < selectedOrder.items.length - 1 ? '1px solid #f1f5f9' : 'none'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                                <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600', minWidth: '56px' }}>
+                                  {item.itemCode || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#6366f1', fontWeight: '600', background: '#eef2ff', padding: '2px 6px', borderRadius: '999px' }}>
+                                  {item.itemStatus || 'Onay Bekliyor'}
+                                </div>
+                                <select
+                                  value={item.itemStatus || 'Onay Bekliyor'}
+                                  disabled={selectedOrderLoading || !item.id || isItemUpdating || actionLoading}
+                                  onChange={(e) => handleItemStatusChange(selectedOrder.id, item, e.target.value)}
+                                  style={{
+                                    padding: '4px 8px',
+                                    fontSize: '11px',
+                                    border: '1px solid #d1d5db',
+                                    borderRadius: '4px',
+                                    background: '#fff'
+                                  }}
+                                >
+                                  {ITEM_STATUS_OPTIONS.map(status => (
+                                    <option key={status} value={status}>{status}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div style={{ fontWeight: '600', marginBottom: '2px' }}>{item.materialName || '-'}</div>
+                              <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                {item.materialCode || '—'} • {item.quantity || 0} adet × {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(item.unitPrice || 0)}
+                              </div>
+                              {item.expectedDeliveryDate && (
+                                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                                  Beklenen Teslim: {item.expectedDeliveryDate instanceof Date ? item.expectedDeliveryDate.toLocaleDateString('tr-TR') : item.expectedDeliveryDate}
+                                </div>
+                              )}
                             </div>
-                            <div style={{ fontSize: '12px', color: '#6366f1', fontWeight: '600', background: '#eef2ff', padding: '2px 6px', borderRadius: '999px' }}>
-                              {item.itemStatus || 'Onay Bekliyor'}
+                            <div style={{ fontWeight: '600', fontSize: '14px', minWidth: '90px', textAlign: 'right' }}>
+                              {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format((item.quantity || 0) * (item.unitPrice || 0))}
                             </div>
                           </div>
-                          <div style={{ fontWeight: '600', marginBottom: '2px' }}>{item.materialName || '-'}</div>
-                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                            {item.materialCode || '—'} • {item.quantity || 0} adet × {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(item.unitPrice || 0)}
-                          </div>
-                          {item.expectedDeliveryDate && (
-                            <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-                              Beklenen Teslim: {item.expectedDeliveryDate instanceof Date ? item.expectedDeliveryDate.toLocaleDateString('tr-TR') : item.expectedDeliveryDate}
-                            </div>
-                          )}
                         </div>
-                        <div style={{ fontWeight: '600', fontSize: '14px', minWidth: '90px', textAlign: 'right' }}>
-                          {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format((item.quantity || 0) * (item.unitPrice || 0))}
-                        </div>
-                      </div>
-                      {item.expectedDeliveryDate && (
-                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>
-                          Beklenen Teslim: {item.expectedDeliveryDate instanceof Date ? item.expectedDeliveryDate.toLocaleDateString('tr-TR') : item.expectedDeliveryDate}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                      )
+                    })}
                 </div>
               ) : (
                 <p style={{ color: '#6b7280', fontStyle: 'italic' }}>Bu sipariş için kayıtlı kalem bulunamadı.</p>

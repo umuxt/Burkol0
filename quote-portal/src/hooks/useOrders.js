@@ -307,20 +307,27 @@ export function useOrderItems(orderId) {
   const { showNotification } = useNotifications();
 
   const serializeItemsForOrder = useCallback((list) => (
-    list.map(item => ({
-      lineId: item.lineId,
-      itemCode: item.itemCode,
-      itemSequence: item.itemSequence,
-      materialCode: item.materialCode,
-      materialName: item.materialName,
-      quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      itemStatus: item.itemStatus,
-      expectedDeliveryDate: item.expectedDeliveryDate instanceof Date
-        ? item.expectedDeliveryDate
-        : (item.expectedDeliveryDate || null)
-    }))
-  ), []);
+    list.map(item => {
+      const fallbackLineId = item.lineId || `${item.materialCode || item.itemCode || item.id}-${String(item.itemSequence || 1).padStart(2, '0')}`
+      return {
+        id: item.id,
+        lineId: fallbackLineId,
+        itemCode: item.itemCode,
+        itemSequence: item.itemSequence,
+        materialCode: item.materialCode,
+        materialName: item.materialName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        itemStatus: item.itemStatus,
+        expectedDeliveryDate: item.expectedDeliveryDate instanceof Date
+          ? item.expectedDeliveryDate
+          : (item.expectedDeliveryDate || null),
+        actualDeliveryDate: item.actualDeliveryDate instanceof Date
+          ? item.actualDeliveryDate
+          : (item.actualDeliveryDate || null)
+      }
+    })
+  ), [])
   
   // **LOAD ORDER ITEMS**
   const loadOrderItems = useCallback(async () => {

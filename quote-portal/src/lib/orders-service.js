@@ -180,7 +180,8 @@ export class OrdersService {
         const items = Array.isArray(data.items)
           ? data.items.map(item => ({
               ...item,
-              expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate
+              expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate,
+              actualDeliveryDate: item.actualDeliveryDate?.toDate ? item.actualDeliveryDate.toDate() : item.actualDeliveryDate || null
             }))
           : [];
         orders.push({
@@ -244,7 +245,8 @@ export class OrdersService {
       const items = Array.isArray(data.items)
         ? data.items.map(item => ({
             ...item,
-            expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate
+            expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate,
+            actualDeliveryDate: item.actualDeliveryDate?.toDate ? item.actualDeliveryDate.toDate() : item.actualDeliveryDate || null
           }))
         : [];
       const itemCount = data.itemCount ?? items.length;
@@ -273,6 +275,56 @@ export class OrdersService {
         ...updateData,
         updatedAt: serverTimestamp()
       };
+
+      if (updateData.orderStatus === 'Teslim Edildi') {
+        const itemsQuery = query(
+          collection(db, COLLECTIONS.ORDER_ITEMS),
+          where('orderId', '==', orderId)
+        );
+
+        const itemsSnapshot = await getDocs(itemsQuery);
+        const batch = writeBatch(db);
+        const updatedItems = [];
+
+        itemsSnapshot.forEach((itemDoc) => {
+          const itemData = itemDoc.data();
+          const deliveryTimestamp = itemData.actualDeliveryDate || Timestamp.now();
+
+          batch.update(itemDoc.ref, {
+            itemStatus: 'Teslim Edildi',
+            actualDeliveryDate: itemData.actualDeliveryDate || deliveryTimestamp,
+            updatedAt: serverTimestamp()
+          });
+
+          updatedItems.push({
+            id: itemDoc.id,
+            ...itemData,
+            itemStatus: 'Teslim Edildi',
+            actualDeliveryDate: itemData.actualDeliveryDate
+              ? (itemData.actualDeliveryDate.toDate ? itemData.actualDeliveryDate.toDate() : itemData.actualDeliveryDate)
+              : deliveryTimestamp.toDate()
+          });
+        });
+
+        if (updatedItems.length > 0) {
+          await batch.commit();
+        }
+
+        dataToUpdate.items = updatedItems.map(item => ({
+          id: item.id,
+          lineId: item.lineId || `${item.materialCode || item.itemCode || item.id}-${String(item.itemSequence || 1).padStart(2, '0')}`,
+          itemCode: item.itemCode,
+          itemSequence: item.itemSequence,
+          materialCode: item.materialCode,
+          materialName: item.materialName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          itemStatus: item.itemStatus,
+          expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate || null,
+          actualDeliveryDate: item.actualDeliveryDate instanceof Date ? item.actualDeliveryDate : item.actualDeliveryDate || null
+        }));
+        dataToUpdate.itemCount = updatedItems.length;
+      }
       
       await updateDoc(orderRef, dataToUpdate);
       
@@ -364,7 +416,8 @@ export class OrdersService {
           const items = Array.isArray(data.items)
             ? data.items.map(item => ({
                 ...item,
-                expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate
+                expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate,
+                actualDeliveryDate: item.actualDeliveryDate?.toDate ? item.actualDeliveryDate.toDate() : item.actualDeliveryDate || null
               }))
             : [];
           orders.push({
@@ -504,9 +557,11 @@ export class OrderItemsService {
       const items = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
+        const fallbackLineId = data.lineId || `${data.materialCode || data.itemCode || doc.id}-${String((data.itemSequence || (items.length + 1))).padStart(2, '0')}`;
         items.push({
           id: doc.id,
           ...data,
+          lineId: fallbackLineId,
           itemCode: data.itemCode || `item-${String(data.itemSequence || 0).padStart(2, '0')}`,
           itemSequence: data.itemSequence,
           itemStatus: data.itemStatus || 'Onay Bekliyor',
@@ -715,7 +770,25 @@ export async function updateOrderStatusBasedOnItems(orderId) {
     }
     
     if (newStatus) {
-      await OrdersService.updateOrder(orderId, { orderStatus: newStatus });
+      const serializedItems = items.map(item => ({
+        id: item.id,
+        lineId: item.lineId,
+        itemCode: item.itemCode,
+        itemSequence: item.itemSequence,
+        materialCode: item.materialCode,
+        materialName: item.materialName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        itemStatus: item.itemStatus,
+        expectedDeliveryDate: item.expectedDeliveryDate || null,
+        actualDeliveryDate: item.actualDeliveryDate || null
+      }));
+
+      await OrdersService.updateOrder(orderId, { 
+        orderStatus: newStatus,
+        items: serializedItems,
+        itemCount: items.length
+      });
       console.log(`📋 Order ${orderId} status updated to: ${newStatus}`);
     }
     
