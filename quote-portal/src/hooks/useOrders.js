@@ -87,6 +87,23 @@ export function useOrders(filters = {}, options = {}) {
       } else {
         loadOrders();
       }
+      
+      // Timeout fallback - if still loading after 10 seconds, force initialized
+      const timeoutId = setTimeout(() => {
+        if (!initialized) {
+          console.log('⚠️ Orders loading timeout - forcing initialized state');
+          setInitialized(true);
+          setLoading(false);
+          setError('Siparişler yüklenemedi - bağlantı problemi olabilir');
+        }
+      }, 10000);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        if (unsubscribeRef.current) {
+          unsubscribeRef.current();
+        }
+      };
     }
     
     // Cleanup subscription on unmount
@@ -229,6 +246,7 @@ export function useOrderActions() {
       }));
       
       const createdItems = await OrderItemsService.createOrderItems(itemsToCreate);
+      console.log('✅ useOrderActions: Order items created:', createdItems);
       const sortedCreatedItems = [...createdItems].sort((a, b) => {
         const aSeq = a.itemSequence || 0;
         const bSeq = b.itemSequence || 0;

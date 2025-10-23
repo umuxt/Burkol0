@@ -231,6 +231,7 @@ function OrdersFilters({
 function OrdersTable({
   orders,
   loading,
+  error,
   title,
   variant = 'pending',
   tabCounts,
@@ -244,6 +245,91 @@ function OrdersTable({
     return (
       <div className="orders-table-placeholder">
         <p>Siparişler yükleniyor...</p>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="orders-table-placeholder">
+        <div style={{
+          textAlign: 'center',
+          padding: '40px 20px',
+          color: '#ef4444'
+        }}>
+          <div style={{
+            fontSize: '48px',
+            marginBottom: '16px',
+            opacity: 0.5
+          }}>⚠️</div>
+          <h3 style={{
+            margin: '0 0 8px 0',
+            fontSize: '18px',
+            fontWeight: '600',
+            color: '#dc2626'
+          }}>
+            Bağlantı Problemi
+          </h3>
+          <p style={{
+            margin: '0 0 16px 0',
+            fontSize: '14px',
+            color: '#6b7280'
+          }}>
+            {error.includes('timeout') ? 
+              'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.' : 
+              `Siparişler yüklenirken hata oluştu: ${error}`
+            }
+          </p>
+          <button 
+            onClick={() => window.location.reload()} 
+            style={{
+              padding: '8px 16px',
+              fontSize: '14px',
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            Sayfayı Yenile
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Empty state when no orders exist at all
+  if (!loading && (!orders || orders.length === 0)) {
+    return (
+      <div className="orders-table-placeholder">
+        <div style={{
+          textAlign: 'center',
+          padding: '40px 20px',
+          color: '#6b7280'
+        }}>
+          <div style={{
+            fontSize: '48px',
+            marginBottom: '16px',
+            opacity: 0.5
+          }}>📋</div>
+          <h3 style={{
+            margin: '0 0 8px 0',
+            fontSize: '18px',
+            fontWeight: '600',
+            color: '#374151'
+          }}>
+            Henüz sipariş bulunmuyor
+          </h3>
+          <p style={{
+            margin: '0',
+            fontSize: '14px',
+            color: '#6b7280'
+          }}>
+            İlk siparişinizi oluşturmak için "Yeni Sipariş" butonunu kullanın
+          </p>
+        </div>
       </div>
     )
   }
@@ -503,7 +589,7 @@ export default function OrdersTabContent() {
   // Firebase hooks
   const { stats, loading: statsLoading } = useOrderStats()
   const { updateOrder, loading: actionLoading } = useOrderActions()
-  const { orders, loading: ordersLoading, refreshOrders } = useOrders({}, { autoLoad: true, realTime: true })
+  const { orders, loading: ordersLoading, error: ordersError, refreshOrders } = useOrders({}, { autoLoad: true, realTime: true })
 
   const ORDER_STATUS_OPTIONS = ['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi']
   const ITEM_STATUS_OPTIONS = ['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi']
@@ -843,6 +929,7 @@ export default function OrdersTabContent() {
       <OrdersTable 
         orders={currentOrders}
         loading={currentLoading}
+        error={ordersError}
         variant={activeOrdersTab}
         tabCounts={{ pending: pendingOrdersView.length, completed: completedOrdersView.length }}
         onChangeTab={setActiveOrdersTab}

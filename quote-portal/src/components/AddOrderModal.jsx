@@ -4,11 +4,6 @@ import { useMaterials } from '../hooks/useFirebaseMaterials.js'
 import { useOrderActions } from '../hooks/useOrders.js'
 
 export default function AddOrderModal({ isOpen, onClose, onSave }) {
-  console.log('🔥🔥🔥 AddOrderModal BAŞLADI - isOpen:', isOpen);
-  
-  if (isOpen) {
-    console.log('🔥🔥🔥 AddOrderModal AÇIK!');
-  }
   
   const [currentStep, setCurrentStep] = useState(1) // 1: Tedarikçi Seçimi, 2: Malzeme Ekleme, 3: Özet
   const [formData, setFormData] = useState({
@@ -289,6 +284,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
   // Handle form submission
   const handleSubmit = async () => {
     try {
+      
       if (selectedMaterials.length === 0) {
         alert('En az bir malzeme eklemelisiniz')
         return
@@ -299,7 +295,12 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
         totalAmount
       }
 
+      console.log('📋 AddOrderModal: Order data hazırlandı:', orderData);
+      console.log('📦 AddOrderModal: Selected materials:', selectedMaterials);
+
       const result = await createOrderWithItems(orderData, selectedMaterials)
+      
+      console.log('✅ AddOrderModal: Order oluşturuldu:', result);
       
       if (onSave) {
         onSave(result)
@@ -308,7 +309,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
       onClose()
       
     } catch (error) {
-      console.error('❌ Error creating order:', error)
+      console.error('❌ AddOrderModal: Error creating order:', error)
       alert('Sipariş oluşturulurken hata oluştu: ' + error.message)
     }
   }

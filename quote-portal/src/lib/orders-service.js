@@ -52,8 +52,10 @@ export class OrdersService {
         }
       }, { merge: true });
 
+      const generatedCode = `ORD-${year}-${String(nextIndex).padStart(4, '0')}`;
+
       return {
-        orderCode: `ORD-${year}-${String(nextIndex).padStart(4, '0')}`,
+        orderCode: generatedCode,
         orderSequence: nextIndex
       };
     });
@@ -108,8 +110,6 @@ export class OrdersService {
       const orderDocRef = doc(ordersRef, orderCode);
       await setDoc(orderDocRef, orderToCreate);
       
-      console.log('✅ Order created successfully:', orderCode);
-      
       return {
         id: orderCode,
         ...orderToCreate,
@@ -126,107 +126,145 @@ export class OrdersService {
     // **READ ORDERS**
   static async getOrders(filters = {}, pagination = {}) {
     try {
-      let q = collection(db, COLLECTIONS.ORDERS);
+      console.log('📋 OrdersService: getOrders çağrıldı, collection:', COLLECTIONS.ORDERS);
       
-      // Apply filters - Single field filters only to avoid index requirements
-      const queries = [];
-      
-      if (filters.orderStatus) {
-        if (Array.isArray(filters.orderStatus)) {
-          // Multiple statuses - use 'in' operator (max 10 values)
-          if (filters.orderStatus.length <= 10) {
-            queries.push(where('orderStatus', 'in', filters.orderStatus));
-          } else {
-            // If more than 10 statuses, use first status only
-            queries.push(where('orderStatus', '==', filters.orderStatus[0]));
-          }
-        } else {
-          queries.push(where('orderStatus', '==', filters.orderStatus));
-        }
-        
-        // When filtering by status, don't add orderBy to avoid composite index requirement
-        // Just use limit if provided
-        if (pagination.limit) {
-          queries.push(limit(pagination.limit));
-        }
-      } else {
-        // Only add orderBy when not filtering by status
-        queries.push(orderBy(pagination.orderBy || 'orderDate', pagination.order || 'desc'));
-        
-        // Add limit
-        if (pagination.limit) {
-          queries.push(limit(pagination.limit));
-        }
-      }
-      
-      if (filters.supplierId) {
-        queries.push(where('supplierId', '==', filters.supplierId));
-      }
-      
-      if (filters.createdBy) {
-        queries.push(where('createdBy', '==', filters.createdBy));
-      }
-      
-      // Create final query
-      if (queries.length > 0) {
-        q = query(q, ...queries);
-      }
-      
-      const snapshot = await getDocs(q);
-      
-      const orders = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        const items = Array.isArray(data.items)
-          ? data.items.map(item => ({
-              ...item,
-              expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate,
-              actualDeliveryDate: item.actualDeliveryDate?.toDate ? item.actualDeliveryDate.toDate() : item.actualDeliveryDate || null
-            }))
-          : [];
-        orders.push({
-          id: doc.id,
-          ...data,
-          orderCode: data.orderCode || doc.id,
-          // Convert Timestamps to Date objects
-          orderDate: data.orderDate?.toDate ? data.orderDate.toDate() : data.orderDate,
-          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
-          expectedDeliveryDate: data.expectedDeliveryDate?.toDate ? data.expectedDeliveryDate.toDate() : data.expectedDeliveryDate,
-          items,
-          itemCount: data.itemCount ?? items.length
-        });
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Orders request timeout after 8 seconds')), 8000);
       });
       
-      // If we filtered by status but need sorting, sort in memory
-      if (filters.orderStatus && orders.length > 0) {
-        const sortField = pagination.orderBy || 'orderDate';
-        const sortOrder = pagination.order || 'desc';
-        
-        orders.sort((a, b) => {
-          const aValue = a[sortField];
-          const bValue = b[sortField];
-          
-          if (!aValue && !bValue) return 0;
-          if (!aValue) return sortOrder === 'desc' ? 1 : -1;
-          if (!bValue) return sortOrder === 'desc' ? -1 : 1;
-          
-          if (aValue instanceof Date && bValue instanceof Date) {
-            return sortOrder === 'desc' ? bValue - aValue : aValue - bValue;
-          }
-          
-          if (typeof aValue === 'string' && typeof bValue === 'string') {
-            return sortOrder === 'desc' ? bValue.localeCompare(aValue) : aValue.localeCompare(bValue);
-          }
-          
-          return sortOrder === 'desc' ? bValue - aValue : aValue - bValue;
-        });
-      }
+      // Create main query promise
+      const queryPromise = (async () => {
+        let q = collection(db, COLLECTIONS.ORDERS);
       
-      console.log(`📋 Fetched ${orders.length} orders from Firestore`);
-      return orders;
+        // Apply filters - Single field filters only to avoid index requirements
+        const queries = [];
+        
+        if (filters.orderStatus) {
+          if (Array.isArray(filters.orderStatus)) {
+            // Multiple statuses - use 'in' operator (max 10 values)
+            if (filters.orderStatus.length <= 10) {
+              queries.push(where('orderStatus', 'in', filters.orderStatus));
+            } else {
+              // If more than 10 statuses, use first status only
+              queries.push(where('orderStatus', '==', filters.orderStatus[0]));
+            }
+          } else {
+            queries.push(where('orderStatus', '==', filters.orderStatus));
+          }
+          
+          // When filtering by status, don't add orderBy to avoid composite index requirement
+          // Just use limit if provided
+          if (pagination.limit) {
+            queries.push(limit(pagination.limit));
+          }
+        } else {
+          // Only add orderBy when not filtering by status
+          queries.push(orderBy(pagination.orderBy || 'orderDate', pagination.order || 'desc'));
+          
+          // Add limit
+          if (pagination.limit) {
+            queries.push(limit(pagination.limit));
+          }
+        }
+        
+        if (filters.supplierId) {
+          queries.push(where('supplierId', '==', filters.supplierId));
+        }
+        
+        if (filters.createdBy) {
+          queries.push(where('createdBy', '==', filters.createdBy));
+        }
+        
+        // Create final query
+        if (queries.length > 0) {
+          q = query(q, ...queries);
+        }
+        
+        const snapshot = await getDocs(q);
+        
+        console.log('📋 OrdersService: Query executed, snapshot.size:', snapshot.size);
+        
+        if (snapshot.empty) {
+          console.log('📋 OrdersService: No orders found or collection is empty');
+          return [];
+        }
+        
+        const orders = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          const items = Array.isArray(data.items)
+            ? data.items.map(item => ({
+                ...item,
+                expectedDeliveryDate: item.expectedDeliveryDate?.toDate ? item.expectedDeliveryDate.toDate() : item.expectedDeliveryDate,
+                actualDeliveryDate: item.actualDeliveryDate?.toDate ? item.actualDeliveryDate.toDate() : item.actualDeliveryDate || null
+              }))
+            : [];
+          orders.push({
+            id: doc.id,
+            ...data,
+            orderCode: data.orderCode || doc.id,
+            // Convert Timestamps to Date objects
+            orderDate: data.orderDate?.toDate ? data.orderDate.toDate() : data.orderDate,
+            updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+            expectedDeliveryDate: data.expectedDeliveryDate?.toDate ? data.expectedDeliveryDate.toDate() : data.expectedDeliveryDate,
+            items,
+            itemCount: data.itemCount ?? items.length
+          });
+        });
+        
+        // If we filtered by status but need sorting, sort in memory
+        if (filters.orderStatus && orders.length > 0) {
+          const sortField = pagination.orderBy || 'orderDate';
+          const sortOrder = pagination.order || 'desc';
+          
+          orders.sort((a, b) => {
+            const aValue = a[sortField];
+            const bValue = b[sortField];
+            
+            if (!aValue && !bValue) return 0;
+            if (!aValue) return sortOrder === 'desc' ? 1 : -1;
+            if (!bValue) return sortOrder === 'desc' ? -1 : 1;
+            
+            if (aValue instanceof Date && bValue instanceof Date) {
+              return sortOrder === 'desc' ? bValue - aValue : aValue - bValue;
+            }
+            
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+              return sortOrder === 'desc' ? bValue.localeCompare(aValue) : aValue.localeCompare(bValue);
+            }
+            
+            return sortOrder === 'desc' ? bValue - aValue : aValue - bValue;
+          });
+        }
+        
+        console.log(`📋 Fetched ${orders.length} orders from Firestore`);
+        return orders;
+      })();
+      
+      // Race between query and timeout
+      return await Promise.race([queryPromise, timeoutPromise]);
       
     } catch (error) {
-      console.error('❌ Error fetching orders:', error);
+      console.error('❌ OrdersService: Error fetching orders:', error);
+      console.error('❌ OrdersService: Error details:', {
+        message: error.message,
+        code: error.code,
+        collection: COLLECTIONS.ORDERS
+      });
+      
+      // Handle timeout specifically
+      if (error.message.includes('timeout')) {
+        console.log('📋 OrdersService: Request timed out, throwing timeout error');
+        throw new Error('Bağlantı zaman aşımına uğradı. İnternet bağlantınızı kontrol edin.');
+      }
+      
+      // Return empty array for collection not found errors
+      if (error.code === 'not-found' || error.message.includes('collection')) {
+        console.log('📋 OrdersService: Collection not found, returning empty array');
+        return [];
+      }
+      
       throw new Error(`Siparişler getirilemedi: ${error.message}`);
     }
   }
@@ -479,6 +517,8 @@ export class OrdersService {
       }
       
       return onSnapshot(q, (snapshot) => {
+        console.log('📋 OrdersService: Subscription callback, snapshot.size:', snapshot.size);
+        
         const orders = [];
         snapshot.forEach((doc) => {
           const data = doc.data();
@@ -515,10 +555,38 @@ export class OrdersService {
         }
         
         callback(orders);
+      }, (error) => {
+        console.error('❌ OrdersService: Subscription error:', error);
+        console.error('❌ OrdersService: Error details:', {
+          message: error.message,
+          code: error.code,
+          collection: COLLECTIONS.ORDERS
+        });
+        
+        // Return empty array for collection not found
+        if (error.code === 'not-found' || error.message.includes('collection')) {
+          console.log('📋 OrdersService: Collection not found in subscription, returning empty array');
+          callback([]);
+        } else {
+          throw error;
+        }
       });
       
     } catch (error) {
-      console.error('❌ Error setting up orders subscription:', error);
+      console.error('❌ OrdersService: Error setting up orders subscription:', error);
+      console.error('❌ OrdersService: Error details:', {
+        message: error.message,
+        code: error.code,
+        collection: COLLECTIONS.ORDERS
+      });
+      
+      // Return empty array for collection not found errors
+      if (error.code === 'not-found' || error.message.includes('collection')) {
+        console.log('📋 OrdersService: Collection not found, calling callback with empty array');
+        callback([]);
+        return () => {}; // Return empty unsubscribe function
+      }
+      
       throw new Error(`Sipariş dinleme başlatılamadı: ${error.message}`);
     }
   }
@@ -616,12 +684,20 @@ export class OrderItemsService {
   // **GET ORDER ITEMS BY ORDER ID**
   static async getOrderItems(orderId) {
     try {
+      console.log('📦 OrderItemsService: getOrderItems çağrıldı, orderId:', orderId);
+      
       const q = query(
         collection(db, COLLECTIONS.ORDER_ITEMS),
         where('orderId', '==', orderId)
       );
       
       const snapshot = await getDocs(q);
+      console.log('📦 OrderItemsService: Query executed, snapshot.size:', snapshot.size);
+      
+      if (snapshot.empty) {
+        console.log('📦 OrderItemsService: No items found for order:', orderId);
+        return [];
+      }
       
       const items = [];
       snapshot.forEach((doc) => {
@@ -668,7 +744,20 @@ export class OrderItemsService {
       return items;
       
     } catch (error) {
-      console.error('❌ Error fetching order items:', error);
+      console.error('❌ OrderItemsService: Error fetching order items:', error);
+      console.error('❌ OrderItemsService: Error details:', {
+        message: error.message,
+        code: error.code,
+        orderId: orderId,
+        collection: COLLECTIONS.ORDER_ITEMS
+      });
+      
+      // Return empty array for collection not found errors
+      if (error.code === 'not-found' || error.message.includes('collection')) {
+        console.log('📦 OrderItemsService: Collection not found, returning empty array');
+        return [];
+      }
+      
       throw new Error(`Sipariş kalemleri getirilemedi: ${error.message}`);
     }
   }
