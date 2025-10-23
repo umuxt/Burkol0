@@ -286,9 +286,31 @@ export class OrdersService {
         const batch = writeBatch(db);
         const updatedItems = [];
 
+        // First: process items and prepare stock updates
+        const stockUpdates = [];
+        
         itemsSnapshot.forEach((itemDoc) => {
           const itemData = itemDoc.data();
           const deliveryTimestamp = itemData.actualDeliveryDate || Timestamp.now();
+
+          // Only update stock for items that are NOT already delivered
+          if (itemData.itemStatus !== 'Teslim Edildi') {
+            console.log('📦 OrdersService: Processing item for stock update:', {
+              itemId: itemDoc.id,
+              materialCode: itemData.materialCode,
+              quantity: itemData.quantity,
+              oldStatus: itemData.itemStatus,
+              newStatus: 'Teslim Edildi'
+            });
+            
+            stockUpdates.push({
+              materialCode: itemData.materialCode,
+              quantity: itemData.quantity,
+              itemId: itemDoc.id,
+              materialName: itemData.materialName,
+              unit: itemData.unit
+            });
+          }
 
           batch.update(itemDoc.ref, {
             itemStatus: 'Teslim Edildi',
@@ -308,6 +330,53 @@ export class OrdersService {
 
         if (updatedItems.length > 0) {
           await batch.commit();
+        }
+
+        // Second: update stock for items that changed status
+        for (const stockUpdate of stockUpdates) {
+          try {
+            console.log('📡 OrdersService: Making stock API call for order-level delivery:', `/api/materials/${stockUpdate.materialCode}/stock`);
+            
+            const response = await fetch(`/api/materials/${stockUpdate.materialCode}/stock`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('bk_admin_token') || ''}`
+              },
+              body: JSON.stringify({
+                quantity: stockUpdate.quantity,
+                operation: 'add',
+                orderId: orderId,
+                itemId: stockUpdate.itemId,
+                movementType: 'delivery',
+                notes: `Sipariş teslimi (toplu): ${stockUpdate.materialName} (${stockUpdate.quantity} ${stockUpdate.unit || 'adet'})`
+              })
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              console.error('❌ OrdersService: Stock API error for order-level delivery:', errorData);
+            } else {
+              const result = await response.json();
+              console.log('✅ OrdersService: Stock updated for order-level delivery:', result);
+              
+              // Global stock update event dispatch
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('materialStockUpdated', {
+                  detail: { 
+                    materialCode: stockUpdate.materialCode, 
+                    newStock: result.newStock,
+                    operation: 'add',
+                    quantity: stockUpdate.quantity,
+                    context: 'orderservice-delivery'
+                  }
+                }));
+              }
+            }
+            
+          } catch (stockError) {
+            console.error('❌ OrdersService: Stock update error for order-level delivery:', stockError);
+          }
         }
 
         dataToUpdate.items = updatedItems.map(item => ({
@@ -744,14 +813,25 @@ export async function getOrderWithItems(orderId) {
 // **UPDATE ORDER STATUS BASED ON ITEMS**
 export async function updateOrderStatusBasedOnItems(orderId) {
   try {
+    console.log('🔄 DEBUG: updateOrderStatusBasedOnItems başlatıldı, orderId:', orderId)
+    
     const items = await OrderItemsService.getOrderItems(orderId);
+    console.log('📦 DEBUG: Order items alındı:', items.length, 'kalem')
     
     if (items.length === 0) {
+      console.log('⚠️ DEBUG: Hiç kalem yok, status güncellenmeyecek')
       return; // No items, no status update needed
     }
     
     const deliveredItems = items.filter(item => item.itemStatus === 'Teslim Edildi');
     const totalItems = items.length;
+    
+    console.log('🚛 DEBUG: Teslimat durumu:', {
+      totalItems,
+      deliveredItems: deliveredItems.length,
+      deliveredItemIds: deliveredItems.map(item => item.id),
+      allItemStatuses: items.map(item => ({ id: item.id, status: item.itemStatus }))
+    })
     
     let newStatus;
     
@@ -761,15 +841,20 @@ export async function updateOrderStatusBasedOnItems(orderId) {
       if (order.orderStatus === 'Tamamlandı') {
         newStatus = 'Onaylandı'; // Revert from completed if no items are delivered
       }
+      console.log('📋 DEBUG: Hiç teslim edilmiş kalem yok, status değişmiyor')
     } else if (deliveredItems.length === totalItems) {
       // All items delivered
       newStatus = 'Teslim Edildi';
+      console.log('✅ DEBUG: Tüm kalemler teslim edildi, order status: Teslim Edildi')
     } else {
       // Partial delivery
       newStatus = 'Kısmi Teslimat';
+      console.log('🔶 DEBUG: Kısmi teslimat, order status: Kısmi Teslimat')
     }
     
     if (newStatus) {
+      console.log('🔄 DEBUG: Order status güncelleniyor:', newStatus)
+      
       const serializedItems = items.map(item => ({
         id: item.id,
         lineId: item.lineId,
@@ -789,7 +874,9 @@ export async function updateOrderStatusBasedOnItems(orderId) {
         items: serializedItems,
         itemCount: items.length
       });
-      console.log(`📋 Order ${orderId} status updated to: ${newStatus}`);
+      console.log(`✅ DEBUG: Order ${orderId} status başarıyla güncellendi: ${newStatus}`);
+    } else {
+      console.log('📋 DEBUG: Status değişikliği gerekmiyor')
     }
     
   } catch (error) {

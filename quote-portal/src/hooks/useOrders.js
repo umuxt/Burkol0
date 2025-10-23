@@ -382,6 +382,14 @@ export function useOrderItems(orderId) {
       // Check if status is changing to "Teslim Edildi"
       const isBecomingDelivered = updateData.itemStatus === 'Teslim Edildi' && 
                                  currentItem.itemStatus !== 'Teslim Edildi';
+
+      console.log('🔍 DEBUG: Item status update check:', {
+        updateDataStatus: updateData.itemStatus,
+        currentItemStatus: currentItem.itemStatus,
+        isBecomingDelivered: isBecomingDelivered,
+        materialCode: currentItem.materialCode,
+        quantity: currentItem.quantity
+      });
       
       // Update the order item
       const updatedItem = await OrderItemsService.updateOrderItem(itemId, updateData);
@@ -407,38 +415,88 @@ export function useOrderItems(orderId) {
         }
       }
       
-      // If item is delivered, update material stock
+      // If item is delivered, update material stock via backend API
       if (isBecomingDelivered) {
+        console.log('🚀 DEBUG: Starting stock update for delivered item:', {
+          materialCode: currentItem.materialCode,
+          quantity: currentItem.quantity,
+          orderId: orderId,
+          itemId: itemId
+        });
+        
         try {
-          await MaterialsService.updateStockByCode(
-            currentItem.materialCode,
-            currentItem.quantity,
-            'delivery',
-            {
-              reference: orderId,
-              referenceType: 'purchase_order',
-              notes: `Sipariş teslimi: ${orderId}`,
-              userId: 'system'
-            }
-          );
+          console.log('📡 DEBUG: Making API call to:', `/api/materials/${currentItem.materialCode}/stock`);
           
-          console.log(`✅ Stock updated for ${currentItem.materialCode}: +${currentItem.quantity}`);
+          // Backend API çağrısı ile stok güncelleme
+          const response = await fetch(`/api/materials/${currentItem.materialCode}/stock`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('bk_admin_token') || ''}` // Doğru token adı
+            },
+            body: JSON.stringify({
+              quantity: currentItem.quantity,
+              operation: 'add',
+              orderId: orderId,
+              itemId: itemId,
+              movementType: 'delivery',
+              notes: `Sipariş kalemi teslimi: ${currentItem.materialName} (${currentItem.quantity} ${currentItem.unit || 'adet'})`
+            })
+          });
+
+          console.log('📡 DEBUG: API response status:', response.status);
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error('❌ DEBUG: API error response:', errorData);
+            throw new Error(errorData.error || 'Stok güncellenemedi');
+          }
+
+          const result = await response.json();
+          console.log('✅ DEBUG: API success response:', result);
+          
+          console.log(`✅ Stock updated via API for ${currentItem.materialCode}: ${result.previousStock} → ${result.newStock}`);
           
           if (showNotification) {
             showNotification(
-              `Stok güncellendi: ${currentItem.materialName} (+${currentItem.quantity})`, 
+              `Stok güncellendi: ${currentItem.materialName} (+${currentItem.quantity}) → ${result.newStock}`, 
               'success'
             );
           }
           
         } catch (stockError) {
-          console.error('❌ Error updating stock:', stockError);
+          console.error('❌ DEBUG: Stock update error:', stockError);
           
           if (showNotification) {
             showNotification(
               `Stok güncellenemedi: ${stockError.message}`, 
               'warning'
             );
+          }
+          
+          // Fallback: Client-side güncelleme dene (güvenlik için)
+          try {
+            console.log('🔄 DEBUG: Fallback: Client-side stok güncelleme deneniyor...');
+            await MaterialsService.updateStockByCode(
+              currentItem.materialCode,
+              currentItem.quantity,
+              'delivery',
+              {
+                reference: orderId,
+                referenceType: 'purchase_order',
+                notes: `Sipariş teslimi (fallback): ${orderId}`,
+                userId: 'system'
+              }
+            );
+            
+            if (showNotification) {
+              showNotification(
+                `Stok güncellendi (fallback): ${currentItem.materialName} (+${currentItem.quantity})`, 
+                'info'
+              );
+            }
+          } catch (fallbackError) {
+            console.error('❌ Fallback stock update failed:', fallbackError);
           }
         }
       }

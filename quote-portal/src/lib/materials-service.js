@@ -198,32 +198,59 @@ export class MaterialsService {
   // **UPDATE MATERIAL**
   static async updateMaterial(materialId, updateData, userId) {
     try {
-      // Get current material
-      const currentMaterial = await this.getMaterial(materialId);
-      
-      // Prepare update data
-      const updates = {
-        ...updateData,
-        updatedAt: serverTimestamp(),
-        updatedBy: userId
-      };
-      
-      // Update computed fields
-      if (updates.stock !== undefined || updates.reserved !== undefined) {
-        const newStock = updates.stock !== undefined ? updates.stock : currentMaterial.stock;
-        const newReserved = updates.reserved !== undefined ? updates.reserved : currentMaterial.reserved;
-        updates.available = newStock - newReserved;
+      // Check if this is a stock update - use backend API for consistency
+      if (updateData.stock !== undefined) {
+        console.log('📊 Stock update detected, using backend API for consistency...');
+        
+        const response = await fetch(`/api/materials/${materialId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('bk_admin_token') || ''}`
+          },
+          body: JSON.stringify({
+            ...updateData,
+            updatedBy: userId
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Malzeme güncellenemedi');
+        }
+
+        const result = await response.json();
+        console.log(`✅ Material updated via backend API: ${materialId}`);
+        return result;
+        
+      } else {
+        // Direct Firebase update for non-stock changes
+        const currentMaterial = await this.getMaterial(materialId);
+        
+        // Prepare update data
+        const updates = {
+          ...updateData,
+          updatedAt: serverTimestamp(),
+          updatedBy: userId
+        };
+        
+        // Update computed fields (non-stock)
+        if (updates.reserved !== undefined) {
+          const newReserved = updates.reserved;
+          updates.available = currentMaterial.stock - newReserved;
+        }
+        
+        // Update document
+        const docRef = doc(db, COLLECTIONS.MATERIALS, materialId);
+        await updateDoc(docRef, updates);
+        
+        // Check for stock alerts
+        const updatedMaterial = { ...currentMaterial, ...updates };
+        await this.checkAndCreateStockAlert(materialId, updatedMaterial);
+        
+        console.log(`✅ Material updated (non-stock): ${materialId}`);
+        return updatedMaterial;
       }
-      
-      // Update document
-      const docRef = doc(db, COLLECTIONS.MATERIALS, materialId);
-      await updateDoc(docRef, updates);
-      
-      // Check for stock alerts
-      const updatedMaterial = { ...currentMaterial, ...updates };
-      await this.checkAndCreateStockAlert(materialId, updatedMaterial);
-      
-      return updatedMaterial;
       
     } catch (error) {
       console.error('Error updating material:', error);
@@ -313,6 +340,48 @@ export class MaterialsService {
   // ================================
   // UTILITY FUNCTIONS
   // ================================
+  
+  // **UPDATE STOCK VIA BACKEND API** (Recommended for production)
+  static async updateStockViaAPI(materialCode, quantity, operation = 'add', details = {}) {
+    try {
+      const response = await fetch(`/api/materials/${materialCode}/stock`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('bk_admin_token') || ''}`
+        },
+        body: JSON.stringify({
+          quantity: Math.abs(quantity),
+          operation: operation,
+          orderId: details.reference || '',
+          itemId: details.itemId || '',
+          movementType: details.referenceType || 'manual',
+          notes: details.notes || ''
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Stok güncellenemedi');
+      }
+
+      const result = await response.json();
+      console.log(`✅ Stock updated via API: ${materialCode} ${result.previousStock} → ${result.newStock}`);
+      
+      return {
+        success: true,
+        materialCode: result.materialCode,
+        materialName: result.materialName,
+        previousStock: result.previousStock,
+        newStock: result.newStock,
+        adjustment: result.adjustment
+      };
+      
+    } catch (error) {
+      console.error('Error updating stock via API:', error);
+      throw error;
+    }
+  }
   
   // **UPDATE STOCK BY MATERIAL CODE** (With movement logging)
   static async updateStockByCode(materialCode, quantity, movementType, details = {}) {

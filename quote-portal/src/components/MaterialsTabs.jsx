@@ -7,6 +7,8 @@ export default function MaterialsTabs({ children, activeTab, onTabChange }) {
   const currentActiveTab = activeTab !== undefined ? activeTab : internalActiveTab
   const handleTabChange = onTabChange || setInternalActiveTab
 
+  console.log('🔍 TAB DEBUG: Current active tab:', currentActiveTab);
+
   const tabs = [
     { id: 'stocks', label: 'Stoklar', icon: '📦' },
     { id: 'suppliers', label: 'Tedarikçi Listesi', icon: '📋' },
@@ -20,7 +22,10 @@ export default function MaterialsTabs({ children, activeTab, onTabChange }) {
           <button
             key={tab.id}
             className={`materials-tab-btn ${currentActiveTab === tab.id ? 'active' : ''}`}
-            onClick={() => handleTabChange(tab.id)}
+            onClick={() => {
+              console.log('🔥 TAB CLICK:', tab.id, 'Current:', currentActiveTab);
+              handleTabChange(tab.id);
+            }}
           >
             <span className="tab-icon">{tab.icon}</span>
             <span className="tab-label">{tab.label}</span>

@@ -6,7 +6,21 @@ import {
   MATERIAL_STATUSES 
 } from '../utils/material-status-utils'
 
-export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, categories, types, material, suppliers = [], loading = false, suppliersLoading = false, onRefreshSuppliers, isRemoved = false }) {
+export default function EditMaterialModal({ 
+  isOpen, 
+  onClose, 
+  onSave, 
+  onDelete, 
+  categories, 
+  types, 
+  material, 
+  suppliers = [], 
+  loading = false, 
+  suppliersLoading = false, 
+  onRefreshSuppliers, 
+  onRefreshMaterial, // Yeni prop - material refresh için
+  isRemoved = false 
+}) {
   // Loading timeout için timer
   const [loadingTimeout, setLoadingTimeout] = useState(false)
   
@@ -192,6 +206,81 @@ export default function EditMaterialModal({ isOpen, onClose, onSave, onDelete, c
       setIsEditing(false); // Modal açıldığında kilitli mod
     }
   }, [material, categories]);
+
+  // Real-time stok güncellemesi için material.stock'ı dinle
+  useEffect(() => {
+    if (material && material.stock !== undefined && formData.stock !== undefined) {
+      const currentStock = Number(formData.stock);
+      const newStock = Number(material.stock);
+      
+      if (!isNaN(newStock) && currentStock !== newStock) {
+        console.log('🔧 EditMaterialModal: Stok güncellemesi tespit edildi:', {
+          oldStock: currentStock,
+          newStock: newStock,
+          materialCode: material.code,
+          materialName: material.name
+        });
+        
+        setFormData(prev => ({
+          ...prev,
+          stock: newStock.toString()
+        }));
+        
+        // Orijinal data'yı da güncelle ki değişiklik olarak algılanmasın
+        setOriginalData(prev => ({
+          ...prev,
+          stock: newStock.toString()
+        }));
+      }
+    }
+  }, [material?.stock, material?.code, material?.name]);
+
+  // Global stock update event listener
+  useEffect(() => {
+    if (!isOpen || !material) return;
+
+    const handleStockUpdate = (event) => {
+      const { materialCode, newStock, quantity, operation, context } = event.detail;
+      
+      // Sadece bu material ile ilgili update'leri işle
+      if (materialCode === material.code) {
+        console.log('🔔 EditMaterialModal: Global stock update event received:', {
+          materialCode,
+          newStock,
+          quantity,
+          operation,
+          context,
+          currentFormStock: formData.stock
+        });
+        
+        if (newStock !== undefined && !isNaN(newStock)) {
+          setFormData(prev => ({
+            ...prev,
+            stock: newStock.toString()
+          }));
+          
+          setOriginalData(prev => ({
+            ...prev,
+            stock: newStock.toString()
+          }));
+          
+          // Material refresh callback'ini çağır - eğer varsa
+          if (onRefreshMaterial && typeof onRefreshMaterial === 'function') {
+            console.log('🔄 EditMaterialModal: Calling onRefreshMaterial callback');
+            onRefreshMaterial();
+          }
+        }
+      }
+    };
+
+    // Event listener'ı ekle
+    window.addEventListener('materialStockUpdated', handleStockUpdate);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('materialStockUpdated', handleStockUpdate);
+    };
+  }, [isOpen, material?.code, formData.stock, onRefreshMaterial]);
 
   const handleInputChange = (e) => {
     // Sadece editing mode'dayken input değişikliğine izin ver

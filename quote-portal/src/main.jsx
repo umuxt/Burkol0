@@ -97,7 +97,9 @@ function MaterialsApp() {
   }, [materialCreatedCallback]);
   const [activeTab, setActiveTab] = useState(() => {
     // F5 sonrası da aynı tab'da kalabilmek için localStorage kullan
-    return localStorage.getItem('bk_active_tab') || 'stocks';
+    const storedTab = localStorage.getItem('bk_active_tab') || 'stocks';
+    console.log('🔍 MAIN INIT: localStorage tab:', storedTab);
+    return storedTab;
   });
   const [filters, setFilters] = useState({
     search: '',
@@ -160,6 +162,20 @@ function MaterialsApp() {
     
     checkHashAndOpenSupplier();
   }, [materialsInitialized, categoriesInitialized, loadMaterials, loadCategories]);
+
+  // Global stock update event listener
+  useEffect(() => {
+    const handleStockUpdate = (event) => {
+      console.log('🔄 main.jsx: Stock update event received:', event.detail);
+      refreshMaterials();
+    };
+
+    window.addEventListener('stockUpdated', handleStockUpdate);
+    
+    return () => {
+      window.removeEventListener('stockUpdated', handleStockUpdate);
+    };
+  }, [refreshMaterials]);
 
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters);
@@ -495,6 +511,7 @@ function MaterialsApp() {
 
   // Tab değişikliği handler'ı - localStorage'a kaydet
   const handleTabChange = (newTab) => {
+    console.log('🔥 MAIN TAB CHANGE:', newTab, 'Old:', activeTab);
     setActiveTab(newTab);
     localStorage.setItem('bk_active_tab', newTab);
   }
@@ -560,6 +577,7 @@ function MaterialsApp() {
           loading={actionLoading}
           error={actionError}
           isRemoved={editingMaterial?.status === 'Kaldırıldı'}
+          onRefreshMaterial={refreshMaterials}
         />
       </ErrorBoundary>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useOrders, useOrderActions, useOrderStats } from '../hooks/useOrders.js'
+import { useOrders, useOrderActions, useOrderStats, useOrderItems } from '../hooks/useOrders.js'
 import AddOrderModal from './AddOrderModal.jsx'
 import { getOrderWithItems, OrderItemsService, OrdersService, updateOrderStatusBasedOnItems } from '../lib/orders-service.js'
 
@@ -479,6 +479,8 @@ function OrdersTable({
 }
 
 export default function OrdersTabContent() {
+  console.log('🚀🚀🚀 OrdersTabContent RENDER edildi!');
+  
   const [activeOrdersTab, setActiveOrdersTab] = useState('pending') // 'pending' or 'completed'
   const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -646,42 +648,18 @@ export default function OrdersTabContent() {
       return;
     }
     try {
-      await updateOrder(orderId, { orderStatus: newStatus });
+      // Single call to updateOrder which handles both status and stock updates internally
+      const updatedOrder = await updateOrder(orderId, { orderStatus: newStatus });
 
-      let latestItems = []
-      if (['Onay Bekliyor', 'Onaylandı', 'Yolda', 'İptal Edildi'].includes(newStatus)) {
-        const items = await OrderItemsService.getOrderItems(orderId)
-        const updatedItems = []
-        for (const item of items) {
-          if (item.itemStatus === newStatus) {
-            updatedItems.push(item)
-          } else {
-            const updated = await OrderItemsService.updateOrderItem(item.id, { itemStatus: newStatus })
-            updatedItems.push(updated)
-          }
-        }
-        latestItems = updatedItems
-        await OrdersService.updateOrder(orderId, {
-          items: serializeItemsForOrder(updatedItems),
-          itemCount: updatedItems.length,
-          orderStatus: newStatus
-        })
-      } else if (newStatus === 'Teslim Edildi') {
-        latestItems = await OrderItemsService.getOrderItems(orderId)
-        await OrdersService.updateOrder(orderId, {
-          items: serializeItemsForOrder(latestItems),
-          itemCount: latestItems.length,
-          orderStatus: newStatus
-        })
-      }
-
+      // Update local state
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder(prev => prev ? {
           ...prev,
           orderStatus: newStatus,
-          items: latestItems.length > 0 ? latestItems : prev.items
+          items: updatedOrder.items || prev.items
         } : prev)
       }
+      
       await refreshOrders();
 
       if (selectedOrder && selectedOrder.id === orderId) {
@@ -707,23 +685,99 @@ export default function OrdersTabContent() {
       return
     }
 
+    console.log('🔍 DEBUG: handleItemStatusChange called:', {
+      orderId,
+      itemId: item.id,
+      oldStatus: item.itemStatus,
+      newStatus: newStatus,
+      materialCode: item.materialCode,
+      quantity: item.quantity
+    });
+
     setUpdatingItemIds(prev => [...new Set([...prev, item.id])])
 
     try {
+      // Directly call the stock update logic if becoming delivered
+      const isBecomingDelivered = newStatus === 'Teslim Edildi' && item.itemStatus !== 'Teslim Edildi';
+      
+      console.log('🔍 DEBUG: Item status update check:', {
+        newStatus: newStatus,
+        oldStatus: item.itemStatus,
+        isBecomingDelivered: isBecomingDelivered,
+        materialCode: item.materialCode,
+        quantity: item.quantity
+      });
+
+      // Update the order item first
       await OrderItemsService.updateOrderItem(item.id, { itemStatus: newStatus })
 
-      const latestItems = await OrderItemsService.getOrderItems(orderId)
+      // If item is delivered, update material stock via backend API
+      if (isBecomingDelivered) {
+        console.log('🚀 DEBUG: Starting stock update for delivered item:', {
+          materialCode: item.materialCode,
+          quantity: item.quantity,
+          orderId: orderId,
+          itemId: item.id
+        });
+        
+        try {
+          console.log('� DEBUG: Making API call to:', `/api/materials/${item.materialCode}/stock`);
+          
+          const response = await fetch(`/api/materials/${item.materialCode}/stock`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('bk_admin_token') || ''}`
+            },
+            body: JSON.stringify({
+              quantity: item.quantity,
+              operation: 'add',
+              orderId: orderId,
+              itemId: item.id,
+              movementType: 'delivery',
+              notes: `Sipariş kalemi teslimi: ${item.materialName} (${item.quantity} ${item.unit || 'adet'})`
+            })
+          });
 
-      await OrdersService.updateOrder(orderId, {
-        items: serializeItemsForOrder(latestItems),
-        itemCount: latestItems.length
-      })
+          console.log('📡 DEBUG: API response status:', response.status);
 
+          if (!response.ok) {
+            const errorData = await response.json();
+            console.error('❌ DEBUG: API error response:', errorData);
+            throw new Error(errorData.error || 'Stok güncellenemedi');
+          }
+
+          const result = await response.json();
+          console.log('✅ DEBUG: API success response:', result);
+          console.log(`✅ Stock updated via API for ${item.materialCode}: ${result.previousStock} → ${result.newStock}`);
+          
+          // Dispatch global stock update event for material refresh
+          window.dispatchEvent(new CustomEvent('stockUpdated', { 
+            detail: { 
+              materialCode: item.materialCode,
+              previousStock: result.previousStock,
+              newStock: result.newStock 
+            } 
+          }));
+          
+        } catch (stockError) {
+          console.error('❌ DEBUG: Stock update error:', stockError);
+        }
+      }
+
+      console.log('🔄 DEBUG: Starting order status update and refresh...')
+      
       await updateOrderStatusBasedOnItems(orderId)
-
+      console.log('✅ DEBUG: updateOrderStatusBasedOnItems completed')
+      
       await refreshOrders()
+      console.log('✅ DEBUG: refreshOrders completed')
 
       if (selectedOrder && selectedOrder.id === orderId) {
+        console.log('🔄 DEBUG: Updating selected order details...')
+        const latestItems = await OrderItemsService.getOrderItems(orderId)
+        console.log('📦 DEBUG: Latest items fetched:', latestItems.length, 'items')
+        
         setSelectedOrder(prev => prev ? {
           ...prev,
           orderStatus: prev.orderStatus,
@@ -733,6 +787,7 @@ export default function OrdersTabContent() {
         setSelectedOrderLoading(true)
         try {
           const refreshed = await getOrderWithItems(orderId)
+          console.log('🔄 DEBUG: Order refreshed with status:', refreshed.orderStatus)
           setSelectedOrder(refreshed)
         } catch (detailError) {
           console.error('❌ Detay güncellenirken hata:', detailError)
@@ -928,10 +983,18 @@ export default function OrdersTabContent() {
                   overflow: 'hidden',
                   background: 'white'
                 }}>
+                  {console.log('🔍 DEBUG: Rendering order items:', selectedOrder.items.length, 'items')}
                   {[...(selectedOrder.items || [])]
                     .sort((a, b) => (a.itemSequence || 0) - (b.itemSequence || 0))
                     .map((item, index) => {
                       const isItemUpdating = updatingItemIds.includes(item.id);
+                      console.log('🔍 DEBUG: Rendering item:', {
+                        itemId: item.id,
+                        itemStatus: item.itemStatus,
+                        materialCode: item.materialCode,
+                        hasId: !!item.id,
+                        isUpdating: isItemUpdating
+                      });
                       return (
                         <div
                           key={item.id || item.itemCode || index}
@@ -953,7 +1016,22 @@ export default function OrdersTabContent() {
                                 <select
                                   value={item.itemStatus || 'Onay Bekliyor'}
                                   disabled={selectedOrderLoading || !item.id || isItemUpdating || actionLoading}
-                                  onChange={(e) => handleItemStatusChange(selectedOrder.id, item, e.target.value)}
+                                  onChange={(e) => {
+                                    console.log('🔍 DEBUG: Dropdown onChange triggered:', {
+                                      itemId: item.id,
+                                      oldStatus: item.itemStatus,
+                                      newStatus: e.target.value,
+                                      materialCode: item.materialCode
+                                    });
+                                    console.log('🔍 DEBUG: Dropdown disabled state check:', {
+                                      selectedOrderLoading,
+                                      hasItemId: !!item.id,
+                                      isItemUpdating,
+                                      actionLoading,
+                                      totalDisabled: selectedOrderLoading || !item.id || isItemUpdating || actionLoading
+                                    });
+                                    handleItemStatusChange(selectedOrder.id, item, e.target.value);
+                                  }}
                                   style={{
                                     padding: '4px 8px',
                                     fontSize: '11px',

@@ -47,6 +47,49 @@ export function useMaterials(autoLoad = false) {
     }
   }, [autoLoad, initialized, loadMaterials]);
 
+  // Global stock update event listener
+  useEffect(() => {
+    const handleStockUpdate = (event) => {
+      const { materialCode, newStock, quantity, operation, context } = event.detail;
+      
+      console.log('🔔 useMaterials: Global stock update event received:', {
+        materialCode,
+        newStock,
+        quantity,
+        operation,
+        context
+      });
+      
+      // Materials listesinde ilgili material'ı bul ve stock'ını güncelle
+      setMaterials(prevMaterials => {
+        return prevMaterials.map(material => {
+          if (material.code === materialCode) {
+            console.log('🔄 useMaterials: Updating material stock:', {
+              materialCode,
+              oldStock: material.stock,
+              newStock: newStock,
+              materialName: material.name
+            });
+            
+            return {
+              ...material,
+              stock: newStock
+            };
+          }
+          return material;
+        });
+      });
+    };
+
+    // Event listener'ı ekle
+    window.addEventListener('materialStockUpdated', handleStockUpdate);
+    
+    // Cleanup
+    return () => {
+      window.removeEventListener('materialStockUpdated', handleStockUpdate);
+    };
+  }, []); // Dependency array boş - bir kere eklenip kalıcı olsun
+
   const refreshMaterials = async () => {
     await loadMaterials();
   };

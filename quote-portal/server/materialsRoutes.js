@@ -132,26 +132,121 @@ export function setupMaterialsRoutes(app) {
       const { id } = req.params
       console.log('📦 API: Malzeme güncelleniyor:', id, req.body)
       
-      const updateData = {
-        ...req.body,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      // Stok güncelleme kontrolü - eğer stock değişiyorsa transaction kullan
+      if (req.body.stock !== undefined) {
+        console.log('⚠️ API: Stok değişikliği tespit edildi, transaction başlatılıyor...')
+        
+        const materialRef = materialsCollection.doc(id)
+        
+        const result = await db.runTransaction(async (transaction) => {
+          const materialDoc = await transaction.get(materialRef)
+          
+          if (!materialDoc.exists) {
+            throw new Error('Malzeme bulunamadı')
+          }
+          
+          const currentData = materialDoc.data()
+          const oldStock = currentData.stock || 0
+          const newStock = parseInt(req.body.stock) || 0
+          const stockDifference = newStock - oldStock
+          
+          // Update malzeme with new stock
+          const updateData = {
+            ...req.body,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            available: newStock - (currentData.reserved || 0)
+          }
+          
+          transaction.update(materialRef, updateData)
+          
+          // Log stock movement if there's a difference
+          if (stockDifference !== 0) {
+            const stockMovementRef = db.collection('stockMovements').doc()
+            transaction.set(stockMovementRef, {
+              materialId: id,
+              materialCode: currentData.code,
+              materialName: currentData.name || '',
+              type: stockDifference > 0 ? 'in' : 'out',
+              subType: 'manual_adjustment',
+              quantity: Math.abs(stockDifference),
+              unit: currentData.unit || 'Adet',
+              stockBefore: oldStock,
+              stockAfter: newStock,
+              unitCost: currentData.costPrice || null,
+              totalCost: currentData.costPrice ? currentData.costPrice * Math.abs(stockDifference) : null,
+              currency: 'TRY',
+              reference: `Material Edit: ${id}`,
+              referenceType: 'manual_edit',
+              warehouse: null,
+              location: null,
+              notes: `Manuel stok düzenleme: ${oldStock} → ${newStock}`,
+              reason: 'Admin tarafından manuel güncelleme',
+              movementDate: admin.firestore.FieldValue.serverTimestamp(),
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              userId: req.user?.uid || 'system',
+              userName: req.user?.name || 'Admin',
+              approved: true,
+              approvedBy: req.user?.uid || 'system',
+              approvedAt: admin.firestore.FieldValue.serverTimestamp()
+            })
+            
+            // Audit log oluştur
+            const auditLogRef = db.collection('auditLogs').doc()
+            transaction.set(auditLogRef, {
+              type: 'STOCK_UPDATE',
+              action: 'MANUAL_EDIT',
+              materialCode: currentData.code,
+              materialId: id,
+              materialName: currentData.name || '',
+              oldStock: oldStock,
+              newStock: newStock,
+              difference: stockDifference,
+              userId: req.user?.uid || 'system',
+              userName: req.user?.name || 'Admin',
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              details: {
+                operation: 'overwrite',
+                editSource: 'edit_modal',
+                userAgent: req.headers['user-agent'] || 'Unknown'
+              }
+            })
+          }
+          
+          return {
+            id: id,
+            ...currentData,
+            ...updateData,
+            stock: newStock
+          }
+        })
+        
+        console.log(`✅ API: Malzeme güncellendi (transaction): ${id}`)
+        res.json(result)
+        
+      } else {
+        // Normal güncelleme (stok değişmiyorsa)
+        const updateData = {
+          ...req.body,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }
+        
+        const docRef = materialsCollection.doc(id)
+        await docRef.update(updateData)
+        
+        const updatedDoc = await docRef.get()
+        if (!updatedDoc.exists) {
+          return res.status(404).json({ error: 'Malzeme bulunamadı' })
+        }
+        
+        const updatedMaterial = {
+          id: updatedDoc.id,
+          ...updatedDoc.data()
+        }
+        
+        console.log('✅ API: Malzeme güncellendi:', id)
+        res.json(updatedMaterial)
       }
       
-      const docRef = materialsCollection.doc(id)
-      await docRef.update(updateData)
-      
-      const updatedDoc = await docRef.get()
-      if (!updatedDoc.exists) {
-        return res.status(404).json({ error: 'Malzeme bulunamadı' })
-      }
-      
-      const updatedMaterial = {
-        id: updatedDoc.id,
-        ...updatedDoc.data()
-      }
-      
-      console.log('✅ API: Malzeme güncellendi:', id)
-      res.json(updatedMaterial)
     } catch (error) {
       console.error('❌ API: Malzeme güncellenirken hata:', error)
       res.status(500).json({ error: 'Malzeme güncellenemedi' })
@@ -319,6 +414,145 @@ export function setupMaterialsRoutes(app) {
     } catch (error) {
       console.error('❌ API: Kategori silinirken hata:', error)
       res.status(500).json({ error: 'Kategori silinemedi' })
+    }
+  })
+
+  // PATCH /api/materials/:code/stock - Malzeme stok güncelleme (sipariş teslimi için)
+  app.patch('/api/materials/:code/stock', requireAuth, async (req, res) => {
+    try {
+      const { code } = req.params
+      const { quantity, operation = 'add', orderId, itemId, movementType = 'delivery', notes = '' } = req.body
+      
+      console.log(`📦 API: Stok güncelleme istendi - ${code}: ${operation} ${quantity}`)
+      
+      // Validation
+      if (!quantity || isNaN(quantity) || quantity <= 0) {
+        return res.status(400).json({ error: 'Geçerli bir miktar belirtilmelidir' })
+      }
+      
+      if (!['add', 'subtract'].includes(operation)) {
+        return res.status(400).json({ error: 'İşlem türü "add" veya "subtract" olmalıdır' })
+      }
+      
+      // Malzemeyi kod ile bul
+      const materialQuery = await materialsCollection.where('code', '==', code).get()
+      
+      if (materialQuery.empty) {
+        return res.status(404).json({ error: `Malzeme bulunamadı: ${code}` })
+      }
+      
+      const materialDoc = materialQuery.docs[0]
+      const materialData = materialDoc.data()
+      const currentStock = materialData.stock || 0
+      
+      // Yeni stok miktarını hesapla
+      const adjustmentQuantity = operation === 'add' ? quantity : -quantity
+      const newStock = currentStock + adjustmentQuantity
+      
+      // Negatif stok kontrolü
+      if (newStock < 0) {
+        return res.status(400).json({ 
+          error: `Stok miktarı negatif olamaz. Mevcut: ${currentStock}, İstenilen: ${adjustmentQuantity}` 
+        })
+      }
+      
+      // Batch transaction başlat
+      const batch = db.batch()
+      
+      // Malzeme stokunu güncelle
+      const materialRef = materialsCollection.doc(materialDoc.id)
+      batch.update(materialRef, {
+        stock: newStock,
+        available: newStock - (materialData.reserved || 0),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastStockUpdate: {
+          orderId: orderId || '',
+          itemId: itemId || '',
+          quantity: adjustmentQuantity,
+          previousStock: currentStock,
+          newStock: newStock,
+          operation: operation,
+          timestamp: admin.firestore.FieldValue.serverTimestamp()
+        }
+      })
+      
+      // Stock movement kaydı oluştur
+      const stockMovementRef = db.collection('stockMovements').doc()
+      batch.set(stockMovementRef, {
+        materialId: materialDoc.id,
+        materialCode: code,
+        materialName: materialData.name || '',
+        type: operation === 'add' ? 'in' : 'out',
+        subType: movementType,
+        quantity: Math.abs(adjustmentQuantity),
+        unit: materialData.unit || 'Adet',
+        stockBefore: currentStock,
+        stockAfter: newStock,
+        unitCost: materialData.costPrice || null,
+        totalCost: materialData.costPrice ? materialData.costPrice * Math.abs(adjustmentQuantity) : null,
+        currency: 'TRY',
+        reference: orderId || itemId || '',
+        referenceType: orderId ? 'purchase_order' : 'manual',
+        warehouse: null,
+        location: null,
+        notes: notes || `${operation === 'add' ? 'Stok girişi' : 'Stok çıkışı'} - Backend API`,
+        reason: movementType === 'delivery' ? 'Sipariş teslimi' : 'Manuel güncelleme',
+        movementDate: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        userId: req.user?.uid || 'system',
+        userName: req.user?.name || 'System',
+        approved: true,
+        approvedBy: req.user?.uid || 'system',
+        approvedAt: admin.firestore.FieldValue.serverTimestamp()
+      })
+      
+      // Audit log oluştur
+      const auditLogRef = db.collection('auditLogs').doc()
+      batch.set(auditLogRef, {
+        type: 'STOCK_UPDATE',
+        action: `STOCK_${operation.toUpperCase()}_API`,
+        materialCode: code,
+        materialId: materialDoc.id,
+        materialName: materialData.name || '',
+        orderId: orderId || '',
+        itemId: itemId || '',
+        quantity: adjustmentQuantity,
+        previousStock: currentStock,
+        newStock: newStock,
+        userId: req.user?.uid || 'system',
+        userName: req.user?.name || 'System API',
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        details: {
+          operation: operation,
+          movementType: movementType,
+          notes: notes,
+          userAgent: req.headers['user-agent'] || 'Unknown'
+        }
+      })
+      
+      // Batch commit
+      await batch.commit()
+      
+      console.log(`✅ API: Stok güncellendi - ${code}: ${currentStock} → ${newStock}`)
+      
+      // Response
+      res.json({
+        success: true,
+        materialCode: code,
+        materialName: materialData.name || '',
+        previousStock: currentStock,
+        newStock: newStock,
+        adjustment: adjustmentQuantity,
+        operation: operation,
+        timestamp: new Date().toISOString()
+      })
+      
+    } catch (error) {
+      console.error('❌ API: Stok güncellenirken hata:', error)
+      res.status(500).json({ 
+        error: 'Stok güncellenemedi', 
+        details: error.message 
+      })
     }
   })
 

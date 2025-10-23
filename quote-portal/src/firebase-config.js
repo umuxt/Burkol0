@@ -96,7 +96,8 @@ export const COLLECTIONS = {
   AUDIT_LOGS: 'auditLogs',
   SUPPLIERS: 'suppliers',
   ORDERS: 'orders',
-  ORDER_ITEMS: 'orderItems'
+  ORDER_ITEMS: 'orderItems',
+  STOCK_MOVEMENTS: 'stockMovements'
 };
 
 export { app, db, auth };
