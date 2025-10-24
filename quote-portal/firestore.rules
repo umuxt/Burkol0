@@ -27,12 +27,8 @@ service cloud.firestore {
       allow read, write: if true;
     }
     
-    match /orderItems/{itemId} {
-      allow read, write: if true;
-    }
-    
-    match /stockMovements/{movementId} {
-      allow read, write: if true;
+    // orderItems and stockMovements collections removed
+    // Items are embedded in orders, stock managed by backend API
     }
   }
 }

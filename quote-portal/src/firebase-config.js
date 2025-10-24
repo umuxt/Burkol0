@@ -95,9 +95,9 @@ export const COLLECTIONS = {
   SESSIONS: 'sessions',
   AUDIT_LOGS: 'auditLogs',
   SUPPLIERS: 'suppliers',
-  ORDERS: 'orders',
-  ORDER_ITEMS: 'orderItems',
-  STOCK_MOVEMENTS: 'stockMovements'
+  ORDERS: 'orders'
+  // ORDER_ITEMS: Removed - embedded in orders
+  // STOCK_MOVEMENTS: Removed - handled by backend
 };
 
 export { app, db, auth };

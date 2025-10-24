@@ -12,6 +12,7 @@ import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
 import { setupQuoteRoutes, setupSettingsRoutes, setupExportRoutes } from './server/apiRoutes.js'
 import { setupMaterialsRoutes } from './server/materialsRoutes.js'
+import { ordersRoutes } from './server/ordersRoutes.js'
 import { getAllSuppliers, addSupplier, updateSupplier, deleteSupplier, getSuppliersByCategory, getSupplierCategories, addMaterialToSupplier, getSuppliersForMaterial, getMaterialsForSupplier } from './server/suppliersRoutes.js'
 import addMigrationRoutes from './server/migrationRoutes.js'
 import jsondb from './src/lib/jsondb.js'
@@ -117,6 +118,7 @@ app.use((req, res, next) => {
 setupAuthRoutes(app)
 setupQuoteRoutes(app, uploadsDir)
 setupMaterialsRoutes(app)
+app.use('/api', ordersRoutes)
 setupSettingsRoutes(app)
 setupExportRoutes(app)
 

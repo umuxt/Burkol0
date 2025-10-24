@@ -67,55 +67,29 @@ export class OrdersService {
     };
   }
   
-  // **CREATE ORDER**
+    // **CREATE ORDER**
   static async createOrder(orderData) {
     try {
-      const ordersRef = collection(db, COLLECTIONS.ORDERS);
+      console.log('📝 Creating order via backend API...');
+      
+      // Call backend API instead of direct Firebase
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ orderData })
+      });
 
-      const { orderCode, orderYear, orderSequence } = orderData.orderCode
-        ? (() => {
-            const codeMatch = orderData.orderCode.match(/ORD-(\d{4})-(\d+)/);
-            return {
-              orderCode: orderData.orderCode,
-              orderYear: orderData.orderYear || (codeMatch ? Number(codeMatch[1]) : new Date().getFullYear()),
-              orderSequence: orderData.orderSequence || (codeMatch ? Number(codeMatch[2]) : 0)
-            };
-          })()
-        : await this.generateOrderCode(orderData.orderYear);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create order');
+      }
 
-      // Prepare order data with auto-generated fields
-      const orderToCreate = {
-        ...orderData,
-        orderCode,
-        orderYear,
-        orderSequence,
-        orderDate: serverTimestamp(),
-        orderStatus: orderData.orderStatus || 'Taslak',
-        totalAmount: orderData.totalAmount || 0,
-        createdBy: orderData.createdBy || 'system',
-        updatedAt: serverTimestamp(),
-        items: Array.isArray(orderData.items) ? orderData.items : [],
-        itemCount: Array.isArray(orderData.items) ? orderData.items.length : 0
-      };
+      const result = await response.json();
+      console.log('✅ Order created via backend:', result.orderId);
       
-      // Validate required fields
-      if (!orderToCreate.supplierId) {
-        throw new Error('Tedarikçi ID gerekli');
-      }
-      
-      if (!orderToCreate.supplierName) {
-        throw new Error('Tedarikçi adı gerekli');
-      }
-      
-      const orderDocRef = doc(ordersRef, orderCode);
-      await setDoc(orderDocRef, orderToCreate);
-      
-      return {
-        id: orderCode,
-        ...orderToCreate,
-        orderDate: new Date(),
-        updatedAt: new Date()
-      };
+      return result.order;
       
     } catch (error) {
       console.error('❌ Error creating order:', error);
@@ -468,11 +442,7 @@ export class OrdersService {
       
       await batch.commit();
 
-      try {
-        await deleteDoc(doc(db, 'orderItemCounters', orderId));
-      } catch (counterError) {
-        console.warn('⚠️ Order item counter cleanup skipped:', counterError?.message);
-      }
+      // Note: orderItemCounters logic moved to backend
       
       console.log('✅ Order and related items deleted successfully:', orderId);
       
@@ -598,44 +568,20 @@ export class OrdersService {
 
 export class OrderItemsService {
 
-  static async generateItemCodes(orderId, count = 1) {
-    if (!orderId) {
-      throw new Error('Sipariş ID gerekli');
-    }
-
-    const counterDocRef = doc(db, 'orderItemCounters', orderId);
-
-    const { startIndex } = await runTransaction(db, async (transaction) => {
-      const docSnap = await transaction.get(counterDocRef);
-      const data = docSnap.exists() ? docSnap.data() : {};
-      const lastIndex = data.lastIndex || 0;
-      const nextIndex = lastIndex + count;
-
-      transaction.set(counterDocRef, {
-        lastIndex: nextIndex,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      return {
-        startIndex: lastIndex + 1
-      };
-    });
-
-    return Array.from({ length: count }, (_, i) => {
-      const sequence = startIndex + i;
-      return {
-        itemCode: `item-${String(sequence).padStart(2, '0')}`,
-        itemSequence: sequence
-      };
-    });
-  }
+  // **DEPRECATED: Item code generation moved to backend**
+  // Use /api/orders endpoint for order creation with auto-generated item codes
   
-  // **CREATE ORDER ITEM**
+  // **CREATE ORDER ITEM** 
+  // Note: For new orders, use backend /api/orders endpoint instead
+  // This method is kept for legacy compatibility
   static async createOrderItem(itemData) {
     try {
       const orderItemsRef = collection(db, COLLECTIONS.ORDER_ITEMS);
 
-      const [{ itemCode, itemSequence }] = await this.generateItemCodes(itemData.orderId, 1);
+      // Generate simple sequence-based codes (fallback)
+      const timestamp = Date.now();
+      const itemCode = `item-${timestamp.toString().slice(-6)}`;
+      const itemSequence = Math.floor(Math.random() * 1000);
 
       const baseLineId = itemData.lineId || `${itemData.materialCode || itemCode}-${String(itemSequence).padStart(2, '0')}`;
 
@@ -828,7 +774,12 @@ export class OrderItemsService {
       if (hasDifferentOrder) {
         throw new Error('Toplu oluşturma için tüm sipariş kalemleri aynı siparişe ait olmalıdır');
       }
-      const mappings = await this.generateItemCodes(orderId, orderItems.length);
+      // Generate simple sequence-based codes (fallback method)
+      const timestamp = Date.now();
+      const mappings = orderItems.map((_, index) => ({
+        itemCode: `item-${(timestamp + index).toString().slice(-6)}`,
+        itemSequence: Math.floor(Math.random() * 1000) + index
+      }));
 
       const createdItems = [];
 

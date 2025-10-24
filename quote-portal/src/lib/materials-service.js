@@ -305,37 +305,10 @@ export class MaterialsService {
   }
   
   // ================================
-  // STOCK MOVEMENT OPERATIONS
+  // STOCK MOVEMENT OPERATIONS - DEPRECATED
+  // Stock movements are now handled by backend API
+  // Use /api/orders/:orderId/items/:itemId/deliver for delivery updates
   // ================================
-  
-  // **LOG STOCK MOVEMENT**
-  static async logStockMovement(movementData) {
-    try {
-      const errors = validateStockMovement(movementData);
-      if (errors.length > 0) {
-        throw new Error(`Validation errors: ${errors.join(', ')}`);
-      }
-      
-      const movement = {
-        ...movementData,
-        createdAt: serverTimestamp(),
-        approved: true,
-        approvedBy: movementData.userId,
-        approvedAt: serverTimestamp()
-      };
-      
-      const docRef = await addDoc(collection(db, COLLECTIONS.STOCK_MOVEMENTS), movement);
-      
-      return {
-        id: docRef.id,
-        ...movement
-      };
-      
-        } catch (error) {
-      console.error('Error searching materials:', error);
-      throw error;
-    }
-  }
   
   // ================================
   // UTILITY FUNCTIONS
@@ -430,37 +403,8 @@ export class MaterialsService {
         }
       });
       
-      // Log movement
-      const movementRef = doc(collection(db, COLLECTIONS.STOCK_MOVEMENTS));
-      batch.set(movementRef, {
-        materialId: materialId,
-        materialCode: material.code,
-        type: quantity > 0 ? 'in' : 'out',
-        subType: movementType,
-        quantity: Math.abs(quantity),
-        unit: material.unit,
-        stockBefore: material.stock,
-        stockAfter: newStock,
-        unitCost: details.unitCost || null,
-        totalCost: details.unitCost ? details.unitCost * Math.abs(quantity) : null,
-        currency: details.currency || 'TRY',
-        reference: details.reference || '',
-        referenceType: details.referenceType || 'manual',
-        supplierId: details.supplierId || null,
-        customerId: details.customerId || null,
-        warehouse: details.warehouse || null,
-        location: details.location || null,
-        notes: details.notes || '',
-        reason: details.reason || '',
-        movementDate: details.movementDate || serverTimestamp(),
-        createdAt: serverTimestamp(),
-        userId: details.userId,
-        userName: details.userName || 'Unknown',
-        approved: true,
-        approvedBy: details.userId,
-        approvedAt: serverTimestamp()
-      });
-      
+      // Movement logging now handled by backend API
+      // Stock update only updates the material document
       await batch.commit();
       
       // Check for stock alerts
@@ -475,49 +419,14 @@ export class MaterialsService {
     }
   }
   
-  // **GET STOCK MOVEMENTS**
+  // **GET STOCK MOVEMENTS - DEPRECATED**
+  // Stock movement history is now available through:
+  // - material.lastMovement for recent activity
+  // - orders collection for delivery history  
+  // - auditLogs for critical events
   static async getStockMovements(materialId, filters = {}) {
-    try {
-      let q = collection(db, COLLECTIONS.STOCK_MOVEMENTS);
-      
-      const queries = [];
-      
-      if (materialId) {
-        queries.push(where('materialId', '==', materialId));
-      }
-      
-      if (filters.type) {
-        queries.push(where('type', '==', filters.type));
-      }
-      
-      if (filters.userId) {
-        queries.push(where('userId', '==', filters.userId));
-      }
-      
-      queries.push(orderBy('movementDate', 'desc'));
-      
-      if (filters.limit) {
-        queries.push(limit(filters.limit));
-      }
-      
-      q = query(q, ...queries);
-      
-      const snapshot = await getDocs(q);
-      const movements = [];
-      
-      snapshot.forEach((doc) => {
-        movements.push({
-          id: doc.id,
-          ...doc.data()
-        });
-      });
-      
-      return movements;
-      
-    } catch (error) {
-      console.error('Error getting stock movements:', error);
-      throw error;
-    }
+    console.warn('⚠️ getStockMovements is deprecated. Use orders and auditLogs instead.');
+    return [];
   }
   
   // ================================
