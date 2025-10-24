@@ -61,7 +61,7 @@ router.post('/orders', async (req, res) => {
     const counterDocRef = db.collection('systemCounters').doc('orderCounters')
     const result = await db.runTransaction(async (transaction) => {
       const docSnap = await transaction.get(counterDocRef)
-      const data = docSnap.exists() ? docSnap.data() : {}
+      const data = docSnap.exists ? docSnap.data() : {}
       const lastIndex = data?.[yearKey]?.lastIndex || 0
       const nextIndex = lastIndex + 1
       
@@ -73,7 +73,7 @@ router.post('/orders', async (req, res) => {
       }, { merge: true })
       
       return {
-        orderCode: `BURKOL-${year}-${String(nextIndex).padStart(3, '0')}`,
+        orderCode: `ORD-${year}-${String(nextIndex).padStart(4, '0')}`,
         orderSequence: nextIndex
       }
     })
@@ -91,8 +91,8 @@ router.post('/orders', async (req, res) => {
       itemSequence: itemCodes[index].itemSequence,
       lineId: item.lineId || `${item.materialCode}-${String(itemCodes[index].itemSequence).padStart(2, '0')}`,
       itemStatus: item.itemStatus || 'Onay Bekliyor',
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: new Date(),
+      updatedAt: new Date()
     }))
     
     // Prepare order document
@@ -162,7 +162,7 @@ router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
     const orderRef = db.collection('orders').doc(orderId)
     const orderSnap = await orderRef.get()
     
-    if (!orderSnap.exists()) {
+    if (!orderSnap.exists) {
       return res.status(404).json({ error: 'Order not found' })
     }
     
@@ -278,7 +278,7 @@ router.get('/orders/:orderId', async (req, res) => {
     const orderRef = db.collection('orders').doc(orderId)
     const orderSnap = await orderRef.get()
     
-    if (!orderSnap.exists()) {
+    if (!orderSnap.exists) {
       return res.status(404).json({ error: 'Order not found' })
     }
     

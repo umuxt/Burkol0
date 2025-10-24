@@ -41,14 +41,14 @@ try {
   app = initializeApp(firebaseConfig);
   console.log('✅ Firebase App initialized');
   
-  // Initialize Firestore with offline persistence disabled to avoid CORS
+  // Initialize Firestore with minimum cache size and CORS workarounds
   db = initializeFirestore(app, {
-    cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+    cacheSizeBytes: 1048576, // Minimum 1MB cache size
     localCache: undefined, // Disable local cache
-    experimentalForceLongPolling: false, // Disable long polling
+    experimentalForceLongPolling: true, // Force long polling instead of websockets
     ignoreUndefinedProperties: true
   });
-  console.log('✅ Firestore initialized with offline persistence disabled');
+  console.log('✅ Firestore initialized with minimal cache');
   
   // Initialize Auth
   auth = getAuth(app);

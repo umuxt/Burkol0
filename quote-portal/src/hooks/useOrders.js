@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNotifications } from './useNotifications.js';
 import { OrdersService, OrderItemsService, getOrderWithItems, updateOrderStatusBasedOnItems } from '../lib/orders-service.js';
+import { OrderItemService } from '../lib/order-item-service.js';
 import { MaterialsService } from '../lib/materials-service.js';
 
 // ================================
@@ -82,11 +83,9 @@ export function useOrders(filters = {}, options = {}) {
   // **AUTO-LOAD EFFECT**
   useEffect(() => {
     if (autoLoad && !initialized) {
-      if (options.realTime) {
-        subscribeToOrders();
-      } else {
-        loadOrders();
-      }
+      // Temporarily disable real-time due to CORS issues, use manual fetch
+      console.log('🔄 useOrders: Loading orders (no realtime due to CORS)');
+      loadOrders();
       
       // Timeout fallback - if still loading after 10 seconds, force initialized
       const timeoutId = setTimeout(() => {
@@ -112,7 +111,7 @@ export function useOrders(filters = {}, options = {}) {
         unsubscribeRef.current();
       }
     };
-  }, [autoLoad, initialized, loadOrders, subscribeToOrders, options.realTime]);
+  }, [autoLoad, initialized, loadOrders]);
   
   return {
     orders,
@@ -233,60 +232,33 @@ export function useOrderActions() {
       // Calculate total amount from items
       const totalAmount = itemsData.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
       
-      // Create the order first
-      const newOrder = await OrdersService.createOrder({
+      console.log('📝 useOrderActions: Creating order via backend API:', orderData);
+      
+      // Use backend API for order creation (includes items)
+      const orderWithItems = {
         ...orderData,
-        totalAmount
-      });
-      
-      // Create order items
-      const itemsToCreate = itemsData.map(item => ({
-        ...item,
-        orderId: newOrder.id
-      }));
-      
-      const createdItems = await OrderItemsService.createOrderItems(itemsToCreate);
-      console.log('✅ useOrderActions: Order items created:', createdItems);
-      const sortedCreatedItems = [...createdItems].sort((a, b) => {
-        const aSeq = a.itemSequence || 0;
-        const bSeq = b.itemSequence || 0;
-        if (aSeq === bSeq) {
-          const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
-          const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
-          return aTime - bTime;
-        }
-        return aSeq - bSeq;
-      });
+        totalAmount,
+        items: itemsData.map((item, index) => ({
+          materialCode: item.materialCode,
+          materialName: item.materialName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice || 0,
+          itemStatus: 'Onay Bekliyor',
+          expectedDeliveryDate: item.expectedDeliveryDate || null,
+          itemSequence: index + 1
+        }))
+      };
 
-      const embeddedItems = sortedCreatedItems.map(item => ({
-        lineId: item.lineId,
-        itemCode: item.itemCode,
-        itemSequence: item.itemSequence,
-        materialCode: item.materialCode,
-        materialName: item.materialName,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        itemStatus: item.itemStatus,
-        expectedDeliveryDate: item.expectedDeliveryDate || null
-      }));
-
-      const syncedOrder = await OrdersService.updateOrder(newOrder.id, {
-        items: embeddedItems,
-        itemCount: embeddedItems.length,
-        totalAmount
-      });
+      // Call backend API to create order with items
+      const newOrder = await OrdersService.createOrder(orderWithItems);
+      console.log('✅ useOrderActions: Order created via backend:', newOrder);
       
       if (showNotification) {
-        showNotification(`Sipariş ve ${createdItems.length} kalem başarıyla oluşturuldu`, 'success');
+        showNotification(`Sipariş ve ${newOrder.items?.length || 0} kalem başarıyla oluşturuldu`, 'success');
       }
       
-      const result = {
-        ...syncedOrder,
-        items: sortedCreatedItems
-      };
-      
-      console.log('✅ Order with items created:', result);
-      return result;
+      console.log('✅ Order with items created:', newOrder);
+      return newOrder;
       
     } catch (error) {
       console.error('❌ Error creating order with items:', error);
@@ -409,8 +381,32 @@ export function useOrderItems(orderId) {
         quantity: currentItem.quantity
       });
       
-      // Update the order item
-      const updatedItem = await OrderItemsService.updateOrderItem(itemId, updateData);
+      // Update the order item using the new service
+      let updatedItem;
+      if (updateData.itemStatus) {
+        // Use OrderItemService for status updates (handles stock automatically)
+        console.log('📝 Using OrderItemService.updateItemDeliveryStatus for status change');
+        const result = await OrderItemService.updateItemDeliveryStatus(
+          orderId, 
+          itemId, 
+          updateData.itemStatus,
+          updateData.actualDeliveryDate
+        );
+        updatedItem = result.updatedItem;
+        
+        // Refresh items from updated order
+        await loadItems();
+        
+        if (showNotification) {
+          showNotification('Sipariş kalemi başarıyla güncellendi', 'success');
+        }
+        
+        console.log('✅ Order item updated via OrderItemService:', updatedItem);
+        return updatedItem;
+      } else {
+        // Use legacy method for non-status updates
+        updatedItem = await OrderItemsService.updateOrderItem(itemId, updateData);
+      }
       
       // Update local state
       let nextItems = [];
@@ -540,7 +536,7 @@ export function useOrderItems(orderId) {
       
       throw error;
     }
-  }, [orderId, showNotification, serializeItemsForOrder]);
+  }, [orderId, showNotification, loadItems]);
   
   // **DELETE ORDER ITEM**
   const deleteOrderItem = useCallback(async (itemId) => {
@@ -745,24 +741,38 @@ export function useOrderStats() {
       // Calculate statistics
       const totalOrders = allOrders.length;
       const pendingOrders = allOrders.filter(order => 
-        ['Taslak', 'Onay Bekliyor', 'Onaylandı'].includes(order.orderStatus)
+        ['Taslak', 'Onay Bekliyor', 'Onaylandı', 'Yolda', 'Bekliyor', 'Kısmi Teslimat'].includes(order.orderStatus)
       ).length;
       const completedOrders = allOrders.filter(order => 
-        order.orderStatus === 'Tamamlandı'
+        ['Teslim Edildi', 'Tamamlandı'].includes(order.orderStatus)
       ).length;
       const partialOrders = allOrders.filter(order => 
         order.orderStatus === 'Kısmi Teslimat'
       ).length;
       const totalAmount = allOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
       
-      // This month orders
+      // This month delivered orders (based on order status or item delivery dates)
       const thisMonth = new Date();
       thisMonth.setDate(1);
       thisMonth.setHours(0, 0, 0, 0);
       
-      const thisMonthOrders = allOrders.filter(order => 
-        order.orderDate && order.orderDate >= thisMonth
-      ).length;
+      const thisMonthOrders = allOrders.filter(order => {
+        // Check if order is completed this month
+        if (order.orderStatus === 'Tamamlandı' && order.orderDate && order.orderDate >= thisMonth) {
+          return true;
+        }
+        
+        // Check if any items were delivered this month
+        if (Array.isArray(order.items)) {
+          return order.items.some(item => 
+            item.itemStatus === 'Teslim Edildi' && 
+            item.actualDeliveryDate && 
+            item.actualDeliveryDate >= thisMonth
+          );
+        }
+        
+        return false;
+      }).length;
       
       const calculatedStats = {
         totalOrders,
