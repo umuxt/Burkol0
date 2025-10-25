@@ -2,6 +2,43 @@ import React, { useState, useEffect } from 'react'
 import AddOrderModal from './AddOrderModal.jsx'
 import { fetchWithTimeout } from '../lib/api.js'
 
+// Shared helpers for delivery status across list and modal
+function getDeliveryStatusColor(status) {
+  const statusColors = {
+    'bugün-teslim': { bg: '#fef3c7', text: '#d97706' },    // Sarı
+    'bu-hafta-teslim': { bg: '#dbeafe', text: '#2563eb' }, // Mavi
+    'gecikmiş': { bg: '#fee2e2', text: '#dc2626' },        // Kırmızı
+    'gecikti': { bg: '#fee2e2', text: '#dc2626' },         // Kırmızı (alternatif anahtar)
+    'zamanında': { bg: '#dcfce7', text: '#16a34a' },       // Yeşil
+    'erken': { bg: '#f3e8ff', text: '#9333ea' },           // Mor
+    'teslim-edildi': { bg: '#dcfce7', text: '#16a34a' },   // Yeşil
+    'hesaplanıyor': { bg: '#f1f5f9', text: '#64748b' }     // Gri
+  }
+  return statusColors[status] || statusColors['hesaplanıyor']
+}
+
+function getDeliveryStatusText(status, daysRemaining = 0) {
+  switch (status) {
+    case 'bugün-teslim':
+      return 'Bugün Teslim'
+    case 'bu-hafta-teslim':
+      return `${daysRemaining} gün kaldı`
+    case 'gecikmiş':
+    case 'gecikti':
+      return `${Math.abs(daysRemaining)} gün gecikti`
+    case 'zamanında':
+      return 'Zamanında'
+    case 'erken':
+      return 'Erken teslim'
+    case 'teslim-edildi':
+      return 'Teslim edildi'
+    case 'hesaplanıyor':
+      return 'Teslimat tarihi belirsiz'
+    default:
+      return 'Hesaplanıyor'
+  }
+}
+
 // Auth helper
 function withAuth(headers = {}) {
   const token = localStorage.getItem('authToken') || 'dev-token'
@@ -845,6 +882,7 @@ function OrdersTable({
       'gecikmiş': { bg: '#fee2e2', text: '#dc2626' },        // Kırmızı
       'zamanında': { bg: '#dcfce7', text: '#16a34a' },       // Yeşil
       'erken': { bg: '#f3e8ff', text: '#9333ea' },           // Mor
+      'teslim-edildi': { bg: '#dcfce7', text: '#16a34a' },   // Yeşil
       'hesaplanıyor': { bg: '#f1f5f9', text: '#64748b' }     // Gri
     }
     return statusColors[status] || statusColors['hesaplanıyor']
@@ -862,6 +900,8 @@ function OrdersTable({
         return 'Zamanında'
       case 'erken':
         return 'Erken teslim'
+      case 'teslim-edildi':
+        return 'Teslim edildi'
       case 'hesaplanıyor':
         return 'Teslimat tarihi belirsiz'
       default:
@@ -1038,12 +1078,14 @@ function OrdersTable({
                     <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
                   </button>
                 </th>
-                <th style={{ minWidth: '140px' }}>
-                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                    Teslimat Durumu
-                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
-                  </button>
-                </th>
+                {variant !== 'completed' && (
+                  <th style={{ minWidth: '140px' }}>
+                    <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      Teslimat Durumu
+                      <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                    </button>
+                  </th>
+                )}
                 <th style={{ minWidth: '220px' }}>
                   <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                     Kalemler
@@ -1107,60 +1149,62 @@ function OrdersTable({
                       <div style={{ fontWeight: 600, fontSize: '13px' }}>{order.supplierName}</div>
                       <div style={{ fontSize: '11px', color: '#6b7280' }}>{order.supplierId}</div>
                     </td>
-                    <td>
-                      <div style={{ fontSize: '12px', fontWeight: 600 }}>
-                        {(() => {
-                          // Debug: Order fields'ları kontrol et
-                          console.log('🚚 Delivery debug for order:', order.id, {
-                            expectedDeliveryDate: order.expectedDeliveryDate,
-                            orderStatus: order.orderStatus,
-                            deliveryDate: order.deliveryDate,
-                            allOrderFields: Object.keys(order)
-                          })
-                          
-                          // Basit teslimat durumu hesaplama - API'ye bağımlı değil
-                          const today = new Date()
-                          const deliveryDate = order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate) : null
-                          
-                          let status = 'hesaplanıyor'
-                          let daysRemaining = 0
-                          
-                          if (deliveryDate && !isNaN(deliveryDate.getTime())) {
-                            const timeDiff = deliveryDate.getTime() - today.getTime()
-                            daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24))
+                    {variant !== 'completed' && (
+                      <td>
+                        <div style={{ fontSize: '12px', fontWeight: 600 }}>
+                          {(() => {
+                            // Debug: Order fields'ları kontrol et
+                            console.log('🚚 Delivery debug for order:', order.id, {
+                              expectedDeliveryDate: order.expectedDeliveryDate,
+                              orderStatus: order.orderStatus,
+                              deliveryDate: order.deliveryDate,
+                              allOrderFields: Object.keys(order)
+                            })
                             
-                            if (order.orderStatus === 'Teslim Edildi') {
-                              status = 'teslim-edildi'
-                            } else if (daysRemaining < 0) {
-                              status = 'gecikti'
-                            } else if (daysRemaining === 0) {
-                              status = 'bugün-teslim'
-                            } else if (daysRemaining <= 7) {
-                              status = 'bu-hafta-teslim'
+                            // Basit teslimat durumu hesaplama - API'ye bağımlı değil
+                            const today = new Date()
+                            const deliveryDate = order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate) : null
+                            
+                            let status = 'hesaplanıyor'
+                            let daysRemaining = 0
+                            
+                            if (deliveryDate && !isNaN(deliveryDate.getTime())) {
+                              const timeDiff = deliveryDate.getTime() - today.getTime()
+                              daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24))
+                              
+                              if (order.orderStatus === 'Teslim Edildi') {
+                                status = 'teslim-edildi'
+                              } else if (daysRemaining < 0) {
+                                status = 'gecikti'
+                              } else if (daysRemaining === 0) {
+                                status = 'bugün-teslim'
+                              } else if (daysRemaining <= 7) {
+                                status = 'bu-hafta-teslim'
+                              } else {
+                                status = 'zamanında'
+                              }
                             } else {
-                              status = 'zamanında'
+                              console.log('🚚 No valid delivery date found for order:', order.id)
                             }
-                          } else {
-                            console.log('🚚 No valid delivery date found for order:', order.id)
-                          }
 
-                          console.log('🚚 Final delivery status:', status, 'days:', daysRemaining)
+                            console.log('🚚 Final delivery status:', status, 'days:', daysRemaining)
 
-                          return (
-                            <span style={{
-                              padding: '4px 8px',
-                              borderRadius: '12px',
-                              fontSize: '11px',
-                              fontWeight: 600,
-                              backgroundColor: getDeliveryStatusColor(status).bg,
-                              color: getDeliveryStatusColor(status).text
-                            }}>
-                              {getDeliveryStatusText(status, daysRemaining)}
-                            </span>
-                          )
-                        })()}
-                      </div>
-                    </td>
+                            return (
+                              <span style={{
+                                padding: '4px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                backgroundColor: getDeliveryStatusColor(status).bg,
+                                color: getDeliveryStatusColor(status).text
+                              }}>
+                                {getDeliveryStatusText(status, daysRemaining)}
+                              </span>
+                            )
+                          })()}
+                        </div>
+                      </td>
+                    )}
                     <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>{items.length > 0 ? renderLineChips(items) : <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>Kalem bulunmuyor</span>}</td>
                     <td style={{ textAlign: 'right', fontWeight: 600, paddingTop: '6px', paddingBottom: '6px' }}>
                       {formatCurrency(relevantTotal || order.totalAmount)}
@@ -2236,6 +2280,44 @@ export default function OrdersTabContent() {
                       style: 'currency',
                       currency: 'TRY'
                     }).format(selectedOrder.totalAmount || 0)}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Teslimat</div>
+                  <div style={{ marginTop: '4px' }}>
+                    {(() => {
+                      const today = new Date()
+                      const deliveryDate = selectedOrder.expectedDeliveryDate ? new Date(selectedOrder.expectedDeliveryDate) : null
+                      let status = 'hesaplanıyor'
+                      let daysRemaining = 0
+                      if (deliveryDate && !isNaN(deliveryDate.getTime())) {
+                        const timeDiff = deliveryDate.getTime() - today.getTime()
+                        daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24))
+                        if (selectedOrder.orderStatus === 'Teslim Edildi') {
+                          status = 'teslim-edildi'
+                        } else if (daysRemaining < 0) {
+                          status = 'gecikmiş'
+                        } else if (daysRemaining === 0) {
+                          status = 'bugün-teslim'
+                        } else if (daysRemaining <= 7) {
+                          status = 'bu-hafta-teslim'
+                        } else {
+                          status = 'zamanında'
+                        }
+                      }
+                      return (
+                        <span style={{
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          backgroundColor: getDeliveryStatusColor(status).bg,
+                          color: getDeliveryStatusColor(status).text
+                        }}>
+                          {getDeliveryStatusText(status, daysRemaining)}
+                        </span>
+                      )
+                    })()}
                   </div>
                 </div>
               </div>
