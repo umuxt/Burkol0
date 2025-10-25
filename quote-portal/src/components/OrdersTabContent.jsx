@@ -735,7 +735,10 @@ function OrdersTable({
   actionLoading = false,
   emptyMessage = 'Sipariş bulunamadı',
   deliveryStatuses = {},
-  deliveryLoading = false
+  deliveryLoading = false,
+  selectedOrderIds = new Set(),
+  onToggleSelectOrder,
+  onToggleSelectAll
 }) {
   if (loading) {
     return (
@@ -1078,6 +1081,17 @@ function OrdersTable({
           <table>
             <thead>
               <tr>
+                <th style={{ width: '32px', textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    onChange={(e) => {
+                      if (typeof onToggleSelectAll === 'function') {
+                        onToggleSelectAll(orders, e.target.checked)
+                      }
+                    }}
+                    checked={Array.isArray(orders) && orders.length > 0 && orders.every(o => selectedOrderIds?.has?.(o.id))}
+                  />
+                </th>
                 <th style={{ minWidth: '120px' }}>
                   <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                     Sipariş
@@ -1151,6 +1165,14 @@ function OrdersTable({
                     onClick={() => onOrderClick && onOrderClick(order)}
                     style={{ cursor: onOrderClick ? 'pointer' : 'default' }}
                   >
+                    <td style={{ textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => onToggleSelectOrder && onToggleSelectOrder(order.id, e.target.checked)}
+                        checked={selectedOrderIds?.has?.(order.id) || false}
+                      />
+                    </td>
                     <td>
                       <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 600 }}>
                         {order.orderCode || order.id}
@@ -1271,7 +1293,7 @@ function OrdersTable({
                 )
               }) : (
                 <tr>
-                  <td colSpan={variant !== 'completed' ? 6 : 4} style={{ padding: 0, border: 'none' }}>
+                  <td colSpan={variant !== 'completed' ? 7 : 5} style={{ padding: 0, border: 'none' }}>
                     <EmptyState 
                       variant={variant} 
                       hasNoOrdersAtAll={false}
@@ -1330,6 +1352,197 @@ export default function OrdersTabContent() {
   })
   const [statsLoading, setStatsLoading] = useState(true)
   
+  // Bulk selection state for CSV/bulk ops
+  const [selectedOrderIds, setSelectedOrderIds] = useState(new Set())
+
+  const handleToggleSelectOrder = (orderId, checked) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev)
+      if (checked) next.add(orderId); else next.delete(orderId)
+      return next
+    })
+  }
+
+  // CSV Export for current tab (or selected orders if any)
+  const handleExportCSV = () => {
+    try {
+      const ordersSource = selectedOrderIds.size > 0
+        ? currentOrders.filter(o => selectedOrderIds.has(o.id))
+        : currentOrders
+
+      // Columns depend on variant (completed hides Durum in table)
+      const includeStatusCol = activeOrdersTab !== 'completed'
+
+      // Delimiter: Excel/TR çoğunlukla ';' bekler
+      const userLocale = (typeof navigator !== 'undefined' ? navigator.language : 'tr-TR') || 'tr-TR'
+      const delimiter = /^tr(-|_)/i.test(userLocale) ? ';' : ','
+
+      const escapeCSV = (val) => {
+        const s = (val ?? '').toString()
+        const needsQuote = new RegExp(`["\n${delimiter === ';' ? ';' : ','}]`)
+        if (needsQuote.test(s)) {
+          return '"' + s.replace(/"/g, '""') + '"'
+        }
+        return s
+      }
+
+      // Determine max item count across export set
+      const maxItemCount = (ordersSource || []).reduce((max, o) => {
+        const c = Array.isArray(o.items) ? o.items.length : 0
+        return Math.max(max, c)
+      }, 0)
+
+      // Group header (row 1) – emulate merged cells by repeating group labels
+      const headerRow1Parts = [
+        'Sipariş Bilgileri', // Sipariş Kodu
+        '',                   // Sipariş ID
+        '',                   // Sipariş Tarihi
+        'Tedarikçi',          // Tedarikçi Kodu/ID
+        '',                   // Tedarikçi Adı
+        'Teslimat',           // Beklenen
+        '',                   // Gerçekleşen
+        'Teslimat Durumu',    // Özet
+        'Özet',               // Satır Sayısı
+        '',                   // placeholder (align)
+        'Sipariş Toplamı',    // Para Birimi
+        ''                    // Toplam Tutar
+      ]
+      if (includeStatusCol) headerRow1Parts.push('')
+      for (let i = 1; i <= maxItemCount; i++) {
+        headerRow1Parts.push(`Satır ${i}`, '', '', '', '', '')
+      }
+
+      // Detail header (row 2)
+      const headerRow2Parts = [
+        'Sipariş Kodu',
+        'Sipariş ID',
+        'Sipariş Tarihi',
+        'Tedarikçi Kodu/ID',
+        'Tedarikçi Adı',
+        'Beklenen Teslim Tarihi',
+        'Gerçekleşen Teslim Tarihi',
+        'Teslimat Durumu (Özet)',
+        'Satır Sayısı',
+        '',
+        'Para Birimi',
+        'Toplam Tutar'
+      ]
+      if (includeStatusCol) headerRow2Parts.push('Sipariş Durumu')
+      for (let i = 1; i <= maxItemCount; i++) {
+        headerRow2Parts.push(
+          `Satır ${i} Malzeme ID`,
+          `Satır ${i} Malzeme Adı`,
+          `Satır ${i} Miktar`,
+          `Satır ${i} Birim Fiyat`,
+          `Satır ${i} Para Birimi`,
+          `Satır ${i} Satır Tutar`
+        )
+      }
+
+      // summarizeItems no longer used (dynamic columns below)
+
+      const computeDeliverySummary = (order) => {
+        // Reuse same quick logic from table
+        const today = new Date()
+        const deliveryDate = order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate) : null
+        let status = 'hesaplanıyor'
+        let daysRemaining = 0
+        if (deliveryDate && !isNaN(deliveryDate.getTime())) {
+          const diff = deliveryDate.getTime() - today.getTime()
+          daysRemaining = Math.ceil(diff / (1000 * 3600 * 24))
+          if (order.orderStatus === 'Teslim Edildi') status = 'teslim-edildi'
+          else if (daysRemaining < 0) status = 'gecikmiş'
+          else if (daysRemaining === 0) status = 'bugün-teslim'
+          else if (daysRemaining <= 7) status = 'bu-hafta-teslim'
+          else status = 'zamanında'
+        }
+        switch (status) {
+          case 'bugün-teslim': return 'Bugün Teslim'
+          case 'bu-hafta-teslim': return `${daysRemaining} gün kaldı`
+          case 'gecikmiş': return `${Math.abs(daysRemaining)} gün gecikti`
+          case 'zamanında': return 'Zamanında'
+          case 'erken': return 'Erken teslim'
+          case 'teslim-edildi': return 'Teslim edildi'
+          default: return 'Teslimat tarihi belirsiz'
+        }
+      }
+
+      const rows = ordersSource.map(order => {
+        const items = Array.isArray(order.items) ? order.items : []
+        const orderDate = order.orderDate ? (order.orderDate instanceof Date ? order.orderDate : new Date(order.orderDate)) : null
+        const expected = order.expectedDeliveryDate ? (order.expectedDeliveryDate instanceof Date ? order.expectedDeliveryDate : new Date(order.expectedDeliveryDate)) : null
+        const actual = order.deliveryDate ? (order.deliveryDate instanceof Date ? order.deliveryDate : new Date(order.deliveryDate)) : null
+        const currency = (order.currency || 'TRY')
+        const total = Number(order.totalPrice || order.totalAmount || 0)
+
+        const base = [
+          order.orderCode || '',
+          order.id || '',
+          orderDate ? orderDate.toLocaleDateString(userLocale) : '',
+          order.supplierId || order.supplierCode || '',
+          order.supplierName || '',
+          expected ? expected.toLocaleDateString(userLocale) : '',
+          actual ? actual.toLocaleDateString(userLocale) : '',
+          computeDeliverySummary(order),
+          items.length,
+          '',
+          currency,
+          total
+        ]
+        if (includeStatusCol) base.push(order.orderStatus || '')
+        // Append per-line dynamic columns normalized to maxItemCount
+        for (let i = 0; i < maxItemCount; i++) {
+          const it = items[i]
+          if (it) {
+            const code = it.materialCode || it.itemCode || it.lineId || ''
+            const name = it.materialName || ''
+            const qty = it.quantity != null ? Number(it.quantity) : ''
+            const unitPrice = it.unitPrice != null ? Number(it.unitPrice) : ''
+            const lineCurrency = it.currency || currency || 'TRY'
+            const lineTotal = (it.quantity != null && it.unitPrice != null)
+              ? Number(it.quantity) * Number(it.unitPrice)
+              : ''
+            base.push(code, name, qty, unitPrice, lineCurrency, lineTotal)
+          } else {
+            base.push('', '', '', '', '', '')
+          }
+        }
+        return base.map(escapeCSV).join(delimiter)
+      })
+
+      const headerRow1 = headerRow1Parts.map(escapeCSV).join(delimiter)
+      const headerRow2 = headerRow2Parts.map(escapeCSV).join(delimiter)
+      const csv = ['\uFEFF' + headerRow1, headerRow2, ...rows].join('\n') // UTF-8 BOM ile Excel uyumu
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const suffix = selectedOrderIds.size > 0 ? '-selected' : ''
+      const tabName = activeOrdersTab === 'pending' ? 'pending' : activeOrdersTab === 'completed' ? 'completed' : 'all'
+      a.href = url
+      a.download = `orders-${tabName}${suffix}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('CSV export error:', err)
+      alert('CSV dışa aktarma sırasında hata oluştu: ' + (err?.message || err))
+    }
+  }
+
+  const handleToggleSelectAll = (ordersInView = [], checked) => {
+    setSelectedOrderIds(prev => {
+      const next = new Set(prev)
+      const idsInView = ordersInView.map(o => o.id)
+      if (checked) {
+        idsInView.forEach(id => next.add(id))
+      } else {
+        idsInView.forEach(id => next.delete(id))
+      }
+      return next
+    })
+  }
+
   // Stats API çağrısı
   useEffect(() => {
     const fetchStats = async () => {
@@ -2152,6 +2365,14 @@ export default function OrdersTabContent() {
                 >
                   + Yeni Sipariş
                 </button>
+                <button 
+                  type="button" 
+                  className="csv-export-btn"
+                  title="Siparişleri dışa aktar"
+                  onClick={handleExportCSV}
+                >
+                  📊 CSV 
+                </button>
               </div>
             </div>
           </>
@@ -2187,6 +2408,9 @@ export default function OrdersTabContent() {
         actionLoading={actionLoading}
         deliveryStatuses={deliveryStatuses}
         deliveryLoading={deliveryLoading}
+        selectedOrderIds={selectedOrderIds}
+        onToggleSelectOrder={handleToggleSelectOrder}
+        onToggleSelectAll={handleToggleSelectAll}
         emptyMessage={
           activeOrdersTab === 'pending' 
             ? 'Bekleyen sipariş bulunamadı' 
