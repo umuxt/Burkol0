@@ -1965,6 +1965,7 @@ textarea.editable-input {
   padding: 8px 12px;
   border-bottom: 1px solid #f1f5f9;
   font-size: 13px;
+  color: #111827; /* Daha koyu metin: normal siyah tonu */
 }
 
 .supply-history-table .no-data {

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import useMaterialProcurementHistory from '../hooks/useMaterialProcurementHistory.js'
 import { 
   getEffectiveMaterialStatus, 
   createStatusBadgeProps,
@@ -234,6 +235,16 @@ export default function EditMaterialModal({
       }
     }
   }, [material?.stock, material?.code, material?.name]);
+
+  // Procurement history: load on modal open
+  // Lazy-load via backend orders API; show independent from other content
+  const { items: procurementItems, loading: procurementLoading, error: procurementError, loadHistory, isLoadedForMaterial } = useMaterialProcurementHistory(material)
+
+  useEffect(() => {
+    if (isOpen && material && !procurementLoading && !isLoadedForMaterial) {
+      try { loadHistory(); } catch {}
+    }
+  }, [isOpen, material?.id, material?.code]);
 
   // Global stock update event listener
   useEffect(() => {
@@ -1007,11 +1018,67 @@ export default function EditMaterialModal({
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td colSpan="6" className="no-data">Henüz tedarik geçmişi bulunmuyor</td>
-                  </tr>
+                  {procurementLoading ? (
+                    <tr>
+                      <td colSpan="6" className="no-data">Tedarik geçmişi yükleniyor...</td>
+                    </tr>
+                  ) : procurementError ? (
+                    <tr>
+                      <td colSpan="6" className="no-data">{procurementError}</td>
+                    </tr>
+                  ) : (procurementItems && procurementItems.length > 0) ? (
+                    procurementItems.map((row, idx) => {
+                      // Görüntülenen tarih, sıralama tarihi ile aynı olmalı
+                      const dateObj = row._sortDate || row.actualDeliveryDate || row.expectedDeliveryDate || row.orderDate || null;
+                      const dateStr = dateObj ? new Date(dateObj).toLocaleDateString('tr-TR') : '-';
+                      const qty = Number(row.quantity || 0);
+                      const unit = material?.unit || '';
+                      const unitPrice = Number(row.unitPrice || 0);
+                      const total = !isNaN(qty) && !isNaN(unitPrice) ? (qty * unitPrice) : 0;
+                      return (
+                        <tr key={`${row.orderId}-${row.itemSequence}-${idx}`}>
+                          <td>{dateStr}</td>
+                          <td>{row.supplierName || '-'}</td>
+                          <td>{!isNaN(qty) ? `${qty} ${unit}`.trim() : '-'}</td>
+                          <td>{!isNaN(unitPrice) ? `${unitPrice.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
+                          <td>{!isNaN(total) ? `${total.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
+                          <td>{row.itemStatus || '-'}</td>
+                        </tr>
+                      )
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="6" className="no-data">Henüz tedarik geçmişi bulunmuyor</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    // Yeni sekmede Orders tab'ını aç
+                    // LocalStorage ile tab'ı garantiye al
+                    try { localStorage.setItem('bk_active_tab', 'orders'); } catch {}
+                    window.open('materials.html#orders-tab', '_blank');
+                  } catch (e) {
+                    console.error('Order panelini açma hatası:', e)
+                  }
+                }}
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #e5e7eb',
+                  background: '#f9fafb',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 600
+                }}
+              >
+                Tüm tedarik geçmişini gör
+              </button>
             </div>
           </div>
 

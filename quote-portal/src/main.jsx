@@ -97,6 +97,11 @@ function MaterialsApp() {
   }, [materialCreatedCallback]);
   const [activeTab, setActiveTab] = useState(() => {
     // F5 sonrası da aynı tab'da kalabilmek için localStorage kullan
+    // Hash önceliği: #orders-tab → orders
+    try {
+      const hash = (typeof window !== 'undefined' && window.location.hash) || ''
+      if (hash.includes('orders-tab')) return 'orders'
+    } catch {}
     const storedTab = localStorage.getItem('bk_active_tab') || 'stocks';
     console.log('🔍 MAIN INIT: localStorage tab:', storedTab);
     return storedTab;
