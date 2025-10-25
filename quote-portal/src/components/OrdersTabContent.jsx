@@ -51,7 +51,8 @@ function OrdersFilters({
   hasActiveFilters,
   isExpanded,
   onToggleExpanded,
-  activeMaterials = []  // Aktif malzemeler prop'u
+  activeMaterials = [],  // Aktif malzemeler prop'u
+  activeSuppliers = []   // Aktif tedarikçiler prop'u
 }) {
   return (
     <section className="materials-filters">
@@ -556,6 +557,53 @@ function OrdersFilters({
                   </div>
                 </div>
               </div>
+
+              {/* Tedarikçiler Filtresi */}
+              <div className="filter-group">
+                <div className="multi-select-container">
+                  <div 
+                    className={`multi-select-header ${filters.supplierType ? 'has-selection' : ''}`}
+                    onClick={() => {
+                      const dropdown = document.querySelector('.supplier-type-dropdown');
+                      if (dropdown) {
+                        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                      }
+                    }}
+                  >
+                    <span>{filters.supplierType ? 
+                      (() => {
+                        const selectedSupplier = activeSuppliers.find(s => s.supplierCode === filters.supplierType);
+                        return selectedSupplier ? `${selectedSupplier.supplierCode} - ${selectedSupplier.supplierName}` : filters.supplierType;
+                      })()
+                      : 'Tedarikçiler'}</span>
+                    <span className="dropdown-arrow">▼</span>
+                  </div>
+                  <div className="multi-select-dropdown supplier-type-dropdown" style={{ display: 'none' }}>
+                    <label className="multi-select-option">
+                      <input
+                        type="radio"
+                        name="supplierType"
+                        value=""
+                        checked={filters.supplierType === ''}
+                        onChange={(e) => onFilterChange('supplierType', '')}
+                      />
+                      Tümü
+                    </label>
+                    {activeSuppliers.map(supplier => (
+                      <label key={supplier.supplierCode} className="multi-select-option">
+                        <input
+                          type="radio"
+                          name="supplierType"
+                          value={supplier.supplierCode}
+                          checked={filters.supplierType === supplier.supplierCode}
+                          onChange={(e) => onFilterChange('supplierType', e.target.value)}
+                        />
+                        {supplier.supplierCode} - {supplier.supplierName}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </>
           )}
 
@@ -570,6 +618,7 @@ function OrdersFilters({
                   onFilterChange('dateRange', '');
                   onFilterChange('deliveryStatus', '');
                   onFilterChange('materialType', '');
+                  onFilterChange('supplierType', '');
                   onFilterChange('priceRange', { min: '', max: '', mode: 'order' });
                 }}
                 style={{
@@ -1160,6 +1209,7 @@ export default function OrdersTabContent() {
     dateRange: '',
     deliveryStatus: '', // Teslimat durumu filtresi
     materialType: '', // Malzeme tipi filtresi
+    supplierType: '', // Tedarikçi filtresi
     priceRange: {
       min: '',
       max: '',
@@ -1318,6 +1368,52 @@ export default function OrdersTabContent() {
     
     fetchMaterials()
   }, [])
+
+  // Tedarikçileri API'den çek
+  const [suppliers, setSuppliers] = useState([])
+  const [suppliersLoading, setSuppliersLoading] = useState(false)
+  const [suppliersError, setSuppliersError] = useState(null)
+
+  useEffect(() => {
+    const fetchSuppliers = async () => {
+      try {
+        setSuppliersLoading(true)
+        
+        const response = await fetchWithTimeout('/api/suppliers', {
+          headers: withAuth()
+        })
+        
+        console.log('📡 Suppliers API response:', response.status, response.statusText)
+        
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status} - ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        console.log('🏢 Suppliers data:', data)
+        
+        // Response'dan suppliers array'ini al
+        const allSuppliers = Array.isArray(data) ? data : (data.suppliers || [])
+        
+        // Frontend format'ına çevir
+        const suppliersWithCorrectFields = allSuppliers.map(supplier => ({
+          ...supplier,
+          supplierCode: supplier.code || supplier.supplierCode,
+          supplierName: supplier.name || supplier.companyName || supplier.supplierName
+        }))
+        
+        setSuppliers(suppliersWithCorrectFields)
+      } catch (error) {
+        setSuppliersError(error.message)
+        console.error('Suppliers fetch error:', error)
+      } finally {
+        setSuppliersLoading(false)
+      }
+    }
+    
+    fetchSuppliers()
+  }, [])
+  
   // Orders hooks - Backend API kullanacağız
   const [orders, setOrders] = useState([])
   const [ordersLoading, setOrdersLoading] = useState(true)
@@ -1479,7 +1575,7 @@ export default function OrdersTabContent() {
   // Check if filters are active
   const hasActiveFilters = () => {
     const hasPriceRange = !!(filters.priceRange.min || filters.priceRange.max);
-    return !!(filters.search || filters.orderStatus || filters.itemStatus || filters.dateRange || filters.deliveryStatus || filters.materialType || hasPriceRange);
+    return !!(filters.search || filters.orderStatus || filters.itemStatus || filters.dateRange || filters.deliveryStatus || filters.materialType || filters.supplierType || hasPriceRange);
   }
 
   // Apply filters to orders
@@ -1574,6 +1670,14 @@ export default function OrdersTabContent() {
           item.materialName === filters.materialType
         );
         if (!hasMatchingMaterial) return false;
+      }
+
+      // Supplier type filter
+      if (filters.supplierType) {
+        const hasMatchingSupplier = 
+          order.supplierCode === filters.supplierType ||
+          order.supplierId === filters.supplierType;
+        if (!hasMatchingSupplier) return false;
       }
 
       return true;
@@ -1891,6 +1995,7 @@ export default function OrdersTabContent() {
             isExpanded={isFiltersExpanded}
             onToggleExpanded={setIsFiltersExpanded}
             activeMaterials={activeMaterials}
+            activeSuppliers={suppliers}
           />
         </div>
       </div>
