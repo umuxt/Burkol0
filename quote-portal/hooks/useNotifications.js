@@ -1,3 +1,5 @@
+import React, { useState, useCallback } from 'react';
+
 export function ToastNotification({ message, type = 'success', onClose }) {
   const toastStyle = {
     position: 'fixed',
@@ -42,7 +44,7 @@ export function ToastNotification({ message, type = 'success', onClose }) {
 }
 
 export function useNotifications() {
-  const [notifications, setNotifications] = React.useState([])
+  const [notifications, setNotifications] = useState([])
 
   const showNotification = (message, type = 'success', duration = 4000) => {
     const id = Date.now() + Math.random()

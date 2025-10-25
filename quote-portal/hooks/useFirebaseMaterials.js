@@ -2,7 +2,7 @@
 // Bu dosya React uygulamasında Firebase ile çalışmak için hook'lar sağlar
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MaterialsService, CategoriesService } from '../lib/materials-service.js';
+import { MaterialsService, CategoriesService } from '../src/lib/materials-service.js';
 import { useNotifications } from './useNotifications.js';
 
 // ================================

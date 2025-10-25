@@ -16,6 +16,8 @@ export function useOrders(filters = {}, options = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
+  const [deliveryStatuses, setDeliveryStatuses] = useState({}); // Teslimat durumları
+  const [deliveryLoading, setDeliveryLoading] = useState(false);
   
   const { showNotification } = useNotifications();
   const unsubscribeRef = useRef(null);
@@ -48,6 +50,41 @@ export function useOrders(filters = {}, options = {}) {
       setLoading(false);
     }
   }, [filters, options, initialized, showNotification]);
+  
+  // **LOAD DELIVERY STATUSES**
+  const loadDeliveryStatuses = useCallback(async () => {
+    try {
+      setDeliveryLoading(true);
+      
+      // Backend URL - development modunda port 3000
+      const baseUrl = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3000'
+      const fullUrl = `${baseUrl}/api/orders/delivery-status`
+      
+      console.log('🔍 NODE_ENV:', process.env.NODE_ENV)
+      console.log('🔍 Base URL:', baseUrl)
+      console.log('🔍 Full URL:', fullUrl)
+      
+      const response = await fetch(fullUrl);
+      
+      if (!response.ok) {
+        console.log('❌ Response not OK:', response.status, response.statusText)
+        throw new Error(`API Error: ${response.status}`);
+      }
+      
+      const statuses = await response.json();
+      setDeliveryStatuses(statuses);
+      
+      console.log('✅ Delivery statuses loaded:', Object.keys(statuses).length);
+      
+    } catch (error) {
+      console.error('❌ Error loading delivery statuses:', error);
+      if (showNotification) {
+        showNotification('Teslimat durumları yüklenirken hata: ' + error.message, 'error');
+      }
+    } finally {
+      setDeliveryLoading(false);
+    }
+  }, []); // dependency array'i boşalttık, sadece mount'ta çalışsın
   
   // **REFRESH ORDERS**
   const refreshOrders = useCallback(async () => {
@@ -118,9 +155,12 @@ export function useOrders(filters = {}, options = {}) {
     loading,
     error,
     initialized,
+    deliveryStatuses,      // Teslimat durumları
+    deliveryLoading,       // Teslimat durumu yükleme durumu
     loadOrders,
     refreshOrders,
-    subscribeToOrders
+    subscribeToOrders,
+    loadDeliveryStatuses   // Teslimat durumlarını yükleme fonksiyonu
   };
 }
 

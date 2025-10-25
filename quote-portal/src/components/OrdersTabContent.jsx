@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react'
-import { useOrders, useOrderActions, useOrderStats, useOrderItems } from '../hooks/useOrders.js'
 import AddOrderModal from './AddOrderModal.jsx'
-import { getOrderWithItems, OrderItemsService, OrdersService, updateOrderStatusBasedOnItems } from '../lib/orders-service.js'
+import { fetchWithTimeout } from '../lib/api.js'
+
+// Auth helper
+function withAuth(headers = {}) {
+  const token = localStorage.getItem('authToken') || 'dev-token'
+  return {
+    ...headers,
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  }
+}
 
 // Orders dashboard component with real data
 function OrdersDashboard({ stats, loading }) {
@@ -38,15 +47,12 @@ function OrdersDashboard({ stats, loading }) {
 function OrdersFilters({ 
   filters, 
   onFilterChange, 
-  isExpanded, 
-  onToggleExpanded, 
   resultsCount, 
-  hasActiveFilters 
+  hasActiveFilters,
+  isExpanded,
+  onToggleExpanded,
+  activeMaterials = []  // Aktif malzemeler prop'u
 }) {
-  const toggleExpanded = () => {
-    onToggleExpanded(!isExpanded)
-  }
-
   return (
     <section className="materials-filters">
       <div style={{ 
@@ -67,162 +73,523 @@ function OrdersFilters({
           gap: '4px'
         }}>
           <button
-            onClick={toggleExpanded}
+            onClick={() => onToggleExpanded(!isExpanded)}
             style={{
               background: 'none',
-              border: 'none',
-              fontSize: '16px',
+              border: '1px solid #d1d5db',
+              borderRadius: '4px',
+              padding: '8px 6px',
               cursor: 'pointer',
-              padding: '2px',
-              borderRadius: '2px',
+              color: '#6b7280',
+              fontSize: '12px',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              width: '20px',
-              height: '20px'
+              minHeight: '40px'
             }}
-            title={isExpanded ? 'Filtreleri gizle' : 'Filtreleri göster'}
+            title={isExpanded ? 'Daralt' : 'Genişlet'}
           >
-            {isExpanded ? '−' : '+'}
+            {isExpanded ? '»' : '«'}
           </button>
           
-          <div style={{
-            fontSize: '10px',
-            color: '#6b7280',
-            textAlign: 'center',
-            lineHeight: '1.2',
-            fontWeight: '500'
-          }}>
-            {resultsCount} sipariş
-          </div>
+          {/* Sonuç sayısı - kompakt */}
+          {(resultsCount !== undefined) && (
+            <div style={{
+              fontSize: '11px',
+              color: hasActiveFilters ? '#1e40af' : '#6b7280',
+              fontWeight: hasActiveFilters ? '600' : '400',
+              padding: '0 4px',
+              textAlign: 'center',
+              lineHeight: '1.2'
+            }}>
+              {resultsCount}
+            </div>
+          )}
         </div>
 
-        {/* Orta kısım - Ana arama ve butonlar */}
-        <div style={{
-          flex: 1,
-          order: 2
-        }}>
-          <div className="filters-container">
-            <div className="search-section">
-              <div className="search-input-container">
-                <input 
-                  placeholder="Sipariş numarası veya tedarikçiye göre ara..." 
-                  className="search-input" 
-                  type="text"
-                  value={filters.search || ''}
-                  onChange={(e) => onFilterChange('search', e.target.value)}
-                />
-                <span className="search-icon">🔍</span>
+        {/* Sağ taraf - Filtre container */}
+        <div className={`filters-container ${hasActiveFilters ? 'filters-active' : ''}`} style={{ order: 2 }}>
+          <div className="search-section">
+            <div className="search-input-container">
+              <input 
+                placeholder="Sipariş numarası veya tedarikçiye göre ara..." 
+                className="search-input" 
+                type="text"
+                value={filters.search || ''}
+                onChange={(e) => onFilterChange('search', e.target.value)}
+              />
+              <span className="search-icon">🔍</span>
+            </div>
+          </div>
+
+        <div className="dropdown-filters">
+          {/* Sipariş Durumu Filtresi */}
+          <div className="filter-group">
+            <div className="multi-select-container">
+              <div className="multi-select-header" onClick={() => {
+                const dropdown = document.getElementById('order-status-dropdown');
+                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+              }}>
+                {filters.orderStatus || 'Sipariş Durumu'}
+                <span className="dropdown-arrow">▼</span>
+              </div>
+              <div id="order-status-dropdown" className="multi-select-dropdown" style={{display: 'none'}}>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="orderStatus"
+                    value=""
+                    checked={!filters.orderStatus}
+                    onChange={(e) => onFilterChange('orderStatus', e.target.value)}
+                  />
+                  Tümü
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="orderStatus"
+                    value="Onay Bekliyor"
+                    checked={filters.orderStatus === 'Onay Bekliyor'}
+                    onChange={(e) => onFilterChange('orderStatus', e.target.value)}
+                  />
+                  Onay Bekliyor
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="orderStatus"
+                    value="Onaylandı"
+                    checked={filters.orderStatus === 'Onaylandı'}
+                    onChange={(e) => onFilterChange('orderStatus', e.target.value)}
+                  />
+                  Onaylandı
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="orderStatus"
+                    value="Yolda"
+                    checked={filters.orderStatus === 'Yolda'}
+                    onChange={(e) => onFilterChange('orderStatus', e.target.value)}
+                  />
+                  Yolda
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="orderStatus"
+                    value="Teslim Edildi"
+                    checked={filters.orderStatus === 'Teslim Edildi'}
+                    onChange={(e) => onFilterChange('orderStatus', e.target.value)}
+                  />
+                  Teslim Edildi
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="orderStatus"
+                    value="İptal Edildi"
+                    checked={filters.orderStatus === 'İptal Edildi'}
+                    onChange={(e) => onFilterChange('orderStatus', e.target.value)}
+                  />
+                  İptal Edildi
+                </label>
               </div>
             </div>
+          </div>
 
-            {/* Genişletilmiş filtreler */}
-            {isExpanded && (
-              <div className="expanded-filters" style={{
-                marginTop: '12px',
-                padding: '16px',
-                background: '#f8f9fa',
-                borderRadius: '6px',
-                border: '1px solid #e5e7eb'
+          {/* Kalem Durumu Filtresi */}
+          <div className="filter-group">
+            <div className="multi-select-container">
+              <div className="multi-select-header" onClick={() => {
+                const dropdown = document.getElementById('item-status-dropdown');
+                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
               }}>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                  gap: '16px'
-                }}>
-                  {/* Durum Filtresi */}
-                  <div>
-                    <label style={{ 
-                      display: 'block', 
-                      marginBottom: '6px', 
-                      fontSize: '12px', 
-                      fontWeight: '600',
-                      color: '#374151'
-                    }}>
-                      Sipariş Durumu
-                    </label>
-                    <select
-                      value={filters.orderStatus || 'Tümü'}
-                      onChange={(e) => onFilterChange('orderStatus', e.target.value === 'Tümü' ? '' : e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px'
-                      }}
-                    >
-                      <option value="Tümü">Tümü</option>
-                      <option value="Taslak">Taslak</option>
-                      <option value="Onay Bekliyor">Onay Bekliyor</option>
-                      <option value="Onaylandı">Onaylandı</option>
-                      <option value="Kısmi Teslimat">Kısmi Teslimat</option>
-                      <option value="Yolda">Yolda</option>
-                      <option value="Tamamlandı">Tamamlandı</option>
-                      <option value="Teslim Edildi">Teslim Edildi</option>
-                      <option value="İptal Edildi">İptal Edildi</option>
-                    </select>
-                  </div>
+                {filters.itemStatus || 'Kalem Durumu'}
+                <span className="dropdown-arrow">▼</span>
+              </div>
+              <div id="item-status-dropdown" className="multi-select-dropdown" style={{display: 'none'}}>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="itemStatus"
+                    value=""
+                    checked={!filters.itemStatus}
+                    onChange={(e) => onFilterChange('itemStatus', e.target.value)}
+                  />
+                  Tümü
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="itemStatus"
+                    value="Onay Bekliyor"
+                    checked={filters.itemStatus === 'Onay Bekliyor'}
+                    onChange={(e) => onFilterChange('itemStatus', e.target.value)}
+                  />
+                  Onay Bekliyor
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="itemStatus"
+                    value="Onaylandı"
+                    checked={filters.itemStatus === 'Onaylandı'}
+                    onChange={(e) => onFilterChange('itemStatus', e.target.value)}
+                  />
+                  Onaylandı
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="itemStatus"
+                    value="Yolda"
+                    checked={filters.itemStatus === 'Yolda'}
+                    onChange={(e) => onFilterChange('itemStatus', e.target.value)}
+                  />
+                  Yolda
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="itemStatus"
+                    value="Teslim Edildi"
+                    checked={filters.itemStatus === 'Teslim Edildi'}
+                    onChange={(e) => onFilterChange('itemStatus', e.target.value)}
+                  />
+                  Teslim Edildi
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="itemStatus"
+                    value="İptal Edildi"
+                    checked={filters.itemStatus === 'İptal Edildi'}
+                    onChange={(e) => onFilterChange('itemStatus', e.target.value)}
+                  />
+                  İptal Edildi
+                </label>
+              </div>
+            </div>
+          </div>
 
-                  {/* Tarih Filtresi */}
-                  <div>
-                    <label style={{ 
-                      display: 'block', 
-                      marginBottom: '6px', 
-                      fontSize: '12px', 
-                      fontWeight: '600',
-                      color: '#374151'
-                    }}>
-                      Sipariş Tarihi
-                    </label>
-                    <select
-                      value={filters.dateRange || 'Tümü'}
-                      onChange={(e) => onFilterChange('dateRange', e.target.value === 'Tümü' ? '' : e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '6px 8px',
-                        border: '1px solid #d1d5db',
-                        borderRadius: '4px',
-                        fontSize: '12px'
-                      }}
-                    >
-                      <option value="Tümü">Tümü</option>
-                      <option value="bugün">Bugün</option>
-                      <option value="bu-hafta">Bu Hafta</option>
-                      <option value="bu-ay">Bu Ay</option>
-                      <option value="son-3-ay">Son 3 Ay</option>
-                    </select>
-                  </div>
-                </div>
+          {/* Tarih Filtresi */}
+          <div className="filter-group">
+            <div className="multi-select-container">
+              <div className="multi-select-header" onClick={() => {
+                const dropdown = document.getElementById('date-range-dropdown');
+                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+              }}>
+                {(() => {
+                  const dateMap = {
+                    'bugün': 'Bugün',
+                    'bu-hafta': 'Bu Hafta', 
+                    'bu-ay': 'Bu Ay',
+                    'son-3-ay': 'Son 3 Ay'
+                  };
+                  return filters.dateRange ? dateMap[filters.dateRange] : 'Sipariş Tarihi';
+                })()}
+                <span className="dropdown-arrow">▼</span>
+              </div>
+              <div id="date-range-dropdown" className="multi-select-dropdown" style={{display: 'none'}}>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="dateRange"
+                    value=""
+                    checked={!filters.dateRange}
+                    onChange={(e) => onFilterChange('dateRange', e.target.value)}
+                  />
+                  Tümü
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="dateRange"
+                    value="bugün"
+                    checked={filters.dateRange === 'bugün'}
+                    onChange={(e) => onFilterChange('dateRange', e.target.value)}
+                  />
+                  Bugün
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="dateRange"
+                    value="bu-hafta"
+                    checked={filters.dateRange === 'bu-hafta'}
+                    onChange={(e) => onFilterChange('dateRange', e.target.value)}
+                  />
+                  Bu Hafta
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="dateRange"
+                    value="bu-ay"
+                    checked={filters.dateRange === 'bu-ay'}
+                    onChange={(e) => onFilterChange('dateRange', e.target.value)}
+                  />
+                  Bu Ay
+                </label>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="dateRange"
+                    value="son-3-ay"
+                    checked={filters.dateRange === 'son-3-ay'}
+                    onChange={(e) => onFilterChange('dateRange', e.target.value)}
+                  />
+                  Son 3 Ay
+                </label>
+              </div>
+            </div>
+          </div>
 
-                {/* Aktif filtre temizleme */}
-                {hasActiveFilters && (
-                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid #e5e7eb' }}>
-                    <button
+          {/* Expanded durumda görünecek filtreler */}
+          {isExpanded && (
+            <>
+              {/* Tutar Aralığı Filtresi - Multi-select Header Tasarımında */}
+              <div className="filter-group">
+                <div className="multi-select-container">
+                  <div className="multi-select-header price-range-header">
+                    <span className="price-range-label">Tutar Aralığı</span>
+                    <div className="price-range-inputs-inline">
+                      <input
+                        type="number"
+                        placeholder="Min"
+                        value={filters.priceRange.min}
+                        onChange={(e) => {
+                          const newPriceRange = { ...filters.priceRange, min: e.target.value };
+                          onFilterChange('priceRange', newPriceRange);
+                        }}
+                        className="price-input-header"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Max"
+                        value={filters.priceRange.max}
+                        onChange={(e) => {
+                          const newPriceRange = { ...filters.priceRange, max: e.target.value };
+                          onFilterChange('priceRange', newPriceRange);
+                        }}
+                        className="price-input-header"
+                      />
+                    </div>
+                    <button 
+                      className="price-toggle-button"
                       onClick={() => {
-                        onFilterChange('search', '');
-                        onFilterChange('orderStatus', '');
-                        onFilterChange('dateRange', '');
-                      }}
-                      style={{
-                        padding: '4px 8px',
-                        fontSize: '11px',
-                        background: '#ef4444',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '3px',
-                        cursor: 'pointer'
+                        const newMode = filters.priceRange.mode === 'order' ? 'item' : 'order';
+                        const newPriceRange = { ...filters.priceRange, mode: newMode };
+                        onFilterChange('priceRange', newPriceRange);
                       }}
                     >
-                      Filtreleri Temizle
+                      {filters.priceRange.mode === 'order' ? 'Sipariş' : 'Ürün'}
+                    </button>
+                    {(filters.priceRange.min || filters.priceRange.max) && (
+                      <button 
+                        className="price-clear-btn"
+                        onClick={() => {
+                          onFilterChange('priceRange', { min: '', max: '', mode: 'order' });
+                        }}
+                        title="Temizle"
+                      >
+                        ✕
+                      </button>
+                    )}
+                    <button 
+                      className="price-apply-btn"
+                      onClick={() => {
+                        // Filter already applied on change
+                      }}
+                    >
+                      Uygula
                     </button>
                   </div>
-                )}
+                </div>
               </div>
-            )}
-          </div>
+
+              {/* Teslimat Durumu Filtresi */}
+              <div className="filter-group">
+                <div className="multi-select-container">
+                  <div 
+                    className={`multi-select-header ${filters.deliveryStatus ? 'has-selection' : ''}`}
+                    onClick={() => {
+                      const dropdown = document.querySelector('.delivery-status-dropdown');
+                      if (dropdown) {
+                        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                      }
+                    }}
+                  >
+                    <span>{filters.deliveryStatus ? 
+                      (() => {
+                        switch(filters.deliveryStatus) {
+                          case 'hesaplanıyor': return 'Teslimat tarihi belirsiz';
+                          case 'bugün-teslim': return 'Bugün teslim';
+                          case 'bu-hafta-teslim': return 'Bu hafta teslim';
+                          case 'gecikmiş': return 'Gecikmiş';
+                          case 'zamanında': return 'Zamanında';
+                          case 'erken': return 'Erken teslim';
+                          default: return filters.deliveryStatus;
+                        }
+                      })()
+                      : 'Teslimat Durumu'}</span>
+                    <span className="dropdown-arrow">▼</span>
+                  </div>
+                  <div className="multi-select-dropdown delivery-status-dropdown" style={{ display: 'none' }}>
+                    <label className="multi-select-option">
+                      <input
+                        type="radio"
+                        name="deliveryStatus"
+                        value=""
+                        checked={filters.deliveryStatus === ''}
+                        onChange={(e) => onFilterChange('deliveryStatus', '')}
+                      />
+                      Tümü
+                    </label>
+                    <label className="multi-select-option">
+                      <input
+                        type="radio"
+                        name="deliveryStatus"
+                        value="hesaplanıyor"
+                        checked={filters.deliveryStatus === 'hesaplanıyor'}
+                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                      />
+                      Teslimat tarihi belirsiz
+                    </label>
+                    <label className="multi-select-option">
+                      <input
+                        type="radio"
+                        name="deliveryStatus"
+                        value="bugün-teslim"
+                        checked={filters.deliveryStatus === 'bugün-teslim'}
+                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                      />
+                      Bugün teslim
+                    </label>
+                    <label className="multi-select-option">
+                      <input
+                        type="radio"
+                        name="deliveryStatus"
+                        value="bu-hafta-teslim"
+                        checked={filters.deliveryStatus === 'bu-hafta-teslim'}
+                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                      />
+                      Bu hafta teslim
+                    </label>
+                    <label className="multi-select-option">
+                      <input
+                        type="radio"
+                        name="deliveryStatus"
+                        value="gecikmiş"
+                        checked={filters.deliveryStatus === 'gecikmiş'}
+                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                      />
+                      Gecikmiş
+                    </label>
+                    <label className="multi-select-option">
+                      <input
+                        type="radio"
+                        name="deliveryStatus"
+                        value="zamanında"
+                        checked={filters.deliveryStatus === 'zamanında'}
+                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                      />
+                      Zamanında
+                    </label>
+                    <label className="multi-select-option">
+                      <input
+                        type="radio"
+                        name="deliveryStatus"
+                        value="erken"
+                        checked={filters.deliveryStatus === 'erken'}
+                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                      />
+                      Erken teslim
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Malzeme Tipi Filtresi */}
+              <div className="filter-group">
+                <div className="multi-select-container">
+                  <div 
+                    className={`multi-select-header ${filters.materialType ? 'has-selection' : ''}`}
+                    onClick={() => {
+                      const dropdown = document.querySelector('.material-type-dropdown');
+                      if (dropdown) {
+                        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                      }
+                    }}
+                  >
+                    <span>{filters.materialType ? 
+                      (() => {
+                        const selectedMaterial = activeMaterials.find(m => m.materialCode === filters.materialType);
+                        return selectedMaterial ? `${selectedMaterial.materialCode} - ${selectedMaterial.materialName}` : filters.materialType;
+                      })()
+                      : 'Malzeme Tipi'}</span>
+                    <span className="dropdown-arrow">▼</span>
+                  </div>
+                  <div className="multi-select-dropdown material-type-dropdown" style={{ display: 'none' }}>
+                    <label className="multi-select-option">
+                      <input
+                        type="radio"
+                        name="materialType"
+                        value=""
+                        checked={filters.materialType === ''}
+                        onChange={(e) => onFilterChange('materialType', '')}
+                      />
+                      Tümü
+                    </label>
+                    {activeMaterials.map(material => (
+                      <label key={material.materialCode} className="multi-select-option">
+                        <input
+                          type="radio"
+                          name="materialType"
+                          value={material.materialCode}
+                          checked={filters.materialType === material.materialCode}
+                          onChange={(e) => onFilterChange('materialType', e.target.value)}
+                        />
+                        {material.materialCode} - {material.materialName}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Aktif filtre temizleme */}
+          {hasActiveFilters && (
+            <div className="filter-group">
+              <button
+                onClick={() => {
+                  onFilterChange('search', '');
+                  onFilterChange('orderStatus', '');
+                  onFilterChange('itemStatus', '');
+                  onFilterChange('dateRange', '');
+                  onFilterChange('deliveryStatus', '');
+                  onFilterChange('materialType', '');
+                  onFilterChange('priceRange', { min: '', max: '', mode: 'order' });
+                }}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '13px',
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontWeight: '500'
+                }}
+              >
+                Filtreleri Temizle
+              </button>
+            </div>
+          )}
         </div>
       </div>
+    </div>
     </section>
   )
 }
@@ -239,7 +606,9 @@ function OrdersTable({
   onOrderClick,
   onUpdateOrderStatus,
   actionLoading = false,
-  emptyMessage = 'Sipariş bulunamadı'
+  emptyMessage = 'Sipariş bulunamadı',
+  deliveryStatuses = {},
+  deliveryLoading = false
 }) {
   if (loading) {
     return (
@@ -300,36 +669,53 @@ function OrdersTable({
     )
   }
 
-  // Empty state when no orders exist at all
-  if (!loading && (!orders || orders.length === 0)) {
+  // Empty state component for different tabs
+  const EmptyState = ({ variant, hasNoOrdersAtAll = false }) => {
+    const emptyStateConfig = {
+      pending: {
+        icon: '⏳',
+        title: 'Bekleyen sipariş bulunmuyor',
+        message: hasNoOrdersAtAll 
+          ? 'İlk siparişinizi oluşturmak için "Yeni Sipariş" butonunu kullanın'
+          : 'Tüm siparişleriniz tamamlanmış durumda. Yeni sipariş oluşturabilirsiniz.'
+      },
+      completed: {
+        icon: '✅',
+        title: 'Tamamlanmış sipariş yok',
+        message: hasNoOrdersAtAll
+          ? 'Henüz tamamlanmış sipariş bulunmuyor'
+          : 'Henüz tamamlanmış sipariş bulunmuyor. Bekleyen siparişlerinizi tamamlayabilirsiniz.'
+      }
+    }
+
+    const config = emptyStateConfig[variant] || emptyStateConfig.pending
+
     return (
-      <div className="orders-table-placeholder">
+      <div style={{
+        textAlign: 'center',
+        padding: '40px 20px',
+        color: '#6b7280'
+      }}>
         <div style={{
-          textAlign: 'center',
-          padding: '40px 20px',
+          fontSize: '48px',
+          marginBottom: '16px',
+          opacity: 0.5
+        }}>{config.icon}</div>
+        <h3 style={{
+          margin: '0 0 8px 0',
+          fontSize: '18px',
+          fontWeight: '600',
+          color: '#374151'
+        }}>
+          {config.title}
+        </h3>
+        <p style={{
+          margin: '0',
+          fontSize: '14px',
           color: '#6b7280'
         }}>
-          <div style={{
-            fontSize: '48px',
-            marginBottom: '16px',
-            opacity: 0.5
-          }}>📋</div>
-          <h3 style={{
-            margin: '0 0 8px 0',
-            fontSize: '18px',
-            fontWeight: '600',
-            color: '#374151'
-          }}>
-            Henüz sipariş bulunmuyor
-          </h3>
-          <p style={{
-            margin: '0',
-            fontSize: '14px',
-            color: '#6b7280'
-          }}>
-            İlk siparişinizi oluşturmak için "Yeni Sipariş" butonunu kullanın
-          </p>
-        </div>
+          {config.message}
+        </p>
       </div>
     )
   }
@@ -359,6 +745,38 @@ function OrdersTable({
       'İptal Edildi': '#ef4444'
     }
     return colors[status] || '#6b7280'
+  }
+
+  // Teslimat durumu renk ve metin helper fonksiyonları
+  const getDeliveryStatusColor = (status) => {
+    const statusColors = {
+      'bugün-teslim': { bg: '#fef3c7', text: '#d97706' },    // Sarı
+      'bu-hafta-teslim': { bg: '#dbeafe', text: '#2563eb' }, // Mavi
+      'gecikmiş': { bg: '#fee2e2', text: '#dc2626' },        // Kırmızı
+      'zamanında': { bg: '#dcfce7', text: '#16a34a' },       // Yeşil
+      'erken': { bg: '#f3e8ff', text: '#9333ea' },           // Mor
+      'hesaplanıyor': { bg: '#f1f5f9', text: '#64748b' }     // Gri
+    }
+    return statusColors[status] || statusColors['hesaplanıyor']
+  }
+
+  const getDeliveryStatusText = (status, daysRemaining) => {
+    switch (status) {
+      case 'bugün-teslim':
+        return 'Bugün Teslim'
+      case 'bu-hafta-teslim':
+        return `${daysRemaining} gün kaldı`
+      case 'gecikmiş':
+        return `${Math.abs(daysRemaining)} gün gecikti`
+      case 'zamanında':
+        return 'Zamanında'
+      case 'erken':
+        return 'Erken teslim'
+      case 'hesaplanıyor':
+        return 'Teslimat tarihi belirsiz'
+      default:
+        return 'Hesaplanıyor'
+    }
   }
 
   const renderLineChips = (items = []) => (
@@ -421,14 +839,17 @@ function OrdersTable({
     </div>
   )
 
+  // Always render the table structure with tabs
   return (
     <section className="materials-table">
+      {/* Tab Navigation - Always visible */}
       <div className="materials-tabs">
         <div className="orders-tabs" style={{ display: 'flex', gap: '12px' }}>
           <button
             type="button"
             className={`tab-button${variant === 'pending' ? ' active' : ''}`}
             onClick={() => onChangeTab && onChangeTab('pending')}
+            disabled={loading}
           >
             Bekleyen Siparişler
             <span className="tab-count">({tabCounts?.pending ?? 0})</span>
@@ -437,6 +858,7 @@ function OrdersTable({
             type="button"
             className={`tab-button${variant === 'completed' ? ' active' : ''}`}
             onClick={() => onChangeTab && onChangeTab('completed')}
+            disabled={loading}
           >
             Tamamlanan Siparişler
             <span className="tab-count">({tabCounts?.completed ?? 0})</span>
@@ -444,135 +866,286 @@ function OrdersTable({
         </div>
       </div>
 
+      {/* Table Container - Always visible */}
       <div className="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th style={{ minWidth: '120px' }}>
-                <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                  Sipariş
-                  <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
-                </button>
-              </th>
-              <th style={{ minWidth: '160px' }}>
-                <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                  Tedarikçi
-                  <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
-                </button>
-              </th>
-              <th style={{ minWidth: '220px' }}>
-                <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                  Kalemler
-                  <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
-                </button>
-              </th>
-              <th style={{ minWidth: '100px', textAlign: 'right' }}>
-                <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                  Tutar
-                  <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
-                </button>
-              </th>
-              <th style={{ minWidth: '120px' }}>
-                <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                  Durum
-                  <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
-                </button>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders && orders.length > 0 ? orders.map((order) => {
-              const items = variant === 'pending' ? order.pendingItems : order.deliveredItems
-              const relevantTotal = variant === 'pending' ? order.pendingTotal : order.deliveredTotal
-              return (
-                <tr
-                  key={order.id}
-                  onClick={() => onOrderClick && onOrderClick(order)}
-                  style={{ cursor: onOrderClick ? 'pointer' : 'default' }}
-                >
-                  <td>
-                    <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 600 }}>
-                      {order.orderCode || order.id}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                      {formatDate(order.orderDate)}
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ fontWeight: 600, fontSize: '13px' }}>{order.supplierName}</div>
-                    <div style={{ fontSize: '11px', color: '#6b7280' }}>{order.supplierId}</div>
-                  </td>
-                  <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>{items.length > 0 ? renderLineChips(items) : <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>Kalem bulunmuyor</span>}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600, paddingTop: '6px', paddingBottom: '6px' }}>
-                    {formatCurrency(relevantTotal || order.totalAmount)}
-                  </td>
-                  <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>
-                    {onUpdateOrderStatus ? (
-                      <select
-                        value={order.orderStatus}
-                        disabled={actionLoading}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => {
-                          if (e.target.value && e.target.value !== order.orderStatus) {
-                            onUpdateOrderStatus(order.id, e.target.value)
+        {loading ? (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '40px',
+            color: '#6b7280'
+          }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', marginBottom: '8px' }}>⏳</div>
+              <div>Siparişler yükleniyor...</div>
+            </div>
+          </div>
+        ) : error ? (
+          <div style={{
+            textAlign: 'center',
+            padding: '40px 20px',
+            color: '#ef4444'
+          }}>
+            <div style={{
+              fontSize: '48px',
+              marginBottom: '16px',
+              opacity: 0.5
+            }}>⚠️</div>
+            <h3 style={{
+              margin: '0 0 8px 0',
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#dc2626'
+            }}>
+              Bağlantı Problemi
+            </h3>
+            <p style={{
+              margin: '0 0 16px 0',
+              fontSize: '14px',
+              color: '#6b7280'
+            }}>
+              {error.includes('timeout') ? 
+                'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.' : 
+                `Siparişler yüklenirken hata oluştu: ${error}`
+              }
+            </p>
+            <button 
+              onClick={() => window.location.reload()} 
+              style={{
+                padding: '8px 16px',
+                fontSize: '14px',
+                backgroundColor: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer'
+              }}
+            >
+              Sayfayı Yenile
+            </button>
+          </div>
+        ) : (!orders || orders.length === 0) ? (
+          // Show tab-specific empty state
+          <EmptyState 
+            variant={variant} 
+            hasNoOrdersAtAll={true}
+          />
+        ) : (
+          // Render the actual table with data
+          <table>
+            <thead>
+              <tr>
+                <th style={{ minWidth: '120px' }}>
+                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    Sipariş
+                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                  </button>
+                </th>
+                <th style={{ minWidth: '160px' }}>
+                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    Tedarikçi
+                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                  </button>
+                </th>
+                <th style={{ minWidth: '140px' }}>
+                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    Teslimat Durumu
+                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                  </button>
+                </th>
+                <th style={{ minWidth: '220px' }}>
+                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    Kalemler
+                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                  </button>
+                </th>
+                <th style={{ minWidth: '100px', textAlign: 'right' }}>
+                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    Tutar
+                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                  </button>
+                </th>
+                <th style={{ minWidth: '120px' }}>
+                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    Durum
+                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders && orders.length > 0 ? orders.map((order) => {
+                // Order status'a göre filtreleme yap - items'a değil
+                const isPendingOrder = order.orderStatus !== 'Teslim Edildi'
+                const isCompletedOrder = order.orderStatus === 'Teslim Edildi'
+                
+                // Variant'a göre göster/gizle
+                if (variant === 'pending' && !isPendingOrder) return null
+                if (variant === 'completed' && !isCompletedOrder) return null
+                
+                // Items varsa kullan, yoksa boş array
+                const items = order.items || []
+                const relevantTotal = order.totalPrice || 0
+                
+                // TEMP DEBUG: Items kontrolü
+                if (items.length === 0) {
+                  console.log('❌ No items for order:', order.id, 'Order data:', {
+                    hasItems: 'items' in order,
+                    itemsValue: order.items,
+                    itemsType: typeof order.items,
+                    itemsLength: order.items?.length,
+                    orderKeys: Object.keys(order)
+                  })
+                }
+                
+                return (
+                  <tr
+                    key={order.id}
+                    onClick={() => onOrderClick && onOrderClick(order)}
+                    style={{ cursor: onOrderClick ? 'pointer' : 'default' }}
+                  >
+                    <td>
+                      <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 600 }}>
+                        {order.orderCode || order.id}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                        {formatDate(order.orderDate)}
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontWeight: 600, fontSize: '13px' }}>{order.supplierName}</div>
+                      <div style={{ fontSize: '11px', color: '#6b7280' }}>{order.supplierId}</div>
+                    </td>
+                    <td>
+                      <div style={{ fontSize: '12px', fontWeight: 600 }}>
+                        {(() => {
+                          // Debug: Order fields'ları kontrol et
+                          console.log('🚚 Delivery debug for order:', order.id, {
+                            expectedDeliveryDate: order.expectedDeliveryDate,
+                            orderStatus: order.orderStatus,
+                            deliveryDate: order.deliveryDate,
+                            allOrderFields: Object.keys(order)
+                          })
+                          
+                          // Basit teslimat durumu hesaplama - API'ye bağımlı değil
+                          const today = new Date()
+                          const deliveryDate = order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate) : null
+                          
+                          let status = 'hesaplanıyor'
+                          let daysRemaining = 0
+                          
+                          if (deliveryDate && !isNaN(deliveryDate.getTime())) {
+                            const timeDiff = deliveryDate.getTime() - today.getTime()
+                            daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24))
+                            
+                            if (order.orderStatus === 'Teslim Edildi') {
+                              status = 'teslim-edildi'
+                            } else if (daysRemaining < 0) {
+                              status = 'gecikti'
+                            } else if (daysRemaining === 0) {
+                              status = 'bugün-teslim'
+                            } else if (daysRemaining <= 7) {
+                              status = 'bu-hafta-teslim'
+                            } else {
+                              status = 'zamanında'
+                            }
+                          } else {
+                            console.log('🚚 No valid delivery date found for order:', order.id)
                           }
-                        }}
-                        style={{
-                          padding: '6px 10px',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          border: '1px solid rgba(148, 163, 184, 0.6)',
-                          borderRadius: '10px',
-                          background: getStatusColor(order.orderStatus),
-                          color: '#fff',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi'].map(status => (
-                          <option key={status} value={status}>{status}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span
-                        style={{
-                          display: 'inline-block',
-                          padding: '4px 8px',
-                          borderRadius: '12px',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: 'white',
-                          backgroundColor: getStatusColor(order.orderStatus)
-                        }}
-                      >
-                        {order.orderStatus}
-                      </span>
-                    )}
+
+                          console.log('🚚 Final delivery status:', status, 'days:', daysRemaining)
+
+                          return (
+                            <span style={{
+                              padding: '4px 8px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              backgroundColor: getDeliveryStatusColor(status).bg,
+                              color: getDeliveryStatusColor(status).text
+                            }}>
+                              {getDeliveryStatusText(status, daysRemaining)}
+                            </span>
+                          )
+                        })()}
+                      </div>
+                    </td>
+                    <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>{items.length > 0 ? renderLineChips(items) : <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>Kalem bulunmuyor</span>}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600, paddingTop: '6px', paddingBottom: '6px' }}>
+                      {formatCurrency(relevantTotal || order.totalAmount)}
+                    </td>
+                    <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>
+                      {onUpdateOrderStatus ? (
+                        <select
+                          value={order.orderStatus}
+                          disabled={actionLoading}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            if (e.target.value && e.target.value !== order.orderStatus) {
+                              onUpdateOrderStatus(order.id, e.target.value)
+                            }
+                          }}
+                          style={{
+                            padding: '6px 10px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            border: '1px solid rgba(148, 163, 184, 0.6)',
+                            borderRadius: '10px',
+                            background: getStatusColor(order.orderStatus),
+                            color: '#fff',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi'].map(status => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '4px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: 'white',
+                            backgroundColor: getStatusColor(order.orderStatus)
+                          }}
+                        >
+                          {order.orderStatus}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              }) : (
+                <tr>
+                  <td colSpan={5} style={{ padding: 0, border: 'none' }}>
+                    <EmptyState 
+                      variant={variant} 
+                      hasNoOrdersAtAll={false}
+                    />
                   </td>
                 </tr>
-              )
-            }) : (
-              <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '24px', color: '#6b7280', fontStyle: 'italic' }}>
-                  {emptyMessage}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+            </tbody>
+          </table>
+        )}
       </div>
     </section>
   )
 }
 
 export default function OrdersTabContent() {
-  console.log('🚀🚀🚀 OrdersTabContent RENDER edildi!');
+  console.log('🎬 OrdersTabContent component rendered - FORCED LOG')
   
   const [activeOrdersTab, setActiveOrdersTab] = useState('pending') // 'pending' or 'completed'
   const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
+  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
   const [selectedOrderLoading, setSelectedOrderLoading] = useState(false)
   const [selectedOrderError, setSelectedOrderError] = useState(null)
-  const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
   
   // Debug modal state
   useEffect(() => {
@@ -583,13 +1156,315 @@ export default function OrdersTabContent() {
   const [filters, setFilters] = useState({
     search: '',
     orderStatus: '',
-    dateRange: ''
+    itemStatus: '',
+    dateRange: '',
+    deliveryStatus: '', // Teslimat durumu filtresi
+    materialType: '', // Malzeme tipi filtresi
+    priceRange: {
+      min: '',
+      max: '',
+      mode: 'order' // 'order' | 'item'
+    }
   })
 
-  // Firebase hooks
-  const { stats, loading: statsLoading } = useOrderStats()
-  const { updateOrder, loading: actionLoading } = useOrderActions()
-  const { orders, loading: ordersLoading, error: ordersError, refreshOrders } = useOrders({}, { autoLoad: true, realTime: true })
+  // Stats hooks - Backend API kullanacağız
+  const [stats, setStats] = useState({
+    pendingOrders: 0,
+    thisMonthOrders: 0,
+    partialOrders: 0,
+    totalOrders: 0,
+    completedOrders: 0,
+    totalAmount: 0
+  })
+  const [statsLoading, setStatsLoading] = useState(true)
+  
+  // Stats API çağrısı
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setStatsLoading(true)
+        
+        const response = await fetchWithTimeout('/api/orders/stats', {
+          headers: withAuth()
+        })
+        
+        console.log('📊 Stats API response:', response.status, response.statusText)
+        
+        if (!response.ok) {
+          console.warn('Stats API not available, using default values')
+          return
+        }
+        
+        const data = await response.json()
+        console.log('📊 Stats data:', data)
+        setStats(data.stats || stats)
+      } catch (error) {
+        console.error('Stats fetch error:', error)
+      } finally {
+        setStatsLoading(false)
+      }
+    }
+    
+    fetchStats()
+  }, [])
+  
+  const updateOrder = async (orderId, updates) => {
+    console.log('💾 Updating order:', orderId, updates)
+    try {
+      const response = await fetchWithTimeout(`/api/orders/${orderId}`, {
+        method: 'PUT',
+        headers: withAuth(),
+        body: JSON.stringify(updates)
+      })
+      
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      return data.order || data
+    } catch (error) {
+      console.error('❌ Update order error:', error)
+      throw error
+    }
+  }
+  const actionLoading = false
+  
+  // Malzemeler için API state
+  const [materials, setMaterials] = useState([])
+  const [materialsLoading, setMaterialsLoading] = useState(true)
+  const [materialsError, setMaterialsError] = useState(null)
+  
+  // Test: API endpoint'leri çalışıyor mu?
+  useEffect(() => {
+    const testEndpoints = async () => {
+      console.log('🧪 Testing API endpoints...')
+      
+      try {
+        // Test materials endpoint
+        console.log('🧪 Testing /api/materials...')
+        const materialsResponse = await fetchWithTimeout('/api/materials', { headers: withAuth() })
+        console.log('📦 Materials response:', materialsResponse.status)
+        if (materialsResponse.ok) {
+          const materialsData = await materialsResponse.json()
+          console.log('📦 Materials count:', materialsData.materials?.length || 0)
+        }
+        
+        // Test orders endpoint  
+        console.log('🧪 Testing /api/orders...')
+        const ordersResponse = await fetchWithTimeout('/api/orders', { headers: withAuth() })
+        console.log('📋 Orders response:', ordersResponse.status)
+        if (ordersResponse.ok) {
+          const ordersData = await ordersResponse.json()
+          console.log('📋 Orders count:', ordersData.orders?.length || 0)
+        }
+        
+        // Test stats endpoint
+        console.log('🧪 Testing /api/orders/stats...')
+        const statsResponse = await fetchWithTimeout('/api/orders/stats', { headers: withAuth() })
+        console.log('📊 Stats response:', statsResponse.status)
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json()
+          console.log('📊 Stats:', statsData.stats)
+        }
+        
+      } catch (error) {
+        console.error('🧪 API test error:', error)
+      }
+    }
+    
+    testEndpoints()
+  }, [])
+
+  // Malzemeleri API'den çek
+  useEffect(() => {
+    const fetchMaterials = async () => {
+      try {
+        setMaterialsLoading(true)
+        
+        // Mevcut materials API'yi kullan
+        const response = await fetchWithTimeout('/api/materials', {
+          headers: withAuth()
+        })
+        
+        console.log('📡 Materials API response:', response.status, response.statusText)
+        
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status} - ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        console.log('📦 Materials data:', data)
+        
+        // Response'dan materials array'ini al ve sadece aktif olanları filtrele
+        const allMaterials = Array.isArray(data) ? data : (data.materials || [])
+        const activeMaterials = allMaterials.filter(material => material.status === 'Aktif')
+        
+        // Frontend format'ına çevir
+        const materialsWithCorrectFields = activeMaterials.map(material => ({
+          ...material,
+          materialCode: material.code || material.materialCode,
+          materialName: material.name || material.materialName
+        }))
+        
+        setMaterials(materialsWithCorrectFields)
+      } catch (error) {
+        setMaterialsError(error.message)
+        console.error('Materials fetch error:', error)
+      } finally {
+        setMaterialsLoading(false)
+      }
+    }
+    
+    fetchMaterials()
+  }, [])
+  // Orders hooks - Backend API kullanacağız
+  const [orders, setOrders] = useState([])
+  const [ordersLoading, setOrdersLoading] = useState(true)
+  const [ordersError, setOrdersError] = useState(null)
+  const [deliveryStatuses, setDeliveryStatuses] = useState({})
+  const [deliveryLoading, setDeliveryLoading] = useState(false)
+  
+  // Orders API çağrısı - Basit test
+  useEffect(() => {
+    console.log('⚡️ Orders useEffect triggered!')
+    
+    const fetchOrders = async () => {
+      try {
+        console.log('🚀 Starting orders fetch...')
+        setOrdersLoading(true)
+        setOrdersError(null)
+        
+        const response = await fetchWithTimeout('/api/orders', {
+          headers: withAuth()
+        })
+        console.log('� Response status:', response.status)
+        console.log('📡 Response ok:', response.ok)
+        console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()))
+        
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error('❌ Error response:', errorText)
+          throw new Error(`Orders API Error: ${response.status} - ${errorText}`)
+        }
+        
+        const data = await response.json()
+        console.log('� Full response data:', data)
+        console.log('� Orders array:', data.orders)
+        console.log('� Orders count:', data.orders?.length || 0)
+        
+        setOrders(data.orders || [])
+        console.log('✅ Orders state updated')
+        
+      } catch (error) {
+        console.error('❌ Orders fetch error:', error)
+        setOrdersError(error.message)
+      } finally {
+        setOrdersLoading(false)
+        console.log('🏁 Orders fetch completed')
+      }
+    }
+    
+    fetchOrders()
+  }, [])
+  
+  // Test: orders state'i değiştiğinde log
+  useEffect(() => {
+    console.log('🔥 ORDERS STATE CHANGED:', {
+      ordersLength: orders.length,
+      ordersLoading,
+      ordersError,
+      firstOrder: orders[0]
+    })
+  }, [orders, ordersLoading, ordersError])
+  const refreshOrders = async () => {
+    console.log('🔄 Refreshing orders...')
+    try {
+      setOrdersLoading(true)
+      setOrdersError(null)
+      
+      const response = await fetchWithTimeout('/api/orders', {
+        headers: withAuth()
+      })
+      
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      setOrders(data.orders || [])
+      console.log('✅ Orders refreshed')
+    } catch (error) {
+      console.error('❌ Orders refresh error:', error)
+      setOrdersError(error.message)
+    } finally {
+      setOrdersLoading(false)
+    }
+  }
+  
+  const loadDeliveryStatuses = async () => {
+    console.log('🚚 Loading delivery statuses...')
+    // Load delivery statuses from API
+  }
+
+  // Materials Debug
+  console.log('🔍 Materials API Debug:', {
+    totalMaterials: materials.length,
+    materialsLoading,
+    materialsError,
+    sampleMaterial: materials[0],
+    allStatuses: [...new Set(materials.map(m => m.status))]
+  });
+
+  // Debug: State'leri logla
+  useEffect(() => {
+    console.log('🔍 Delivery state update:', {
+      deliveryStatuses,
+      deliveryLoading,
+      statusCount: Object.keys(deliveryStatuses).length
+    })
+  }, [deliveryStatuses, deliveryLoading])
+
+  // Debug: Orders state'ini logla
+  useEffect(() => {
+    console.log('📋 Orders state update:', {
+      orders: orders.length,
+      ordersLoading,
+      ordersError,
+      firstOrder: orders[0]?.id
+    })
+  }, [orders, ordersLoading, ordersError])
+
+  // Aktif malzemeler artık API'den direkt geliyor (status: "Aktif" olanlar)
+  const activeMaterials = materials // API'den zaten sadece aktif olanlar geliyor
+  
+  console.log('🔍 Active Materials debug:', {
+    totalActiveMaterials: activeMaterials.length,
+    materialsLoading,
+    sampleMaterial: activeMaterials[0],
+    allCodes: activeMaterials.map(m => m.code).slice(0, 5) // İlk 5 code'u göster
+  })
+
+  // Teslimat durumlarını yükle - sadece bir kere
+  useEffect(() => {
+    if (orders.length > 0) {
+      loadDeliveryStatuses()
+    }
+  }, [orders.length]) // loadDeliveryStatuses'u kaldırdık
+
+  // Dropdown close handler like in MaterialsFilters
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!event.target.closest('.multi-select-container')) {
+        document.querySelectorAll('.multi-select-dropdown').forEach(dropdown => {
+          dropdown.style.display = 'none';
+        });
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   const ORDER_STATUS_OPTIONS = ['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi']
   const ITEM_STATUS_OPTIONS = ['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi']
@@ -603,7 +1478,8 @@ export default function OrdersTabContent() {
 
   // Check if filters are active
   const hasActiveFilters = () => {
-    return !!(filters.search || filters.orderStatus || filters.dateRange);
+    const hasPriceRange = !!(filters.priceRange.min || filters.priceRange.max);
+    return !!(filters.search || filters.orderStatus || filters.itemStatus || filters.dateRange || filters.deliveryStatus || filters.materialType || hasPriceRange);
   }
 
   // Apply filters to orders
@@ -625,6 +1501,13 @@ export default function OrdersTabContent() {
       // Status filter
       if (filters.orderStatus && order.orderStatus !== filters.orderStatus) {
         return false;
+      }
+
+      // Item status filter
+      if (filters.itemStatus) {
+        const orderItems = Array.isArray(order.items) ? order.items : [];
+        const hasMatchingItem = orderItems.some(item => item.itemStatus === filters.itemStatus);
+        if (!hasMatchingItem) return false;
       }
 
       // Date range filter
@@ -651,32 +1534,80 @@ export default function OrdersTabContent() {
         }
       }
 
+      // Price range filter
+      if (filters.priceRange.min || filters.priceRange.max) {
+        const min = parseFloat(filters.priceRange.min) || 0;
+        const max = parseFloat(filters.priceRange.max) || Infinity;
+        
+        if (filters.priceRange.mode === 'order') {
+          // Order total'a göre filtrele
+          const orderTotal = Array.isArray(order.items) ? 
+            order.items.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0) : 0;
+          
+          if (orderTotal < min || orderTotal > max) return false;
+          
+        } else if (filters.priceRange.mode === 'item') {
+          // En az bir item'ın fiyatı aralıkta olmalı
+          const orderItems = Array.isArray(order.items) ? order.items : [];
+          const hasMatchingItem = orderItems.some(item => {
+            const itemTotal = (item.quantity || 0) * (item.unitPrice || 0);
+            return itemTotal >= min && itemTotal <= max;
+          });
+          
+          if (!hasMatchingItem) return false;
+        }
+      }
+
+      // Delivery status filter
+      if (filters.deliveryStatus) {
+        const deliveryStatus = deliveryStatuses[order.id];
+        if (!deliveryStatus || deliveryStatus.status !== filters.deliveryStatus) {
+          return false;
+        }
+      }
+
+      // Material type filter
+      if (filters.materialType) {
+        const orderItems = Array.isArray(order.items) ? order.items : [];
+        const hasMatchingMaterial = orderItems.some(item => 
+          item.materialCode === filters.materialType || 
+          item.materialName === filters.materialType
+        );
+        if (!hasMatchingMaterial) return false;
+      }
+
       return true;
     });
   }
 
   const filteredOrders = applyFilters(orders);
 
-  const enhancedOrders = filteredOrders.map(order => {
-    const items = Array.isArray(order.items) ? order.items : [];
-    const pendingItems = items.filter(item => item.itemStatus !== 'Teslim Edildi');
-    const deliveredItems = items.filter(item => item.itemStatus === 'Teslim Edildi');
-    const pendingTotal = pendingItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0);
-    const deliveredTotal = deliveredItems.reduce((sum, item) => sum + (item.quantity || 0) * (item.unitPrice || 0), 0);
-    return {
-      ...order,
-      pendingItems,
-      deliveredItems,
-      pendingTotal,
-      deliveredTotal
-    };
-  });
-
-  const pendingOrdersView = enhancedOrders.filter(order => order.pendingItems.length > 0);
-  const completedOrdersView = enhancedOrders.filter(order => order.deliveredItems.length > 0);
+  // Basit order status based filtering - items'a bakmadan
+  const pendingOrdersView = filteredOrders.filter(order => order.orderStatus !== 'Teslim Edildi');
+  const completedOrdersView = filteredOrders.filter(order => order.orderStatus === 'Teslim Edildi');
 
   const currentOrders = activeOrdersTab === 'pending' ? pendingOrdersView : completedOrdersView;
   const currentLoading = ordersLoading;
+
+  console.log('📊 Orders debug (simplified):', {
+    totalOrders: orders.length,
+    pendingOrders: orders.filter(o => o.orderStatus !== 'Teslim Edildi').length,
+    completedOrders: orders.filter(o => o.orderStatus === 'Teslim Edildi').length,
+    activeTab: activeOrdersTab,
+    ordersLoading,
+    sampleOrder: orders[0] ? {
+      id: orders[0].id,
+      orderStatus: orders[0].orderStatus,
+      hasItems: Array.isArray(orders[0].items),
+      itemsCount: orders[0].items?.length || 0
+    } : 'No orders'
+  });
+
+  console.log('🎯 TABLE DEBUG - Passing to OrdersTable:', {
+    ordersCount: orders.length,
+    loading: currentLoading,
+    variant: activeOrdersTab
+  });
 
   const serializeItemsForOrder = (list = []) => (
     list.map(item => {
@@ -701,23 +1632,18 @@ export default function OrdersTabContent() {
     })
   )
 
-  // Handle order click
+  // Handle order click - Test için basitleştirildi
   const handleOrderClick = async (order) => {
-    console.log('📋 Sipariş detayı açılıyor:', order);
-    setUpdatingItemIds([])
-    setSelectedOrderLoading(true)
+    console.log('�🔥🔥 Sipariş tıklandı!!! Order:', order);
+    console.log('🔥🔥🔥 Setting selectedOrder...');
+    
+    // Önce test için basit modal açalım
+    setSelectedOrder(order)
     setSelectedOrderError(null)
-    setSelectedOrder({ ...order, items: order.items || [] })
-    try {
-      const detailedOrder = await getOrderWithItems(order.id)
-      setSelectedOrder(detailedOrder)
-    } catch (error) {
-      console.error('❌ Sipariş detayı yüklenirken hata:', error)
-      setSelectedOrderError(error.message)
-      setSelectedOrder(prev => prev || order)
-    } finally {
-      setSelectedOrderLoading(false)
-    }
+    setSelectedOrderLoading(false)
+    setUpdatingItemIds([])
+    
+    console.log('🔥🔥🔥 selectedOrder set edildi!');
   }
 
   const handleCloseOrderDetail = () => {
@@ -751,8 +1677,15 @@ export default function OrdersTabContent() {
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrderLoading(true);
         try {
-          const refreshed = await getOrderWithItems(orderId);
-          setSelectedOrder(refreshed);
+          const response = await fetchWithTimeout(`/api/orders/${orderId}`, {
+            headers: withAuth()
+          })
+          
+          if (response.ok) {
+            const data = await response.json()
+            const refreshed = data.order || data
+            setSelectedOrder(refreshed);
+          }
         } catch (detailError) {
           console.error('❌ Detay güncellenirken hata:', detailError);
         } finally {
@@ -767,20 +1700,30 @@ export default function OrdersTabContent() {
   }
 
   const handleItemStatusChange = async (orderId, item, newStatus) => {
-    if (!item?.id || !newStatus || newStatus === item.itemStatus) {
+    if (!newStatus || newStatus === item.itemStatus) {
       return
     }
 
-    console.log('🔍 DEBUG: handleItemStatusChange called:', {
+    // Item identifier - id, itemCode, lineId veya index-based
+    const itemId = item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`
+    
+    console.log('🔍 Item status değişiyor:', {
       orderId,
-      itemId: item.id,
+      itemId: itemId,
       oldStatus: item.itemStatus,
       newStatus: newStatus,
       materialCode: item.materialCode,
-      quantity: item.quantity
+      quantity: item.quantity,
+      fullItem: item
     });
 
-    setUpdatingItemIds(prev => [...new Set([...prev, item.id])])
+    console.log('🔍 DEBUG: API çağrısı detayları:', {
+      url: `/api/orders/${orderId}/items/${itemId}`,
+      method: 'PUT',
+      body: { itemStatus: newStatus }
+    });
+
+    setUpdatingItemIds(prev => [...new Set([...prev, itemId])])
 
     try {
       // Directly call the stock update logic if becoming delivered
@@ -794,8 +1737,24 @@ export default function OrdersTabContent() {
         quantity: item.quantity
       });
 
-      // Update the order item first
-      await OrderItemsService.updateOrderItem(item.id, { itemStatus: newStatus })
+      // Backend API ile item status güncelle
+      console.log('🚀 DEBUG: Making API call...')
+      const response = await fetchWithTimeout(`/api/orders/${orderId}/items/${itemId}`, {
+        method: 'PUT',
+        headers: withAuth(),
+        body: JSON.stringify({ itemStatus: newStatus })
+      })
+      
+      console.log('📡 DEBUG: API response:', response.status, response.statusText)
+      
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('❌ DEBUG: API error response:', errorText)
+        throw new Error(`API Error: ${response.status} - ${errorText}`)
+      }
+      
+      const result = await response.json()
+      console.log('✅ DEBUG: API success:', result)
 
       // If item is delivered, update material stock via backend API
       if (isBecomingDelivered) {
@@ -851,30 +1810,39 @@ export default function OrdersTabContent() {
         }
       }
 
-      console.log('🔄 DEBUG: Starting order status update and refresh...')
-      
-      await updateOrderStatusBasedOnItems(orderId)
-      console.log('✅ DEBUG: updateOrderStatusBasedOnItems completed')
+      console.log('🔄 DEBUG: Starting order refresh...')
       
       await refreshOrders()
       console.log('✅ DEBUG: refreshOrders completed')
 
       if (selectedOrder && selectedOrder.id === orderId) {
         console.log('🔄 DEBUG: Updating selected order details...')
-        const latestItems = await OrderItemsService.getOrderItems(orderId)
-        console.log('📦 DEBUG: Latest items fetched:', latestItems.length, 'items')
         
-        setSelectedOrder(prev => prev ? {
-          ...prev,
-          orderStatus: prev.orderStatus,
-          items: latestItems
-        } : prev)
+        // API'den güncel order'ı al
+        const orderResponse = await fetchWithTimeout(`/api/orders/${orderId}`, {
+          headers: withAuth()
+        })
+        
+        if (orderResponse.ok) {
+          const orderData = await orderResponse.json()
+          const latestOrder = orderData.order || orderData
+          console.log('📦 DEBUG: Latest order fetched:', latestOrder)
+          
+          setSelectedOrder(latestOrder)
+        }
 
         setSelectedOrderLoading(true)
         try {
-          const refreshed = await getOrderWithItems(orderId)
-          console.log('🔄 DEBUG: Order refreshed with status:', refreshed.orderStatus)
-          setSelectedOrder(refreshed)
+          const response = await fetchWithTimeout(`/api/orders/${orderId}`, {
+            headers: withAuth()
+          })
+          
+          if (response.ok) {
+            const data = await response.json()
+            const refreshed = data.order || data
+            console.log('🔄 DEBUG: Order refreshed with status:', refreshed.orderStatus)
+            setSelectedOrder(refreshed)
+          }
         } catch (detailError) {
           console.error('❌ Detay güncellenirken hata:', detailError)
         } finally {
@@ -884,7 +1852,7 @@ export default function OrdersTabContent() {
     } catch (error) {
       console.error('❌ Error updating item status:', error)
     } finally {
-      setUpdatingItemIds(prev => prev.filter(id => id !== item.id))
+      setUpdatingItemIds(prev => prev.filter(id => id !== itemId))
     }
   }
 
@@ -918,10 +1886,11 @@ export default function OrdersTabContent() {
           <OrdersFilters 
             filters={filters}
             onFilterChange={handleFilterChange}
-            isExpanded={isFiltersExpanded}
-            onToggleExpanded={setIsFiltersExpanded}
             resultsCount={currentOrders.length}
             hasActiveFilters={hasActiveFilters()}
+            isExpanded={isFiltersExpanded}
+            onToggleExpanded={setIsFiltersExpanded}
+            activeMaterials={activeMaterials}
           />
         </div>
       </div>
@@ -931,11 +1900,16 @@ export default function OrdersTabContent() {
         loading={currentLoading}
         error={ordersError}
         variant={activeOrdersTab}
-        tabCounts={{ pending: pendingOrdersView.length, completed: completedOrdersView.length }}
+        tabCounts={{ 
+          pending: pendingOrdersView.length, 
+          completed: completedOrdersView.length 
+        }}
         onChangeTab={setActiveOrdersTab}
         onOrderClick={handleOrderClick}
         onUpdateOrderStatus={handleUpdateOrderStatus}
         actionLoading={actionLoading}
+        deliveryStatuses={deliveryStatuses}
+        deliveryLoading={deliveryLoading}
         emptyMessage={
           activeOrdersTab === 'pending' 
             ? "Bekleyen sipariş bulunamadı" 
@@ -1074,17 +2048,17 @@ export default function OrdersTabContent() {
                   {[...(selectedOrder.items || [])]
                     .sort((a, b) => (a.itemSequence || 0) - (b.itemSequence || 0))
                     .map((item, index) => {
-                      const isItemUpdating = updatingItemIds.includes(item.id);
-                      console.log('🔍 DEBUG: Rendering item:', {
-                        itemId: item.id,
+                      const itemId = item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`
+                      const isItemUpdating = updatingItemIds.includes(itemId);
+                      console.log('🔍 Rendering item:', {
+                        itemId: itemId,
                         itemStatus: item.itemStatus,
                         materialCode: item.materialCode,
-                        hasId: !!item.id,
                         isUpdating: isItemUpdating
                       });
                       return (
                         <div
-                          key={item.id || item.itemCode || index}
+                          key={itemId}
                           style={{
                             padding: '12px 14px',
                             background: index % 2 === 0 ? '#f9fafb' : 'white',
@@ -1102,20 +2076,13 @@ export default function OrdersTabContent() {
                                 </div>
                                 <select
                                   value={item.itemStatus || 'Onay Bekliyor'}
-                                  disabled={selectedOrderLoading || !item.id || isItemUpdating || actionLoading}
+                                  disabled={isItemUpdating}
                                   onChange={(e) => {
-                                    console.log('🔍 DEBUG: Dropdown onChange triggered:', {
+                                    console.log('🔍 Item status değişiyor:', {
                                       itemId: item.id,
                                       oldStatus: item.itemStatus,
                                       newStatus: e.target.value,
                                       materialCode: item.materialCode
-                                    });
-                                    console.log('🔍 DEBUG: Dropdown disabled state check:', {
-                                      selectedOrderLoading,
-                                      hasItemId: !!item.id,
-                                      isItemUpdating,
-                                      actionLoading,
-                                      totalDisabled: selectedOrderLoading || !item.id || isItemUpdating || actionLoading
                                     });
                                     handleItemStatusChange(selectedOrder.id, item, e.target.value);
                                   }}

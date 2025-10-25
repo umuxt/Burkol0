@@ -8,11 +8,12 @@ const router = express.Router()
 // Get Firestore instance (will be initialized by server.js)
 let db
 
-// Initialize database connection when router is used
+// Debug middleware
 router.use((req, res, next) => {
   if (!db) {
     db = admin.firestore()
   }
+  console.log(`🔍 Orders API: ${req.method} ${req.path} - Full URL: ${req.originalUrl}`)
   next()
 })
 
@@ -151,6 +152,116 @@ router.post('/orders', async (req, res) => {
 })
 
 /**
+ * PUT /api/orders/:orderId/items/:itemId - Update order item
+ */
+router.put('/orders/:orderId/items/:itemId', async (req, res) => {
+  console.log('🎯🎯🎯 ROUTE MATCHED! Item update route HIT!')
+  try {
+    const { orderId, itemId } = req.params
+    const updates = req.body
+    
+    console.log('📝 DEBUG: Updating order item:', orderId, itemId, updates)
+    
+    // Get order document  
+    const orderRef = db.collection('orders').doc(orderId)
+    const orderSnap = await orderRef.get()
+    
+    if (!orderSnap.exists) {
+      console.log('❌ DEBUG: Order not found:', orderId)
+      return res.status(404).json({ error: 'Order not found' })
+    }
+    
+    const orderData = orderSnap.data()
+    const items = orderData.items || []
+    
+    console.log('🔍 DEBUG: Looking for itemId:', itemId)
+    console.log('🔍 DEBUG: Available items:', items.map(item => ({
+      id: item.id,
+      itemCode: item.itemCode,
+      lineId: item.lineId,
+      materialCode: item.materialCode
+    })))
+    
+    // Find item to update
+    const itemIndex = items.findIndex(item => 
+      item.itemCode === itemId || 
+      item.lineId === itemId ||
+      item.id === itemId
+    )
+    
+    console.log('🔍 DEBUG: Item found at index:', itemIndex)
+    
+    if (itemIndex === -1) {
+      console.log('❌ DEBUG: Item not found. Search details:', {
+        searchItemId: itemId,
+        againstFields: ['itemCode', 'lineId', 'id'],
+        availableItems: items.map(item => ({ 
+          itemCode: item.itemCode, 
+          lineId: item.lineId, 
+          id: item.id 
+        }))
+      })
+      return res.status(404).json({ error: 'Item not found in order' })
+    }
+    
+    // Update item
+    const currentTimestamp = new Date()
+    items[itemIndex] = {
+      ...items[itemIndex],
+      ...updates,
+      updatedAt: currentTimestamp
+    }
+    
+    // Check if order status should be updated based on all items' status
+    let newOrderStatus = null
+    const itemStatuses = items.map(item => item.itemStatus || 'Onay Bekliyor')
+    console.log('🔍 DEBUG: All item statuses:', itemStatuses)
+    
+    // Determine new order status based on item statuses
+    if (itemStatuses.every(status => status === 'Teslim Edildi')) {
+      newOrderStatus = 'Teslim Edildi'
+      console.log('✅ DEBUG: All items delivered, updating order status to: Teslim Edildi')
+    } else if (itemStatuses.every(status => status === 'İptal Edildi')) {
+      newOrderStatus = 'İptal Edildi'
+      console.log('❌ DEBUG: All items cancelled, updating order status to: İptal Edildi')
+    } else if (itemStatuses.some(status => status === 'Yolda')) {
+      newOrderStatus = 'Yolda'
+      console.log('🚚 DEBUG: Some items in transit, updating order status to: Yolda')
+    } else if (itemStatuses.some(status => status === 'Onaylandı')) {
+      newOrderStatus = 'Onaylandı'
+      console.log('✅ DEBUG: Some items approved, updating order status to: Onaylandı')
+    }
+    
+    // Prepare update object
+    const updateData = {
+      items: items,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }
+    
+    // Add order status update if needed
+    if (newOrderStatus) {
+      updateData.orderStatus = newOrderStatus
+      console.log('🔄 DEBUG: Updating order status to:', newOrderStatus)
+    }
+    
+    // Update order
+    await orderRef.update(updateData)
+    
+    res.json({
+      item: items[itemIndex],
+      message: 'Item updated successfully'
+    })
+    
+  } catch (error) {
+    console.error('❌ Update item error:', error)
+    res.status(500).json({ 
+      error: 'Failed to update item',
+      details: error.message 
+    })
+  }
+})
+
+/**
  * PUT /api/orders/:orderId/items/:itemId/deliver - Mark item as delivered and update stock
  */
 router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
@@ -269,7 +380,245 @@ router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
 })
 
 /**
- * GET /api/orders/:orderId - Get order with items
+ * GET /api/orders/stats - Get order statistics
+ */
+router.get('/orders/stats', async (req, res) => {
+  try {
+    console.log('📊 Getting order statistics...')
+    
+    const ordersSnapshot = await db.collection('orders').get()
+    const orders = []
+    
+    ordersSnapshot.forEach(doc => {
+      const orderData = doc.data()
+      orders.push({
+        id: doc.id,
+        ...orderData,
+        orderDate: orderData.orderDate?.toDate ? orderData.orderDate.toDate() : orderData.orderDate
+      })
+    })
+    
+    // Calculate statistics
+    const totalOrders = orders.length
+    const pendingOrders = orders.filter(order => 
+      order.orderStatus === 'Onay Bekliyor' || order.orderStatus === 'Onaylandı'
+    ).length
+    const completedOrders = orders.filter(order => 
+      order.orderStatus === 'Teslim Edildi'
+    ).length
+    const partialOrders = orders.filter(order => 
+      order.orderStatus === 'Yolda'
+    ).length
+    
+    // This month orders
+    const now = new Date()
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const thisMonthOrders = orders.filter(order => {
+      const orderDate = new Date(order.orderDate)
+      return orderDate >= firstDayOfMonth
+    }).length
+    
+    // Total amount calculation (if price field exists)
+    const totalAmount = orders.reduce((sum, order) => {
+      return sum + (parseFloat(order.totalPrice) || 0)
+    }, 0)
+    
+    const stats = {
+      totalOrders,
+      pendingOrders,
+      completedOrders,
+      partialOrders,
+      thisMonthOrders,
+      totalAmount
+    }
+    
+    console.log('✅ Order statistics:', stats)
+    res.json({ stats })
+    
+  } catch (error) {
+    console.error('❌ Get order statistics error:', error)
+    res.status(500).json({ 
+      error: 'Failed to get order statistics',
+      details: error.message 
+    })
+  }
+})
+
+/**
+ * GET /api/orders/materials/active - Get active materials for order creation
+ * Malzeme tipi dropdown için aktif malzemeleri getir
+ */
+router.get('/orders/materials/active', async (req, res) => {
+  try {
+    console.log('📦 Orders API: Active materials requested')
+    
+    // Get all materials (no filter to avoid index issues) and filter client-side
+    const materialsSnapshot = await db.collection('materials').get()
+    
+    const activeMaterials = []
+    materialsSnapshot.forEach(doc => {
+      const materialData = doc.data()
+      
+      // Filter only active materials
+      if (materialData.status === 'Aktif') {
+        activeMaterials.push({
+          id: doc.id,
+          code: materialData.code,
+          name: materialData.name,
+          category: materialData.category,
+          unit: materialData.unit,
+          costPrice: materialData.costPrice,
+          sellPrice: materialData.sellPrice,
+          stock: materialData.stock,
+          status: materialData.status,
+          type: materialData.type || '',
+          description: materialData.description || ''
+        })
+      }
+    })
+    
+    // Sort by name
+    activeMaterials.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+    
+    console.log(`✅ Orders API: ${activeMaterials.length} active materials returned (from ${materialsSnapshot.size} total)`)
+    res.json({
+      success: true,
+      materials: activeMaterials,
+      count: activeMaterials.length
+    })
+    
+  } catch (error) {
+    console.error('❌ Orders API: Active materials fetch error:', error)
+    res.status(500).json({ 
+      error: 'Failed to fetch active materials',
+      details: error.message 
+    })
+  }
+})
+
+/**
+ * GET /api/orders - Get all orders
+ */
+router.get('/orders', async (req, res) => {
+  try {
+    console.log('📋 Getting all orders...')
+    
+    const ordersSnapshot = await db.collection('orders').get()
+    const orders = []
+    
+    ordersSnapshot.forEach(doc => {
+      const orderData = doc.data()
+      
+      // Debug: Order'ın structure'ını kontrol et
+      console.log(`📋 Order ${doc.id} structure:`, {
+        hasItems: 'items' in orderData,
+        hasOrderItems: 'orderItems' in orderData,
+        hasLineItems: 'lineItems' in orderData,
+        itemsLength: orderData.items?.length || 0,
+        orderItemsLength: orderData.orderItems?.length || 0,
+        lineItemsLength: orderData.lineItems?.length || 0,
+        allKeys: Object.keys(orderData)
+      })
+      
+      orders.push({
+        id: doc.id,
+        ...orderData,
+        orderDate: orderData.orderDate?.toDate ? orderData.orderDate.toDate() : orderData.orderDate,
+        expectedDeliveryDate: orderData.expectedDeliveryDate?.toDate ? orderData.expectedDeliveryDate.toDate() : orderData.expectedDeliveryDate,
+        updatedAt: orderData.updatedAt?.toDate ? orderData.updatedAt.toDate() : orderData.updatedAt
+      })
+    })
+    
+    console.log(`✅ Retrieved ${orders.length} orders`)
+    console.log(`📦 Sample order structure:`, orders[0] ? {
+      id: orders[0].id,
+      hasItems: 'items' in orders[0],
+      itemsCount: orders[0].items?.length || 0
+    } : 'No orders')
+    
+    res.json({ orders })
+    
+  } catch (error) {
+    console.error('❌ Get all orders error:', error)
+    res.status(500).json({ 
+      error: 'Failed to get orders',
+      details: error.message 
+    })
+  }
+})
+
+/**
+ * GET /api/orders/delivery-status - Get delivery status for all orders
+ */
+router.get('/orders/delivery-status', async (req, res) => {
+  try {
+    console.log('📋 Getting delivery status for all orders...')
+    
+    const ordersSnapshot = await db.collection('orders').get()
+    const deliveryStatuses = {}
+    
+    ordersSnapshot.forEach(doc => {
+      const orderData = doc.data()
+      const deliveryInfo = calculateDeliveryStatus(orderData)
+      
+      deliveryStatuses[doc.id] = {
+        orderId: doc.id,
+        ...deliveryInfo,
+        expectedDeliveryDate: orderData.expectedDeliveryDate?.toDate ? orderData.expectedDeliveryDate.toDate() : orderData.expectedDeliveryDate,
+        orderStatus: orderData.status
+      }
+    })
+    
+    console.log(`✅ Calculated delivery status for ${Object.keys(deliveryStatuses).length} orders`)
+    res.json(deliveryStatuses)
+    
+  } catch (error) {
+    console.error('❌ Get all delivery statuses error:', error)
+    res.status(500).json({ 
+      error: 'Failed to get delivery statuses',
+      details: error.message 
+    })
+  }
+})
+
+/**
+ * GET /api/orders/:orderId/delivery-status - Get delivery status for specific order
+ */
+router.get('/orders/:orderId/delivery-status', async (req, res) => {
+  try {
+    const { orderId } = req.params
+    console.log(`📋 Getting delivery status for order: ${orderId}`)
+    
+    const orderSnapshot = await db.collection('orders').doc(orderId).get()
+    
+    if (!orderSnapshot.exists) {
+      return res.status(404).json({ error: 'Order not found' })
+    }
+    
+    const orderData = orderSnapshot.data()
+    const deliveryInfo = calculateDeliveryStatus(orderData)
+    
+    const result = {
+      orderId,
+      ...deliveryInfo,
+      expectedDeliveryDate: orderData.expectedDeliveryDate?.toDate ? orderData.expectedDeliveryDate.toDate() : orderData.expectedDeliveryDate,
+      orderStatus: orderData.status
+    }
+    
+    console.log(`✅ Delivery status calculated for order ${orderId}:`, result)
+    res.json(result)
+    
+  } catch (error) {
+    console.error('❌ Get order delivery status error:', error)
+    res.status(500).json({ 
+      error: 'Failed to get order delivery status',
+      details: error.message 
+    })
+  }
+})
+
+/**
+ * GET /api/orders/:orderId - Get specific order by ID
  */
 router.get('/orders/:orderId', async (req, res) => {
   try {
@@ -285,17 +634,128 @@ router.get('/orders/:orderId', async (req, res) => {
     const orderData = orderSnap.data()
     
     res.json({
-      id: orderSnap.id,
-      ...orderData,
-      orderDate: orderData.orderDate?.toDate(),
-      expectedDeliveryDate: orderData.expectedDeliveryDate?.toDate(),
-      updatedAt: orderData.updatedAt?.toDate()
+      order: {
+        id: orderSnap.id,
+        ...orderData,
+        orderDate: orderData.orderDate?.toDate ? orderData.orderDate.toDate() : orderData.orderDate,
+        expectedDeliveryDate: orderData.expectedDeliveryDate?.toDate ? orderData.expectedDeliveryDate.toDate() : orderData.expectedDeliveryDate,
+        updatedAt: orderData.updatedAt?.toDate ? orderData.updatedAt.toDate() : orderData.updatedAt
+      }
     })
     
   } catch (error) {
     console.error('❌ Get order error:', error)
     res.status(500).json({ 
       error: 'Failed to get order',
+      details: error.message 
+    })
+  }
+})
+
+/**
+ * Helper function to calculate delivery status
+ */
+function calculateDeliveryStatus(order) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  // Check if order has expectedDeliveryDate
+  if (!order.expectedDeliveryDate || order.expectedDeliveryDate === '') {
+    return {
+      status: 'hesaplanıyor',
+      daysRemaining: null,
+      message: 'Teslimat tarihi belirtilmemiş'
+    }
+  }
+  
+  const deliveryDate = order.expectedDeliveryDate?.toDate ? 
+    order.expectedDeliveryDate.toDate() : 
+    new Date(order.expectedDeliveryDate)
+  deliveryDate.setHours(0, 0, 0, 0)
+  
+  const diffTime = deliveryDate.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  
+  // Check order status for completed orders
+  if (order.status === 'Teslim Edildi' || order.status === 'Tamamlandı') {
+    return {
+      status: 'zamanında',
+      daysRemaining: 0,
+      message: 'Teslim edildi'
+    }
+  }
+  
+  // Calculate status based on remaining days
+  if (diffDays < 0) {
+    return {
+      status: 'gecikmiş',
+      daysRemaining: diffDays,
+      message: `${Math.abs(diffDays)} gün gecikti`
+    }
+  } else if (diffDays === 0) {
+    return {
+      status: 'bugün-teslim',
+      daysRemaining: 0,
+      message: 'Bugün teslim edilmeli'
+    }
+  } else if (diffDays <= 7) {
+    return {
+      status: 'bu-hafta-teslim',
+      daysRemaining: diffDays,
+      message: `${diffDays} gün kaldı`
+    }
+  } else {
+    return {
+      status: 'zamanında',
+      daysRemaining: diffDays,
+      message: `${diffDays} gün kaldı`
+    }
+  }
+}
+
+/**
+ * PUT /orders/:orderId - Update order
+ */
+router.put('/orders/:orderId', async (req, res) => {
+  try {
+    const { orderId } = req.params
+    const updates = req.body
+    
+    console.log('📝 Updating order:', orderId, updates)
+    
+    const orderRef = db.collection('orders').doc(orderId)
+    const orderSnap = await orderRef.get()
+    
+    if (!orderSnap.exists) {
+      return res.status(404).json({ error: 'Order not found' })
+    }
+    
+    // Update the order
+    const updateData = {
+      ...updates,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }
+    
+    await orderRef.update(updateData)
+    
+    // Get updated order
+    const updatedSnap = await orderRef.get()
+    const updatedData = updatedSnap.data()
+    
+    res.json({
+      order: {
+        id: updatedSnap.id,
+        ...updatedData,
+        orderDate: updatedData.orderDate?.toDate ? updatedData.orderDate.toDate() : updatedData.orderDate,
+        expectedDeliveryDate: updatedData.expectedDeliveryDate?.toDate ? updatedData.expectedDeliveryDate.toDate() : updatedData.expectedDeliveryDate,
+        updatedAt: updatedData.updatedAt?.toDate ? updatedData.updatedAt.toDate() : updatedData.updatedAt
+      }
+    })
+    
+  } catch (error) {
+    console.error('❌ Update order error:', error)
+    res.status(500).json({ 
+      error: 'Failed to update order',
       details: error.message 
     })
   }
