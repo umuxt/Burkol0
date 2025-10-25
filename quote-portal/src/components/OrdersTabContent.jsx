@@ -52,7 +52,8 @@ function OrdersFilters({
   isExpanded,
   onToggleExpanded,
   activeMaterials = [],  // Aktif malzemeler prop'u
-  activeSuppliers = []   // Aktif tedarikçiler prop'u
+  activeSuppliers = [],   // Aktif tedarikçiler prop'u
+  materialCategories = [] // Malzeme kategorileri prop'u
 }) {
   return (
     <section className="materials-filters">
@@ -604,6 +605,53 @@ function OrdersFilters({
                   </div>
                 </div>
               </div>
+
+              {/* Malzeme Kategorisi Filtresi */}
+              <div className="filter-group">
+                <div className="multi-select-container">
+                  <div 
+                    className={`multi-select-header ${filters.materialCategory ? 'has-selection' : ''}`}
+                    onClick={() => {
+                      const dropdown = document.querySelector('.material-category-dropdown');
+                      if (dropdown) {
+                        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                      }
+                    }}
+                  >
+                    <span>{filters.materialCategory ? 
+                      (() => {
+                        const selectedCategory = materialCategories.find(c => c.categoryId === filters.materialCategory);
+                        return selectedCategory ? selectedCategory.categoryName : filters.materialCategory;
+                      })()
+                      : 'Malzeme Kategorisi'}</span>
+                    <span className="dropdown-arrow">▼</span>
+                  </div>
+                  <div className="multi-select-dropdown material-category-dropdown" style={{ display: 'none' }}>
+                    <label className="multi-select-option">
+                      <input
+                        type="radio"
+                        name="materialCategory"
+                        value=""
+                        checked={filters.materialCategory === ''}
+                        onChange={(e) => onFilterChange('materialCategory', '')}
+                      />
+                      Tümü
+                    </label>
+                    {materialCategories.map(category => (
+                      <label key={category.categoryId} className="multi-select-option">
+                        <input
+                          type="radio"
+                          name="materialCategory"
+                          value={category.categoryId}
+                          checked={filters.materialCategory === category.categoryId}
+                          onChange={(e) => onFilterChange('materialCategory', e.target.value)}
+                        />
+                        {category.categoryName}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </>
           )}
 
@@ -619,6 +667,7 @@ function OrdersFilters({
                   onFilterChange('deliveryStatus', '');
                   onFilterChange('materialType', '');
                   onFilterChange('supplierType', '');
+                  onFilterChange('materialCategory', '');
                   onFilterChange('priceRange', { min: '', max: '', mode: 'order' });
                 }}
                 style={{
@@ -1210,6 +1259,7 @@ export default function OrdersTabContent() {
     deliveryStatus: '', // Teslimat durumu filtresi
     materialType: '', // Malzeme tipi filtresi
     supplierType: '', // Tedarikçi filtresi
+    materialCategory: '', // Malzeme kategorisi filtresi
     priceRange: {
       min: '',
       max: '',
@@ -1332,8 +1382,8 @@ export default function OrdersTabContent() {
       try {
         setMaterialsLoading(true)
         
-        // Mevcut materials API'yi kullan
-        const response = await fetchWithTimeout('/api/materials', {
+        // Tüm malzemeleri çek (kategori filtreleme için pasif olanlar da gerekli)
+        const response = await fetchWithTimeout('/api/materials/all', {
           headers: withAuth()
         })
         
@@ -1346,12 +1396,11 @@ export default function OrdersTabContent() {
         const data = await response.json()
         console.log('📦 Materials data:', data)
         
-        // Response'dan materials array'ini al ve sadece aktif olanları filtrele
+        // Response'dan materials array'ini al (tümü, kategori filtreleme için)
         const allMaterials = Array.isArray(data) ? data : (data.materials || [])
-        const activeMaterials = allMaterials.filter(material => material.status === 'Aktif')
         
-        // Frontend format'ına çevir
-        const materialsWithCorrectFields = activeMaterials.map(material => ({
+        // Frontend format'ına çevir (TÜM malzemeler)
+        const materialsWithCorrectFields = allMaterials.map(material => ({
           ...material,
           materialCode: material.code || material.materialCode,
           materialName: material.name || material.materialName
@@ -1373,6 +1422,11 @@ export default function OrdersTabContent() {
   const [suppliers, setSuppliers] = useState([])
   const [suppliersLoading, setSuppliersLoading] = useState(false)
   const [suppliersError, setSuppliersError] = useState(null)
+
+  // Malzeme kategorilerini API'den çek
+  const [materialCategories, setMaterialCategories] = useState([])
+  const [categoriesLoading, setCategoriesLoading] = useState(false)
+  const [categoriesError, setCategoriesError] = useState(null)
 
   useEffect(() => {
     const fetchSuppliers = async () => {
@@ -1412,6 +1466,47 @@ export default function OrdersTabContent() {
     }
     
     fetchSuppliers()
+  }, [])
+
+  // Malzeme kategorilerini API'den çek
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setCategoriesLoading(true)
+        
+        const response = await fetchWithTimeout('/api/categories', {
+          headers: withAuth()
+        })
+        
+        console.log('📡 Categories API response:', response.status, response.statusText)
+        
+        if (!response.ok) {
+          throw new Error(`API Error: ${response.status} - ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        console.log('🏷️ Categories data:', data)
+        
+        // Response'dan categories array'ini al
+        const allCategories = Array.isArray(data) ? data : (data.categories || [])
+        
+        // Frontend format'ına çevir
+        const categoriesWithCorrectFields = allCategories.map(category => ({
+          ...category,
+          categoryId: category.id || category.categoryId,
+          categoryName: category.name || category.categoryName
+        }))
+        
+        setMaterialCategories(categoriesWithCorrectFields)
+      } catch (error) {
+        setCategoriesError(error.message)
+        console.error('Categories fetch error:', error)
+      } finally {
+        setCategoriesLoading(false)
+      }
+    }
+    
+    fetchCategories()
   }, [])
   
   // Orders hooks - Backend API kullanacağız
@@ -1531,11 +1626,12 @@ export default function OrdersTabContent() {
     })
   }, [orders, ordersLoading, ordersError])
 
-  // Aktif malzemeler artık API'den direkt geliyor (status: "Aktif" olanlar)
-  const activeMaterials = materials // API'den zaten sadece aktif olanlar geliyor
+  // Aktif malzemeler - malzeme tipi filtresi için sadece aktif olanlar
+  const activeMaterials = materials.filter(material => material.status === 'Aktif')
   
   console.log('🔍 Active Materials debug:', {
     totalActiveMaterials: activeMaterials.length,
+    totalAllMaterials: materials.length,
     materialsLoading,
     sampleMaterial: activeMaterials[0],
     allCodes: activeMaterials.map(m => m.code).slice(0, 5) // İlk 5 code'u göster
@@ -1575,11 +1671,11 @@ export default function OrdersTabContent() {
   // Check if filters are active
   const hasActiveFilters = () => {
     const hasPriceRange = !!(filters.priceRange.min || filters.priceRange.max);
-    return !!(filters.search || filters.orderStatus || filters.itemStatus || filters.dateRange || filters.deliveryStatus || filters.materialType || filters.supplierType || hasPriceRange);
+    return !!(filters.search || filters.orderStatus || filters.itemStatus || filters.dateRange || filters.deliveryStatus || filters.materialType || filters.supplierType || filters.materialCategory || hasPriceRange);
   }
 
   // Apply filters to orders
-  const applyFilters = (orders) => {
+  const applyFilters = (orders, materials) => {
     if (!orders) return [];
 
     return orders.filter(order => {
@@ -1680,11 +1776,28 @@ export default function OrdersTabContent() {
         if (!hasMatchingSupplier) return false;
       }
 
+      // Material category filter
+      if (filters.materialCategory) {
+        const orderItems = Array.isArray(order.items) ? order.items : [];
+        const hasMatchingCategory = orderItems.some(item => {
+          // Önce materialCode ile materials array'inde ilgili malzemeyi bul
+          const material = materials.find(m => 
+            (m.code === item.materialCode) || 
+            (m.materialCode === item.materialCode) ||
+            (m.code === item.materialName) ||
+            (m.name === item.materialCode)
+          );
+          
+          return material && material.category === filters.materialCategory;
+        });
+        if (!hasMatchingCategory) return false;
+      }
+
       return true;
     });
   }
 
-  const filteredOrders = applyFilters(orders);
+  const filteredOrders = applyFilters(orders, materials);
 
   // Basit order status based filtering - items'a bakmadan
   const pendingOrdersView = filteredOrders.filter(order => order.orderStatus !== 'Teslim Edildi');
@@ -1996,6 +2109,7 @@ export default function OrdersTabContent() {
             onToggleExpanded={setIsFiltersExpanded}
             activeMaterials={activeMaterials}
             activeSuppliers={suppliers}
+            materialCategories={materialCategories}
           />
         </div>
       </div>
