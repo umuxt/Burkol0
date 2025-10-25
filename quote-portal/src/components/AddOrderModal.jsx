@@ -3,7 +3,7 @@ import { useSuppliers } from '../hooks/useSuppliers.js'
 import { useMaterials } from '../hooks/useFirebaseMaterials.js'
 import { useOrderActions } from '../hooks/useOrders.js'
 
-export default function AddOrderModal({ isOpen, onClose, onSave }) {
+export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecordMode = false }) {
   
   const [currentStep, setCurrentStep] = useState(1) // 1: Tedarikçi Seçimi, 2: Malzeme Ekleme, 3: Özet
   const [formData, setFormData] = useState({
@@ -236,8 +236,9 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
       materialName: material.name,
       quantity: 1,
       unitPrice: supplierMaterial?.price || material.costPrice || 0,
-      expectedDeliveryDate: formData.expectedDeliveryDate || null,
-      itemStatus: 'Onay Bekliyor'
+      expectedDeliveryDate: deliveredRecordMode ? new Date() : (formData.expectedDeliveryDate || null),
+      actualDeliveryDate: deliveredRecordMode ? new Date() : null,
+      itemStatus: deliveredRecordMode ? 'Teslim Edildi' : 'Onay Bekliyor'
     }
 
     setSelectedMaterials(prev => [...prev, newMaterial])
@@ -290,15 +291,24 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
         return
       }
 
+      // today string for expected delivery when delivered mode
+      const today = new Date()
+      const yyyy = today.getFullYear()
+      const mm = String(today.getMonth() + 1).padStart(2, '0')
+      const dd = String(today.getDate()).padStart(2, '0')
+      const todayStr = `${yyyy}-${mm}-${dd}`
+
       const orderData = {
         ...formData,
+        expectedDeliveryDate: deliveredRecordMode ? todayStr : formData.expectedDeliveryDate,
+        orderStatus: deliveredRecordMode ? 'Teslim Edildi' : formData.orderStatus,
         totalAmount
       }
 
       console.log('📋 AddOrderModal: Order data hazırlandı:', orderData);
       console.log('📦 AddOrderModal: Selected materials:', selectedMaterials);
 
-      const result = await createOrderWithItems(orderData, selectedMaterials)
+      const result = await createOrderWithItems(orderData, selectedMaterials, { deliveredRecordMode })
       
       console.log('✅ AddOrderModal: Order oluşturuldu:', result);
       
@@ -355,7 +365,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
           alignItems: 'center'
         }}>
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
-            Yeni Sipariş Oluştur
+            {deliveredRecordMode ? 'Doğrudan Sipariş Kaydı' : 'Yeni Sipariş Oluştur'}
           </h2>
           <button
             onClick={onClose}
@@ -473,6 +483,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                     gap: '16px',
                     marginTop: '20px'
                   }}>
+                    {!deliveredRecordMode && (
                     <div>
                       <label style={{ 
                         display: 'block', 
@@ -498,7 +509,9 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                         <option value="Onaylandı">Onaylandı</option>
                       </select>
                     </div>
+                    )}
 
+                    {!deliveredRecordMode && (
                     <div>
                       <label style={{ 
                         display: 'block', 
@@ -521,6 +534,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                         }}
                       />
                     </div>
+                    )}
                   </div>
 
                   <div style={{ marginTop: '16px' }}>
@@ -877,7 +891,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                   fontSize: '14px'
                 }}
               >
-                {orderLoading ? 'Oluşturuluyor...' : 'Siparişi Oluştur'}
+                {orderLoading ? (deliveredRecordMode ? 'Ekleniyor...' : 'Oluşturuluyor...') : (deliveredRecordMode ? 'Doğrudan Ekle' : 'Siparişi Oluştur')}
               </button>
             )}
           </div>

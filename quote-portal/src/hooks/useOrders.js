@@ -3,6 +3,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNotifications } from './useNotifications.js';
+import { fetchWithTimeout, API_BASE } from '../lib/api.js';
+import { } from '../lib/api.js';
+function withAuth(headers = {}) { try { const t = localStorage.getItem('bk_admin_token') || (window.location.hostname === 'localhost' ? 'dev-admin-token' : ''); return t ? { ...headers, Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { ...headers, 'Content-Type': 'application/json' } } catch { return { ...headers, 'Content-Type': 'application/json' } } }
 import { OrdersService, OrderItemsService, getOrderWithItems, updateOrderStatusBasedOnItems } from '../lib/orders-service.js';
 import { OrderItemService } from '../lib/order-item-service.js';
 import { MaterialsService } from '../lib/materials-service.js';
@@ -264,7 +267,7 @@ export function useOrderActions() {
   }, [showNotification]);
   
   // **CREATE ORDER WITH ITEMS**
-  const createOrderWithItems = useCallback(async (orderData, itemsData) => {
+  const createOrderWithItems = useCallback(async (orderData, itemsData, options = {}) => {
     try {
       setLoading(true);
       setError(null);
@@ -283,8 +286,9 @@ export function useOrderActions() {
           materialName: item.materialName,
           quantity: item.quantity,
           unitPrice: item.unitPrice || 0,
-          itemStatus: 'Onay Bekliyor',
+          itemStatus: item.itemStatus || 'Onay Bekliyor',
           expectedDeliveryDate: item.expectedDeliveryDate || null,
+          actualDeliveryDate: item.actualDeliveryDate || null,
           itemSequence: index + 1
         }))
       };
@@ -293,6 +297,50 @@ export function useOrderActions() {
       const newOrder = await OrdersService.createOrder(orderWithItems);
       console.log('✅ useOrderActions: Order created via backend:', newOrder);
       
+      // If this was a delivered record, ensure stock increments and order status
+      if (options.deliveredRecordMode) {
+        try {
+          // Increment stock for each delivered item
+          for (const item of newOrder.items || []) {
+            if (item.itemStatus === 'Teslim Edildi') {
+              try {
+                const url = `${API_BASE}/api/materials/${encodeURIComponent(item.materialCode)}/stock`
+                const res = await fetchWithTimeout(url, {
+                  method: 'PATCH',
+                  headers: withAuth(),
+                  body: JSON.stringify({
+                    quantity: Number(item.quantity) || 0,
+                    operation: 'add',
+                    orderId: newOrder.id,
+                    movementType: 'delivery'
+                  })
+                }, 8000);
+                if (!res.ok) {
+                  const err = await res.json().catch(() => ({}));
+                  console.warn('⚠️ Stock API failed:', item.materialCode, err?.error || res.statusText);
+                } else {
+                  // Notify UI for material refresh
+                  if (typeof window !== 'undefined') {
+                    window.dispatchEvent(new CustomEvent('stockUpdated', { detail: { materialCode: item.materialCode } }));
+                  }
+                }
+              } catch (e) {
+                console.warn('⚠️ Stock update error for', item.materialCode, e?.message);
+              }
+            }
+          }
+          // Ensure order status reflects delivered
+          try {
+            await OrdersService.updateOrder(newOrder.id, { orderStatus: 'Teslim Edildi' });
+            newOrder.orderStatus = 'Teslim Edildi';
+          } catch (e) {
+            console.warn('⚠️ Order status finalize failed:', e?.message);
+          }
+        } catch (e) {
+          console.warn('⚠️ DeliveredRecordMode post-create steps failed:', e?.message);
+        }
+      }
+
       if (showNotification) {
         showNotification(`Sipariş ve ${newOrder.items?.length || 0} kalem başarıyla oluşturuldu`, 'success');
       }

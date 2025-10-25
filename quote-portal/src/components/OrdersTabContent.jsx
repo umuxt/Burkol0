@@ -740,6 +740,54 @@ function OrdersTable({
   onToggleSelectOrder,
   onToggleSelectAll
 }) {
+  const [sortField, setSortField] = React.useState('orderDate')
+  const [sortDirection, setSortDirection] = React.useState('desc')
+
+  const handleSort = (field) => {
+    setSortField(prev => {
+      if (prev === field) {
+        setSortDirection(d => (d === 'asc' ? 'desc' : 'asc'))
+        return prev
+      }
+      setSortDirection('asc')
+      return field
+    })
+  }
+
+  const getSortIndicator = (field) => {
+    if (sortField !== field) return '↕'
+    return sortDirection === 'asc' ? '↑' : '↓'
+  }
+
+  const getSortValue = (order, field) => {
+    switch (field) {
+      case 'orderCode': return order.orderCode || order.id || ''
+      case 'supplier': return (order.supplierName || order.supplier?.name || order.supplierCode || '').toString()
+      case 'status': return order.orderStatus || ''
+      case 'total': return Number(order.totalAmount || order.totalPrice || 0)
+      case 'items': return Number(order.items?.length || order.itemCount || 0)
+      case 'orderDate':
+      default:
+        const d = order.orderDate instanceof Date ? order.orderDate : (order.orderDate ? new Date(order.orderDate) : new Date(0))
+        return d.getTime()
+    }
+  }
+
+  const visibleOrders = React.useMemo(() => {
+    const base = Array.isArray(orders) ? orders.filter(o => {
+      const isCompleted = o.orderStatus === 'Teslim Edildi'
+      return variant === 'completed' ? isCompleted : variant === 'pending' ? !isCompleted : true
+    }) : []
+
+    const sorted = [...base].sort((a, b) => {
+      const av = getSortValue(a, sortField)
+      const bv = getSortValue(b, sortField)
+      if (av < bv) return sortDirection === 'asc' ? -1 : 1
+      if (av > bv) return sortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+    return sorted
+  }, [orders, variant, sortField, sortDirection])
   if (loading) {
     return (
       <div className="orders-table-placeholder">
@@ -1093,56 +1141,52 @@ function OrdersTable({
                   />
                 </th>
                 <th style={{ minWidth: '120px' }}>
-                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <button type="button" onClick={() => handleSort('orderCode')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                     Sipariş
-                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                    <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('orderCode')}</span>
                   </button>
                 </th>
                 <th style={{ minWidth: '160px' }}>
-                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <button type="button" onClick={() => handleSort('supplier')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                     Tedarikçi
-                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                    <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('supplier')}</span>
                   </button>
                 </th>
                 {variant !== 'completed' && (
                   <th style={{ minWidth: '140px' }}>
-                    <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <button type="button" onClick={() => handleSort('status')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                       Teslimat Durumu
-                      <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                      <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('status')}</span>
                     </button>
                   </th>
                 )}
                 <th style={{ minWidth: '220px' }}>
-                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <button type="button" onClick={() => handleSort('items')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                     Sipariş Satırları
-                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                    <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('items')}</span>
                   </button>
                 </th>
                 <th style={{ minWidth: '100px', textAlign: 'right' }}>
-                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <button type="button" onClick={() => handleSort('total')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                     Tutar
-                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                    <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('total')}</span>
                   </button>
                 </th>
                 {variant !== 'completed' && (
                   <th style={{ minWidth: '120px' }}>
-                    <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                    <button type="button" onClick={() => handleSort('status')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                       Durum
-                      <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                      <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('status')}</span>
                     </button>
                   </th>
                 )}
               </tr>
             </thead>
             <tbody>
-              {orders && orders.length > 0 ? orders.map((order) => {
+              {visibleOrders && visibleOrders.length > 0 ? visibleOrders.map((order) => {
                 // Order status'a göre filtreleme yap - items'a değil
                 const isPendingOrder = order.orderStatus !== 'Teslim Edildi'
                 const isCompletedOrder = order.orderStatus === 'Teslim Edildi'
-                
-                // Variant'a göre göster/gizle
-                if (variant === 'pending' && !isPendingOrder) return null
-                if (variant === 'completed' && !isCompletedOrder) return null
                 
                 // Items varsa kullan, yoksa boş array
                 const items = order.items || []
@@ -1314,6 +1358,7 @@ export default function OrdersTabContent() {
   
   const [activeOrdersTab, setActiveOrdersTab] = useState('pending') // 'pending' | 'completed' | 'all'
   const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false)
+  const [isDeliveredRecordMode, setIsDeliveredRecordMode] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
   const [selectedOrderLoading, setSelectedOrderLoading] = useState(false)
@@ -2358,12 +2403,26 @@ export default function OrdersTabContent() {
                   className="add-material-btn"
                   onClick={() => {
                     console.log('🔥🔥🔥 Yeni Sipariş butonu tıklandı!');
+                    setIsDeliveredRecordMode(false);
                     setIsAddOrderModalOpen(true);
                     console.log('🔥🔥🔥 Modal açılması için state güncellendi!');
                   }}
                   disabled={actionLoading}
                 >
                   + Yeni Sipariş
+                </button>
+                <button
+                  type="button"
+                  className="add-material-btn"
+                  title="Doğrudan sipariş kaydı oluştur"
+                  onClick={() => {
+                    console.log('⚡ Gerçekleşmiş Sipariş butonu tıklandı!');
+                    setIsDeliveredRecordMode(true);
+                    setIsAddOrderModalOpen(true);
+                  }}
+                  disabled={actionLoading}
+                >
+                  ⚡️ Doğrudan Ekle
                 </button>
                 <button 
                   type="button" 
@@ -2424,6 +2483,7 @@ export default function OrdersTabContent() {
       <AddOrderModal 
         isOpen={isAddOrderModalOpen}
         onClose={() => setIsAddOrderModalOpen(false)}
+        deliveredRecordMode={isDeliveredRecordMode}
         onSave={(newOrder) => {
           console.log('✅ New order created:', newOrder);
           refreshOrders();

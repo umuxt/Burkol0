@@ -1099,14 +1099,15 @@ section.materials-dashboard div.card {
 /* Dropdown Filters */
 .dropdown-filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
+  gap: 6px;
   min-width: 0;
+  align-items: start;
 }
 
 /* Expanded: 7 sütunlu alt sıra */
 .dropdown-filters.expanded {
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
 }
 
 /* Large screens (Ultra wide) */
@@ -1119,6 +1120,7 @@ section.materials-dashboard div.card {
 .filter-group {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .filter-group select {
@@ -1142,7 +1144,7 @@ section.materials-dashboard div.card {
 }
 
 .multi-select-header {
-  padding: 6px 8px;
+  padding: 4px 6px;
   border: 1px solid #ddd;
   border-radius: 4px;
   background: white;
@@ -1151,8 +1153,12 @@ section.materials-dashboard div.card {
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
+  line-height: 1.1;
+  gap: 6px;
+  white-space: nowrap;
   color: #555;
   transition: border-color 0.2s;
+  min-height: 32px; /* eski buton yüksekliğini koru */
 }
 
 .multi-select-header:hover {
