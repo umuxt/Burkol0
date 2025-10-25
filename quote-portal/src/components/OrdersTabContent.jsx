@@ -121,9 +121,62 @@ function OrdersFilters({
               />
               <span className="search-icon">🔍</span>
             </div>
+            {isExpanded && (
+              <div className="filter-group price-range-group">
+                <div className="multi-select-container">
+                  <div className="multi-select-header price-range-header">
+                    <span className="price-range-label">Tutar Aralığı</span>
+                    <div className="price-range-inputs-inline">
+                      <input
+                        type="number"
+                        placeholder="Min"
+                        value={filters.priceRange.min}
+                        onChange={(e) => {
+                          const newPriceRange = { ...filters.priceRange, min: e.target.value };
+                          onFilterChange('priceRange', newPriceRange);
+                        }}
+                        className="price-input-header"
+                      />
+                      <input
+                        type="number"
+                        placeholder="Max"
+                        value={filters.priceRange.max}
+                        onChange={(e) => {
+                          const newPriceRange = { ...filters.priceRange, max: e.target.value };
+                          onFilterChange('priceRange', newPriceRange);
+                        }}
+                        className="price-input-header"
+                      />
+                    </div>
+                    <button 
+                      className="price-toggle-button"
+                      onClick={() => {
+                        const newMode = filters.priceRange.mode === 'order' ? 'item' : 'order';
+                        const newPriceRange = { ...filters.priceRange, mode: newMode };
+                        onFilterChange('priceRange', newPriceRange);
+                      }}
+                    >
+                      {filters.priceRange.mode === 'order' ? 'Sipariş' : 'Ürün'}
+                    </button>
+                    {(filters.priceRange.min || filters.priceRange.max) && (
+                      <button 
+                        className="price-clear-btn"
+                        onClick={() => {
+                          onFilterChange('priceRange', { min: '', max: '', mode: 'order' });
+                        }}
+                        title="Temizle"
+                      >
+                        ✕
+                      </button>
+                    )}
+                    {/* Uygula butonu kaldırıldı; değişiklikler otomatik uygulanıyor */}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-        <div className="dropdown-filters">
+        <div className={`dropdown-filters ${isExpanded ? 'expanded' : ''}`}>
           {/* Sipariş Durumu Filtresi */}
           <div className="filter-group">
             <div className="multi-select-container">
@@ -347,312 +400,251 @@ function OrdersFilters({
             </div>
           </div>
 
-          {/* Expanded durumda görünecek filtreler */}
+          {/* Malzeme Tipi Filtresi */}
+          <div className="filter-group">
+            <div className="multi-select-container">
+              <div 
+                className={`multi-select-header ${filters.materialType ? 'has-selection' : ''}`}
+                onClick={() => {
+                  const dropdown = document.querySelector('.material-type-dropdown');
+                  if (dropdown) {
+                    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                  }
+                }}
+              >
+                <span>{filters.materialType ? 
+                  (() => {
+                    const selectedMaterial = activeMaterials.find(m => m.materialCode === filters.materialType);
+                    return selectedMaterial ? `${selectedMaterial.materialCode} - ${selectedMaterial.materialName}` : filters.materialType;
+                  })()
+                  : 'Malzeme Tipi'}</span>
+                <span className="dropdown-arrow">▼</span>
+              </div>
+              <div className="multi-select-dropdown material-type-dropdown" style={{ display: 'none' }}>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="materialType"
+                    value=""
+                    checked={filters.materialType === ''}
+                    onChange={(e) => onFilterChange('materialType', '')}
+                  />
+                  Tümü
+                </label>
+                {activeMaterials.map(material => (
+                  <label key={material.materialCode} className="multi-select-option">
+                    <input
+                      type="radio"
+                      name="materialType"
+                      value={material.materialCode}
+                      checked={filters.materialType === material.materialCode}
+                      onChange={(e) => onFilterChange('materialType', e.target.value)}
+                    />
+                    {material.materialCode} - {material.materialName}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Tedarikçiler Filtresi */}
+          <div className="filter-group">
+            <div className="multi-select-container">
+              <div 
+                className={`multi-select-header ${filters.supplierType ? 'has-selection' : ''}`}
+                onClick={() => {
+                  const dropdown = document.querySelector('.supplier-type-dropdown');
+                  if (dropdown) {
+                    dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                  }
+                }}
+              >
+                <span>{filters.supplierType ? 
+                  (() => {
+                    const selectedSupplier = activeSuppliers.find(s => s.supplierCode === filters.supplierType);
+                    return selectedSupplier ? `${selectedSupplier.supplierCode} - ${selectedSupplier.supplierName}` : filters.supplierType;
+                  })()
+                  : 'Tedarikçiler'}</span>
+                <span className="dropdown-arrow">▼</span>
+              </div>
+              <div className="multi-select-dropdown supplier-type-dropdown" style={{ display: 'none' }}>
+                <label className="multi-select-option">
+                  <input
+                    type="radio"
+                    name="supplierType"
+                    value=""
+                    checked={filters.supplierType === ''}
+                    onChange={(e) => onFilterChange('supplierType', '')}
+                  />
+                  Tümü
+                </label>
+                {activeSuppliers.map(supplier => (
+                  <label key={supplier.supplierCode} className="multi-select-option">
+                    <input
+                      type="radio"
+                      name="supplierType"
+                      value={supplier.supplierCode}
+                      checked={filters.supplierType === supplier.supplierCode}
+                      onChange={(e) => onFilterChange('supplierType', e.target.value)}
+                    />
+                    {supplier.supplierCode} - {supplier.supplierName}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Teslimat Durumu Filtresi (sadece genişletilmiş görünümde) */}
           {isExpanded && (
-            <>
-              {/* Tutar Aralığı Filtresi - Multi-select Header Tasarımında */}
-              <div className="filter-group">
-                <div className="multi-select-container">
-                  <div className="multi-select-header price-range-header">
-                    <span className="price-range-label">Tutar Aralığı</span>
-                    <div className="price-range-inputs-inline">
-                      <input
-                        type="number"
-                        placeholder="Min"
-                        value={filters.priceRange.min}
-                        onChange={(e) => {
-                          const newPriceRange = { ...filters.priceRange, min: e.target.value };
-                          onFilterChange('priceRange', newPriceRange);
-                        }}
-                        className="price-input-header"
-                      />
-                      <input
-                        type="number"
-                        placeholder="Max"
-                        value={filters.priceRange.max}
-                        onChange={(e) => {
-                          const newPriceRange = { ...filters.priceRange, max: e.target.value };
-                          onFilterChange('priceRange', newPriceRange);
-                        }}
-                        className="price-input-header"
-                      />
-                    </div>
-                    <button 
-                      className="price-toggle-button"
-                      onClick={() => {
-                        const newMode = filters.priceRange.mode === 'order' ? 'item' : 'order';
-                        const newPriceRange = { ...filters.priceRange, mode: newMode };
-                        onFilterChange('priceRange', newPriceRange);
-                      }}
-                    >
-                      {filters.priceRange.mode === 'order' ? 'Sipariş' : 'Ürün'}
-                    </button>
-                    {(filters.priceRange.min || filters.priceRange.max) && (
-                      <button 
-                        className="price-clear-btn"
-                        onClick={() => {
-                          onFilterChange('priceRange', { min: '', max: '', mode: 'order' });
-                        }}
-                        title="Temizle"
-                      >
-                        ✕
-                      </button>
-                    )}
-                    <button 
-                      className="price-apply-btn"
-                      onClick={() => {
-                        // Filter already applied on change
-                      }}
-                    >
-                      Uygula
-                    </button>
-                  </div>
+            <div className="filter-group">
+              <div className="multi-select-container">
+                <div 
+                  className={`multi-select-header ${filters.deliveryStatus ? 'has-selection' : ''}`}
+                  onClick={() => {
+                    const dropdown = document.querySelector('.delivery-status-dropdown');
+                    if (dropdown) {
+                      dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                    }
+                  }}
+                >
+                  <span>{filters.deliveryStatus ? 
+                    (() => {
+                      switch(filters.deliveryStatus) {
+                        case 'hesaplanıyor': return 'Teslimat tarihi belirsiz';
+                        case 'bugün-teslim': return 'Bugün teslim';
+                        case 'bu-hafta-teslim': return 'Bu hafta teslim';
+                        case 'gecikmiş': return 'Gecikmiş';
+                        case 'zamanında': return 'Zamanında';
+                        case 'erken': return 'Erken teslim';
+                        default: return filters.deliveryStatus;
+                      }
+                    })()
+                    : 'Teslimat Durumu'}</span>
+                  <span className="dropdown-arrow">▼</span>
+                </div>
+                <div className="multi-select-dropdown delivery-status-dropdown" style={{ display: 'none' }}>
+                  <label className="multi-select-option">
+                    <input
+                      type="radio"
+                      name="deliveryStatus"
+                      value=""
+                      checked={filters.deliveryStatus === ''}
+                      onChange={(e) => onFilterChange('deliveryStatus', '')}
+                    />
+                    Tümü
+                  </label>
+                  <label className="multi-select-option">
+                    <input
+                      type="radio"
+                      name="deliveryStatus"
+                      value="hesaplanıyor"
+                      checked={filters.deliveryStatus === 'hesaplanıyor'}
+                      onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                    />
+                    Teslimat tarihi belirsiz
+                  </label>
+                  <label className="multi-select-option">
+                    <input
+                      type="radio"
+                      name="deliveryStatus"
+                      value="bugün-teslim"
+                      checked={filters.deliveryStatus === 'bugün-teslim'}
+                      onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                    />
+                    Bugün teslim
+                  </label>
+                  <label className="multi-select-option">
+                    <input
+                      type="radio"
+                      name="deliveryStatus"
+                      value="bu-hafta-teslim"
+                      checked={filters.deliveryStatus === 'bu-hafta-teslim'}
+                      onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                    />
+                    Bu hafta teslim
+                  </label>
+                  <label className="multi-select-option">
+                    <input
+                      type="radio"
+                      name="deliveryStatus"
+                      value="gecikmiş"
+                      checked={filters.deliveryStatus === 'gecikmiş'}
+                      onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                    />
+                    Gecikmiş
+                  </label>
+                  <label className="multi-select-option">
+                    <input
+                      type="radio"
+                      name="deliveryStatus"
+                      value="zamanında"
+                      checked={filters.deliveryStatus === 'zamanında'}
+                      onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                    />
+                    Zamanında
+                  </label>
+                  <label className="multi-select-option">
+                    <input
+                      type="radio"
+                      name="deliveryStatus"
+                      value="erken"
+                      checked={filters.deliveryStatus === 'erken'}
+                      onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
+                    />
+                    Erken teslim
+                  </label>
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* Teslimat Durumu Filtresi */}
-              <div className="filter-group">
-                <div className="multi-select-container">
-                  <div 
-                    className={`multi-select-header ${filters.deliveryStatus ? 'has-selection' : ''}`}
-                    onClick={() => {
-                      const dropdown = document.querySelector('.delivery-status-dropdown');
-                      if (dropdown) {
-                        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
-                      }
-                    }}
-                  >
-                    <span>{filters.deliveryStatus ? 
-                      (() => {
-                        switch(filters.deliveryStatus) {
-                          case 'hesaplanıyor': return 'Teslimat tarihi belirsiz';
-                          case 'bugün-teslim': return 'Bugün teslim';
-                          case 'bu-hafta-teslim': return 'Bu hafta teslim';
-                          case 'gecikmiş': return 'Gecikmiş';
-                          case 'zamanında': return 'Zamanında';
-                          case 'erken': return 'Erken teslim';
-                          default: return filters.deliveryStatus;
-                        }
-                      })()
-                      : 'Teslimat Durumu'}</span>
-                    <span className="dropdown-arrow">▼</span>
-                  </div>
-                  <div className="multi-select-dropdown delivery-status-dropdown" style={{ display: 'none' }}>
-                    <label className="multi-select-option">
-                      <input
-                        type="radio"
-                        name="deliveryStatus"
-                        value=""
-                        checked={filters.deliveryStatus === ''}
-                        onChange={(e) => onFilterChange('deliveryStatus', '')}
-                      />
-                      Tümü
-                    </label>
-                    <label className="multi-select-option">
-                      <input
-                        type="radio"
-                        name="deliveryStatus"
-                        value="hesaplanıyor"
-                        checked={filters.deliveryStatus === 'hesaplanıyor'}
-                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
-                      />
-                      Teslimat tarihi belirsiz
-                    </label>
-                    <label className="multi-select-option">
-                      <input
-                        type="radio"
-                        name="deliveryStatus"
-                        value="bugün-teslim"
-                        checked={filters.deliveryStatus === 'bugün-teslim'}
-                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
-                      />
-                      Bugün teslim
-                    </label>
-                    <label className="multi-select-option">
-                      <input
-                        type="radio"
-                        name="deliveryStatus"
-                        value="bu-hafta-teslim"
-                        checked={filters.deliveryStatus === 'bu-hafta-teslim'}
-                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
-                      />
-                      Bu hafta teslim
-                    </label>
-                    <label className="multi-select-option">
-                      <input
-                        type="radio"
-                        name="deliveryStatus"
-                        value="gecikmiş"
-                        checked={filters.deliveryStatus === 'gecikmiş'}
-                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
-                      />
-                      Gecikmiş
-                    </label>
-                    <label className="multi-select-option">
-                      <input
-                        type="radio"
-                        name="deliveryStatus"
-                        value="zamanında"
-                        checked={filters.deliveryStatus === 'zamanında'}
-                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
-                      />
-                      Zamanında
-                    </label>
-                    <label className="multi-select-option">
-                      <input
-                        type="radio"
-                        name="deliveryStatus"
-                        value="erken"
-                        checked={filters.deliveryStatus === 'erken'}
-                        onChange={(e) => onFilterChange('deliveryStatus', e.target.value)}
-                      />
-                      Erken teslim
-                    </label>
-                  </div>
+          {/* Malzeme Kategorisi Filtresi (sadece genişletilmiş görünümde) */}
+          {isExpanded && (
+            <div className="filter-group">
+              <div className="multi-select-container">
+                <div 
+                  className={`multi-select-header ${filters.materialCategory ? 'has-selection' : ''}`}
+                  onClick={() => {
+                    const dropdown = document.querySelector('.material-category-dropdown');
+                    if (dropdown) {
+                      dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+                    }
+                  }}
+                >
+                  <span>{filters.materialCategory ? 
+                    (() => {
+                      const selectedCategory = materialCategories.find(c => c.categoryId === filters.materialCategory);
+                      return selectedCategory ? selectedCategory.categoryName : filters.materialCategory;
+                    })()
+                    : 'Malzeme Kategorisi'}</span>
+                  <span className="dropdown-arrow">▼</span>
                 </div>
-              </div>
-
-              {/* Malzeme Tipi Filtresi */}
-              <div className="filter-group">
-                <div className="multi-select-container">
-                  <div 
-                    className={`multi-select-header ${filters.materialType ? 'has-selection' : ''}`}
-                    onClick={() => {
-                      const dropdown = document.querySelector('.material-type-dropdown');
-                      if (dropdown) {
-                        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
-                      }
-                    }}
-                  >
-                    <span>{filters.materialType ? 
-                      (() => {
-                        const selectedMaterial = activeMaterials.find(m => m.materialCode === filters.materialType);
-                        return selectedMaterial ? `${selectedMaterial.materialCode} - ${selectedMaterial.materialName}` : filters.materialType;
-                      })()
-                      : 'Malzeme Tipi'}</span>
-                    <span className="dropdown-arrow">▼</span>
-                  </div>
-                  <div className="multi-select-dropdown material-type-dropdown" style={{ display: 'none' }}>
-                    <label className="multi-select-option">
-                      <input
-                        type="radio"
-                        name="materialType"
-                        value=""
-                        checked={filters.materialType === ''}
-                        onChange={(e) => onFilterChange('materialType', '')}
-                      />
-                      Tümü
-                    </label>
-                    {activeMaterials.map(material => (
-                      <label key={material.materialCode} className="multi-select-option">
-                        <input
-                          type="radio"
-                          name="materialType"
-                          value={material.materialCode}
-                          checked={filters.materialType === material.materialCode}
-                          onChange={(e) => onFilterChange('materialType', e.target.value)}
-                        />
-                        {material.materialCode} - {material.materialName}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Tedarikçiler Filtresi */}
-              <div className="filter-group">
-                <div className="multi-select-container">
-                  <div 
-                    className={`multi-select-header ${filters.supplierType ? 'has-selection' : ''}`}
-                    onClick={() => {
-                      const dropdown = document.querySelector('.supplier-type-dropdown');
-                      if (dropdown) {
-                        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
-                      }
-                    }}
-                  >
-                    <span>{filters.supplierType ? 
-                      (() => {
-                        const selectedSupplier = activeSuppliers.find(s => s.supplierCode === filters.supplierType);
-                        return selectedSupplier ? `${selectedSupplier.supplierCode} - ${selectedSupplier.supplierName}` : filters.supplierType;
-                      })()
-                      : 'Tedarikçiler'}</span>
-                    <span className="dropdown-arrow">▼</span>
-                  </div>
-                  <div className="multi-select-dropdown supplier-type-dropdown" style={{ display: 'none' }}>
-                    <label className="multi-select-option">
-                      <input
-                        type="radio"
-                        name="supplierType"
-                        value=""
-                        checked={filters.supplierType === ''}
-                        onChange={(e) => onFilterChange('supplierType', '')}
-                      />
-                      Tümü
-                    </label>
-                    {activeSuppliers.map(supplier => (
-                      <label key={supplier.supplierCode} className="multi-select-option">
-                        <input
-                          type="radio"
-                          name="supplierType"
-                          value={supplier.supplierCode}
-                          checked={filters.supplierType === supplier.supplierCode}
-                          onChange={(e) => onFilterChange('supplierType', e.target.value)}
-                        />
-                        {supplier.supplierCode} - {supplier.supplierName}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Malzeme Kategorisi Filtresi */}
-              <div className="filter-group">
-                <div className="multi-select-container">
-                  <div 
-                    className={`multi-select-header ${filters.materialCategory ? 'has-selection' : ''}`}
-                    onClick={() => {
-                      const dropdown = document.querySelector('.material-category-dropdown');
-                      if (dropdown) {
-                        dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
-                      }
-                    }}
-                  >
-                    <span>{filters.materialCategory ? 
-                      (() => {
-                        const selectedCategory = materialCategories.find(c => c.categoryId === filters.materialCategory);
-                        return selectedCategory ? selectedCategory.categoryName : filters.materialCategory;
-                      })()
-                      : 'Malzeme Kategorisi'}</span>
-                    <span className="dropdown-arrow">▼</span>
-                  </div>
-                  <div className="multi-select-dropdown material-category-dropdown" style={{ display: 'none' }}>
-                    <label className="multi-select-option">
+                <div className="multi-select-dropdown material-category-dropdown" style={{ display: 'none' }}>
+                  <label className="multi-select-option">
+                    <input
+                      type="radio"
+                      name="materialCategory"
+                      value=""
+                      checked={filters.materialCategory === ''}
+                      onChange={(e) => onFilterChange('materialCategory', '')}
+                    />
+                    Tümü
+                  </label>
+                  {materialCategories.map(category => (
+                    <label key={category.categoryId} className="multi-select-option">
                       <input
                         type="radio"
                         name="materialCategory"
-                        value=""
-                        checked={filters.materialCategory === ''}
-                        onChange={(e) => onFilterChange('materialCategory', '')}
+                        value={category.categoryId}
+                        checked={filters.materialCategory === category.categoryId}
+                        onChange={(e) => onFilterChange('materialCategory', e.target.value)}
                       />
-                      Tümü
+                      {category.categoryName}
                     </label>
-                    {materialCategories.map(category => (
-                      <label key={category.categoryId} className="multi-select-option">
-                        <input
-                          type="radio"
-                          name="materialCategory"
-                          value={category.categoryId}
-                          checked={filters.materialCategory === category.categoryId}
-                          onChange={(e) => onFilterChange('materialCategory', e.target.value)}
-                        />
-                        {category.categoryName}
-                      </label>
-                    ))}
-                  </div>
+                  ))}
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* Aktif filtre temizleme */}

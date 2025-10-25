@@ -1116,6 +1116,11 @@ section.materials-dashboard div.card {
   gap: 12px;
 }
 
+/* Expanded: 7 sütunlu alt sıra */
+.dropdown-filters.expanded {
+  grid-template-columns: repeat(7, 1fr);
+}
+
 /* Large screens (Ultra wide) */
 @media (min-width: 1600px) {
   .dropdown-filters {
