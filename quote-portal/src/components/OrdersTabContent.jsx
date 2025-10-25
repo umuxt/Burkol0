@@ -993,6 +993,16 @@ function OrdersTable({
             Tamamlanan Siparişler
             <span className="tab-count">({tabCounts?.completed ?? 0})</span>
           </button>
+          <button
+            type="button"
+            className={`tab-button${variant === 'all' ? ' active' : ''}`}
+            onClick={() => onChangeTab && onChangeTab('all')}
+            disabled={loading}
+            style={{ marginLeft: 'auto' }}
+          >
+            Tümünü Göster
+            <span className="tab-count">({tabCounts?.all ?? 0})</span>
+          </button>
         </div>
       </div>
 
@@ -1098,12 +1108,14 @@ function OrdersTable({
                     <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
                   </button>
                 </th>
-                <th style={{ minWidth: '120px' }}>
-                  <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                    Durum
-                    <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
-                  </button>
-                </th>
+                {variant !== 'completed' && (
+                  <th style={{ minWidth: '120px' }}>
+                    <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      Durum
+                      <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
+                    </button>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -1209,53 +1221,55 @@ function OrdersTable({
                     <td style={{ textAlign: 'right', fontWeight: 600, paddingTop: '6px', paddingBottom: '6px' }}>
                       {formatCurrency(relevantTotal || order.totalAmount)}
                     </td>
-                    <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>
-                      {onUpdateOrderStatus ? (
-                        <select
-                          value={order.orderStatus}
-                          disabled={actionLoading}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            if (e.target.value && e.target.value !== order.orderStatus) {
-                              onUpdateOrderStatus(order.id, e.target.value)
-                            }
-                          }}
-                          style={{
-                            padding: '6px 10px',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            border: '1px solid rgba(148, 163, 184, 0.6)',
-                            borderRadius: '10px',
-                            background: getStatusColor(order.orderStatus),
-                            color: '#fff',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          {['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi'].map(status => (
-                            <option key={status} value={status}>{status}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span
-                          style={{
-                            display: 'inline-block',
-                            padding: '4px 8px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            color: 'white',
-                            backgroundColor: getStatusColor(order.orderStatus)
-                          }}
-                        >
-                          {order.orderStatus}
-                        </span>
-                      )}
-                    </td>
+                    {variant !== 'completed' && (
+                      <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>
+                        {onUpdateOrderStatus ? (
+                          <select
+                            value={order.orderStatus}
+                            disabled={actionLoading}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => {
+                              if (e.target.value && e.target.value !== order.orderStatus) {
+                                onUpdateOrderStatus(order.id, e.target.value)
+                              }
+                            }}
+                            style={{
+                              padding: '6px 10px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              border: '1px solid rgba(148, 163, 184, 0.6)',
+                              borderRadius: '10px',
+                              background: getStatusColor(order.orderStatus),
+                              color: '#fff',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi'].map(status => (
+                              <option key={status} value={status}>{status}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              padding: '4px 8px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              color: 'white',
+                              backgroundColor: getStatusColor(order.orderStatus)
+                            }}
+                          >
+                            {order.orderStatus}
+                          </span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 )
               }) : (
                 <tr>
-                  <td colSpan={5} style={{ padding: 0, border: 'none' }}>
+                  <td colSpan={variant !== 'completed' ? 6 : 4} style={{ padding: 0, border: 'none' }}>
                     <EmptyState 
                       variant={variant} 
                       hasNoOrdersAtAll={false}
@@ -1274,7 +1288,7 @@ function OrdersTable({
 export default function OrdersTabContent() {
   console.log('🎬 OrdersTabContent component rendered - FORCED LOG')
   
-  const [activeOrdersTab, setActiveOrdersTab] = useState('pending') // 'pending' or 'completed'
+  const [activeOrdersTab, setActiveOrdersTab] = useState('pending') // 'pending' | 'completed' | 'all'
   const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
@@ -1838,8 +1852,13 @@ export default function OrdersTabContent() {
   // Basit order status based filtering - items'a bakmadan
   const pendingOrdersView = filteredOrders.filter(order => order.orderStatus !== 'Teslim Edildi');
   const completedOrdersView = filteredOrders.filter(order => order.orderStatus === 'Teslim Edildi');
+  const allOrdersView = filteredOrders;
 
-  const currentOrders = activeOrdersTab === 'pending' ? pendingOrdersView : completedOrdersView;
+  const currentOrders = activeOrdersTab === 'pending' 
+    ? pendingOrdersView 
+    : activeOrdersTab === 'completed' 
+      ? completedOrdersView 
+      : allOrdersView;
   const currentLoading = ordersLoading;
 
   console.log('📊 Orders debug (simplified):', {
@@ -2157,7 +2176,8 @@ export default function OrdersTabContent() {
         variant={activeOrdersTab}
         tabCounts={{ 
           pending: pendingOrdersView.length, 
-          completed: completedOrdersView.length 
+          completed: completedOrdersView.length,
+          all: allOrdersView.length
         }}
         onChangeTab={setActiveOrdersTab}
         onOrderClick={handleOrderClick}
@@ -2167,8 +2187,10 @@ export default function OrdersTabContent() {
         deliveryLoading={deliveryLoading}
         emptyMessage={
           activeOrdersTab === 'pending' 
-            ? "Bekleyen sipariş bulunamadı" 
-            : "Tamamlanan sipariş bulunamadı"
+            ? 'Bekleyen sipariş bulunamadı' 
+            : activeOrdersTab === 'completed'
+              ? 'Tamamlanan sipariş bulunamadı'
+              : 'Sipariş bulunamadı'
         }
       />
 
