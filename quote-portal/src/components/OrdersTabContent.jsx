@@ -981,6 +981,7 @@ function OrdersTable({
             onClick={() => onChangeTab && onChangeTab('pending')}
             disabled={loading}
           >
+            <span style={{ marginRight: '6px' }}>🕒</span>
             Bekleyen Siparişler
             <span className="tab-count">({tabCounts?.pending ?? 0})</span>
           </button>
@@ -990,6 +991,7 @@ function OrdersTable({
             onClick={() => onChangeTab && onChangeTab('completed')}
             disabled={loading}
           >
+            <span style={{ marginRight: '6px' }}>✅</span>
             Tamamlanan Siparişler
             <span className="tab-count">({tabCounts?.completed ?? 0})</span>
           </button>
