@@ -751,15 +751,15 @@
 .materials-actions-container {
   background: white;
   border-radius: 8px;
-  padding: 8px 4px; /* Yatay padding düşürüldü: 8px -> 4px */
+  padding: 8px 8px; /* Standart yatay/düşey padding */
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   min-width: 250px; /* Container daraltıldı: 300px -> 250px */
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   max-height: 100%;
-  justify-content: center; /* Grid'i dikey olarak ortala */
-  align-items: center; /* Grid'i yatay olarak ortala */
+  justify-content: flex-start; /* İçeriği üstte başlat */
+  align-items: stretch; /* İçeriği genişlikte doldur */
 }
 
 /* Materials Filters Container */
@@ -781,35 +781,50 @@
   align-self: stretch;
 }
 
-/* Materials Actions */
+/* Materials Actions - 2x2 grid layout, top-left aligned */
 .materials-actions {
   display: grid;
-  grid-template-columns: 1fr 1fr; /* 2 kolon */
-  grid-template-rows: 34px 34px;    /* Search input ile aynı yükseklik */
-  gap: 6px; /* %50 azaltıldı: 12px -> 6px */
-  align-items: stretch;
-  justify-items: stretch;
-  width: fit-content; /* Grid'in genişliğini içeriğe göre ayarla */
-  max-width: 100%; /* Container'dan taşmasını engelle */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 34px; /* Buton yüksekliği ile uyumlu */
+  gap: 8px;
+  align-content: start;
+  justify-content: start;
+  width: 100%;
 }
 
-.materials-actions .add-material-btn {
-  background: linear-gradient(135deg, #28a745, #20c997);
-  color: white;
-  border: none;
-  padding: 8px 8px; /* %50 azaltıldı: 16px -> 8px */
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+/* Common button sizing in actions panel (renkler korunur) */
+.materials-actions .add-material-btn,
+.materials-actions .csv-export-btn,
+.materials-actions .delete-selected-btn {
+  height: 34px; /* Search input ile hizalı */
+  min-height: 34px;
+  padding: 0 12px;
   font-size: 13px;
-  width: 100%; /* Grid cell'i tamamen doldur */
-  height: 34px; /* Search input ile aynı yükseklik */
-  display: flex;
+  border-radius: 6px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  text-align: center;
+  white-space: nowrap;
+  width: 100%; /* Grid hücresini doldur */
+}
+
+/* Renk ve efektleri koru (yalnızca görsel) */
+.materials-actions .csv-export-btn {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: white;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.materials-actions .delete-selected-btn {
+  background: linear-gradient(135deg, #dc3545, #c82333);
+  color: white;
+  border: none;
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
+  font-weight: 600;
+  transition: all 0.2s;
 }
 
 .materials-actions .add-material-btn:hover {
@@ -818,24 +833,7 @@
 }
 
 /* CSV Export Button */
-.materials-actions .csv-export-btn {
-  background: linear-gradient(135deg, #007bff, #0056b3);
-  color: white;
-  border: none;
-  padding: 8px 8px; /* %50 azaltıldı: 16px -> 8px */
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
-  font-size: 13px;
-  width: 100%; /* Grid cell'i tamamen doldur */
-  height: 34px; /* Search input ile aynı yükseklik */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
+/* Özgün görseller korunur; yalnızca boyut standardizasyonu yapıldı */
 
 .materials-actions .csv-export-btn:hover {
   transform: translateY(-1px);
@@ -843,24 +841,7 @@
 }
 
 /* Delete Selected Button */
-.materials-actions .delete-selected-btn {
-  background: linear-gradient(135deg, #dc3545, #c82333);
-  color: white;
-  border: none;
-  padding: 8px 8px; /* %50 azaltıldı: 16px -> 8px */
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
-  font-size: 13px;
-  width: 100%; /* Grid cell'i tamamen doldur */
-  height: 34px; /* Search input ile aynı yükseklik */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-}
+/* Delete seçili butonu da aynı boyutta kalır */
 
 .materials-actions .delete-selected-btn:hover {
   transform: translateY(-1px);
@@ -1381,12 +1362,9 @@ section.materials-dashboard div.card {
   }
   
   .materials-actions {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr; /* Mobilde tek sütun */
     gap: 8px;
-  }
-  
-  .materials-actions .add-material-btn {
-    width: 100%;
   }
 }
 
@@ -2521,6 +2499,11 @@ textarea.editable-input {
   margin-bottom: 16px;
   display: flex;
   border-bottom: 2px solid #e5e7eb;
+}
+
+/* Ensure tabs hug the table within materials table context */
+.materials-table .orders-tabs {
+  margin-bottom: 0 !important;
 }
 
 .orders-tabs button {
