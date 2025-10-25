@@ -56,6 +56,9 @@ export default function SuppliersTable({
   const [selectedMaterialForDetail, setSelectedMaterialForDetail] = useState(null)
   const [loadingMaterialDetail, setLoadingMaterialDetail] = useState(false)
   
+  // Bulk selection state
+  const [selectedSupplierIds, setSelectedSupplierIds] = useState(new Set())
+
   const [newMaterial, setNewMaterial] = useState({
     name: '',
     type: '',
@@ -221,6 +224,23 @@ export default function SuppliersTable({
   const handleCancel = () => {
     setIsEditing(false)
     setFormData({})
+  }
+
+  // Bulk select helpers
+  const handleSelectAll = (checked, list) => {
+    const next = new Set(selectedSupplierIds)
+    if (checked) {
+      list.forEach(s => s?.id && next.add(s.id))
+    } else {
+      list.forEach(s => s?.id && next.delete(s.id))
+    }
+    setSelectedSupplierIds(next)
+  }
+
+  const handleSelectSupplier = (supplierId, checked) => {
+    const next = new Set(selectedSupplierIds)
+    if (checked) next.add(supplierId); else next.delete(supplierId)
+    setSelectedSupplierIds(next)
   }
 
   const handleInputChange = (e) => {
@@ -701,6 +721,14 @@ export default function SuppliersTable({
                 zIndex: 1 
               }}>
                 <tr>
+                  <th style={{ width: '40px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      title="Tümünü seç"
+                      checked={sortedSuppliers.length > 0 && sortedSuppliers.every(s => selectedSupplierIds.has(s.id))}
+                      onChange={(e) => handleSelectAll(e.target.checked, sortedSuppliers)}
+                    />
+                  </th>
                   <th 
                     onClick={() => handleSort('code')}
                     style={{ 
@@ -797,6 +825,14 @@ export default function SuppliersTable({
                       }
                     }}
                   >
+                    <td style={{ width: '40px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedSupplierIds.has(supplier.id)}
+                        onChange={(e) => handleSelectSupplier(supplier.id, e.target.checked)}
+                        title="Seç"
+                      />
+                    </td>
                     <td style={{ padding: '12px 8px', fontSize: '13px', fontWeight: '500', color: '#000' }}>
                       {supplier.code}
                     </td>

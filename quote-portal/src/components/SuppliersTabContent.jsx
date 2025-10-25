@@ -800,6 +800,66 @@ export default function SuppliersTabContent({
     // Bu fonksiyon artık gerekli değil çünkü modal SuppliersTable içinde
   }
 
+  // CSV Export (client-side; sadece mevcut backend'den gelen veriyi kullanır)
+  const handleExportSuppliersCSV = () => {
+    try {
+      const rows = (categoryFilteredSuppliers || filteredSuppliers || suppliers || [])
+      if (!rows || rows.length === 0) return
+
+      // Dinamik başlık seti: tüm tedarikçi alanlarının birleşimi
+      const headerSet = new Set()
+      rows.forEach(s => Object.keys(s || {}).forEach(k => headerSet.add(k)))
+      // Özel/hesaplanmış alanlar
+      const extraHeaders = ['categories', 'suppliedMaterialsCount']
+      extraHeaders.forEach(h => headerSet.add(h))
+
+      // Başlık sıralamasını düzenle (önemli alanlar öne)
+      const preferredOrder = [
+        'id','code','companyName','name','contactPerson','phone1','phone2','email1','email2',
+        'country','city','address','taxOffice','taxNumber','paymentTerms','leadTime','creditRating','status',
+        'createdAt','updatedAt','categories','suppliedMaterialsCount','suppliedMaterials'
+      ]
+      const headers = [...new Set([...preferredOrder, ...headerSet])]
+
+      const csvLines = []
+      csvLines.push(headers.join(','))
+
+      rows.forEach(s => {
+        const categories = Array.from(new Set((s.suppliedMaterials || []).map(m => m?.category).filter(Boolean))).join(' | ')
+        const suppliedMaterialsCount = (s.suppliedMaterials || []).length
+
+        const rowObj = { ...s, categories, suppliedMaterialsCount }
+        const vals = headers.map(h => {
+          let v = rowObj[h]
+          if (v == null) v = ''
+          // Nesne/array alanları JSON string olarak yaz
+          if (typeof v === 'object') {
+            try { v = JSON.stringify(v) } catch { v = '' }
+          }
+          const str = String(v)
+          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return '"' + str.replace(/"/g, '""') + '"'
+          }
+          return str
+        })
+        csvLines.push(vals.join(','))
+      })
+
+      const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `tedarikciler_${new Date().toISOString().slice(0,10)}.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      console.error('CSV dışa aktarım hatası:', err)
+      alert('CSV dışa aktarımında hata oluştu')
+    }
+  }
+
   return (
     <div className="stocks-tab-content">
       <div className="materials-header-section">
@@ -818,6 +878,15 @@ export default function SuppliersTabContent({
                 >
                   + Yeni Tedarikçi
                 </button>
+                <button 
+                  type="button" 
+                  className="csv-export-btn"
+                  title="Tüm tedarikçileri dışa aktar"
+                  onClick={() => handleExportSuppliersCSV()}
+                  disabled={suppliersLoading || (filteredSuppliers?.length || 0) === 0}
+                >
+                  📊 CSV
+                </button>
               </div>
             </div>
           </>
@@ -833,9 +902,24 @@ export default function SuppliersTabContent({
           />
         </div>
       </div>
-      {/* Kategori Sekmeleri */}
-      <CategoryTabs suppliers={filteredSuppliers} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
-      
+      {/* Kategori Sekmeleri + Tablo: Stoklardaki gibi aynı kart içinde */}
+      <section className="materials-table">
+        <CategoryTabs suppliers={filteredSuppliers} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
+        <div style={{ padding: 0 }}>
+          <SuppliersTable 
+            suppliers={categoryFilteredSuppliers}
+            categories={supplierCategories} 
+            onSupplierDetails={handleSupplierDetails}
+            loading={suppliersLoading}
+            suppliersLoading={suppliersLoading}
+            onUpdateSupplier={updateSupplier}
+            onDeleteSupplier={deleteSupplier}
+            onRefreshSuppliers={refetchSuppliers}
+            handleDeleteMaterial={handleDeleteMaterial}
+          />
+        </div>
+      </section>
+
       {suppliersError && (
         <div className="error-message" style={{ 
           padding: '1rem', 
@@ -848,19 +932,7 @@ export default function SuppliersTabContent({
           Tedarikçiler yüklenirken hata oluştu: {suppliersError}
         </div>
       )}
-      
-      <SuppliersTable 
-        suppliers={categoryFilteredSuppliers}
-        categories={supplierCategories} 
-        onSupplierDetails={handleSupplierDetails}
-        loading={suppliersLoading}
-        suppliersLoading={suppliersLoading}
-        onUpdateSupplier={updateSupplier}
-        onDeleteSupplier={deleteSupplier}
-        onRefreshSuppliers={refetchSuppliers}
-        handleDeleteMaterial={handleDeleteMaterial}
-      />
-      
+
       <AddSupplierModal
         isOpen={isAddSupplierModalOpen}
         onClose={() => {

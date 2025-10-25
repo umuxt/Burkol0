@@ -1025,38 +1025,33 @@ function OrdersTable({
     <section className="materials-table">
       {/* Tab Navigation - Always visible */}
       <div className="materials-tabs">
-        <div className="orders-tabs" style={{ display: 'flex', gap: '12px' }}>
-          <button
-            type="button"
-            className={`tab-button${variant === 'pending' ? ' active' : ''}`}
-            onClick={() => onChangeTab && onChangeTab('pending')}
-            disabled={loading}
-          >
-            <span style={{ marginRight: '6px' }}>🕒</span>
-            Bekleyen Siparişler
-            <span className="tab-count">({tabCounts?.pending ?? 0})</span>
-          </button>
-          <button
-            type="button"
-            className={`tab-button${variant === 'completed' ? ' active' : ''}`}
-            onClick={() => onChangeTab && onChangeTab('completed')}
-            disabled={loading}
-          >
-            <span style={{ marginRight: '6px' }}>✅</span>
-            Tamamlanan Siparişler
-            <span className="tab-count">({tabCounts?.completed ?? 0})</span>
-          </button>
-          <button
-            type="button"
-            className={`tab-button${variant === 'all' ? ' active' : ''}`}
-            onClick={() => onChangeTab && onChangeTab('all')}
-            disabled={loading}
-            style={{ marginLeft: 'auto' }}
-          >
-            Tümünü Göster
-            <span className="tab-count">({tabCounts?.all ?? 0})</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          className={`tab-button${variant === 'all' ? ' active' : ''}`}
+          onClick={() => onChangeTab && onChangeTab('all')}
+          disabled={loading}
+        >
+          Tümünü Göster
+          <span className="tab-count">({tabCounts?.all ?? 0})</span>
+        </button>
+        <button
+          type="button"
+          className={`tab-button${variant === 'pending' ? ' active' : ''}`}
+          onClick={() => onChangeTab && onChangeTab('pending')}
+          disabled={loading}
+        >
+          Bekleyen Siparişler
+          <span className="tab-count">({tabCounts?.pending ?? 0})</span>
+        </button>
+        <button
+          type="button"
+          className={`tab-button${variant === 'completed' ? ' active' : ''}`}
+          onClick={() => onChangeTab && onChangeTab('completed')}
+          disabled={loading}
+        >
+          Tamamlanan Siparişler
+          <span className="tab-count">({tabCounts?.completed ?? 0})</span>
+        </button>
       </div>
 
       {/* Table Container - Always visible */}
@@ -1129,7 +1124,7 @@ function OrdersTable({
           <table>
             <thead>
               <tr>
-                <th style={{ width: '32px', textAlign: 'center' }}>
+                <th style={{ width: '40px', textAlign: 'center' }}>
                   <input
                     type="checkbox"
                     onChange={(e) => {
@@ -1140,43 +1135,43 @@ function OrdersTable({
                     checked={Array.isArray(orders) && orders.length > 0 && orders.every(o => selectedOrderIds?.has?.(o.id))}
                   />
                 </th>
-                <th style={{ minWidth: '120px' }}>
-                  <button type="button" onClick={() => handleSort('orderCode')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
+                  <button type="button" onClick={() => handleSort('orderCode')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
                     Sipariş
-                    <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('orderCode')}</span>
+                    <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('orderCode')}</span>
                   </button>
                 </th>
-                <th style={{ minWidth: '160px' }}>
-                  <button type="button" onClick={() => handleSort('supplier')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
+                  <button type="button" onClick={() => handleSort('supplier')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
                     Tedarikçi
-                    <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('supplier')}</span>
+                    <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('supplier')}</span>
                   </button>
                 </th>
                 {variant !== 'completed' && (
-                  <th style={{ minWidth: '140px' }}>
-                    <button type="button" onClick={() => handleSort('status')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <th style={{ minWidth: '140px', whiteSpace: 'nowrap' }}>
+                    <button type="button" onClick={() => handleSort('status')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
                       Teslimat Durumu
-                      <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('status')}</span>
+                      <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('status')}</span>
                     </button>
                   </th>
                 )}
-                <th style={{ minWidth: '220px' }}>
-                  <button type="button" onClick={() => handleSort('items')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <th style={{ minWidth: '220px', whiteSpace: 'nowrap' }}>
+                  <button type="button" onClick={() => handleSort('items')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
                     Sipariş Satırları
-                    <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('items')}</span>
+                    <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('items')}</span>
                   </button>
                 </th>
-                <th style={{ minWidth: '100px', textAlign: 'right' }}>
-                  <button type="button" onClick={() => handleSort('total')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <th style={{ minWidth: '100px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  <button type="button" onClick={() => handleSort('total')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
                     Tutar
-                    <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('total')}</span>
+                    <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('total')}</span>
                   </button>
                 </th>
                 {variant !== 'completed' && (
-                  <th style={{ minWidth: '120px' }}>
-                    <button type="button" onClick={() => handleSort('status')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
+                    <button type="button" onClick={() => handleSort('status')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
                       Durum
-                      <span style={{ fontSize: '12px', opacity: 0.9 }}>{getSortIndicator('status')}</span>
+                      <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('status')}</span>
                     </button>
                   </th>
                 )}
