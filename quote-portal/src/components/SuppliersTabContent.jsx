@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import SuppliersTable from './SuppliersTable'
 import AddSupplierModal from './AddSupplierModal'
 import { useSuppliers } from '../hooks/useSuppliers'
 import { useSupplierCategories } from '../hooks/useSupplierCategories'
+import { useCategories } from '../hooks/useFirebaseCategories'
 
 // Suppliers dashboard component with real data
 function SuppliersDashboard({ suppliers }) {
@@ -629,6 +630,7 @@ export default function SuppliersTabContent({
   const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [isFiltersExpanded, setIsFiltersExpanded] = useState(false)
+  const [activeCategory, setActiveCategory] = useState('all')
   
   // Filter state - moved from SuppliersFilters
   const [filters, setFilters] = useState({
@@ -744,6 +746,12 @@ export default function SuppliersTabContent({
            paymentMatch && deliveryMatch && countryMatch && creditMatch;
   })
 
+  // Apply category tab filter (All vs selected material category)
+  const categoryFilteredSuppliers = useMemo(() => {
+    if (activeCategory === 'all') return filteredSuppliers
+    return filteredSuppliers.filter(s => (s.suppliedMaterials || []).some(m => m?.category === activeCategory))
+  }, [filteredSuppliers, activeCategory])
+
   // Check if any filter is applied
   const hasActiveFilters = () => {
     const isActive = !!(
@@ -825,6 +833,8 @@ export default function SuppliersTabContent({
           />
         </div>
       </div>
+      {/* Kategori Sekmeleri */}
+      <CategoryTabs suppliers={filteredSuppliers} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
       
       {suppliersError && (
         <div className="error-message" style={{ 
@@ -840,7 +850,7 @@ export default function SuppliersTabContent({
       )}
       
       <SuppliersTable 
-        suppliers={filteredSuppliers}
+        suppliers={categoryFilteredSuppliers}
         categories={supplierCategories} 
         onSupplierDetails={handleSupplierDetails}
         loading={suppliersLoading}
@@ -859,6 +869,44 @@ export default function SuppliersTabContent({
         onSave={handleAddSupplier}
         categories={supplierCategories}
       />
+    </div>
+  )
+}
+
+// Basit kategori sekmeleri (stoklar/siparişlerdeki görünümle uyumlu)
+function CategoryTabs({ suppliers, activeCategory, onCategoryChange }) {
+  const { categories, loading } = useCategories(true)
+  const materialCategories = useMemo(() => (categories || []).filter(c => c.type === 'material' || !c.type), [categories])
+
+  const counts = useMemo(() => {
+    const map = { all: suppliers?.length || 0 }
+    for (const cat of materialCategories) {
+      const count = (suppliers || []).filter(s => (s.suppliedMaterials || []).some(m => m?.category === cat.id)).length
+      map[cat.id] = count
+    }
+    return map
+  }, [suppliers, materialCategories])
+
+  const tabs = useMemo(() => [
+    { id: 'all', label: 'Tümünü Göster' },
+    ...materialCategories.map(c => ({ id: c.id, label: c.name || c.label || c.id }))
+  ], [materialCategories])
+
+  if (!suppliers) return null
+
+  return (
+    <div className="materials-tabs">
+      {tabs.map(tab => (
+        <button
+          key={tab.id}
+          className={`tab-button ${activeCategory === tab.id ? 'active' : ''}`}
+          onClick={() => onCategoryChange(tab.id)}
+          disabled={loading && tab.id !== 'all'}
+        >
+          {tab.label}
+          <span className="tab-count">({counts[tab.id] ?? 0})</span>
+        </button>
+      ))}
     </div>
   )
 }
