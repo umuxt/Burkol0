@@ -289,14 +289,14 @@ function OrdersFilters({
             </div>
           </div>
 
-          {/* Kalem Durumu Filtresi */}
+          {/* Satır Durumu Filtresi */}
           <div className="filter-group">
             <div className="multi-select-container">
               <div className="multi-select-header" onClick={() => {
                 const dropdown = document.getElementById('item-status-dropdown');
                 dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
               }}>
-                {filters.itemStatus || 'Kalem Durumu'}
+                {filters.itemStatus || 'Satır Durumu'}
                 <span className="dropdown-arrow">▼</span>
               </div>
               <div id="item-status-dropdown" className="multi-select-dropdown" style={{display: 'none'}}>
@@ -1100,7 +1100,7 @@ function OrdersTable({
                 )}
                 <th style={{ minWidth: '220px' }}>
                   <button type="button" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                    Kalemler
+                    Sipariş Satırları
                     <span style={{ fontSize: '12px', opacity: 0.6 }}>↕</span>
                   </button>
                 </th>
@@ -1219,7 +1219,7 @@ function OrdersTable({
                         </div>
                       </td>
                     )}
-                    <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>{items.length > 0 ? renderLineChips(items) : <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>Kalem bulunmuyor</span>}</td>
+                    <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>{items.length > 0 ? renderLineChips(items) : <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>Sipariş satırı yok</span>}</td>
                     <td style={{ textAlign: 'right', fontWeight: 600, paddingTop: '6px', paddingBottom: '6px' }}>
                       {formatCurrency(relevantTotal || order.totalAmount)}
                     </td>
@@ -2348,12 +2348,12 @@ export default function OrdersTabContent() {
 
               <div style={{ marginBottom: '18px' }}>
                 <h4 style={{ marginBottom: '10px', fontSize: '15px', fontWeight: '700' }}>
-                  Sipariş Kalemleri ({selectedOrder.items?.length || selectedOrder.itemCount || 0})
+                  Sipariş Satırları ({selectedOrder.items?.length || selectedOrder.itemCount || 0})
                 </h4>
               {selectedOrderLoading ? (
-                <p style={{ padding: '12px 0', color: '#6b7280' }}>Kalemler yükleniyor...</p>
+                <p style={{ padding: '12px 0', color: '#6b7280' }}>Satırlar yükleniyor...</p>
               ) : selectedOrderError ? (
-                <p style={{ color: '#dc2626', padding: '12px 0' }}>Kalemler yüklenemedi: {selectedOrderError}</p>
+                <p style={{ color: '#dc2626', padding: '12px 0' }}>Satırlar yüklenemedi: {selectedOrderError}</p>
               ) : (selectedOrder.items && selectedOrder.items.length > 0) ? (
                 <div style={{
                   border: '1px solid #e5e7eb',

@@ -762,7 +762,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave }) {
                 </div>
 
                 <div>
-                  <h4 style={{ marginBottom: '12px' }}>Sipariş Kalemleri ({selectedMaterials.length})</h4>
+                  <h4 style={{ marginBottom: '12px' }}>Sipariş Satırları ({selectedMaterials.length})</h4>
                   {selectedMaterials.map((material, index) => (
                     <div
                       key={material.lineId}

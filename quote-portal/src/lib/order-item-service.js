@@ -221,7 +221,7 @@ export class OrderItemService {
           orderId: orderId,
           itemId: itemId,
           movementType: 'delivery',
-          notes: `Kalem teslimi: ${item.materialName} (${item.quantity} ${item.unit || 'adet'})`
+        notes: `Sipariş satırı teslimi: ${item.materialName} (${item.quantity} ${item.unit || 'adet'})`
         })
       });
 
