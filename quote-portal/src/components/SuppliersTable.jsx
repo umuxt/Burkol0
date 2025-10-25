@@ -729,73 +729,42 @@ export default function SuppliersTable({
                       onChange={(e) => handleSelectAll(e.target.checked, sortedSuppliers)}
                     />
                   </th>
-                  <th 
-                    onClick={() => handleSort('code')}
-                    style={{ 
-                      padding: '12px 8px', 
-                      textAlign: 'left', 
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: 'rgb(55, 65, 81)',
-                      borderBottomWidth: '1px',
-                      borderBottomStyle: 'solid',
-                      borderBottomColor: 'rgb(229, 231, 235)'
-                    }}
-                  >
-                    Kod <span style={{ fontSize: '12px', opacity: '0.6' }}>
-                      {sortField === 'code' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-                    </span>
+                  <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
+                    <button 
+                      type="button"
+                      onClick={() => handleSort('code')}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', font: 'inherit' }}
+                    >
+                      Tedarikçi Kodu <span style={{ fontSize: '12px', opacity: 0.6 }}>
+                        {sortField === 'code' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    </button>
                   </th>
-                  <th 
-                    onClick={() => handleSort('name')}
-                    style={{ 
-                      padding: '12px 8px', 
-                      textAlign: 'left', 
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: 'rgb(55, 65, 81)',
-                      borderBottomWidth: '1px',
-                      borderBottomStyle: 'solid',
-                      borderBottomColor: 'rgb(229, 231, 235)'
-                    }}
-                  >
-                    Firma Adı <span style={{ fontSize: '12px', opacity: '0.6' }}>
-                      {sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-                    </span>
+                  <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
+                    <button 
+                      type="button"
+                      onClick={() => handleSort('name')}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', font: 'inherit' }}
+                    >
+                      Firma Adı <span style={{ fontSize: '12px', opacity: 0.6 }}>
+                        {sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    </button>
                   </th>
-                  <th 
-                    onClick={() => handleSort('categories')}
-                    style={{ 
-                      padding: '12px 8px', 
-                      textAlign: 'left', 
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: 'rgb(55, 65, 81)',
-                      borderBottomWidth: '1px',
-                      borderBottomStyle: 'solid',
-                      borderBottomColor: 'rgb(229, 231, 235)'
-                    }}
-                  >
-                    Kategoriler <span style={{ fontSize: '12px', opacity: '0.6' }}>
-                      {sortField === 'categories' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-                    </span>
+                  <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
+                    <button 
+                      type="button"
+                      onClick={() => handleSort('categories')}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', font: 'inherit' }}
+                    >
+                      Kategoriler <span style={{ fontSize: '12px', opacity: 0.6 }}>
+                        {sortField === 'categories' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                      </span>
+                    </button>
                   </th>
                   {!selectedSupplier && (
                     <th 
-                      style={{ 
-                        padding: '12px 8px', 
-                        textAlign: 'center', 
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        color: 'rgb(55, 65, 81)',
-                        borderBottomWidth: '1px',
-                        borderBottomStyle: 'solid',
-                        borderBottomColor: 'rgb(229, 231, 235)',
-                        width: '180px'
-                      }}
+                      style={{ minWidth: '180px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: 'rgb(55, 65, 81)' }}
                     >
                       Aksiyonlar
                     </th>
@@ -833,13 +802,13 @@ export default function SuppliersTable({
                         title="Seç"
                       />
                     </td>
-                    <td style={{ padding: '12px 8px', fontSize: '13px', fontWeight: '500', color: '#000' }}>
+                    <td>
                       {supplier.code}
                     </td>
-                    <td style={{ padding: '12px 8px', fontSize: '13px', color: '#000' }}>
+                    <td>
                       {supplier.name || supplier.companyName}
                     </td>
-                    <td style={{ padding: '12px 8px', fontSize: '13px' }}>
+                    <td>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         {supplier.suppliedMaterials && supplier.suppliedMaterials.length > 0 
                           ? [...new Set(supplier.suppliedMaterials
@@ -872,7 +841,7 @@ export default function SuppliersTable({
                       </div>
                     </td>
                     {!selectedSupplier && (
-                      <td style={{ padding: '12px 8px', fontSize: '13px', textAlign: 'center' }}>
+                      <td style={{ padding: '4px 8px', fontSize: '13px', textAlign: 'center' }}>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

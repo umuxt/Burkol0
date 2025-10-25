@@ -152,7 +152,7 @@ export default function MaterialsTable({
                   title="Tümünü seç"
                 />
               </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
+              <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('code')}
@@ -165,13 +165,13 @@ export default function MaterialsTable({
                     cursor: 'pointer',
                     padding: 0,
                     font: 'inherit',
-                    color: sortField === 'code' ? '#007bff' : 'inherit'
+                    color: 'inherit'
                   }}
                 >
-                  Kod{getSortIcon('code')}
+                  Malzeme Kodu{getSortIcon('code')}
                 </button>
               </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
+              <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('name')}
@@ -184,13 +184,13 @@ export default function MaterialsTable({
                     cursor: 'pointer',
                     padding: 0,
                     font: 'inherit',
-                    color: sortField === 'name' ? '#007bff' : 'inherit'
+                    color: 'inherit'
                   }}
                 >
                   Ad{getSortIcon('name')}
                 </button>
               </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
+              <th style={{ minWidth: '140px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('type')}
@@ -203,13 +203,13 @@ export default function MaterialsTable({
                     cursor: 'pointer',
                     padding: 0,
                     font: 'inherit',
-                    color: sortField === 'type' ? '#007bff' : 'inherit'
+                    color: 'inherit'
                   }}
                 >
                   Tip{getSortIcon('type')}
                 </button>
               </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
+              <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('category')}
@@ -222,7 +222,7 @@ export default function MaterialsTable({
                     cursor: 'pointer',
                     padding: 0,
                     font: 'inherit',
-                    color: sortField === 'category' ? '#007bff' : 'inherit'
+                    color: 'inherit'
                   }}
                 >
                   Kategori{getSortIcon('category')}
@@ -235,7 +235,7 @@ export default function MaterialsTable({
                   ℹ️
                 </button>
               </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
+              <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('unit')}
@@ -248,13 +248,13 @@ export default function MaterialsTable({
                     cursor: 'pointer',
                     padding: 0,
                     font: 'inherit',
-                    color: sortField === 'unit' ? '#007bff' : 'inherit'
+                    color: 'inherit'
                   }}
                 >
                   Birim{getSortIcon('unit')}
                 </button>
               </th>
-              <th style={{ whiteSpace: 'nowrap' }}>
+              <th style={{ minWidth: '140px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('stock')}
@@ -267,7 +267,7 @@ export default function MaterialsTable({
                     cursor: 'pointer',
                     padding: 0,
                     font: 'inherit',
-                    color: sortField === 'stock' ? '#007bff' : 'inherit'
+                    color: 'inherit'
                   }}
                 >
                   Stok Durumu{getSortIcon('stock')}
@@ -302,7 +302,7 @@ export default function MaterialsTable({
                 <td>{material.code}</td>
                 <td>
                   <div className="material-name-cell">
-                    <strong>{material.name}</strong>
+                    {material.name}
                   </div>
                 </td>
                 <td>{getTypeLabel(material.type)}</td>

@@ -2208,9 +2208,21 @@ textarea.editable-input {
 
 .materials-table th,
 .materials-table td {
-  padding: 0.75rem 1rem;
+  /* Reduce row height by ~50% from 0.5rem 1rem */
+  padding: 0.25rem 0.5rem;
   text-align: left;
   border-bottom: 1px solid #f3f4f6;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Allow specific cells to expand (e.g., Sipariş Satırları) */
+.materials-table td.no-ellipsis {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .materials-table th {

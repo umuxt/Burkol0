@@ -961,16 +961,30 @@ function OrdersTable({
   }
 
   const renderLineChips = (items = []) => (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+    <div style={{
+      display: 'inline-flex',
+      flexWrap: 'nowrap',
+      gap: '12px',
+      alignItems: 'flex-start',
+      whiteSpace: 'nowrap',
+      overflowX: 'auto',
+      maxWidth: '100%',
+      WebkitOverflowScrolling: 'touch'
+    }}>
       {items.map((item, index) => (
         <div
           key={item.id || item.lineId || index}
           style={{
+            display: 'inline-flex',
+            flexDirection: 'column',
+            flex: '0 0 auto',
             border: '1px solid #e2e8f0',
             borderRadius: '8px',
             background: '#fff',
-            padding: '8px 10px',
-            minWidth: '220px',
+            padding: '4px 6px',
+            minWidth: 0,
+            width: 'fit-content',
+            maxWidth: '260px',
             boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)'
           }}
         >
@@ -979,8 +993,8 @@ function OrdersTable({
               display: 'grid',
               gridTemplateColumns: '1fr auto',
               alignItems: 'center',
-              marginBottom: '6px',
-              gap: '12px'
+              marginBottom: '3px',
+              gap: '6px'
             }}
           >
             <span style={{ fontSize: '11px', fontWeight: 600, color: '#1d4ed8' }}>
@@ -988,11 +1002,11 @@ function OrdersTable({
             </span>
             <span
               style={{
-                fontSize: '10px',
+                fontSize: '6px',
                 fontWeight: 600,
                 color: '#0f172a',
                 background: '#e2e8f0',
-                padding: '2px 8px',
+                padding: '1px 6px',
                 borderRadius: '999px',
                 whiteSpace: 'nowrap'
               }}
@@ -1003,14 +1017,17 @@ function OrdersTable({
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '0.9fr 1.3fr auto',
-              gap: '8px',
+              gridTemplateColumns: 'auto 1fr auto',
+              alignItems: 'center',
+              gap: '4px',
               fontSize: '11px',
-              color: '#475569'
+              color: '#475569',
             }}
           >
             <div style={{ fontWeight: 600 }}>{item.materialCode || '—'}</div>
-            <div style={{ fontWeight: 500, color: '#111827' }}>{item.materialName || '-'}</div>
+            <div style={{ fontWeight: 500, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {item.materialName || '-'}
+            </div>
             <div style={{ textAlign: 'right', fontWeight: 600 }}>
               {item.quantity || 0} adet
             </div>
@@ -1055,7 +1072,7 @@ function OrdersTable({
       </div>
 
       {/* Table Container - Always visible */}
-      <div className="table-container">
+      <div className="table-container" style={{ width: '100%' }}>
         {loading ? (
           <div style={{
             display: 'flex',
@@ -1121,7 +1138,16 @@ function OrdersTable({
           />
         ) : (
           // Render the actual table with data
-          <table>
+          <table style={{ tableLayout: 'fixed', width: '100%' }}>
+            <colgroup>
+              <col style={{ width: '40px' }} />
+              <col style={{ width: '120px' }} />
+              <col style={{ width: '220px' }} />
+              {variant !== 'completed' && (<col style={{ width: '180px' }} />)} {/* Teslimat Durumu */}
+              <col style={{ width: 'auto' }} /> {/* Sipariş Satırları - kalan alan */}
+              <col style={{ width: '120px' }} /> {/* Tutar */}
+              {variant !== 'completed' && (<col style={{ width: '80px' }} />)} {/* Durum */}
+            </colgroup>
             <thead>
               <tr>
                 <th style={{ width: '40px', textAlign: 'center' }}>
@@ -1135,20 +1161,20 @@ function OrdersTable({
                     checked={Array.isArray(orders) && orders.length > 0 && orders.every(o => selectedOrderIds?.has?.(o.id))}
                   />
                 </th>
-                <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
+                <th style={{ width: '120px', minWidth: '120px', whiteSpace: 'nowrap' }}>
                   <button type="button" onClick={() => handleSort('orderCode')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
-                    Sipariş
+                    Sipariş Kodu
                     <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('orderCode')}</span>
                   </button>
                 </th>
-                <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
+                <th style={{ width: '220px', minWidth: '220px', whiteSpace: 'nowrap' }}>
                   <button type="button" onClick={() => handleSort('supplier')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
                     Tedarikçi
                     <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('supplier')}</span>
                   </button>
                 </th>
                 {variant !== 'completed' && (
-                  <th style={{ minWidth: '140px', whiteSpace: 'nowrap' }}>
+                  <th style={{ minWidth: '140px', maxWidth: '180px', whiteSpace: 'nowrap' }}>
                     <button type="button" onClick={() => handleSort('status')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
                       Teslimat Durumu
                       <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('status')}</span>
@@ -1161,14 +1187,14 @@ function OrdersTable({
                     <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('items')}</span>
                   </button>
                 </th>
-                <th style={{ minWidth: '100px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <th style={{ width: '120px', minWidth: '90px', maxWidth: '120px', textAlign: 'left', whiteSpace: 'nowrap' }}>
                   <button type="button" onClick={() => handleSort('total')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
                     Tutar
                     <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('total')}</span>
                   </button>
                 </th>
                 {variant !== 'completed' && (
-                  <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
+                  <th style={{ minWidth: '80px', maxWidth: '80px', whiteSpace: 'nowrap' }}>
                     <button type="button" onClick={() => handleSort('status')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
                       Durum
                       <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('status')}</span>
@@ -1212,20 +1238,18 @@ function OrdersTable({
                         checked={selectedOrderIds?.has?.(order.id) || false}
                       />
                     </td>
-                    <td>
-                      <div style={{ fontFamily: 'monospace', fontSize: '12px', fontWeight: 600 }}>
+                    <td style={{ width: '120px', minWidth: '120px', whiteSpace: 'nowrap' }}>
+                      <div className="material-name-cell" style={{ whiteSpace: 'nowrap' }}>
                         {order.orderCode || order.id}
                       </div>
-                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
-                        {formatDate(order.orderDate)}
+                    </td>
+                    <td style={{ width: '220px', minWidth: '220px', whiteSpace: 'nowrap' }}>
+                      <div className="material-name-cell" style={{ whiteSpace: 'nowrap' }}>
+                        {(order.supplierId || '').toString()} {order.supplierId ? ' / ' : ''}{order.supplierName || ''}
                       </div>
                     </td>
-                    <td>
-                      <div style={{ fontWeight: 600, fontSize: '13px' }}>{order.supplierName}</div>
-                      <div style={{ fontSize: '11px', color: '#6b7280' }}>{order.supplierId}</div>
-                    </td>
                     {variant !== 'completed' && (
-                      <td>
+                      <td style={{ width: '180px', maxWidth: '180px', whiteSpace: 'nowrap' }}>
                         <div style={{ fontSize: '12px', fontWeight: 600 }}>
                           {(() => {
                             // Debug: Order fields'ları kontrol et
@@ -1280,12 +1304,16 @@ function OrdersTable({
                         </div>
                       </td>
                     )}
-                    <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>{items.length > 0 ? renderLineChips(items) : <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>Sipariş satırı yok</span>}</td>
-                    <td style={{ textAlign: 'right', fontWeight: 600, paddingTop: '6px', paddingBottom: '6px' }}>
+                    <td className="no-ellipsis" style={{ paddingTop: '4px', paddingBottom: '4px' }}>
+                      {items.length > 0 ? renderLineChips(items) : (
+                        <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>Sipariş satırı yok</span>
+                      )}
+                    </td>
+                    <td style={{ width: '120px', textAlign: 'left', fontWeight: 600, paddingTop: '4px', paddingBottom: '4px' }}>
                       {formatCurrency(relevantTotal || order.totalAmount)}
                     </td>
                     {variant !== 'completed' && (
-                      <td style={{ paddingTop: '6px', paddingBottom: '6px' }}>
+                      <td style={{ width: '80px', maxWidth: '80px', paddingTop: '4px', paddingBottom: '4px', whiteSpace: 'nowrap' }}>
                         {onUpdateOrderStatus ? (
                           <select
                             value={order.orderStatus}
@@ -2573,6 +2601,12 @@ export default function OrdersTabContent() {
                   <div style={{ fontSize: '14px', fontWeight: '600', marginTop: '4px' }}>{selectedOrder.supplierName}</div>
                 </div>
                 <div>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Oluşturulma Tarihi</div>
+                  <div style={{ fontSize: '14px', marginTop: '4px' }}>
+                    {selectedOrder.orderDate ? (new Date(selectedOrder.orderDate)).toLocaleDateString('tr-TR') : '-'}
+                  </div>
+                </div>
+                <div>
                   <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Durum</div>
                   <div style={{ fontSize: '14px', fontWeight: '600', marginTop: '4px' }}>{selectedOrder.orderStatus}</div>
                 </div>
@@ -2635,10 +2669,14 @@ export default function OrdersTabContent() {
                 <p style={{ color: '#dc2626', padding: '12px 0' }}>Satırlar yüklenemedi: {selectedOrderError}</p>
               ) : (selectedOrder.items && selectedOrder.items.length > 0) ? (
                 <div style={{
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '6px',
-                  overflow: 'hidden',
-                  background: 'white'
+                  display: 'inline-flex',
+                  flexWrap: 'nowrap',
+                  gap: '12px',
+                  alignItems: 'flex-start',
+                  whiteSpace: 'nowrap',
+                  overflowX: 'auto',
+                  maxWidth: '100%',
+                  WebkitOverflowScrolling: 'touch'
                 }}>
                   {console.log('🔍 DEBUG: Rendering order items:', selectedOrder.items.length, 'items')}
                   {[...(selectedOrder.items || [])]
@@ -2656,57 +2694,58 @@ export default function OrdersTabContent() {
                         <div
                           key={itemId}
                           style={{
-                            padding: '12px 14px',
-                            background: index % 2 === 0 ? '#f9fafb' : 'white',
-                            borderBottom: index < selectedOrder.items.length - 1 ? '1px solid #f1f5f9' : 'none'
+                            display: 'inline-flex',
+                            flexDirection: 'column',
+                            flex: '0 0 auto',
+                            border: '1px solid rgb(226, 232, 240)',
+                            borderRadius: '8px',
+                            background: 'rgb(255, 255, 255)',
+                            padding: '6px 8px',
+                            minWidth: 0,
+                            width: 'fit-content',
+                            maxWidth: '260px',
+                            boxShadow: 'rgba(15, 23, 42, 0.05) 0px 1px 2px'
                           }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px' }}>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
-                                <div style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600', minWidth: '56px' }}>
-                                  {item.itemCode || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
-                                </div>
-                                <div style={{ fontSize: '12px', color: '#6366f1', fontWeight: '600', background: '#eef2ff', padding: '2px 6px', borderRadius: '999px' }}>
-                                  {item.itemStatus || 'Onay Bekliyor'}
-                                </div>
-                                <select
-                                  value={item.itemStatus || 'Onay Bekliyor'}
-                                  disabled={isItemUpdating}
-                                  onChange={(e) => {
-                                    console.log('🔍 Item status değişiyor:', {
-                                      itemId: item.id,
-                                      oldStatus: item.itemStatus,
-                                      newStatus: e.target.value,
-                                      materialCode: item.materialCode
-                                    });
-                                    handleItemStatusChange(selectedOrder.id, item, e.target.value);
-                                  }}
-                                  style={{
-                                    padding: '4px 8px',
-                                    fontSize: '11px',
-                                    border: '1px solid #d1d5db',
-                                    borderRadius: '4px',
-                                    background: '#fff'
-                                  }}
-                                >
-                                  {ITEM_STATUS_OPTIONS.map(status => (
-                                    <option key={status} value={status}>{status}</option>
-                                  ))}
-                                </select>
-                              </div>
-                              <div style={{ fontWeight: '600', marginBottom: '2px' }}>{item.materialName || '-'}</div>
-                              <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                                {item.materialCode || '—'} • {item.quantity || 0} adet × {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format(item.unitPrice || 0)}
-                              </div>
-                              {item.expectedDeliveryDate && (
-                                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-                                  Beklenen Teslim: {item.expectedDeliveryDate instanceof Date ? item.expectedDeliveryDate.toLocaleDateString('tr-TR') : item.expectedDeliveryDate}
-                                </div>
-                              )}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', alignItems: 'center', marginBottom: '6px', gap: '6px' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgb(29, 78, 216)' }}>
+                              {item.itemCode || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
+                            </span>
+                            <span style={{ fontSize: '6px', fontWeight: 600, color: 'rgb(15, 23, 42)', background: 'rgb(226, 232, 240)', padding: '1px 6px', borderRadius: '999px', whiteSpace: 'nowrap' }}>
+                              {item.itemStatus || 'Onay Bekliyor'}
+                            </span>
+                            <select
+                              value={item.itemStatus || 'Onay Bekliyor'}
+                              disabled={isItemUpdating}
+                              onChange={(e) => {
+                                console.log('🔍 Item status değişiyor:', {
+                                  itemId: item.id,
+                                  oldStatus: item.itemStatus,
+                                  newStatus: e.target.value,
+                                  materialCode: item.materialCode
+                                });
+                                handleItemStatusChange(selectedOrder.id, item, e.target.value);
+                              }}
+                              style={{
+                                padding: '2px 6px',
+                                fontSize: '10px',
+                                border: '1px solid #d1d5db',
+                                borderRadius: '4px',
+                                background: '#fff'
+                              }}
+                            >
+                              {ITEM_STATUS_OPTIONS.map(status => (
+                                <option key={status} value={status}>{status}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '4px', fontSize: '11px', color: 'rgb(71, 85, 105)', alignItems: 'center' }}>
+                            <div style={{ fontWeight: 600 }}>{item.materialCode || '—'}</div>
+                            <div style={{ fontWeight: 500, color: 'rgb(17, 24, 39)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {item.materialName || '-'}
                             </div>
-                            <div style={{ fontWeight: '600', fontSize: '14px', minWidth: '90px', textAlign: 'right' }}>
-                              {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY' }).format((item.quantity || 0) * (item.unitPrice || 0))}
+                            <div style={{ textAlign: 'right', fontWeight: 600 }}>
+                              {item.quantity || 0} adet
                             </div>
                           </div>
                         </div>
