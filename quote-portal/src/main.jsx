@@ -323,6 +323,12 @@ function MaterialsApp() {
             deliveryTime: '',
             minQuantity: 1
           });
+          // Supplier listesini de yenile ki suppliedMaterials anında güncellensin
+          try {
+            await fetchSuppliers();
+          } catch (e) {
+            console.warn('Suppliers refresh failed after relation add:', e?.message || e)
+          }
           
           console.log('✅ Dropdown\'dan seçilen tedarikçiye malzeme eklendi');
         } catch (supplierError) {

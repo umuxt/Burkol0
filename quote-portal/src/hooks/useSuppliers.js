@@ -22,16 +22,65 @@ export function useSuppliers() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Normalize supplier.suppliedMaterials items to a consistent shape
+  const normalizeSuppliedMaterial = (item) => {
+    if (!item || typeof item !== 'object') return item
+    const {
+      // backend relation keys
+      materialId,
+      materialCode,
+      materialName,
+      // legacy/frontend keys
+      id,
+      code,
+      name,
+      // passthrough
+      price,
+      deliveryTime,
+      minQuantity,
+      addedAt,
+      category,
+      unit,
+      status,
+      statusUpdatedAt
+    } = item
+
+    const norm = {
+      // keep both for compatibility
+      id: id || materialId || null,
+      materialId: materialId || id || null,
+      code: code || materialCode || null,
+      materialCode: materialCode || code || null,
+      name: name || materialName || null,
+      materialName: materialName || name || null,
+      price,
+      deliveryTime,
+      minQuantity,
+      addedAt,
+      category,
+      unit,
+      status,
+      statusUpdatedAt
+    }
+    return norm
+  }
+
   // Fetch all suppliers
-  const fetchSuppliers = useCallback(async () => {
+  const fetchSuppliers = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true)
       
       console.log('🔍 useSuppliers: API çağrısı yapılıyor...', {
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        forceRefresh
       })
       
-      const response = await fetchJsonWith401Retry('/api/suppliers', { headers: withAuth({ 'Content-Type': 'application/json' }) })
+      // Add cache bust parameter if force refresh is requested
+      const url = forceRefresh 
+        ? `/api/suppliers?_t=${Date.now()}` 
+        : '/api/suppliers'
+      
+      const response = await fetchJsonWith401Retry(url, { headers: withAuth({ 'Content-Type': 'application/json' }) })
 
       console.log('📡 Server response:', response.status, response.statusText)
 
@@ -46,13 +95,20 @@ export function useSuppliers() {
       }
 
       const data = await response.json()
+      // Normalize suppliedMaterials so UI can read id/name/code
+      const normalized = (data || []).map(s => ({
+        ...s,
+        suppliedMaterials: Array.isArray(s?.suppliedMaterials)
+          ? s.suppliedMaterials.map(normalizeSuppliedMaterial)
+          : []
+      }))
       console.log('🔍 useSuppliers: API response:', {
-        count: data?.length || 0,
+        count: normalized?.length || 0,
         timestamp: new Date().toISOString(),
-        data: data?.map(s => ({ id: s.id, code: s.code, name: s.name || s.companyName }))
+        data: normalized?.map(s => ({ id: s.id, code: s.code, name: s.name || s.companyName }))
       })
       
-      setSuppliers(data)
+      setSuppliers(normalized)
       setError(null)
     } catch (err) {
       console.error('❌ useSuppliers: Error fetching suppliers:', err)
@@ -173,7 +229,22 @@ export function useSuppliers() {
       }
 
       const relation = await response.json()
-      return relation
+      const normalizedRelation = normalizeSuppliedMaterial(relation)
+
+      // Optimistically update suppliers state so UI reflects immediately
+      setSuppliers(prev => prev.map(s => {
+        if (String(s.id) !== String(supplierId)) return s
+        const current = Array.isArray(s.suppliedMaterials) ? s.suppliedMaterials : []
+        // de-duplicate by id/materialId
+        const exists = current.some(m => (m.id && normalizedRelation.id && String(m.id) === String(normalizedRelation.id))
+          || (m.materialId && normalizedRelation.materialId && String(m.materialId) === String(normalizedRelation.materialId)))
+        const nextMaterials = exists
+          ? current
+          : [...current, normalizedRelation]
+        return { ...s, suppliedMaterials: nextMaterials }
+      }))
+
+      return normalizedRelation
     } catch (err) {
       console.error('Error adding material to supplier:', err)
       throw err
@@ -211,7 +282,8 @@ export function useSuppliers() {
       }
 
       const data = await response.json()
-      return data || []
+      const normalized = Array.isArray(data) ? data.map(normalizeSuppliedMaterial) : []
+      return normalized
     } catch (err) {
       console.error('Error fetching materials for supplier:', err)
       throw err

@@ -126,13 +126,21 @@ try {
     const apiRoutesMod = await import('./server/apiRoutes.js')
     apiRoutesMod.setupQuoteRoutes(app, uploadsDir)
     apiRoutesMod.setupExportRoutes(app)
-    apiRoutesMod.setupFormConfigRoutes(app)
     console.log('✅ Quote routes enabled')
   } else {
     console.log('⏭️  Quote routes disabled (set QUOTES_ROUTES_ENABLED=true to enable)')
   }
 } catch (e) {
   console.warn('⚠️ Quote routes not initialized:', e?.message)
+}
+
+// Always expose minimal form configuration routes for user form
+try {
+  const apiRoutesMod = await import('./server/apiRoutes.js')
+  apiRoutesMod.setupFormConfigRoutes(app)
+  console.log('✅ Form config routes enabled')
+} catch (e) {
+  console.warn('⚠️ Form config routes not initialized:', e?.message)
 }
 setupMaterialsRoutes(app)
 app.use('/api', ordersRoutes)

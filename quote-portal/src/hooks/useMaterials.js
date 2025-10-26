@@ -7,16 +7,20 @@ export function useMaterials(autoLoad = false) {
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
 
-  const loadMaterials = useCallback(async () => {
+  const loadMaterials = useCallback(async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(null);
       
+      console.log('🔍 useMaterials: Loading materials...', { forceRefresh });
+      
       // Backend API'den tüm malzemeleri yükle (kaldırılanlar dahil)
-      const materialsList = await materialsService.getAllMaterials();
+      const materialsList = await materialsService.getAllMaterials(forceRefresh);
       
       setMaterials(materialsList);
       setInitialized(true);
+      
+      console.log('✅ useMaterials: Materials loaded:', { count: materialsList.length, forceRefresh });
       
       // Response'u return et ki caller kullanabilsin
       return materialsList;
@@ -40,7 +44,7 @@ export function useMaterials(autoLoad = false) {
 
   // Global stock update event listener
   useEffect(() => {
-    const handleStockUpdate = (event) => {
+    const handleStockUpdate = async (event) => {
       const { materialCode, newStock, quantity, operation, context } = event.detail;
       
       console.log('🔔 useMaterials: Global stock update event received:', {
@@ -51,11 +55,11 @@ export function useMaterials(autoLoad = false) {
         context
       });
       
-      // Materials listesinde ilgili material'ı bul ve stock'ını güncelle
+      // İlk olarak local state'i güncelle (immediate feedback için)
       setMaterials(prevMaterials => {
         return prevMaterials.map(material => {
           if (material.code === materialCode) {
-            console.log('🔄 useMaterials: Updating material stock:', {
+            console.log('🔄 useMaterials: Updating material stock locally:', {
               materialCode,
               oldStock: material.stock,
               newStock: newStock,
@@ -70,6 +74,14 @@ export function useMaterials(autoLoad = false) {
           return material;
         });
       });
+      
+      // Daha sonra backend'den fresh data çek (consistency için)
+      try {
+        console.log('🔄 useMaterials: Force refreshing materials from backend...');
+        await loadMaterials(true); // Force refresh
+      } catch (error) {
+        console.error('❌ useMaterials: Failed to refresh materials:', error);
+      }
     };
 
     // Event listener'ı ekle
@@ -79,7 +91,7 @@ export function useMaterials(autoLoad = false) {
     return () => {
       window.removeEventListener('materialStockUpdated', handleStockUpdate);
     };
-  }, []); // Dependency array boş - bir kere eklenip kalıcı olsun
+  }, [loadMaterials]); // loadMaterials dependency'e eklendi
 
   const refreshMaterials = async () => {
     await loadMaterials();

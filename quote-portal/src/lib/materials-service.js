@@ -57,9 +57,15 @@ async function fetchWithRetry(url, options = {}, maxRetries = 2) {
 
 export class MaterialsService {
   // LIST MATERIALS with enhanced error handling
-  static async getMaterials(filters = {}) {
+  static async getMaterials(filters = {}, forceRefresh = false) {
     try {
-      const res = await fetchWithRetry(`${API_BASE}/api/materials`, { headers: withAuth() })
+      // Add cache busting parameter if force refresh requested
+      const url = new URL(`${API_BASE}/api/materials`)
+      if (forceRefresh) {
+        url.searchParams.set('_t', Date.now().toString())
+      }
+      
+      const res = await fetchWithRetry(url.toString(), { headers: withAuth() })
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}))
         throw new Error(errorData.error || 'Materials listesi alınamadı')

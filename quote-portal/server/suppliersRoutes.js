@@ -151,16 +151,21 @@ export async function getAllSuppliers(req, res) {
     }
     
     const ifNoneMatch = req.headers['if-none-match']
+    const forceRefresh = req.query._t // Cache bust parameter
     
-    // Check cache first
-    const cached = getCachedData('suppliers')
-    if (cached) {
-      if (ifNoneMatch && ifNoneMatch === cached.etag) {
-        return res.status(304).end()
+    // Check cache first (unless force refresh is requested)
+    if (!forceRefresh) {
+      const cached = getCachedData('suppliers')
+      if (cached) {
+        if (ifNoneMatch && ifNoneMatch === cached.etag) {
+          return res.status(304).end()
+        }
+        res.set('ETag', cached.etag)
+        res.set('X-Cache', 'HIT')
+        return res.json(cached.data)
       }
-      res.set('ETag', cached.etag)
-      res.set('X-Cache', 'HIT')
-      return res.json(cached.data)
+    } else {
+      console.log('🔄 Force refresh requested, bypassing cache')
     }
 
     let suppliers
@@ -191,8 +196,8 @@ export async function getAllSuppliers(req, res) {
     cache.suppliers = { data: suppliers, ts: now, etag, hits: 0 }
     
     res.set('ETag', etag)
-    res.set('X-Cache', 'MISS')
-    console.log(`✅ API: ${suppliers.length} supplier döndürüldü`)
+    res.set('X-Cache', forceRefresh ? 'FORCE-REFRESH' : 'MISS')
+    console.log(`✅ API: ${suppliers.length} supplier döndürüldü ${forceRefresh ? '(force refresh)' : ''}`)
     res.json(suppliers)
   } catch (error) {
     console.error('❌ API: Suppliers listesi alınırken hata:', error)
@@ -314,6 +319,12 @@ export async function updateSupplier(req, res) {
       
       await supplierRef.update(updateData)
 
+      // Invalidate caches so subsequent GETs are fresh
+      try {
+        cache.suppliers = { data: null, ts: 0, etag: '', hits: 0 }
+        cache.supplierCategories = { data: null, ts: 0, etag: '', hits: 0 }
+      } catch {}
+
       console.log('✅ Supplier updated successfully:', id)
       res.json({ id, ...updateData, updatedAt: new Date().toISOString() })
   } catch (error) {
@@ -373,20 +384,46 @@ export async function addMaterialToSupplier(req, res) {
       const currentMaterials = supplierData.suppliedMaterials || []
       
       // Malzeme zaten ekli mi kontrol et
-      const materialExists = currentMaterials.some(m => m.materialId === materialId)
+      const materialExists = currentMaterials.some(m => 
+        (m.materialId === materialId) || (m.id === materialId)
+      )
       if (materialExists) {
         return res.status(400).json({ error: 'Material already added to supplier' })
       }
 
-      // Yeni malzemeyi ekle
+      // Malzeme detaylarını materials koleksiyonundan al
+      let materialCategory = ''
+      let materialUnit = ''
+      
+      try {
+        const materialDoc = await getDb().collection('materials').doc(materialId).get()
+        if (materialDoc.exists) {
+          const materialData = materialDoc.data()
+          materialCategory = materialData.category || ''
+          materialUnit = materialData.unit || ''
+        }
+      } catch (materialError) {
+        console.warn('Could not fetch material details:', materialError)
+      }
+
+      // Yeni malzemeyi ekle - hem eski hem yeni field isimleri ile uyumluluk
       const newMaterial = {
+        // Backend field names
         materialId,
         materialCode,
         materialName,
+        // Frontend compatible field names
+        id: materialId,
+        code: materialCode,
+        name: materialName,
+        // Additional details
+        category: materialCategory,
+        unit: materialUnit,
         price: parseFloat(price) || 0,
         deliveryTime: deliveryTime || '',
         minQuantity: parseInt(minQuantity) || 1,
-        addedAt: new Date().toISOString()
+        addedAt: new Date().toISOString(),
+        status: 'aktif' // Default status
       }
 
       const updatedMaterials = [...currentMaterials, newMaterial]
@@ -395,6 +432,12 @@ export async function addMaterialToSupplier(req, res) {
         suppliedMaterials: updatedMaterials,
         updatedAt: serverTimestamp()
       })
+
+      // Invalidate caches so subsequent GETs are fresh
+      try {
+        cache.suppliers = { data: null, ts: 0, etag: '', hits: 0 }
+        cache.supplierCategories = { data: null, ts: 0, etag: '', hits: 0 }
+      } catch {}
 
       console.log(`✅ Material ${materialCode} added to supplier ${supplierId}`)
       res.status(201).json(newMaterial)

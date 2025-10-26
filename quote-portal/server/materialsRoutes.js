@@ -185,17 +185,25 @@ export function setupMaterialsRoutes(app) {
         return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: 60 })
       }
       
+      // Check for cache busting parameter
+      const forceRefresh = req.query._t !== undefined
+      if (forceRefresh) {
+        console.log('🔄 API: Force refresh requested via _t parameter')
+      }
+      
       const ifNoneMatch = req.headers['if-none-match']
       
-      // Check cache first
-      const cached = getCachedData('materialsActive')
-      if (cached) {
-        if (ifNoneMatch && ifNoneMatch === cached.etag) {
-          return res.status(304).end()
+      // Check cache first (skip if force refresh)
+      if (!forceRefresh) {
+        const cached = getCachedData('materialsActive')
+        if (cached) {
+          if (ifNoneMatch && ifNoneMatch === cached.etag) {
+            return res.status(304).end()
+          }
+          res.set('ETag', cached.etag)
+          res.set('X-Cache', 'HIT')
+          return res.json(cached.data)
         }
-        res.set('ETag', cached.etag)
-        res.set('X-Cache', 'HIT')
-        return res.json(cached.data)
       }
 
       let materials
@@ -273,17 +281,25 @@ export function setupMaterialsRoutes(app) {
         return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: 60 })
       }
       
+      // Check for cache busting parameter
+      const forceRefresh = req.query._t !== undefined
+      if (forceRefresh) {
+        console.log('🔄 API: Force refresh requested via _t parameter for /all endpoint')
+      }
+      
       const ifNoneMatch = req.headers['if-none-match']
       
-      // Check cache first
-      const cached = getCachedData('materialsAll')
-      if (cached) {
-        if (ifNoneMatch && ifNoneMatch === cached.etag) {
-          return res.status(304).end()
+      // Check cache first (skip if force refresh)
+      if (!forceRefresh) {
+        const cached = getCachedData('materialsAll')
+        if (cached) {
+          if (ifNoneMatch && ifNoneMatch === cached.etag) {
+            return res.status(304).end()
+          }
+          res.set('ETag', cached.etag)
+          res.set('X-Cache', 'HIT')
+          return res.json(cached.data)
         }
-        res.set('ETag', cached.etag)
-        res.set('X-Cache', 'HIT')
-        return res.json(cached.data)
       }
 
       let materials

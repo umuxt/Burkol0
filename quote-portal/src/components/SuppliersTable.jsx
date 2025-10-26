@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import useSupplierProcurementHistory from '../hooks/useSupplierProcurementHistory.js'
 import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
+import { useSuppliers } from '../hooks/useSuppliers'
 import { categoriesService } from '../services/categories-service'
 import { materialsService } from '../services/materials-service'
 import EditMaterialModal from './EditMaterialModal'
@@ -27,6 +28,9 @@ export default function SuppliersTable({
   const [sortDirection, setSortDirection] = useState('asc')
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({})
+
+  // useSuppliers hook'unu kullan
+  const { addMaterialToSupplier, fetchSuppliers } = useSuppliers()
 
   // Material management state
   const { materials: activeMaterials, loading: materialsLoading, loadMaterials } = useMaterials(false)
@@ -92,7 +96,8 @@ export default function SuppliersTable({
       const currentSupplier = suppliers.find(s => s.id === selectedSupplierId)
       if (currentSupplier) {
         console.log('🔄 SuppliersTable: selectedSupplier güncelleniyor', {
-          id: currentSupplier.id
+          id: currentSupplier.id,
+          suppliedMaterialsCount: currentSupplier.suppliedMaterials?.length || 0
         })
         setSelectedSupplier(currentSupplier)
       }
@@ -425,28 +430,57 @@ export default function SuppliersTable({
       }
       
       const addedMaterial = await addMaterial(materialData)
+      console.log('✅ New material added to database:', addedMaterial)
       
-      // Add to selected materials and update supplier
+      // Add to selected materials for UI immediate feedback
       setSelectedMaterials(prev => [...prev, addedMaterial])
       
-      // Update supplier's supplied materials
-      if (selectedSupplier && onUpdateSupplier) {
-        const updatedSuppliedMaterials = [
-          ...(selectedSupplier.suppliedMaterials || []),
-          {
-            id: addedMaterial.id,
-            name: addedMaterial.name,
+      // Update local materials state immediately
+      setAllMaterials(prev => [...prev, addedMaterial])
+      
+      // Also refresh active materials list
+      if (loadMaterials) {
+        console.log('🔄 Refreshing active materials list...')
+        await loadMaterials()
+      }
+
+      // Use backend API to add material to supplier instead of direct update
+      if (selectedSupplier && addMaterialToSupplier) {
+        try {
+          const materialData = {
+            materialId: addedMaterial.id,
+            materialCode: addedMaterial.code,
+            materialName: addedMaterial.name,
             category: addedMaterial.category,
             unit: addedMaterial.unit,
-            addedAt: new Date(),
-            status: 'aktif' // Default status when adding new material
+            price: addedMaterial.sellPrice || addedMaterial.price || 0,
+            deliveryTime: '',
+            minQuantity: 1
           }
-        ]
-        
-        await onUpdateSupplier(selectedSupplier.id, {
-          ...selectedSupplier,
-          suppliedMaterials: updatedSuppliedMaterials
-        })
+
+          console.log('🔄 Adding new material to supplier via backend API:', {
+            supplierId: selectedSupplier.id,
+            materialData
+          })
+
+          await addMaterialToSupplier(selectedSupplier.id, materialData)
+          console.log('✅ Material added to supplier successfully')
+          
+          // Refresh suppliers list to get updated data from backend
+          if (onRefreshSuppliers) {
+            console.log('🔄 Refreshing suppliers list after adding new material')
+            await onRefreshSuppliers()
+          }
+          
+          // Also force refresh suppliers from hook to bypass cache
+          if (fetchSuppliers) {
+            console.log('🔄 Force refreshing suppliers from hook after adding new material')
+            await fetchSuppliers(true) // true = forceRefresh
+          }
+        } catch (supplierError) {
+          console.error('❌ Error adding material to supplier:', supplierError)
+          // Still continue even if supplier update fails
+        }
       }
       
       // Reset form
@@ -481,35 +515,66 @@ export default function SuppliersTable({
     if (selectedMaterials.length === 0 || !selectedSupplier) return
 
     try {
-      const updatedSuppliedMaterials = [
-        ...(selectedSupplier.suppliedMaterials || []),
-        ...selectedMaterials.map(material => ({
-          id: material.id,
-          name: material.name,
-          category: material.category,
-          unit: material.unit,
-          addedAt: new Date(),
-          status: 'aktif' // Default status when adding materials
-        }))
-      ]
+      console.log('🔄 Adding materials to supplier via backend API:', {
+        supplierId: selectedSupplier.id,
+        materialsCount: selectedMaterials.length,
+        materials: selectedMaterials.map(m => ({ id: m.id, name: m.name, code: m.code }))
+      })
 
-      // Remove duplicates
-      const uniqueMaterials = updatedSuppliedMaterials.filter((material, index, self) =>
-        index === self.findIndex(m => m.id === material.id)
-      )
+      // Her malzeme için backend API'sine ayrı ayrı istek gönder
+      for (const material of selectedMaterials) {
+        try {
+          const materialData = {
+            materialId: material.id,
+            materialCode: material.code,
+            materialName: material.name,
+            category: material.category,
+            unit: material.unit,
+            price: 0, // Default değer
+            deliveryTime: '', // Default değer
+            minQuantity: 1 // Default değer
+          }
 
-      if (onUpdateSupplier) {
-        await onUpdateSupplier(selectedSupplier.id, {
-          ...selectedSupplier,
-          suppliedMaterials: uniqueMaterials
-        })
+          console.log('🔄 Adding material to supplier:', {
+            supplierId: selectedSupplier.id,
+            materialData
+          })
+
+          await addMaterialToSupplier(selectedSupplier.id, materialData)
+          
+          console.log('✅ Material added successfully:', material.name)
+        } catch (materialError) {
+          console.error('❌ Error adding material:', material.name, materialError)
+          // Hata olsa bile diğer malzemelerle devam et
+        }
       }
+
+      // Başarılı ekleme sonrası tedarikçiler listesini yenile
+      if (onRefreshSuppliers) {
+        console.log('🔄 Refreshing suppliers list after adding materials')
+        await onRefreshSuppliers()
+      }
+      
+      // Also force refresh suppliers from hook to bypass cache
+      if (fetchSuppliers) {
+        console.log('🔄 Force refreshing suppliers from hook after adding existing materials')
+        await fetchSuppliers(true) // true = forceRefresh
+      }
+
+      // Also refresh materials lists to ensure they are up to date
+      if (loadMaterials) {
+        console.log('🔄 Refreshing materials list after adding to supplier')
+        await loadMaterials()
+      }
+      
+      // Refresh all materials list as well
+      await loadAllMaterials()
 
       setSelectedMaterials([])
       setShowMaterialPopup(false)
       alert('Malzemeler başarıyla eklendi!')
     } catch (error) {
-      console.error('Malzemeler eklenirken hata:', error)
+      console.error('❌ Error in handleAddExistingMaterials:', error)
       alert('Malzemeler eklenirken bir hata oluştu!')
     }
   }
@@ -2146,8 +2211,16 @@ export default function SuppliersTable({
 
                   {/* Current Supplied Materials */}
                   {selectedSupplier?.suppliedMaterials && selectedSupplier.suppliedMaterials.length > 0 && (() => {
+                    // Normalize supplied materials to have consistent field names
+                    const normalizedMaterials = selectedSupplier.suppliedMaterials.map(material => ({
+                      ...material,
+                      id: material.id || material.materialId,
+                      code: material.code || material.materialCode,
+                      name: material.name || material.materialName
+                    }))
+
                     // Calculate materials count based on toggle state
-                    const filteredMaterials = selectedSupplier.suppliedMaterials.filter(material => {
+                    const filteredMaterials = normalizedMaterials.filter(material => {
                       const fullMaterial = allMaterials.find(m => m.id === material.id)
                       const materialName = fullMaterial?.name || material.name
                       

@@ -91,10 +91,15 @@ export const materialsService = {
   },
 
   // Tüm materyalleri getir (kaldırılanlar dahil)
-  getAllMaterials: async () => {
+  getAllMaterials: async (forceRefresh = false) => {
     try {
       // Önce standart liste uç noktasını kullan
-      const response = await fetchWithTimeout('/api/materials', {
+      const url = new URL('/api/materials', window.location.origin)
+      if (forceRefresh) {
+        url.searchParams.set('_t', Date.now().toString())
+      }
+      
+      const response = await fetchWithTimeout(url.toString(), {
         headers: withAuth()
       })
       
@@ -103,7 +108,7 @@ export const materialsService = {
       }
       
       const materials = await response.json()
-      console.log('✅ All materials fetch successful (via /api/materials):', materials.length, 'items')
+      console.log('✅ All materials fetch successful (via /api/materials):', materials.length, 'items', { forceRefresh })
       return materials
     } catch (error) {
       console.warn('❌ All materials fetch error (returning empty list):', error?.message || error)
@@ -112,10 +117,15 @@ export const materialsService = {
   },
 
   // Tüm materyalleri getir (kaldırılanlar dahil) - Suppliers table için
-  getAllMaterialsIncludingRemoved: async () => {
+  getAllMaterialsIncludingRemoved: async (forceRefresh = false) => {
     try {
       // Kaldırılanlar dahil tüm malzemeleri almak için /all endpoint'ini kullan
-      const response = await fetchWithTimeout('/api/materials/all', {
+      const url = new URL('/api/materials/all', window.location.origin)
+      if (forceRefresh) {
+        url.searchParams.set('_t', Date.now().toString())
+      }
+      
+      const response = await fetchWithTimeout(url.toString(), {
         headers: withAuth()
       })
       
@@ -124,7 +134,7 @@ export const materialsService = {
       }
       
       const materials = await response.json()
-      console.log('✅ All materials including removed fetch successful (via /api/materials/all):', materials.length, 'items')
+      console.log('✅ All materials including removed fetch successful (via /api/materials/all):', materials.length, 'items', { forceRefresh })
       return materials
     } catch (error) {
       console.warn('❌ All materials including removed fetch error (returning empty list):', error?.message || error)

@@ -319,10 +319,23 @@ export function useOrderActions() {
                   const err = await res.json().catch(() => ({}));
                   console.warn('⚠️ Stock API failed:', item.materialCode, err?.error || res.statusText);
                 } else {
-                  // Notify UI for material refresh
+                  // Parse response to get updated stock info
+                  const stockUpdateResponse = await res.json().catch(() => ({}));
+                  
+                  // Notify UI for material refresh with detailed info
                   if (typeof window !== 'undefined') {
-                    window.dispatchEvent(new CustomEvent('stockUpdated', { detail: { materialCode: item.materialCode } }));
+                    window.dispatchEvent(new CustomEvent('materialStockUpdated', { 
+                      detail: { 
+                        materialCode: item.materialCode,
+                        newStock: stockUpdateResponse.newStock,
+                        quantity: item.quantity,
+                        operation: 'add',
+                        context: 'order_delivery'
+                      } 
+                    }));
                   }
+                  
+                  console.log('✅ Stock updated and event dispatched for:', item.materialCode, 'New stock:', stockUpdateResponse.newStock);
                 }
               } catch (e) {
                 console.warn('⚠️ Stock update error for', item.materialCode, e?.message);
@@ -558,6 +571,19 @@ export function useOrderItems(orderId) {
           console.log('✅ DEBUG: API success response:', result);
           
           console.log(`✅ Stock updated via API for ${currentItem.materialCode}: ${result.previousStock} → ${result.newStock}`);
+          
+          // Trigger material stock update event
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('materialStockUpdated', {
+              detail: {
+                materialCode: currentItem.materialCode,
+                newStock: result.newStock,
+                quantity: currentItem.quantity,
+                operation: 'add',
+                context: 'item_delivery'
+              }
+            }));
+          }
           
           if (showNotification) {
             showNotification(
