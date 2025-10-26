@@ -20,9 +20,9 @@ import MaterialDeletionWarningModal from './components/MaterialDeletionWarningMo
 import AddOrderModal from './components/AddOrderModal.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 
-// Firebase hooks
-import { useMaterials, useMaterialActions } from './hooks/useFirebaseMaterials.js';
-import { useCategories, useCategoryActions } from './hooks/useFirebaseCategories.js';
+// Backend API hooks
+import { useMaterials, useMaterialActions } from './hooks/useMaterials.js';
+import { useCategories, useCategoryActions } from './hooks/useCategories.js';
 import { useSuppliers } from './hooks/useSuppliers.js';
 
 const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin' 
@@ -37,7 +37,7 @@ const materialTypes = [
 ];
 
 function MaterialsApp() {
-  // Firebase hooks ile veri yönetimi (manuel yükleme)
+  // Backend API ile veri yönetimi (manuel yükleme)
   const { 
     materials, 
     loading: materialsLoading, 
@@ -186,7 +186,7 @@ function MaterialsApp() {
     setFilters(newFilters);
   };
 
-  // Filtrelenmiş malzemeler - Client-side filtering
+  // Filtrelenmiş malzemeler - Frontend filtering
   const filteredMaterials = materials.filter(material => {
     // Status filtresine göre materyalleri filtrele
     if (filters.status === 'Aktif') {
@@ -268,7 +268,7 @@ function MaterialsApp() {
     setIsCategoryModalOpen(false);
   };
 
-  // Firebase ile kategori kaydetme
+  // Backend API ile kategori kaydetme
   const handleSaveCategories = async (updatedCategories) => {
     try {
       // Bu fonksiyon CategoryManagementModal'dan gelecek kategori güncellemelerini işler
@@ -279,7 +279,7 @@ function MaterialsApp() {
     }
   };
 
-  // Firebase ile yeni malzeme kaydetme
+  // Backend API ile yeni malzeme kaydetme
   const handleSaveMaterial = async (materialData, newCategory) => {
     try {
       // Yeni kategori eklendiyse önce kategoriyi oluştur
@@ -295,7 +295,7 @@ function MaterialsApp() {
         await refreshCategories(); // Kategorileri yenile
       }
 
-      // Malzemeyi Firebase'e kaydet
+      // Malzemeyi Backend API'ye kaydet
       const newMaterial = await addMaterial(materialData);
       
       // newMaterial validation
@@ -356,7 +356,7 @@ function MaterialsApp() {
     }
   };
 
-  // Firebase ile malzeme güncelleme
+  // Backend API ile malzeme güncelleme
   const handleSaveEditMaterial = async (materialData, newCategory) => {
     try {
       // Yeni kategori eklendiyse önce kategoriyi oluştur
@@ -372,7 +372,7 @@ function MaterialsApp() {
         await refreshCategories();
       }
 
-      // Malzemeyi Firebase'de güncelle
+      // Malzemeyi Backend API'de güncelle
       if (editingMaterial && editingMaterial.id) {
         await updateMaterial(editingMaterial.id, materialData);
       }

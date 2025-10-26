@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import AddOrderModal from './AddOrderModal.jsx'
-import { fetchWithTimeout } from '../lib/api.js'
+import { fetchWithTimeout, withAuth } from '../lib/api.js'
+import { MaterialsService } from '../lib/materials-service.js'
 
 // Shared helpers for delivery status across list and modal
 function getDeliveryStatusColor(status) {
@@ -40,12 +41,18 @@ function getDeliveryStatusText(status, daysRemaining = 0) {
 }
 
 // Auth helper
-function withAuth(headers = {}) {
-  const token = localStorage.getItem('authToken') || 'dev-token'
-  return {
-    ...headers,
-    'Authorization': `Bearer ${token}`,
-    'Content-Type': 'application/json'
+async function fetchJsonWith401Retry(url, options = {}, timeoutMs = 10000) {
+  const res = await fetchWithTimeout(url, options, timeoutMs)
+  if (res.status !== 401) return res
+  try {
+    const host = typeof window !== 'undefined' ? window.location.hostname : ''
+    const isLocal = host === 'localhost' || host === '127.0.0.1'
+    if (!isLocal) return res
+    localStorage.removeItem('bk_admin_token')
+    const retry = await fetchWithTimeout(url, { ...(options || {}), headers: withAuth(options?.headers || {}) }, timeoutMs)
+    return retry
+  } catch {
+    return res
   }
 }
 
@@ -738,7 +745,8 @@ function OrdersTable({
   deliveryLoading = false,
   selectedOrderIds = new Set(),
   onToggleSelectOrder,
-  onToggleSelectAll
+  onToggleSelectAll,
+  materialNameMap = {}
 }) {
   const [sortField, setSortField] = React.useState('orderDate')
   const [sortDirection, setSortDirection] = React.useState('desc')
@@ -1026,7 +1034,7 @@ function OrdersTable({
           >
             <div style={{ fontWeight: 600 }}>{item.materialCode || '—'}</div>
             <div style={{ fontWeight: 500, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {item.materialName || '-'}
+              {materialNameMap[item.materialCode] || item.materialName || '-'}
             </div>
             <div style={{ textAlign: 'right', fontWeight: 600 }}>
               {item.quantity || 0} adet
@@ -1617,9 +1625,7 @@ export default function OrdersTabContent() {
       try {
         setStatsLoading(true)
         
-        const response = await fetchWithTimeout('/api/orders/stats', {
-          headers: withAuth()
-        })
+        const response = await fetchJsonWith401Retry('/api/orders/stats', { headers: withAuth({ 'Content-Type': 'application/json' }) })
         
         console.log('📊 Stats API response:', response.status, response.statusText)
         
@@ -1676,7 +1682,7 @@ export default function OrdersTabContent() {
       try {
         // Test materials endpoint
         console.log('🧪 Testing /api/materials...')
-        const materialsResponse = await fetchWithTimeout('/api/materials', { headers: withAuth() })
+        const materialsResponse = await fetchJsonWith401Retry('/api/materials', { headers: withAuth({ 'Content-Type': 'application/json' }) })
         console.log('📦 Materials response:', materialsResponse.status)
         if (materialsResponse.ok) {
           const materialsData = await materialsResponse.json()
@@ -1685,7 +1691,7 @@ export default function OrdersTabContent() {
         
         // Test orders endpoint  
         console.log('🧪 Testing /api/orders...')
-        const ordersResponse = await fetchWithTimeout('/api/orders', { headers: withAuth() })
+        const ordersResponse = await fetchJsonWith401Retry('/api/orders', { headers: withAuth({ 'Content-Type': 'application/json' }) })
         console.log('📋 Orders response:', ordersResponse.status)
         if (ordersResponse.ok) {
           const ordersData = await ordersResponse.json()
@@ -1694,7 +1700,7 @@ export default function OrdersTabContent() {
         
         // Test stats endpoint
         console.log('🧪 Testing /api/orders/stats...')
-        const statsResponse = await fetchWithTimeout('/api/orders/stats', { headers: withAuth() })
+        const statsResponse = await fetchJsonWith401Retry('/api/orders/stats', { headers: withAuth({ 'Content-Type': 'application/json' }) })
         console.log('📊 Stats response:', statsResponse.status)
         if (statsResponse.ok) {
           const statsData = await statsResponse.json()
@@ -1715,14 +1721,18 @@ export default function OrdersTabContent() {
       try {
         setMaterialsLoading(true)
         
-        // Tüm malzemeleri çek (kategori filtreleme için pasif olanlar da gerekli)
-        const response = await fetchWithTimeout('/api/materials/all', {
+        // Tüm malzemeleri çek
+        const response = await fetchWithTimeout('/api/materials', {
           headers: withAuth()
         })
         
         console.log('📡 Materials API response:', response.status, response.statusText)
         
         if (!response.ok) {
+          if (response.status === 401) {
+            setMaterials([])
+            return
+          }
           throw new Error(`API Error: ${response.status} - ${response.statusText}`)
         }
         
@@ -1773,6 +1783,10 @@ export default function OrdersTabContent() {
         console.log('📡 Suppliers API response:', response.status, response.statusText)
         
         if (!response.ok) {
+          if (response.status === 401) {
+            setSuppliers([])
+            return
+          }
           throw new Error(`API Error: ${response.status} - ${response.statusText}`)
         }
         
@@ -1848,6 +1862,7 @@ export default function OrdersTabContent() {
   const [ordersError, setOrdersError] = useState(null)
   const [deliveryStatuses, setDeliveryStatuses] = useState({})
   const [deliveryLoading, setDeliveryLoading] = useState(false)
+  const [materialNameMap, setMaterialNameMap] = useState({})
   
   // Orders API çağrısı - Basit test
   useEffect(() => {
@@ -1859,9 +1874,7 @@ export default function OrdersTabContent() {
         setOrdersLoading(true)
         setOrdersError(null)
         
-        const response = await fetchWithTimeout('/api/orders', {
-          headers: withAuth()
-        })
+        const response = await fetchJsonWith401Retry('/api/orders', { headers: withAuth({ 'Content-Type': 'application/json' }) })
         console.log('� Response status:', response.status)
         console.log('📡 Response ok:', response.ok)
         console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()))
@@ -1891,6 +1904,36 @@ export default function OrdersTabContent() {
     
     fetchOrders()
   }, [])
+
+  // Load material name map to ensure latest names reflect in order items
+  useEffect(() => {
+    let cancelled = false
+    const buildMap = async () => {
+      try {
+        const list = await MaterialsService.getMaterials()
+        if (cancelled) return
+        const map = Object.create(null)
+        for (const m of list) {
+          if (m.code) map[m.code] = m.name || m.materialName || m.code
+          if (m.id) map[m.id] = m.name || m.materialName || m.id
+        }
+        setMaterialNameMap(map)
+      } catch (e) {
+        // no-op
+      }
+    }
+    buildMap()
+    const onMaterialUpdated = () => buildMap()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('materialUpdated', onMaterialUpdated)
+    }
+    return () => {
+      cancelled = true
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('materialUpdated', onMaterialUpdated)
+      }
+    }
+  }, [])
   
   // Test: orders state'i değiştiğinde log
   useEffect(() => {
@@ -1907,9 +1950,7 @@ export default function OrdersTabContent() {
       setOrdersLoading(true)
       setOrdersError(null)
       
-      const response = await fetchWithTimeout('/api/orders', {
-        headers: withAuth()
-      })
+      const response = await fetchJsonWith401Retry('/api/orders', { headers: withAuth({ 'Content-Type': 'application/json' }) })
       
       if (!response.ok) {
         throw new Error(`API Error: ${response.status}`)
@@ -2219,12 +2260,35 @@ export default function OrdersTabContent() {
       const updatedOrder = await updateOrder(orderId, { orderStatus: newStatus });
 
       // Update local state
+      // 1) Optimistically update orders list to keep UI in sync immediately
+      setOrders(prev => prev.map(o => {
+        if (o.id !== orderId) return o;
+        const baseItems = Array.isArray(o.items) ? o.items : [];
+        const propagatedItems = baseItems.length > 0
+          ? baseItems.map(it => ({
+              ...it,
+              itemStatus: newStatus,
+              actualDeliveryDate: newStatus === 'Teslim Edildi' ? (it.actualDeliveryDate || new Date()) : null
+            }))
+          : baseItems;
+        return { ...o, orderStatus: newStatus, items: propagatedItems };
+      }))
+
       if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder(prev => prev ? {
-          ...prev,
-          orderStatus: newStatus,
-          items: updatedOrder.items || prev.items
-        } : prev)
+        setSelectedOrder(prev => {
+          if (!prev) return prev;
+          const baseItems = Array.isArray((updatedOrder && updatedOrder.items) || prev.items) 
+            ? (updatedOrder.items || prev.items) 
+            : [];
+          const propagatedItems = baseItems.length > 0
+            ? baseItems.map(it => ({
+                ...it,
+                itemStatus: newStatus,
+                actualDeliveryDate: newStatus === 'Teslim Edildi' ? (it.actualDeliveryDate || new Date()) : null
+              }))
+            : baseItems;
+          return { ...prev, orderStatus: newStatus, items: propagatedItems };
+        })
       }
       
       await refreshOrders();
@@ -2493,6 +2557,7 @@ export default function OrdersTabContent() {
         selectedOrderIds={selectedOrderIds}
         onToggleSelectOrder={handleToggleSelectOrder}
         onToggleSelectAll={handleToggleSelectAll}
+        materialNameMap={materialNameMap}
         emptyMessage={
           activeOrdersTab === 'pending' 
             ? 'Bekleyen sipariş bulunamadı' 

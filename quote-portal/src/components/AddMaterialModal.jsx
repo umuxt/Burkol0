@@ -167,7 +167,7 @@ export default function AddMaterialModal({
       return;
     }
 
-    // Firebase için malzeme verisi hazırla
+    // Backend API için malzeme verisi hazırla
     const materialData = {
       code: finalCode,
       name: formData.name,

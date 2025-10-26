@@ -3,7 +3,7 @@ import SuppliersTable from './SuppliersTable'
 import AddSupplierModal from './AddSupplierModal'
 import { useSuppliers } from '../hooks/useSuppliers'
 import { useSupplierCategories } from '../hooks/useSupplierCategories'
-import { useCategories } from '../hooks/useFirebaseCategories'
+import { useCategories } from '../hooks/useCategories'
 
 // Suppliers dashboard component with real data
 function SuppliersDashboard({ suppliers }) {
@@ -655,7 +655,7 @@ export default function SuppliersTabContent({
     }
   }
   
-  // Firebase hooks
+  // Backend API hooks
   const { 
     suppliers, 
     loading: suppliersLoading, 
@@ -800,7 +800,7 @@ export default function SuppliersTabContent({
     // Bu fonksiyon artık gerekli değil çünkü modal SuppliersTable içinde
   }
 
-  // CSV Export (client-side; sadece mevcut backend'den gelen veriyi kullanır)
+  // CSV Export (frontend; sadece mevcut backend'den gelen veriyi kullanır)
   const handleExportSuppliersCSV = () => {
     try {
       const rows = (categoryFilteredSuppliers || filteredSuppliers || suppliers || [])

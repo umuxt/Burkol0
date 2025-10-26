@@ -43,7 +43,7 @@ const copyComponents = () => {
         mkdirSync(srcDir, { recursive: true })
       }
       
-      const srcFiles = ['firebase-config.js', 'i18n.js']
+      const srcFiles = ['i18n.js']
       srcFiles.forEach(file => {
         const sourcePath = resolve(__dirname, `src/${file}`)
         if (existsSync(sourcePath)) {

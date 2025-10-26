@@ -1,17 +1,19 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchWithTimeout } from '../lib/api.js'
+import { fetchWithTimeout, withAuth } from '../lib/api.js'
 import { getAuthToken } from '../utils/auth.js'
 
-function withAuth(headers = {}) {
+async function fetchJsonWith401Retry(url, options = {}, timeoutMs = 10000) {
+  const res = await fetchWithTimeout(url, options, timeoutMs)
+  if (res.status !== 401) return res
   try {
-    const token = localStorage.getItem('bk_admin_token')
-    // Development mode: use dev token if no real token exists
-    if (!token && window.location.hostname === 'localhost') {
-      return { ...headers, Authorization: 'Bearer dev-admin-token', 'Content-Type': 'application/json' }
-    }
-    return token ? { ...headers, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { ...headers, 'Content-Type': 'application/json' }
+    const host = typeof window !== 'undefined' ? window.location.hostname : ''
+    const isLocal = host === 'localhost' || host === '127.0.0.1'
+    if (!isLocal) return res
+    localStorage.removeItem('bk_admin_token')
+    const retry = await fetchWithTimeout(url, { ...(options || {}), headers: withAuth(options?.headers || {}) }, timeoutMs)
+    return retry
   } catch {
-    return { ...headers, 'Content-Type': 'application/json' }
+    return res
   }
 }
 
@@ -29,13 +31,17 @@ export function useSuppliers() {
         timestamp: new Date().toISOString()
       })
       
-      const response = await fetchWithTimeout('/api/suppliers', {
-        headers: withAuth()
-      })
+      const response = await fetchJsonWith401Retry('/api/suppliers', { headers: withAuth({ 'Content-Type': 'application/json' }) })
 
       console.log('📡 Server response:', response.status, response.statusText)
 
       if (!response.ok) {
+        if (response.status === 401) {
+          // Yetkisiz: boş liste ile devam et, hata göstermeden
+          setSuppliers([])
+          setError(null)
+          return
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
@@ -62,7 +68,7 @@ export function useSuppliers() {
     try {
       const response = await fetchWithTimeout('/api/suppliers', {
         method: 'POST',
-        headers: withAuth(),
+        headers: withAuth({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(supplierData)
       })
 
@@ -102,7 +108,7 @@ export function useSuppliers() {
       
       const response = await fetchWithTimeout(`/api/suppliers/${id}`, {
         method: 'PATCH',
-        headers: withAuth(),
+        headers: withAuth({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(cleanUpdateData)
       })
 
@@ -136,7 +142,7 @@ export function useSuppliers() {
     try {
       const response = await fetchWithTimeout(`/api/suppliers/${id}`, {
         method: 'DELETE',
-        headers: withAuth()
+        headers: withAuth({ 'Content-Type': 'application/json' })
       })
 
       if (!response.ok) {
@@ -158,7 +164,7 @@ export function useSuppliers() {
       
       const response = await fetchWithTimeout(`/api/suppliers/${supplierId}/materials`, {
         method: 'POST',
-        headers: withAuth(),
+        headers: withAuth({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(materialData)
       })
 
@@ -177,9 +183,7 @@ export function useSuppliers() {
   // Get suppliers for a specific material
   const getSuppliersForMaterial = async (materialId) => {
     try {
-      const response = await fetchWithTimeout(`/api/materials/${materialId}/suppliers`, {
-        headers: withAuth()
-      })
+      const response = await fetchJsonWith401Retry(`/api/materials/${materialId}/suppliers`, { headers: withAuth({ 'Content-Type': 'application/json' }) })
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -200,9 +204,7 @@ export function useSuppliers() {
     }
 
     try {
-      const response = await fetchWithTimeout(`/api/suppliers/${supplierId}/materials`, {
-        headers: withAuth()
-      })
+      const response = await fetchJsonWith401Retry(`/api/suppliers/${supplierId}/materials`, { headers: withAuth({ 'Content-Type': 'application/json' }) })
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
@@ -219,9 +221,7 @@ export function useSuppliers() {
   // Get suppliers by category
   const getSuppliersByCategory = async (category) => {
     try {
-      const response = await fetchWithTimeout(`/api/suppliers/category/${encodeURIComponent(category)}`, {
-        headers: withAuth()
-      })
+      const response = await fetchJsonWith401Retry(`/api/suppliers/category/${encodeURIComponent(category)}`, { headers: withAuth({ 'Content-Type': 'application/json' }) })
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)

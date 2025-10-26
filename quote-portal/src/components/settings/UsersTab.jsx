@@ -495,7 +495,7 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
                     )
                   )
                 )),
-            // Firebase button container
+            // Firebase Admin Console button container
             React.createElement('div', {
               style: {
                 marginTop: '20px',
@@ -514,7 +514,7 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
                   whiteSpace: 'nowrap',
                   fontSize: '14px'
                 }
-              }, 'Tüm session geçmişini görmek için Firebase göz atın')
+              }, 'Tüm session geçmişini görmek için Firebase Admin Console\'a göz atın')
             )
           )
         : (users.length === 0 

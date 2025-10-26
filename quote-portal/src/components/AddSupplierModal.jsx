@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useSuppliers } from '../hooks/useSuppliers'
-import { useMaterials, useMaterialActions } from '../hooks/useFirebaseMaterials'
+import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
 import { categoriesService } from '../services/categories-service'
 
 export default function AddSupplierModal({ isOpen, onClose, onSave, categories = [] }) {
@@ -123,7 +123,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
   const [selectedMaterials, setSelectedMaterials] = useState([])
   const [materialSearchTerm, setMaterialSearchTerm] = useState('')
   const [showMaterialPopup, setShowMaterialPopup] = useState(false) // Pop-up state
-  const [materialCategories, setMaterialCategories] = useState([]) // Categories from Firebase
+  const [materialCategories, setMaterialCategories] = useState([]) // Categories from Backend API
   const [allMaterials, setAllMaterials] = useState([]) // All materials including removed ones for code generation
   const [nextMaterialCode, setNextMaterialCode] = useState(() => {
     // Component mount'ta hesapla
@@ -375,7 +375,7 @@ export default function AddSupplierModal({ isOpen, onClose, onSave, categories =
     }
 
     try {
-      // If new category, add it to Firebase first
+      // If new category, add it to Backend API first
       if (showNewCategory && newCategory.trim()) {
         try {
           await categoriesService.addCategory({

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { useMaterials, useMaterialActions } from '../hooks/useFirebaseMaterials'
+import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
 import { categoriesService } from '../services/categories-service'
 import { materialsService } from '../services/materials-service'
 import EditMaterialModal from './EditMaterialModal'
@@ -811,17 +811,24 @@ export default function SuppliersTable({
                     <td>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         {supplier.suppliedMaterials && supplier.suppliedMaterials.length > 0 
-                          ? [...new Set(supplier.suppliedMaterials
-                              .filter(material => {
-                                // Find full material details from allMaterials array
-                                const fullMaterial = allMaterials.find(m => m.id === material.id);
-                                // Only include categories from materials that are not "Kaldırıldı"
-                                return fullMaterial?.status !== 'Kaldırıldı';
-                              })
-                              .map(material => {
-                                const category = materialCategories.find(cat => cat.id === material.category);
-                                return category ? category.name : material.category;
-                              }).filter(Boolean))].map((categoryName, index) => (
+                          ? [...new Set(
+                              supplier.suppliedMaterials
+                                .filter(material => {
+                                  // Find full material details from allMaterials array
+                                  const fullMaterial = allMaterials.find(m => m.id === material.id || m.code === material.materialCode || m.code === material.code);
+                                  // Only include categories from materials that are not "Kaldırıldı"
+                                  return (fullMaterial?.status || material.status) !== 'Kaldırıldı';
+                                })
+                                .map(material => {
+                                  const fullMaterial = allMaterials.find(m => m.id === material.id || m.code === material.materialCode || m.code === material.code);
+                                  const resolvedCategoryId = fullMaterial?.category ?? material.category;
+                                  const category = materialCategories.find(cat => cat.id === resolvedCategoryId);
+                                  const name = category ? (category.name || category.label || resolvedCategoryId) : resolvedCategoryId;
+                                  return String(name).trim();
+                                })
+                                .filter(Boolean)
+                                .map(n => n.toString())
+                            )].map((categoryName, index) => (
                               <span 
                                 key={index}
                                 style={{ 

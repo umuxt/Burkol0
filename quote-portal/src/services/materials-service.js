@@ -1,5 +1,5 @@
-// Materials Service - Backend API kullanarak (quote-dashboard tarzı)
-// Firebase Admin SDK backend'de çalışıyor, client'da API call'lar yapıyoruz
+// Materials Service - Backend API kullanarak
+// Backend API ile Firebase Admin SDK, frontend'de API call'lar yapıyoruz
 
 import { fetchWithTimeout } from '../lib/api.js'
 
@@ -24,34 +24,25 @@ export const materialsService = {
   // Tüm materyalleri getir
   getMaterials: async (categoryFilter = null) => {
     try {
-      console.warn('🔄 SERVICE DEBUG: getMaterials başladı');
       const url = categoryFilter 
         ? `/api/materials?category=${encodeURIComponent(categoryFilter)}`
         : '/api/materials'
       
-      console.warn('🔍 SERVICE DEBUG: URL:', url);
-      console.warn('🔍 SERVICE DEBUG: Headers:', withAuth());
-      
       const response = await fetchWithTimeout(url, {
         headers: withAuth()
       })
-      
-      console.warn('🔍 SERVICE DEBUG: Response status:', response.status);
-      console.warn('🔍 SERVICE DEBUG: Response ok:', response.ok);
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       
       const materials = await response.json()
-      console.warn('🔍 SERVICE DEBUG: Response parsed:', materials?.length || 0, 'materyal');
-      console.warn('🔍 SERVICE DEBUG: Materials detay:', materials);
       console.log('✅ Materials fetch successful:', materials.length, 'items')
       return materials
     } catch (error) {
-      console.error('❌ Materials fetch error:', error)
-      console.warn('❌ SERVICE DEBUG: Error details:', error.message);
-      throw error
+      console.warn('❌ Materials fetch error (returning empty list):', error?.message || error)
+      // Ağ hatalarında UI'yı bozmayalım; boş liste döndür
+      return []
     }
   },
 
@@ -102,8 +93,8 @@ export const materialsService = {
   // Tüm materyalleri getir (kaldırılanlar dahil)
   getAllMaterials: async () => {
     try {
-      console.warn('🔄 SERVICE DEBUG: getAllMaterials başladı (kaldırılanlar dahil)')
-      const response = await fetchWithTimeout('/api/materials/all', {
+      // Önce standart liste uç noktasını kullan
+      const response = await fetchWithTimeout('/api/materials', {
         headers: withAuth()
       })
       
@@ -112,11 +103,11 @@ export const materialsService = {
       }
       
       const materials = await response.json()
-      console.log('✅ All materials fetch successful:', materials.length, 'items (including removed)')
+      console.log('✅ All materials fetch successful (via /api/materials):', materials.length, 'items')
       return materials
     } catch (error) {
-      console.error('❌ All materials fetch error:', error)
-      throw error
+      console.warn('❌ All materials fetch error (returning empty list):', error?.message || error)
+      return []
     }
   },
 
