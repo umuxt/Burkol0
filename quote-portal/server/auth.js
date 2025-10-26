@@ -1,9 +1,21 @@
-// Authentication system - User management and session handling (no Firestore dependency)
+// Authentication system - User management and session handling with Firestore
 import crypto from 'crypto'
+import admin from 'firebase-admin'
 
-// In-memory store to avoid Firestore usage on startup
+// Firestore database instance
+let db
+function getDb() {
+  if (!db) {
+    if (!admin.apps.length) {
+      try { admin.initializeApp() } catch {}
+    }
+    db = admin.firestore()
+  }
+  return db
+}
+
+// In-memory cache for sessions and system config
 const memory = {
-  users: new Map(), // key: email
   sessions: new Map(), // key: token
   sessionsById: new Map(), // key: sessionId
   systemConfig: { dailySessionCounters: {} }
@@ -21,26 +33,56 @@ export function createUser(email, password, role = 'admin') {
   return { email, pw_salt: salt, pw_hash: hash, role }
 }
 
-export function verifyUser(email, password) {
-  const user = memory.users.get(email)
-  if (!user) return null
-  
-  // Kullanıcının aktif olup olmadığını kontrol et
-  if (user.active === false) {
-    return { error: 'account_deactivated', message: 'Hesabınız devre dışı bırakılmış.' }
+export async function verifyUser(email, password) {
+  try {
+    // Firestore'dan kullanıcıyı al
+    const usersSnapshot = await getDb().collection('users').where('email', '==', email).get()
+    
+    if (usersSnapshot.empty) {
+      console.log('❌ User not found:', email)
+      return null
+    }
+    
+    const userDoc = usersSnapshot.docs[0]
+    const user = userDoc.data()
+    
+    // Kullanıcının aktif olup olmadığını kontrol et
+    if (user.active === false) {
+      return { error: 'account_deactivated', message: 'Hesabınız devre dışı bırakılmış.' }
+    }
+    
+    // Plain password kontrolü (admin panel kullanıcıları için)
+    if (user.plainPassword && user.plainPassword === password) {
+      console.log('✅ User verified with plain password:', email)
+      return { 
+        id: userDoc.id,
+        email: user.email, 
+        role: user.role || 'admin',
+        name: user.name || user.email
+      }
+    }
+    
+    // Hash-based authentication
+    if (user.pw_hash && user.pw_salt) {
+      const { hash } = hashPassword(password, user.pw_salt)
+      if (hash === user.pw_hash) {
+        console.log('✅ User verified with hash:', email)
+        return { 
+          id: userDoc.id,
+          email: user.email, 
+          role: user.role || 'admin',
+          name: user.name || user.email
+        }
+      }
+    }
+    
+    console.log('❌ Invalid password for user:', email)
+    return null
+    
+  } catch (error) {
+    console.error('❌ Error verifying user:', error)
+    return null
   }
-  
-  // SADECE Admin Panel'den yönetilen şifreler kabul edilir
-  if (user.plainPassword && user.plainPassword === password) {
-    return { email: user.email, role: user.role }
-  }
-  
-  // Authentication simplified for admin access only
-  // - Legacy password fields no longer used
-  // - Hash-based authentication removed
-  // - Only plain text admin password verification active
-  
-  return null
 }
 
 // Session management
@@ -70,15 +112,23 @@ export function generateSessionId() {
   return `ss-${dateKey}-${counterStr}`
 }
 
-export function createSession(email, days = 7) {
+export async function createSession(email, days = 7) {
   const token = newToken()
   const sessionId = generateSessionId()
   const loginTime = new Date()
   const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000)
   
-  // Get user info for session
-  const user = memory.users.get(email)
-  const userName = user?.name || user?.email?.split('@')[0] || 'Unknown User'
+  // Get user info for session from Firestore
+  let userName = email.split('@')[0] // fallback
+  try {
+    const usersSnapshot = await getDb().collection('users').where('email', '==', email).get()
+    if (!usersSnapshot.empty) {
+      const userData = usersSnapshot.docs[0].data()
+      userName = userData.name || userData.email?.split('@')[0] || userName
+    }
+  } catch (error) {
+    console.warn('Warning: Could not fetch user details for session:', error.message)
+  }
   
   // Create login activity data
   const loginActivity = {

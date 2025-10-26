@@ -10,7 +10,7 @@ const router = express.Router()
 let db
 
 // In-memory caches to reduce Firestore reads and survive quota spikes
-const CACHE_TTL_MS = Number(process.env.ORDERS_CACHE_TTL_MS || 60_000)
+const CACHE_TTL_MS = Number(process.env.ORDERS_CACHE_TTL_MS || 2_000) // 2 saniye - Event-driven system için minimal cache
 const cache = {
   orders: { data: null, ts: 0, etag: '' },
   stats: { data: null, ts: 0, etag: '' },
@@ -21,6 +21,14 @@ function buildEtag(payload) {
     const src = Array.isArray(payload) ? `${payload.length}:${payload[0]?.id || ''}:${payload[payload.length-1]?.id || ''}` : JSON.stringify(Object.keys(payload || {}).sort()).slice(0,128)
     return 'W/"' + Buffer.from(src).toString('base64').slice(0, 16) + '"'
   } catch { return 'W/"0"' }
+}
+
+// ✅ Cache invalidation utility
+function invalidateOrdersCache(reason = 'manual') {
+  console.log(`🔄 CACHE INVALIDATION: Clearing orders cache - reason: ${reason}`)
+  cache.orders.data = null
+  cache.orders.ts = 0
+  cache.orders.etag = ''
 }
 
 // Auth + Debug middleware
@@ -149,6 +157,9 @@ router.post('/orders', async (req, res) => {
       })
     }
     
+    // ✅ CACHE INVALIDATION: Yeni sipariş oluşturulduğunda cache'i temizle
+    invalidateOrdersCache('order_created')
+    
     res.json({
       success: true,
       orderId: orderCode,
@@ -237,8 +248,10 @@ router.put('/orders/:orderId/items/:itemId', async (req, res) => {
     
     // Check if order status should be updated based on all items' status
     let newOrderStatus = null
+    const currentOrderStatus = orderData.orderStatus
     const itemStatuses = items.map(item => item.itemStatus || 'Onay Bekliyor')
     console.log('🔍 DEBUG: All item statuses:', itemStatuses)
+    console.log('🔍 DEBUG: Current order status:', currentOrderStatus)
     
     // Determine new order status based on item statuses
     if (itemStatuses.every(status => status === 'Teslim Edildi')) {
@@ -253,6 +266,10 @@ router.put('/orders/:orderId/items/:itemId', async (req, res) => {
     } else if (itemStatuses.some(status => status === 'Onaylandı')) {
       newOrderStatus = 'Onaylandı'
       console.log('✅ DEBUG: Some items approved, updating order status to: Onaylandı')
+    } else {
+      // Keep current status if no specific conditions are met
+      newOrderStatus = currentOrderStatus
+      console.log('🔄 DEBUG: No status change needed, keeping current:', currentOrderStatus)
     }
     
     // Prepare update object
@@ -261,18 +278,26 @@ router.put('/orders/:orderId/items/:itemId', async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }
     
-    // Add order status update if needed
-    if (newOrderStatus) {
+    // Add order status update if it changed
+    const orderStatusChanged = newOrderStatus && newOrderStatus !== currentOrderStatus
+    if (orderStatusChanged) {
       updateData.orderStatus = newOrderStatus
-      console.log('🔄 DEBUG: Updating order status to:', newOrderStatus)
+      console.log('🔄 DEBUG: Updating order status from', currentOrderStatus, 'to:', newOrderStatus)
+    } else {
+      console.log('📝 DEBUG: Order status remains:', currentOrderStatus)
     }
     
     // Update order
     await orderRef.update(updateData)
     
+    // ✅ CACHE INVALIDATION: Item güncellendiğinde cache'i temizle
+    invalidateOrdersCache('item_updated')
+    
     res.json({
       item: items[itemIndex],
-      message: 'Item updated successfully'
+      message: 'Item updated successfully',
+      orderStatus: newOrderStatus, // ✅ Frontend için order status bilgisi
+      orderStatusChanged: orderStatusChanged // ✅ Status değişip değişmediği flag'i
     })
     
   } catch (error) {
@@ -391,10 +416,15 @@ router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     })
     
+    // ✅ CACHE INVALIDATION: Item teslim edildiğinde cache'i temizle
+    invalidateOrdersCache('item_delivered')
+    
     res.json({
       success: true,
       message: allDelivered ? 'Item delivered, stock updated, order completed' : 'Item delivered and stock updated',
-      item: items[itemIndex]
+      item: items[itemIndex],
+      orderStatus: allDelivered ? 'Teslim Edildi' : null, // ✅ Order status bilgisi
+      orderStatusChanged: allDelivered // ✅ Status değişiklik flag'i
     })
     
   } catch (error) {
@@ -559,15 +589,19 @@ router.get('/orders/materials/active', async (req, res) => {
  */
 router.get('/orders', async (req, res) => {
   try {
-    console.log('📋 Getting all orders...')
+    console.log('📋 Getting all orders... (SMART CACHE MODE)')
     const now = Date.now()
     const ifNoneMatch = req.headers['if-none-match']
+    
+    // ✅ SMART CACHE: 2 saniye cache - event-driven systemde minimal korunma
     if (cache.orders.data && now - cache.orders.ts < CACHE_TTL_MS) {
+      console.log('📥 SMART CACHE HIT: Returning cached data')
       if (ifNoneMatch && ifNoneMatch === cache.orders.etag) return res.status(304).end()
       res.set('ETag', cache.orders.etag)
       return res.json({ orders: cache.orders.data })
     }
-
+    
+    console.log('🔥 SMART CACHE MISS: Fetching fresh data from Firebase')
     const ordersSnapshot = await db.collection('orders').get()
     const orders = []
     
@@ -806,7 +840,11 @@ router.put('/orders/:orderId', async (req, res) => {
     const { orderId } = req.params
     const updates = req.body
     
-  console.log('📝 Updating order:', orderId, updates)
+    console.log('📝 ORDER UPDATE REQUEST RECEIVED:')
+    console.log('  - Order ID:', orderId)
+    console.log('  - Updates:', JSON.stringify(updates, null, 2))
+    console.log('  - Request headers:', req.headers['content-type'])
+    console.log('  - Request body raw:', req.body)
     
     const orderRef = db.collection('orders').doc(orderId)
     const orderSnap = await orderRef.get()
@@ -855,6 +893,9 @@ router.put('/orders/:orderId', async (req, res) => {
     }
     
     await orderRef.update(updateData)
+    
+    // ✅ CACHE INVALIDATION: Sipariş güncellendiğinde cache'i temizle
+    invalidateOrdersCache('order_updated')
     
     // Get updated order
     const updatedSnap = await orderRef.get()

@@ -1328,8 +1328,21 @@ function OrdersTable({
                             disabled={actionLoading}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
+                              console.log('🎯 ORDER STATUS DROPDOWN CHANGE:')
+                              console.log('  - Order ID:', order.id)
+                              console.log('  - Current Status:', order.orderStatus)
+                              console.log('  - New Value:', e.target.value)
+                              console.log('  - Event target:', e.target)
+                              console.log('  - Value check:', e.target.value && e.target.value !== order.orderStatus)
+                              console.log('  - onUpdateOrderStatus type:', typeof onUpdateOrderStatus)
+                              
                               if (e.target.value && e.target.value !== order.orderStatus) {
+                                console.log('✅ Calling onUpdateOrderStatus with args:', order.id, e.target.value)
                                 onUpdateOrderStatus(order.id, e.target.value)
+                              } else {
+                                console.log('❌ Conditions not met - not calling update')
+                                console.log('    - e.target.value truthy:', !!e.target.value)
+                                console.log('    - values different:', e.target.value !== order.orderStatus)
                               }
                             }}
                             style={{
@@ -1388,6 +1401,13 @@ export default function OrdersTabContent() {
   console.log('🎬 OrdersTabContent component rendered - FORCED LOG')
   
   const [activeOrdersTab, setActiveOrdersTab] = useState('pending') // 'pending' | 'completed' | 'all'
+
+  // ✅ SMART TAB CHANGE: Tab değiştiğinde refresh tetikle
+  const handleTabChange = async (newTab) => {
+    console.log(`🔄 SMART REFRESH: Tab changed to ${newTab} - refreshing orders...`)
+    setActiveOrdersTab(newTab)
+    await refreshOrders() // Fresh data çek
+  }
   const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false)
   const [isDeliveredRecordMode, setIsDeliveredRecordMode] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -1648,19 +1668,41 @@ export default function OrdersTabContent() {
   }, [])
   
   const updateOrder = async (orderId, updates) => {
-    console.log('💾 Updating order:', orderId, updates)
+    console.log('💾 UPDATE ORDER FUNCTION CALLED:')
+    console.log('  - Order ID:', orderId)
+    console.log('  - Updates:', JSON.stringify(updates, null, 2))
+    
     try {
-      const response = await fetchWithTimeout(`/api/orders/${orderId}`, {
+      const url = `/api/orders/${orderId}`
+      console.log('📡 Making PUT request to:', url)
+      
+      const requestBody = JSON.stringify(updates)
+      console.log('📤 Request body:', requestBody)
+      
+      const headers = withAuth({
+        'Content-Type': 'application/json'
+      })
+      console.log('📤 Request headers:', headers)
+      
+      const response = await fetchWithTimeout(url, {
         method: 'PUT',
-        headers: withAuth(),
-        body: JSON.stringify(updates)
+        headers: headers,
+        body: requestBody
       })
       
+      console.log('📥 Response received:')
+      console.log('  - Status:', response.status)
+      console.log('  - Status Text:', response.statusText)
+      console.log('  - OK:', response.ok)
+      
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`)
+        const errorText = await response.text()
+        console.log('❌ Response error text:', errorText)
+        throw new Error(`API Error: ${response.status} - ${errorText}`)
       }
       
       const data = await response.json()
+      console.log('📥 Response data:', data)
       return data.order || data
     } catch (error) {
       console.error('❌ Update order error:', error)
@@ -1870,11 +1912,23 @@ export default function OrdersTabContent() {
     
     const fetchOrders = async () => {
       try {
-        console.log('🚀 Starting orders fetch...')
+        console.log('🚀 Starting orders fetch... (REAL-TIME MODE)')
         setOrdersLoading(true)
         setOrdersError(null)
         
-        const response = await fetchJsonWith401Retry('/api/orders', { headers: withAuth({ 'Content-Type': 'application/json' }) })
+        // ✅ CACHE BUSTING: İlk load'da bile timestamp ekle
+        const cacheBuster = Date.now()
+        const url = `/api/orders?t=${cacheBuster}`
+        console.log('🔥 INITIAL LOAD CACHE BUSTING URL:', url)
+        
+        const response = await fetchJsonWith401Retry(url, { 
+          headers: withAuth({ 
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }) 
+        })
         console.log('� Response status:', response.status)
         console.log('📡 Response ok:', response.ok)
         console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()))
@@ -1934,6 +1988,33 @@ export default function OrdersTabContent() {
       }
     }
   }, [])
+
+  // ✅ SMART FOCUS REFRESH: Tab/pencere focus olduğunda refresh 
+  useEffect(() => {
+    const handleFocus = async () => {
+      console.log('🔄 SMART REFRESH: Window focused - refreshing orders...')
+      await refreshOrders()
+    }
+    
+    const handleVisibilityChange = async () => {
+      if (!document.hidden) {
+        console.log('🔄 SMART REFRESH: Tab became visible - refreshing orders...')
+        await refreshOrders()
+      }
+    }
+    
+    if (typeof window !== 'undefined') {
+      window.addEventListener('focus', handleFocus)
+      document.addEventListener('visibilitychange', handleVisibilityChange)
+    }
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('focus', handleFocus)
+        document.removeEventListener('visibilitychange', handleVisibilityChange)
+      }
+    }
+  }, [])
   
   // Test: orders state'i değiştiğinde log
   useEffect(() => {
@@ -1945,12 +2026,24 @@ export default function OrdersTabContent() {
     })
   }, [orders, ordersLoading, ordersError])
   const refreshOrders = async () => {
-    console.log('🔄 Refreshing orders...')
+    console.log('🔄 Refreshing orders... (REAL-TIME MODE)')
     try {
       setOrdersLoading(true)
       setOrdersError(null)
       
-      const response = await fetchJsonWith401Retry('/api/orders', { headers: withAuth({ 'Content-Type': 'application/json' }) })
+      // ✅ CACHE BUSTING: Timestamp ekleyerek browser cache'i bypass et
+      const cacheBuster = Date.now()
+      const url = `/api/orders?t=${cacheBuster}`
+      console.log('🔥 CACHE BUSTING URL:', url)
+      
+      const response = await fetchJsonWith401Retry(url, { 
+        headers: withAuth({ 
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }) 
+      })
       
       if (!response.ok) {
         throw new Error(`API Error: ${response.status}`)
@@ -2035,11 +2128,19 @@ export default function OrdersTabContent() {
   const ORDER_STATUS_OPTIONS = ['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi']
   const ITEM_STATUS_OPTIONS = ['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi']
   const [updatingItemIds, setUpdatingItemIds] = useState([])
+  const [itemStatusUpdates, setItemStatusUpdates] = useState({}) // Optimistic updates for item statuses
 
-  // Filter change handler
-  const handleFilterChange = (key, value) => {
+  // ✅ SMART FILTER CHANGE: Critical filtreler değiştiğinde refresh tetikle
+  const handleFilterChange = async (key, value) => {
     console.log('🔍 Order Filter değişti:', key, '=', value);
     setFilters(prev => ({ ...prev, [key]: value }));
+    
+    // Critical filter değişikliklerinde fresh data çek
+    const criticalFilters = ['orderStatus', 'itemStatus', 'dateRange']
+    if (criticalFilters.includes(key)) {
+      console.log(`🔄 SMART REFRESH: Critical filter '${key}' changed - refreshing orders...`)
+      await refreshOrders()
+    }
   }
 
   // Check if filters are active
@@ -2251,13 +2352,29 @@ export default function OrdersTabContent() {
 
   // Handle order status update
   const handleUpdateOrderStatus = async (orderId, newStatus) => {
-    if (!newStatus) return;
-    if (selectedOrder && selectedOrder.id === orderId && selectedOrder.orderStatus === newStatus) {
+    console.log('🔄 HANDLE UPDATE ORDER STATUS CALLED:')
+    console.log('  - Order ID:', orderId)
+    console.log('  - New Status:', newStatus)
+    console.log('  - Type of orderId:', typeof orderId)
+    console.log('  - Type of newStatus:', typeof newStatus)
+    
+    if (!newStatus) {
+      console.log('❌ No newStatus provided - returning early')
       return;
     }
+    
+    if (!orderId) {
+      console.log('❌ No orderId provided - returning early')
+      return;
+    }
+    
+    console.log('🔄 Proceeding with order status update...')
+    
     try {
       // Single call to updateOrder which handles both status and stock updates internally
+      console.log('📡 About to call updateOrder API with:', { orderStatus: newStatus })
       const updatedOrder = await updateOrder(orderId, { orderStatus: newStatus });
+      console.log('✅ updateOrder API call completed, result:', updatedOrder)
 
       // Update local state
       // 1) Optimistically update orders list to keep UI in sync immediately
@@ -2315,16 +2432,48 @@ export default function OrdersTabContent() {
       console.log(`✅ Order ${orderId} status updated to ${newStatus}`);
     } catch (error) {
       console.error('❌ Error updating order status:', error);
+      console.error('❌ Error details:', {
+        orderId,
+        newStatus,
+        message: error.message,
+        stack: error.stack
+      });
+      // Rollback optimistic update if needed
+      setOrders(prev => prev.map(o => {
+        if (o.id === orderId && selectedOrder && selectedOrder.id === orderId) {
+          return { ...o, orderStatus: selectedOrder.orderStatus };
+        }
+        return o;
+      }));
+      
+      alert(`Sipariş durumu güncellenemedi: ${error.message}`);
     }
   }
 
   const handleItemStatusChange = async (orderId, item, newStatus) => {
+    console.log('🚀🚀🚀 HANDLE ITEM STATUS CHANGE FUNCTION CALLED!');
+    console.log('🔍 Parameters received:', {
+      orderId: orderId,
+      item: item,
+      newStatus: newStatus,
+      itemCurrentStatus: item?.itemStatus
+    });
+    
     if (!newStatus || newStatus === item.itemStatus) {
+      console.log('❌ Early return: no status change needed');
       return
     }
 
     // Item identifier - id, itemCode, lineId veya index-based
     const itemId = item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`
+    const itemKey = `${orderId}-${itemId}` // For optimistic updates
+    
+    // ✅ OPTIMISTIC UPDATE: Hemen UI'da değişikliği göster
+    setItemStatusUpdates(prev => ({
+      ...prev,
+      [itemKey]: newStatus
+    }))
+    console.log('🎨 Optimistic update applied:', itemKey, '->', newStatus);
     
     console.log('🔍 Item status değişiyor:', {
       orderId,
@@ -2339,7 +2488,15 @@ export default function OrdersTabContent() {
     console.log('🔍 DEBUG: API çağrısı detayları:', {
       url: `/api/orders/${orderId}/items/${itemId}`,
       method: 'PUT',
-      body: { itemStatus: newStatus }
+      body: { itemStatus: newStatus },
+      fullUrl: window.location.origin + `/api/orders/${orderId}/items/${itemId}`,
+      itemDetails: {
+        itemId: itemId,
+        itemCode: item.itemCode,
+        lineId: item.lineId,
+        id: item.id,
+        materialCode: item.materialCode
+      }
     });
 
     setUpdatingItemIds(prev => [...new Set([...prev, itemId])])
@@ -2360,7 +2517,10 @@ export default function OrdersTabContent() {
       console.log('🚀 DEBUG: Making API call...')
       const response = await fetchWithTimeout(`/api/orders/${orderId}/items/${itemId}`, {
         method: 'PUT',
-        headers: withAuth(),
+        headers: {
+          ...withAuth(),
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({ itemStatus: newStatus })
       })
       
@@ -2369,11 +2529,35 @@ export default function OrdersTabContent() {
       if (!response.ok) {
         const errorText = await response.text()
         console.error('❌ DEBUG: API error response:', errorText)
+        console.error('❌ DEBUG: Full response details:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+          url: response.url
+        })
         throw new Error(`API Error: ${response.status} - ${errorText}`)
       }
       
       const result = await response.json()
       console.log('✅ DEBUG: API success:', result)
+      console.log('✅ DEBUG: Full API response analysis:', {
+        item: result.item,
+        orderStatus: result.orderStatus,
+        orderStatusChanged: result.orderStatusChanged,
+        message: result.message
+      })
+
+      // ✅ Backend'den dönen order status güncellemesi
+      const updatedItem = result.item
+      const backendOrderStatus = result.orderStatus
+      const orderStatusChanged = result.orderStatusChanged
+      
+      console.log('🔍 DEBUG: Backend response analysis:', {
+        orderStatusChanged,
+        backendOrderStatus,
+        currentOrderStatus: selectedOrder?.orderStatus,
+        apiSuccess: true
+      })
 
       // If item is delivered, update material stock via backend API
       if (isBecomingDelivered) {
@@ -2431,45 +2615,70 @@ export default function OrdersTabContent() {
 
       console.log('🔄 DEBUG: Starting order refresh...')
       
+      // ✅ Backend'den order status değişikliği varsa local state'i güncelle
+      if (orderStatusChanged && backendOrderStatus) {
+        console.log(`🔄 SMART UPDATE: Backend order status changed to ${backendOrderStatus}`)
+        
+        // Orders listesini güncelle
+        setOrders(prev => prev.map(o => 
+          o.id === orderId ? { ...o, orderStatus: backendOrderStatus } : o
+        ))
+        
+        // Selected order'ı da güncelle
+        if (selectedOrder && selectedOrder.id === orderId) {
+          setSelectedOrder(prev => prev ? { ...prev, orderStatus: backendOrderStatus } : prev)
+        }
+        
+        console.log(`✅ Local state updated: Order ${orderId} status → ${backendOrderStatus}`)
+      }
+      
       await refreshOrders()
       console.log('✅ DEBUG: refreshOrders completed')
 
+      // ✅ Sadece selectedOrder varsa ve aynı ID ise refresh et
       if (selectedOrder && selectedOrder.id === orderId) {
-        console.log('🔄 DEBUG: Updating selected order details...')
-        
-        // API'den güncel order'ı al
-        const orderResponse = await fetchWithTimeout(`/api/orders/${orderId}`, {
-          headers: withAuth()
-        })
-        
-        if (orderResponse.ok) {
-          const orderData = await orderResponse.json()
-          const latestOrder = orderData.order || orderData
-          console.log('📦 DEBUG: Latest order fetched:', latestOrder)
-          
-          setSelectedOrder(latestOrder)
-        }
-
+        console.log('� DEBUG: Updating selected order details...')
         setSelectedOrderLoading(true)
         try {
-          const response = await fetchWithTimeout(`/api/orders/${orderId}`, {
+          const orderResponse = await fetchWithTimeout(`/api/orders/${orderId}?t=${Date.now()}`, {
             headers: withAuth()
           })
           
-          if (response.ok) {
-            const data = await response.json()
-            const refreshed = data.order || data
+          if (orderResponse.ok) {
+            const orderData = await orderResponse.json()
+            const refreshed = orderData.order || orderData
             console.log('🔄 DEBUG: Order refreshed with status:', refreshed.orderStatus)
             setSelectedOrder(refreshed)
+            
+            // ✅ Clear optimistic update ONLY after selectedOrder is successfully updated
+            setItemStatusUpdates(prev => {
+              const updated = { ...prev }
+              delete updated[itemKey]
+              return updated
+            })
           }
         } catch (detailError) {
           console.error('❌ Detay güncellenirken hata:', detailError)
         } finally {
           setSelectedOrderLoading(false)
         }
+      } else {
+        // ✅ If no selectedOrder to refresh, clear optimistic update immediately
+        setItemStatusUpdates(prev => {
+          const updated = { ...prev }
+          delete updated[itemKey]
+          return updated
+        })
       }
     } catch (error) {
       console.error('❌ Error updating item status:', error)
+      // ✅ ROLLBACK optimistic update on error
+      setItemStatusUpdates(prev => {
+        const updated = { ...prev }
+        delete updated[itemKey]
+        return updated
+      })
+      alert(`Item status güncellenemedi: ${error.message}`)
     } finally {
       setUpdatingItemIds(prev => prev.filter(id => id !== itemId))
     }
@@ -2548,7 +2757,7 @@ export default function OrdersTabContent() {
           completed: completedOrdersView.length,
           all: allOrdersView.length
         }}
-        onChangeTab={setActiveOrdersTab}
+        onChangeTab={handleTabChange}
         onOrderClick={handleOrderClick}
         onUpdateOrderStatus={handleUpdateOrderStatus}
         actionLoading={actionLoading}
@@ -2572,9 +2781,24 @@ export default function OrdersTabContent() {
         isOpen={isAddOrderModalOpen}
         onClose={() => setIsAddOrderModalOpen(false)}
         deliveredRecordMode={isDeliveredRecordMode}
-        onSave={(newOrder) => {
+        onSave={async (newOrder) => {
           console.log('✅ New order created:', newOrder);
-          refreshOrders();
+          console.log('🔄 IMMEDIATE REFRESH: Triggering aggressive refresh...');
+          
+          // ✅ IMMEDIATE REFRESH - Multiple attempts for real-time update
+          await refreshOrders();
+          
+          // ✅ BACKUP REFRESH: 500ms sonra bir daha refresh (network gecikmeleri için)
+          setTimeout(async () => {
+            console.log('🔄 BACKUP REFRESH: Second refresh...');
+            await refreshOrders();
+          }, 500);
+          
+          // ✅ FINAL REFRESH: 1.5s sonra final refresh
+          setTimeout(async () => {
+            console.log('🔄 FINAL REFRESH: Third refresh...');
+            await refreshOrders();
+          }, 1500);
         }}
       />
 
@@ -2832,18 +3056,31 @@ export default function OrdersTabContent() {
                               {item.itemCode || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
                             </span>
                             <span style={{ fontSize: '6px', fontWeight: 600, color: 'rgb(15, 23, 42)', background: 'rgb(226, 232, 240)', padding: '1px 6px', borderRadius: '999px', whiteSpace: 'nowrap' }}>
-                              {item.itemStatus || 'Onay Bekliyor'}
+                              {(() => {
+                                const itemKey = `${selectedOrder.id}-${item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`}`
+                                return itemStatusUpdates[itemKey] || item.itemStatus || 'Onay Bekliyor'
+                              })()}
                             </span>
                             <select
-                              value={item.itemStatus || 'Onay Bekliyor'}
+                              value={(() => {
+                                const itemKey = `${selectedOrder.id}-${item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`}`
+                                return itemStatusUpdates[itemKey] || item.itemStatus || 'Onay Bekliyor'
+                              })()}
                               disabled={isItemUpdating}
                               onChange={(e) => {
-                                console.log('🔍 Item status değişiyor:', {
+                                console.log('�🔥🔥 DROPDOWN ITEM STATUS CHANGE TRIGGERED!');
+                                console.log('�🔍 Item status değişiyor:', {
                                   itemId: item.id,
+                                  itemLineId: item.lineId,
+                                  itemCode: item.itemCode,
                                   oldStatus: item.itemStatus,
                                   newStatus: e.target.value,
-                                  materialCode: item.materialCode
+                                  materialCode: item.materialCode,
+                                  disabled: isItemUpdating,
+                                  selectedOrderId: selectedOrder.id,
+                                  fullItem: item
                                 });
+                                console.log('🔥🔥🔥 CALLING handleItemStatusChange...');
                                 handleItemStatusChange(selectedOrder.id, item, e.target.value);
                               }}
                               style={{

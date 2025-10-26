@@ -108,7 +108,7 @@ app.use((req, res, next) => {
 
   // CORS headers
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control')
   res.header('Access-Control-Max-Age', '86400')
 
   if (req.method === 'OPTIONS') {
@@ -126,6 +126,7 @@ try {
     const apiRoutesMod = await import('./server/apiRoutes.js')
     apiRoutesMod.setupQuoteRoutes(app, uploadsDir)
     apiRoutesMod.setupExportRoutes(app)
+    apiRoutesMod.setupFormConfigRoutes(app)
     console.log('✅ Quote routes enabled')
   } else {
     console.log('⏭️  Quote routes disabled (set QUOTES_ROUTES_ENABLED=true to enable)')

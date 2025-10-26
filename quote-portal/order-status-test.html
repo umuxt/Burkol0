@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Status Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            max-width: 800px; 
+            margin: 0 auto;
+        }
+        .order-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+        .status-select {
+            padding: 6px 10px;
+            font-size: 11px;
+            font-weight: 600;
+            border: 1px solid rgba(148, 163, 184, 0.6);
+            border-radius: 10px;
+            background: rgb(245, 158, 11);
+            color: rgb(255, 255, 255);
+            cursor: pointer;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Order Status Update Test</h1>
+    
+    <div id="orders-container">
+        <p>Loading orders...</p>
+    </div>
+    
+    <div id="test-results"></div>
+
+    <script>
+        let orders = [];
+        
+        async function loadOrders() {
+            try {
+                const response = await fetch('/api/orders');
+                const data = await response.json();
+                orders = data.orders || [];
+                renderOrders();
+            } catch (error) {
+                console.error('Error loading orders:', error);
+                document.getElementById('orders-container').innerHTML = `<p style="color: red;">Error loading orders: ${error.message}</p>`;
+            }
+        }
+        
+        function renderOrders() {
+            const container = document.getElementById('orders-container');
+            if (orders.length === 0) {
+                container.innerHTML = '<p>No orders found</p>';
+                return;
+            }
+            
+            // Show first 5 orders for testing
+            const ordersToShow = orders.slice(0, 5);
+            container.innerHTML = ordersToShow.map(order => `
+                <div class="order-item">
+                    <strong>Order: ${order.orderCode}</strong><br>
+                    <strong>Supplier:</strong> ${order.supplierName}<br>
+                    <strong>Current Status:</strong> ${order.orderStatus}<br>
+                    <strong>Amount:</strong> ${order.totalAmount}<br>
+                    <strong>Change Status:</strong>
+                    <select class="status-select" onchange="updateOrderStatus('${order.id}', this.value)">
+                        <option value="Onay Bekliyor" ${order.orderStatus === 'Onay Bekliyor' ? 'selected' : ''}>Onay Bekliyor</option>
+                        <option value="Onaylandı" ${order.orderStatus === 'Onaylandı' ? 'selected' : ''}>Onaylandı</option>
+                        <option value="Yolda" ${order.orderStatus === 'Yolda' ? 'selected' : ''}>Yolda</option>
+                        <option value="Teslim Edildi" ${order.orderStatus === 'Teslim Edildi' ? 'selected' : ''}>Teslim Edildi</option>
+                        <option value="İptal Edildi" ${order.orderStatus === 'İptal Edildi' ? 'selected' : ''}>İptal Edildi</option>
+                    </select>
+                </div>
+            `).join('');
+        }
+        
+        async function updateOrderStatus(orderId, newStatus) {
+            const resultsDiv = document.getElementById('test-results');
+            
+            try {
+                console.log(`Updating order ${orderId} to status: ${newStatus}`);
+                
+                const response = await fetch(`/api/orders/${orderId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ orderStatus: newStatus })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Update successful:', data);
+                
+                // Update local state
+                const orderIndex = orders.findIndex(o => o.id === orderId);
+                if (orderIndex !== -1) {
+                    orders[orderIndex].orderStatus = newStatus;
+                    renderOrders();
+                }
+                
+                resultsDiv.innerHTML = `
+                    <div class="test-result success">
+                        ✅ Successfully updated order ${orderId} to "${newStatus}"
+                    </div>
+                ` + resultsDiv.innerHTML;
+                
+            } catch (error) {
+                console.error('Error updating order status:', error);
+                resultsDiv.innerHTML = `
+                    <div class="test-result error">
+                        ❌ Failed to update order ${orderId}: ${error.message}
+                    </div>
+                ` + resultsDiv.innerHTML;
+            }
+        }
+        
+        // Load orders when page loads
+        loadOrders();
+    </script>
+</body>
+</html>

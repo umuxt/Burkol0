@@ -8,14 +8,14 @@ import auditSessionActivity from './auditTrail.js'
 
 export function setupAuthRoutes(app) {
   // Login endpoint
-  app.post('/api/auth/login', (req, res) => {
+  app.post('/api/auth/login', async (req, res) => {
     const { email, password } = req.body
     
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' })
     }
     
-    const result = verifyUser(email, password)
+    const result = await verifyUser(email, password)
     
     // Kullanıcı bulunamadı
     if (!result) {
@@ -31,7 +31,7 @@ export function setupAuthRoutes(app) {
     }
     
     // Başarılı login
-    const token = createSession(email)
+    const token = await createSession(email)
     const session = getSession(token)
     res.json({ 
       token, 

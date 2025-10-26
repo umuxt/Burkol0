@@ -1240,6 +1240,184 @@ export function setupSettingsRoutes(app) {
       res.status(500).json({ error: 'Failed to restore version' })
     }
   })
+
+// Export API routes
+  app.get('/api/form-config', (req, res) => {
+    try {
+      const config = jsondb.getFormConfig()
+      res.json({ formConfig: config })
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load form config' })
+    }
+  })
+
+  // Get form fields for pricing configuration - PUBLIC ACCESS
+  app.get('/api/form-fields', (req, res) => {
+    try {
+      const config = jsondb.getFormConfig()
+      const fields = []
+      
+      if (config && config.formStructure && config.formStructure.fields) {
+        config.formStructure.fields.forEach(field => {
+          fields.push({
+            id: field.id,
+            label: field.label,
+            type: field.type,
+            hasOptions: field.options && field.options.length > 0,
+            options: field.options || []
+          })
+        })
+      }
+      
+      res.json({ fields })
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to load form fields' })
+    }
+  })
+
+  // Save form configuration - ADMIN ONLY
+  app.post('/api/form-config', requireAuth, async (req, res) => {
+    console.log('🔧 DEBUG: POST /api/form-config called')
+    console.log('🔧 DEBUG: Request body:', JSON.stringify(req.body, null, 2))
+
+    try {
+      const config = req.body
+      console.log('🔧 DEBUG: Getting current config...')
+      const currentConfig = jsondb.getFormConfig()
+      console.log('🔧 DEBUG: Current config:', !!currentConfig)
+
+      const isStructuralChange = !currentConfig ||
+        JSON.stringify(currentConfig.formStructure?.fields) !== JSON.stringify(config.formStructure?.fields)
+      console.log('🔧 DEBUG: Is structural change:', isStructuralChange)
+
+      console.log('🔧 DEBUG: Saving form config...')
+      const result = await jsondb.putFormConfig(config, {
+        userId: req.user?.id,
+        username: req.user?.username
+      })
+      console.log('🔧 DEBUG: Form config saved:', !!result)
+
+      let formChanges = []
+      let quotesMarked = 0
+
+      if (isStructuralChange) {
+        console.log('🔧 DEBUG: Processing structural change...')
+
+        const getFormChanges = (oldConfig, newConfig) => {
+          const changes = []
+          const oldFields = oldConfig?.formStructure?.fields || []
+          const newFields = newConfig?.formStructure?.fields || []
+
+          oldFields.forEach(oldField => {
+            const stillExists = newFields.find(f => f.id === oldField.id)
+            if (!stillExists) {
+              changes.push(`Alan kaldırıldı: ${oldField.label || oldField.id}`)
+            }
+          })
+
+          newFields.forEach(newField => {
+            const existed = oldFields.find(f => f.id === newField.id)
+            if (!existed) {
+              changes.push(`Yeni alan eklendi: ${newField.label || newField.id}`)
+            } else {
+              if (existed.label !== newField.label) {
+                changes.push(`Alan etiketi değişti: ${existed.label} → ${newField.label}`)
+              }
+              if (existed.type !== newField.type) {
+                changes.push(`Alan tipi değişti: ${existed.type} → ${newField.type}`)
+              }
+              if (JSON.stringify(existed.options) !== JSON.stringify(newField.options)) {
+                changes.push(`Alan seçenekleri değişti: ${newField.label || newField.id}`)
+              }
+            }
+          })
+
+          return changes
+        }
+
+        formChanges = getFormChanges(currentConfig, config)
+        const quotes = jsondb.listQuotes()
+        const evaluationTimestamp = new Date().toISOString()
+        quotesMarked = quotes.length
+
+        console.log('🔧 DEBUG: Found', quotes.length, 'quotes to update')
+
+        quotes.forEach(quote => {
+          const status = PriceStatus.fromJSON(quote.priceStatus)
+          status.setVersionInfo({ formVersionId: result?.versionId || null })
+
+          const differenceSummary = {
+            reasons: formChanges,
+            evaluatedAt: evaluationTimestamp,
+            previousFormVersionId: quote.formVersion?.versionId || currentConfig?.versionId || null,
+            previousFormVersion: quote.formVersion?.versionNumber || currentConfig?.version || null,
+            nextFormVersionId: result?.versionId || null,
+            nextFormVersion: result?.version || null
+          }
+
+          status.markContentDrift(differenceSummary)
+
+          const patch = {
+            priceStatus: status.toJSON(),
+            pendingFormVersion: {
+              versionId: result?.versionId || null,
+              versionNumber: result?.version || null,
+              evaluatedAt: evaluationTimestamp,
+              reasons: formChanges
+            }
+          }
+
+          if (!quote.formVersion) {
+            patch.formVersion = {
+              versionId: currentConfig?.versionId || null,
+              versionNumber: currentConfig?.version || null,
+              capturedAt: quote.createdAt || evaluationTimestamp
+            }
+          }
+
+          jsondb.patchQuote(quote.id, patch)
+        })
+
+        console.log('🔧 DEBUG: Resetting pricing config...')
+        jsondb.resetPricingConfig('Form configuration updated')
+
+        console.log(`Form structure updated. Marked ${quotes.length} quotes for price recalculation.`)
+      }
+
+      const describedChanges = formChanges.length > 0 ? formChanges.slice(0, 3) : []
+      const descriptionText = formChanges.length
+        ? `${formChanges.length} değişiklik: ${describedChanges.join(', ')}${formChanges.length > 3 ? ', ...' : ''}`
+        : (isStructuralChange ? 'Form alanlarında değişiklik yapıldı' : 'Form ayarları güncellendi')
+
+      auditSessionActivity(req, {
+        type: 'form-config',
+        action: isStructuralChange ? 'structure-update' : 'update',
+        scope: 'forms',
+        title: result?.version ? `Form yapılandırması güncellendi (v${result.version})` : 'Form yapılandırması güncellendi',
+        description: descriptionText,
+        metadata: {
+          structuralChange: isStructuralChange,
+          version: result?.version || null,
+          versionId: result?.versionId || null,
+          changes: formChanges,
+          quotesMarked
+        }
+      })
+
+      console.log('🔧 DEBUG: Sending success response...')
+      res.json({
+        success: true,
+        structuralChange: isStructuralChange,
+        version: result?.version || null,
+        versionId: result?.versionId || null,
+        quotesMarkedForUpdate: quotesMarked
+      })
+    } catch (error) {
+      console.error('🔧 DEBUG: Form config save error:', error)
+      console.error('🔧 DEBUG: Error stack:', error.stack)
+      res.status(500).json({ error: 'Failed to save form config', details: error.message })
+    }
+  })
 }
 
 // Export API routes
@@ -1498,22 +1676,32 @@ export function setupFormConfigRoutes(app) {
 
   // Save form configuration - ADMIN ONLY
   app.post('/api/form-config', requireAuth, async (req, res) => {
+    console.log('🔧 DEBUG: POST /api/form-config called')
+    console.log('🔧 DEBUG: Request body:', JSON.stringify(req.body, null, 2))
+
     try {
       const config = req.body
+      console.log('🔧 DEBUG: Getting current config...')
       const currentConfig = jsondb.getFormConfig()
+      console.log('🔧 DEBUG: Current config:', !!currentConfig)
 
       const isStructuralChange = !currentConfig ||
         JSON.stringify(currentConfig.formStructure?.fields) !== JSON.stringify(config.formStructure?.fields)
+      console.log('🔧 DEBUG: Is structural change:', isStructuralChange)
 
+      console.log('🔧 DEBUG: Saving form config...')
       const result = await jsondb.putFormConfig(config, {
         userId: req.user?.id,
         username: req.user?.username
       })
+      console.log('🔧 DEBUG: Form config saved:', !!result)
 
       let formChanges = []
       let quotesMarked = 0
 
       if (isStructuralChange) {
+        console.log('🔧 DEBUG: Processing structural change...')
+
         const getFormChanges = (oldConfig, newConfig) => {
           const changes = []
           const oldFields = oldConfig?.formStructure?.fields || []
@@ -1580,6 +1768,7 @@ export function setupFormConfigRoutes(app) {
         }
       })
 
+      console.log('🔧 DEBUG: Sending success response...')
       res.json({
         success: true,
         structuralChange: isStructuralChange,
@@ -1588,7 +1777,8 @@ export function setupFormConfigRoutes(app) {
         quotesMarkedForUpdate: quotesMarked
       })
     } catch (error) {
-      console.error('Form config save error:', error)
+      console.error('🔧 DEBUG: Form config save error:', error)
+      console.error('🔧 DEBUG: Error stack:', error.stack)
       res.status(500).json({ error: 'Failed to save form config', details: error.message })
     }
   })

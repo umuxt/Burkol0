@@ -28,7 +28,7 @@ const requestTracker = {
   windowStart: Date.now()
 }
 const RATE_LIMIT_WINDOW_MS = 60_000 // 1 dakika
-const MAX_REQUESTS_PER_WINDOW = 30 // Dakikada maksimum 30 request
+const MAX_REQUESTS_PER_WINDOW = process.env.NODE_ENV === 'production' ? 60 : 500 // Production: 60, Development: 500
 
 function buildEtag(items) {
   try {

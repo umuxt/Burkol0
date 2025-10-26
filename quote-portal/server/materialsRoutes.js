@@ -30,7 +30,7 @@ const requestTracker = {
   windowStart: Date.now()
 }
 const RATE_LIMIT_WINDOW_MS = 60_000 // 1 dakika
-const MAX_REQUESTS_PER_WINDOW = 50 // Dakikada maksimum 50 request
+const MAX_REQUESTS_PER_WINDOW = process.env.NODE_ENV === 'production' ? 100 : 1000 // Production: 100, Development: 1000
 
 function buildEtag(items) {
   try {
@@ -699,6 +699,40 @@ export function setupMaterialsRoutes(app) {
     }
   })
 
+  // GET /api/stock - Tüm malzeme stok durumu
+  app.get('/api/stock', async (req, res) => {
+    try {
+      console.log('📦 API: Stok durumu istendi')
+      
+      const snapshot = await getDb().collection('materials').get()
+      const stockData = []
+      
+      snapshot.forEach(doc => {
+        const data = doc.data()
+        stockData.push({
+          id: doc.id,
+          code: data.code,
+          name: data.name,
+          stock: data.stock || 0,
+          available: data.available || 0,
+          reserved: data.reserved || 0,
+          unit: data.unit || 'Adet',
+          reorderPoint: data.reorderPoint || 0,
+          category: data.category || 'Diğer',
+          supplier: data.supplier || '',
+          costPrice: data.costPrice || null,
+          lastUpdated: data.updatedAt
+        })
+      })
+      
+      console.log(`✅ API: ${stockData.length} malzeme stok durumu döndürüldü`)
+      res.json(stockData)
+    } catch (error) {
+      console.error('❌ API: Stok durumu alınırken hata:', error)
+      res.status(500).json({ error: 'Stok durumu alınamadı', details: error.message })
+    }
+  })
+
   // PATCH /api/materials/:code/stock - Malzeme stok güncelleme (sipariş teslimi için)
   app.patch('/api/materials/:code/stock', requireAuth, async (req, res) => {
     try {
@@ -739,10 +773,10 @@ export function setupMaterialsRoutes(app) {
       }
       
       // Batch transaction başlat
-      const batch = db.batch()
+      const batch = getDb().batch()
       
       // Malzeme stokunu güncelle
-      const materialRef = materialsCollection.doc(materialDoc.id)
+      const materialRef = getDb().collection('materials').doc(materialDoc.id)
       batch.update(materialRef, {
         stock: newStock,
         available: newStock - (materialData.reserved || 0),
