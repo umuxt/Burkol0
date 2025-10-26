@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import useSupplierProcurementHistory from '../hooks/useSupplierProcurementHistory.js'
 import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
 import { useSuppliers } from '../hooks/useSuppliers'
@@ -45,6 +45,10 @@ export default function SuppliersTable({
   const [materialSearchTerm, setMaterialSearchTerm] = useState('')
   const [showMaterialPopup, setShowMaterialPopup] = useState(false)
   const [materialCategories, setMaterialCategories] = useState([])
+  // Categories revalidation control
+  const categoriesLoadedRef = useRef(false)
+  const lastCategoriesFetchTsRef = useRef(0)
+  const categoriesRefreshTimerRef = useRef(null)
   const [materialTypes] = useState([
     { id: 'raw_material', label: 'Ham Madde' },
     { id: 'wip', label: 'Yarı Mamül' },
@@ -146,6 +150,8 @@ export default function SuppliersTable({
       try {
         const categories = await categoriesService.getCategories()
         setMaterialCategories(categories)
+        categoriesLoadedRef.current = true
+        lastCategoriesFetchTsRef.current = Date.now()
       } catch (error) {
         console.error('Kategoriler yüklenirken hata:', error)
       }
@@ -167,15 +173,21 @@ export default function SuppliersTable({
   }, [])
 
   // Load all materials including removed ones
-  const loadAllMaterials = async () => {
+  const loadAllMaterials = async (forceRefresh = false) => {
     try {
-      const materials = await materialsService.getAllMaterialsIncludingRemoved()
+      const materials = await materialsService.getAllMaterialsIncludingRemoved(forceRefresh)
       setAllMaterials(materials)
       console.log('🔍 SuppliersTable: Loaded all materials including removed:', materials.length)
     } catch (error) {
       console.error('❌ SuppliersTable: Error loading all materials:', error)
     }
   }
+
+  // When suppliers list changes, refresh materials to avoid stale cache
+  useEffect(() => {
+    // Force refresh materials to reflect latest DB state
+    loadAllMaterials(true)
+  }, [suppliers])
 
   // Debug materials loading
   useEffect(() => {
@@ -187,6 +199,60 @@ export default function SuppliersTable({
       suppliedMaterialsCount: selectedSupplier?.suppliedMaterials?.length || 0
     })
   }, [allMaterials, activeMaterials, materialsLoading, selectedSupplier])
+
+  // Revalidate categories when suppliers or materials change, but avoid duplicate fetch on first load
+  useEffect(() => {
+    if (!categoriesLoadedRef.current) return // avoid double-call on initial mount
+
+    const MIN_INTERVAL_MS = 10000 // throttle
+    const now = Date.now()
+    if (now - lastCategoriesFetchTsRef.current < MIN_INTERVAL_MS) return
+
+    if (categoriesRefreshTimerRef.current) clearTimeout(categoriesRefreshTimerRef.current)
+    categoriesRefreshTimerRef.current = setTimeout(async () => {
+      try {
+        const categories = await categoriesService.getCategories()
+        setMaterialCategories(categories)
+        lastCategoriesFetchTsRef.current = Date.now()
+        console.log('🔁 Categories revalidated:', categories.length)
+      } catch (e) {
+        console.warn('Kategori revalidation başarısız:', e?.message || e)
+      }
+    }, 200)
+
+    return () => {
+      if (categoriesRefreshTimerRef.current) {
+        clearTimeout(categoriesRefreshTimerRef.current)
+        categoriesRefreshTimerRef.current = null
+      }
+    }
+  }, [suppliers, allMaterials])
+
+  // Also revalidate categories when window gains focus or becomes visible
+  useEffect(() => {
+    const maybeRefreshCategories = async () => {
+      const now = Date.now()
+      const MIN_INTERVAL_MS = 5000
+      if (!categoriesLoadedRef.current) return
+      if (now - lastCategoriesFetchTsRef.current < MIN_INTERVAL_MS) return
+      try {
+        const categories = await categoriesService.getCategories()
+        setMaterialCategories(categories)
+        lastCategoriesFetchTsRef.current = Date.now()
+        console.log('🔁 Categories revalidated on focus/visibility:', categories.length)
+      } catch (e) {
+        // non-blocking
+      }
+    }
+    const onFocus = () => maybeRefreshCategories()
+    const onVisibility = () => { if (document.visibilityState === 'visible') maybeRefreshCategories() }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [])
 
   // Update next material code when allMaterials changes
   useEffect(() => {
@@ -335,7 +401,8 @@ export default function SuppliersTable({
 
   const getCategoryName = (categoryId) => {
     const category = materialCategories.find(cat => cat.id === categoryId)
-    return category ? (category.name || category.label || categoryId) : categoryId
+    // Only show categories that exist in materials-categories; otherwise return empty string
+    return category ? (category.name || category.label || categoryId) : ''
   }
 
   const handleOpenMaterialPopup = async () => {
@@ -400,14 +467,34 @@ export default function SuppliersTable({
     }
 
     try {
+      let finalCategoryId = finalCategory
       if (showNewCategory && newCategory.trim()) {
         try {
-          await categoriesService.addCategory({
+          const createdCategory = await categoriesService.addCategory({
             name: newCategory.trim(),
             createdAt: new Date(),
             type: 'material'
           })
-          console.log('✅ New category added:', newCategory)
+          // Use created category id if returned
+          finalCategoryId = createdCategory?.id || newCategory.trim()
+          console.log('✅ New category added:', createdCategory)
+          // Refresh categories list to reflect immediately in UIs
+          try {
+            const categories = await categoriesService.getCategories()
+            setMaterialCategories(categories)
+            // update fetch markers so revalidation throttle knows about it
+            if (typeof lastCategoriesFetchTsRef !== 'undefined') {
+              lastCategoriesFetchTsRef.current = Date.now()
+              categoriesLoadedRef.current = true
+            }
+          } catch (refreshErr) {
+            console.warn('Kategori listesi yenilenemedi:', refreshErr?.message || refreshErr)
+            // As a fallback, append the created category locally if not present
+            setMaterialCategories(prev => {
+              const exists = prev?.some(c => c.id === finalCategoryId)
+              return exists ? prev : [...(prev || []), { id: finalCategoryId, name: newCategory.trim(), type: 'material' }]
+            })
+          }
         } catch (categoryError) {
           console.error('❌ Category creation failed:', categoryError)
         }
@@ -417,7 +504,7 @@ export default function SuppliersTable({
       
       const materialData = {
         ...newMaterial,
-        category: finalCategory,
+        category: finalCategoryId,
         code: finalCode,
         createdAt: new Date(),
         suppliers: selectedSupplier ? [selectedSupplier.id] : [],
@@ -881,16 +968,29 @@ export default function SuppliersTable({
                               supplier.suppliedMaterials
                                 .filter(material => {
                                   // Find full material details from allMaterials array
-                                  const fullMaterial = allMaterials.find(m => m.id === material.id || m.code === material.materialCode || m.code === material.code);
-                                  // Only include categories from materials that are not "Kaldırıldı"
-                                  return (fullMaterial?.status || material.status) !== 'Kaldırıldı';
+                                  const fullMaterial = allMaterials.find(m => 
+                                    m.id === (material.id || material.materialId) || 
+                                    m.code === material.materialCode || 
+                                    m.code === material.code
+                                  )
+                                  // Exclude if material no longer exists in DB
+                                  if (!fullMaterial) return false
+                                  // Exclude removed materials
+                                  return (fullMaterial.status || material.status) !== 'Kaldırıldı'
                                 })
                                 .map(material => {
-                                  const fullMaterial = allMaterials.find(m => m.id === material.id || m.code === material.materialCode || m.code === material.code);
-                                  const resolvedCategoryId = fullMaterial?.category ?? material.category;
-                                  const category = materialCategories.find(cat => cat.id === resolvedCategoryId);
-                                  const name = category ? (category.name || category.label || resolvedCategoryId) : resolvedCategoryId;
-                                  return String(name).trim();
+                                  const fullMaterial = allMaterials.find(m => 
+                                    m.id === (material.id || material.materialId) || 
+                                    m.code === material.materialCode || 
+                                    m.code === material.code
+                                  )
+                                  const resolvedCategoryId = fullMaterial?.category ?? material.category
+                                  if (!resolvedCategoryId) return null
+                                  // If the category was deleted from DB, do not show a fallback name
+                                  const category = materialCategories.find(cat => cat.id === resolvedCategoryId)
+                                  if (!category) return null
+                                  const name = category.name || category.label || resolvedCategoryId
+                                  return String(name).trim()
                                 })
                                 .filter(Boolean)
                                 .map(n => n.toString())
@@ -2223,15 +2323,20 @@ export default function SuppliersTable({
                     const filteredMaterials = normalizedMaterials.filter(material => {
                       const fullMaterial = allMaterials.find(m => m.id === material.id)
                       const materialName = fullMaterial?.name || material.name
-                      
+
+                      // If material doesn't exist in DB anymore, do not show
+                      if (!fullMaterial) return false
+
                       // Filter empty names first
                       if (!materialName || materialName.trim() === '') return false
-                      
+
                       // Then filter by active/all based on toggle
                       if (showAllMaterials) {
-                        return true // Show all materials (active + removed)
+                        // Show both active and removed ones that still exist
+                        return true
                       } else {
-                        return fullMaterial?.status !== 'Kaldırıldı' // Show only active materials
+                        // Only show if not removed
+                        return fullMaterial.status !== 'Kaldırıldı'
                       }
                     })
                     
@@ -2317,7 +2422,10 @@ export default function SuppliersTable({
                                   )}
                                 </div>
                                 <div style={{ fontSize: '11px', color: isRemoved ? '#dc2626' : '#6b7280' }}>
-                                  {(fullMaterial?.category || material.category) && `${getCategoryName(fullMaterial?.category || material.category)} • `}
+                                  {(() => {
+                                    const catName = getCategoryName(fullMaterial?.category || material.category)
+                                    return catName ? `${catName} • ` : ''
+                                  })()}
                                   {fullMaterial?.unit || material.unit}
                                 </div>
                               </div>
@@ -2914,7 +3022,7 @@ export default function SuppliersTable({
                       </div>
                       <div style={{ fontSize: '12px', color: '#6b7280' }}>
                         {material.code && `Kod: ${material.code} • `}
-                        {material.category && `Kategori: ${getCategoryName(material.category)} • `}
+                        {(() => { const cn = getCategoryName(material.category); return cn ? `Kategori: ${cn} • ` : '' })()}
                         {material.unit && `Birim: ${material.unit}`}
                       </div>
                     </div>

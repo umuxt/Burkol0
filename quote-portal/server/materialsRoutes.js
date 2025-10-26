@@ -653,6 +653,13 @@ export function setupMaterialsRoutes(app) {
       }
       
       console.log('✅ API: Kategori eklendi:', newCategory.id)
+      // In-memory categories cache invalidation after mutation
+      try {
+        categoriesCache.data = null
+        categoriesCache.ts = 0
+        categoriesCache.etag = ''
+        console.log('🧹 Categories cache invalidated after create')
+      } catch {}
       res.status(201).json(newCategory)
     } catch (error) {
       console.error('❌ API: Kategori eklenirken hata:', error)
@@ -685,6 +692,13 @@ export function setupMaterialsRoutes(app) {
       }
       
       console.log('✅ API: Kategori güncellendi:', id)
+      // Invalidate categories cache after update
+      try {
+        categoriesCache.data = null
+        categoriesCache.ts = 0
+        categoriesCache.etag = ''
+        console.log('🧹 Categories cache invalidated after update')
+      } catch {}
       res.json(updatedCategory)
     } catch (error) {
       console.error('❌ API: Kategori güncellenirken hata:', error)
@@ -708,6 +722,13 @@ export function setupMaterialsRoutes(app) {
       await docRef.delete()
       
       console.log('✅ API: Kategori silindi:', id)
+      // Invalidate categories cache after delete
+      try {
+        categoriesCache.data = null
+        categoriesCache.ts = 0
+        categoriesCache.etag = ''
+        console.log('🧹 Categories cache invalidated after delete')
+      } catch {}
       res.json({ success: true, id })
     } catch (error) {
       console.error('❌ API: Kategori silinirken hata:', error)
