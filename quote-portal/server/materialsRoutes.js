@@ -748,7 +748,9 @@ export function setupMaterialsRoutes(app) {
   app.delete('/api/categories/:id', requireAuth, async (req, res) => {
     try {
       const { id } = req.params
-      console.log('🏷️ API: Kategori siliniyor:', id)
+      const { updateRemoved } = req.query
+
+      console.log('🏷️ API: Kategori siliniyor:', { id, updateRemoved })
       
       const docRef = getDb().collection('materials-categories').doc(id)
       const doc = await docRef.get()
@@ -756,10 +758,42 @@ export function setupMaterialsRoutes(app) {
       if (!doc.exists) {
         return res.status(404).json({ error: 'Kategori bulunamadı' })
       }
+
+      // Eğer 'updateRemoved' true ise, kaldırılmış malzemeleri güncelle ve kategoriyi sil
+      if (updateRemoved === 'true') {
+        console.log('🏷️ API: Kategori siliniyor ve kaldırılmış malzemeler güncelleniyor...')
+        const materialsRef = getDb().collection('materials')
+        const snapshot = await materialsRef.where('category', '==', id).where('status', '==', 'Kaldırıldı').get()
+
+        await getDb().runTransaction(async (transaction) => {
+          if (!snapshot.empty) {
+            console.log(`Found ${snapshot.size} removed materials to update.`)
+            snapshot.forEach(materialDoc => {
+              const materialRef = materialsRef.doc(materialDoc.id)
+              transaction.update(materialRef, { category: null, updatedAt: admin.firestore.FieldValue.serverTimestamp() })
+            })
+          }
+          transaction.delete(docRef)
+        })
+
+        console.log(`✅ API: Kategori silindi ve ${snapshot.size} kaldırılmış malzemenin kategorisi sıfırlandı.`)
+
+      } else {
+        // Doğrudan silme öncesi son bir güvenlik kontrolü yap
+        const usageSnapshot = await getDb().collection('materials').where('category', '==', id).limit(1).get()
+        if (!usageSnapshot.empty) {
+          // Bu kategoriyi kullanan malzeme var. Aktif mi kontrol et.
+          const activeUsage = await getDb().collection('materials').where('category', '==', id).where('status', '!=', 'Kaldırıldı').limit(1).get()
+          if (!activeUsage.empty) {
+            console.warn('❌ API: Aktif malzemeler tarafından kullanılan kategori silinemez.')
+            return res.status(400).json({ error: 'Bu kategori hala aktif malzemeler tarafından kullanılıyor ve silinemez.' })
+          }
+        }
+        // Hiçbir aktif malzeme kullanmıyorsa (veya hiç malzeme kullanmıyorsa) sil
+        console.log('🏷️ API: Kategori doğrudan siliniyor (aktif kullanım yok).')
+        await docRef.delete()
+      }
       
-      await docRef.delete()
-      
-      console.log('✅ API: Kategori silindi:', id)
       // Invalidate categories cache after delete
       try {
         categoriesCache.data = null
@@ -767,6 +801,7 @@ export function setupMaterialsRoutes(app) {
         categoriesCache.etag = ''
         console.log('🧹 Categories cache invalidated after delete')
       } catch {}
+
       res.json({ success: true, id })
     } catch (error) {
       console.error('❌ API: Kategori silinirken hata:', error)
@@ -774,24 +809,40 @@ export function setupMaterialsRoutes(app) {
     }
   })
 
-  // GET /api/categories/:id/usage - Bu kategoriyi kullanan aktif malzemeleri listele
+  // GET /api/categories/:id/usage - Bu kategoriyi kullanan aktif ve kaldırılmış malzemeleri listele
   app.get('/api/categories/:id/usage', requireAuth, async (req, res) => {
     try {
       const { id } = req.params
       console.log('🏷️ API: Kategori kullanım kontrolü istendi:', id)
 
-      // Tüm malzemeleri çekip client-side filtrele (status !== 'Kaldırıldı' ve category eşleşmesi)
-      const snapshot = await safeFirestoreQuery('materials')
-      const using = []
+      const snapshot = await safeFirestoreQuery('materials', [['category', '==', id]])
+      
+      const activeMaterials = []
+      const removedMaterials = []
+      
       snapshot.forEach(doc => {
         const data = doc.data() || {}
-        if (data && data.category === id && data.status !== 'Kaldırıldı') {
-          using.push({ id: doc.id, code: data.code || '', name: data.name || '' })
+        const materialInfo = { id: doc.id, code: data.code || '', name: data.name || '' }
+        
+        if (data.status === 'Kaldırıldı') {
+          removedMaterials.push(materialInfo)
+        } else {
+          activeMaterials.push(materialInfo)
         }
       })
 
-      console.log(`✅ API: Kategori kullanım sonucu: ${using.length} malzeme`)
-      res.json({ categoryId: id, count: using.length, materials: using })
+      console.log(`✅ API: Kategori kullanım sonucu: ${activeMaterials.length} aktif, ${removedMaterials.length} kaldırılmış`)
+      res.json({
+        categoryId: id,
+        active: {
+          count: activeMaterials.length,
+          materials: activeMaterials
+        },
+        removed: {
+          count: removedMaterials.length,
+          materials: removedMaterials
+        }
+      })
     } catch (error) {
       console.error('❌ API: Kategori kullanım kontrolü hatası:', error)
       res.status(500).json({ error: 'Kategori kullanım bilgisi alınamadı' })

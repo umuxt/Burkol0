@@ -89,25 +89,31 @@ export const categoriesService = {
   },
 
   // Kategori sil
-  deleteCategory: async (categoryId) => {
+  deleteCategory: async (categoryId, updateRemoved = false) => {
     try {
-      const response = await fetchWithTimeout(`/api/categories/${categoryId}`, {
+      const url = new URL(`/api/categories/${categoryId}`, window.location.origin);
+      if (updateRemoved) {
+        url.searchParams.set('updateRemoved', 'true');
+      }
+
+      const response = await fetchWithTimeout(url.toString(), {
         method: 'DELETE',
         headers: withAuth()
-      })
+      });
       
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        const errorBody = await response.text();
+        console.error('Category delete failed with status:', response.status, 'Body:', errorBody);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      console.log('✅ Category deleted:', categoryId)
-      return true
+      console.log('✅ Category deleted:', categoryId, { updateRemoved });
+      return true;
     } catch (error) {
-      console.error('❌ Category delete error:', error)
-      throw error
+      console.error('❌ Category delete error:', error);
+      throw error;
     }
-  }
-  ,
+  },
   // Kategori kullanımını getir (bu kategoriyi kullanan aktif malzemeler)
   getCategoryUsage: async (categoryId) => {
     try {

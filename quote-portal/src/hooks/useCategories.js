@@ -87,12 +87,12 @@ export function useCategoryActions() {
     }
   };
 
-  const deleteCategory = async (id) => {
+  const deleteCategory = async (id, updateRemoved = false) => {
     try {
       setLoading(true);
       setError(null);
       
-      await categoriesService.deleteCategory(id);
+      await categoriesService.deleteCategory(id, updateRemoved);
     } catch (err) {
       console.error('Kategori silinirken hata:', err);
       setError(err.message);
