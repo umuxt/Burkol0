@@ -92,11 +92,6 @@ export default function CategoryManagementModal({
 
       if (usage?.count > 0) {
         // Kullanımda: Silmeye izin verme ve uyarı göster
-        alert(
-          `Kullanımda olan kategoriler kaldırılamaz.\n` +
-          `${usage.materials.slice(0,2).map(m => `${m.code} ${m.name}`).join(' ve ')} malzemesi hala bu kategoriyi kullanıyor.\n` +
-          `Lütfen silmek için önce malzeme kategorilerini güncelleyin.`
-        )
         return
       }
 

@@ -576,26 +576,6 @@ function MaterialsApp() {
         error={actionError}
       />
 
-      <ErrorBoundary>
-        <EditMaterialModal 
-          isOpen={isEditModalOpen}
-          onClose={handleCloseEditModal}
-          onSave={handleSaveEditMaterial}
-          onDelete={handleDeleteMaterial}
-          categories={categories}
-          types={materialTypes}
-          material={editingMaterial}
-          suppliers={suppliers}
-          loading={actionLoading}
-          error={actionError}
-          isRemoved={editingMaterial?.status === 'Kaldırıldı'}
-          onRefreshMaterial={refreshMaterials}
-          onRefreshSuppliers={fetchSuppliers}
-        />
-      </ErrorBoundary>
-
-
-
       <CategoryManagementModal 
         isOpen={isCategoryModalOpen}
         onClose={handleCloseCategoryModal}
@@ -616,6 +596,24 @@ function MaterialsApp() {
           }
         }}
       />
+
+      <ErrorBoundary>
+        <EditMaterialModal 
+          isOpen={isEditModalOpen}
+          onClose={handleCloseEditModal}
+          onSave={handleSaveEditMaterial}
+          onDelete={handleDeleteMaterial}
+          categories={categories}
+          types={materialTypes}
+          material={editingMaterial}
+          suppliers={suppliers}
+          loading={actionLoading}
+          error={actionError}
+          isRemoved={editingMaterial?.status === 'Kaldırıldı'}
+          onRefreshMaterial={refreshMaterials}
+          onRefreshSuppliers={fetchSuppliers}
+        />
+      </ErrorBoundary>
 
       <MaterialDeletionWarningModal
         isOpen={isDeletionWarningOpen}
