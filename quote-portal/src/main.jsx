@@ -73,7 +73,8 @@ function MaterialsApp() {
 
   const { 
     suppliers,
-    addMaterialToSupplier
+    addMaterialToSupplier,
+    fetchSuppliers
   } = useSuppliers();
 
   // UI state
@@ -583,6 +584,7 @@ function MaterialsApp() {
           error={actionError}
           isRemoved={editingMaterial?.status === 'Kaldırıldı'}
           onRefreshMaterial={refreshMaterials}
+          onRefreshSuppliers={fetchSuppliers}
         />
       </ErrorBoundary>
 

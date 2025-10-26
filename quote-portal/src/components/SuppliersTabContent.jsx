@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import SuppliersTable from './SuppliersTable'
 import AddSupplierModal from './AddSupplierModal'
 import { useSuppliers } from '../hooks/useSuppliers'
@@ -671,6 +671,19 @@ export default function SuppliersTabContent({
     addCategory: createSupplierCategory 
   } = useSupplierCategories()
 
+  // Wrapper for updateSupplier to refresh suppliers after update
+  const updateSupplierWithRefresh = useCallback(async (...args) => {
+    try {
+      const result = await updateSupplier(...args)
+      // Başarılı update sonrası suppliers'ı refresh et
+      await refetchSuppliers()
+      return result
+    } catch (error) {
+      // Hata durumunda orijinal hatayı fırlat
+      throw error
+    }
+  }, [updateSupplier, refetchSuppliers])
+
   // Hash-based supplier detail açma event listener
   useEffect(() => {
     const handleOpenSupplierDetail = (event) => {
@@ -912,7 +925,7 @@ export default function SuppliersTabContent({
             onSupplierDetails={handleSupplierDetails}
             loading={suppliersLoading}
             suppliersLoading={suppliersLoading}
-            onUpdateSupplier={updateSupplier}
+            onUpdateSupplier={updateSupplierWithRefresh}
             onDeleteSupplier={deleteSupplier}
             onRefreshSuppliers={refetchSuppliers}
             handleDeleteMaterial={handleDeleteMaterial}

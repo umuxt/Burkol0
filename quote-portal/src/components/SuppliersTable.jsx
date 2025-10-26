@@ -164,9 +164,9 @@ export default function SuppliersTable({
   // Load all materials including removed ones
   const loadAllMaterials = async () => {
     try {
-      const materials = await materialsService.getAllMaterials()
+      const materials = await materialsService.getAllMaterialsIncludingRemoved()
       setAllMaterials(materials)
-      console.log('🔍 SuppliersTable: Loaded all materials:', materials.length)
+      console.log('🔍 SuppliersTable: Loaded all materials including removed:', materials.length)
     } catch (error) {
       console.error('❌ SuppliersTable: Error loading all materials:', error)
     }
@@ -2189,7 +2189,7 @@ export default function SuppliersTable({
                               transition: 'all 0.2s ease'
                             }}
                           >
-                            {showAllMaterials ? 'Hepsini Göster' : 'Mevcut Malzemeler'}
+                            {showAllMaterials ? 'Mevcut Malzemeler' : 'Hepsini Göster'}
                           </button>
                         </div>
                       <div style={{ 

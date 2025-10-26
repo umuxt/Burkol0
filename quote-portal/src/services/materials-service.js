@@ -111,6 +111,27 @@ export const materialsService = {
     }
   },
 
+  // Tüm materyalleri getir (kaldırılanlar dahil) - Suppliers table için
+  getAllMaterialsIncludingRemoved: async () => {
+    try {
+      // Kaldırılanlar dahil tüm malzemeleri almak için /all endpoint'ini kullan
+      const response = await fetchWithTimeout('/api/materials/all', {
+        headers: withAuth()
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const materials = await response.json()
+      console.log('✅ All materials including removed fetch successful (via /api/materials/all):', materials.length, 'items')
+      return materials
+    } catch (error) {
+      console.warn('❌ All materials including removed fetch error (returning empty list):', error?.message || error)
+      return []
+    }
+  },
+
   // Materyal sil
   deleteMaterial: async (materialId) => {
     try {

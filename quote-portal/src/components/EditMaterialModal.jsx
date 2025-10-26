@@ -41,15 +41,16 @@ export default function EditMaterialModal({
     }
   }, [loading, isOpen])
 
-  // Modal açıldığında suppliers'ları yenile - authentication olmadan
+  // Modal açıldığında suppliers'ları yenile
   useEffect(() => {
-    if (isOpen && material) {
-      console.log('🔄 EditMaterialModal: Modal açıldı, prop suppliers kullanılıyor...')
+    if (isOpen && material && onRefreshSuppliers) {
+      console.log('🔄 EditMaterialModal: Modal açıldı, suppliers refresh ediliyor...')
       
-      // Ana suppliers'ı refresh etmeye gerek yok - prop'tan gelen data kullan
-      console.log('📦 Modal açıldı, mevcut suppliers:', suppliers?.length || 0)
+      // Suppliers'ı refresh et ki güncel data gelsin
+      onRefreshSuppliers()
+      console.log('📦 Modal açıldı, suppliers refresh edildi')
     }
-  }, [isOpen, material, suppliers])
+  }, [isOpen, material, onRefreshSuppliers])
 
   // Suppliers prop'u değiştiğinde debug
   useEffect(() => {

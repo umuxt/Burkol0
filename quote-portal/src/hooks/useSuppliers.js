@@ -23,7 +23,7 @@ export function useSuppliers() {
   const [error, setError] = useState(null)
 
   // Fetch all suppliers
-  const fetchSuppliers = async () => {
+  const fetchSuppliers = useCallback(async () => {
     try {
       setLoading(true)
       
@@ -61,7 +61,7 @@ export function useSuppliers() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   // Add new supplier
   const addSupplier = async (supplierData) => {
@@ -239,7 +239,7 @@ export function useSuppliers() {
   useEffect(() => {
     console.log('🔍 useSuppliers: useEffect çalıştı, fetchSuppliers çağrılıyor...')
     fetchSuppliers()
-  }, [])
+  }, [fetchSuppliers])
 
   return {
     suppliers,

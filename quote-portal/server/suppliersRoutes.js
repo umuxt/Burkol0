@@ -2,6 +2,9 @@
 import admin from 'firebase-admin'
 import { requireAuth } from './auth.js'
 
+// Firebase Admin SDK helpers
+const serverTimestamp = admin.firestore.FieldValue.serverTimestamp
+
 let db
 function getDb() {
   if (!db) {
@@ -273,11 +276,11 @@ export async function updateSupplier(req, res) {
       
       console.log('🔍 Checking supplier existence:', {
         id,
-        exists: supplierDoc.exists(),
-        data: supplierDoc.exists() ? supplierDoc.data() : null
+        exists: supplierDoc.exists,
+        data: supplierDoc.exists ? supplierDoc.data() : null
       })
       
-      if (!supplierDoc.exists()) {
+      if (!supplierDoc.exists) {
         // Try to find all suppliers to see what IDs exist
         const allSnapshot = await getDb().collection('suppliers').get()
         const existingIds = []
@@ -390,7 +393,7 @@ export async function addMaterialToSupplier(req, res) {
       
       await supplierRef.update({
         suppliedMaterials: updatedMaterials,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        updatedAt: serverTimestamp()
       })
 
       console.log(`✅ Material ${materialCode} added to supplier ${supplierId}`)
