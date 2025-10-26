@@ -1,7 +1,9 @@
 // Authentication API Routes
 import crypto from 'crypto'
-import { createUser, verifyUser, createSession, deleteSession, getSession, requireAuth, hashPassword } from './auth.js'
-import jsondb from '../src/lib/jsondb.js'
+import { 
+  createUser, verifyUser, createSession, deleteSession, getSession, requireAuth, hashPassword,
+  upsertUser, getAllSessions, updateSession, deleteSessionById, listUsersRaw, getUserByEmail
+} from './auth.js'
 import auditSessionActivity from './auditTrail.js'
 
 export function setupAuthRoutes(app) {
@@ -80,8 +82,8 @@ export function setupAuthRoutes(app) {
           activityLog: [...(session.activityLog || []), logoutActivity]
         }
         
-        // Firebase'de session'ı güncelle (sil değil)
-        jsondb.putSession(updatedSession)
+        // Session'ı güncelle (in-memory)
+        updateSession(updatedSession)
       }
       
       deleteSession(token)
@@ -191,7 +193,7 @@ export function setupAuthRoutes(app) {
     const user = createUser(email, password)
     
     try {
-      jsondb.upsertUser(user)
+      upsertUser(user)
       res.json({ message: 'User created successfully' })
     } catch (error) {
       res.status(500).json({ error: 'Failed to create user' })
@@ -212,7 +214,7 @@ export function setupAuthRoutes(app) {
       return res.status(401).json({ error: 'Invalid or expired session' })
     }
     
-    const allSessions = jsondb.getAllSessions()
+    const allSessions = getAllSessions()
     console.log('DEBUG: /api/admin/sessions called by:', session?.email, 'token:', token.slice(0, 10) + '...')
     console.log('DEBUG: allSessions count:', allSessions.length)
     
@@ -238,7 +240,7 @@ export function setupAuthRoutes(app) {
     }
     
     const { sessionId } = req.params
-    const deleted = jsondb.deleteSessionById(sessionId)
+    const deleted = deleteSessionById(sessionId)
     
     if (deleted) {
       res.json({ message: 'Session deleted successfully' })
@@ -250,7 +252,7 @@ export function setupAuthRoutes(app) {
   // List users endpoint
   app.get('/api/auth/users', requireAuth, (req, res) => {
     try {
-      const users = jsondb.listUsersRaw()
+      const users = listUsersRaw()
       // Şifreleri frontend'e gönder (sadece plain-text olanları)
       const safeUsers = users.map(user => ({
         email: user.email,
@@ -283,7 +285,7 @@ export function setupAuthRoutes(app) {
     
     try {
       // Kullanıcı zaten var mı kontrol et
-      const existingUser = jsondb.getUser(email)
+      const existingUser = getUserByEmail(email)
       if (existingUser) {
         return res.status(400).json({ error: 'User already exists' })
       }
@@ -300,7 +302,7 @@ export function setupAuthRoutes(app) {
         createdAt: new Date().toISOString()
       }
       
-      jsondb.upsertUser(user)
+      upsertUser(user)
 
       auditSessionActivity(req, {
         type: 'user-management',
@@ -327,7 +329,7 @@ export function setupAuthRoutes(app) {
     
     try {
       // Kullanıcı var mı kontrol et
-      const existingUser = jsondb.getUser(email)
+      const existingUser = getUserByEmail(email)
       if (!existingUser) {
         return res.status(404).json({ error: 'User not found' })
       }
@@ -346,7 +348,7 @@ export function setupAuthRoutes(app) {
         [newActiveStatus ? 'activatedBy' : 'deactivatedBy']: req.user.email
       }
       
-      jsondb.upsertUser(updatedUser)
+      upsertUser(updatedUser)
 
       const actionType = newActiveStatus ? 'activate' : 'deactivate'
       const actionTitle = newActiveStatus ? 'aktifleştirildi' : 'devre dışı bırakıldı'

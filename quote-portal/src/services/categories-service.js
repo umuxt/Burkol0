@@ -1,5 +1,5 @@
-// Categories Service - Backend API kullanarak (quote-dashboard tarzı)
-// Firebase Admin SDK backend'de çalışıyor, client'da API call'lar yapıyoruz
+// Categories Service - Backend API kullanarak
+// Backend API ile Firebase Admin SDK, frontend'de API call'lar yapıyoruz
 
 import { fetchWithTimeout } from '../lib/api.js'
 
@@ -36,8 +36,9 @@ export const categoriesService = {
       console.log('✅ Categories fetch successful:', categories.length, 'items')
       return categories
     } catch (error) {
-      console.error('❌ Categories fetch error:', error)
-      throw error
+      console.warn('❌ Categories fetch error (returning empty list):', error?.message || error)
+      // UI akışını bozmayalım; boş liste döndür
+      return []
     }
   },
 

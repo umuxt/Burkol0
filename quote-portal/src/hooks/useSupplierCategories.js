@@ -1,11 +1,19 @@
 import { useState, useEffect } from 'react'
+import { withAuth } from '../lib/api.js'
 
-// Auth header helper
-function withAuth() {
-  const headers = { 'Content-Type': 'application/json' }
-  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('bk_admin_token') : null
-  if (token) headers['Authorization'] = `Bearer ${token}`
-  return headers
+async function fetchJsonWith401Retry(url, options = {}, timeoutMs = 10000) {
+  const res = await fetch(url, options)
+  if (res.status !== 401) return res
+  try {
+    const host = typeof window !== 'undefined' ? window.location.hostname : ''
+    const isLocal = host === 'localhost' || host === '127.0.0.1'
+    if (!isLocal) return res
+    localStorage.removeItem('bk_admin_token')
+    const retry = await fetch(url, { ...(options || {}), headers: withAuth(options?.headers || {}) })
+    return retry
+  } catch {
+    return res
+  }
 }
 
 /**
@@ -21,12 +29,14 @@ export function useSupplierCategories(autoLoad = true) {
       setLoading(true)
       setError(null)
       
-      const response = await fetch('/api/supplier-categories', {
-        method: 'GET',
-        headers: withAuth()
-      })
+      const response = await fetchJsonWith401Retry('/api/supplier-categories', { method: 'GET', headers: withAuth({ 'Content-Type': 'application/json' }) })
 
       if (!response.ok) {
+        if (response.status === 401) {
+          // Yetkisiz ise UI'yi bozmadan boş liste dön
+          setCategories([])
+          return
+        }
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
@@ -69,7 +79,7 @@ export function useSupplierCategoryActions() {
 
       const response = await fetch('/api/supplier-categories', {
         method: 'POST',
-        headers: withAuth(),
+        headers: withAuth({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(categoryData)
       })
 
@@ -96,7 +106,7 @@ export function useSupplierCategoryActions() {
 
       const response = await fetch(`/api/supplier-categories/${categoryId}`, {
         method: 'PATCH',
-        headers: withAuth(),
+        headers: withAuth({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(updates)
       })
 
@@ -123,7 +133,7 @@ export function useSupplierCategoryActions() {
 
       const response = await fetch(`/api/supplier-categories/${categoryId}`, {
         method: 'DELETE',
-        headers: withAuth()
+        headers: withAuth({ 'Content-Type': 'application/json' })
       })
 
       if (!response.ok) {

@@ -1,4 +1,4 @@
-import jsondb from '../src/lib/jsondb.js'
+import { updateSession } from './auth.js'
 
 export function auditSessionActivity(req, activity = {}) {
   try {
@@ -13,10 +13,7 @@ export function auditSessionActivity(req, activity = {}) {
       activityTitle: activity.title
     })
 
-    if (!sessionId || typeof jsondb.appendSessionActivity !== 'function') {
-      console.log('DEBUG: Skipping audit - no sessionId or appendSessionActivity function not available')
-      return
-    }
+    if (!sessionId) return
 
     const performer = {
       email: req.user?.email || null,
@@ -36,7 +33,11 @@ export function auditSessionActivity(req, activity = {}) {
       entryTitle: entry.title
     })
 
-    jsondb.appendSessionActivity(sessionId, entry)
+    // Update session activity log in memory (append)
+    updateSession({
+      sessionId,
+      activityLog: [entry]
+    })
   } catch (error) {
     console.error('Audit session activity error:', error)
   }

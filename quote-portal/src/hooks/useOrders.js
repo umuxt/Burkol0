@@ -1,10 +1,9 @@
-// Firebase Orders Hooks
+// Backend API Orders Hooks
 // Orders ve OrderItems için React hooks
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNotifications } from './useNotifications.js';
-import { fetchWithTimeout, API_BASE } from '../lib/api.js';
-import { } from '../lib/api.js';
+import { fetchWithTimeout, API_BASE, API } from '../lib/api.js';
 function withAuth(headers = {}) { try { const t = localStorage.getItem('bk_admin_token') || (window.location.hostname === 'localhost' ? 'dev-admin-token' : ''); return t ? { ...headers, Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { ...headers, 'Content-Type': 'application/json' } } catch { return { ...headers, 'Content-Type': 'application/json' } } }
 import { OrdersService, OrderItemsService, getOrderWithItems, updateOrderStatusBasedOnItems } from '../lib/orders-service.js';
 import { OrderItemService } from '../lib/order-item-service.js';
@@ -32,7 +31,8 @@ export function useOrders(filters = {}, options = {}) {
       if (showLoader) setLoading(true);
       setError(null);
       
-      const fetchedOrders = await OrdersService.getOrders(filters, options);
+      // Backend API: fetch orders list
+      const fetchedOrders = await API.listOrders();
       setOrders(fetchedOrders);
       
       if (!initialized) {
@@ -574,31 +574,6 @@ export function useOrderItems(orderId) {
               `Stok güncellenemedi: ${stockError.message}`, 
               'warning'
             );
-          }
-          
-          // Fallback: Client-side güncelleme dene (güvenlik için)
-          try {
-            console.log('🔄 DEBUG: Fallback: Client-side stok güncelleme deneniyor...');
-            await MaterialsService.updateStockByCode(
-              currentItem.materialCode,
-              currentItem.quantity,
-              'delivery',
-              {
-                reference: orderId,
-                referenceType: 'purchase_order',
-                notes: `Sipariş teslimi (fallback): ${orderId}`,
-                userId: 'system'
-              }
-            );
-            
-            if (showNotification) {
-              showNotification(
-                `Stok güncellendi (fallback): ${currentItem.materialName} (+${currentItem.quantity})`, 
-                'info'
-              );
-            }
-          } catch (fallbackError) {
-            console.error('❌ Fallback stock update failed:', fallbackError);
           }
         }
       }

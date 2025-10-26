@@ -1,33 +1,114 @@
-// Suppliers Routes - Firebase Firestore Integration
-import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, query, where, orderBy, serverTimestamp, setDoc } from 'firebase/firestore'
+// Suppliers Routes - Firebase Admin SDK Integration (Backend Only)
+import admin from 'firebase-admin'
 import { requireAuth } from './auth.js'
 
-const SUPPLIERS_COLLECTION = 'suppliers'
-
-// Initialize Firestore
 let db
-try {
-  const { initializeApp } = await import('firebase/app')
-  const firebaseConfig = {
-    apiKey: "AIzaSyCjk0dG1CjZECHzwT9cr9S19XhnMnTYgmI",
-    authDomain: "burkolmetal-726f3.firebaseapp.com",
-    projectId: "burkolmetal-726f3",
-    storageBucket: "burkolmetal-726f3.appspot.com",
-    messagingSenderId: "271422310075",
-    appId: "1:271422310075:web:0f466fc8deeed58f4d4b9e",
-    measurementId: "G-25LT6XSH60"
+function getDb() {
+  if (!db) {
+    if (!admin.apps.length) {
+      try { admin.initializeApp() } catch {}
+    }
+    db = admin.firestore()
   }
-  const app = initializeApp(firebaseConfig)
-  db = getFirestore(app)
-} catch (error) {
-  console.error('Firebase initialization error:', error)
+  return db
+}
+
+// Enhanced in-memory cache with rate limiting and quota protection
+const cache = {
+  suppliers: { data: null, ts: 0, etag: '', hits: 0 },
+  supplierCategories: { data: null, ts: 0, etag: '', hits: 0 }
+}
+const TTL_MS = Number(process.env.SUPPLIERS_CACHE_TTL_MS || 300_000) // 5 dakika default
+const QUOTA_PROTECTION_TTL_MS = Number(process.env.QUOTA_PROTECTION_TTL_MS || 600_000) // 10 dakika quota koruması
+
+// Rate limiting için request tracking
+const requestTracker = {
+  lastRequest: 0,
+  requestCount: 0,
+  windowStart: Date.now()
+}
+const RATE_LIMIT_WINDOW_MS = 60_000 // 1 dakika
+const MAX_REQUESTS_PER_WINDOW = 30 // Dakikada maksimum 30 request
+
+function buildEtag(items) {
+  try {
+    const base = items?.length ? `${items.length}:${items[0]?.id || ''}:${items[items.length - 1]?.id || ''}` : '0'
+    return 'W/"' + Buffer.from(base).toString('base64').slice(0, 16) + '"'
+  } catch { return 'W/"0"' }
+}
+
+// Rate limiting check
+function checkRateLimit() {
+  const now = Date.now()
+  
+  // Reset window if needed
+  if (now - requestTracker.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    requestTracker.windowStart = now
+    requestTracker.requestCount = 0
+  }
+  
+  requestTracker.requestCount++
+  requestTracker.lastRequest = now
+  
+  if (requestTracker.requestCount > MAX_REQUESTS_PER_WINDOW) {
+    console.warn(`⚠️ Suppliers rate limit exceeded: ${requestTracker.requestCount} requests in current window`)
+    return false
+  }
+  
+  return true
+}
+
+// Enhanced cache check with quota protection
+function getCachedData(cacheKey, quotaProtection = false) {
+  const cached = cache[cacheKey]
+  if (!cached || !cached.data) return null
+  
+  const now = Date.now()
+  const ttl = quotaProtection ? QUOTA_PROTECTION_TTL_MS : TTL_MS
+  
+  if (now - cached.ts < ttl) {
+    cached.hits = (cached.hits || 0) + 1
+    console.log(`🎯 Suppliers cache hit for ${cacheKey} (hits: ${cached.hits})`)
+    return cached
+  }
+  
+  return null
+}
+
+// Safe Firestore query with retry and fallback
+async function safeFirestoreQuery(collectionName, filters = [], retries = 2) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      let query = getDb().collection(collectionName)
+      
+      // Apply filters
+      filters.forEach(filter => {
+        query = query.where(...filter)
+      })
+      
+      const snapshot = await query.get()
+      return snapshot
+    } catch (error) {
+      console.error(`❌ Suppliers Firestore query attempt ${attempt} failed:`, error.message)
+      
+      if (error.code === 8 || error.message.includes('Quota exceeded')) {
+        console.warn('🚨 Suppliers quota exceeded detected, enabling quota protection mode')
+        if (attempt === retries) {
+          throw new Error('QUOTA_EXCEEDED')
+        }
+        // Wait before retry with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000))
+      } else if (attempt === retries) {
+        throw error
+      }
+    }
+  }
 }
 
 // Helper function to generate next supplier code
 async function generateNextSupplierCode() {
   try {
-    const suppliersRef = collection(db, SUPPLIERS_COLLECTION)
-    const snapshot = await getDocs(suppliersRef)
+    const snapshot = await getDb().collection('suppliers').get()
     const existingCodes = []
     
     snapshot.forEach(doc => {
@@ -59,32 +140,73 @@ async function generateNextSupplierCode() {
 // Get all suppliers
 export async function getAllSuppliers(req, res) {
   try {
-    requireAuth(req, res, async () => {
-      const suppliersRef = collection(db, SUPPLIERS_COLLECTION)
-      const q = query(suppliersRef, orderBy('createdAt', 'desc'))
-      const snapshot = await getDocs(q)
-      
-      const suppliers = []
-      snapshot.forEach((doc) => {
-        suppliers.push({
-          id: doc.id,
-          ...doc.data()
-        })
-      })
+    console.log('📦 API: Suppliers listesi istendi')
+    
+    // Rate limiting check
+    if (!checkRateLimit()) {
+      return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: 60 })
+    }
+    
+    const ifNoneMatch = req.headers['if-none-match']
+    
+    // Check cache first
+    const cached = getCachedData('suppliers')
+    if (cached) {
+      if (ifNoneMatch && ifNoneMatch === cached.etag) {
+        return res.status(304).end()
+      }
+      res.set('ETag', cached.etag)
+      res.set('X-Cache', 'HIT')
+      return res.json(cached.data)
+    }
 
-      console.log(`📋 Fetched ${suppliers.length} suppliers from Firestore`)
-      res.json(suppliers)
-    })
+    let suppliers
+    try {
+      // Get all suppliers using safe wrapper
+      const snapshot = await safeFirestoreQuery('suppliers')
+      suppliers = []
+      snapshot.forEach(doc => { 
+        suppliers.push({ id: doc.id, ...doc.data() }) 
+      })
+    } catch (error) {
+      if (error.message === 'QUOTA_EXCEEDED') {
+        // Check if we have any cached data to serve
+        const cachedWithQuotaProtection = getCachedData('suppliers', true)
+        if (cachedWithQuotaProtection) {
+          console.warn('🚨 Serving cached suppliers due to quota exceeded')
+          res.set('ETag', cachedWithQuotaProtection.etag)
+          res.set('X-Cache', 'QUOTA-PROTECTED')
+          return res.json(cachedWithQuotaProtection.data)
+        }
+      }
+      throw error
+    }
+
+    // Update cache
+    const now = Date.now()
+    const etag = buildEtag(suppliers)
+    cache.suppliers = { data: suppliers, ts: now, etag, hits: 0 }
+    
+    res.set('ETag', etag)
+    res.set('X-Cache', 'MISS')
+    console.log(`✅ API: ${suppliers.length} supplier döndürüldü`)
+    res.json(suppliers)
   } catch (error) {
-    console.error('Error fetching suppliers:', error)
-    res.status(500).json({ error: 'Failed to fetch suppliers' })
+    console.error('❌ API: Suppliers listesi alınırken hata:', error)
+    // Final fallback to any cached data
+    if (cache.suppliers.data) {
+      console.warn('⚠️  Serving stale cached suppliers due to error')
+      res.set('ETag', cache.suppliers.etag)
+      res.set('X-Cache', 'STALE')
+      return res.json(cache.suppliers.data)
+    }
+    res.status(503).json({ error: 'Suppliers listesi alınamadı', reason: 'upstream_error' })
   }
 }
 
 // Add new supplier
 export async function addSupplier(req, res) {
   try {
-    requireAuth(req, res, async () => {
       const { suppliedMaterials, ...supplierData } = req.body
       
       // Custom ID kullan - eğer code varsa onu ID olarak kullan
@@ -106,8 +228,8 @@ export async function addSupplier(req, res) {
       console.log('📦 API: Custom Supplier ID kullanılıyor:', customId)
       
       // Custom ID ile document oluştur
-      const docRef = doc(db, SUPPLIERS_COLLECTION, customId)
-      await setDoc(docRef, finalSupplierData)
+      const docRef = getDb().collection('suppliers').doc(customId)
+      await docRef.set(finalSupplierData)
       
       console.log(`✅ Supplier ${customId} created with ${(suppliedMaterials || []).length} materials`)
       
@@ -120,7 +242,6 @@ export async function addSupplier(req, res) {
 
       console.log('✅ New supplier added:', newSupplier.name || newSupplier.companyName)
       res.status(201).json(newSupplier)
-    })
   } catch (error) {
     console.error('Error adding supplier:', error)
     res.status(500).json({ error: 'Failed to add supplier' })
@@ -130,9 +251,8 @@ export async function addSupplier(req, res) {
 // Update supplier
 export async function updateSupplier(req, res) {
   try {
-    requireAuth(req, res, async () => {
-      const { id } = req.params
-      const requestBody = req.body
+    const { id } = req.params
+    const requestBody = req.body
       
       console.log('🔄 Updating supplier:', { id, updateData: requestBody })
       
@@ -148,8 +268,8 @@ export async function updateSupplier(req, res) {
       }
       
       // Check if supplier exists
-      const supplierRef = doc(db, SUPPLIERS_COLLECTION, id)
-      const supplierDoc = await getDoc(supplierRef)
+      const supplierRef = getDb().collection('suppliers').doc(id)
+      const supplierDoc = await supplierRef.get()
       
       console.log('🔍 Checking supplier existence:', {
         id,
@@ -159,8 +279,7 @@ export async function updateSupplier(req, res) {
       
       if (!supplierDoc.exists()) {
         // Try to find all suppliers to see what IDs exist
-        const allSuppliersRef = collection(db, SUPPLIERS_COLLECTION)
-        const allSnapshot = await getDocs(allSuppliersRef)
+        const allSnapshot = await getDb().collection('suppliers').get()
         const existingIds = []
         allSnapshot.forEach(doc => {
           existingIds.push(doc.id)
@@ -190,11 +309,10 @@ export async function updateSupplier(req, res) {
 
       console.log('📝 Final update data:', updateData)
       
-      await updateDoc(supplierRef, updateData)
+      await supplierRef.update(updateData)
 
       console.log('✅ Supplier updated successfully:', id)
       res.json({ id, ...updateData, updatedAt: new Date().toISOString() })
-    })
   } catch (error) {
     console.error('❌ Error updating supplier:', {
       error: error.message,
@@ -212,15 +330,13 @@ export async function updateSupplier(req, res) {
 // Delete supplier
 export async function deleteSupplier(req, res) {
   try {
-    requireAuth(req, res, async () => {
-      const { id } = req.params
-      
-      const supplierRef = doc(db, SUPPLIERS_COLLECTION, id)
-      await deleteDoc(supplierRef)
+    const { id } = req.params
+    
+    const supplierRef = getDb().collection('suppliers').doc(id)
+    await supplierRef.delete()
 
-      console.log('🗑️ Supplier deleted:', id)
-      res.json({ message: 'Supplier deleted successfully' })
-    })
+    console.log('🗑️ Supplier deleted:', id)
+    res.json({ message: 'Supplier deleted successfully' })
   } catch (error) {
     console.error('Error deleting supplier:', error)
     res.status(500).json({ error: 'Failed to delete supplier' })
@@ -243,10 +359,10 @@ export async function addMaterialToSupplier(req, res) {
       const { materialId, materialCode, materialName, price, deliveryTime, minQuantity } = req.body
 
       // Supplier dokümanını al
-      const supplierRef = doc(db, SUPPLIERS_COLLECTION, supplierId)
-      const supplierDoc = await getDoc(supplierRef)
+      const supplierRef = getDb().collection('suppliers').doc(supplierId)
+      const supplierDoc = await supplierRef.get()
       
-      if (!supplierDoc.exists()) {
+      if (!supplierDoc.exists) {
         return res.status(404).json({ error: 'Supplier not found' })
       }
 
@@ -272,9 +388,9 @@ export async function addMaterialToSupplier(req, res) {
 
       const updatedMaterials = [...currentMaterials, newMaterial]
       
-      await updateDoc(supplierRef, {
+      await supplierRef.update({
         suppliedMaterials: updatedMaterials,
-        updatedAt: serverTimestamp()
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
       })
 
       console.log(`✅ Material ${materialCode} added to supplier ${supplierId}`)
@@ -289,16 +405,15 @@ export async function addMaterialToSupplier(req, res) {
 // Get suppliers that supply a specific material
 export async function getSuppliersForMaterial(req, res) {
   try {
-    requireAuth(req, res, async () => {
-      const { materialId } = req.params
-      
-      const suppliersRef = collection(db, SUPPLIERS_COLLECTION)
-      const q = query(suppliersRef, where('status', '==', 'active'))
-      const snapshot = await getDocs(q)
-      
-      const suppliers = []
-      snapshot.forEach((doc) => {
-        const data = doc.data()
+    const { materialId } = req.params
+    
+    const snapshot = await getDb().collection('suppliers').get()
+    
+    const suppliers = []
+    snapshot.forEach((doc) => {
+      const data = doc.data()
+      // Filter by status client-side
+      if (data.status === 'active') {
         const suppliedMaterials = data.suppliedMaterials || []
         
         // Bu supplier bu malzemeyi sağlıyor mu?
@@ -309,11 +424,11 @@ export async function getSuppliersForMaterial(req, res) {
             ...data
           })
         }
-      })
-
-      console.log(`📋 Found ${suppliers.length} suppliers for material ${materialId}`)
-      res.json(suppliers)
+      }
     })
+
+    console.log(`📋 Found ${suppliers.length} suppliers for material ${materialId}`)
+    res.json(suppliers)
   } catch (error) {
     console.error('Error fetching suppliers for material:', error)
     res.status(500).json({ error: 'Failed to fetch suppliers for material' })
@@ -323,22 +438,20 @@ export async function getSuppliersForMaterial(req, res) {
 // Get materials supplied by a specific supplier
 export async function getMaterialsForSupplier(req, res) {
   try {
-    requireAuth(req, res, async () => {
-      const { supplierId } = req.params
+    const { supplierId } = req.params
       
-      const supplierRef = doc(db, SUPPLIERS_COLLECTION, supplierId)
-      const supplierDoc = await getDoc(supplierRef)
-      
-      if (!supplierDoc.exists()) {
-        return res.status(404).json({ error: 'Supplier not found' })
-      }
+    const supplierRef = getDb().collection('suppliers').doc(supplierId)
+    const supplierDoc = await supplierRef.get()
+    
+    if (!supplierDoc.exists) {
+      return res.status(404).json({ error: 'Supplier not found' })
+    }
 
-      const supplierData = supplierDoc.data()
-      const materials = supplierData.suppliedMaterials || []
+    const supplierData = supplierDoc.data()
+    const materials = supplierData.suppliedMaterials || []
 
-      console.log(`📋 Found ${materials.length} materials for supplier ${supplierId}`)
-      res.json(materials)
-    })
+    console.log(`📋 Found ${materials.length} materials for supplier ${supplierId}`)
+    res.json(materials)
   } catch (error) {
     console.error('Error fetching materials for supplier:', error)
     res.status(500).json({ error: 'Failed to fetch materials for supplier' })
@@ -353,9 +466,15 @@ export async function getMaterialsForSupplier(req, res) {
 export async function getSupplierCategories(req, res) {
   try {
     requireAuth(req, res, async () => {
+      const now = Date.now()
+      const ifNoneMatch = req.headers['if-none-match']
+      if (cache.supplierCategories.data && now - cache.supplierCategories.ts < TTL_MS) {
+        if (ifNoneMatch && ifNoneMatch === cache.supplierCategories.etag) return res.status(304).end()
+        res.set('ETag', cache.supplierCategories.etag)
+        return res.json(cache.supplierCategories.data)
+      }
       // Önce tüm materyalleri çek
-      const materialsRef = collection(db, 'materials')
-      const materialsSnapshot = await getDocs(materialsRef)
+      const materialsSnapshot = await getDb().collection('materials').get()
       
       const materialCategories = new Map()
       materialsSnapshot.forEach((doc) => {
@@ -366,8 +485,7 @@ export async function getSupplierCategories(req, res) {
       })
 
       // Tüm supplier'ları çek
-      const suppliersRef = collection(db, SUPPLIERS_COLLECTION)
-      const suppliersSnapshot = await getDocs(suppliersRef)
+      const suppliersSnapshot = await getDb().collection('suppliers').get()
       
       const categoryCount = new Map()
       
@@ -398,11 +516,21 @@ export async function getSupplierCategories(req, res) {
       }))
 
       console.log(`📋 Found ${categories.length} dynamic supplier categories`)
+      cache.supplierCategories = { data: categories, ts: now, etag: buildEtag(categories) }
+      res.set('ETag', cache.supplierCategories.etag)
       res.json(categories)
     })
   } catch (error) {
     console.error('Error fetching supplier categories:', error)
-    res.status(500).json({ error: 'Failed to fetch supplier categories' })
+    if (cache.supplierCategories.data) {
+      console.warn('⚠️  Serving cached supplier categories due to error')
+      res.set('ETag', cache.supplierCategories.etag)
+      return res.json(cache.supplierCategories.data)
+    }
+    if ((process.env.NODE_ENV || 'development') !== 'production') {
+      return res.json([])
+    }
+    res.status(503).json({ error: 'Failed to fetch supplier categories', reason: 'upstream_error' })
   }
 }
 
@@ -413,13 +541,15 @@ export async function getSuppliersByCategory(req, res) {
       const { category } = req.params
       
       // Önce bu kategorideki materyalleri bul
-      const materialsRef = collection(db, 'materials')
-      const materialsQuery = query(materialsRef, where('category', '==', category))
-      const materialsSnapshot = await getDocs(materialsQuery)
+      const materialsSnapshot = await getDb().collection('materials').get()
       
       const materialIds = []
       materialsSnapshot.forEach((doc) => {
-        materialIds.push(doc.id)
+        const materialData = doc.data()
+        // Filter by category client-side
+        if (materialData.category === category) {
+          materialIds.push(doc.id)
+        }
       })
 
       if (materialIds.length === 0) {
@@ -427,8 +557,7 @@ export async function getSuppliersByCategory(req, res) {
       }
 
       // Bu materyalleri sağlayan supplier'ları bul
-      const suppliersRef = collection(db, SUPPLIERS_COLLECTION)
-      const suppliersSnapshot = await getDocs(suppliersRef)
+      const suppliersSnapshot = await getDb().collection('suppliers').get()
       
       const suppliers = []
       suppliersSnapshot.forEach((doc) => {

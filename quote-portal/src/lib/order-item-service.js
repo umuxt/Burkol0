@@ -1,8 +1,5 @@
-// Order Item Delivery Service
-// Bu dosya order içindeki item'ların delivery durumlarını yönetir
-
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, COLLECTIONS } from '../firebase-config.js';
+// Order Item Delivery Service (API-only)
+import { API } from './api.js';
 import { OrdersService } from './orders-service.js';
 
 export class OrderItemService {
@@ -23,73 +20,26 @@ export class OrderItemService {
         actualDeliveryDate
       });
 
-      // Get current order
-      const order = await OrdersService.getOrder(orderId);
-      if (!order || !order.items) {
-        throw new Error('Sipariş veya sipariş kalemleri bulunamadı');
+      // If delivered, use backend endpoint that updates stock and order status
+      if (deliveryStatus === 'Teslim Edildi') {
+        const res = await API.deliverOrderItem(orderId, itemId, { actualDeliveryDate })
+        return { success: true, updatedItem: res.item, newOrderStatus: undefined }
       }
 
-      console.log('🔍 OrderItemService: Full order items structure:', JSON.stringify(order.items, null, 2));
-      console.log('🔍 OrderItemService: Looking for itemId:', itemId);
-
-      // Simple, direct field matching since frontend now sends correct identifiers
-      let itemIndex = order.items.findIndex(item => 
-        item.lineId === itemId || 
-        item.itemCode === itemId || 
-        item.id === itemId
-      );
-
-      if (itemIndex === -1) {
-        console.error('❌ OrderItemService: Item not found with ID:', itemId);
-        console.error('❌ OrderItemService: Available items (full):', order.items);
-        throw new Error('Sipariş kalemi bulunamadı');
-      }
-
-      console.log('✅ OrderItemService: Found item at index', itemIndex, '->', order.items[itemIndex]);
-
-      const currentItem = order.items[itemIndex];
-      const wasAlreadyDelivered = currentItem.itemStatus === 'Teslim Edildi';
-
-      // Update the item
-      const updatedItem = {
-        ...currentItem,
+      // Otherwise update the item via backend item update route
+      const res = await API.updateOrderItem(orderId, itemId, {
         itemStatus: deliveryStatus,
-        actualDeliveryDate: actualDeliveryDate || (deliveryStatus === 'Teslim Edildi' ? new Date() : null),
-        updatedAt: new Date()
-      };
+        actualDeliveryDate
+      })
 
-      // Update items array
-      const updatedItems = [...order.items];
-      updatedItems[itemIndex] = updatedItem;
+      // Fetch latest order to compute status (backend may handle it already)
+      const order = await OrdersService.getOrder(orderId)
+      const newOrderStatus = this._calculateOrderStatus(order.items || [])
 
-      // Handle stock update if item is being delivered for the first time
-      if (deliveryStatus === 'Teslim Edildi' && !wasAlreadyDelivered) {
-        await this._updateStockForDelivery(currentItem, orderId, itemId);
-      }
+      // Ensure order status is consistent
+      try { await OrdersService.updateOrder(orderId, { orderStatus: newOrderStatus }) } catch {}
 
-      // Calculate new order status based on all items
-      const newOrderStatus = this._calculateOrderStatus(updatedItems);
-
-      // Serialize items for Firebase
-      const serializedItems = this._serializeItems(updatedItems);
-
-      // Update order in Firebase
-      await OrdersService.updateOrder(orderId, {
-        orderStatus: newOrderStatus,
-        items: serializedItems,
-        itemCount: updatedItems.length
-      });
-
-      console.log(`✅ OrderItemService: Item ${itemId} delivery status updated to ${deliveryStatus}`);
-      console.log(`✅ OrderItemService: Order ${orderId} status updated to ${newOrderStatus}`);
-
-      return {
-        success: true,
-        updatedItem,
-        newOrderStatus,
-        deliveredCount: updatedItems.filter(item => item.itemStatus === 'Teslim Edildi').length,
-        totalCount: updatedItems.length
-      };
+      return { success: true, updatedItem: res.item || res, newOrderStatus }
 
     } catch (error) {
       console.error('❌ Error updating order item delivery status:', error);
@@ -111,85 +61,19 @@ export class OrderItemService {
         actualDeliveryDate
       });
 
-      // Get current order
-      const order = await OrdersService.getOrder(orderId);
-      if (!order || !order.items) {
-        throw new Error('Sipariş veya sipariş kalemleri bulunamadı');
-      }
-
-      const updatedItems = [...order.items];
-      const stockUpdates = [];
-      let updatedCount = 0;
-
-      // Process each item
+      let updatedCount = 0
       for (const itemId of itemIds) {
-        const itemIndex = updatedItems.findIndex(item => item.id === itemId);
-        if (itemIndex === -1) {
-          console.warn(`⚠️ Item ${itemId} not found in order ${orderId}`);
-          continue;
-        }
-
-        const currentItem = updatedItems[itemIndex];
-        const wasAlreadyDelivered = currentItem.itemStatus === 'Teslim Edildi';
-
-        if (!wasAlreadyDelivered) {
-          // Update item status
-          updatedItems[itemIndex] = {
-            ...currentItem,
-            itemStatus: 'Teslim Edildi',
-            actualDeliveryDate: actualDeliveryDate || new Date(),
-            updatedAt: new Date()
-          };
-
-          // Prepare stock update
-          stockUpdates.push({
-            materialCode: currentItem.materialCode,
-            quantity: currentItem.quantity,
-            itemId: itemId,
-            materialName: currentItem.materialName,
-            unit: currentItem.unit
-          });
-
-          updatedCount++;
+        try {
+          await API.deliverOrderItem(orderId, itemId, { actualDeliveryDate })
+          updatedCount++
+        } catch (e) {
+          console.warn('⚠️ Bulk deliver failed for', itemId, e?.message)
         }
       }
-
-      if (updatedCount === 0) {
-        return {
-          success: true,
-          message: 'Hiçbir kalem güncellenmedi (zaten teslim edilmiş)',
-          updatedCount: 0
-        };
-      }
-
-      // Update stocks for all delivered items
-      for (const stockUpdate of stockUpdates) {
-        await this._updateStockForDeliveryBulk(stockUpdate, orderId);
-      }
-
-      // Calculate new order status
-      const newOrderStatus = this._calculateOrderStatus(updatedItems);
-
-      // Serialize items for Firebase
-      const serializedItems = this._serializeItems(updatedItems);
-
-      // Update order in Firebase
-      await OrdersService.updateOrder(orderId, {
-        orderStatus: newOrderStatus,
-        items: serializedItems,
-        itemCount: updatedItems.length
-      });
-
-      console.log(`✅ OrderItemService: ${updatedCount} items marked as delivered in order ${orderId}`);
-      console.log(`✅ OrderItemService: Order status updated to ${newOrderStatus}`);
-
-      return {
-        success: true,
-        updatedCount,
-        newOrderStatus,
-        deliveredCount: updatedItems.filter(item => item.itemStatus === 'Teslim Edildi').length,
-        totalCount: updatedItems.length
-      };
+      const order = await OrdersService.getOrder(orderId)
+      const newOrderStatus = this._calculateOrderStatus(order.items || [])
+      try { await OrdersService.updateOrder(orderId, { orderStatus: newOrderStatus }) } catch {}
+      return { success: true, updatedCount, newOrderStatus, deliveredCount: (order.items || []).filter(i => i.itemStatus === 'Teslim Edildi').length, totalCount: (order.items || []).length }
 
     } catch (error) {
       console.error('❌ Error marking multiple order items as delivered:', error);
@@ -312,7 +196,8 @@ export class OrderItemService {
     const totalCount = items.length;
     
     if (deliveredCount === 0) {
-      return 'Bekliyor';
+      // Align with app-wide naming
+      return 'Onay Bekliyor';
     } else if (deliveredCount === totalCount) {
       return 'Teslim Edildi';
     } else {
@@ -321,7 +206,7 @@ export class OrderItemService {
   }
 
   /**
-   * Serialize items for Firebase storage
+   * Serialize items for Backend API storage
    * @private
    */
   static _serializeItems(items) {

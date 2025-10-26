@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useSuppliers } from '../hooks/useSuppliers.js'
-import { useMaterials } from '../hooks/useFirebaseMaterials.js'
+import { useMaterials } from '../hooks/useMaterials.js'
 import { useOrderActions } from '../hooks/useOrders.js'
 
 export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecordMode = false }) {
@@ -19,7 +19,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   const [supplierMaterialsLoading, setSupplierMaterialsLoading] = useState(false)
   const [supplierMaterialsError, setSupplierMaterialsError] = useState(null)
 
-  // Firebase hooks
+  // Backend API hooks
   const { suppliers, loading: suppliersLoading, getMaterialsForSupplier } = useSuppliers()
   const { materials, loading: materialsLoading, initialized: materialsInitialized, loadMaterials } = useMaterials(true)
   const { createOrderWithItems, loading: orderLoading } = useOrderActions()

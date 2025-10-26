@@ -2,11 +2,29 @@
 // This file handles order creation, item management, and stock updates
 import express from 'express'
 import admin from 'firebase-admin'
+import { requireAuth } from './auth.js'
 
 const router = express.Router()
 
 // Get Firestore instance (will be initialized by server.js)
 let db
+
+// In-memory caches to reduce Firestore reads and survive quota spikes
+const CACHE_TTL_MS = Number(process.env.ORDERS_CACHE_TTL_MS || 60_000)
+const cache = {
+  orders: { data: null, ts: 0, etag: '' },
+  stats: { data: null, ts: 0, etag: '' },
+  activeMaterials: { data: null, ts: 0, etag: '' }
+}
+function buildEtag(payload) {
+  try {
+    const src = Array.isArray(payload) ? `${payload.length}:${payload[0]?.id || ''}:${payload[payload.length-1]?.id || ''}` : JSON.stringify(Object.keys(payload || {}).sort()).slice(0,128)
+    return 'W/"' + Buffer.from(src).toString('base64').slice(0, 16) + '"'
+  } catch { return 'W/"0"' }
+}
+
+// Auth + Debug middleware
+router.use(requireAuth)
 
 // Debug middleware
 router.use((req, res, next) => {
@@ -172,6 +190,11 @@ router.put('/orders/:orderId/items/:itemId', async (req, res) => {
     }
     
     const orderData = orderSnap.data()
+    const normalizedItems = Array.isArray(orderData.items) && orderData.items.length > 0
+      ? orderData.items
+      : (Array.isArray(orderData.orderItems) && orderData.orderItems.length > 0
+        ? orderData.orderItems
+        : (Array.isArray(orderData.lineItems) && orderData.lineItems.length > 0 ? orderData.lineItems : []))
     const items = orderData.items || []
     
     console.log('🔍 DEBUG: Looking for itemId:', itemId)
@@ -358,15 +381,19 @@ router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
       }
     }
     
-    // Update order document
+    // Determine if order should be marked delivered
+    const allDelivered = items.length > 0 && items.every(it => (it.itemStatus || 'Onay Bekliyor') === 'Teslim Edildi')
+
+    // Update order document (and status if needed)
     await orderRef.update({
       items: items,
+      ...(allDelivered ? { orderStatus: 'Teslim Edildi' } : {}),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     })
     
     res.json({
       success: true,
-      message: 'Item delivered and stock updated',
+      message: allDelivered ? 'Item delivered, stock updated, order completed' : 'Item delivered and stock updated',
       item: items[itemIndex]
     })
     
@@ -385,12 +412,25 @@ router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
 router.get('/orders/stats', async (req, res) => {
   try {
     console.log('📊 Getting order statistics...')
+    const nowMs = Date.now()
+    const ifNoneMatch = req.headers['if-none-match']
+    if (cache.stats.data && nowMs - cache.stats.ts < CACHE_TTL_MS) {
+      if (ifNoneMatch && ifNoneMatch === cache.stats.etag) return res.status(304).end()
+      res.set('ETag', cache.stats.etag)
+      return res.json({ stats: cache.stats.data })
+    }
     
     const ordersSnapshot = await db.collection('orders').get()
     const orders = []
     
     ordersSnapshot.forEach(doc => {
       const orderData = doc.data()
+      // Normalize items for different legacy shapes
+      const normalizedItems = Array.isArray(orderData.items) && orderData.items.length > 0
+        ? orderData.items
+        : (Array.isArray(orderData.orderItems) && orderData.orderItems.length > 0
+          ? orderData.orderItems
+          : (Array.isArray(orderData.lineItems) && orderData.lineItems.length > 0 ? orderData.lineItems : []))
       orders.push({
         id: doc.id,
         ...orderData,
@@ -432,15 +472,23 @@ router.get('/orders/stats', async (req, res) => {
       totalAmount
     }
     
-    console.log('✅ Order statistics:', stats)
+    cache.stats = { data: stats, ts: nowMs, etag: buildEtag(stats) }
+    res.set('ETag', cache.stats.etag)
+    console.log('✅ Order statistics (fresh):', stats)
     res.json({ stats })
     
   } catch (error) {
     console.error('❌ Get order statistics error:', error)
-    res.status(500).json({ 
-      error: 'Failed to get order statistics',
-      details: error.message 
-    })
+    if (cache.stats.data) {
+      console.warn('⚠️  Serving cached order statistics due to error')
+      res.set('ETag', cache.stats.etag)
+      return res.json({ stats: cache.stats.data })
+    }
+    if ((process.env.NODE_ENV || 'development') !== 'production') {
+      // Dev fallback: return empty stats
+      return res.json({ stats: { totalOrders: 0, pendingOrders: 0, completedOrders: 0, partialOrders: 0, thisMonthOrders: 0, totalAmount: 0 } })
+    }
+    res.status(503).json({ error: 'Failed to get order statistics', reason: 'upstream_error', details: error.message })
   }
 })
 
@@ -451,6 +499,13 @@ router.get('/orders/stats', async (req, res) => {
 router.get('/orders/materials/active', async (req, res) => {
   try {
     console.log('📦 Orders API: Active materials requested')
+    const now = Date.now()
+    const ifNoneMatch = req.headers['if-none-match']
+    if (cache.activeMaterials.data && now - cache.activeMaterials.ts < CACHE_TTL_MS) {
+      if (ifNoneMatch && ifNoneMatch === cache.activeMaterials.etag) return res.status(304).end()
+      res.set('ETag', cache.activeMaterials.etag)
+      return res.json({ success: true, materials: cache.activeMaterials.data, count: cache.activeMaterials.data.length })
+    }
     
     // Get all materials (no filter to avoid index issues) and filter client-side
     const materialsSnapshot = await db.collection('materials').get()
@@ -480,19 +535,22 @@ router.get('/orders/materials/active', async (req, res) => {
     // Sort by name
     activeMaterials.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
     
+    cache.activeMaterials = { data: activeMaterials, ts: now, etag: buildEtag(activeMaterials) }
+    res.set('ETag', cache.activeMaterials.etag)
     console.log(`✅ Orders API: ${activeMaterials.length} active materials returned (from ${materialsSnapshot.size} total)`)
-    res.json({
-      success: true,
-      materials: activeMaterials,
-      count: activeMaterials.length
-    })
+    res.json({ success: true, materials: activeMaterials, count: activeMaterials.length })
     
   } catch (error) {
     console.error('❌ Orders API: Active materials fetch error:', error)
-    res.status(500).json({ 
-      error: 'Failed to fetch active materials',
-      details: error.message 
-    })
+    if (cache.activeMaterials.data) {
+      console.warn('⚠️  Serving cached active materials due to error')
+      res.set('ETag', cache.activeMaterials.etag)
+      return res.json({ success: true, materials: cache.activeMaterials.data, count: cache.activeMaterials.data.length })
+    }
+    if ((process.env.NODE_ENV || 'development') !== 'production') {
+      return res.json({ success: true, materials: [], count: 0 })
+    }
+    res.status(503).json({ error: 'Failed to fetch active materials', reason: 'upstream_error', details: error.message })
   }
 })
 
@@ -502,12 +560,25 @@ router.get('/orders/materials/active', async (req, res) => {
 router.get('/orders', async (req, res) => {
   try {
     console.log('📋 Getting all orders...')
-    
+    const now = Date.now()
+    const ifNoneMatch = req.headers['if-none-match']
+    if (cache.orders.data && now - cache.orders.ts < CACHE_TTL_MS) {
+      if (ifNoneMatch && ifNoneMatch === cache.orders.etag) return res.status(304).end()
+      res.set('ETag', cache.orders.etag)
+      return res.json({ orders: cache.orders.data })
+    }
+
     const ordersSnapshot = await db.collection('orders').get()
     const orders = []
     
     ordersSnapshot.forEach(doc => {
       const orderData = doc.data()
+      // Normalize items for different legacy shapes
+      const normalizedItems = Array.isArray(orderData.items) && orderData.items.length > 0
+        ? orderData.items
+        : (Array.isArray(orderData.orderItems) && orderData.orderItems.length > 0
+          ? orderData.orderItems
+          : (Array.isArray(orderData.lineItems) && orderData.lineItems.length > 0 ? orderData.lineItems : []))
       
       // Debug: Order'ın structure'ını kontrol et
       console.log(`📋 Order ${doc.id} structure:`, {
@@ -523,12 +594,15 @@ router.get('/orders', async (req, res) => {
       orders.push({
         id: doc.id,
         ...orderData,
+        items: normalizedItems,
         orderDate: orderData.orderDate?.toDate ? orderData.orderDate.toDate() : orderData.orderDate,
         expectedDeliveryDate: orderData.expectedDeliveryDate?.toDate ? orderData.expectedDeliveryDate.toDate() : orderData.expectedDeliveryDate,
         updatedAt: orderData.updatedAt?.toDate ? orderData.updatedAt.toDate() : orderData.updatedAt
       })
     })
     
+    cache.orders = { data: orders, ts: now, etag: buildEtag(orders) }
+    res.set('ETag', cache.orders.etag)
     console.log(`✅ Retrieved ${orders.length} orders`)
     console.log(`📦 Sample order structure:`, orders[0] ? {
       id: orders[0].id,
@@ -540,10 +614,15 @@ router.get('/orders', async (req, res) => {
     
   } catch (error) {
     console.error('❌ Get all orders error:', error)
-    res.status(500).json({ 
-      error: 'Failed to get orders',
-      details: error.message 
-    })
+    if (cache.orders.data) {
+      console.warn('⚠️  Serving cached orders due to error')
+      res.set('ETag', cache.orders.etag)
+      return res.json({ orders: cache.orders.data })
+    }
+    if ((process.env.NODE_ENV || 'development') !== 'production') {
+      return res.json({ orders: [] })
+    }
+    res.status(503).json({ error: 'Failed to get orders', reason: 'upstream_error', details: error.message })
   }
 })
 
@@ -632,11 +711,17 @@ router.get('/orders/:orderId', async (req, res) => {
     }
     
     const orderData = orderSnap.data()
+    const normalizedItems = Array.isArray(orderData.items) && orderData.items.length > 0
+      ? orderData.items
+      : (Array.isArray(orderData.orderItems) && orderData.orderItems.length > 0
+        ? orderData.orderItems
+        : (Array.isArray(orderData.lineItems) && orderData.lineItems.length > 0 ? orderData.lineItems : []))
     
     res.json({
       order: {
         id: orderSnap.id,
         ...orderData,
+        items: normalizedItems,
         orderDate: orderData.orderDate?.toDate ? orderData.orderDate.toDate() : orderData.orderDate,
         expectedDeliveryDate: orderData.expectedDeliveryDate?.toDate ? orderData.expectedDeliveryDate.toDate() : orderData.expectedDeliveryDate,
         updatedAt: orderData.updatedAt?.toDate ? orderData.updatedAt.toDate() : orderData.updatedAt
@@ -721,7 +806,7 @@ router.put('/orders/:orderId', async (req, res) => {
     const { orderId } = req.params
     const updates = req.body
     
-    console.log('📝 Updating order:', orderId, updates)
+  console.log('📝 Updating order:', orderId, updates)
     
     const orderRef = db.collection('orders').doc(orderId)
     const orderSnap = await orderRef.get()
@@ -730,10 +815,43 @@ router.put('/orders/:orderId', async (req, res) => {
       return res.status(404).json({ error: 'Order not found' })
     }
     
-    // Update the order
+    // Prepare update data with optional item status propagation
     const updateData = {
       ...updates,
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }
+
+    // If orderStatus is changed, ensure items reflect it (even if items were provided)
+    if (Object.prototype.hasOwnProperty.call(updates, 'orderStatus')) {
+      const orderData = orderSnap.data()
+      let currentItems = Array.isArray(orderData.items) ? orderData.items : []
+      // Legacy support: migrate from orderItems/lineItems if needed
+      if (currentItems.length === 0) {
+        if (Array.isArray(orderData.orderItems) && orderData.orderItems.length > 0) {
+          currentItems = orderData.orderItems
+        } else if (Array.isArray(orderData.lineItems) && orderData.lineItems.length > 0) {
+          currentItems = orderData.lineItems
+        }
+      }
+      console.log('🔍 Order update pre-propagation:', {
+        itemsCount: currentItems.length,
+        sampleStatuses: currentItems.slice(0,3).map(it => it.itemStatus || it.status || null)
+      })
+      const baseItems = Array.isArray(updates.items) && updates.items.length > 0 ? updates.items : currentItems
+      const allowedStatuses = new Set(['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi'])
+      const newStatus = updates.orderStatus
+      if (baseItems.length > 0 && allowedStatuses.has(newStatus)) {
+        const now = new Date()
+        const propagated = baseItems.map(item => ({
+          ...item,
+          itemStatus: newStatus,
+          actualDeliveryDate: newStatus === 'Teslim Edildi' ? (item.actualDeliveryDate || now) : null,
+          updatedAt: now
+        }))
+        updateData.items = propagated
+        updateData.itemCount = propagated.length
+        console.log('✅ Propagated item statuses to:', newStatus, 'count:', propagated.length)
+      }
     }
     
     await orderRef.update(updateData)

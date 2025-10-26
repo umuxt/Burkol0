@@ -10,12 +10,11 @@ import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
-import { setupQuoteRoutes, setupSettingsRoutes, setupExportRoutes } from './server/apiRoutes.js'
+// Settings routes (quotes system) are disabled to avoid Firestore bootstrap
 import { setupMaterialsRoutes } from './server/materialsRoutes.js'
 import { ordersRoutes } from './server/ordersRoutes.js'
 import { getAllSuppliers, addSupplier, updateSupplier, deleteSupplier, getSuppliersByCategory, getSupplierCategories, addMaterialToSupplier, getSuppliersForMaterial, getMaterialsForSupplier } from './server/suppliersRoutes.js'
-import addMigrationRoutes from './server/migrationRoutes.js'
-import jsondb from './src/lib/jsondb.js'
+import { addMigrationRoutes } from './server/migrationRoutes.js'
 import admin from 'firebase-admin'
 import dotenv from 'dotenv'
 
@@ -81,19 +80,24 @@ app.use(express.json({ limit: '5mb' }))
 
 // CORS configuration
 app.use((req, res, next) => {
-  const allowedOrigins = process.env.NODE_ENV === 'production' 
-    ? ['https://burkol.com', 'https://admin.burkol.com', `http://${req.get('host')}`, '*'] 
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', req.headers.origin || 'http://localhost:3001']
+  const allowedOrigins = process.env.NODE_ENV === 'production'
+    ? ['https://burkol.com', 'https://admin.burkol.com']
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001']
 
   const origin = req.headers.origin
-  console.log('🌐 CORS check:', { origin, allowedOrigins })
-  
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin)
-    console.log('✅ CORS allowed for:', origin)
-  } else {
-    res.header('Access-Control-Allow-Origin', '*')
-    console.log('🔓 CORS wildcard allowed for:', origin)
+
+  // Only log CORS details when an Origin header is present
+  if (origin) {
+    if (allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin)
+      if (process.env.CORS_LOG !== 'silent') console.log('✅ CORS allowed for:', origin)
+    } else {
+      // In dev, allow wildcard for non-allowlisted origins to ease local testing
+      if (process.env.NODE_ENV !== 'production') {
+        res.header('Access-Control-Allow-Origin', '*')
+      }
+      if (process.env.CORS_LOG !== 'silent') console.log('⚠️ CORS origin not in allowlist:', origin)
+    }
   }
 
   // Security headers
@@ -103,24 +107,49 @@ app.use((req, res, next) => {
   res.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
 
   // CORS headers
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS')
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   res.header('Access-Control-Max-Age', '86400')
 
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204)
   }
-  
+
   next()
 })
 
 // Setup API routes
 setupAuthRoutes(app)
-setupQuoteRoutes(app, uploadsDir)
+// Optionally enable quote routes to avoid Firestore bootstrap on startup
+try {
+  if (process.env.QUOTES_ROUTES_ENABLED === 'true') {
+    const apiRoutesMod = await import('./server/apiRoutes.js')
+    apiRoutesMod.setupQuoteRoutes(app, uploadsDir)
+    apiRoutesMod.setupExportRoutes(app)
+    console.log('✅ Quote routes enabled')
+  } else {
+    console.log('⏭️  Quote routes disabled (set QUOTES_ROUTES_ENABLED=true to enable)')
+  }
+} catch (e) {
+  console.warn('⚠️ Quote routes not initialized:', e?.message)
+}
 setupMaterialsRoutes(app)
 app.use('/api', ordersRoutes)
-setupSettingsRoutes(app)
-setupExportRoutes(app)
+// Settings routes disabled
+
+// Optionally enable migration routes (avoids Firestore-heavy bootstrap by default)
+try {
+  if (process.env.MIGRATION_ROUTES_ENABLED === 'true') {
+    const jsondbMod = await import('./src/lib/jsondb.js')
+    const jsondb = jsondbMod.default || jsondbMod
+    addMigrationRoutes(app, jsondb)
+    console.log('✅ Migration routes enabled')
+  } else {
+    console.log('⏭️  Migration routes disabled (set MIGRATION_ROUTES_ENABLED=true to enable)')
+  }
+} catch (e) {
+  console.warn('⚠️ Migration routes not initialized:', e?.message)
+}
 
 // Setup suppliers routes
 app.get('/api/suppliers', getAllSuppliers)
@@ -134,7 +163,7 @@ app.get('/api/materials/:materialId/suppliers', getSuppliersForMaterial)
 app.get('/api/suppliers/:supplierId/materials', getMaterialsForSupplier)
 
 // Expose migration management API routes used by admin tooling
-addMigrationRoutes(app, jsondb)
+// (disabled by default above; enable with MIGRATION_ROUTES_ENABLED=true)
 
 // Serve uploaded files
 app.use('/uploads', express.static(uploadsDir))

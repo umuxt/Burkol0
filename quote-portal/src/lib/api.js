@@ -7,8 +7,8 @@ let LOCAL_STORAGE_MODE = false // Global flag for localStorage fallback mode
 // Initialize localStorage with sample data if empty
 function initializeSampleData() {
   // Disabled - no automatic sample data initialization
-  // Only Firebase data should be shown in quote table
-  console.log('🔧 DEBUG: Sample data initialization disabled - using Firebase only')
+  // Only Backend API data should be shown in quote table
+  console.log('🔧 DEBUG: Sample data initialization disabled - using Backend API only')
 }
 
 function lsLoad() {
@@ -25,21 +25,69 @@ function lsUpdate(id, patch) {
 }
 function lsDelete(id) { const arr = lsLoad().filter(x => x.id !== id); lsSave(arr) }
 
-export async function fetchWithTimeout(url, options = {}, timeoutMs = 4000) {
+export async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   try {
     const lang = (typeof localStorage !== 'undefined' && (localStorage.getItem('bk_lang') || localStorage.getItem('lang'))) || 'tr'
-    const mergedHeaders = { ...(options.headers || {}), 'Accept-Language': lang }
+    const mergedHeaders = { 
+      ...(options.headers || {}), 
+      'Accept-Language': lang,
+      'Cache-Control': 'no-cache'
+    }
     const mergedOptions = { ...options, headers: mergedHeaders }
-    return await Promise.race([
-      fetch(url, mergedOptions),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
-    ])
+    
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    
+    try {
+      const response = await fetch(url, { 
+        ...mergedOptions, 
+        signal: controller.signal 
+      })
+      clearTimeout(timeoutId)
+      
+      // Handle 429 (rate limit) specifically
+      if (response.status === 429) {
+        const retryAfter = response.headers.get('Retry-After') || '60'
+        throw new Error(`Rate limit exceeded. Retry after ${retryAfter} seconds.`)
+      }
+      
+      // Handle 503 (service unavailable) with specific message
+      if (response.status === 503) {
+        throw new Error('Service temporarily unavailable. Please try again later.')
+      }
+      
+      return response
+    } catch (fetchError) {
+      clearTimeout(timeoutId)
+      
+      if (fetchError.name === 'AbortError') {
+        throw new Error('timeout')
+      }
+      
+      // Network or other fetch errors
+      throw fetchError
+    }
   } catch (e) {
     // Fallback to original behavior if localStorage not accessible
-    return await Promise.race([
-      fetch(url, options),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), timeoutMs))
-    ])
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+    
+    try {
+      const response = await fetch(url, { 
+        ...options, 
+        signal: controller.signal 
+      })
+      clearTimeout(timeoutId)
+      return response
+    } catch (fetchError) {
+      clearTimeout(timeoutId)
+      
+      if (fetchError.name === 'AbortError') {
+        throw new Error('timeout')
+      }
+      
+      throw fetchError
+    }
   }
 }
 
@@ -94,13 +142,78 @@ function getToken() {
 }
 function setToken(t) { try { if (t) localStorage.setItem('bk_admin_token', t); else localStorage.removeItem('bk_admin_token') } catch {} }
 
-function withAuth(headers = {}) {
+export function withAuth(headers = {}) {
   const token = getToken()
   if (token) return { ...headers, Authorization: `Bearer ${token}` }
   return headers
 }
 
 export const API = {
+  // Orders API
+  async listOrders(params = {}) {
+    const qs = new URLSearchParams(params).toString()
+    const url = `${API_BASE}/api/orders${qs ? `?${qs}` : ''}`
+    const res = await fetchWithTimeout(url, { headers: withAuth() }, 10000)
+    if (!res.ok) throw new Error('list_orders_failed')
+    const data = await res.json()
+    return Array.isArray(data) ? data : (data.orders || [])
+  },
+  async getOrder(orderId) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}`, { headers: withAuth() }, 10000)
+    if (!res.ok) throw new Error('get_order_failed')
+    const data = await res.json()
+    return data.order || data
+  },
+  async createOrder(orderData) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/orders`, {
+      method: 'POST',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ orderData })
+    }, 15000)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'create_order_failed')
+    }
+    const data = await res.json()
+    return data.order || data
+  },
+  async updateOrder(orderId, updates) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}`, {
+      method: 'PUT',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(updates)
+    }, 15000)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'update_order_failed')
+    }
+    const data = await res.json()
+    return data.order || data
+  },
+  async updateOrderItem(orderId, itemId, updates) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}/items/${encodeURIComponent(itemId)}`, {
+      method: 'PUT',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(updates)
+    }, 15000)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'update_order_item_failed')
+    }
+    return await res.json()
+  },
+  async deliverOrderItem(orderId, itemId, payload = {}) {
+    const res = await fetchWithTimeout(`${API_BASE}/api/orders/${encodeURIComponent(orderId)}/items/${encodeURIComponent(itemId)}/deliver`, {
+      method: 'PUT',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload)
+    }, 15000)
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'deliver_order_item_failed')
+    }
+    return await res.json()
+  },
   async listQuotes() {
     try {
       // Add cache busting to ensure fresh data
@@ -110,18 +223,18 @@ export const API = {
       const res = await fetchWithTimeout(url, { headers: withAuth() }, 2000) // Shorter timeout for quick fallback
       if (res.status === 401) throw new Error('unauthorized')
       if (!res.ok) throw new Error('list failed')
-      const firebaseQuotes = await res.json()
-      console.log('🔧 DEBUG: API.listQuotes received from Firebase:', firebaseQuotes.length, 'quotes')
+      const backendQuotes = await res.json()
+      console.log('🔧 DEBUG: API.listQuotes received from Backend API:', backendQuotes.length, 'quotes')
       
-      // Only return Firebase quotes - no localStorage merging
-      return firebaseQuotes
+      // Only return Backend API quotes - no localStorage merging
+      return backendQuotes
     } catch (e) {
       console.error('🔧 DEBUG: API.listQuotes error:', e)
       // If unauthorized, bubble up to show login
       if ((e && e.message && /401|unauthorized/i.test(e.message))) throw e
       
       // For other errors, return empty array instead of localStorage fallback
-      console.log('🔧 DEBUG: Firebase connection failed, returning empty array')
+      console.log('🔧 DEBUG: Backend API connection failed, returning empty array')
       return []
     }
   },
@@ -250,7 +363,7 @@ export const API = {
     return this.createQuote(payload)
   },
 
-  async syncLocalQuotesToFirebase() {
+  async syncLocalQuotesToBackend() {
     try {
       const localQuotes = lsLoad()
       if (localQuotes.length === 0) {
@@ -258,7 +371,7 @@ export const API = {
         return { synced: 0, errors: 0 }
       }
 
-      console.log('🔄 Syncing', localQuotes.length, 'local quotes to Firebase...')
+      console.log('🔄 Syncing', localQuotes.length, 'local quotes to Backend API...')
       let synced = 0
       let errors = 0
 

@@ -2,16 +2,115 @@
 import admin from 'firebase-admin'
 import { requireAuth } from './auth.js'
 
-const db = admin.firestore()
+let db
+function getDb() {
+  if (!db) {
+    if (!admin.apps.length) {
+      try { admin.initializeApp() } catch {}
+    }
+    db = admin.firestore()
+  }
+  return db
+}
 
-// Materials collection reference
-const materialsCollection = db.collection('materials')
-const categoriesCollection = db.collection('materials-categories')
+// Enhanced in-memory cache with rate limiting and quota protection
+const cache = {
+  materialsActive: { data: null, ts: 0, etag: '', hits: 0 },
+  materialsAll: { data: null, ts: 0, etag: '', hits: 0 },
+  categories: { data: null, ts: 0, etag: '', hits: 0 },
+  suppliers: { data: null, ts: 0, etag: '', hits: 0 }
+}
+const TTL_MS = Number(process.env.MATERIALS_CACHE_TTL_MS || 300_000) // 5 dakika default
+const QUOTA_PROTECTION_TTL_MS = Number(process.env.QUOTA_PROTECTION_TTL_MS || 600_000) // 10 dakika quota koruması
+
+// Rate limiting için request tracking
+const requestTracker = {
+  lastRequest: 0,
+  requestCount: 0,
+  windowStart: Date.now()
+}
+const RATE_LIMIT_WINDOW_MS = 60_000 // 1 dakika
+const MAX_REQUESTS_PER_WINDOW = 50 // Dakikada maksimum 50 request
+
+function buildEtag(items) {
+  try {
+    const base = items?.length ? `${items.length}:${items[0]?.id || ''}:${items[items.length - 1]?.id || ''}` : '0'
+    return 'W/"' + Buffer.from(base).toString('base64').slice(0, 16) + '"'
+  } catch { return 'W/"0"' }
+}
+
+// Rate limiting check
+function checkRateLimit() {
+  const now = Date.now()
+  
+  // Reset window if needed
+  if (now - requestTracker.windowStart >= RATE_LIMIT_WINDOW_MS) {
+    requestTracker.windowStart = now
+    requestTracker.requestCount = 0
+  }
+  
+  requestTracker.requestCount++
+  requestTracker.lastRequest = now
+  
+  if (requestTracker.requestCount > MAX_REQUESTS_PER_WINDOW) {
+    console.warn(`⚠️ Rate limit exceeded: ${requestTracker.requestCount} requests in current window`)
+    return false
+  }
+  
+  return true
+}
+
+// Enhanced cache check with quota protection
+function getCachedData(cacheKey, quotaProtection = false) {
+  const cached = cache[cacheKey]
+  if (!cached || !cached.data) return null
+  
+  const now = Date.now()
+  const ttl = quotaProtection ? QUOTA_PROTECTION_TTL_MS : TTL_MS
+  
+  if (now - cached.ts < ttl) {
+    cached.hits = (cached.hits || 0) + 1
+    console.log(`🎯 Cache hit for ${cacheKey} (hits: ${cached.hits})`)
+    return cached
+  }
+  
+  return null
+}
+
+// Safe Firestore query with retry and fallback
+async function safeFirestoreQuery(collectionName, filters = [], retries = 2) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      let query = getDb().collection(collectionName)
+      
+      // Apply filters
+      filters.forEach(filter => {
+        query = query.where(...filter)
+      })
+      
+      const snapshot = await query.get()
+      return snapshot
+    } catch (error) {
+      console.error(`❌ Firestore query attempt ${attempt} failed:`, error.message)
+      
+      if (error.code === 8 || error.message.includes('Quota exceeded')) {
+        console.warn('🚨 Quota exceeded detected, enabling quota protection mode')
+        if (attempt === retries) {
+          throw new Error('QUOTA_EXCEEDED')
+        }
+        // Wait before retry with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000))
+      } else if (attempt === retries) {
+        throw error
+      }
+    }
+  }
+}
 
 // Helper function to generate next material code
 async function generateNextMaterialCode() {
   try {
-    const snapshot = await materialsCollection.get()
+    const snapshot = await getDb().collection('materials').get()
     const existingCodes = []
     
     snapshot.forEach(doc => {
@@ -36,6 +135,44 @@ async function generateNextMaterialCode() {
   }
 }
 
+// Propagate material name changes to embedded order items
+async function propagateMaterialNameToOrders(materialCode, newName) {
+  try {
+    if (!materialCode || !newName) return { updatedOrders: 0, updatedItems: 0 }
+    console.log('🔄 Propagating material name to orders:', { materialCode, newName })
+    const ordersRef = getDb().collection('orders')
+    const snapshot = await ordersRef.get()
+    let updatedOrders = 0
+    let updatedItems = 0
+    for (const doc of snapshot.docs) {
+      const data = doc.data() || {}
+      const items = Array.isArray(data.items) ? data.items : []
+      if (!items.length) continue
+      let changed = false
+      const nextItems = items.map(it => {
+        if ((it.materialCode || it.code) === materialCode && it.materialName !== newName) {
+          changed = true
+          updatedItems += 1
+          return { ...it, materialName: newName, updatedAt: admin.firestore.FieldValue.serverTimestamp() }
+        }
+        return it
+      })
+      if (changed) {
+        await ordersRef.doc(doc.id).update({
+          items: nextItems,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        })
+        updatedOrders += 1
+      }
+    }
+    console.log(`✅ Propagation finished. Orders updated: ${updatedOrders}, Items updated: ${updatedItems}`)
+    return { updatedOrders, updatedItems }
+  } catch (e) {
+    console.error('❌ Propagate material name error:', e)
+    return { updatedOrders: 0, updatedItems: 0, error: e.message }
+  }
+}
+
 export function setupMaterialsRoutes(app) {
   
   // GET /api/materials - Tüm malzemeleri listele (kaldırılanlar hariç)
@@ -43,24 +180,86 @@ export function setupMaterialsRoutes(app) {
     try {
       console.log('📦 API: Materials listesi istendi')
       
-      // Kaldırılan malzemeleri hariç tut - Firebase query ile filtrele
-      const snapshot = await materialsCollection
-        .where('status', '!=', 'Kaldırıldı')
-        .get()
+      // Rate limiting check
+      if (!checkRateLimit()) {
+        return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: 60 })
+      }
       
-      const materials = []
-      snapshot.forEach(doc => {
-        materials.push({
-          id: doc.id,
-          ...doc.data()
-        })
-      })
+      const ifNoneMatch = req.headers['if-none-match']
       
+      // Check cache first
+      const cached = getCachedData('materialsActive')
+      if (cached) {
+        if (ifNoneMatch && ifNoneMatch === cached.etag) {
+          return res.status(304).end()
+        }
+        res.set('ETag', cached.etag)
+        res.set('X-Cache', 'HIT')
+        return res.json(cached.data)
+      }
+
+      let materials
+      try {
+        // Get all materials and filter client-side (more reliable than != query)
+        const snapshot = await safeFirestoreQuery('materials')
+        const allMaterials = []
+        snapshot.forEach(doc => { allMaterials.push({ id: doc.id, ...doc.data() }) })
+        
+        // Filter out removed materials client-side
+        materials = allMaterials.filter(m => m.status !== 'Kaldırıldı')
+        console.log(`📊 Filtered ${materials.length} active materials from ${allMaterials.length} total`)
+      } catch (error) {
+        if (error.message === 'QUOTA_EXCEEDED') {
+          // Check if we have any cached data to serve
+          const cachedWithQuotaProtection = getCachedData('materialsActive', true)
+          if (cachedWithQuotaProtection) {
+            console.warn('🚨 Serving cached data due to quota exceeded')
+            res.set('ETag', cachedWithQuotaProtection.etag)
+            res.set('X-Cache', 'QUOTA-PROTECTED')
+            return res.json(cachedWithQuotaProtection.data)
+          }
+          
+          // No cache available, return empty list with quota protection headers
+          console.warn('🚨 Quota exceeded and no cache available, returning empty list')
+          res.set('X-Cache', 'QUOTA-EXCEEDED')
+          res.set('Retry-After', '300') // 5 dakika sonra tekrar dene
+          return res.json([])
+        }
+        throw error
+      }
+
+      // Update cache
+      const now = Date.now()
+      const etag = buildEtag(materials)
+      cache.materialsActive = { data: materials, ts: now, etag, hits: 0 }
+      
+      res.set('ETag', etag)
+      res.set('X-Cache', 'MISS')
       console.log(`✅ API: ${materials.length} malzeme döndürüldü (kaldırılanlar hariç)`)
       res.json(materials)
     } catch (error) {
       console.error('❌ API: Materials listesi alınırken hata:', error)
-      res.status(500).json({ error: 'Materials listesi alınamadı' })
+      
+      // Check if it's a quota exceeded error
+      if (error.message && error.message.includes('Quota exceeded')) {
+        console.warn('🚨 Quota exceeded in final catch - returning empty list')
+        res.set('X-Cache', 'QUOTA-EXCEEDED-FINAL')
+        res.set('Retry-After', '300')
+        return res.json([])
+      }
+      
+      // Final fallback to any cached data
+      if (cache.materialsActive.data) {
+        console.warn('⚠️  Serving stale cached materials due to error')
+        res.set('ETag', cache.materialsActive.etag)
+        res.set('X-Cache', 'STALE')
+        return res.json(cache.materialsActive.data)
+      }
+      
+      // Last resort: return empty list instead of error
+      console.warn('⚠️  No cache available, returning empty materials list')
+      res.set('X-Cache', 'FALLBACK')
+      res.json([])
     }
   })
 
@@ -68,21 +267,69 @@ export function setupMaterialsRoutes(app) {
   app.get('/api/materials/all', requireAuth, async (req, res) => {
     try {
       console.log('📦 API: Tüm materials listesi istendi (kaldırılanlar dahil)')
-      const snapshot = await materialsCollection.get()
       
-      const materials = []
-      snapshot.forEach(doc => {
-        materials.push({
-          id: doc.id,
-          ...doc.data()
-        })
-      })
+      // Rate limiting check
+      if (!checkRateLimit()) {
+        return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: 60 })
+      }
       
+      const ifNoneMatch = req.headers['if-none-match']
+      
+      // Check cache first
+      const cached = getCachedData('materialsAll')
+      if (cached) {
+        if (ifNoneMatch && ifNoneMatch === cached.etag) {
+          return res.status(304).end()
+        }
+        res.set('ETag', cached.etag)
+        res.set('X-Cache', 'HIT')
+        return res.json(cached.data)
+      }
+
+      let materials
+      try {
+        // Try Firestore query with safe wrapper
+        const snapshot = await safeFirestoreQuery('materials')
+        materials = []
+        snapshot.forEach(doc => { materials.push({ id: doc.id, ...doc.data() }) })
+      } catch (error) {
+        if (error.message === 'QUOTA_EXCEEDED') {
+          // Check if we have any cached data to serve
+          const cachedWithQuotaProtection = getCachedData('materialsAll', true)
+          if (cachedWithQuotaProtection) {
+            console.warn('🚨 Serving cached all materials due to quota exceeded')
+            res.set('ETag', cachedWithQuotaProtection.etag)
+            res.set('X-Cache', 'QUOTA-PROTECTED')
+            return res.json(cachedWithQuotaProtection.data)
+          }
+          
+          // No cache available, return empty list with quota protection headers
+          console.warn('🚨 All materials quota exceeded and no cache available, returning empty list')
+          res.set('X-Cache', 'QUOTA-EXCEEDED')
+          res.set('Retry-After', '300') // 5 dakika sonra tekrar dene
+          return res.json([])
+        }
+        throw error
+      }
+
+      // Update cache
+      const now = Date.now()
+      const etag = buildEtag(materials)
+      cache.materialsAll = { data: materials, ts: now, etag, hits: 0 }
+      
+      res.set('ETag', etag)
+      res.set('X-Cache', 'MISS')
       console.log(`✅ API: ${materials.length} malzeme döndürüldü (tümü)`)
       res.json(materials)
     } catch (error) {
       console.error('❌ API: Tüm materials listesi alınırken hata:', error)
-      res.status(500).json({ error: 'Tüm materials listesi alınamadı' })
+      if (cache.materialsAll.data) {
+        console.warn('⚠️  Serving stale cached all-materials due to error')
+        res.set('ETag', cache.materialsAll.etag)
+        res.set('X-Cache', 'STALE')
+        return res.json(cache.materialsAll.data)
+      }
+      res.status(503).json({ error: 'Tüm materials listesi alınamadı', reason: 'upstream_error' })
     }
   })
 
@@ -109,7 +356,7 @@ export function setupMaterialsRoutes(app) {
       console.log('📦 API: Custom ID kullanılıyor:', customId)
       
       // Custom ID ile document oluştur
-      const docRef = materialsCollection.doc(customId)
+      const docRef = getDb().collection('materials').doc(customId)
       await docRef.set(materialData)
       
       const newDoc = await docRef.get()
@@ -136,9 +383,9 @@ export function setupMaterialsRoutes(app) {
       if (req.body.stock !== undefined) {
         console.log('⚠️ API: Stok değişikliği tespit edildi, transaction başlatılıyor...')
         
-        const materialRef = materialsCollection.doc(id)
+        const materialRef = getDb().collection('materials').doc(id)
         
-        const result = await db.runTransaction(async (transaction) => {
+        const result = await getDb().runTransaction(async (transaction) => {
           const materialDoc = await transaction.get(materialRef)
           
           if (!materialDoc.exists) {
@@ -161,7 +408,7 @@ export function setupMaterialsRoutes(app) {
           
           // Log stock movement if there's a difference
           if (stockDifference !== 0) {
-            const stockMovementRef = db.collection('stockMovements').doc()
+            const stockMovementRef = getDb().collection('stockMovements').doc()
             transaction.set(stockMovementRef, {
               materialId: id,
               materialCode: currentData.code,
@@ -191,7 +438,7 @@ export function setupMaterialsRoutes(app) {
             })
             
             // Audit log oluştur
-            const auditLogRef = db.collection('auditLogs').doc()
+            const auditLogRef = getDb().collection('auditLogs').doc()
             transaction.set(auditLogRef, {
               type: 'STOCK_UPDATE',
               action: 'MANUAL_EDIT',
@@ -221,6 +468,10 @@ export function setupMaterialsRoutes(app) {
         })
         
         console.log(`✅ API: Malzeme güncellendi (transaction): ${id}`)
+        // Optional name propagation if name also changed in same request
+        if (req.body.name && req.body.name !== result.name) {
+          await propagateMaterialNameToOrders(result.code || id, req.body.name)
+        }
         res.json(result)
         
       } else {
@@ -230,7 +481,7 @@ export function setupMaterialsRoutes(app) {
           updatedAt: admin.firestore.FieldValue.serverTimestamp()
         }
         
-        const docRef = materialsCollection.doc(id)
+        const docRef = getDb().collection('materials').doc(id)
         await docRef.update(updateData)
         
         const updatedDoc = await docRef.get()
@@ -244,6 +495,10 @@ export function setupMaterialsRoutes(app) {
         }
         
         console.log('✅ API: Malzeme güncellendi:', id)
+        // If name changed, propagate to orders' embedded items
+        if (req.body.name && req.body.name !== (materialData?.name || '')) {
+          await propagateMaterialNameToOrders(updatedMaterial.code || id, req.body.name)
+        }
         res.json(updatedMaterial)
       }
       
@@ -259,7 +514,7 @@ export function setupMaterialsRoutes(app) {
       const { id } = req.params
       console.log('📦 API: Malzeme soft delete yapılıyor:', id)
       
-      const docRef = materialsCollection.doc(id)
+      const docRef = getDb().collection('materials').doc(id)
       const doc = await docRef.get()
       
       if (!doc.exists) {
@@ -295,7 +550,7 @@ export function setupMaterialsRoutes(app) {
       const { id } = req.params
       console.log('📦 API: Malzeme kalıcı siliniyor (HARD DELETE):', id)
       
-      const docRef = materialsCollection.doc(id)
+      const docRef = getDb().collection('materials').doc(id)
       const doc = await docRef.get()
       
       if (!doc.exists) {
@@ -314,10 +569,25 @@ export function setupMaterialsRoutes(app) {
   })
 
   // GET /api/categories - Tüm kategorileri listele
+  // Simple cache for categories
+  const categoriesCache = { data: null, ts: 0, etag: '' }
+  const CAT_TTL_MS = Number(process.env.CATEGORIES_CACHE_TTL_MS || 60_000)
+  function buildEtag(items) {
+    try { const base = items?.length ? `${items.length}:${items[0]?.id || ''}:${items[items.length-1]?.id || ''}` : '0'; return 'W/"' + Buffer.from(base).toString('base64').slice(0,16) + '"' } catch { return 'W/"0"' }
+  }
+
   app.get('/api/categories', requireAuth, async (req, res) => {
     try {
       console.log('🏷️ API: Kategoriler listesi istendi')
-      const snapshot = await categoriesCollection.get()
+      const now = Date.now()
+      const ifNoneMatch = req.headers['if-none-match']
+      if (categoriesCache.data && now - categoriesCache.ts < CAT_TTL_MS) {
+        if (ifNoneMatch && ifNoneMatch === categoriesCache.etag) return res.status(304).end()
+        res.set('ETag', categoriesCache.etag)
+        return res.json(categoriesCache.data)
+      }
+
+      const snapshot = await getDb().collection('materials-categories').get()
       
       const categories = []
       snapshot.forEach(doc => {
@@ -327,11 +597,23 @@ export function setupMaterialsRoutes(app) {
         })
       })
       
+      categoriesCache.data = categories
+      categoriesCache.ts = now
+      categoriesCache.etag = buildEtag(categories)
+      res.set('ETag', categoriesCache.etag)
       console.log(`✅ API: ${categories.length} kategori döndürüldü`)
       res.json(categories)
     } catch (error) {
       console.error('❌ API: Kategoriler listesi alınırken hata:', error)
-      res.status(500).json({ error: 'Kategoriler listesi alınamadı' })
+      if (categoriesCache.data) {
+        console.warn('⚠️  Serving cached categories due to error')
+        res.set('ETag', categoriesCache.etag)
+        return res.json(categoriesCache.data)
+      }
+      if ((process.env.NODE_ENV || 'development') !== 'production') {
+        return res.json([])
+      }
+      res.status(503).json({ error: 'Kategoriler listesi alınamadı', reason: 'upstream_error' })
     }
   })
 
@@ -346,7 +628,7 @@ export function setupMaterialsRoutes(app) {
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }
       
-      const docRef = await categoriesCollection.add(categoryData)
+      const docRef = await getDb().collection('materials-categories').add(categoryData)
       const newDoc = await docRef.get()
       
       const newCategory = {
@@ -373,7 +655,7 @@ export function setupMaterialsRoutes(app) {
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       }
       
-      const docRef = categoriesCollection.doc(id)
+      const docRef = getDb().collection('materials-categories').doc(id)
       await docRef.update(updateData)
       
       const updatedDoc = await docRef.get()
@@ -400,7 +682,7 @@ export function setupMaterialsRoutes(app) {
       const { id } = req.params
       console.log('🏷️ API: Kategori siliniyor:', id)
       
-      const docRef = categoriesCollection.doc(id)
+      const docRef = getDb().collection('materials-categories').doc(id)
       const doc = await docRef.get()
       
       if (!doc.exists) {
@@ -435,7 +717,7 @@ export function setupMaterialsRoutes(app) {
       }
       
       // Malzemeyi kod ile bul
-      const materialQuery = await materialsCollection.where('code', '==', code).get()
+      const materialQuery = await getDb().collection('materials').where('code', '==', code).get()
       
       if (materialQuery.empty) {
         return res.status(404).json({ error: `Malzeme bulunamadı: ${code}` })
@@ -477,7 +759,7 @@ export function setupMaterialsRoutes(app) {
       })
       
       // Stock movement kaydı oluştur
-      const stockMovementRef = db.collection('stockMovements').doc()
+      const stockMovementRef = getDb().collection('stockMovements').doc()
       batch.set(stockMovementRef, {
         materialId: materialDoc.id,
         materialCode: code,
@@ -507,7 +789,7 @@ export function setupMaterialsRoutes(app) {
       })
       
       // Audit log oluştur
-      const auditLogRef = db.collection('auditLogs').doc()
+      const auditLogRef = getDb().collection('auditLogs').doc()
       batch.set(auditLogRef, {
         type: 'STOCK_UPDATE',
         action: `STOCK_${operation.toUpperCase()}_API`,
