@@ -148,7 +148,7 @@ export default function SuppliersTable({
   useEffect(() => {
     const loadCategories = async () => {
       try {
-        const categories = await categoriesService.getCategories()
+        const categories = await categoriesService.getCategories(true)
         setMaterialCategories(categories)
         categoriesLoadedRef.current = true
         lastCategoriesFetchTsRef.current = Date.now()
@@ -189,6 +189,13 @@ export default function SuppliersTable({
     loadAllMaterials(true)
   }, [suppliers])
 
+  // Listen global materialsUpdated event to refresh local allMaterials
+  useEffect(() => {
+    const handler = () => loadAllMaterials(true)
+    window.addEventListener('materialsUpdated', handler)
+    return () => window.removeEventListener('materialsUpdated', handler)
+  }, [])
+
   // Debug materials loading
   useEffect(() => {
     console.log('🔍 SuppliersTable: Materials state:', {
@@ -211,7 +218,7 @@ export default function SuppliersTable({
     if (categoriesRefreshTimerRef.current) clearTimeout(categoriesRefreshTimerRef.current)
     categoriesRefreshTimerRef.current = setTimeout(async () => {
       try {
-        const categories = await categoriesService.getCategories()
+        const categories = await categoriesService.getCategories(true)
         setMaterialCategories(categories)
         lastCategoriesFetchTsRef.current = Date.now()
         console.log('🔁 Categories revalidated:', categories.length)
@@ -236,7 +243,7 @@ export default function SuppliersTable({
       if (!categoriesLoadedRef.current) return
       if (now - lastCategoriesFetchTsRef.current < MIN_INTERVAL_MS) return
       try {
-        const categories = await categoriesService.getCategories()
+        const categories = await categoriesService.getCategories(true)
         setMaterialCategories(categories)
         lastCategoriesFetchTsRef.current = Date.now()
         console.log('🔁 Categories revalidated on focus/visibility:', categories.length)
@@ -480,7 +487,7 @@ export default function SuppliersTable({
           console.log('✅ New category added:', createdCategory)
           // Refresh categories list to reflect immediately in UIs
           try {
-            const categories = await categoriesService.getCategories()
+            const categories = await categoriesService.getCategories(true)
             setMaterialCategories(categories)
             // update fetch markers so revalidation throttle knows about it
             if (typeof lastCategoriesFetchTsRef !== 'undefined') {

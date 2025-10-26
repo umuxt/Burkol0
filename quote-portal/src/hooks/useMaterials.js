@@ -21,6 +21,10 @@ export function useMaterials(autoLoad = false) {
       setInitialized(true);
       
       console.log('✅ useMaterials: Materials loaded:', { count: materialsList.length, forceRefresh });
+      try {
+        const evt = new CustomEvent('materialsUpdated', { detail: { count: materialsList.length } })
+        window.dispatchEvent(evt)
+      } catch {}
       
       // Response'u return et ki caller kullanabilsin
       return materialsList;
@@ -93,8 +97,8 @@ export function useMaterials(autoLoad = false) {
     };
   }, [loadMaterials]); // loadMaterials dependency'e eklendi
 
-  const refreshMaterials = async () => {
-    await loadMaterials();
+  const refreshMaterials = async (forceRefresh = false) => {
+    await loadMaterials(forceRefresh);
   };
 
   return {

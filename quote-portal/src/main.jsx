@@ -340,7 +340,7 @@ function MaterialsApp() {
       
       // Materials listesini her zaman yenile - hem stok hem supplier context'inde
       console.log('🔄 main.jsx: Materials listesi yenileniyor...')
-      await refreshMaterials();
+      await refreshMaterials(true);
       
       // Callback varsa çağır (malzeme bilgisiyle) - MODAL KAPATMADAN ÖNCE
       if (materialCreatedCallback && typeof materialCreatedCallback === 'function') {
@@ -387,7 +387,7 @@ function MaterialsApp() {
       setIsEditModalOpen(false);
       setEditingMaterial(null);
       // Malzemeleri yenile
-      await refreshMaterials();
+      await refreshMaterials(true);
     } catch (error) {
       console.error('Material update error:', error);
     }
@@ -512,7 +512,7 @@ function MaterialsApp() {
         <h3>Hata Oluştu</h3>
         <p>{materialsError || categoriesError}</p>
         <button onClick={() => {
-          refreshMaterials();
+          refreshMaterials(true);
           reloadCategories();
         }}>
           Tekrar Dene
@@ -606,6 +606,15 @@ function MaterialsApp() {
         createCategory={addCategory}
         updateCategory={updateCategory}
         deleteCategory={deleteCategory}
+        onOpenMaterialByCode={(code) => {
+          const material = materials.find(m => m.code === code)
+          if (material) {
+            handleEditMaterial(material)
+          } else {
+            // Eğer listede yoksa kullanıcıya bilgi ver
+            alert(`${code} malzemesi bulunamadı veya kaldırılmış olabilir.`)
+          }
+        }}
       />
 
       <MaterialDeletionWarningModal

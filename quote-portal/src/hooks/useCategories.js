@@ -7,13 +7,13 @@ export function useCategories(autoLoad = false) {
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
 
-  const loadCategories = async () => {
+  const loadCategories = async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(null);
       
       // Backend API'den kategorileri yükle
-      const categoriesList = await categoriesService.getCategories();
+      const categoriesList = await categoriesService.getCategories(forceRefresh);
       setCategories(categoriesList);
       setInitialized(true);
     } catch (err) {
@@ -38,7 +38,7 @@ export function useCategories(autoLoad = false) {
   }, [autoLoad, initialized]);
 
   const refreshCategories = async () => {
-    await loadCategories();
+    await loadCategories(true);
   };
 
   return {

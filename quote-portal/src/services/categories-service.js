@@ -22,9 +22,11 @@ function withAuth(headers = {}) {
 // Categories CRUD Operations
 export const categoriesService = {
   // Tüm kategorileri getir
-  getCategories: async () => {
+  getCategories: async (forceRefresh = false) => {
     try {
-      const response = await fetchWithTimeout('/api/categories', {
+      const url = new URL('/api/categories', window.location.origin)
+      if (forceRefresh) url.searchParams.set('_t', Date.now().toString())
+      const response = await fetchWithTimeout(url.toString(), {
         headers: withAuth()
       })
       
@@ -103,6 +105,23 @@ export const categoriesService = {
     } catch (error) {
       console.error('❌ Category delete error:', error)
       throw error
+    }
+  }
+  ,
+  // Kategori kullanımını getir (bu kategoriyi kullanan aktif malzemeler)
+  getCategoryUsage: async (categoryId) => {
+    try {
+      const response = await fetchWithTimeout(`/api/categories/${encodeURIComponent(categoryId)}/usage`, {
+        headers: withAuth()
+      })
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      const usage = await response.json()
+      return usage
+    } catch (error) {
+      console.error('❌ Category usage fetch error:', error)
+      return { categoryId, count: 0, materials: [] }
     }
   }
 }

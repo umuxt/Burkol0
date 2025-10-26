@@ -736,6 +736,30 @@ export function setupMaterialsRoutes(app) {
     }
   })
 
+  // GET /api/categories/:id/usage - Bu kategoriyi kullanan aktif malzemeleri listele
+  app.get('/api/categories/:id/usage', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params
+      console.log('🏷️ API: Kategori kullanım kontrolü istendi:', id)
+
+      // Tüm malzemeleri çekip client-side filtrele (status !== 'Kaldırıldı' ve category eşleşmesi)
+      const snapshot = await safeFirestoreQuery('materials')
+      const using = []
+      snapshot.forEach(doc => {
+        const data = doc.data() || {}
+        if (data && data.category === id && data.status !== 'Kaldırıldı') {
+          using.push({ id: doc.id, code: data.code || '', name: data.name || '' })
+        }
+      })
+
+      console.log(`✅ API: Kategori kullanım sonucu: ${using.length} malzeme`)
+      res.json({ categoryId: id, count: using.length, materials: using })
+    } catch (error) {
+      console.error('❌ API: Kategori kullanım kontrolü hatası:', error)
+      res.status(500).json({ error: 'Kategori kullanım bilgisi alınamadı' })
+    }
+  })
+
   // GET /api/stock - Tüm malzeme stok durumu
   app.get('/api/stock', async (req, res) => {
     try {

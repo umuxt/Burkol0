@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { categoriesService } from '../services/categories-service.js';
 
 export default function CategoryManagementModal({ 
   isOpen, 
@@ -9,17 +10,20 @@ export default function CategoryManagementModal({
   createCategory,
   updateCategory,
   deleteCategory,
+  onOpenMaterialByCode,
   loading = false
 }) {
   const [newCategoryName, setNewCategoryName] = useState('');
   const [editingIndex, setEditingIndex] = useState(-1);
   const [editingName, setEditingName] = useState('');
+  const [usageMap, setUsageMap] = useState({}); // { [categoryId]: { count, materials } }
 
   useEffect(() => {
     if (isOpen) {
       setNewCategoryName('');
       setEditingIndex(-1);
       setEditingName('');
+      setUsageMap({});
     }
   }, [isOpen, categories]);
 
@@ -79,17 +83,30 @@ export default function CategoryManagementModal({
   };
 
   const handleDeleteCategory = async (index) => {
-    if (confirm('Bu kategoriyi silmek istediğinizden emin misiniz?') && deleteCategory && categories[index]) {
-      try {
-        await deleteCategory(categories[index].id);
-        // Kategori listesini yenile
-        if (onRefresh) {
-          await onRefresh();
-        }
-      } catch (error) {
-        console.error('Kategori silme hatası:', error);
-        alert('Kategori silinirken bir hata oluştu.');
+    const cat = categories[index]
+    if (!cat) return
+    try {
+      // Backend API ile kategori kullanımını kontrol et
+      const usage = await categoriesService.getCategoryUsage(cat.id)
+      setUsageMap(prev => ({ ...prev, [cat.id]: usage }))
+
+      if (usage?.count > 0) {
+        // Kullanımda: Silmeye izin verme ve uyarı göster
+        alert(
+          `Kullanımda olan kategoriler kaldırılamaz.\n` +
+          `${usage.materials.slice(0,2).map(m => `${m.code} ${m.name}`).join(' ve ')} malzemesi hala bu kategoriyi kullanıyor.\n` +
+          `Lütfen silmek için önce malzeme kategorilerini güncelleyin.`
+        )
+        return
       }
+
+      if (confirm('Bu kategoriyi silmek istediğinizden emin misiniz?')) {
+        await deleteCategory(cat.id)
+        if (onRefresh) await onRefresh()
+      }
+    } catch (error) {
+      console.error('Kategori silme hatası:', error)
+      alert('Kategori silinirken bir hata oluştu.')
     }
   };
 
@@ -138,7 +155,40 @@ export default function CategoryManagementModal({
                       <span className="category-name">{category.name || category.label}</span>
                       <div className="category-actions">
                         <button onClick={() => handleEditCategory(index)} className="edit-btn" disabled={loading}>✏️</button>
-                        <button onClick={() => handleDeleteCategory(index)} className="delete-btn" disabled={loading}>🗑️</button>
+                        <button 
+                          onClick={async () => { await handleDeleteCategory(index) }} 
+                          className="delete-btn" 
+                          disabled={loading || (usageMap[category.id]?.count > 0)}
+                          title={usageMap[category.id]?.count > 0 ? 'Kullanımda olan kategoriler kaldırılamaz' : 'Sil'}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {usageMap[category.id]?.count > 0 && (
+                    <div className="category-usage-warning" style={{ marginTop: 6, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: 8 }}>
+                      <div style={{ color: '#9a3412', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                        Kullanımda olan kategoriler kaldırılamaz.
+                      </div>
+                      <div style={{ color: '#7c2d12', fontSize: 12, marginBottom: 6 }}>
+                        {usageMap[category.id].materials.slice(0, 2).map(m => `${m.code} ${m.name}`).join(' ve ')} malzemesi hala bu kategoriyi kullanıyor. Lütfen silmek için önce malzeme kategorilerini güncelleyin.
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {usageMap[category.id].materials.slice(0, 6).map(m => (
+                          <button 
+                            key={m.id}
+                            type="button"
+                            onClick={() => onOpenMaterialByCode && onOpenMaterialByCode(m.code)}
+                            title={`${m.code} detayını aç`}
+                            style={{
+                              fontSize: 11, padding: '2px 6px', borderRadius: 4,
+                              border: '1px solid #d1d5db', background: 'white', color: '#374151', cursor: 'pointer'
+                            }}
+                          >
+                            {m.code} ℹ️
+                          </button>
+                        ))}
                       </div>
                     </div>
                   )}
