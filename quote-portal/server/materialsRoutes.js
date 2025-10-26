@@ -381,6 +381,15 @@ export function setupMaterialsRoutes(app) {
         ...newDoc.data()
       }
       
+      // Invalidate cache after creation
+      try {
+        cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 }
+        cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 }
+        console.log('🧹 Cache invalidated after create')
+      } catch (e) {
+        console.error('Cache invalidation failed after create:', e)
+      }
+
       console.log('✅ API: Malzeme eklendi:', newMaterial.id)
       res.status(201).json(newMaterial)
     } catch (error) {
@@ -488,6 +497,16 @@ export function setupMaterialsRoutes(app) {
         if (req.body.name && req.body.name !== result.name) {
           await propagateMaterialNameToOrders(result.code || id, req.body.name)
         }
+
+        // Invalidate cache after update
+        try {
+          cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 }
+          cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 }
+          console.log('🧹 Cache invalidated after transaction update')
+        } catch (e) {
+          console.error('Cache invalidation failed after transaction update:', e)
+        }
+
         res.json(result)
         
       } else {
@@ -515,6 +534,16 @@ export function setupMaterialsRoutes(app) {
         if (req.body.name && req.body.name !== (materialData?.name || '')) {
           await propagateMaterialNameToOrders(updatedMaterial.code || id, req.body.name)
         }
+
+        // Invalidate cache after update
+        try {
+          cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 }
+          cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 }
+          console.log('🧹 Cache invalidated after normal update')
+        } catch (e) {
+          console.error('Cache invalidation failed after normal update:', e)
+        }
+
         res.json(updatedMaterial)
       }
       
@@ -551,6 +580,15 @@ export function setupMaterialsRoutes(app) {
         removedAt: admin.firestore.FieldValue.serverTimestamp(),
         updatedAt: admin.firestore.FieldValue.serverTimestamp()
       })
+      
+      // Invalidate cache after deletion
+      try {
+        cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 }
+        cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 }
+        console.log('🧹 Cache invalidated after soft delete')
+      } catch (e) {
+        console.error('Cache invalidation failed after soft delete:', e)
+      }
       
       console.log('✅ API: Malzeme soft delete edildi:', id)
       res.json({ success: true, id, action: 'soft_delete' })

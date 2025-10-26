@@ -94,7 +94,7 @@ export const materialsService = {
   getAllMaterials: async (forceRefresh = false) => {
     try {
       // Önce standart liste uç noktasını kullan
-      const url = new URL('/api/materials', window.location.origin)
+      const url = new URL('/api/materials/all', window.location.origin)
       if (forceRefresh) {
         url.searchParams.set('_t', Date.now().toString())
       }
@@ -108,7 +108,7 @@ export const materialsService = {
       }
       
       const materials = await response.json()
-      console.log('✅ All materials fetch successful (via /api/materials):', materials.length, 'items', { forceRefresh })
+      console.log('✅ All materials fetch successful (via /api/materials/all):', materials.length, 'items', { forceRefresh })
       return materials
     } catch (error) {
       console.warn('❌ All materials fetch error (returning empty list):', error?.message || error)
