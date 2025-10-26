@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import useSupplierProcurementHistory from '../hooks/useSupplierProcurementHistory.js'
 import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
 import { categoriesService } from '../services/categories-service'
 import { materialsService } from '../services/materials-service'
@@ -2674,17 +2675,11 @@ export default function SuppliersTable({
                   <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
                     Tedarik Geçmişi
                   </h3>
-                  
-                  {/* Placeholder content - will be developed later */}
-                  <div style={{ 
-                    padding: '20px', 
-                    textAlign: 'center', 
-                    color: '#6b7280', 
-                    fontSize: '12px',
-                    fontStyle: 'italic'
-                  }}>
-                    Bu bölüm geliştirilme aşamasındadır.
-                  </div>
+                  {(() => {
+                    // Inline lightweight rendering using the same pattern as EditMaterialModal
+                    // Import hook lazily at top of file; here we assume it exists
+                    return <SupplierHistorySection supplier={selectedSupplier} />
+                  })()}
                 </div>
 
                 {/* Ek Bilgiler */}
@@ -2956,6 +2951,93 @@ export default function SuppliersTable({
           error={null}
         />
       </ErrorBoundary>
+    </div>
+  )
+}
+
+// Embedded supplier history table with local loading state
+function SupplierHistorySection({ supplier }) {
+  const { items, loading, error, loadHistory, isLoadedForSupplier } = useSupplierProcurementHistory(supplier)
+
+  useEffect(() => {
+    if (supplier && !loading && !isLoadedForSupplier) {
+      try { loadHistory() } catch {}
+    }
+  }, [supplier?.id])
+
+  return (
+    <div className="supply-history-section">
+      <div className="supply-history-table">
+        <table>
+          <thead>
+            <tr>
+              <th>Tarih</th>
+              <th>Malzeme</th>
+              <th>Miktar</th>
+              <th>Birim Fiyat</th>
+              <th>Toplam</th>
+              <th>Durum</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan="6" className="no-data">Tedarik geçmişi yükleniyor...</td>
+              </tr>
+            ) : error ? (
+              <tr>
+                <td colSpan="6" className="no-data">{error}</td>
+              </tr>
+            ) : (items && items.length > 0) ? (
+              items.map((row, idx) => {
+                const dateObj = row._sortDate || row.actualDeliveryDate || row.expectedDeliveryDate || row.orderDate || null
+                const dateStr = dateObj ? new Date(dateObj).toLocaleDateString('tr-TR') : '-'
+                const qty = Number(row.quantity || 0)
+                const unitPrice = Number(row.unitPrice || 0)
+                const total = !isNaN(qty) && !isNaN(unitPrice) ? (qty * unitPrice) : 0
+                return (
+                  <tr key={`${row.orderId}-${row.itemSequence}-${idx}`}>
+                    <td>{dateStr}</td>
+                    <td>{row.materialName || row.materialCode || '-'}</td>
+                    <td>{!isNaN(qty) ? `${qty} ${row.unit || ''}`.trim() : '-'}</td>
+                    <td>{!isNaN(unitPrice) ? `${unitPrice.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
+                    <td>{!isNaN(total) ? `${total.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
+                    <td>{row.itemStatus || '-'}</td>
+                  </tr>
+                )
+              })
+            ) : (
+              <tr>
+                <td colSpan="6" className="no-data">Henüz tedarik geçmişi bulunmuyor</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              try { localStorage.setItem('bk_active_tab', 'orders') } catch {}
+              window.open('materials.html#orders-tab', '_blank')
+            } catch (e) {
+              console.error('Order panelini açma hatası:', e)
+            }
+          }}
+          style={{
+            padding: '8px 12px',
+            borderRadius: '8px',
+            border: '1px solid #e5e7eb',
+            background: '#f9fafb',
+            cursor: 'pointer',
+            fontSize: '12px',
+            fontWeight: 600
+          }}
+        >
+          Tüm tedarik geçmişini gör
+        </button>
+      </div>
     </div>
   )
 }
