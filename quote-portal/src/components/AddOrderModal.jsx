@@ -28,7 +28,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   }, [initialMaterialId])
 
   // Backend API hooks
-  const { suppliers, loading: suppliersLoading, getMaterialsForSupplier } = useSuppliers()
+  const { suppliers, loading: suppliersLoading, getMaterialsForSupplier, fetchSuppliers, lastInvalidateTime } = useSuppliers()
   const { materials, loading: materialsLoading, initialized: materialsInitialized, loadMaterials } = useMaterials(true)
   const { createOrderWithItems, loading: orderLoading } = useOrderActions()
 
@@ -47,6 +47,20 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
+      console.log('🔄 Modal açıldı');
+      
+      // Simple: only fetch if we have no suppliers data
+      if (suppliers.length === 0) {
+        console.log('🔄 Suppliers boş, yükleniyor...');
+        fetchSuppliers(false); // Change to false to avoid force refresh
+      }
+      
+      // Only load materials if not initialized
+      if (!materialsInitialized) {
+        console.log('🔄 Materials initialization...');
+        loadMaterials();
+      }
+      
       setCurrentStep(1)
       
       // If initialSupplierId is provided, find the supplier and set it
@@ -78,7 +92,37 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         loadMaterials()
       }
     }
-  }, [isOpen, materialsInitialized, loadMaterials, initialSupplierId, suppliers])
+  }, [isOpen]) // Only depend on isOpen to avoid loops
+
+  // Handle initialSupplierId changes separately
+  useEffect(() => {
+    if (isOpen && initialSupplierId && suppliers && suppliers.length > 0) {
+      const supplier = suppliers.find(s => s.id === initialSupplierId)
+      if (supplier && !formData.supplierId) {
+        console.log('🎯 Setting initial supplier from prop:', supplier.name || supplier.companyName);
+        setFormData(prev => ({
+          ...prev,
+          supplierId: supplier.id,
+          supplierName: supplier.name || supplier.companyName || ''
+        }));
+      }
+    }
+  }, [isOpen, formData.supplierId, suppliers, formData.supplierId])
+
+  // Listen for global supplier updates (simplified)
+  useEffect(() => {
+    if (!isOpen) return; // Only listen when modal is open
+    
+    const handleSuppliersUpdated = (event) => {
+      console.log('🔔 Global suppliers update detected - will refresh on next modal open');
+      // Don't refresh immediately, just mark for next time
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('suppliersUpdated', handleSuppliersUpdated);
+      return () => window.removeEventListener('suppliersUpdated', handleSuppliersUpdated);
+    }
+  }, [isOpen]) // Only when modal is open
 
   useEffect(() => {
     let isCancelled = false
@@ -253,11 +297,18 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
     }
   }, [formData.supplierId, materials, selectedMaterials.length, suppliers, formData.expectedDeliveryDate, deliveredRecordMode]);
 
-  if (!isOpen) return null
-
   // Filter suppliers based on initialMaterialId
   const getFilteredSuppliers = () => {
+    console.log('🔍 getFilteredSuppliers çalıştırılıyor:', {
+      initialMaterialId,
+      hasMaterials: !!materials,
+      materialsCount: materials?.length || 0,
+      hasSuppliers: !!suppliers,
+      suppliersCount: suppliers?.length || 0
+    });
+    
     if (!initialMaterialId || !materials || !suppliers || suppliers.length === 0) {
+      console.log('🔍 Temel koşul başarısız, tüm tedarikçiler döndürülüyor');
       return suppliers;
     }
     
@@ -265,26 +316,60 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
     const material = materials.find(m => m.id === initialMaterialId || m.code === initialMaterialId);
     if (!material) {
       console.log('⚠️ Material not found for initialMaterialId:', initialMaterialId);
+      console.log('🔍 Available materials:', materials.map(m => ({ id: m.id, code: m.code, name: m.name })));
       return suppliers;
     }
     
     const materialCode = material.code;
-    console.log('🔍 Filtering suppliers for material:', materialCode);
+    console.log('🔍 Filtering suppliers for material:', {
+      materialId: material.id,
+      materialCode: materialCode,
+      materialName: material.name
+    });
     
     // Filter suppliers that supply this material
     const filtered = suppliers.filter(supplier => {
       const suppliedMaterials = supplier.suppliedMaterials || [];
-      const suppliesMaterial = suppliedMaterials.some(sm => sm.materialCode === materialCode);
+      console.log(`🔍 Checking supplier ${supplier.name || supplier.companyName}:`, {
+        supplierId: supplier.id,
+        suppliedMaterialsCount: suppliedMaterials.length,
+        suppliedMaterials: suppliedMaterials.map(sm => ({
+          materialId: sm.materialId || sm.id,
+          materialCode: sm.materialCode || sm.code,
+          materialName: sm.materialName || sm.name,
+          status: sm.status
+        }))
+      });
+      
+      const suppliesMaterial = suppliedMaterials.some(sm => {
+        const smCode = sm.materialCode || sm.code;
+        const smId = sm.materialId || sm.id;
+        const matches = smCode === materialCode || smId === material.id;
+        if (matches) {
+          console.log('✅ Material match found:', {
+            supplierMaterial: { code: smCode, id: smId, name: sm.materialName || sm.name },
+            targetMaterial: { code: materialCode, id: material.id, name: material.name }
+          });
+        }
+        return matches;
+      });
+      
       if (suppliesMaterial) {
         console.log('✅ Supplier supplies material:', supplier.name || supplier.companyName);
+      } else {
+        console.log('❌ Supplier does not supply material:', supplier.name || supplier.companyName);
       }
       return suppliesMaterial;
     });
     
-    console.log('🔍 Filtered suppliers:', {
-      total: suppliers.length,
-      filtered: filtered.length,
-      suppliers: filtered.map(s => s.name || s.companyName)
+    console.log('🔍 Filtered suppliers result:', {
+      totalSuppliers: suppliers.length,
+      filteredCount: filtered.length,
+      filteredSuppliers: filtered.map(s => ({ 
+        id: s.id, 
+        name: s.name || s.companyName,
+        suppliedMaterialsCount: s.suppliedMaterials?.length || 0
+      }))
     });
     
     return filtered;
@@ -434,6 +519,8 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
       currency: 'TRY'
     }).format(amount || 0)
   }
+
+  if (!isOpen) return null
 
   return (
     <div style={{
@@ -685,78 +772,11 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
             </div>
           )}
 
-          {/* Step 2: Material Selection */}
+          {/* Step 2: Material Order Details */}
           {currentStep === 2 && (
             <div>
-              <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Malzeme Seçimi</h3>
+              <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Sipariş Detayları</h3>
               
-              {/* Debug Info */}
-              <div style={{ background: '#f0f9ff', padding: '8px', marginBottom: '16px', fontSize: '12px', borderRadius: '4px' }}>
-                Debug: availableMaterials.length = {availableMaterials.length}, 
-                materialsLoading = {materialsLoading.toString()},
-                supplierMaterialsLoading = {supplierMaterialsLoading.toString()},
-                currentStep = {currentStep}
-              </div>
-              
-              {/* Available Materials */}
-              <div style={{ marginBottom: '24px' }}>
-                <h4 style={{ marginBottom: '12px' }}>Mevcut Malzemeler</h4>
-                {materialsLoading || supplierMaterialsLoading ? (
-                  <p>Malzemeler yükleniyor...</p>
-                ) : supplierMaterialsError ? (
-                  <p style={{ color: '#dc2626', fontStyle: 'italic' }}>
-                    Malzemeler yüklenirken hata oluştu: {supplierMaterialsError}
-                  </p>
-                ) : availableMaterials.length === 0 ? (
-                  <p style={{ color: '#6b7280', fontStyle: 'italic' }}>
-                    Bu tedarikçi için mevcut malzeme bulunamadı.
-                  </p>
-                ) : (
-                  <div style={{
-                    maxHeight: '200px',
-                    overflow: 'auto',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '6px'
-                  }}>
-                    {availableMaterials.map(material => (
-                      <div
-                        key={material.code}
-                        style={{
-                          padding: '12px',
-                          borderBottom: '1px solid #f3f4f6',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center'
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: '600', fontSize: '14px' }}>
-                            {material.name}
-                          </div>
-                          <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                            {material.code} • {material.unit}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => addMaterial(material)}
-                          style={{
-                            padding: '6px 12px',
-                            fontSize: '12px',
-                            background: '#3b82f6',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Ekle
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
               {/* Selected Materials */}
               <div>
                 <h4 style={{ marginBottom: '12px' }}>Seçilen Malzemeler</h4>
@@ -798,12 +818,13 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                           </div>
                         </div>
                           <div>
-                            <label style={{ fontSize: '12px', color: '#6b7280' }}>Miktar</label>
+                            <label style={{ fontSize: '12px', color: '#6b7280' }}>Miktar *</label>
                             <input
                             type="number"
                             min="1"
                             value={material.quantity}
                             onChange={(e) => updateMaterial(material.lineId, 'quantity', e.target.value)}
+                            autoFocus={index === 0} // First material gets auto focus
                               style={{
                                 width: '100%',
                                 padding: '6px 8px',

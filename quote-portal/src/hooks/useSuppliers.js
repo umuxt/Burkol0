@@ -21,6 +21,7 @@ export function useSuppliers(autoLoad = true) {
   const [suppliers, setSuppliers] = useState([])
   const [loading, setLoading] = useState(autoLoad)
   const [error, setError] = useState(null)
+  const [lastInvalidateTime, setLastInvalidateTime] = useState(0) // Cache invalidation timestamp
 
   // Normalize supplier.suppliedMaterials items to a consistent shape
   const normalizeSuppliedMaterial = (item) => {
@@ -213,6 +214,14 @@ export function useSuppliers(autoLoad = true) {
     }
   }
 
+  // Invalidate cache - triggers fresh data load
+  const invalidateCache = useCallback((reason = 'manual') => {
+    console.log('🗑️ Suppliers cache invalidated. Reason:', reason);
+    setLastInvalidateTime(Date.now());
+    // Trigger fresh data load
+    fetchSuppliers(true);
+  }, [])
+
   // Add material to supplier
   const addMaterialToSupplier = async (supplierId, materialData) => {
     try {
@@ -243,6 +252,17 @@ export function useSuppliers(autoLoad = true) {
           : [...current, normalizedRelation]
         return { ...s, suppliedMaterials: nextMaterials }
       }))
+
+      // Invalidate cache timestamp for next time
+      console.log('➕ Material added to supplier, marking cache as stale...');
+      setLastInvalidateTime(Date.now());
+      
+      // Global event for cross-component cache invalidation (don't trigger immediate refresh)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('suppliersUpdated', { 
+          detail: { supplierId, materialData: normalizedRelation } 
+        }));
+      }
 
       return normalizedRelation
     } catch (err) {
@@ -322,6 +342,7 @@ export function useSuppliers(autoLoad = true) {
     suppliers,
     loading,
     error,
+    lastInvalidateTime, // Export for external cache checking
     addSupplier,
     updateSupplier,
     deleteSupplier,
@@ -330,6 +351,7 @@ export function useSuppliers(autoLoad = true) {
     getMaterialsForSupplier,
     getSuppliersByCategory,
     fetchSuppliers,  // Direct function reference
-    refetch: fetchSuppliers  // Alias for compatibility
+    refetch: fetchSuppliers,  // Alias for compatibility
+    invalidateCache // Export cache invalidation
   }
 }

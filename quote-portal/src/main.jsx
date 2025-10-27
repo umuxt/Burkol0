@@ -21,6 +21,7 @@ import ErrorBoundary from './components/ErrorBoundary.jsx';
 // Backend API hooks
 import { useMaterials, useMaterialActions } from './hooks/useMaterials.js';
 import { useMaterialCategories } from './hooks/useMaterialCategories.js';
+import { useSuppliers } from './hooks/useSuppliers.js';
 
 // Lazy loading imports
 const LazyOrdersTabContent = React.lazy(() => import('./components/OrdersTabContent.jsx'));
@@ -66,6 +67,10 @@ function MaterialsApp() {
     error: actionError 
   } = useMaterialActions();
   
+  const { 
+    addMaterialToSupplier 
+  } = useSuppliers();
+
   // YENİ: Merkezi Kategori Yönetim Hook'u
   const { 
     createCategory, 
@@ -274,8 +279,27 @@ function MaterialsApp() {
           supplierId: materialData.supplier, 
           materialId: newMaterial.id 
         });
-        // Tedarikçi ilişkisi artık malzeme yönetimi component'larda lazy loading ile hallediliyor
-        console.log('✅ Malzeme oluşturuldu, tedarikçi ilişkisi gerektiğinde yüklenecek');
+        
+        try {
+          // Tedarikçi-malzeme ilişkisini backend'e kaydet
+          const supplierMaterialData = {
+            materialId: newMaterial.id,
+            materialCode: newMaterial.code,
+            materialName: newMaterial.name,
+            category: newMaterial.category,
+            unit: newMaterial.unit,
+            price: newMaterial.sellPrice || newMaterial.costPrice || 0,
+            deliveryTime: '',
+            minQuantity: 1
+          };
+          
+          await addMaterialToSupplier(materialData.supplier, supplierMaterialData);
+          console.log('✅ Malzeme tedarikçiye başarıyla eklendi');
+        } catch (supplierError) {
+          console.error('❌ Tedarikçi ilişkisi eklenirken hata:', supplierError);
+          // Malzeme oluşturuldu ama tedarikçi ilişkisi eklenemedi - kullanıcıya uyar
+          alert('Malzeme oluşturuldu ancak tedarikçi ilişkisi eklenirken hata oluştu. Lütfen manuel olarak ekleyin.');
+        }
       }
       
       await refreshMaterials(true);

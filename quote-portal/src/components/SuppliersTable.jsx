@@ -578,17 +578,14 @@ export default function SuppliersTable({
           await addMaterialToSupplier(selectedSupplier.id, materialData)
           console.log('✅ Material added to supplier successfully')
           
-          // Refresh suppliers list to get updated data from backend
+          // Only refresh the parent suppliers list (not forcing multiple refreshes)
           if (onRefreshSuppliers) {
             console.log('🔄 Refreshing suppliers list after adding new material')
             await onRefreshSuppliers()
           }
           
-          // Also force refresh suppliers from hook to bypass cache
-          if (fetchSuppliers) {
-            console.log('🔄 Force refreshing suppliers from hook after adding new material')
-            await fetchSuppliers(true) // true = forceRefresh
-          }
+          // Don't force refresh materials here to avoid loops
+          // The global event system will handle the update
         } catch (supplierError) {
           console.error('❌ Error adding material to supplier:', supplierError)
           // Still continue even if supplier update fails

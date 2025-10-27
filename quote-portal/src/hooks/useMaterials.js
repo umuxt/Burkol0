@@ -46,6 +46,36 @@ export function useMaterials(autoLoad = false) {
     }
   }, [autoLoad, initialized, loadMaterials]);
 
+  // Global materials update event listener (simplified)
+  useEffect(() => {
+    const handleMaterialsUpdate = async (event) => {
+      const { action, material } = event.detail || {};
+      
+      console.log('🔔 useMaterials: Global materials update event received:', {
+        action,
+        materialName: material?.name
+      });
+      
+      if (action === 'add' && material) {
+        // Add new material to local state
+        setMaterials(prevMaterials => {
+          // Check if material already exists
+          const exists = prevMaterials.some(m => m.id === material.id);
+          if (exists) {
+            return prevMaterials;
+          }
+          return [material, ...prevMaterials];
+        });
+      }
+      // Don't auto-refresh for other actions to avoid loops
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('materialsUpdated', handleMaterialsUpdate);
+      return () => window.removeEventListener('materialsUpdated', handleMaterialsUpdate);
+    }
+  }, []); // No dependencies to avoid loops
+
   // Global stock update event listener
   useEffect(() => {
     const handleStockUpdate = async (event) => {
@@ -121,6 +151,15 @@ export function useMaterialActions() {
       setError(null);
       
       const newMaterial = await materialsService.addMaterial(materialData);
+      
+      // Trigger global event to notify all materials hooks
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('materialsUpdated', { 
+          detail: { action: 'add', material: newMaterial } 
+        }));
+      }
+      console.log('✅ Material added and global event dispatched:', newMaterial.name);
+      
       return newMaterial;
     } catch (err) {
       console.error('Malzeme eklenirken hata:', err);
