@@ -6,12 +6,14 @@ import { categoriesService } from '../services/categories-service'
 import { materialsService } from '../services/materials-service'
 import EditMaterialModal from './EditMaterialModal'
 import ErrorBoundary from './ErrorBoundary'
+import AddOrderModal from './AddOrderModal'
 import { 
   getEffectiveMaterialStatus, 
   createStatusBadgeProps,
   SUPPLIER_STATUSES,
   MATERIAL_STATUSES 
 } from '../utils/material-status-utils'
+import { useNotifications } from '../hooks/useNotifications'
 
 export default function SuppliersTable({ 
   suppliers = [],
@@ -31,6 +33,9 @@ export default function SuppliersTable({
 
   // useSuppliers hook'unu kullan
   const { addMaterialToSupplier, fetchSuppliers } = useSuppliers()
+
+  // Toast notifications
+  const { showNotification } = useNotifications()
 
   // Material management state
   const { materials: activeMaterials, loading: materialsLoading, loadMaterials } = useMaterials(false)
@@ -67,6 +72,10 @@ export default function SuppliersTable({
   
   // Bulk selection state
   const [selectedSupplierIds, setSelectedSupplierIds] = useState(new Set())
+  
+  // Order modal state
+  const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false)
+  const [orderModalSupplierId, setOrderModalSupplierId] = useState(null)
 
   const [newMaterial, setNewMaterial] = useState({
     name: '',
@@ -407,9 +416,18 @@ export default function SuppliersTable({
   }
 
   const getCategoryName = (categoryId) => {
+    // Kategori boşsa veya null ise
+    if (!categoryId) return '';
+    
+    // Kategoriler listesinde ara
     const category = materialCategories.find(cat => cat.id === categoryId)
-    // Only show categories that exist in materials-categories; otherwise return empty string
-    return category ? (category.name || category.label || categoryId) : ''
+    
+    // Kategori varsa ismini döndür
+    if (category) return category.name || category.label || categoryId;
+    
+    // Kategori bulunamazsa - büyük ihtimalle silinmiş
+    console.warn('🗑️ Kategori bulunamadı, büyük ihtimalle silinmiş:', categoryId);
+    return ''; // Boş string döndür, kategori gösterilmesin
   }
 
   const handleOpenMaterialPopup = async () => {
@@ -598,10 +616,10 @@ export default function SuppliersTable({
       setNewCategory('')
       setMaterialMode('existing')
       
-      alert('Malzeme başarıyla eklendi!')
+      showNotification('Malzeme başarıyla eklendi!', 'success')
     } catch (error) {
       console.error('Malzeme eklenirken hata:', error)
-      alert('Malzeme eklenirken bir hata oluştu!')
+      showNotification('Malzeme eklenirken bir hata oluştu!', 'error')
     }
   }
 
@@ -666,10 +684,10 @@ export default function SuppliersTable({
 
       setSelectedMaterials([])
       setShowMaterialPopup(false)
-      alert('Malzemeler başarıyla eklendi!')
+      showNotification('Malzemeler başarıyla eklendi!', 'success')
     } catch (error) {
       console.error('❌ Error in handleAddExistingMaterials:', error)
-      alert('Malzemeler eklenirken bir hata oluştu!')
+      showNotification('Malzemeler eklenirken bir hata oluştu!', 'error')
     }
   }
 
@@ -1118,6 +1136,11 @@ export default function SuppliersTable({
                             e.target.style.transform = 'scale(1)';
                           }}
                           title="Sipariş Ver"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOrderModalSupplierId(supplier.id);
+                            setIsAddOrderModalOpen(true);
+                          }}
                         >
                           🛒
                         </button>
@@ -1270,6 +1293,13 @@ export default function SuppliersTable({
                     e.target.style.transform = 'scale(1)';
                   }}
                   title="Sipariş Ver"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (selectedSupplier?.id) {
+                      setOrderModalSupplierId(selectedSupplier.id);
+                      setIsAddOrderModalOpen(true);
+                    }
+                  }}
                 >
                   🛒
                 </button>
@@ -2860,14 +2890,7 @@ export default function SuppliersTable({
                   borderRadius: '6px',
                   border: '1px solid #e5e7eb'
                 }}>
-                  <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
-                    Tedarik Geçmişi
-                  </h3>
-                  {(() => {
-                    // Inline lightweight rendering using the same pattern as EditMaterialModal
-                    // Import hook lazily at top of file; here we assume it exists
-                    return <SupplierHistorySection supplier={selectedSupplier} />
-                  })()}
+                  <SupplierHistorySection supplier={selectedSupplier} />
                 </div>
 
                 {/* Ek Bilgiler */}
@@ -3139,6 +3162,23 @@ export default function SuppliersTable({
           error={null}
         />
       </ErrorBoundary>
+      
+      {/* Add Order Modal */}
+      <AddOrderModal 
+        isOpen={isAddOrderModalOpen}
+        onClose={() => {
+          setIsAddOrderModalOpen(false)
+          setOrderModalSupplierId(null)
+        }}
+        initialSupplierId={orderModalSupplierId}
+        onSave={async (newOrder) => {
+          console.log('✅ New order created from supplier details:', newOrder);
+          // Suppliers'ı refresh et
+          if (onRefreshSuppliers) {
+            onRefreshSuppliers();
+          }
+        }}
+      />
     </div>
   )
 }
@@ -3147,24 +3187,45 @@ export default function SuppliersTable({
 function SupplierHistorySection({ supplier }) {
   const { items, loading, error, loadHistory, isLoadedForSupplier } = useSupplierProcurementHistory(supplier)
 
-  useEffect(() => {
-    if (supplier && !loading && !isLoadedForSupplier) {
-      try { loadHistory() } catch {}
-    }
-  }, [supplier?.id])
+  // useEffect kaldırıldı - tedarik geçmişi sadece butona tıklandığında yüklenecek
 
   return (
     <div className="supply-history-section">
-      <div className="supply-history-table">
-        <table>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <h3 style={{ margin: 0 }}>Tedarik Geçmişi</h3>
+        <button 
+          type="button"
+          onClick={() => {
+            if (supplier?.id && loadHistory) {
+              console.log('🔄 Tedarik geçmişi yeniden yükleniyor...', supplier.id);
+              loadHistory();
+            }
+          }}
+          style={{
+            padding: '6px 12px',
+            borderRadius: '6px',
+            border: '1px solid #d1d5db',
+            background: loading ? '#e5e7eb' : '#f9fafb',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            fontSize: '12px',
+            fontWeight: '600',
+            color: loading ? '#9ca3af' : '#374151'
+          }}
+          disabled={!supplier?.id || loading}
+        >
+          {loading ? '⏳ Yükleniyor...' : '🔄 Tedarik Geçmişini Yükle'}
+        </button>
+      </div>
+      <div className="supply-history-table" style={{ overflowX: 'auto', width: '100%' }}>
+        <table style={{ minWidth: '100%', tableLayout: 'auto' }}>
           <thead>
             <tr>
-              <th>Tarih</th>
-              <th>Malzeme</th>
-              <th>Miktar</th>
-              <th>Birim Fiyat</th>
-              <th>Toplam</th>
-              <th>Durum</th>
+              <th style={{ whiteSpace: 'nowrap' }}>Tarih</th>
+              <th style={{ minWidth: '150px' }}>Malzeme</th>
+              <th style={{ whiteSpace: 'nowrap' }}>Miktar</th>
+              <th style={{ whiteSpace: 'nowrap' }}>Birim Fiyat</th>
+              <th style={{ whiteSpace: 'nowrap' }}>Toplam</th>
+              <th style={{ whiteSpace: 'nowrap' }}>Durum</th>
             </tr>
           </thead>
           <tbody>
@@ -3185,18 +3246,20 @@ function SupplierHistorySection({ supplier }) {
                 const total = !isNaN(qty) && !isNaN(unitPrice) ? (qty * unitPrice) : 0
                 return (
                   <tr key={`${row.orderId}-${row.itemSequence}-${idx}`}>
-                    <td>{dateStr}</td>
-                    <td>{row.materialName || row.materialCode || '-'}</td>
-                    <td>{!isNaN(qty) ? `${qty} ${row.unit || ''}`.trim() : '-'}</td>
-                    <td>{!isNaN(unitPrice) ? `${unitPrice.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
-                    <td>{!isNaN(total) ? `${total.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
-                    <td>{row.itemStatus || '-'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{dateStr}</td>
+                    <td style={{ maxWidth: '150px', wordBreak: 'break-word' }} title={row.materialName || row.materialCode}>{row.materialName || row.materialCode || '-'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{!isNaN(qty) ? `${qty} ${row.unit || ''}`.trim() : '-'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{!isNaN(unitPrice) ? `${unitPrice.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{!isNaN(total) ? `${total.toLocaleString('tr-TR')} ${row.currency || 'TRY'}` : '-'}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{row.itemStatus || '-'}</td>
                   </tr>
                 )
               })
             ) : (
               <tr>
-                <td colSpan="6" className="no-data">Henüz tedarik geçmişi bulunmuyor</td>
+                <td colSpan="6" className="no-data">
+                  {isLoadedForSupplier ? 'Henüz tedarik geçmişi bulunmuyor' : 'Tedarik geçmişini yüklemek için yukarıdaki butona tıklayın'}
+                </td>
               </tr>
             )}
           </tbody>

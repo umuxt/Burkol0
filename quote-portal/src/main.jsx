@@ -38,6 +38,9 @@ const materialTypes = [
 ];
 
 function MaterialsApp() {
+  // Toast notifications
+  const { notifications, removeNotification } = useNotifications();
+
   // Backend API ile veri yönetimi (manuel yükleme)
   const { 
     materials, 
@@ -235,7 +238,7 @@ function MaterialsApp() {
 
   const handleSaveMaterial = async (materialData, newCategoryName) => {
     try {
-      let categoryId = materialData.categoryId;
+      let categoryId = materialData.category || materialData.categoryId;
 
       // Yeni kategori eklendiyse önce kategoriyi oluştur
       if (newCategoryName && !categories.some(cat => cat.name === newCategoryName)) {
@@ -243,7 +246,15 @@ function MaterialsApp() {
         const newCategory = await createCategory(newCategoryName);
         if (newCategory && newCategory.id) {
             categoryId = newCategory.id;
-            materialData.categoryId = newCategory.id; // Malzeme datasına yeni ID'yi ekle
+            // Backend'de 'category' field'ı kullanılıyor, 'categoryId' değil
+            materialData.category = newCategory.id;
+            materialData.categoryId = newCategory.id; // Backward compatibility için
+            console.log('✅ Yeni kategori ID malzeme datasına eklendi:', newCategory.id);
+            // Kategoriler listesini yenile ki yeni kategori tabloda görünebilsin
+            if (refreshCategories) {
+              await refreshCategories();
+              console.log('✅ Kategoriler listesi yenilendi');
+            }
         } else {
             throw new Error('Yeni kategori oluşturuldu ancak ID alınamadı.');
         }
@@ -294,7 +305,15 @@ function MaterialsApp() {
         console.log(`✨ Yeni kategori oluşturuluyor (düzenleme modunda): ${newCategoryName}`);
         const newCategory = await createCategory(newCategoryName);
         if (newCategory && newCategory.id) {
-            materialData.categoryId = newCategory.id;
+            // Backend'de 'category' field'ı kullanılıyor, 'categoryId' değil
+            materialData.category = newCategory.id;
+            materialData.categoryId = newCategory.id; // Backward compatibility için
+            console.log('✅ Yeni kategori ID malzeme datasına eklendi (düzenleme):', newCategory.id);
+            // Kategoriler listesini yenile ki yeni kategori tabloda görünebilsin
+            if (refreshCategories) {
+              await refreshCategories();
+              console.log('✅ Kategoriler listesi yenilendi (düzenleme)');
+            }
         } else {
             throw new Error('Yeni kategori oluşturuldu ancak ID alınamadı.');
         }
@@ -435,6 +454,14 @@ function MaterialsApp() {
 
   return (
     <div className="materials-page">
+      {notifications.map(notification => (
+        <ToastNotification
+          key={notification.id}
+          message={notification.message}
+          type={notification.type}
+          onClose={() => removeNotification(notification.id)}
+        />
+      ))}
       <MaterialsTabs
         activeTab={activeTab}
         onTabChange={handleTabChange}

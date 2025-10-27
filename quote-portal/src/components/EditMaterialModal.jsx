@@ -580,6 +580,9 @@ export default function EditMaterialModal({
                   {!isEditing ? (
                     <span className="detail-value">{
                       (() => {
+                        // Eğer kategori boşsa veya null ise
+                        if (!formData.category) return 'Kategori seçilmemiş';
+                        
                         // Önce ID ile bul
                         const categoryById = categories.find(cat => cat.id === formData.category);
                         if (categoryById) return categoryById.name;
@@ -588,8 +591,9 @@ export default function EditMaterialModal({
                         const categoryByName = categories.find(cat => cat.name === formData.category);
                         if (categoryByName) return categoryByName.name;
                         
-                        // Hiçbiri bulunamazsa raw value göster
-                        return safeRender(formData.category, 'Kategori seçilmemiş');
+                        // Hiçbiri bulunamazsa - bu kategori silinmiş olabilir
+                        console.warn('🗑️ Kategori bulunamadı, büyük ihtimalle silinmiş:', formData.category);
+                        return 'Kategori artık mevcut değil';
                       })()
                     }</span>
                   ) : (

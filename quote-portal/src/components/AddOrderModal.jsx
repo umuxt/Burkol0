@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useSuppliers } from '../hooks/useSuppliers.js'
 import { useMaterials } from '../hooks/useMaterials.js'
 import { useOrderActions } from '../hooks/useOrders.js'
 
-export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecordMode = false }) {
+export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecordMode = false, initialSupplierId = null, initialMaterialId = null }) {
   
   const [currentStep, setCurrentStep] = useState(1) // 1: Tedarikçi Seçimi, 2: Malzeme Ekleme, 3: Özet
   const [formData, setFormData] = useState({
@@ -18,6 +18,14 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   const [supplierMaterials, setSupplierMaterials] = useState([])
   const [supplierMaterialsLoading, setSupplierMaterialsLoading] = useState(false)
   const [supplierMaterialsError, setSupplierMaterialsError] = useState(null)
+
+  // Keep initial material ID in a ref to preserve it
+  const initialMaterialIdRef = useRef(null)
+  
+  // Update ref when prop changes
+  useEffect(() => {
+    initialMaterialIdRef.current = initialMaterialId
+  }, [initialMaterialId])
 
   // Backend API hooks
   const { suppliers, loading: suppliersLoading, getMaterialsForSupplier } = useSuppliers()
@@ -40,9 +48,22 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   useEffect(() => {
     if (isOpen) {
       setCurrentStep(1)
+      
+      // If initialSupplierId is provided, find the supplier and set it
+      let initialSupplierId_value = ''
+      let initialSupplierName_value = ''
+      
+      if (initialSupplierId && suppliers && suppliers.length > 0) {
+        const supplier = suppliers.find(s => s.id === initialSupplierId)
+        if (supplier) {
+          initialSupplierId_value = supplier.id
+          initialSupplierName_value = supplier.name || supplier.companyName || ''
+        }
+      }
+      
       setFormData({
-        supplierId: '',
-        supplierName: '',
+        supplierId: initialSupplierId_value,
+        supplierName: initialSupplierName_value,
         orderStatus: 'Taslak',
         expectedDeliveryDate: '',
         notes: ''
@@ -57,7 +78,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         loadMaterials()
       }
     }
-  }, [isOpen, materialsInitialized, loadMaterials])
+  }, [isOpen, materialsInitialized, loadMaterials, initialSupplierId, suppliers])
 
   useEffect(() => {
     let isCancelled = false
@@ -200,12 +221,94 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
     })
   }, [supplierMaterials])
 
+  // Auto-add material when supplier is selected and initialMaterialId exists
+  useEffect(() => {
+    if (formData.supplierId && initialMaterialIdRef.current && materials && materials.length > 0 && selectedMaterials.length === 0) {
+      const materialToAdd = materials.find(m => m.id === initialMaterialIdRef.current || m.code === initialMaterialIdRef.current);
+      if (materialToAdd) {
+        console.log('🛒 Auto-adding initial material:', materialToAdd.name);
+        
+        // Add material to selected materials
+        const supplier = suppliers.find(s => s.id === formData.supplierId)
+        const supplierMaterial = supplier?.suppliedMaterials?.find(sm => sm.materialCode === materialToAdd.code)
+        
+        const lineId = `${materialToAdd.code}-01`
+        
+        const newMaterial = {
+          lineId,
+          lineIndex: 1,
+          materialCode: materialToAdd.code,
+          materialName: materialToAdd.name,
+          quantity: 1,
+          unitPrice: supplierMaterial?.price || materialToAdd.costPrice || 0,
+          expectedDeliveryDate: deliveredRecordMode ? new Date() : (formData.expectedDeliveryDate || null),
+          actualDeliveryDate: deliveredRecordMode ? new Date() : null,
+          itemStatus: deliveredRecordMode ? 'Teslim Edildi' : 'Onay Bekliyor'
+        }
+        
+        setSelectedMaterials([newMaterial]);
+        // Move to step 2 to show the added material
+        setCurrentStep(2);
+      }
+    }
+  }, [formData.supplierId, materials, selectedMaterials.length, suppliers, formData.expectedDeliveryDate, deliveredRecordMode]);
+
   if (!isOpen) return null
+
+  // Filter suppliers based on initialMaterialId
+  const getFilteredSuppliers = () => {
+    if (!initialMaterialId || !materials || !suppliers || suppliers.length === 0) {
+      return suppliers;
+    }
+    
+    // Find the material by ID or code
+    const material = materials.find(m => m.id === initialMaterialId || m.code === initialMaterialId);
+    if (!material) {
+      console.log('⚠️ Material not found for initialMaterialId:', initialMaterialId);
+      return suppliers;
+    }
+    
+    const materialCode = material.code;
+    console.log('🔍 Filtering suppliers for material:', materialCode);
+    
+    // Filter suppliers that supply this material
+    const filtered = suppliers.filter(supplier => {
+      const suppliedMaterials = supplier.suppliedMaterials || [];
+      const suppliesMaterial = suppliedMaterials.some(sm => sm.materialCode === materialCode);
+      if (suppliesMaterial) {
+        console.log('✅ Supplier supplies material:', supplier.name || supplier.companyName);
+      }
+      return suppliesMaterial;
+    });
+    
+    console.log('🔍 Filtered suppliers:', {
+      total: suppliers.length,
+      filtered: filtered.length,
+      suppliers: filtered.map(s => s.name || s.companyName)
+    });
+    
+    return filtered;
+  };
+
+  const filteredSuppliers = getFilteredSuppliers();
+
+  // Auto-select supplier if only one supplier is available
+  useEffect(() => {
+    if (filteredSuppliers && filteredSuppliers.length === 1 && !formData.supplierId && isOpen && currentStep === 1) {
+      const singleSupplier = filteredSuppliers[0];
+      console.log('🎯 Auto-selecting single supplier:', singleSupplier.name || singleSupplier.companyName);
+      setFormData(prev => ({
+        ...prev,
+        supplierId: singleSupplier.id,
+        supplierName: singleSupplier.name || singleSupplier.companyName || ''
+      }));
+    }
+  }, [filteredSuppliers, formData.supplierId, isOpen, currentStep]);
 
   // Handle supplier selection
   const handleSupplierChange = (supplierId) => {
     console.log('🔥 handleSupplierChange çağrıldı:', supplierId);
-    const supplier = suppliers.find(s => s.id === supplierId)
+    const supplier = (filteredSuppliers || suppliers).find(s => s.id === supplierId)
     console.log('🔥 Bulunan supplier:', supplier);
     setFormData(prev => ({
       ...prev,
@@ -446,6 +549,19 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
               
               {suppliersLoading ? (
                 <p>Tedarikçiler yükleniyor...</p>
+              ) : filteredSuppliers && filteredSuppliers.length === 0 ? (
+                <div style={{
+                  padding: '16px',
+                  backgroundColor: '#fef3c7',
+                  border: '1px solid #fbbf24',
+                  borderRadius: '8px',
+                  color: '#92400e'
+                }}>
+                  <p style={{ margin: 0, fontWeight: '600' }}>⚠️ Tedarikçi Bulunamadı</p>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
+                    Bu malzemeyi tedarik eden bir tedarikçi bulunmuyor. Lütfen önce tedarikçi detaylarına malzeme ekleyin.
+                  </p>
+                </div>
               ) : (
                 <div>
                   <div style={{ marginBottom: '16px' }}>
@@ -469,11 +585,14 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                       }}
                     >
                       <option value="">Tedarikçi seçiniz</option>
-                      {suppliers?.map(supplier => (
+                      {filteredSuppliers?.map(supplier => (
                         <option key={supplier.id} value={supplier.id}>
                           {supplier.name || supplier.companyName} ({supplier.code})
                         </option>
                       ))}
+                      {filteredSuppliers && filteredSuppliers.length === 0 && (
+                        <option value="" disabled>Bu malzemeyi tedarik eden tedarikçi bulunmuyor</option>
+                      )}
                     </select>
                   </div>
 

@@ -28,6 +28,11 @@ export default function CategoryManagementModal({
     }
   }, [isOpen]);
 
+  // Categories listesi değiştiğinde usageMap'i temizle (kullanıcı modal açıkken malzeme güncellemiş olabilir)
+  useEffect(() => {
+    setUsageMap({});
+  }, [categories.length, categories.map(c => c.id).join(',')]);
+
   // loadCategoryUsages kaldırıldı - sadece delete'e tıklandığında usage yüklenir
 
   const handleAddCategory = async () => {
@@ -76,7 +81,8 @@ export default function CategoryManagementModal({
 
     setIsDeleting(true);
     try {
-      // Usage bilgisini al ve UI'yi güncelle
+      // Her silme denemesinde usage bilgisini fresh olarak al (cache kullanma)
+      // Kullanıcı modal açıkken malzemeleri update etmiş olabilir
       const usage = await categoriesService.getCategoryUsage(cat.id);
       setUsageMap(prev => ({ 
         ...prev, 
@@ -95,9 +101,17 @@ export default function CategoryManagementModal({
       // useCategorySync'in kendi mantığını kullan (tüm senaryoları handle eder)
       await deleteCategory(cat.id);
       
+      // Silme başarılıysa usage'ı temizle
+      setUsageMap(prev => {
+        const newMap = { ...prev };
+        delete newMap[cat.id];
+        return newMap;
+      });
+      
     } catch (error) {
       if (error.message === 'ACTIVE_USAGE') {
         // Aktif kullanım var - usageMap güncellendi, ℹ️ butonlu uyarı görünecek
+        // Fresh data yüklendi, kullanıcı güncel bilgiyi görecek
         return;
       }
       console.error('Kategori silme hatası:', error);

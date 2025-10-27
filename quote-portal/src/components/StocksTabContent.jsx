@@ -3,6 +3,7 @@ import MaterialsDashboard from './MaterialsDashboard.jsx'
 import MaterialsFilters from './MaterialsFilters.jsx'
 import MaterialsTable from './MaterialsTable.jsx'
 import BulkProgressModal from './BulkProgressModal.jsx'
+import AddOrderModal from './AddOrderModal.jsx'
 import { materialsService } from '../services/materials-service.js'
 
 export default function StocksTabContent({ 
@@ -22,6 +23,17 @@ export default function StocksTabContent({
   const [selectedMaterials, setSelectedMaterials] = useState(new Set());
   const [bulkProgress, setBulkProgress] = useState(null);
   const bulkCancelRef = useRef(false);
+  
+  // Order modal state
+  const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false);
+  const [orderModalMaterial, setOrderModalMaterial] = useState(null);
+
+  // Handle order button click
+  const handleOrderClick = (material) => {
+    console.log('🛒 Order button clicked for material:', material.name);
+    setOrderModalMaterial(material);
+    setIsAddOrderModalOpen(true);
+  };
 
   // Global function to handle bulk delete from modal
   React.useEffect(() => {
@@ -36,8 +48,16 @@ export default function StocksTabContent({
 
   // Helper function to get category name
   const getCategoryName = (categoryId) => {
+    // Kategori boşsa veya null ise
+    if (!categoryId) return 'Kategori Yok';
+    
+    // Kategoriler listesinde ara
     const category = categories.find(cat => cat.id === categoryId);
-    return category ? category.name : categoryId || 'Kategori Yok';
+    if (category) return category.name;
+    
+    // Kategori bulunamazsa - büyük ihtimalle silinmiş
+    console.warn('🗑️ Kategori bulunamadı, büyük ihtimalle silinmiş:', categoryId);
+    return 'Kategori artık mevcut değil';
   };
 
   // Helper function to get type label
@@ -373,6 +393,7 @@ export default function StocksTabContent({
             onCategoryManage={handleCategoryManage}
             selectedMaterials={selectedMaterials}
             onSelectedMaterialsChange={setSelectedMaterials}
+            onOrderClick={handleOrderClick}
           />
         )}
       </div>
@@ -384,6 +405,23 @@ export default function StocksTabContent({
           onAction={handleBulkProgressAction}
         />
       )}
+      
+      {/* Add Order Modal */}
+      <AddOrderModal 
+        isOpen={isAddOrderModalOpen}
+        onClose={() => {
+          setIsAddOrderModalOpen(false);
+          setOrderModalMaterial(null);
+        }}
+        initialMaterialId={orderModalMaterial?.id || null}
+        onSave={async (newOrder) => {
+          console.log('✅ New order created from materials table:', newOrder);
+          // Materials'ı refresh et
+          if (refreshMaterials) {
+            refreshMaterials();
+          }
+        }}
+      />
     </div>
   )
 }

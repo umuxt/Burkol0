@@ -81,10 +81,10 @@ export default defineConfig({
   plugins: [react(), copyComponents()],
   server: {
     port: 3001,
-    host: true, // Listen on all addresses
+    host: 'localhost', // Listen only on localhost for faster startup
     hmr: {
       port: 3001,
-      overlay: false // Disable error overlay for minor issues
+      overlay: true // Enable error overlay to see issues
     },
     proxy: {
       '/api': {

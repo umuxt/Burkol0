@@ -10,7 +10,8 @@ export default function MaterialsTable({
   onDeleteMaterial,
   onCategoryManage,
   selectedMaterials = new Set(),
-  onSelectedMaterialsChange
+  onSelectedMaterialsChange,
+  onOrderClick
 }) {
   const [activeTab, setActiveTab] = useState('all');
   const [sortField, setSortField] = useState('');
@@ -61,8 +62,16 @@ export default function MaterialsTable({
 
   // Helper function to get category name
   const getCategoryName = (categoryId) => {
+    // Kategori boşsa veya null ise
+    if (!categoryId) return 'Kategori seçilmemiş';
+    
+    // Kategoriler listesinde ara
     const category = categories.find(cat => cat.id === categoryId);
-    return category ? category.name : categoryId;
+    if (category) return category.name;
+    
+    // Kategori bulunamazsa - büyük ihtimalle silinmiş
+    console.warn('🗑️ Kategori bulunamadı, büyük ihtimalle silinmiş:', categoryId);
+    return 'Kategori artık mevcut değil';
   };
 
   // Helper function to get type label
@@ -309,12 +318,48 @@ export default function MaterialsTable({
                 <td>{getCategoryName(material.category)}</td>
                 <td>{material.unit}</td>
                 <td className="stock-cell">
-                  <StockBar 
-                    stock={material.stock} 
-                    reorderPoint={material.reorderPoint} 
-                    reserved={material.reserved || 0}
-                    available={material.available || material.stock}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <StockBar 
+                      stock={material.stock} 
+                      reorderPoint={material.reorderPoint} 
+                      reserved={material.reserved || 0}
+                      available={material.available || material.stock}
+                    />
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOrderClick && onOrderClick(material);
+                      }}
+                      style={{
+                        padding: '2px',
+                        border: 'medium',
+                        borderRadius: '3px',
+                        background: 'transparent',
+                        color: '#374151',
+                        fontSize: '10px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '16px',
+                        height: '16px',
+                        lineHeight: 1,
+                        transition: 'all 0.2s ease',
+                        flexShrink: 0
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.transform = 'scale(1.1)';
+                        e.target.style.background = '#f3f4f6';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.transform = 'scale(1)';
+                        e.target.style.background = 'transparent';
+                      }}
+                      title={`${material.name} için sipariş ver`}
+                    >
+                      🛒
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

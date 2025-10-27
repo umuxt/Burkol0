@@ -120,10 +120,24 @@ export const useCategorySync = ({ refreshCategories, refreshMaterials }) => {
       // Silme işlemi başarılıysa verileri yenile
       await refreshCategories();
       await refreshMaterials(true);
+      
+      // localStorage cache'ini temizle (kategori silindikten sonra eski kategori bilgileri cache'de kalmamalı)
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('bk_materials_cache');
+        console.log('🗑️ Materials cache cleared after category deletion');
+      }
 
     } catch (error) {
+      // ACTIVE_USAGE durumu özel olarak CategoryManagementModal tarafından handle ediliyor
+      // UI'da zaten uyarı gösteriliyor, burada tekrar popup göstermeye gerek yok
+      if (error.message === 'ACTIVE_USAGE') {
+        console.warn(`⚠️ Kategori ${id} aktif kullanımda, silinemez`);
+        throw error; // CategoryManagementModal'ın handle edebilmesi için re-throw
+      }
+      // Diğer hatalar için console error ve alert göster
       console.error(`Kategori ${id} silme hatası:`, error);
       alert(`Hata: ${error.message}`);
+      throw error; // Caller'a error'ı propagate et
     }
   }, [refreshCategories, refreshMaterials]);
 
