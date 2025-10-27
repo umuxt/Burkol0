@@ -1,40 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { categoriesService } from '../services/categories-service.js';
 
-// Yeni Onay Modalı Bileşeni
-function DeleteConfirmationModal({ category, onConfirm, onCancel, loading }) {
-  if (!category) return null;
-
-  return (
-    <div className="modal-overlay simple-confirm-modal-overlay">
-      <div className="modal-content simple-confirm-modal">
-        <div className="modal-header">
-          <h4>Kategoriyi Silme Onayı</h4>
-        </div>
-        <div className="modal-body">
-          <p>
-            <strong>{category.name}</strong> kategorisi, kaldırılmış olan bazı malzemeler tarafından kullanılıyor.
-          </p>
-          <p>
-            Kategoriyi silerseniz, ilgili malzemelerin kategori bilgisi sıfırlanacaktır.
-          </p>
-          <p className="confirm-question">
-            Silmek istediğinizden emin misiniz?
-          </p>
-        </div>
-        <div className="modal-footer">
-          <button onClick={onCancel} className="btn btn-secondary" disabled={loading}>
-            Hayır
-          </button>
-          <button onClick={onConfirm} className="btn btn-danger" disabled={loading}>
-            {loading ? 'Siliniyor...' : 'Evet, Sil'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function CategoryManagementModal({ 
   isOpen, 
   onClose, 
@@ -49,32 +15,26 @@ export default function CategoryManagementModal({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [editingIndex, setEditingIndex] = useState(-1);
   const [editingName, setEditingName] = useState('');
-  const [usageMap, setUsageMap] = useState({});
-  const [categoryToDelete, setCategoryToDelete] = useState(null); // Onay modalı için state
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [usageMap, setUsageMap] = useState({}); // Category usage için
+  const [isDeleting, setIsDeleting] = useState(false); // Deletion state
 
   useEffect(() => {
     if (isOpen) {
       setNewCategoryName('');
       setEditingIndex(-1);
       setEditingName('');
-      setUsageMap({});
-      setCategoryToDelete(null);
-      setIsDeleting(false);
+      setUsageMap({}); // Modal açıldığında usage map'i temizle
+      // Usage bilgilerini sadece delete'e tıklandığında yükle
     }
   }, [isOpen]);
+
+  // loadCategoryUsages kaldırıldı - sadece delete'e tıklandığında usage yüklenir
 
   const handleAddCategory = async () => {
     if (newCategoryName.trim() && createCategory) {
       try {
-        const newCategory = {
-          name: newCategoryName.trim(),
-          code: newCategoryName.substring(0, 4).toUpperCase(),
-          description: `${newCategoryName.trim()} kategorisi`,
-          color: '#007bff',
-          sortOrder: categories.length + 1
-        };
-        await createCategory(newCategory);
+        // useCategorySync sadece category name (string) bekliyor
+        await createCategory(newCategoryName.trim());
         setNewCategoryName('');
         if (onRefresh) await onRefresh();
       } catch (error) {
@@ -114,53 +74,40 @@ export default function CategoryManagementModal({
     const cat = categories[index];
     if (!cat) return;
 
-    try {
-      const usage = await categoriesService.getCategoryUsage(cat.id);
-      setUsageMap(prev => ({ ...prev, [cat.id]: usage }));
-
-      // 1. Aktif kullanım var mı?
-      if (usage.active && usage.active.count > 0) {
-        // Aktif kullanım varsa, uyarıyı göster ve silmeyi engelle (mevcut davranış)
-        return;
-      }
-
-      // 2. Sadece kaldırılmış malzemelerde mi kullanılıyor?
-      if (usage.removed && usage.removed.count > 0) {
-        // Onay modalını aç
-        setCategoryToDelete(cat);
-        return;
-      }
-
-      // 3. Hiç kullanılmıyor mu? Direkt sor ve sil.
-      if (confirm('Bu kategori hiçbir malzeme tarafından kullanılmıyor. Silmek istediğinizden emin misiniz?')) {
-        setIsDeleting(true);
-        await deleteCategory(cat.id, false); // updateRemoved = false
-        if (onRefresh) await onRefresh();
-        setIsDeleting(false);
-      }
-    } catch (error) {
-      console.error('Kategori silme hatası:', error);
-      alert('Kategori silinirken bir hata oluştu.');
-      setIsDeleting(false);
-    }
-  };
-
-  // Onay modalından gelen silme işlemini yönet
-  const handleConfirmDeletion = async () => {
-    if (!categoryToDelete) return;
-
     setIsDeleting(true);
     try {
-      await deleteCategory(categoryToDelete.id, true); // updateRemoved = true
-      setCategoryToDelete(null);
-      if (onRefresh) await onRefresh();
+      // Usage bilgisini al ve UI'yi güncelle
+      const usage = await categoriesService.getCategoryUsage(cat.id);
+      setUsageMap(prev => ({ 
+        ...prev, 
+        [cat.id]: {
+          active: {
+            count: usage.active || 0,
+            materials: usage.activeMaterials || []
+          },
+          removed: {
+            count: usage.removed || 0,
+            materials: usage.removedMaterials || []
+          }
+        }
+      }));
+
+      // useCategorySync'in kendi mantığını kullan (tüm senaryoları handle eder)
+      await deleteCategory(cat.id);
+      
     } catch (error) {
-      console.error('Kategori ve ilişkili malzeme güncelleme hatası:', error);
-      alert('Kategori silinirken bir hata oluştu.');
+      if (error.message === 'ACTIVE_USAGE') {
+        // Aktif kullanım var - usageMap güncellendi, ℹ️ butonlu uyarı görünecek
+        return;
+      }
+      console.error('Kategori silme hatası:', error);
+      // Diğer hatalar için useCategorySync zaten alert gösteriyor
     } finally {
       setIsDeleting(false);
     }
   };
+
+  // handleConfirmDeletion artık gerekli değil - useCategorySync tüm onay mantığını içeriyor
 
   const handleKeyPress = (e, action) => {
     if (e.key === 'Enter') action();
@@ -169,15 +116,7 @@ export default function CategoryManagementModal({
   if (!isOpen) return null;
 
   return (
-    <>
-      <DeleteConfirmationModal 
-        category={categoryToDelete}
-        onConfirm={handleConfirmDeletion}
-        onCancel={() => setCategoryToDelete(null)}
-        loading={isDeleting}
-      />
-
-      <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={onClose}>
         <div className="modal-content category-management-modal" onClick={e => e.stopPropagation()}>
           <div className="modal-header">
             <h3>Kategori Yönetimi</h3>
@@ -268,6 +207,5 @@ export default function CategoryManagementModal({
           </div>
         </div>
       </div>
-    </>
   );
 }

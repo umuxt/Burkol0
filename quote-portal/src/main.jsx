@@ -8,7 +8,6 @@ import { ToastNotification, useNotifications } from './hooks/useNotifications.js
 import MaterialsTabs from './components/MaterialsTabs.jsx';
 import StocksTabContent from './components/StocksTabContent.jsx';
 import SuppliersTabContent from './components/SuppliersTabContent.jsx';
-import OrdersTabContent from './components/OrdersTabContent.jsx';
 import MaterialsDashboard from './components/MaterialsDashboard.jsx';
 import MaterialsFilters from './components/MaterialsFilters.jsx';
 import MaterialsTable from './components/MaterialsTable.jsx';
@@ -17,13 +16,15 @@ import AddMaterialModal from './components/AddMaterialModal.jsx';
 import EditMaterialModal from './components/EditMaterialModal.jsx';
 import CategoryManagementModal from './components/CategoryManagementModal.jsx';
 import MaterialDeletionWarningModal from './components/MaterialDeletionWarningModal.jsx';
-import AddOrderModal from './components/AddOrderModal.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 // Backend API hooks
 import { useMaterials, useMaterialActions } from './hooks/useMaterials.js';
-import { useCategories, useCategoryActions } from './hooks/useCategories.js';
-import { useSuppliers } from './hooks/useSuppliers.js';
+import { useMaterialCategories } from './hooks/useMaterialCategories.js';
+
+// Lazy loading imports
+const LazyOrdersTabContent = React.lazy(() => import('./components/OrdersTabContent.jsx'));
+import { useCategorySync } from './hooks/useCategorySync.js'; // YENİ
 
 const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin' 
   : window.location.pathname.includes('materials.html') ? 'materials'
@@ -51,10 +52,8 @@ function MaterialsApp() {
     categories, 
     loading: categoriesLoading, 
     error: categoriesError, 
-    initialized: categoriesInitialized,
-    loadCategories,
     refreshCategories 
-  } = useCategories(false); // autoLoad = false
+  } = useMaterialCategories(false); // autoLoad = false
   
   const { 
     addMaterial, 
@@ -64,18 +63,12 @@ function MaterialsApp() {
     error: actionError 
   } = useMaterialActions();
   
+  // YENİ: Merkezi Kategori Yönetim Hook'u
   const { 
-    addCategory, 
+    createCategory, 
     updateCategory, 
-    deleteCategory,
-    loading: categoryActionLoading 
-  } = useCategoryActions();
-
-  const { 
-    suppliers,
-    addMaterialToSupplier,
-    fetchSuppliers
-  } = useSuppliers();
+    deleteCategory 
+  } = useCategorySync({ refreshCategories, refreshMaterials });
 
   // UI state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -83,22 +76,17 @@ function MaterialsApp() {
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isDeletionWarningOpen, setIsDeletionWarningOpen] = useState(false);
   const [isDeletionInProgress, setIsDeletionInProgress] = useState(false);
-  // AddSupplierModal için ayrı modal kaldırıldı
   const [editingMaterial, setEditingMaterial] = useState(null);
   const [materialCreatedCallback, setMaterialCreatedCallback] = useState(null);
   const [materialsToDelete, setMaterialsToDelete] = useState([]);
   const [deletionCallback, setDeletionCallback] = useState(null);
-  // Tedarikçi context state'leri kaldırıldı
   
-  // Debug: Callback state'ini takip et
   useEffect(() => {
     console.log('🔍 main.jsx: Callback state değişti:', {
       hasCallback: !!materialCreatedCallback
     });
   }, [materialCreatedCallback]);
   const [activeTab, setActiveTab] = useState(() => {
-    // F5 sonrası da aynı tab'da kalabilmek için localStorage kullan
-    // Hash önceliği: #orders-tab → orders
     try {
       const hash = (typeof window !== 'undefined' && window.location.hash) || ''
       if (hash.includes('orders-tab')) return 'orders'
@@ -120,54 +108,40 @@ function MaterialsApp() {
     if (!materialsInitialized) {
       loadMaterials();
     }
-    if (!categoriesInitialized) {
-      loadCategories();
-    }
+    // Categories'ı manuel yükle (useMaterialCategories autoLoad=false)
+    refreshCategories();
     
-    // Hash kontrolü - suppliers tab ve supplier detayı açma
     const checkHashAndOpenSupplier = () => {
       const hash = window.location.hash;
       
       if (hash.includes('suppliers-tab') && hash.includes('supplier-')) {
-        // Suppliers tab'ını aktif yap
         setActiveTab('suppliers');
-        
-        // Supplier ID'sini çıkar
         const supplierMatch = hash.match(/supplier-([^&]+)/);
         
         if (supplierMatch) {
           const supplierId = supplierMatch[1];
           
-          // Suppliers yüklendiyse supplier detayını aç
           const checkAndDispatch = () => {
-            // Suppliers state'ini kontrol et
-            if (suppliers && suppliers.length > 0) {
-              const supplierEvent = new CustomEvent('openSupplierDetail', {
-                detail: { supplierId }
-              });
-              window.dispatchEvent(supplierEvent);
-              
-              // Event gönderildikten sonra hash'i temizle
-              setTimeout(() => {
-                window.history.replaceState(null, null, window.location.pathname);
-              }, 1000);
-            } else {
-              // Suppliers henüz yüklenmemişse 200ms sonra tekrar dene
-              setTimeout(checkAndDispatch, 200);
-            }
+            // Supplier detail event'ini direk dispatch ediyoruz
+            const supplierEvent = new CustomEvent('openSupplierDetail', {
+              detail: { supplierId }
+            });
+            window.dispatchEvent(supplierEvent);
+            
+            setTimeout(() => {
+              window.history.replaceState(null, null, window.location.pathname);
+            }, 1000);
           };
           
-          // Hemen kontrol et
           checkAndDispatch();
         } else {
-          // Hash'i temizle (supplier ID yoksa)
           window.history.replaceState(null, null, window.location.pathname);
         }
       }
     };
     
     checkHashAndOpenSupplier();
-  }, [materialsInitialized, categoriesInitialized, loadMaterials, loadCategories]);
+  }, [materialsInitialized, loadMaterials, refreshCategories]);
 
   // Global stock update event listener
   useEffect(() => {
@@ -187,23 +161,17 @@ function MaterialsApp() {
     setFilters(newFilters);
   };
 
-  // Filtrelenmiş malzemeler - Frontend filtering
   const filteredMaterials = materials.filter(material => {
-    // Status filtresine göre materyalleri filtrele
     if (filters.status === 'Aktif') {
-      // Sadece aktif materyaller (Kaldırılmamış)
       if (material.status === 'Kaldırıldı') {
         return false;
       }
     } else if (filters.status === 'Removed') {
-      // Sadece kaldırılmış materyaller
       if (material.status !== 'Kaldırıldı') {
         return false;
       }
     }
-    // filters.status === 'Tümü' ise hiçbir status filtresi uygulanmaz
     
-    // Arama filtresi
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
       if (!material.name.toLowerCase().includes(searchTerm) && 
@@ -213,21 +181,18 @@ function MaterialsApp() {
       }
     }
 
-    // Kategori filtresi (multi-select)
     if (filters.categories && filters.categories.length > 0) {
       if (!filters.categories.includes(material.category)) {
         return false;
       }
     }
 
-    // Tip filtresi (multi-select)
     if (filters.types && filters.types.length > 0) {
       if (!filters.types.includes(material.type)) {
         return false;
       }
     }
 
-    // Düşük stok filtresi
     if (filters.lowStock && material.stock > material.reorderPoint) {
       return false;
     }
@@ -235,19 +200,17 @@ function MaterialsApp() {
     return true;
   });
 
-  // Malzeme ekleme modalını aç
   const handleAddMaterial = (onMaterialCreated = null) => {
     console.log('🔄 main.jsx: handleAddMaterial çağrıldı:', {
       newCallback: !!onMaterialCreated,
       currentCallback: !!materialCreatedCallback
     });
     
-    // Eğer zaten bir callback varsa ve modal açıksa, uyarı ver
     if (materialCreatedCallback && onMaterialCreated) {
       console.warn('⚠️ main.jsx: Callback override edildi! Modal zaten açık mı?');
     }
     
-    setMaterialCreatedCallback(onMaterialCreated);
+    setMaterialCreatedCallback(() => onMaterialCreated); // Fonksiyonu doğrudan set et
     setIsModalOpen(true);
   };
 
@@ -261,7 +224,8 @@ function MaterialsApp() {
     setIsEditModalOpen(true);
   };
 
-  const handleCategoryManage = () => {
+  const handleCategoryManage = async () => {
+    await refreshCategories();
     setIsCategoryModalOpen(true);
   };
 
@@ -269,37 +233,24 @@ function MaterialsApp() {
     setIsCategoryModalOpen(false);
   };
 
-  // Backend API ile kategori kaydetme
-  const handleSaveCategories = async (updatedCategories) => {
+  const handleSaveMaterial = async (materialData, newCategoryName) => {
     try {
-      // Bu fonksiyon CategoryManagementModal'dan gelecek kategori güncellemelerini işler
-      // Şimdilik kategorileri yeniden yükleyelim
-      await reloadCategories();
-    } catch (error) {
-      console.error('Category save error:', error);
-    }
-  };
+      let categoryId = materialData.categoryId;
 
-  // Backend API ile yeni malzeme kaydetme
-  const handleSaveMaterial = async (materialData, newCategory) => {
-    try {
       // Yeni kategori eklendiyse önce kategoriyi oluştur
-      if (newCategory && !categories.some(cat => cat.name === newCategory)) {
-        const newCat = {
-          name: newCategory,
-          code: newCategory.substring(0, 4).toUpperCase(),
-          description: `${newCategory} kategorisi`,
-          color: '#007bff',
-          sortOrder: categories.length + 1
-        };
-        await addCategory(newCat);
-        await refreshCategories(); // Kategorileri yenile
+      if (newCategoryName && !categories.some(cat => cat.name === newCategoryName)) {
+        console.log(`✨ Yeni kategori oluşturuluyor: ${newCategoryName}`);
+        const newCategory = await createCategory(newCategoryName);
+        if (newCategory && newCategory.id) {
+            categoryId = newCategory.id;
+            materialData.categoryId = newCategory.id; // Malzeme datasına yeni ID'yi ekle
+        } else {
+            throw new Error('Yeni kategori oluşturuldu ancak ID alınamadı.');
+        }
       }
 
-      // Malzemeyi Backend API'ye kaydet
       const newMaterial = await addMaterial(materialData);
       
-      // newMaterial validation
       if (!newMaterial || !newMaterial.id) {
         console.error('❌ addMaterial başarısız - newMaterial:', newMaterial)
         throw new Error('Malzeme kaydedilemedi')
@@ -307,42 +258,17 @@ function MaterialsApp() {
       
       console.log('✅ Malzeme başarıyla kaydedildi:', newMaterial)
       
-      // Eğer malzemede supplier ID'si varsa (dropdown'dan seçilmişse)
       if (materialData.supplier) {
-        try {
-          console.log('🔄 Dropdown\'dan seçilen tedarikçiye malzeme ekleniyor:', { 
-            supplierId: materialData.supplier, 
-            materialId: newMaterial.id 
-          });
-          
-          await addMaterialToSupplier(materialData.supplier, {
-            materialId: newMaterial.id,
-            materialCode: newMaterial.code,
-            materialName: newMaterial.name,
-            price: materialData.costPrice || 0,
-            deliveryTime: '',
-            minQuantity: 1
-          });
-          // Supplier listesini de yenile ki suppliedMaterials anında güncellensin
-          try {
-            await fetchSuppliers();
-          } catch (e) {
-            console.warn('Suppliers refresh failed after relation add:', e?.message || e)
-          }
-          
-          console.log('✅ Dropdown\'dan seçilen tedarikçiye malzeme eklendi');
-        } catch (supplierError) {
-          console.error('❌ Dropdown tedarikçiye eklenirken hata:', supplierError);
-        }
+        console.log('🔄 Dropdown\'dan seçilen tedarikçiye malzeme ekleniyor:', { 
+          supplierId: materialData.supplier, 
+          materialId: newMaterial.id 
+        });
+        // Tedarikçi ilişkisi artık malzeme yönetimi component'larda lazy loading ile hallediliyor
+        console.log('✅ Malzeme oluşturuldu, tedarikçi ilişkisi gerektiğinde yüklenecek');
       }
       
-      // Tedarikçiye ekleme kodları kaldırıldı
-      
-      // Materials listesini her zaman yenile - hem stok hem supplier context'inde
-      console.log('🔄 main.jsx: Materials listesi yenileniyor...')
       await refreshMaterials(true);
       
-      // Callback varsa çağır (malzeme bilgisiyle) - MODAL KAPATMADAN ÖNCE
       if (materialCreatedCallback && typeof materialCreatedCallback === 'function') {
         console.log('🔄 main.jsx: Callback çağrılıyor...', newMaterial);
         try {
@@ -352,65 +278,54 @@ function MaterialsApp() {
         }
       }
       
-      // Modal'ı her durumda kapat
       console.log('🔄 main.jsx: Modal kapatılıyor...');
       setIsModalOpen(false);
-      
-      // Callback mechaism'ini temizle
       setMaterialCreatedCallback(null);
     } catch (error) {
       console.error('Material save error:', error);
+      alert(`Malzeme kaydedilirken hata: ${error.message}`);
     }
   };
 
-  // Backend API ile malzeme güncelleme
-  const handleSaveEditMaterial = async (materialData, newCategory) => {
+  const handleSaveEditMaterial = async (materialData, newCategoryName) => {
     try {
       // Yeni kategori eklendiyse önce kategoriyi oluştur
-      if (newCategory && !categories.some(cat => cat.name === newCategory)) {
-        const newCat = {
-          name: newCategory,
-          code: newCategory.substring(0, 4).toUpperCase(),
-          description: `${newCategory} kategorisi`,
-          color: '#007bff',
-          sortOrder: categories.length + 1
-        };
-        await addCategory(newCat);
-        await refreshCategories();
+      if (newCategoryName && !categories.some(cat => cat.name === newCategoryName)) {
+        console.log(`✨ Yeni kategori oluşturuluyor (düzenleme modunda): ${newCategoryName}`);
+        const newCategory = await createCategory(newCategoryName);
+        if (newCategory && newCategory.id) {
+            materialData.categoryId = newCategory.id;
+        } else {
+            throw new Error('Yeni kategori oluşturuldu ancak ID alınamadı.');
+        }
       }
 
-      // Malzemeyi Backend API'de güncelle
       if (editingMaterial && editingMaterial.id) {
         await updateMaterial(editingMaterial.id, materialData);
       }
       
       setIsEditModalOpen(false);
       setEditingMaterial(null);
-      // Malzemeleri yenile
       await refreshMaterials(true);
     } catch (error) {
       console.error('Material update error:', error);
+      alert(`Malzeme güncellenirken hata: ${error.message}`);
     }
   };
 
-  // Material silme fonksiyonu - now with warning modal and bulk support
   const handleDeleteMaterial = async (materialIdOrList, skipConfirmation = false, isBulkDelete = false) => {
     console.log('🗑️ handleDeleteMaterial called:', { materialIdOrList, skipConfirmation, isBulkDelete });
     
     if (isBulkDelete && Array.isArray(materialIdOrList)) {
-      // Bulk delete case - show warning modal for multiple materials
       console.log('📦 Bulk delete for materials:', materialIdOrList.length);
       setMaterialsToDelete(materialIdOrList);
       setDeletionCallback(() => async () => {
-        // This will be called from MaterialDeletionWarningModal
-        // The actual bulk deletion logic will be handled there
         return { isBulkDelete: true, materials: materialIdOrList };
       });
       setIsDeletionWarningOpen(true);
       return true;
     }
     
-    // Single material case
     const materialId = materialIdOrList;
     const material = materials.find(m => m.id === materialId);
     if (!material) {
@@ -421,7 +336,6 @@ function MaterialsApp() {
     console.log('📦 Material found:', material.name);
 
     if (skipConfirmation) {
-      // Bulk delete individual item - no individual confirmation
       console.log('⚡ Skipping confirmation, direct delete');
       try {
         await deleteMaterial(materialId);
@@ -431,7 +345,6 @@ function MaterialsApp() {
         throw error;
       }
     } else {
-      // Single delete case - show warning modal
       console.log('⚠️ Showing warning modal for:', material.name);
       setMaterialsToDelete([material]);
       setDeletionCallback(() => async () => {
@@ -456,25 +369,20 @@ function MaterialsApp() {
       try {
         const result = await deletionCallback();
         
-        // Check if this is a bulk delete operation
         if (result && result.isBulkDelete) {
           console.log('🔄 Starting bulk delete operation for', result.materials.length, 'materials');
           
-          // Clear the modal first
           setDeletionCallback(null);
           setMaterialsToDelete([]);
           setIsDeletionWarningOpen(false);
           setIsDeletionInProgress(false);
           
-          // Start the bulk delete process with progress tracking  
-          // We'll delegate this to StocksTabContent
           if (window.handleBulkDeleteFromModal) {
             window.handleBulkDeleteFromModal(result.materials);
           }
           return;
         }
         
-        // Regular single delete
         setDeletionCallback(null);
         setMaterialsToDelete([]);
       } finally {
@@ -493,7 +401,6 @@ function MaterialsApp() {
     setEditingMaterial(null);
   };
 
-  // Loading state
   if (materialsLoading || categoriesLoading) {
     return (
       <div className="loading-container">
@@ -505,7 +412,6 @@ function MaterialsApp() {
     );
   }
 
-  // Error state
   if (materialsError || categoriesError) {
     return (
       <div className="error-container">
@@ -513,7 +419,7 @@ function MaterialsApp() {
         <p>{materialsError || categoriesError}</p>
         <button onClick={() => {
           refreshMaterials(true);
-          reloadCategories();
+          refreshCategories();
         }}>
           Tekrar Dene
         </button>
@@ -521,7 +427,6 @@ function MaterialsApp() {
     );
   }
 
-  // Tab değişikliği handler'ı - localStorage'a kaydet
   const handleTabChange = (newTab) => {
     console.log('🔥 MAIN TAB CHANGE:', newTab, 'Old:', activeTab);
     setActiveTab(newTab);
@@ -530,7 +435,7 @@ function MaterialsApp() {
 
   return (
     <div className="materials-page">
-                  <MaterialsTabs
+      <MaterialsTabs
         activeTab={activeTab}
         onTabChange={handleTabChange}
         filteredMaterials={filteredMaterials}
@@ -561,8 +466,13 @@ function MaterialsApp() {
         <SuppliersTabContent 
           categories={categories}
           handleDeleteMaterial={handleDeleteMaterial}
+          isActive={activeTab === 'suppliers'}
         />
-        <OrdersTabContent />
+        {activeTab === 'orders' && (
+          <React.Suspense fallback={<div style={{padding: '20px', textAlign: 'center'}}>📦 Orders yükleniyor...</div>}>
+            <LazyOrdersTabContent />
+          </React.Suspense>
+        )}
       </MaterialsTabs>
       
       <AddMaterialModal 
@@ -579,11 +489,8 @@ function MaterialsApp() {
       <CategoryManagementModal 
         isOpen={isCategoryModalOpen}
         onClose={handleCloseCategoryModal}
-        onSave={handleSaveCategories}
-        onRefresh={refreshCategories}
         categories={categories}
-        loading={categoryActionLoading}
-        createCategory={addCategory}
+        createCategory={createCategory}
         updateCategory={updateCategory}
         deleteCategory={deleteCategory}
         onOpenMaterialByCode={(code) => {
@@ -591,7 +498,6 @@ function MaterialsApp() {
           if (material) {
             handleEditMaterial(material)
           } else {
-            // Eğer listede yoksa kullanıcıya bilgi ver
             alert(`${code} malzemesi bulunamadı veya kaldırılmış olabilir.`)
           }
         }}
@@ -606,12 +512,10 @@ function MaterialsApp() {
           categories={categories}
           types={materialTypes}
           material={editingMaterial}
-          suppliers={suppliers}
           loading={actionLoading}
           error={actionError}
           isRemoved={editingMaterial?.status === 'Kaldırıldı'}
           onRefreshMaterial={refreshMaterials}
-          onRefreshSuppliers={fetchSuppliers}
         />
       </ErrorBoundary>
 
@@ -626,7 +530,6 @@ function MaterialsApp() {
         onConfirm={handleConfirmDeletion}
         materials={materialsToDelete}
         isBulk={materialsToDelete.length > 1}
-        suppliers={suppliers}
         isDeleting={isDeletionInProgress}
       />
     </div>
@@ -658,9 +561,7 @@ function App() {
 
   function handleLogin() {
     setLoggedIn(true);
-    // BurkolNavigation'ı refresh et ki navigation menüsü gözüksün
     if (window.BurkolNavigation) {
-      // Biraz bekleyip refresh et ki state güncellensin
       setTimeout(() => {
         const nav = new window.BurkolNavigation();
         nav.refresh();
@@ -670,7 +571,6 @@ function App() {
 
   function handleLogout() {
     setLoggedIn(false);
-    // Login sayfasına yönlendir
     window.location.href = './login.html';
   }
 

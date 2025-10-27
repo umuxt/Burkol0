@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import useMaterialProcurementHistory from '../hooks/useMaterialProcurementHistory.js'
+import { useSuppliers } from '../hooks/useSuppliers'
 import { 
   getEffectiveMaterialStatus, 
   createStatusBadgeProps,
@@ -15,18 +16,20 @@ export default function EditMaterialModal({
   categories, 
   types, 
   material, 
-  suppliers = [], 
   loading = false, 
-  suppliersLoading = false, 
-  onRefreshSuppliers, 
   onRefreshMaterial, // Yeni prop - material refresh için
   isRemoved = false 
 }) {
+  // Lazy loading suppliers when modal opens
+  const { 
+    suppliers = [], 
+    loading: suppliersLoading = false, 
+    refetch: refetchSuppliers 
+  } = useSuppliers(isOpen)
   // Loading timeout için timer
   const [loadingTimeout, setLoadingTimeout] = useState(false)
   
-  // Force refresh key for suppliers
-  const [suppliersKey, setSuppliersKey] = useState(0)
+  // Suppliers artık lazy loading ile yönetiliyor
   
   // Loading state 15 saniyeden fazla sürerse timeout yap
   useEffect(() => {
@@ -41,16 +44,7 @@ export default function EditMaterialModal({
     }
   }, [loading, isOpen])
 
-  // Modal açıldığında suppliers'ları yenile
-  useEffect(() => {
-    if (isOpen && material && onRefreshSuppliers) {
-      console.log('🔄 EditMaterialModal: Modal açıldı, suppliers refresh ediliyor...')
-      
-      // Suppliers'ı refresh et ki güncel data gelsin
-      onRefreshSuppliers()
-      console.log('📦 Modal açıldı, suppliers refresh edildi')
-    }
-  }, [isOpen, material, onRefreshSuppliers])
+  // Suppliers artık modal açıldığında lazy loading ile useSuppliers hook'u tarafından yükleniyor
 
   // Suppliers prop'u değiştiğinde debug
   useEffect(() => {
@@ -59,9 +53,6 @@ export default function EditMaterialModal({
       suppliersTimestamp: Date.now(),
       supplierIds: suppliers?.map(s => s.id) || []
     })
-    
-    // Force refresh suppliers key
-    setSuppliersKey(prev => prev + 1)
   }, [suppliers])
 
   // Güvenli değer render fonksiyonu
@@ -103,8 +94,7 @@ export default function EditMaterialModal({
     
     console.log('🔄 materialSuppliers recalculating:', {
       material: material?.id,
-      suppliersCount: suppliersToUse?.length || 0,
-      suppliersKey
+      suppliersCount: suppliersToUse?.length || 0
     })
     
     if (!material || !suppliersToUse || suppliersToUse.length === 0) {
@@ -141,7 +131,7 @@ export default function EditMaterialModal({
     
     console.log('✅ materialSuppliers filtered result:', filtered)
     return filtered;
-  }, [material, suppliers, suppliersKey]);
+  }, [material, suppliers]);
 
   // Material değiştiğinde form'u doldur
   useEffect(() => {
@@ -241,11 +231,7 @@ export default function EditMaterialModal({
   // Lazy-load via backend orders API; show independent from other content
   const { items: procurementItems, loading: procurementLoading, error: procurementError, loadHistory, isLoadedForMaterial } = useMaterialProcurementHistory(material)
 
-  useEffect(() => {
-    if (isOpen && material && !procurementLoading && !isLoadedForMaterial) {
-      try { loadHistory(); } catch {}
-    }
-  }, [isOpen, material?.id, material?.code]);
+  // useEffect kaldırıldı - tedarik geçmişi sadece butona tıklandığında yüklenecek
 
   // Global stock update event listener
   useEffect(() => {
@@ -592,7 +578,20 @@ export default function EditMaterialModal({
                 <div className="detail-item">
                   <span className="detail-label">Kategori:</span>
                   {!isEditing ? (
-                    <span className="detail-value">{categories.find(cat => cat.id === formData.category)?.name || safeRender(formData.category, 'Kategori seçilmemiş')}</span>
+                    <span className="detail-value">{
+                      (() => {
+                        // Önce ID ile bul
+                        const categoryById = categories.find(cat => cat.id === formData.category);
+                        if (categoryById) return categoryById.name;
+                        
+                        // Sonra name ile bul
+                        const categoryByName = categories.find(cat => cat.name === formData.category);
+                        if (categoryByName) return categoryByName.name;
+                        
+                        // Hiçbiri bulunamazsa raw value göster
+                        return safeRender(formData.category, 'Kategori seçilmemiş');
+                      })()
+                    }</span>
                   ) : (
                     <>
                       {!showNewCategory ? (
@@ -1005,7 +1004,31 @@ export default function EditMaterialModal({
           
           {/* Tedarik geçmişi tablosu */}
           <div className="supply-history-section">
-            <h3>Tedarik Geçmişi</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h3 style={{ margin: 0 }}>Tedarik Geçmişi</h3>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (material?.id && loadHistory) {
+                    console.log('🔄 Tedarik geçmişi yeniden yükleniyor...', material.id);
+                    loadHistory();
+                  }
+                }}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  background: procurementLoading ? '#e5e7eb' : '#f9fafb',
+                  cursor: procurementLoading ? 'not-allowed' : 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: procurementLoading ? '#9ca3af' : '#374151'
+                }}
+                disabled={!material?.id || procurementLoading}
+              >
+                {procurementLoading ? '⏳ Yükleniyor...' : '🔄 Tedarik Geçmişini Yükle'}
+              </button>
+            </div>
             <div className="supply-history-table">
               <table>
                 <thead>

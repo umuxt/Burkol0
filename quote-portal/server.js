@@ -13,8 +13,23 @@ import { setupAuthRoutes } from './server/authRoutes.js'
 // Settings routes (quotes system) are disabled to avoid Firestore bootstrap
 import { setupMaterialsRoutes } from './server/materialsRoutes.js'
 import { ordersRoutes } from './server/ordersRoutes.js'
-import { getAllSuppliers, addSupplier, updateSupplier, deleteSupplier, getSuppliersByCategory, getSupplierCategories, addMaterialToSupplier, getSuppliersForMaterial, getMaterialsForSupplier } from './server/suppliersRoutes.js'
-import { addMigrationRoutes } from './server/migrationRoutes.js'
+import {
+    getAllSuppliers,
+    addSupplier,
+    updateSupplier,
+    deleteSupplier,
+    getSuppliersByCategory,
+    addMaterialToSupplier,
+    getSuppliersForMaterial,
+    getMaterialsForSupplier
+} from './server/suppliersRoutes.js';
+import {
+    getMaterialCategories,
+    createMaterialCategory,
+    updateMaterialCategory,
+    deleteMaterialCategory,
+    getMaterialCategoryUsage
+} from './server/materialCategoriesRoutes.js';import { addMigrationRoutes } from './server/migrationRoutes.js'
 import admin from 'firebase-admin'
 import dotenv from 'dotenv'
 
@@ -166,10 +181,17 @@ app.post('/api/suppliers', addSupplier)
 app.patch('/api/suppliers/:id', updateSupplier)
 app.delete('/api/suppliers/:id', deleteSupplier)
 app.get('/api/suppliers/category/:category', getSuppliersByCategory)
-app.get('/api/supplier-categories', getSupplierCategories)
 app.post('/api/suppliers/:supplierId/materials', addMaterialToSupplier)
 app.get('/api/materials/:materialId/suppliers', getSuppliersForMaterial)
 app.get('/api/suppliers/:supplierId/materials', getMaterialsForSupplier)
+
+// Setup material categories CRUD routes
+app.get('/api/material-categories', getMaterialCategories)
+app.post('/api/material-categories', createMaterialCategory)
+app.put('/api/material-categories/:id', updateMaterialCategory)
+app.delete('/api/material-categories/:id', deleteMaterialCategory)
+app.get('/api/material-categories/:id/usage', getMaterialCategoryUsage)
+
 
 // Expose migration management API routes used by admin tooling
 // (disabled by default above; enable with MIGRATION_ROUTES_ENABLED=true)

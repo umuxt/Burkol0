@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import SuppliersTable from './SuppliersTable'
 import AddSupplierModal from './AddSupplierModal'
-import { useSuppliers } from '../hooks/useSuppliers'
-import { useSupplierCategories } from '../hooks/useSupplierCategories'
 import { useCategories } from '../hooks/useCategories'
+import { useSuppliers } from '../hooks/useSuppliers'
 
 // Suppliers dashboard component with real data
 function SuppliersDashboard({ suppliers }) {
@@ -625,7 +624,8 @@ function SuppliersTablePlaceholder() {
 
 export default function SuppliersTabContent({ 
   categories,
-  handleDeleteMaterial
+  handleDeleteMaterial,
+  isActive = false
 }) {
   const [isAddSupplierModalOpen, setIsAddSupplierModalOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -655,7 +655,7 @@ export default function SuppliersTabContent({
     }
   }
   
-  // Backend API hooks
+  // Backend API hooks - lazy loading based on active tab
   const { 
     suppliers, 
     loading: suppliersLoading, 
@@ -664,12 +664,7 @@ export default function SuppliersTabContent({
     updateSupplier, 
     deleteSupplier,
     refetch: refetchSuppliers
-  } = useSuppliers()
-  
-  const { 
-    categories: supplierCategories, 
-    addCategory: createSupplierCategory 
-  } = useSupplierCategories()
+  } = useSuppliers(isActive)
 
   // Wrapper for updateSupplier to refresh suppliers after update
   const updateSupplierWithRefresh = useCallback(async (...args) => {
@@ -921,7 +916,6 @@ export default function SuppliersTabContent({
         <div style={{ padding: 0 }}>
           <SuppliersTable 
             suppliers={categoryFilteredSuppliers}
-            categories={supplierCategories} 
             onSupplierDetails={handleSupplierDetails}
             loading={suppliersLoading}
             suppliersLoading={suppliersLoading}
@@ -952,7 +946,6 @@ export default function SuppliersTabContent({
           setIsAddSupplierModalOpen(false)
         }}
         onSave={handleAddSupplier}
-        categories={supplierCategories}
       />
     </div>
   )

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useSuppliers } from '../hooks/useSuppliers'
 
 const MaterialDeletionWarningModal = ({ 
   isOpen, 
@@ -6,9 +7,10 @@ const MaterialDeletionWarningModal = ({
   onConfirm, 
   materials, // Array of materials to delete
   isBulk = false,
-  suppliers = [], // Array of all suppliers for checking relationships
   isDeleting = false // New prop for showing deletion progress state
 }) => {
+  // Lazy loading suppliers when modal opens
+  const { suppliers = [] } = useSuppliers(isOpen)
   const [affectedSuppliers, setAffectedSuppliers] = useState([])
   const [loading, setLoading] = useState(false)
   const [confirmChecked, setConfirmChecked] = useState(false)

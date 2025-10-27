@@ -4,13 +4,13 @@
 export const COLLECTIONS = {
   MATERIALS: 'materials',
   CATEGORIES: 'materials-categories', 
-  SUPPLIER_CATEGORIES: 'suppliers-categories',
   MATERIAL_TYPES: 'material_types',
   SUPPLIERS: 'suppliers',
   AUDIT_LOGS: 'audit_logs',
   ORDERS: 'orders'
   // ORDER_ITEMS: Removed - items are embedded in orders
   // STOCK_MOVEMENTS: Removed - handled by backend API
+  // SUPPLIER_CATEGORIES: Removed - suppliers show categories of materials they supply
 };
 
 // ================================

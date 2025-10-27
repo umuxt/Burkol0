@@ -116,7 +116,11 @@ function getApiBase() {
     // Local development - check if server is running
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       console.log('🔧 API: Local development detected')
-      // Try to detect if backend is available, otherwise use localStorage mode
+      // Frontend on 3001, Backend on 3000
+      if (port === '3001') {
+        console.log('🔧 API: Frontend on 3001, routing to backend on 3000')
+        return 'http://localhost:3000'
+      }
       return ''
     }
   }

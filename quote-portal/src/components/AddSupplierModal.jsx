@@ -3,7 +3,7 @@ import { useSuppliers } from '../hooks/useSuppliers'
 import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
 import { categoriesService } from '../services/categories-service'
 
-export default function AddSupplierModal({ isOpen, onClose, onSave, categories = [] }) {
+export default function AddSupplierModal({ isOpen, onClose, onSave }) {
   const { suppliers, loading: suppliersLoading } = useSuppliers()
   const { materials, loading: materialsLoading, loadMaterials } = useMaterials(false) // autoLoad false
   const { addMaterial } = useMaterialActions()

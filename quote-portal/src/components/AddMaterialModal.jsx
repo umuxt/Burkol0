@@ -11,8 +11,8 @@ export default function AddMaterialModal({
   loading = false,
   error = null
 }) {
-  // Suppliers listesini al
-  const { suppliers } = useSuppliers()
+  // Suppliers listesini lazy loading ile al - modal açıldığında yükle
+  const { suppliers } = useSuppliers(isOpen)
   
   const [formData, setFormData] = useState({
     code: '',

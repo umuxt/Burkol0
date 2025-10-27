@@ -17,9 +17,9 @@ async function fetchJsonWith401Retry(url, options = {}, timeoutMs = 10000) {
   }
 }
 
-export function useSuppliers() {
+export function useSuppliers(autoLoad = true) {
   const [suppliers, setSuppliers] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(autoLoad)
   const [error, setError] = useState(null)
 
   // Normalize supplier.suppliedMaterials items to a consistent shape
@@ -307,11 +307,16 @@ export function useSuppliers() {
     }
   }
 
-  // Load suppliers on mount
+  // Load suppliers on mount (conditional based on autoLoad)
   useEffect(() => {
-    console.log('🔍 useSuppliers: useEffect çalıştı, fetchSuppliers çağrılıyor...')
-    fetchSuppliers()
-  }, [fetchSuppliers])
+    if (autoLoad) {
+      console.log('🔍 useSuppliers: autoLoad=true, fetchSuppliers çağrılıyor...')
+      fetchSuppliers()
+    } else {
+      console.log('🔍 useSuppliers: autoLoad=false, manuel yükleme bekleniyor...')
+      setLoading(false)
+    }
+  }, [fetchSuppliers, autoLoad])
 
   return {
     suppliers,

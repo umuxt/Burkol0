@@ -5,6 +5,8 @@ import { fetchWithTimeout } from '../lib/api.js'
 
 console.log('✅ Categories Service: Backend API kullanımı aktif');
 
+const API_BASE_PATH = '/api/material-categories';
+
 // Auth header helper (API.js'den alındı)
 function withAuth(headers = {}) {
   try {
@@ -24,7 +26,7 @@ export const categoriesService = {
   // Tüm kategorileri getir
   getCategories: async (forceRefresh = false) => {
     try {
-      const url = new URL('/api/categories', window.location.origin)
+      const url = new URL(API_BASE_PATH, window.location.origin)
       if (forceRefresh) url.searchParams.set('_t', Date.now().toString())
       const response = await fetchWithTimeout(url.toString(), {
         headers: withAuth()
@@ -47,7 +49,7 @@ export const categoriesService = {
   // Yeni kategori ekle
   addCategory: async (categoryData) => {
     try {
-      const response = await fetchWithTimeout('/api/categories', {
+      const response = await fetchWithTimeout(API_BASE_PATH, {
         method: 'POST',
         headers: withAuth(),
         body: JSON.stringify(categoryData)
@@ -69,7 +71,7 @@ export const categoriesService = {
   // Kategori güncelle
   updateCategory: async (categoryId, updates) => {
     try {
-      const response = await fetchWithTimeout(`/api/categories/${categoryId}`, {
+      const response = await fetchWithTimeout(`${API_BASE_PATH}/${categoryId}`, {
         method: 'PATCH',
         headers: withAuth(),
         body: JSON.stringify(updates)
@@ -91,7 +93,7 @@ export const categoriesService = {
   // Kategori sil
   deleteCategory: async (categoryId, updateRemoved = false) => {
     try {
-      const url = new URL(`/api/categories/${categoryId}`, window.location.origin);
+      const url = new URL(`${API_BASE_PATH}/${categoryId}`, window.location.origin);
       if (updateRemoved) {
         url.searchParams.set('updateRemoved', 'true');
       }
@@ -117,7 +119,7 @@ export const categoriesService = {
   // Kategori kullanımını getir (bu kategoriyi kullanan aktif malzemeler)
   getCategoryUsage: async (categoryId) => {
     try {
-      const response = await fetchWithTimeout(`/api/categories/${encodeURIComponent(categoryId)}/usage`, {
+      const response = await fetchWithTimeout(`${API_BASE_PATH}/${encodeURIComponent(categoryId)}/usage`, {
         headers: withAuth()
       })
       if (!response.ok) {
