@@ -11,44 +11,8 @@ if (!process.env.FIREBASE_PROJECT_ID) {
   dotenv.config()
 }
 
-// Initialize Firebase Admin SDK if not already done by server.js
-if (!admin.apps.length) {
-  let credential;
-  
-  // Try to use environment variables first (recommended for production)
-  if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PROJECT_ID) {
-    const serviceAccount = {
-      type: process.env.FIREBASE_TYPE || "service_account",
-      project_id: process.env.FIREBASE_PROJECT_ID,
-      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      client_id: process.env.FIREBASE_CLIENT_ID,
-      auth_uri: process.env.FIREBASE_AUTH_URI || "https://accounts.google.com/o/oauth2/auth",
-      token_uri: process.env.FIREBASE_TOKEN_URI || "https://oauth2.googleapis.com/token",
-      auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL || "https://www.googleapis.com/oauth2/v1/certs",
-      client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
-      universe_domain: process.env.FIREBASE_UNIVERSE_DOMAIN || "googleapis.com"
-    }
-    credential = admin.credential.cert(serviceAccount)
-  } else {
-    // Fallback to serviceAccountKey.json file (development only)
-    const __filename = fileURLToPath(import.meta.url)
-    const __dirname = path.dirname(__filename)
-    const serviceAccountPath = path.join(__dirname, '..', '..', 'serviceAccountKey.json')
-    if (existsSync(serviceAccountPath)) {
-      const raw = await readFile(serviceAccountPath, 'utf8')
-      const serviceAccount = JSON.parse(raw)
-      credential = admin.credential.cert(serviceAccount)
-    } else {
-      throw new Error('Firebase credentials not found! Please set environment variables or create serviceAccountKey.json')
-    }
-  }
-  
-  admin.initializeApp({
-    credential: credential
-  })
-}
+// Use Firebase Admin SDK instance (initialized by server.js)
+// No initialization here to prevent conflicts
 
 const db = admin.firestore()
 const quotesRef = db.collection('quotes')

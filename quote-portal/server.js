@@ -29,7 +29,8 @@ import {
     updateMaterialCategory,
     deleteMaterialCategory,
     getMaterialCategoryUsage
-} from './server/materialCategoriesRoutes.js';import { addMigrationRoutes } from './server/migrationRoutes.js'
+} from './server/materialCategoriesRoutes.js';
+import { addMigrationRoutes } from './server/migrationRoutes.js'
 import admin from 'firebase-admin'
 import dotenv from 'dotenv'
 
@@ -151,9 +152,9 @@ try {
 
 // Always expose minimal form configuration routes for user form
 try {
-  const apiRoutesMod = await import('./server/apiRoutes.js')
-  apiRoutesMod.setupFormConfigRoutes(app)
-  console.log('✅ Form config routes enabled')
+  // DISABLED FOR DEBUGGING: const apiRoutesMod = await import('./server/apiRoutes.js')
+  // DISABLED FOR DEBUGGING: apiRoutesMod.setupFormConfigRoutes(app)
+  console.log('⏭️  Form config routes disabled for debugging')
 } catch (e) {
   console.warn('⚠️ Form config routes not initialized:', e?.message)
 }

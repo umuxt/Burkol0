@@ -1106,10 +1106,6 @@ export default function SuppliersTable({
                           📧
                         </button>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Sipariş ver fonksiyonu henüz atanmayacak
-                          }}
                           style={{
                             padding: '2px',
                             border: 'none',
@@ -1262,10 +1258,6 @@ export default function SuppliersTable({
                   📧
                 </button>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // Sipariş ver fonksiyonu henüz atanmayacak
-                  }}
                   style={{
                     padding: '6px',
                     border: 'none',
