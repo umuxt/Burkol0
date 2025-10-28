@@ -9,18 +9,7 @@
     <style>
       * {
         margin: 0;
-          });
-
-          let data;
-          try {
-            data = await response.json();
-          } catch (parseError) {
-            console.error('JSON parse error:', parseError);
-            this.showError('Sunucu yanıtı okunamadı. Lütfen tekrar deneyin.');
-            return;
-          }
-
-          if (response.ok && data.token) {     padding: 0;
+        padding: 0;
         box-sizing: border-box;
       }
 
@@ -341,14 +330,24 @@
           this.setLoading(true);
           this.hideError();
 
-        try {
-          const response = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email, password, remember }),
-          });            const data = await response.json();
+          try {
+            const response = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ email, password, remember }),
+            });
+
+            let data;
+            try {
+              data = await response.json();
+            } catch (parseError) {
+              console.error('JSON parse error:', parseError);
+              this.showError('Sunucu yanıtı okunamadı. Lütfen tekrar deneyin.');
+              this.setLoading(false);
+              return;
+            }
 
             if (response.ok && data.token) {
               localStorage.setItem('bk_admin_token', data.token);
@@ -364,11 +363,11 @@
               }, 1000);
             } else {
               this.showError(data.message || 'Giriş başarısız. Lütfen tekrar deneyin.');
+              this.setLoading(false);
             }
           } catch (error) {
             console.error('Login error:', error);
             this.showError('Giriş başarısız. Sunucu hatası.');
-          } finally {
             this.setLoading(false);
           }
         }
