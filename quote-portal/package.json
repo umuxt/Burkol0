@@ -40,7 +40,7 @@
     "formulajs": "^1.0.8",
     "hot-formula-parser": "^4.0.0",
     "lucide-react": "^0.548.0",
-    "mime-types": "^3.0.1",
+    "mime-types": "^2.1.35",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwind-merge": "^3.3.1"
