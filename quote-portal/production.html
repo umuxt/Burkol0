@@ -729,6 +729,174 @@
         `;
       }
 
+      // Table generation functions
+      function generateOperationsTable() {
+        if (mesData.operations.length === 0) {
+          return `
+            <div class="text-center py-8">
+              <div style="font-size: 3rem; color: #9ca3af; margin-bottom: 1rem;">⚙️</div>
+              <p class="text-gray-600">Henüz operasyon tanımlanmamış</p>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="table-container">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Operasyon Adı</th>
+                  <th>Tip</th>
+                  <th>Süre (dk)</th>
+                  <th>Gerekli Yetenekler</th>
+                  <th>İstasyon</th>
+                  <th>İşlemler</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${mesData.operations.map(op => `
+                  <tr>
+                    <td>
+                      <div>
+                        <div style="font-weight: 600;">${op.name}</div>
+                        <div style="font-size: 0.875rem; color: #6b7280;">${op.description || ''}</div>
+                      </div>
+                    </td>
+                    <td><span class="badge badge-gray">${op.operationType}</span></td>
+                    <td>${op.estimatedTime}</td>
+                    <td>
+                      ${(op.requiredSkills || []).map(skill => 
+                        `<span class="badge badge-blue" style="margin-right: 0.25rem;">${skill}</span>`
+                      ).join('')}
+                    </td>
+                    <td>${getStationName(op.requiredStationId) || '-'}</td>
+                    <td>
+                      <button class="text-blue-600 hover:text-blue-800 mr-2" onclick="editOperation('${op.id}')">✏️</button>
+                      <button class="text-red-600 hover:text-red-800" onclick="deleteOperation('${op.id}')">🗑️</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function generateWorkersTable() {
+        if (mesData.workers.length === 0) {
+          return `
+            <div class="text-center py-8">
+              <div style="font-size: 3rem; color: #9ca3af; margin-bottom: 1rem;">👥</div>
+              <p class="text-gray-600">Henüz çalışan tanımlanmamış</p>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="table-container">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Adı</th>
+                  <th>Email</th>
+                  <th>Yetenekler</th>
+                  <th>Vardiya</th>
+                  <th>Durum</th>
+                  <th>İşlemler</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${mesData.workers.map(worker => `
+                  <tr>
+                    <td style="font-weight: 600;">${worker.name}</td>
+                    <td style="color: #6b7280; font-size: 0.875rem;">${worker.email}</td>
+                    <td>
+                      ${(worker.skills || []).map(skill => 
+                        `<span class="badge badge-blue" style="margin-right: 0.25rem;">${skill}</span>`
+                      ).join('')}
+                    </td>
+                    <td><span class="badge badge-gray">${worker.shift}</span></td>
+                    <td>
+                      <span class="badge ${worker.availability === 'available' ? 'badge-green' : 'badge-yellow'}">
+                        ${worker.availability === 'available' ? 'Müsait' : 'Meşgul'}
+                      </span>
+                    </td>
+                    <td>
+                      <button class="text-blue-600 hover:text-blue-800 mr-2" onclick="editWorker('${worker.id}')">✏️</button>
+                      <button class="text-red-600 hover:text-red-800" onclick="deleteWorker('${worker.id}')">🗑️</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function generateStationsTable() {
+        if (mesData.stations.length === 0) {
+          return `
+            <div class="text-center py-8">
+              <div style="font-size: 3rem; color: #9ca3af; margin-bottom: 1rem;">🏭</div>
+              <p class="text-gray-600">Henüz istasyon tanımlanmamış</p>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="table-container">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>İstasyon Adı</th>
+                  <th>Açıklama</th>
+                  <th>Yetenekler</th>
+                  <th>Durum</th>
+                  <th>Konum</th>
+                  <th>İşlemler</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${mesData.stations.map(station => `
+                  <tr>
+                    <td style="font-weight: 600;">${station.name}</td>
+                    <td style="color: #6b7280; font-size: 0.875rem;">${station.description || ''}</td>
+                    <td>
+                      ${(station.capabilities || []).map(cap => 
+                        `<span class="badge badge-blue" style="margin-right: 0.25rem;">${cap}</span>`
+                      ).join('')}
+                    </td>
+                    <td>
+                      <span class="badge ${station.currentStatus === 'available' ? 'badge-green' : 'badge-red'}">
+                        ${station.currentStatus === 'available' ? 'Müsait' : 'Meşgul'}
+                      </span>
+                    </td>
+                    <td style="color: #6b7280; font-size: 0.875rem;">${station.location || '-'}</td>
+                    <td>
+                      <button class="text-blue-600 hover:text-blue-800 mr-2" onclick="editStation('${station.id}')">✏️</button>
+                      <button class="text-red-600 hover:text-red-800" onclick="deleteStation('${station.id}')">🗑️</button>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      function generateWorkOrdersDetailTable() {
+        if (mesData.workOrders.length === 0) {
+          return `
+            <div class="text-center py-8">
+              <div style="font-size: 3rem; color: #9ca3af; margin-bottom: 1rem;">📋</div>
+              <p class="text-gray-600">Henüz iş emri oluşturulmamış</p>
+            </div>
+          `;
+        }
+
+        return generateWorkOrdersTable(mesData.workOrders);
+      }
+
       function generateWorkOrdersTable(workOrders) {
         if (workOrders.length === 0) {
           return `
@@ -797,6 +965,90 @@
             </table>
           </div>
         `;
+      }
+
+      // Helper functions
+      function getStationName(stationId) {
+        const station = mesData.stations.find(s => s.id === stationId);
+        return station ? station.name : null;
+      }
+
+      function getWorkerName(workerId) {
+        const worker = mesData.workers.find(w => w.id === workerId);
+        return worker ? worker.name : null;
+      }
+
+      function getOperationName(operationId) {
+        const operation = mesData.operations.find(op => op.id === operationId);
+        return operation ? operation.name : null;
+      }
+
+      // Modal functions (simplified versions)
+      function showAddOperationModal() {
+        // For now, just show a simple prompt
+        const name = prompt('Operasyon adı:');
+        const description = prompt('Açıklama:');
+        const estimatedTime = prompt('Tahmini süre (dakika):', '30');
+        
+        if (name) {
+          addOperation({
+            name,
+            description,
+            operationType: mesData.masterData.availableOperationTypes[0] || 'İmalat',
+            estimatedTime: parseInt(estimatedTime) || 30,
+            requiredSkills: [],
+            requiredStationId: mesData.stations[0]?.id || ''
+          });
+        }
+      }
+
+      function showAddWorkerModal() {
+        const name = prompt('Çalışan adı:');
+        const email = prompt('Email:');
+        
+        if (name && email) {
+          addWorker({
+            name,
+            email,
+            skills: [],
+            shift: 'Gündüz',
+            availability: 'available'
+          });
+        }
+      }
+
+      function showAddStationModal() {
+        const name = prompt('İstasyon adı:');
+        const description = prompt('Açıklama:');
+        const location = prompt('Konum:');
+        
+        if (name) {
+          addStation({
+            name,
+            description,
+            location,
+            capabilities: [],
+            currentStatus: 'available'
+          });
+        }
+      }
+
+      function showAddWorkOrderModal() {
+        const title = prompt('İş emri başlığı:');
+        const description = prompt('Açıklama:');
+        
+        if (title) {
+          addWorkOrder({
+            title,
+            description,
+            priority: 'medium',
+            status: 'draft',
+            operations: [],
+            progress: 0,
+            assignedWorkers: [],
+            requiredStations: []
+          });
+        }
       }
 
       function getPriorityClass(priority) {
