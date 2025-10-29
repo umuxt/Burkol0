@@ -511,19 +511,17 @@ router.post('/materials/check-availability', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// ORDERS ROUTES (Mock data for now)
+// ORDERS ROUTES
 // ============================================================================
 
-// GET /api/mes/orders - Get all orders (mock data)
+// GET /api/mes/orders - Get all MES orders from Firestore (no mock)
 router.get('/orders', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
-    // Mock orders for now - later can be integrated with actual order system
-    const mockOrders = [
-      { id: "WO-2401", product: "Engine Block", quantity: 500, dueDate: "2025-02-15" },
-      { id: "WO-2402", product: "Gear Assembly", quantity: 800, dueDate: "2025-02-20" },
-      { id: "WO-2403", product: "Control Panel", quantity: 300, dueDate: "2025-02-18" },
-    ];
-    return { orders: mockOrders };
+    const db = getFirestore();
+    // Read from 'mes-orders' collection if present; otherwise return empty list
+    const snapshot = await db.collection('mes-orders').get();
+    const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return { orders };
   }, res);
 });
 

@@ -661,7 +661,7 @@
             </div>
             
             <!-- Content -->
-            <div class="mes-content">
+            <div class="mes-content" id="main-content">
               ${generateViewContent(currentView)}
             </div>
           </div>
@@ -1161,7 +1161,10 @@
         
         setTimeout(() => {
           planDesignerState.nodes = JSON.parse(JSON.stringify(template.nodes));
-          planDesignerState.nodeIdCounter = Math.max(...planDesignerState.nodes.map(n => parseInt(n.id.split('-')[1]) || 0)) + 1;
+          const currentMax = planDesignerState.nodes.length
+            ? Math.max(...planDesignerState.nodes.map(n => parseInt((n.id || '').split('-')[1]) || 0))
+            : 0;
+          planDesignerState.nodeIdCounter = currentMax + 1;
           renderCanvas();
           updatePlanStatistics();
         }, 100);
@@ -1836,140 +1839,7 @@
         }
       }
 
-      // Edit functions (simplified - just show current data for now)
-      function editOperation(operationId) {
-        const operation = mesData.operations.find(op => op.id === operationId);
-        if (operation) {
-          const newName = prompt('Operasyon adı:', operation.name);
-          if (newName && newName !== operation.name) {
-            // Update operation logic would go here
-            console.log('Edit operation:', operationId, newName);
-          }
-        }
-      }
-
-      function editWorker(workerId) {
-        const worker = mesData.workers.find(w => w.id === workerId);
-        if (worker) {
-          const newName = prompt('Çalışan adı:', worker.name);
-          if (newName && newName !== worker.name) {
-            // Update worker logic would go here
-            console.log('Edit worker:', workerId, newName);
-          }
-        }
-      }
-
-      function editStation(stationId) {
-        const station = mesData.stations.find(s => s.id === stationId);
-        if (station) {
-          const newName = prompt('İstasyon adı:', station.name);
-          if (newName && newName !== station.name) {
-            // Update station logic would go here
-            console.log('Edit station:', stationId, newName);
-          }
-        }
-      }
-
-      // Delete functions
-      async function deleteOperation(operationId) {
-        if (confirm('Bu operasyonu silmek istediğinizden emin misiniz?')) {
-          try {
-            const response = await fetch(`/api/mes/operations/${operationId}`, {
-              method: 'DELETE',
-              headers: { 'Authorization': 'Bearer dev-admin-token' }
-            });
-            
-            if (response.ok) {
-              await loadOperations();
-              if (currentView === 'operations') {
-                document.getElementById('main-content').innerHTML = generateViewContent('operations');
-              }
-            }
-          } catch (error) {
-            console.error('Error deleting operation:', error);
-            alert('Operasyon silinirken hata oluştu');
-          }
-        }
-      }
-
-      async function deleteWorker(workerId) {
-        if (confirm('Bu çalışanı silmek istediğinizden emin misiniz?')) {
-          try {
-            const response = await fetch(`/api/mes/workers/${workerId}`, {
-              method: 'DELETE',
-              headers: { 'Authorization': 'Bearer dev-admin-token' }
-            });
-            
-            if (response.ok) {
-              await loadWorkers();
-              if (currentView === 'workers') {
-                document.getElementById('main-content').innerHTML = generateViewContent('workers');
-              }
-            }
-          } catch (error) {
-            console.error('Error deleting worker:', error);
-            alert('Çalışan silinirken hata oluştu');
-          }
-        }
-      }
-
-      async function deleteStation(stationId) {
-        if (confirm('Bu istasyonu silmek istediğinizden emin misiniz?')) {
-          try {
-            const response = await fetch(`/api/mes/stations/${stationId}`, {
-              method: 'DELETE',
-              headers: { 'Authorization': 'Bearer dev-admin-token' }
-            });
-            
-            if (response.ok) {
-              await loadStations();
-              if (currentView === 'stations') {
-                document.getElementById('main-content').innerHTML = generateViewContent('stations');
-              }
-            }
-          } catch (error) {
-            console.error('Error deleting station:', error);
-            alert('İstasyon silinirken hata oluştu');
-          }
-        }
-      }
-
-      // Master data functions
-      function addNewSkill() {
-        const input = document.getElementById('new-skill-input');
-        const skill = input.value.trim();
-        
-        if (skill && !mesData.masterData.availableSkills.includes(skill)) {
-          mesData.masterData.availableSkills.push(skill);
-          input.value = '';
-          document.getElementById('main-content').innerHTML = generateViewContent('settings');
-        }
-      }
-
-      function removeSkill(skill) {
-        if (confirm(`"${skill}" yeteneğini silmek istediğinizden emin misiniz?`)) {
-          mesData.masterData.availableSkills = mesData.masterData.availableSkills.filter(s => s !== skill);
-          document.getElementById('main-content').innerHTML = generateViewContent('settings');
-        }
-      }
-
-      function addNewOperationType() {
-        const input = document.getElementById('new-type-input');
-        const type = input.value.trim();
-        
-        if (type && !mesData.masterData.availableOperationTypes.includes(type)) {
-          mesData.masterData.availableOperationTypes.push(type);
-          input.value = '';
-          document.getElementById('main-content').innerHTML = generateViewContent('settings');
-        }
-      }
-
-      function removeOperationType(type) {
-        if (confirm(`"${type}" operasyon tipini silmek istediğinizden emin misiniz?`)) {
-          mesData.masterData.availableOperationTypes = mesData.masterData.availableOperationTypes.filter(t => t !== type);
-          document.getElementById('main-content').innerHTML = generateViewContent('settings');
-        }
-      }
+      
 
       // CRUD Functions
       async function addOperation(operationData) {
@@ -2398,47 +2268,28 @@
       }
 
       function generateRequiredMaterials() {
-        // Mock material requirements based on operations
-        // In a real system, this would be based on operation definitions
-        const materialRequirements = {
-          'Kesim': [
-            { name: 'Steel Sheet', required: 10, unit: 'kg' },
-            { name: 'Cutting Fluid', required: 2, unit: 'liters' }
-          ],
-          'Kaynak': [
-            { name: 'Welding Rod', required: 5, unit: 'kg' },
-            { name: 'Steel Sheet', required: 5, unit: 'kg' },
-            { name: 'Fasteners', required: 20, unit: 'pcs' }
-          ],
-          'Tornalama': [
-            { name: 'Steel Rod', required: 8, unit: 'kg' },
-            { name: 'Cutting Fluid', required: 1, unit: 'liters' }
-          ],
-          'Freze': [
-            { name: 'Aluminum Block', required: 12, unit: 'kg' },
-            { name: 'Cutting Fluid', required: 3, unit: 'liters' }
-          ],
-          'Montaj': [
-            { name: 'Fasteners', required: 50, unit: 'pcs' },
-            { name: 'Assembly Glue', required: 1, unit: 'bottles' }
-          ]
-        };
-
-        const aggregatedMaterials = {};
+        // Derive requirements from operation definitions if available
+        // Expected optional field on operation: materialRequirements: [{ name, required, unit }]
+        const aggregated = {};
         
         planDesignerState.nodes.forEach(node => {
-          const requirements = materialRequirements[node.operationType] || materialRequirements[node.name] || [];
-          
-          requirements.forEach(req => {
-            if (aggregatedMaterials[req.name]) {
-              aggregatedMaterials[req.name].required += req.required;
+          const op = mesData.operations.find(op => op.id === node.operationId);
+          const reqs = Array.isArray(op?.materialRequirements) ? op.materialRequirements : [];
+          reqs.forEach(req => {
+            const key = `${req.name}|${req.unit || 'pcs'}`;
+            if (aggregated[key]) {
+              aggregated[key].required += Number(req.required) || 0;
             } else {
-              aggregatedMaterials[req.name] = { ...req };
+              aggregated[key] = {
+                name: req.name,
+                required: Number(req.required) || 0,
+                unit: req.unit || 'pcs'
+              };
             }
           });
         });
-
-        return Object.values(aggregatedMaterials);
+        
+        return Object.values(aggregated);
       }
 
       function displayMaterialAvailability(result) {
@@ -2638,8 +2489,8 @@
             <div class="node-time">⏱️ ${node.estimatedTime} dk</div>
             ${node.assignedWorkerName ? `<div class="node-worker">👤 ${node.assignedWorkerName}</div>` : ''}
             <div class="flex justify-between mt-2">
-              <button class="text-xs text-blue-600" onclick="editNode('${node.id}')" title="Düzenle">✏️</button>
-              <button class="text-xs text-red-600" onclick="deleteNode('${node.id}')" title="Sil">🗑️</button>
+              <button class="text-xs text-blue-600" onclick="editNode(event, '${node.id}')" title="Düzenle">✏️</button>
+              <button class="text-xs text-red-600" onclick="deleteNode(event, '${node.id}')" title="Sil">🗑️</button>
             </div>
           </div>
         `).join('');
@@ -2699,10 +2550,10 @@
         }
       }
 
-      function editNode(nodeId) {
-        event.stopPropagation();
-        const node = planDesignerState.nodes.find(n => n.id === nodeId);
-        if (!node) return;
+function editNode(evt, nodeId) {
+  evt.stopPropagation();
+  const node = planDesignerState.nodes.find(n => n.id === nodeId);
+  if (!node) return;
 
         // Advanced edit dialog
         const workers = mesData.workers.map(w => `${w.id}:${w.name}`).join('|');
@@ -2733,9 +2584,9 @@
         updatePlanStatistics();
       }
 
-      function deleteNode(nodeId) {
-        event.stopPropagation();
-        if (confirm('Bu operasyonu silmek istediğinizden emin misiniz?')) {
+function deleteNode(evt, nodeId) {
+  evt.stopPropagation();
+  if (confirm('Bu operasyonu silmek istediğinizden emin misiniz?')) {
           // Remove connections to this node
           planDesignerState.nodes.forEach(node => {
             node.connections = node.connections.filter(id => id !== nodeId);
@@ -2933,7 +2784,10 @@
         if (index >= 0 && index < mesData.templates.length) {
           const template = mesData.templates[index];
           planDesignerState.nodes = JSON.parse(JSON.stringify(template.nodes)); // deep copy
-          planDesignerState.nodeIdCounter = Math.max(...planDesignerState.nodes.map(n => parseInt(n.id.split('-')[1]) || 0)) + 1;
+          const currentMax = planDesignerState.nodes.length
+            ? Math.max(...planDesignerState.nodes.map(n => parseInt((n.id || '').split('-')[1]) || 0))
+            : 0;
+          planDesignerState.nodeIdCounter = currentMax + 1;
           
           renderCanvas();
           updatePlanStatistics();
@@ -2956,17 +2810,7 @@
       document.addEventListener('DOMContentLoaded', initializeMES);
 
       // Burkol0 Navigation utilities
-      function logout() {
-        if (confirm('Çıkış yapmak istediğinize emin misiniz?')) {
-          // Clear session
-          localStorage.removeItem('bk_admin_token');
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('userRole');
-          
-          // Redirect to login or admin dashboard
-          window.location.href = './admin-dashboard.html';
-        }
-      }
+      // (Logout is defined above and redirects to login.)
 
       // Initialize active nav state for top navbar
       document.addEventListener('DOMContentLoaded', function() {
