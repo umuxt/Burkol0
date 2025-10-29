@@ -751,7 +751,22 @@
                     <span class="text-sm">Atanan Çalışan:</span>
                     <span class="text-sm font-medium" id="assigned-workers">0</span>
                   </div>
+                  <div class="text-center mt-3">
+                    <button class="btn btn-sm w-full" onclick="checkMaterialAvailability()" id="material-check-btn">
+                      🔍 Malzeme Kontrolü
+                    </button>
+                  </div>
                 </div>
+              </div>
+            </div>
+
+            <!-- Material Availability Panel -->
+            <div id="material-availability-panel" class="card" style="display: none;">
+              <div class="card-header">
+                <div class="card-title">📦 Malzeme Durumu</div>
+              </div>
+              <div class="card-content" id="material-availability-content">
+                <!-- Material availability results will be shown here -->
               </div>
             </div>
 
