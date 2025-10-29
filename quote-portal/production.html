@@ -413,6 +413,70 @@
       .mes-header { padding: 24px 16px 16px; }
       .mes-header h1 { font-size: 24px; }
     }
+    /* Plan Designer - Node + Connection Styles */
+    .plan-canvas { position: relative; }
+    .operation-node {
+      position: absolute;
+      width: 160px;
+      min-height: 90px;
+      background: white;
+      border: 1px solid rgba(0,0,0,0.1);
+      border-radius: 10px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      padding: 8px 10px;
+      cursor: grab;
+      user-select: none;
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .operation-node:active { cursor: grabbing; }
+    .operation-node.selected {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    }
+    .operation-node.connecting {
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+    .operation-node .node-header {
+      font-size: 13px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .operation-node .node-type {
+      font-size: 11px;
+      color: #6b7280;
+      margin-bottom: 2px;
+    }
+    .operation-node .node-time {
+      font-size: 11px;
+      color: #374151;
+    }
+    .operation-node .node-worker {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #1f2937;
+      background: #f3f4f6;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 2px 6px;
+      display: inline-block;
+    }
+    /* SVG connection line */
+    .connection-line {
+      stroke: #3b82f6;
+      stroke-width: 2;
+      marker-end: url(#arrowhead);
+    }
+    .material-warning { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; padding: 8px 12px; border-radius: 8px; }
+    /* Simple toggle mimic */
+    .toggle { width: 38px; height: 22px; appearance: none; background: #e5e7eb; border-radius: 9999px; position: relative; outline: none; border: 1px solid #d1d5db; cursor: pointer; }
+    .toggle:checked { background: #2563eb; border-color: #2563eb; }
+    .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; background: #fff; border-radius: 9999px; transition: transform 0.15s ease; }
+    .toggle:checked::after { transform: translateX(16px); }
 
   </style>
 </head>
@@ -514,6 +578,8 @@
 
           // Clear loading state and render main app
           const appRoot = document.getElementById('mes-app-root');
+          // Seed demo data to make Plan Designer usable if APIs returned nothing
+          seedDemoDataIfEmpty();
           appRoot.innerHTML = generateMainApp();
           
           // Setup navigation
@@ -534,6 +600,77 @@
               </button>
             </div>
           `;
+        }
+      }
+
+      // Seed demo data if API returns empty to keep Plan Designer usable
+      function seedDemoDataIfEmpty() {
+        if (!Array.isArray(mesData.stations) || mesData.stations.length === 0) {
+          mesData.stations = [
+            { id: 'st-cnc-01', name: 'CNC Mill 01', location: 'Shop A', capabilities: ['Freze'], currentStatus: 'available' },
+            { id: 'st-weld-01', name: 'Welding Station A', location: 'Shop B', capabilities: ['Kaynak'], currentStatus: 'available' },
+            { id: 'st-asm-01', name: 'Assembly Line 1', location: 'Shop C', capabilities: ['Montaj'], currentStatus: 'available' },
+            { id: 'st-qc-01', name: 'Quality Control', location: 'Shop D', capabilities: ['Kontrol'], currentStatus: 'available' },
+            { id: 'st-pkg-01', name: 'Packing', location: 'Shop E', capabilities: ['Paketleme'], currentStatus: 'available' }
+          ];
+        }
+
+        if (!Array.isArray(mesData.workers) || mesData.workers.length === 0) {
+          mesData.workers = [
+            { id: 'w-ali', name: 'Ali Yılmaz', email: 'ali@example.com', skills: ['Freze', 'Montaj'], shift: 'Gündüz', availability: 'available' },
+            { id: 'w-ayse', name: 'Ayşe Demir', email: 'ayse@example.com', skills: ['Kaynak'], shift: 'Gündüz', availability: 'available' },
+            { id: 'w-ahmet', name: 'Ahmet Kaya', email: 'ahmet@example.com', skills: ['Kontrol', 'Paketleme'], shift: 'Gece', availability: 'busy' }
+          ];
+        }
+
+        if (!Array.isArray(mesData.operations) || mesData.operations.length === 0) {
+          mesData.operations = [
+            {
+              id: 'op-cnc', name: 'CNC Milling', description: 'Roughing and finishing',
+              operationType: 'İmalat', estimatedTime: 45, requiredSkills: ['Freze'], requiredStationId: 'st-cnc-01',
+              materialRequirements: [{ name: 'Steel Block', required: 1, unit: 'pcs' }]
+            },
+            {
+              id: 'op-weld', name: 'Welding', description: 'MIG welding',
+              operationType: 'İmalat', estimatedTime: 30, requiredSkills: ['Kaynak'], requiredStationId: 'st-weld-01',
+              materialRequirements: [{ name: 'Welding Wire', required: 2, unit: 'kg' }]
+            },
+            {
+              id: 'op-asm', name: 'Assembly', description: 'Sub-assembly',
+              operationType: 'Montaj', estimatedTime: 25, requiredSkills: ['Montaj'], requiredStationId: 'st-asm-01',
+              materialRequirements: [{ name: 'Fasteners', required: 10, unit: 'pcs' }]
+            },
+            {
+              id: 'op-qc', name: 'Quality Check', description: 'Dimensional inspection',
+              operationType: 'Kontrol', estimatedTime: 15, requiredSkills: ['Kontrol'], requiredStationId: 'st-qc-01'
+            },
+            {
+              id: 'op-pack', name: 'Packaging', description: 'Pack and label',
+              operationType: 'Paketleme', estimatedTime: 20, requiredSkills: ['Paketleme'], requiredStationId: 'st-pkg-01'
+            }
+          ];
+        }
+
+        if (!Array.isArray(mesData.orders) || mesData.orders.length === 0) {
+          mesData.orders = [
+            { id: 'WO-2401', product: 'Engine Block', quantity: 500, dueDate: new Date(Date.now()+5*86400000).toISOString() },
+            { id: 'WO-2402', product: 'Gear Assembly', quantity: 800, dueDate: new Date(Date.now()+10*86400000).toISOString() },
+            { id: 'WO-2403', product: 'Control Panel', quantity: 300, dueDate: new Date(Date.now()+7*86400000).toISOString() }
+          ];
+        }
+
+        if (!mesData.masterData || !Array.isArray(mesData.masterData.availableSkills) || mesData.masterData.availableSkills.length === 0) {
+          mesData.masterData = mesData.masterData || {};
+          mesData.masterData.availableSkills = mesData.masterData.availableSkills || ['Kaynak', 'Tornalama', 'Freze', 'Montaj'];
+          mesData.masterData.availableOperationTypes = mesData.masterData.availableOperationTypes || ['İmalat', 'Kontrol', 'Montaj', 'Paketleme'];
+        }
+
+        if (!Array.isArray(mesData.materials) || mesData.materials.length === 0) {
+          mesData.materials = [
+            { id: 'm-steel', name: 'Steel Block', quantity: 450, unit: 'pcs' },
+            { id: 'm-wire', name: 'Welding Wire', quantity: 120, unit: 'kg' },
+            { id: 'm-fast', name: 'Fasteners', quantity: 4800, unit: 'pcs' }
+          ];
         }
       }
 
@@ -931,15 +1068,15 @@
                 <div class="card-content space-y-3">
                   <div>
                     <label class="block text-sm font-medium mb-1">Plan Adı</label>
-                    <input type="text" id="plan-name" placeholder="Plan adını girin" class="w-full p-2 border rounded text-sm">
+                    <input type="text" id="plan-name" placeholder="Plan adını girin" class="w-full p-2 border rounded text-sm" oninput="planDesignerState.planName=this.value">
                   </div>
                   <div>
                     <label class="block text-sm font-medium mb-1">Paket Boyutu</label>
-                    <input type="number" id="package-size" value="25" min="1" class="w-full p-2 border rounded text-sm">
+                    <input type="number" id="package-size" value="25" min="1" class="w-full p-2 border rounded text-sm" oninput="planDesignerState.packageSize=parseInt(this.value)||25">
                   </div>
                   <div class="flex items-center justify-between">
                     <label class="text-sm font-medium">Grid'e Hizala</label>
-                    <input type="checkbox" id="snap-to-grid" checked class="toggle">
+                    <input type="checkbox" id="snap-to-grid" checked class="toggle" onchange="planDesignerState.snapToGrid=this.checked">
                   </div>
                 </div>
               </div>
@@ -2488,9 +2625,9 @@
             <div class="node-type">${node.operationType}</div>
             <div class="node-time">⏱️ ${node.estimatedTime} dk</div>
             ${node.assignedWorkerName ? `<div class="node-worker">👤 ${node.assignedWorkerName}</div>` : ''}
-            <div class="flex justify-between mt-2">
-              <button class="text-xs text-blue-600" onclick="editNode(event, '${node.id}')" title="Düzenle">✏️</button>
-              <button class="text-xs text-red-600" onclick="deleteNode(event, '${node.id}')" title="Sil">🗑️</button>
+            <div style="display:flex; justify-content:space-between; margin-top:6px;">
+              <button style="font-size:11px; color:#2563eb; background:none; border:none; cursor:pointer;" onclick="editNode(event, '${node.id}')" onmousedown="event.stopPropagation()" title="Düzenle">✏️</button>
+              <button style="font-size:11px; color:#dc2626; background:none; border:none; cursor:pointer;" onclick="deleteNode(event, '${node.id}')" onmousedown="event.stopPropagation()" title="Sil">🗑️</button>
             </div>
           </div>
         `).join('');
@@ -2513,14 +2650,16 @@
           </defs>
         `;
 
+        const NODE_WIDTH = 160;
+        const NODE_HEIGHT = 90;
         planDesignerState.nodes.forEach(node => {
           node.connections.forEach(targetId => {
             const targetNode = planDesignerState.nodes.find(n => n.id === targetId);
             if (targetNode) {
-              const x1 = node.x + 60; // center of node
-              const y1 = node.y + 25;
-              const x2 = targetNode.x + 60;
-              const y2 = targetNode.y + 25;
+              const x1 = node.x + NODE_WIDTH / 2; // center of node
+              const y1 = node.y + NODE_HEIGHT / 2;
+              const x2 = targetNode.x + NODE_WIDTH / 2;
+              const y2 = targetNode.y + NODE_HEIGHT / 2;
               
               connections += `<line class="connection-line" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`;
             }
@@ -2532,8 +2671,14 @@
 
       // Node operations
       function selectNode(nodeId) {
-        if (planDesignerState.connectingMode && planDesignerState.connectingFrom) {
-          // Connect nodes
+        if (planDesignerState.connectingMode) {
+          if (!planDesignerState.connectingFrom) {
+            // First selection for connecting
+            planDesignerState.connectingFrom = nodeId;
+            renderCanvas();
+            return;
+          }
+          // Second selection: create connection and exit connect mode
           if (planDesignerState.connectingFrom !== nodeId) {
             const fromNode = planDesignerState.nodes.find(n => n.id === planDesignerState.connectingFrom);
             if (fromNode && !fromNode.connections.includes(nodeId)) {
@@ -2646,8 +2791,8 @@ function deleteNode(evt, nodeId) {
         if (!node) return;
         
         planDesignerState.dragOffset = {
-          x: event.offsetX - node.x,
-          y: event.offsetY - node.y
+          x: event.offsetX,
+          y: event.offsetY
         };
         
         // Add mouse move listener temporarily
