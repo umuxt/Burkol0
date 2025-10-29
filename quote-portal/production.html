@@ -1279,6 +1279,351 @@
         }
       }
 
+      // CRUD Functions
+      async function addOperation(operationData) {
+        try {
+          const newOperation = {
+            id: `op-${Date.now()}`,
+            ...operationData
+          };
+          
+          const response = await fetch('/api/mes/operations', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer dev-admin-token'
+            },
+            body: JSON.stringify({ operations: [...mesData.operations, newOperation] })
+          });
+          
+          if (response.ok) {
+            mesData.operations.push(newOperation);
+            if (currentView === 'operations') {
+              document.getElementById('main-content').innerHTML = generateViewContent('operations');
+            }
+          }
+        } catch (error) {
+          console.error('Error adding operation:', error);
+        }
+      }
+
+      async function addWorker(workerData) {
+        try {
+          const newWorker = {
+            id: `w-${Date.now()}`,
+            ...workerData
+          };
+          
+          const response = await fetch('/api/mes/workers', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer dev-admin-token'
+            },
+            body: JSON.stringify({ workers: [...mesData.workers, newWorker] })
+          });
+          
+          if (response.ok) {
+            mesData.workers.push(newWorker);
+            if (currentView === 'workers') {
+              document.getElementById('main-content').innerHTML = generateViewContent('workers');
+            }
+          }
+        } catch (error) {
+          console.error('Error adding worker:', error);
+        }
+      }
+
+      async function addStation(stationData) {
+        try {
+          const newStation = {
+            id: `st-${Date.now()}`,
+            ...stationData
+          };
+          
+          const response = await fetch('/api/mes/stations', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer dev-admin-token'
+            },
+            body: JSON.stringify({ stations: [...mesData.stations, newStation] })
+          });
+          
+          if (response.ok) {
+            mesData.stations.push(newStation);
+            if (currentView === 'stations') {
+              document.getElementById('main-content').innerHTML = generateViewContent('stations');
+            }
+          }
+        } catch (error) {
+          console.error('Error adding station:', error);
+        }
+      }
+
+      async function addWorkOrder(workOrderData) {
+        try {
+          const newWorkOrder = {
+            id: `wo-${Date.now()}`,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            ...workOrderData
+          };
+          
+          const response = await fetch('/api/mes/work-orders', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer dev-admin-token'
+            },
+            body: JSON.stringify(newWorkOrder)
+          });
+          
+          if (response.ok) {
+            mesData.workOrders.push(newWorkOrder);
+            if (currentView === 'work-orders' || currentView === 'dashboard') {
+              document.getElementById('main-content').innerHTML = generateViewContent(currentView);
+            }
+          }
+        } catch (error) {
+          console.error('Error adding work order:', error);
+        }
+      }
+
+      // Edit functions (simplified - use prompts for now)
+      function editOperation(operationId) {
+        const operation = mesData.operations.find(op => op.id === operationId);
+        if (operation) {
+          const name = prompt('Operasyon adı:', operation.name);
+          const description = prompt('Açıklama:', operation.description);
+          const estimatedTime = prompt('Tahmini süre (dakika):', operation.estimatedTime);
+          
+          if (name) {
+            operation.name = name;
+            operation.description = description;
+            operation.estimatedTime = parseInt(estimatedTime) || operation.estimatedTime;
+            
+            // Update in API and refresh view
+            updateOperations();
+          }
+        }
+      }
+
+      function editWorker(workerId) {
+        const worker = mesData.workers.find(w => w.id === workerId);
+        if (worker) {
+          const name = prompt('Çalışan adı:', worker.name);
+          const email = prompt('Email:', worker.email);
+          
+          if (name && email) {
+            worker.name = name;
+            worker.email = email;
+            
+            // Update in API and refresh view
+            updateWorkers();
+          }
+        }
+      }
+
+      function editStation(stationId) {
+        const station = mesData.stations.find(s => s.id === stationId);
+        if (station) {
+          const name = prompt('İstasyon adı:', station.name);
+          const description = prompt('Açıklama:', station.description);
+          const location = prompt('Konum:', station.location);
+          
+          if (name) {
+            station.name = name;
+            station.description = description;
+            station.location = location;
+            
+            // Update in API and refresh view
+            updateStations();
+          }
+        }
+      }
+
+      // Delete functions
+      async function deleteOperation(operationId) {
+        if (confirm('Bu operasyonu silmek istediğinizden emin misiniz?')) {
+          mesData.operations = mesData.operations.filter(op => op.id !== operationId);
+          await updateOperations();
+        }
+      }
+
+      async function deleteWorker(workerId) {
+        if (confirm('Bu çalışanı silmek istediğinizden emin misiniz?')) {
+          mesData.workers = mesData.workers.filter(w => w.id !== workerId);
+          await updateWorkers();
+        }
+      }
+
+      async function deleteStation(stationId) {
+        if (confirm('Bu istasyonu silmek istediğinizden emin misiniz?')) {
+          mesData.stations = mesData.stations.filter(s => s.id !== stationId);
+          await updateStations();
+        }
+      }
+
+      // Update functions
+      async function updateOperations() {
+        try {
+          const response = await fetch('/api/mes/operations', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer dev-admin-token'
+            },
+            body: JSON.stringify({ operations: mesData.operations })
+          });
+          
+          if (response.ok && currentView === 'operations') {
+            document.getElementById('main-content').innerHTML = generateViewContent('operations');
+          }
+        } catch (error) {
+          console.error('Error updating operations:', error);
+        }
+      }
+
+      async function updateWorkers() {
+        try {
+          const response = await fetch('/api/mes/workers', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer dev-admin-token'
+            },
+            body: JSON.stringify({ workers: mesData.workers })
+          });
+          
+          if (response.ok && currentView === 'workers') {
+            document.getElementById('main-content').innerHTML = generateViewContent('workers');
+          }
+        } catch (error) {
+          console.error('Error updating workers:', error);
+        }
+      }
+
+      async function updateStations() {
+        try {
+          const response = await fetch('/api/mes/stations', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer dev-admin-token'
+            },
+            body: JSON.stringify({ stations: mesData.stations })
+          });
+          
+          if (response.ok && currentView === 'stations') {
+            document.getElementById('main-content').innerHTML = generateViewContent('stations');
+          }
+        } catch (error) {
+          console.error('Error updating stations:', error);
+        }
+      }
+
+      // Master data functions
+      async function addNewSkill() {
+        const input = document.getElementById('new-skill-input');
+        const skill = input.value.trim();
+        
+        if (skill && !mesData.masterData.availableSkills.includes(skill)) {
+          mesData.masterData.availableSkills.push(skill);
+          input.value = '';
+          
+          try {
+            const response = await fetch('/api/mes/master-data', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer dev-admin-token'
+              },
+              body: JSON.stringify(mesData.masterData)
+            });
+            
+            if (response.ok) {
+              document.getElementById('main-content').innerHTML = generateViewContent('settings');
+            }
+          } catch (error) {
+            console.error('Error adding skill:', error);
+          }
+        }
+      }
+
+      async function removeSkill(skill) {
+        if (confirm(`"${skill}" yeteneğini silmek istediğinizden emin misiniz?`)) {
+          mesData.masterData.availableSkills = mesData.masterData.availableSkills.filter(s => s !== skill);
+          
+          try {
+            const response = await fetch('/api/mes/master-data', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer dev-admin-token'
+              },
+              body: JSON.stringify(mesData.masterData)
+            });
+            
+            if (response.ok) {
+              document.getElementById('main-content').innerHTML = generateViewContent('settings');
+            }
+          } catch (error) {
+            console.error('Error removing skill:', error);
+          }
+        }
+      }
+
+      async function addNewOperationType() {
+        const input = document.getElementById('new-type-input');
+        const type = input.value.trim();
+        
+        if (type && !mesData.masterData.availableOperationTypes.includes(type)) {
+          mesData.masterData.availableOperationTypes.push(type);
+          input.value = '';
+          
+          try {
+            const response = await fetch('/api/mes/master-data', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer dev-admin-token'
+              },
+              body: JSON.stringify(mesData.masterData)
+            });
+            
+            if (response.ok) {
+              document.getElementById('main-content').innerHTML = generateViewContent('settings');
+            }
+          } catch (error) {
+            console.error('Error adding operation type:', error);
+          }
+        }
+      }
+
+      async function removeOperationType(type) {
+        if (confirm(`"${type}" operasyon tipini silmek istediğinizden emin misiniz?`)) {
+          mesData.masterData.availableOperationTypes = mesData.masterData.availableOperationTypes.filter(t => t !== type);
+          
+          try {
+            const response = await fetch('/api/mes/master-data', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer dev-admin-token'
+              },
+              body: JSON.stringify(mesData.masterData)
+            });
+            
+            if (response.ok) {
+              document.getElementById('main-content').innerHTML = generateViewContent('settings');
+            }
+          } catch (error) {
+            console.error('Error removing operation type:', error);
+          }
+        }
+      }
+
       function getPriorityClass(priority) {
         switch (priority) {
           case 'high': return 'badge-red';
