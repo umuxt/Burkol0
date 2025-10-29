@@ -505,6 +505,18 @@
         }
       }
 
+      async function loadMaterials() {
+        try {
+          const response = await fetch('/api/mes/materials', { headers: { 'Authorization': 'Bearer dev-admin-token' } });
+          if (response.ok) {
+            const data = await response.json();
+            mesData.materials = data.materials || [];
+          }
+        } catch (error) {
+          console.error('Error loading materials:', error);
+        }
+      }
+
       // Main app structure
       function generateMainApp() {
         return `
