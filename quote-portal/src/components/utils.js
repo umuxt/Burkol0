@@ -1,11 +1,9 @@
-import { clsx } from "clsx"
-import { twMerge } from "tailwindcss-merge"
-
+// Basic utility functions for styling
 export function cn(...inputs) {
-  return twMerge(clsx(inputs))
+  return inputs.filter(Boolean).join(' ');
 }
 
-// If clsx is not available, fallback
+// Alternative utility function 
 export function classNames(...classes) {
-  return classes.filter(Boolean).join(' ')
+  return classes.filter(Boolean).join(' ');
 }
