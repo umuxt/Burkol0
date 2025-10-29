@@ -2954,6 +2954,33 @@
       }
 
       document.addEventListener('DOMContentLoaded', initializeMES);
+
+      // Burkol0 Navigation utilities
+      function logout() {
+        if (confirm('Çıkış yapmak istediğinize emin misiniz?')) {
+          // Clear session
+          localStorage.removeItem('bk_admin_token');
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('userRole');
+          
+          // Redirect to login or admin dashboard
+          window.location.href = './admin-dashboard.html';
+        }
+      }
+
+      // Initialize active nav state for top navbar
+      document.addEventListener('DOMContentLoaded', function() {
+        const currentPage = 'production';
+        const navButtons = document.querySelectorAll('.nav-btn');
+        
+        navButtons.forEach(btn => {
+          if (btn.dataset.page === currentPage) {
+            btn.classList.add('nav-btn-active');
+          } else {
+            btn.classList.remove('nav-btn-active');
+          }
+        });
+      });
     </script>
   </body>
 </html>
