@@ -294,4 +294,133 @@ router.post('/master-data', withAuth, async (req, res) => {
   }, res);
 });
 
+// ============================================================================
+// PRODUCTION PLANS ROUTES  
+// ============================================================================
+
+// GET /api/mes/production-plans - Get all production plans
+router.get('/production-plans', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const db = getFirestore();
+    const snapshot = await db.collection('mes-production-plans')
+      .orderBy('createdAt', 'desc')
+      .get();
+    const productionPlans = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    return { productionPlans };
+  }, res);
+});
+
+// POST /api/mes/production-plans - Create production plan
+router.post('/production-plans', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const productionPlan = req.body;
+    if (!productionPlan.id) {
+      throw new Error('Production plan ID is required');
+    }
+
+    const db = getFirestore();
+    await db.collection('mes-production-plans').doc(productionPlan.id).set({
+      ...productionPlan,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    return { success: true, id: productionPlan.id };
+  }, res);
+});
+
+// PUT /api/mes/production-plans/:id - Update production plan
+router.put('/production-plans/:id', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id } = req.params;
+    const updates = req.body;
+
+    const db = getFirestore();
+    await db.collection('mes-production-plans').doc(id).update({
+      ...updates,
+      updatedAt: new Date()
+    });
+
+    return { success: true, id };
+  }, res);
+});
+
+// DELETE /api/mes/production-plans/:id - Delete production plan
+router.delete('/production-plans/:id', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id } = req.params;
+    const db = getFirestore();
+    await db.collection('mes-production-plans').doc(id).delete();
+    return { success: true, id };
+  }, res);
+});
+
+// ============================================================================
+// TEMPLATES ROUTES
+// ============================================================================
+
+// GET /api/mes/templates - Get all production plan templates
+router.get('/templates', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const db = getFirestore();
+    const snapshot = await db.collection('mes-templates')
+      .orderBy('createdAt', 'desc')
+      .get();
+    const templates = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    return { templates };
+  }, res);
+});
+
+// POST /api/mes/templates - Create template
+router.post('/templates', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const template = req.body;
+    if (!template.id) {
+      throw new Error('Template ID is required');
+    }
+
+    const db = getFirestore();
+    await db.collection('mes-templates').doc(template.id).set({
+      ...template,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    return { success: true, id: template.id };
+  }, res);
+});
+
+// DELETE /api/mes/templates/:id - Delete template
+router.delete('/templates/:id', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id } = req.params;
+    const db = getFirestore();
+    await db.collection('mes-templates').doc(id).delete();
+    return { success: true, id };
+  }, res);
+});
+
+// ============================================================================
+// ORDERS ROUTES (Mock data for now)
+// ============================================================================
+
+// GET /api/mes/orders - Get all orders (mock data)
+router.get('/orders', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    // Mock orders for now - later can be integrated with actual order system
+    const mockOrders = [
+      { id: "WO-2401", product: "Engine Block", quantity: 500, dueDate: "2025-02-15" },
+      { id: "WO-2402", product: "Gear Assembly", quantity: 800, dueDate: "2025-02-20" },
+      { id: "WO-2403", product: "Control Panel", quantity: 300, dueDate: "2025-02-18" },
+    ];
+    return { orders: mockOrders };
+  }, res);
+});
+
 export default router;
