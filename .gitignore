@@ -124,4 +124,7 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-*~
+*~-e 
+# Environment files
+*.env
+*.env.*
