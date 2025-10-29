@@ -2928,6 +2928,19 @@
           alert('Şablon yüklendi!');
         }
       }
+
+      // Logout function
+      function logout() {
+        if (confirm('Çıkış yapmak istediğinizden emin misiniz?')) {
+          // Clear any stored data
+          localStorage.clear();
+          sessionStorage.clear();
+          
+          // Redirect to login page
+          window.location.href = './login.html';
+        }
+      }
+
       document.addEventListener('DOMContentLoaded', initializeMES);
     </script>
   </body>
