@@ -339,6 +339,42 @@
         }
       }
 
+      async function loadOrders() {
+        try {
+          const response = await fetch('/api/mes/orders', { headers: { 'Authorization': 'Bearer dev-admin-token' } });
+          if (response.ok) {
+            const data = await response.json();
+            mesData.orders = data.orders || [];
+          }
+        } catch (error) {
+          console.error('Error loading orders:', error);
+        }
+      }
+
+      async function loadProductionPlans() {
+        try {
+          const response = await fetch('/api/mes/production-plans', { headers: { 'Authorization': 'Bearer dev-admin-token' } });
+          if (response.ok) {
+            const data = await response.json();
+            mesData.productionPlans = data.productionPlans || [];
+          }
+        } catch (error) {
+          console.error('Error loading production plans:', error);
+        }
+      }
+
+      async function loadTemplates() {
+        try {
+          const response = await fetch('/api/mes/templates', { headers: { 'Authorization': 'Bearer dev-admin-token' } });
+          if (response.ok) {
+            const data = await response.json();
+            mesData.templates = data.templates || [];
+          }
+        } catch (error) {
+          console.error('Error loading templates:', error);
+        }
+      }
+
       // Main app structure
       function generateMainApp() {
         return `
