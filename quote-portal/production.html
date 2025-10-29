@@ -496,98 +496,234 @@
         }
       }
 
-      function generateSetupMessage() {
-        return `
-          <div class="text-center" style="padding: 3rem 0;">
-            <div style="font-size: 4rem; color: #9ca3af; margin-bottom: 1rem;">📋</div>
-            <h2 class="text-2xl font-semibold text-gray-900" style="margin-bottom: 0.5rem;">
-              MES Sistemi Kurulum Gerekiyor
-            </h2>
-            <p class="text-gray-600" style="margin-bottom: 1.5rem;">
-              Sistem kullanımına başlamadan önce temel verilerin tanımlanması gerekiyor.
-            </p>
-            <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 0.5rem; padding: 1rem; max-width: 28rem; margin: 0 auto; text-align: left;">
-              <h3 style="font-weight: 500; color: #1e3a8a; margin-bottom: 0.5rem;">Gerekli Kurulum Adımları:</h3>
-              <ul style="font-size: 0.875rem; color: #1e40af; line-height: 1.5;">
-                <li>• İstasyon tanımlamaları</li>
-                <li>• Operasyon tanımlamaları</li>
-                <li>• Çalışan tanımlamaları</li>
-                <li>• İş emirleri oluşturma</li>
-              </ul>
-            </div>
-            <div style="margin-top: 2rem;">
-              <a href="./admin-dashboard.html" class="btn btn-primary">
-                Yönetim Paneline Git
-              </a>
-            </div>
-          </div>
-        `;
-      }
-
-      function generateDashboard(workOrders) {
-        const openOrders = workOrders.filter(wo => wo.status !== 'completed').length;
-        const completedToday = workOrders.filter(wo => 
+      // Dashboard view
+      function generateDashboardView() {
+        const openOrders = mesData.workOrders.filter(wo => wo.status !== 'completed').length;
+        const completedToday = mesData.workOrders.filter(wo => 
           wo.status === 'completed' && 
           wo.updatedAt && 
           new Date(wo.updatedAt).toDateString() === new Date().toDateString()
         ).length;
 
         return `
-          <div>
-            <h1 class="text-2xl font-semibold text-gray-900">Üretim Dashboard</h1>
-            <p class="text-gray-600">Üretim takibi ve KPI izleme</p>
+          <div class="space-y-6">
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title" style="font-size: 0.875rem;">Açık Siparişler</div>
+                </div>
+                <div class="card-content">
+                  <div style="font-size: 1.5rem; font-weight: bold;">${openOrders}</div>
+                  <p style="font-size: 0.75rem; color: #6b7280;">Devam eden üretimler</p>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title" style="font-size: 0.875rem;">Operasyonlar</div>
+                </div>
+                <div class="card-content">
+                  <div style="font-size: 1.5rem; font-weight: bold;">${mesData.operations.length}</div>
+                  <p style="font-size: 0.75rem; color: #6b7280;">Tanımlı operasyon</p>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title" style="font-size: 0.875rem;">Çalışanlar</div>
+                </div>
+                <div class="card-content">
+                  <div style="font-size: 1.5rem; font-weight: bold;">${mesData.workers.length}</div>
+                  <p style="font-size: 0.75rem; color: #6b7280;">Aktif çalışan</p>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title" style="font-size: 0.875rem;">İstasyonlar</div>
+                </div>
+                <div class="card-content">
+                  <div style="font-size: 1.5rem; font-weight: bold;">${mesData.stations.length}</div>
+                  <p style="font-size: 0.75rem; color: #6b7280;">Çalışma istasyonu</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Work Orders Table -->
+            <div class="card">
+              <div class="card-header">
+                <div class="flex items-center justify-between">
+                  <div class="card-title">İş Emirleri</div>
+                  <button class="btn btn-primary" onclick="navigateToView('work-orders')">
+                    Yeni İş Emri
+                  </button>
+                </div>
+              </div>
+              <div class="card-content">
+                ${generateWorkOrdersTable(mesData.workOrders)}
+              </div>
+            </div>
           </div>
+        `;
+      }
 
-          <!-- KPI Cards -->
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      // Operations view
+      function generateOperationsView() {
+        return `
+          <div class="space-y-6">
             <div class="card">
               <div class="card-header">
-                <div class="card-title" style="font-size: 0.875rem;">Açık Siparişler</div>
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="card-title">Operasyon Kütüphanesi</div>
+                    <p style="color: #6b7280; font-size: 0.875rem;">Üretim operasyonlarını tanımlayın ve yönetin</p>
+                  </div>
+                  <button class="btn btn-primary" onclick="showAddOperationModal()">
+                    ➕ Operasyon Ekle
+                  </button>
+                </div>
               </div>
               <div class="card-content">
-                <div style="font-size: 1.5rem; font-weight: bold;">${openOrders}</div>
-                <p style="font-size: 0.75rem; color: #6b7280;">Devam eden üretimler</p>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title" style="font-size: 0.875rem;">Günlük Tamamlanan</div>
-              </div>
-              <div class="card-content">
-                <div style="font-size: 1.5rem; font-weight: bold;">${completedToday}</div>
-                <p style="font-size: 0.75rem; color: #6b7280;">Bugün tamamlanan</p>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title" style="font-size: 0.875rem;">Toplam İş Emirleri</div>
-              </div>
-              <div class="card-content">
-                <div style="font-size: 1.5rem; font-weight: bold;">${workOrders.length}</div>
-                <p style="font-size: 0.75rem; color: #6b7280;">Sistemdeki toplam</p>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-header">
-                <div class="card-title" style="font-size: 0.875rem;">Sistem Durumu</div>
-              </div>
-              <div class="card-content">
-                <div style="font-size: 1.5rem; font-weight: bold;">✅</div>
-                <p style="font-size: 0.75rem; color: #6b7280;">Aktif ve çalışıyor</p>
+                ${generateOperationsTable()}
               </div>
             </div>
           </div>
+        `;
+      }
 
-          <!-- Work Orders Table -->
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">İş Emirleri</div>
+      // Workers view
+      function generateWorkersView() {
+        return `
+          <div class="space-y-6">
+            <div class="card">
+              <div class="card-header">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="card-title">Çalışan Yönetimi</div>
+                    <p style="color: #6b7280; font-size: 0.875rem;">Çalışanları, yeteneklerini ve görevlerini yönetin</p>
+                  </div>
+                  <button class="btn btn-primary" onclick="showAddWorkerModal()">
+                    ➕ Çalışan Ekle
+                  </button>
+                </div>
+              </div>
+              <div class="card-content">
+                ${generateWorkersTable()}
+              </div>
             </div>
-            <div class="card-content">
-              ${generateWorkOrdersTable(workOrders)}
+          </div>
+        `;
+      }
+
+      // Stations view  
+      function generateStationsView() {
+        return `
+          <div class="space-y-6">
+            <div class="card">
+              <div class="card-header">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="card-title">İstasyon Yönetimi</div>
+                    <p style="color: #6b7280; font-size: 0.875rem;">Çalışma merkezlerini ve makineleri yapılandırın</p>
+                  </div>
+                  <button class="btn btn-primary" onclick="showAddStationModal()">
+                    ➕ İstasyon Ekle
+                  </button>
+                </div>
+              </div>
+              <div class="card-content">
+                ${generateStationsTable()}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Work Orders view
+      function generateWorkOrdersView() {
+        return `
+          <div class="space-y-6">
+            <div class="card">
+              <div class="card-header">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="card-title">İş Emirleri</div>
+                    <p style="color: #6b7280; font-size: 0.875rem;">Üretim emirlerini oluşturun ve yönetin</p>
+                  </div>
+                  <button class="btn btn-primary" onclick="showAddWorkOrderModal()">
+                    ➕ İş Emri Oluştur
+                  </button>
+                </div>
+              </div>
+              <div class="card-content">
+                ${generateWorkOrdersDetailTable()}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Settings view
+      function generateSettingsView() {
+        return `
+          <div class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Skills Management -->
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title">Yetenekler (Skills)</div>
+                  <p style="color: #6b7280; font-size: 0.875rem;">Sistem genelinde kullanılan yetenekleri yönetin</p>
+                </div>
+                <div class="card-content">
+                  <div class="space-y-3">
+                    ${mesData.masterData.availableSkills.map(skill => `
+                      <div class="flex items-center justify-between p-2 border rounded">
+                        <span>${skill}</span>
+                        <button class="text-red-600 hover:text-red-800" onclick="removeSkill('${skill}')">🗑️</button>
+                      </div>
+                    `).join('')}
+                    <div class="flex gap-2">
+                      <input 
+                        type="text" 
+                        id="new-skill-input" 
+                        placeholder="Yeni yetenek ekle..." 
+                        class="flex-1 p-2 border rounded"
+                        onkeypress="if(event.key==='Enter') addNewSkill()"
+                      >
+                      <button class="btn btn-primary" onclick="addNewSkill()">Ekle</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Operation Types Management -->
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title">Operasyon Tipleri</div>
+                  <p style="color: #6b7280; font-size: 0.875rem;">Operasyon kategorilerini yönetin</p>
+                </div>
+                <div class="card-content">
+                  <div class="space-y-3">
+                    ${mesData.masterData.availableOperationTypes.map(type => `
+                      <div class="flex items-center justify-between p-2 border rounded">
+                        <span>${type}</span>
+                        <button class="text-red-600 hover:text-red-800" onclick="removeOperationType('${type}')">🗑️</button>
+                      </div>
+                    `).join('')}
+                    <div class="flex gap-2">
+                      <input 
+                        type="text" 
+                        id="new-type-input" 
+                        placeholder="Yeni tip ekle..." 
+                        class="flex-1 p-2 border rounded"
+                        onkeypress="if(event.key==='Enter') addNewOperationType()"
+                      >
+                      <button class="btn btn-primary" onclick="addNewOperationType()">Ekle</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         `;
