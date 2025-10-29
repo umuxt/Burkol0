@@ -754,16 +754,25 @@
         
         // Update sidebar active state
         document.querySelectorAll('.nav-item').forEach(item => {
-          item.classList.remove('bg-blue-50', 'border', 'border-blue-200');
+          item.classList.remove('active');
         });
-        event.target.closest('.nav-item').classList.add('bg-blue-50', 'border', 'border-blue-200');
+        
+        const activeItem = document.querySelector(`button[onclick="navigateToView('${viewId}')"]`);
+        if (activeItem) {
+          activeItem.classList.add('active');
+        }
         
         // Update header
-        document.querySelector('h1').textContent = getViewTitle(viewId);
-        document.querySelector('p.text-sm.text-gray-600').textContent = getViewDescription(viewId);
+        const header = document.querySelector('.mes-header h1');
+        const description = document.querySelector('.mes-header p');
+        if (header) header.textContent = getViewTitle(viewId);
+        if (description) description.textContent = getViewDescription(viewId);
         
         // Update content
-        document.getElementById('main-content').innerHTML = generateViewContent(viewId);
+        const content = document.querySelector('.mes-content');
+        if (content) {
+          content.innerHTML = generateViewContent(viewId);
+        }
       }
 
       function setupNavigation() {
