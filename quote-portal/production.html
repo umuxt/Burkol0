@@ -414,334 +414,67 @@
       .mes-header h1 { font-size: 24px; }
     }
 
-      /* Basic Tailwind-like classes */
-      .min-h-screen { min-height: 100vh; }
-      .bg-gray-50 { background-color: #f9fafb; }
-      .bg-white { background-color: white; }
-      .border-b { border-bottom-width: 1px; }
-      .border-gray-200 { border-color: #e5e7eb; }
-      .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
-      .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
-      .p-6 { padding: 1.5rem; }
-      .max-w-7xl { max-width: 80rem; }
-      .mx-auto { margin-left: auto; margin-right: auto; }
-      .text-2xl { font-size: 1.5rem; line-height: 2rem; }
-      .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
-      .font-semibold { font-weight: 600; }
-      .text-gray-900 { color: #111827; }
-      .text-gray-600 { color: #4b5563; }
-      .mt-1 { margin-top: 0.25rem; }
-      .space-y-6 > :not([hidden]) ~ :not([hidden]) { margin-top: 1.5rem; }
-      .grid { display: grid; }
-      .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-      .gap-6 { gap: 1.5rem; }
-      .flex { display: flex; }
-      .items-center { align-items: center; }
-      .justify-center { justify-content: center; }
-      .text-center { text-align: center; }
-      .rounded-lg { border-radius: 0.5rem; }
-      .shadow-sm { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }
-      .border { border-width: 1px; }
-
-      @media (min-width: 768px) {
-        .md\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      }
-
-      @media (min-width: 1024px) {
-        .lg\\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-      }
-
-      /* MES App Container */
-      #mes-app-root {
-        min-height: calc(100vh - 60px);
-        padding-top: 60px;
-      }
-
-      /* Loading state */
-      .mes-loading {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 50vh;
-        flex-direction: column;
-        gap: 1rem;
-      }
-
-      .mes-loading .spinner {
-        width: 40px;
-        height: 40px;
-        border: 4px solid #e5e7eb;
-        border-top: 4px solid #3b82f6;
-        border-radius: 50%;
-        animation: spin 1s linear infinite;
-      }
-
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-
-      /* Error state */
-      .mes-error {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 50vh;
-        flex-direction: column;
-        gap: 1rem;
-        text-align: center;
-        padding: 2rem;
-      }
-
-      .mes-error .error-icon {
-        color: #ef4444;
-        font-size: 3rem;
-      }
-
-      /* Card styles */
-      .card {
-        background: white;
-        border-radius: 0.5rem;
-        border: 1px solid #e5e7eb;
-        box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-      }
-
-      .card-header {
-        padding: 1.5rem 1.5rem 0 1.5rem;
-      }
-
-      .card-content {
-        padding: 1.5rem;
-      }
-
-      .card-title {
-        font-size: 1.125rem;
-        font-weight: 600;
-        line-height: 1.75rem;
-      }
-
-      /* Table styles */
-      .table-container {
-        width: 100%;
-        overflow-x: auto;
-      }
-
-      .table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.875rem;
-      }
-
-      .table th,
-      .table td {
-        padding: 0.75rem;
-        text-align: left;
-        border-bottom: 1px solid #e5e7eb;
-      }
-
-      .table th {
-        font-weight: 500;
-        color: #6b7280;
-      }
-
-      .table tbody tr:hover {
-        background-color: #f9fafb;
-      }
-
-      /* Badge styles */
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        border-radius: 9999px;
-        padding: 0.25rem 0.75rem;
-        font-size: 0.75rem;
-        font-weight: 600;
-      }
-
-      .badge-blue { background: #dbeafe; color: #1d4ed8; }
-      .badge-green { background: #dcfce7; color: #16a34a; }
-      .badge-red { background: #fee2e2; color: #dc2626; }
-      .badge-yellow { background: #fef3c7; color: #d97706; }
-      .badge-gray { background: #f3f4f6; color: #374151; }
-
-      /* Progress bar */
-      .progress-bar {
-        width: 100%;
-        height: 0.5rem;
-        background-color: #e5e7eb;
-        border-radius: 9999px;
-        overflow: hidden;
-      }
-
-      .progress-fill {
-        height: 100%;
-        background-color: #3b82f6;
-        transition: width 0.3s ease;
-      }
-
-      /* Plan Designer specific styles */
-      .plan-canvas {
-        position: relative;
-        overflow: hidden;
-      }
-
-      .operation-node {
-        position: absolute;
-        min-width: 120px;
-        background: white;
-        border: 2px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 8px;
-        cursor: move;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        transition: all 0.2s;
-        user-select: none;
-      }
-
-      .operation-node:hover {
-        border-color: #3b82f6;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-      }
-
-      .operation-node.selected {
-        border-color: #3b82f6;
-        background: #eff6ff;
-      }
-
-      .operation-node.connecting {
-        border-color: #f59e0b;
-        background: #fef3c7;
-      }
-
-      .node-header {
-        font-weight: 600;
-        font-size: 12px;
-        margin-bottom: 4px;
-        color: #374151;
-      }
-
-      .node-type {
-        font-size: 10px;
-        color: #6b7280;
-        margin-bottom: 2px;
-      }
-
-      .node-time {
-        font-size: 10px;
-        color: #059669;
-        font-weight: 500;
-      }
-
-      .node-worker {
-        font-size: 9px;
-        color: #7c3aed;
-        margin-top: 2px;
-      }
-
-      .connection-line {
-        stroke: #3b82f6;
-        stroke-width: 2;
-        fill: none;
-        marker-end: url(#arrowhead);
-      }
-
-      .toggle {
-        width: 40px;
-        height: 20px;
-        background: #e5e7eb;
-        border-radius: 10px;
-        position: relative;
-        cursor: pointer;
-        transition: background 0.3s;
-      }
-
-      .toggle:checked {
-        background: #3b82f6;
-      }
-
-      .toggle:before {
-        content: '';
-        position: absolute;
-        width: 16px;
-        height: 16px;
-        background: white;
-        border-radius: 50%;
-        top: 2px;
-        left: 2px;
-        transition: transform 0.3s;
-      }
-
-      .toggle:checked:before {
-        transform: translateX(20px);
-      }
-
-      .btn-sm {
-        padding: 4px 8px;
-        font-size: 12px;
-      }
-
-      /* Material warning styles */
-      .material-warning {
-        background: #fef3c7;
-        border: 1px solid #f59e0b;
-        border-radius: 6px;
-        padding: 12px;
-        margin: 8px 0;
-      }
-
-      .material-warning h4 {
-        color: #92400e;
-        margin: 0 0 8px 0;
-        font-size: 14px;
-        font-weight: 600;
-      }
-
-      .material-item {
-        display: flex;
-        justify-content: space-between;
-        font-size: 12px;
-        margin: 4px 0;
-      }
-
-      .material-shortage {
-        color: #dc2626;
-        font-weight: 600;
-      }
-
-      /* Button styles */
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 0.375rem;
-        font-size: 0.875rem;
-        font-weight: 500;
-        padding: 0.5rem 1rem;
-        text-decoration: none;
-        border: none;
-        cursor: pointer;
-        transition: background-color 0.2s;
-      }
-
-      .btn-primary {
-        background-color: #3b82f6;
-        color: white;
-      }
-
-      .btn-primary:hover {
-        background-color: #2563eb;
-      }
-    </style>
-  </head>
-  <body>
-    <!-- MES Application Root -->
-    <div id="mes-app-root">
-      <!-- Loading state -->
-      <div class="mes-loading">
-        <div class="spinner"></div>
-        <p>Üretim Takip Sistemi yükleniyor...</p>
+  </style>
+</head>
+<body>
+  <!-- Burkol0 Navigation Bar -->
+  <nav class="burkol-navbar">
+    <div class="burkol-nav-inner">
+      <div class="burkol-brand">
+        <div class="burkol-dot"></div>
+        <span class="burkol-brand-text">BURKOL</span>
+      </div>
+      
+      <div class="burkol-nav-center">
+        <a href="./admin-dashboard.html" class="nav-btn" data-page="admin">
+          <span class="nav-btn-icon">🏠</span>
+          <span class="nav-btn-text">Yönetim Paneli</span>
+        </a>
+        
+        <a href="./quote-dashboard.html" class="nav-btn" data-page="quote">
+          <span class="nav-btn-icon">📋</span>
+          <span class="nav-btn-text">Teklif Yönetimi</span>
+        </a>
+        
+        <a href="./production.html" class="nav-btn nav-btn-active" data-page="production">
+          <span class="nav-btn-icon">🏭</span>
+          <span class="nav-btn-text">Üretim Paneli</span>
+        </a>
+        
+        <a href="./materials.html" class="nav-btn" data-page="materials">
+          <span class="nav-btn-icon">📦</span>
+          <span class="nav-btn-text">Malzeme Yönetimi</span>
+        </a>
+        
+        <a href="./settings.html" class="nav-btn" data-page="settings">
+          <span class="nav-btn-icon">⚙️</span>
+          <span class="nav-btn-text">Ayarlar</span>
+        </a>
+      </div>
+      
+      <div class="burkol-nav-right">
+        <select class="burkol-lang-select">
+          <option value="tr">Türkçe</option>
+          <option value="en">English</option>
+        </select>
+        <button class="burkol-logout-btn" onclick="logout()">
+          <span>🚪</span>
+          <span>Çıkış Yap</span>
+        </button>
       </div>
     </div>
+  </nav>
+
+  <!-- MES App Container -->
+  <div id="mes-app-root">
+    <!-- Loading state -->
+    <div class="flex items-center justify-center" style="min-height: calc(100vh - 70px);">
+      <div class="text-center">
+        <div class="loading-spinner mx-auto mb-4"></div>
+        <p style="color: #6b7280;">MES sistemi yükleniyor...</p>
+      </div>
+    </div>
+  </div>
 
     <!-- Full MES Management System -->
     <script>
