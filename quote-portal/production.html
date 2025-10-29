@@ -843,6 +843,112 @@
           </div>
         `;
       }
+
+      function generateTemplatesGrid() {
+        if (mesData.templates.length === 0) {
+          return `
+            <div class="text-center py-12">
+              <div style="font-size: 3rem; color: #9ca3af; margin-bottom: 1rem;">📄</div>
+              <p class="text-gray-600 mb-4">Henüz şablon bulunmuyor</p>
+              <p class="text-sm text-gray-500">Plan Designer'da yeni şablonlar oluşturabilirsiniz</p>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${mesData.templates.map(template => `
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title text-sm">${template.name}</div>
+                </div>
+                <div class="card-content">
+                  <div class="space-y-2 text-sm text-gray-600">
+                    <div class="flex justify-between">
+                      <span>Operasyon Sayısı:</span>
+                      <span class="font-medium">${template.nodes?.length || 0}</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span>Tahmini Süre:</span>
+                      <span class="font-medium">${template.estimatedTime || 0} dk</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span>Oluşturulma:</span>
+                      <span class="font-medium">${template.createdAt ? new Date(template.createdAt.seconds * 1000).toLocaleDateString('tr-TR') : 'Bilinmiyor'}</span>
+                    </div>
+                  </div>
+                  <div class="flex gap-2 mt-4">
+                    <button class="btn btn-sm flex-1" onclick="useTemplate('${template.id}')">
+                      🚀 Kullan
+                    </button>
+                    <button class="btn btn-sm" onclick="deleteTemplate('${template.id}')" style="background: #fee2e2; color: #dc2626;">
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+      }
+
+      // Template functions
+      async function saveTemplate(template) {
+        try {
+          const response = await fetch('/api/mes/templates', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer dev-admin-token'
+            },
+            body: JSON.stringify(template)
+          });
+
+          if (response.ok) {
+            mesData.templates.push(template);
+          }
+        } catch (error) {
+          console.error('Error saving template:', error);
+        }
+      }
+
+      function useTemplate(templateId) {
+        const template = mesData.templates.find(t => t.id === templateId);
+        if (!template) return;
+
+        // Navigate to plan designer and load template
+        navigateToView('plan-designer');
+        
+        setTimeout(() => {
+          planDesignerState.nodes = JSON.parse(JSON.stringify(template.nodes));
+          planDesignerState.nodeIdCounter = Math.max(...planDesignerState.nodes.map(n => parseInt(n.id.split('-')[1]) || 0)) + 1;
+          renderCanvas();
+          updatePlanStatistics();
+        }, 100);
+      }
+
+      async function deleteTemplate(templateId) {
+        if (!confirm('Bu şablonu silmek istediğinizden emin misiniz?')) return;
+
+        try {
+          const response = await fetch(`/api/mes/templates/${templateId}`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': 'Bearer dev-admin-token'
+            }
+          });
+
+          if (response.ok) {
+            mesData.templates = mesData.templates.filter(t => t.id !== templateId);
+            if (currentView === 'templates') {
+              document.getElementById('main-content').innerHTML = generateViewContent('templates');
+            }
+          }
+        } catch (error) {
+          console.error('Error deleting template:', error);
+        }
+      }
+
       function generateDashboardView() {
         const openOrders = mesData.workOrders.filter(wo => wo.status !== 'completed').length;
         const completedToday = mesData.workOrders.filter(wo => 
