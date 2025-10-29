@@ -407,6 +407,110 @@ router.delete('/templates/:id', withAuth, async (req, res) => {
 });
 
 // ============================================================================
+// MATERIALS ROUTES
+// ============================================================================
+
+// GET /api/mes/materials - Get all materials
+router.get('/materials', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const db = getFirestore();
+    const snapshot = await db.collection('mes-materials')
+      .orderBy('name')
+      .get();
+    const materials = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    return { materials };
+  }, res);
+});
+
+// POST /api/mes/materials - Create/Update multiple materials (batch)
+router.post('/materials', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { materials } = req.body;
+    if (!Array.isArray(materials)) {
+      throw new Error('Materials must be an array');
+    }
+
+    const db = getFirestore();
+    const batch = db.batch();
+
+    // Get existing materials to find deletions
+    const existingSnapshot = await db.collection('mes-materials').get();
+    const existingIds = new Set(existingSnapshot.docs.map(doc => doc.id));
+    const newIds = new Set(materials.map(m => m.id));
+
+    // Add/Update materials
+    materials.forEach(material => {
+      const docRef = db.collection('mes-materials').doc(material.id);
+      batch.set(docRef, {
+        ...material,
+        updatedAt: new Date()
+      }, { merge: true });
+    });
+
+    // Delete removed materials
+    existingIds.forEach(id => {
+      if (!newIds.has(id)) {
+        const docRef = db.collection('mes-materials').doc(id);
+        batch.delete(docRef);
+      }
+    });
+
+    await batch.commit();
+    return { success: true, updated: materials.length };
+  }, res);
+});
+
+// POST /api/mes/materials/check-availability - Check material availability for production plan
+router.post('/materials/check-availability', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { planId, requiredMaterials } = req.body;
+    
+    if (!Array.isArray(requiredMaterials)) {
+      throw new Error('Required materials must be an array');
+    }
+
+    const db = getFirestore();
+    const materialsSnapshot = await db.collection('mes-materials').get();
+    const availableMaterials = {};
+    
+    materialsSnapshot.docs.forEach(doc => {
+      const material = doc.data();
+      availableMaterials[material.name] = material;
+    });
+
+    const materialChecks = requiredMaterials.map(required => {
+      const available = availableMaterials[required.name];
+      const isAvailable = available && available.available >= required.required;
+      const shortage = available ? Math.max(0, required.required - available.available) : required.required;
+      
+      return {
+        name: required.name,
+        required: required.required,
+        available: available?.available || 0,
+        unit: required.unit || available?.unit || 'pcs',
+        isAvailable,
+        shortage,
+        shortagePercentage: available ? Math.round((shortage / required.required) * 100) : 100
+      };
+    });
+
+    const allAvailable = materialChecks.every(check => check.isAvailable);
+    const totalShortageItems = materialChecks.filter(check => !check.isAvailable).length;
+
+    return {
+      planId,
+      allAvailable,
+      totalShortageItems,
+      materials: materialChecks,
+      checkedAt: new Date()
+    };
+  }, res);
+});
+
+// ============================================================================
 // ORDERS ROUTES (Mock data for now)
 // ============================================================================
 
