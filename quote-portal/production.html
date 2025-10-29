@@ -649,93 +649,96 @@
       // Main app structure
       function generateMainApp() {
         return `
-          <div class="min-h-screen bg-gray-50 flex">
-            <!-- Sidebar -->
-            <div class="w-64 bg-white border-r border-gray-200 flex-shrink-0">
-              ${generateSidebar()}
+          <div class="mes-sidebar">
+            ${generateSidebar()}
+          </div>
+          
+          <div class="mes-main-content">
+            <!-- Header -->
+            <div class="mes-header">
+              <h1>${getViewTitle(currentView)}</h1>
+              <p>${getViewDescription(currentView)}</p>
             </div>
             
-            <!-- Main Content -->
-            <div class="flex-1 flex flex-col">
-              <!-- Header -->
-              <div class="bg-white border-b border-gray-200 px-6 py-4">
-                <div class="flex items-center justify-between">
-                  <div>
-                    <h1 class="text-2xl font-semibold text-gray-900">
-                      ${getViewTitle(currentView)}
-                    </h1>
-                    <p class="text-sm text-gray-600 mt-1">
-                      ${getViewDescription(currentView)}
-                    </p>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <div class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
-                    <span class="text-sm text-gray-600">System Online</span>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- View Content -->
-              <div class="flex-1 overflow-auto p-6" id="main-content">
-                ${generateViewContent(currentView)}
-              </div>
+            <!-- Content -->
+            <div class="mes-content">
+              ${generateViewContent(currentView)}
             </div>
           </div>
         `;
       }
 
-      // Sidebar generation
+      // Sidebar generation with proper groups
       function generateSidebar() {
-        const navItems = [
-          { id: 'dashboard', icon: '📊', title: 'Dashboard', description: 'KPIs & work orders' },
-          { id: 'plan-designer', icon: '🎨', title: 'Plan Designer', description: 'Visual workflow designer' },
-          { id: 'templates', icon: '📄', title: 'Templates', description: 'Reusable workflows' },
-          { id: 'worker-panel', icon: '👷', title: 'Worker Panel', description: 'Worker assignments & tasks' },
-          { id: 'operations', icon: '⚙️', title: 'Operations', description: 'Operation definitions' },
-          { id: 'workers', icon: '👥', title: 'Workers', description: 'Worker profiles & skills' },
-          { id: 'stations', icon: '🏭', title: 'Stations', description: 'Work centers & machines' },
-          { id: 'work-orders', icon: '📋', title: 'Work Orders', description: 'Production orders' },
-          { id: 'settings', icon: '⚡', title: 'Master Data', description: 'Skills & Operation Types' }
+        const navGroups = [
+          {
+            id: "monitoring",
+            label: "Monitoring & Tracking",
+            items: [
+              { id: 'dashboard', icon: '📊', label: 'Dashboard', badge: null },
+              { id: 'worker-panel', icon: '👷', label: 'Worker Panel', badge: null }
+            ]
+          },
+          {
+            id: "production",
+            label: "Production Planning", 
+            items: [
+              { id: 'plan-designer', icon: '🎨', label: 'Plan Designer', badge: null },
+              { id: 'templates', icon: '📄', label: 'Templates', badge: null }
+            ]
+          },
+          {
+            id: "setup",
+            label: "Setup & Configuration",
+            items: [
+              { id: 'settings', icon: '⚡', label: 'Master Data', badge: 'Start here' },
+              { id: 'stations', icon: '🏭', label: 'Stations', badge: null },
+              { id: 'operations', icon: '⚙️', label: 'Operations', badge: null },
+              { id: 'workers', icon: '👥', label: 'Workers', badge: null },
+              { id: 'work-orders', icon: '📋', label: 'Work Orders', badge: null }
+            ]
+          }
         ];
 
         return `
-          <div class="flex flex-col h-full">
-            <!-- Sidebar Header -->
-            <div class="p-4 border-b border-gray-200">
-              <div class="flex items-center gap-3">
-                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white">
+          <div style="padding: 24px 0;">
+            <div style="padding: 0 24px 16px; border-bottom: 1px solid #f3f4f6;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #2563eb, #1d4ed8); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">
                   🏭
                 </div>
                 <div>
-                  <h2 class="font-semibold text-gray-900">MES System</h2>
-                  <p class="text-xs text-gray-600">Manufacturing Execution</p>
+                  <h2 style="font-size: 16px; font-weight: 600; color: #1d1d1f; margin-bottom: 2px;">MES System</h2>
+                  <p style="font-size: 12px; color: #6b7280;">Manufacturing Execution</p>
                 </div>
               </div>
             </div>
             
-            <!-- Navigation -->
-            <div class="flex-1 p-4 space-y-2">
-              ${navItems.map(item => `
-                <button 
-                  class="nav-item w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors ${currentView === item.id ? 'bg-blue-50 border border-blue-200' : ''}"
-                  onclick="navigateToView('${item.id}')"
-                >
-                  <div class="flex items-center gap-3">
-                    <span class="text-lg">${item.icon}</span>
-                    <div class="flex-1">
-                      <div class="font-medium text-gray-900">${item.title}</div>
-                      <div class="text-xs text-gray-600">${item.description}</div>
-                    </div>
-                  </div>
-                </button>
-              `).join('')}
-            </div>
+            ${navGroups.map(group => `
+              <div class="nav-group">
+                <div class="nav-group-header">
+                  ${group.label}
+                </div>
+                <div class="nav-group-content">
+                  ${group.items.map(item => `
+                    <button 
+                      class="nav-item ${currentView === item.id ? 'active' : ''}"
+                      onclick="navigateToView('${item.id}')"
+                    >
+                      <span class="nav-item-icon">${item.icon}</span>
+                      <span>${item.label}</span>
+                      ${item.badge ? `<span class="nav-item-badge">${item.badge}</span>` : ''}
+                    </button>
+                  `).join('')}
+                </div>
+              </div>
+            `).join('')}
             
-            <!-- Sidebar Footer -->
-            <div class="p-4 border-t border-gray-200">
-              <div class="text-xs text-gray-600">
-                <div class="flex items-center gap-2 mb-1">
-                  <div class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+            <!-- Footer -->
+            <div style="padding: 16px 24px; border-top: 1px solid #f3f4f6; margin-top: auto;">
+              <div style="font-size: 11px; color: #9ca3af;">
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                  <div style="width: 6px; height: 6px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite;"></div>
                   <span>System Online</span>
                 </div>
                 <p>Version 1.0.0</p>
