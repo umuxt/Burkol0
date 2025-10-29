@@ -547,7 +547,173 @@
         }
       }
 
-      // Dashboard view
+      // Plan Designer view
+      function generatePlanDesignerView() {
+        return `
+          <div class="space-y-6">
+            <!-- Plan Designer Header -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <!-- Order Selection -->
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title">📦 Sipariş Seçimi</div>
+                </div>
+                <div class="card-content">
+                  <select class="w-full p-2 border rounded" id="order-select" onchange="selectOrder(this.value)">
+                    <option value="">Sipariş seçiniz...</option>
+                    ${mesData.orders.map(order => `
+                      <option value="${order.id}">${order.id} - ${order.product} (${order.quantity} adet)</option>
+                    `).join('')}
+                  </select>
+                  <div id="order-details" class="mt-3 text-sm text-gray-600"></div>
+                </div>
+              </div>
+
+              <!-- Plan Settings -->
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title">⚙️ Plan Ayarları</div>
+                </div>
+                <div class="card-content space-y-3">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Plan Adı</label>
+                    <input type="text" id="plan-name" placeholder="Plan adını girin" class="w-full p-2 border rounded text-sm">
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Paket Boyutu</label>
+                    <input type="number" id="package-size" value="25" min="1" class="w-full p-2 border rounded text-sm">
+                  </div>
+                  <div class="flex items-center justify-between">
+                    <label class="text-sm font-medium">Grid'e Hizala</label>
+                    <input type="checkbox" id="snap-to-grid" checked class="toggle">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Statistics -->
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title">📊 İstatistikler</div>
+                </div>
+                <div class="card-content space-y-2">
+                  <div class="flex justify-between">
+                    <span class="text-sm">Toplam Operasyon:</span>
+                    <span class="text-sm font-medium" id="total-operations">0</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-sm">Tahmini Süre:</span>
+                    <span class="text-sm font-medium" id="total-time">0 dk</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-sm">Atanan Çalışan:</span>
+                    <span class="text-sm font-medium" id="assigned-workers">0</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Main Designer Area -->
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              <!-- Operations Palette -->
+              <div class="card">
+                <div class="card-header">
+                  <div class="card-title">🔧 Operasyon Paleti</div>
+                </div>
+                <div class="card-content">
+                  <div class="space-y-2" style="max-height: 400px; overflow-y: auto;">
+                    ${mesData.operations.map(operation => `
+                      <div 
+                        class="operation-item p-3 border rounded cursor-pointer hover:bg-gray-50 transition-colors"
+                        draggable="true"
+                        ondragstart="startDragOperation('${operation.id}')"
+                        onclick="addOperationToCanvas('${operation.id}')"
+                      >
+                        <div class="font-medium text-sm">${operation.name}</div>
+                        <div class="text-xs text-gray-600">${operation.operationType} • ${operation.estimatedTime} dk</div>
+                        <div class="text-xs text-gray-500 mt-1">
+                          ${(operation.requiredSkills || []).join(', ')}
+                        </div>
+                      </div>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Canvas Area -->
+              <div class="lg:col-span-3">
+                <div class="card" style="min-height: 500px;">
+                  <div class="card-header">
+                    <div class="flex items-center justify-between">
+                      <div class="card-title">🎨 Plan Tasarım Alanı</div>
+                      <div class="flex gap-2">
+                        <button class="btn btn-sm" onclick="clearCanvas()">🗑️ Temizle</button>
+                        <button class="btn btn-sm" onclick="toggleConnectMode()" id="connect-btn">🔗 Bağla</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card-content p-0">
+                    <div 
+                      id="plan-canvas" 
+                      class="relative w-full bg-gray-50 border-2 border-dashed border-gray-300 plan-canvas"
+                      style="min-height: 450px; background-image: radial-gradient(circle, #ccc 1px, transparent 1px); background-size: 20px 20px;"
+                      ondrop="dropOperation(event)"
+                      ondragover="allowDrop(event)"
+                      onclick="canvasClick(event)"
+                    >
+                      <!-- Canvas nodes will be rendered here -->
+                      <div id="canvas-nodes"></div>
+                      <!-- Canvas connections will be rendered here -->  
+                      <svg id="canvas-connections" class="absolute inset-0 w-full h-full pointer-events-none">
+                        <!-- SVG connections will be drawn here -->
+                      </svg>
+                      
+                      <!-- Empty state -->
+                      <div id="empty-canvas" class="absolute inset-0 flex items-center justify-center text-gray-500">
+                        <div class="text-center">
+                          <div class="text-4xl mb-2">🎯</div>
+                          <div class="font-medium">Plan Tasarım Alanı</div>
+                          <div class="text-sm">Operasyonları buraya sürükleyip bırakın</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3 mt-4">
+                  <button class="btn btn-primary" onclick="publishPlan()">🚀 Planı Yayınla</button>
+                  <button class="btn" onclick="savePlanAsTemplate()">💾 Şablon Olarak Kaydet</button>
+                  <button class="btn" onclick="loadTemplate()">📂 Şablon Yükle</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Templates view
+      function generateTemplatesView() {
+        return `
+          <div class="space-y-6">
+            <div class="card">
+              <div class="card-header">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <div class="card-title">📄 Şablon Kütüphanesi</div>
+                    <p style="color: #6b7280; font-size: 0.875rem;">Yeniden kullanılabilir üretim planı şablonları</p>
+                  </div>
+                  <button class="btn btn-primary" onclick="navigateToView('plan-designer')">
+                    ➕ Yeni Şablon Oluştur
+                  </button>
+                </div>
+              </div>
+              <div class="card-content">
+                ${generateTemplatesGrid()}
+              </div>
+            </div>
+          </div>
+        `;
+      }
       function generateDashboardView() {
         const openOrders = mesData.workOrders.filter(wo => wo.status !== 'completed').length;
         const completedToday = mesData.workOrders.filter(wo => 
