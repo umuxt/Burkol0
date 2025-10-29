@@ -219,31 +219,32 @@ app.use((req, res, next) => {
   next()
 })
 
+// Development mode: Serve static files too
+app.use(express.static(ROOT))
+
+// Serve specific HTML files directly
+app.get('/admin-dashboard.html', (req, res) => {
+  res.sendFile(path.join(ROOT, 'admin-dashboard.html'))
+})
+
+app.get('/quote-dashboard.html', (req, res) => {
+  res.sendFile(path.join(ROOT, 'quote-dashboard.html'))
+})
+
+app.get('/materials.html', (req, res) => {
+  res.sendFile(path.join(ROOT, 'materials.html'))
+})
+
+app.get('/production.html', (req, res) => {
+  res.sendFile(path.join(ROOT, 'production.html'))
+})
+
+app.get('/settings.html', (req, res) => {
+  res.sendFile(path.join(ROOT, 'settings.html'))
+})
+
 // Production mode: Serve static files and SPA fallback
 if (process.env.NODE_ENV !== 'development') {
-  app.use(express.static(ROOT))
-  
-  // Serve specific HTML files directly
-  app.get('/admin-dashboard.html', (req, res) => {
-    res.sendFile(path.join(ROOT, 'admin-dashboard.html'))
-  })
-  
-  app.get('/quote-dashboard.html', (req, res) => {
-    res.sendFile(path.join(ROOT, 'quote-dashboard.html'))
-  })
-  
-  app.get('/materials.html', (req, res) => {
-    res.sendFile(path.join(ROOT, 'materials.html'))
-  })
-  
-  app.get('/production.html', (req, res) => {
-    res.sendFile(path.join(ROOT, 'production.html'))
-  })
-  
-  app.get('/settings.html', (req, res) => {
-    res.sendFile(path.join(ROOT, 'settings.html'))
-  })
-  
   app.get('*', (req, res) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
       return res.status(404).json({ error: 'Not found' })
@@ -259,8 +260,7 @@ if (process.env.NODE_ENV !== 'development') {
   })
 }
 
-// Development mode: Only serve API endpoints
-// Frontend is handled by Vite on port 3001
+// Development mode: Frontend is handled by Vite on port 3001
 
 // Error handling
 app.use((err, req, res, next) => {
