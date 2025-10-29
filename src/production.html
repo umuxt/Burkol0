@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Üretim Paneli - Burkol MES</title>
+    
+    <!-- Burkol0 Common Styles (shared across all pages) -->
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
+        }
+
+        /* Burkol0 Navbar Styles */
+        .burkol-navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .burkol-nav-inner {
+            height: 100%;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 32px;
+        }
+
+        .burkol-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .burkol-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #60a5fa;
+            box-shadow: 0 0 12px rgba(96, 165, 250, 0.5);
+        }
+
+        .burkol-brand-text {
+            font-size: 24px;
+            font-weight: 700;
+            color: white;
+            letter-spacing: 2px;
+        }
+
+        .burkol-nav-center {
+            display: flex;
+            gap: 8px;
+            flex: 1;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .burkol-nav-center::-webkit-scrollbar {
+            display: none;
+        }
+
+        .nav-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            white-space: nowrap;
+            border: 1px solid transparent;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+
+        .nav-btn-active {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border-color: rgba(255,255,255,0.3);
+        }
+
+        .nav-btn-icon {
+            font-size: 18px;
+        }
+
+        .burkol-nav-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .burkol-lang-select {
+            padding: 8px 12px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .burkol-lang-select:hover {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .burkol-logout-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            background: rgba(220, 38, 38, 0.2);
+            color: #fca5a5;
+            border: 1px solid rgba(220, 38, 38, 0.3);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .burkol-logout-btn:hover {
+            background: rgba(220, 38, 38, 0.3);
+            color: #fef2f2;
+        }
+
+        .logout-icon {
+            font-size: 16px;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .burkol-nav-inner {
+                padding: 0 16px;
+            }
+            
+            .nav-btn-text {
+                display: none;
+            }
+            
+            .nav-btn {
+                padding: 10px;
+            }
+        }
+
+        @media (max-width: 640px) {
+            .burkol-brand-text {
+                font-size: 20px;
+            }
+            
+            .burkol-lang-select {
+                padding: 6px 8px;
+                font-size: 12px;
+            }
+            
+            .burkol-logout-btn span:last-child {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Burkol0 Navigation Bar -->
+    <nav class="burkol-navbar">
+        <div class="burkol-nav-inner">
+            <div class="burkol-brand">
+                <div class="burkol-dot"></div>
+                <span class="burkol-brand-text">BURKOL</span>
+            </div>
+            
+            <div class="burkol-nav-center">
+                <a href="./admin-dashboard.html" class="nav-btn" data-page="admin">
+                    <span class="nav-btn-icon">🏠</span>
+                    <span class="nav-btn-text">Yönetim Paneli</span>
+                </a>
+                
+                <a href="./quote-dashboard.html" class="nav-btn" data-page="quote">
+                    <span class="nav-btn-icon">📋</span>
+                    <span class="nav-btn-text">Teklif Yönetimi</span>
+                </a>
+                
+                <a href="./production.html" class="nav-btn nav-btn-active" data-page="production">
+                    <span class="nav-btn-icon">🏭</span>
+                    <span class="nav-btn-text">Üretim Paneli</span>
+                </a>
+                
+                <a href="./materials.html" class="nav-btn" data-page="materials">
+                    <span class="nav-btn-icon">📦</span>
+                    <span class="nav-btn-text">Malzeme Yönetimi</span>
+                </a>
+                
+                <a href="./settings.html" class="nav-btn" data-page="settings">
+                    <span class="nav-btn-icon">⚙️</span>
+                    <span class="nav-btn-text">Ayarlar</span>
+                </a>
+            </div>
+            
+            <div class="burkol-nav-right">
+                <select class="burkol-lang-select">
+                    <option value="tr">Türkçe</option>
+                    <option value="en">English</option>
+                </select>
+                <button class="burkol-logout-btn" onclick="logout()">
+                    <span class="logout-icon">🚪</span>
+                    <span>Çıkış Yap</span>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- MES React App Container -->
+    <div id="root"></div>
+
+    <!-- MES App Bundle (will be injected by build tool) -->
+    <script type="module" src="/src/main.tsx"></script>
+
+    <script>
+        // Burkol0 Navigation utilities
+        const BurkolNavigation = {
+            logout: function() {
+                if (confirm('Çıkış yapmak istediğinize emin misiniz?')) {
+                    // Clear session
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('userRole');
+                    
+                    // Redirect to login
+                    window.location.href = './login.html';
+                }
+            }
+        };
+
+        // Global logout function for navbar button
+        function logout() {
+            BurkolNavigation.logout();
+        }
+
+        // Initialize active nav state
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentPage = 'production';
+            const navButtons = document.querySelectorAll('.nav-btn');
+            
+            navButtons.forEach(btn => {
+                if (btn.dataset.page === currentPage) {
+                    btn.classList.add('nav-btn-active');
+                } else {
+                    btn.classList.remove('nav-btn-active');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
