@@ -160,6 +160,16 @@ try {
 }
 setupMaterialsRoutes(app)
 app.use('/api', ordersRoutes)
+
+// MES Routes
+try {
+  const mesRoutes = await import('./server/mesRoutes.js')
+  app.use('/api/mes', mesRoutes.default)
+  console.log('✅ MES routes enabled')
+} catch (e) {
+  console.warn('⚠️ MES routes not initialized:', e?.message)
+}
+
 // Settings routes disabled
 
 // Optionally enable migration routes (avoids Firestore-heavy bootstrap by default)
