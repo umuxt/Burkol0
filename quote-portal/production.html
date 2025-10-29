@@ -2008,7 +2008,416 @@
         }
       }
 
-      // Initialize when page loads
+      // Plan Designer JavaScript Functions
+      let planDesignerState = {
+        selectedOrder: null,
+        planName: '',
+        packageSize: 25,
+        snapToGrid: true,
+        nodes: [],
+        connections: [],
+        selectedNode: null,
+        connectingMode: false,
+        connectingFrom: null,
+        nodeIdCounter: 1,
+        draggedNodeType: null,
+        draggingNode: null,
+        dragOffset: { x: 0, y: 0 }
+      };
+
+      // Order selection
+      function selectOrder(orderId) {
+        planDesignerState.selectedOrder = orderId;
+        const order = mesData.orders.find(o => o.id === orderId);
+        const detailsDiv = document.getElementById('order-details');
+        
+        if (order) {
+          detailsDiv.innerHTML = `
+            <div class="text-sm">
+              <div><strong>Ürün:</strong> ${order.product}</div>
+              <div><strong>Miktar:</strong> ${order.quantity} adet</div>
+              <div><strong>Teslim Tarihi:</strong> ${new Date(order.dueDate).toLocaleDateString('tr-TR')}</div>
+            </div>
+          `;
+        } else {
+          detailsDiv.innerHTML = '';
+        }
+        updatePlanStatistics();
+      }
+
+      // Update plan name and package size
+      function updatePlanSettings() {
+        planDesignerState.planName = document.getElementById('plan-name').value;
+        planDesignerState.packageSize = parseInt(document.getElementById('package-size').value) || 25;
+        planDesignerState.snapToGrid = document.getElementById('snap-to-grid').checked;
+      }
+
+      // Drag operations
+      function startDragOperation(operationId) {
+        planDesignerState.draggedNodeType = operationId;
+      }
+
+      function allowDrop(event) {
+        event.preventDefault();
+      }
+
+      function dropOperation(event) {
+        event.preventDefault();
+        addOperationToCanvasAt(planDesignerState.draggedNodeType, event.offsetX, event.offsetY);
+        planDesignerState.draggedNodeType = null;
+      }
+
+      // Add operation to canvas
+      function addOperationToCanvas(operationId) {
+        // Add to center of canvas
+        const canvas = document.getElementById('plan-canvas');
+        const rect = canvas.getBoundingClientRect();
+        addOperationToCanvasAt(operationId, rect.width / 2 - 60, rect.height / 2 - 30);
+      }
+
+      function addOperationToCanvasAt(operationId, x, y) {
+        if (!operationId) return;
+        
+        const operation = mesData.operations.find(op => op.id === operationId);
+        if (!operation) return;
+
+        // Snap to grid if enabled
+        if (planDesignerState.snapToGrid) {
+          x = Math.round(x / 20) * 20;
+          y = Math.round(y / 20) * 20;
+        }
+
+        const newNode = {
+          id: `node-${planDesignerState.nodeIdCounter++}`,
+          operationId: operation.id,
+          name: operation.name,
+          operationType: operation.operationType,
+          estimatedTime: operation.estimatedTime,
+          requiredSkills: operation.requiredSkills || [],
+          x: Math.max(0, x),
+          y: Math.max(0, y),
+          assignedWorkerId: null,
+          assignedWorkerName: null,
+          stationId: operation.requiredStationId,
+          stationName: getStationName(operation.requiredStationId),
+          connections: []
+        };
+
+        planDesignerState.nodes.push(newNode);
+        renderCanvas();
+        updatePlanStatistics();
+      }
+
+      // Canvas rendering
+      function renderCanvas() {
+        const canvasNodes = document.getElementById('canvas-nodes');
+        const emptyCanvas = document.getElementById('empty-canvas');
+        
+        if (planDesignerState.nodes.length === 0) {
+          canvasNodes.innerHTML = '';
+          emptyCanvas.style.display = 'flex';
+          return;
+        }
+        
+        emptyCanvas.style.display = 'none';
+        
+        canvasNodes.innerHTML = planDesignerState.nodes.map(node => `
+          <div 
+            class="operation-node ${planDesignerState.selectedNode?.id === node.id ? 'selected' : ''} ${planDesignerState.connectingFrom === node.id ? 'connecting' : ''}"
+            style="left: ${node.x}px; top: ${node.y}px;"
+            onclick="selectNode('${node.id}')"
+            onmousedown="startNodeDrag(event, '${node.id}')"
+          >
+            <div class="node-header">${node.name}</div>
+            <div class="node-type">${node.operationType}</div>
+            <div class="node-time">⏱️ ${node.estimatedTime} dk</div>
+            ${node.assignedWorkerName ? `<div class="node-worker">👤 ${node.assignedWorkerName}</div>` : ''}
+            <div class="flex justify-between mt-2">
+              <button class="text-xs text-blue-600" onclick="editNode('${node.id}')" title="Düzenle">✏️</button>
+              <button class="text-xs text-red-600" onclick="deleteNode('${node.id}')" title="Sil">🗑️</button>
+            </div>
+          </div>
+        `).join('');
+
+        renderConnections();
+      }
+
+      // Connection rendering
+      function renderConnections() {
+        const svg = document.getElementById('canvas-connections');
+        let connections = '';
+        
+        // Add arrow marker definition
+        connections += `
+          <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" 
+                    refX="9" refY="3.5" orient="auto">
+              <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+            </marker>
+          </defs>
+        `;
+
+        planDesignerState.nodes.forEach(node => {
+          node.connections.forEach(targetId => {
+            const targetNode = planDesignerState.nodes.find(n => n.id === targetId);
+            if (targetNode) {
+              const x1 = node.x + 60; // center of node
+              const y1 = node.y + 25;
+              const x2 = targetNode.x + 60;
+              const y2 = targetNode.y + 25;
+              
+              connections += `<line class="connection-line" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" />`;
+            }
+          });
+        });
+
+        svg.innerHTML = connections;
+      }
+
+      // Node operations
+      function selectNode(nodeId) {
+        if (planDesignerState.connectingMode && planDesignerState.connectingFrom) {
+          // Connect nodes
+          if (planDesignerState.connectingFrom !== nodeId) {
+            const fromNode = planDesignerState.nodes.find(n => n.id === planDesignerState.connectingFrom);
+            if (fromNode && !fromNode.connections.includes(nodeId)) {
+              fromNode.connections.push(nodeId);
+              renderCanvas();
+            }
+          }
+          planDesignerState.connectingFrom = null;
+          planDesignerState.connectingMode = false;
+          document.getElementById('connect-btn').textContent = '🔗 Bağla';
+        } else {
+          planDesignerState.selectedNode = planDesignerState.nodes.find(n => n.id === nodeId);
+          renderCanvas();
+        }
+      }
+
+      function editNode(nodeId) {
+        event.stopPropagation();
+        const node = planDesignerState.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+
+        // Simple edit dialog using prompts for now
+        const workerName = prompt('Çalışan atayın:', node.assignedWorkerName || '');
+        if (workerName !== null) {
+          node.assignedWorkerName = workerName || null;
+          // Find worker ID if exists
+          const worker = mesData.workers.find(w => w.name === workerName);
+          node.assignedWorkerId = worker?.id || null;
+          renderCanvas();
+          updatePlanStatistics();
+        }
+      }
+
+      function deleteNode(nodeId) {
+        event.stopPropagation();
+        if (confirm('Bu operasyonu silmek istediğinizden emin misiniz?')) {
+          // Remove connections to this node
+          planDesignerState.nodes.forEach(node => {
+            node.connections = node.connections.filter(id => id !== nodeId);
+          });
+          
+          // Remove the node
+          planDesignerState.nodes = planDesignerState.nodes.filter(n => n.id !== nodeId);
+          
+          renderCanvas();
+          updatePlanStatistics();
+        }
+      }
+
+      function clearCanvas() {
+        if (planDesignerState.nodes.length > 0 && !confirm('Tüm operasyonları silmek istediğinizden emin misiniz?')) {
+          return;
+        }
+        
+        planDesignerState.nodes = [];
+        planDesignerState.selectedNode = null;
+        planDesignerState.connectingFrom = null;
+        planDesignerState.connectingMode = false;
+        
+        renderCanvas();
+        updatePlanStatistics();
+      }
+
+      function toggleConnectMode() {
+        planDesignerState.connectingMode = !planDesignerState.connectingMode;
+        const btn = document.getElementById('connect-btn');
+        
+        if (planDesignerState.connectingMode) {
+          btn.textContent = '❌ İptal';
+          planDesignerState.connectingFrom = null;
+        } else {
+          btn.textContent = '🔗 Bağla';
+          planDesignerState.connectingFrom = null;
+        }
+      }
+
+      function canvasClick(event) {
+        if (planDesignerState.connectingMode && event.target.id === 'plan-canvas') {
+          planDesignerState.connectingMode = false;
+          planDesignerState.connectingFrom = null;
+          document.getElementById('connect-btn').textContent = '🔗 Bağla';
+        }
+      }
+
+      // Node dragging (simplified)
+      function startNodeDrag(event, nodeId) {
+        if (planDesignerState.connectingMode) return;
+        
+        event.stopPropagation();
+        planDesignerState.draggingNode = nodeId;
+        
+        const node = planDesignerState.nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        
+        planDesignerState.dragOffset = {
+          x: event.offsetX - node.x,
+          y: event.offsetY - node.y
+        };
+        
+        // Add mouse move listener temporarily
+        document.addEventListener('mousemove', handleNodeDrag);
+        document.addEventListener('mouseup', stopNodeDrag);
+      }
+
+      function handleNodeDrag(event) {
+        if (!planDesignerState.draggingNode) return;
+        
+        const node = planDesignerState.nodes.find(n => n.id === planDesignerState.draggingNode);
+        if (!node) return;
+        
+        const canvas = document.getElementById('plan-canvas');
+        const rect = canvas.getBoundingClientRect();
+        
+        let x = event.clientX - rect.left - planDesignerState.dragOffset.x;
+        let y = event.clientY - rect.top - planDesignerState.dragOffset.y;
+        
+        // Snap to grid if enabled
+        if (planDesignerState.snapToGrid) {
+          x = Math.round(x / 20) * 20;
+          y = Math.round(y / 20) * 20;
+        }
+        
+        node.x = Math.max(0, x);
+        node.y = Math.max(0, y);
+        
+        renderCanvas();
+      }
+
+      function stopNodeDrag() {
+        planDesignerState.draggingNode = null;
+        document.removeEventListener('mousemove', handleNodeDrag);
+        document.removeEventListener('mouseup', stopNodeDrag);
+      }
+
+      // Statistics update
+      function updatePlanStatistics() {
+        const totalOps = planDesignerState.nodes.length;
+        const totalTime = planDesignerState.nodes.reduce((sum, node) => sum + node.estimatedTime, 0);
+        const assignedWorkers = new Set(planDesignerState.nodes.filter(n => n.assignedWorkerId).map(n => n.assignedWorkerId)).size;
+        
+        document.getElementById('total-operations').textContent = totalOps;
+        document.getElementById('total-time').textContent = `${totalTime} dk`;
+        document.getElementById('assigned-workers').textContent = assignedWorkers;
+      }
+
+      // Plan actions
+      function publishPlan() {
+        updatePlanSettings();
+        
+        if (!planDesignerState.selectedOrder) {
+          alert('Lütfen bir sipariş seçin.');
+          return;
+        }
+        
+        if (planDesignerState.nodes.length === 0) {
+          alert('Plan boş olamaz. En az bir operasyon ekleyin.');
+          return;
+        }
+        
+        const order = mesData.orders.find(o => o.id === planDesignerState.selectedOrder);
+        if (!order) return;
+        
+        // Create work order from plan
+        const workOrder = {
+          id: `WO-${Date.now()}`,
+          title: planDesignerState.planName || `${order.product} Üretimi`,
+          description: `${order.product} için üretim planı (${order.quantity} adet)`,
+          priority: 'medium',
+          status: 'draft',
+          progress: 0,
+          operations: planDesignerState.nodes.map((node, index) => ({
+            id: `op-${Date.now()}-${index}`,
+            operationId: node.operationId,
+            assignedWorkerId: node.assignedWorkerId,
+            assignedStationId: node.stationId,
+            status: 'not-started',
+            estimatedTime: node.estimatedTime,
+            sequence: index + 1
+          })),
+          assignedWorkers: [...new Set(planDesignerState.nodes.filter(n => n.assignedWorkerId).map(n => n.assignedWorkerId))],
+          requiredStations: [...new Set(planDesignerState.nodes.filter(n => n.stationId).map(n => n.stationId))]
+        };
+        
+        // Add work order
+        addWorkOrder(workOrder);
+        
+        // Clear the designer
+        clearCanvas();
+        document.getElementById('plan-name').value = '';
+        document.getElementById('order-select').value = '';
+        selectOrder('');
+        
+        alert('Plan başarıyla yayınlandı ve iş emri oluşturuldu!');
+      }
+
+      function savePlanAsTemplate() {
+        updatePlanSettings();
+        
+        if (planDesignerState.nodes.length === 0) {
+          alert('Plan boş olamaz. En az bir operasyon ekleyin.');
+          return;
+        }
+        
+        const templateName = prompt('Şablon adı:', planDesignerState.planName || 'Yeni Şablon');
+        if (!templateName) return;
+        
+        const template = {
+          id: `tpl-${Date.now()}`,
+          name: templateName,
+          description: `${planDesignerState.nodes.length} operasyonlu şablon`,
+          nodes: planDesignerState.nodes,
+          estimatedTime: planDesignerState.nodes.reduce((sum, node) => sum + node.estimatedTime, 0)
+        };
+        
+        // Save template
+        saveTemplate(template);
+        alert('Şablon başarıyla kaydedildi!');
+      }
+
+      function loadTemplate() {
+        if (mesData.templates.length === 0) {
+          alert('Henüz şablon bulunmuyor.');
+          return;
+        }
+        
+        // Simple template selection
+        const templateNames = mesData.templates.map(t => `${t.name} (${t.nodes.length} operasyon)`);
+        const selection = prompt('Şablon seçin:\n' + templateNames.map((name, i) => `${i + 1}. ${name}`).join('\n') + '\n\nNumara girin:');
+        
+        const index = parseInt(selection) - 1;
+        if (index >= 0 && index < mesData.templates.length) {
+          const template = mesData.templates[index];
+          planDesignerState.nodes = JSON.parse(JSON.stringify(template.nodes)); // deep copy
+          planDesignerState.nodeIdCounter = Math.max(...planDesignerState.nodes.map(n => parseInt(n.id.split('-')[1]) || 0)) + 1;
+          
+          renderCanvas();
+          updatePlanStatistics();
+          alert('Şablon yüklendi!');
+        }
+      }
       document.addEventListener('DOMContentLoaded', initializeMES);
     </script>
   </body>
