@@ -2493,16 +2493,33 @@
         const node = planDesignerState.nodes.find(n => n.id === nodeId);
         if (!node) return;
 
-        // Simple edit dialog using prompts for now
-        const workerName = prompt('Çalışan atayın:', node.assignedWorkerName || '');
-        if (workerName !== null) {
-          node.assignedWorkerName = workerName || null;
-          // Find worker ID if exists
-          const worker = mesData.workers.find(w => w.name === workerName);
-          node.assignedWorkerId = worker?.id || null;
-          renderCanvas();
-          updatePlanStatistics();
+        // Advanced edit dialog
+        const workers = mesData.workers.map(w => `${w.id}:${w.name}`).join('|');
+        const stations = mesData.stations.map(s => `${s.id}:${s.name}`).join('|');
+        
+        const workerSelection = prompt(`Çalışan seçin:\n${mesData.workers.map((w, i) => `${i+1}. ${w.name} (${w.skills.join(', ')})`).join('\n')}\n\nNumara girin:`);
+        const stationSelection = prompt(`İstasyon seçin:\n${mesData.stations.map((s, i) => `${i+1}. ${s.name}`).join('\n')}\n\nNumara girin:`);
+        
+        if (workerSelection) {
+          const workerIndex = parseInt(workerSelection) - 1;
+          if (workerIndex >= 0 && workerIndex < mesData.workers.length) {
+            const worker = mesData.workers[workerIndex];
+            node.assignedWorkerId = worker.id;
+            node.assignedWorkerName = worker.name;
+          }
         }
+        
+        if (stationSelection) {
+          const stationIndex = parseInt(stationSelection) - 1;
+          if (stationIndex >= 0 && stationIndex < mesData.stations.length) {
+            const station = mesData.stations[stationIndex];
+            node.stationId = station.id;
+            node.stationName = station.name;
+          }
+        }
+        
+        renderCanvas();
+        updatePlanStatistics();
       }
 
       function deleteNode(nodeId) {
