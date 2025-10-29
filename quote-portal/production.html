@@ -219,47 +219,43 @@
       </div>
     </div>
 
-    <!-- Basic MES Dashboard Implementation -->
+    <!-- Full MES Management System -->
     <script>
-      // Simple dashboard implementation without external dependencies
+      // Global state
+      let currentView = 'dashboard';
+      let mesData = {
+        operations: [],
+        workers: [],
+        stations: [],
+        workOrders: [],
+        masterData: {
+          availableSkills: ['Kaynak', 'Tornalama', 'Freze', 'Montaj'],
+          availableOperationTypes: ['İmalat', 'Kontrol', 'Montaj', 'Paketleme']
+        }
+      };
+
+      // MES System initialization
       async function initializeMES() {
         try {
-          console.log('🚀 Initializing MES System...');
+          console.log('🚀 Initializing Full MES System...');
           
-          const response = await fetch('/api/mes/work-orders');
-          let workOrders = [];
-          let hasData = false;
-          
-          if (response.ok) {
-            const data = await response.json();
-            workOrders = data.workOrders || [];
-            hasData = workOrders.length > 0;
-          }
+          // Load all data
+          await Promise.all([
+            loadOperations(),
+            loadWorkers(), 
+            loadStations(),
+            loadWorkOrders(),
+            loadMasterData()
+          ]);
 
-          // Clear loading state
+          // Clear loading state and render main app
           const appRoot = document.getElementById('mes-app-root');
-          appRoot.innerHTML = `
-            <div class="min-h-screen bg-gray-50">
-              <!-- MES Header -->
-              <div class="bg-white border-b border-gray-200 px-6 py-4">
-                <div class="max-w-7xl mx-auto">
-                  <h1 class="text-2xl font-semibold text-gray-900">
-                    Üretim Takip Sistemi (MES)
-                  </h1>
-                  <p class="text-sm text-gray-600 mt-1">
-                    Manufacturing Execution System - Burkol Metal
-                  </p>
-                </div>
-              </div>
-
-              <!-- MES Content -->
-              <div class="max-w-7xl mx-auto p-6 space-y-6">
-                ${hasData ? generateDashboard(workOrders) : generateSetupMessage()}
-              </div>
-            </div>
-          `;
-
-          console.log('✅ MES System initialized successfully');
+          appRoot.innerHTML = generateMainApp();
+          
+          // Setup navigation
+          setupNavigation();
+          
+          console.log('✅ Full MES System initialized successfully');
           
         } catch (error) {
           console.error('❌ Error initializing MES System:', error);
@@ -274,6 +270,229 @@
               </button>
             </div>
           `;
+        }
+      }
+
+      // Data loading functions
+      async function loadOperations() {
+        try {
+          const response = await fetch('/api/mes/operations', { headers: { 'Authorization': 'Bearer dev-admin-token' } });
+          if (response.ok) {
+            const data = await response.json();
+            mesData.operations = data.operations || [];
+          }
+        } catch (error) {
+          console.error('Error loading operations:', error);
+        }
+      }
+
+      async function loadWorkers() {
+        try {
+          const response = await fetch('/api/mes/workers', { headers: { 'Authorization': 'Bearer dev-admin-token' } });
+          if (response.ok) {
+            const data = await response.json();
+            mesData.workers = data.workers || [];
+          }
+        } catch (error) {
+          console.error('Error loading workers:', error);
+        }
+      }
+
+      async function loadStations() {
+        try {
+          const response = await fetch('/api/mes/stations', { headers: { 'Authorization': 'Bearer dev-admin-token' } });
+          if (response.ok) {
+            const data = await response.json();
+            mesData.stations = data.stations || [];
+          }
+        } catch (error) {
+          console.error('Error loading stations:', error);
+        }
+      }
+
+      async function loadWorkOrders() {
+        try {
+          const response = await fetch('/api/mes/work-orders', { headers: { 'Authorization': 'Bearer dev-admin-token' } });
+          if (response.ok) {
+            const data = await response.json();
+            mesData.workOrders = data.workOrders || [];
+          }
+        } catch (error) {
+          console.error('Error loading work orders:', error);
+        }
+      }
+
+      async function loadMasterData() {
+        try {
+          const response = await fetch('/api/mes/master-data', { headers: { 'Authorization': 'Bearer dev-admin-token' } });
+          if (response.ok) {
+            const data = await response.json();
+            mesData.masterData = data;
+          }
+        } catch (error) {
+          console.error('Error loading master data:', error);
+        }
+      }
+
+      // Main app structure
+      function generateMainApp() {
+        return `
+          <div class="min-h-screen bg-gray-50 flex">
+            <!-- Sidebar -->
+            <div class="w-64 bg-white border-r border-gray-200 flex-shrink-0">
+              ${generateSidebar()}
+            </div>
+            
+            <!-- Main Content -->
+            <div class="flex-1 flex flex-col">
+              <!-- Header -->
+              <div class="bg-white border-b border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <h1 class="text-2xl font-semibold text-gray-900">
+                      ${getViewTitle(currentView)}
+                    </h1>
+                    <p class="text-sm text-gray-600 mt-1">
+                      ${getViewDescription(currentView)}
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <div class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                    <span class="text-sm text-gray-600">System Online</span>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- View Content -->
+              <div class="flex-1 overflow-auto p-6" id="main-content">
+                ${generateViewContent(currentView)}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Sidebar generation
+      function generateSidebar() {
+        const navItems = [
+          { id: 'dashboard', icon: '📊', title: 'Dashboard', description: 'KPIs & work orders' },
+          { id: 'operations', icon: '⚙️', title: 'Operations', description: 'Operation definitions' },
+          { id: 'workers', icon: '👥', title: 'Workers', description: 'Worker profiles & skills' },
+          { id: 'stations', icon: '🏭', title: 'Stations', description: 'Work centers & machines' },
+          { id: 'work-orders', icon: '📋', title: 'Work Orders', description: 'Production orders' },
+          { id: 'settings', icon: '⚡', title: 'Master Data', description: 'Skills & Operation Types' }
+        ];
+
+        return `
+          <div class="flex flex-col h-full">
+            <!-- Sidebar Header -->
+            <div class="p-4 border-b border-gray-200">
+              <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600 text-white">
+                  🏭
+                </div>
+                <div>
+                  <h2 class="font-semibold text-gray-900">MES System</h2>
+                  <p class="text-xs text-gray-600">Manufacturing Execution</p>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Navigation -->
+            <div class="flex-1 p-4 space-y-2">
+              ${navItems.map(item => `
+                <button 
+                  class="nav-item w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors ${currentView === item.id ? 'bg-blue-50 border border-blue-200' : ''}"
+                  onclick="navigateToView('${item.id}')"
+                >
+                  <div class="flex items-center gap-3">
+                    <span class="text-lg">${item.icon}</span>
+                    <div class="flex-1">
+                      <div class="font-medium text-gray-900">${item.title}</div>
+                      <div class="text-xs text-gray-600">${item.description}</div>
+                    </div>
+                  </div>
+                </button>
+              `).join('')}
+            </div>
+            
+            <!-- Sidebar Footer -->
+            <div class="p-4 border-t border-gray-200">
+              <div class="text-xs text-gray-600">
+                <div class="flex items-center gap-2 mb-1">
+                  <div class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                  <span>System Online</span>
+                </div>
+                <p>Version 1.0.0</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Navigation functions
+      function navigateToView(viewId) {
+        currentView = viewId;
+        
+        // Update sidebar active state
+        document.querySelectorAll('.nav-item').forEach(item => {
+          item.classList.remove('bg-blue-50', 'border', 'border-blue-200');
+        });
+        event.target.closest('.nav-item').classList.add('bg-blue-50', 'border', 'border-blue-200');
+        
+        // Update header
+        document.querySelector('h1').textContent = getViewTitle(viewId);
+        document.querySelector('p.text-sm.text-gray-600').textContent = getViewDescription(viewId);
+        
+        // Update content
+        document.getElementById('main-content').innerHTML = generateViewContent(viewId);
+      }
+
+      function setupNavigation() {
+        // Navigation is handled by inline onclick events
+      }
+
+      function getViewTitle(viewId) {
+        const titles = {
+          'dashboard': 'Production Dashboard',
+          'operations': 'Operations Management', 
+          'workers': 'Workers Management',
+          'stations': 'Stations Management',
+          'work-orders': 'Work Orders',
+          'settings': 'Master Data Settings'
+        };
+        return titles[viewId] || 'MES System';
+      }
+
+      function getViewDescription(viewId) {
+        const descriptions = {
+          'dashboard': 'Monitor production KPIs and work order progress',
+          'operations': 'Define and manage production operations',
+          'workers': 'Manage workers, their skills, and assignments', 
+          'stations': 'Configure work centers and machines',
+          'work-orders': 'Create and manage production orders',
+          'settings': 'Configure skills and operation types'
+        };
+        return descriptions[viewId] || 'Manufacturing Execution System - Burkol Metal';
+      }
+
+      // View content generation
+      function generateViewContent(viewId) {
+        switch(viewId) {
+          case 'dashboard':
+            return generateDashboardView();
+          case 'operations':
+            return generateOperationsView();
+          case 'workers':
+            return generateWorkersView();
+          case 'stations':
+            return generateStationsView();
+          case 'work-orders':
+            return generateWorkOrdersView();
+          case 'settings':
+            return generateSettingsView();
+          default:
+            return generateDashboardView();
         }
       }
 
