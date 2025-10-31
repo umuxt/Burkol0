@@ -154,15 +154,19 @@ function MaterialsApp() {
 
   // Global stock update event listener
   useEffect(() => {
-    const handleStockUpdate = (event) => {
+    const handleStockUpdateForce = (event) => {
       console.log('🔄 main.jsx: Stock update event received:', event.detail);
-      refreshMaterials();
+      // Force refresh to bypass any caches and pull fresh values
+      refreshMaterials(true);
     };
 
-    window.addEventListener('stockUpdated', handleStockUpdate);
+    // Listen to both legacy and unified events
+    window.addEventListener('stockUpdated', handleStockUpdateForce);
+    window.addEventListener('materialStockUpdated', handleStockUpdateForce);
     
     return () => {
-      window.removeEventListener('stockUpdated', handleStockUpdate);
+      window.removeEventListener('stockUpdated', handleStockUpdateForce);
+      window.removeEventListener('materialStockUpdated', handleStockUpdateForce);
     };
   }, [refreshMaterials]);
 

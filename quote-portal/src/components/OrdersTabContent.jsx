@@ -2371,9 +2371,45 @@ export default function OrdersTabContent() {
     console.log('🔄 Proceeding with order status update...')
     
     try {
-      // Single call to updateOrder which handles both status and stock updates internally
-      console.log('📡 About to call updateOrder API with:', { orderStatus: newStatus })
-      const updatedOrder = await updateOrder(orderId, { orderStatus: newStatus });
+      // Reuse existing item-level status change logic for each item
+      console.log('🔄 Bulk item status propagation via handleItemStatusChange for order:', orderId, '→', newStatus)
+
+      // Determine items source
+      let itemsSource = []
+      if (selectedOrder && selectedOrder.id === orderId && Array.isArray(selectedOrder.items)) {
+        itemsSource = selectedOrder.items
+      } else {
+        const orderInList = (orders || []).find(o => o.id === orderId)
+        if (orderInList && Array.isArray(orderInList.items)) {
+          itemsSource = orderInList.items
+        } else {
+          try {
+            const resp = await fetchWithTimeout(`/api/orders/${orderId}`, { headers: withAuth() })
+            if (resp.ok) {
+              const data = await resp.json()
+              const ord = data.order || data
+              itemsSource = Array.isArray(ord.items) ? ord.items : []
+            }
+          } catch (e) {
+            console.warn('⚠️ Failed to fetch order details for bulk item status change:', e?.message)
+          }
+        }
+      }
+
+      // Apply item-level status change for each item
+      for (const it of (itemsSource || [])) {
+        // Skip if already at desired status
+        if ((it.itemStatus || 'Onay Bekliyor') === newStatus) continue
+        try {
+          await handleItemStatusChange(orderId, it, newStatus)
+        } catch (e) {
+          console.warn('⚠️ Item status change failed for', it.itemCode || it.id || it.lineId, e?.message)
+        }
+      }
+
+      // Finalize order status to keep consistency (backend may already align it)
+      console.log('📡 Finalizing order status to', newStatus, 'after item updates')
+      const updatedOrder = await updateOrder(orderId, { orderStatus: newStatus })
       console.log('✅ updateOrder API call completed, result:', updatedOrder)
 
       // Update local state
@@ -2599,13 +2635,25 @@ export default function OrdersTabContent() {
           console.log('✅ DEBUG: API success response:', result);
           console.log(`✅ Stock updated via API for ${item.materialCode}: ${result.previousStock} → ${result.newStock}`);
           
-          // Dispatch global stock update event for material refresh
-          window.dispatchEvent(new CustomEvent('stockUpdated', { 
-            detail: { 
+          // Dispatch unified global stock update events
+          // Primary: materialStockUpdated (used by useMaterials for instant local + force refresh)
+          window.dispatchEvent(new CustomEvent('materialStockUpdated', {
+            detail: {
+              materialCode: item.materialCode,
+              newStock: result.newStock,
+              quantity: item.quantity,
+              operation: 'add',
+              context: 'orders-tab-item-delivery'
+            }
+          }));
+
+          // Backward compatibility: stockUpdated (kept for existing listeners)
+          window.dispatchEvent(new CustomEvent('stockUpdated', {
+            detail: {
               materialCode: item.materialCode,
               previousStock: result.previousStock,
-              newStock: result.newStock 
-            } 
+              newStock: result.newStock
+            }
           }));
           
         } catch (stockError) {

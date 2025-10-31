@@ -1001,6 +1001,15 @@ export function setupMaterialsRoutes(app) {
       
       console.log(`✅ API: Stok güncellendi - ${code}: ${currentStock} → ${newStock}`)
       
+      // Invalidate materials caches after stock change
+      try {
+        cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 }
+        cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 }
+        console.log('🧹 Materials cache invalidated after stock update')
+      } catch (e) {
+        console.warn('⚠️ Failed to invalidate materials cache after stock update:', e?.message)
+      }
+
       // Response
       res.json({
         success: true,

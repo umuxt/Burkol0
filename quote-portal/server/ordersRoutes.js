@@ -326,7 +326,12 @@ router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
     }
     
     const orderData = orderSnap.data()
-    const items = orderData.items || []
+    // Normalize items for legacy shapes
+    const items = Array.isArray(orderData.items) && orderData.items.length > 0
+      ? orderData.items
+      : (Array.isArray(orderData.orderItems) && orderData.orderItems.length > 0
+        ? orderData.orderItems
+        : (Array.isArray(orderData.lineItems) && orderData.lineItems.length > 0 ? orderData.lineItems : []))
     
     // Find item to update
     const itemIndex = items.findIndex(item => 
@@ -354,56 +359,59 @@ router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     }
     
-    // Update material stock
-    const materialCode = item.materialCode
-    const quantity = item.quantity
-    
-    if (materialCode && quantity > 0) {
-      // Find material by code
-      const materialsRef = db.collection('materials')
-      const materialQuery = materialsRef.where('code', '==', materialCode)
-      const materialSnapshot = await materialQuery.get()
-      
-      if (!materialSnapshot.empty) {
-        const materialDoc = materialSnapshot.docs[0]
-        const materialData = materialDoc.data()
-        const currentStock = materialData.stock || 0
-        const newStock = currentStock + quantity
+    // Update material stock (best-effort; do not fail entire request on error)
+    try {
+      const materialCode = item.materialCode
+      const quantity = Number(item.quantity) || 0
+      console.log('📦 Deliver route stock update attempt:', { materialCode, quantity })
+      if (materialCode && quantity > 0) {
+        // Find material by code
+        const materialsRef = db.collection('materials')
+        const materialQuery = materialsRef.where('code', '==', materialCode)
+        const materialSnapshot = await materialQuery.get()
         
-        // Update material stock
-        await materialDoc.ref.update({
-          stock: newStock,
-          available: newStock - (materialData.reserved || 0),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          lastStockUpdate: {
-            orderId: orderId,
-            itemId: item.itemCode,
-            quantity: quantity,
-            previousStock: currentStock,
-            newStock: newStock,
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            userId: userId
-          }
-        })
-        
-        console.log(`✅ Stock updated: ${materialCode} (${currentStock} → ${newStock})`)
-        
-        // Create audit log for significant stock changes
-        if (quantity > 100 || newStock < 50) {
-          await db.collection('auditLogs').add({
-            type: 'STOCK_UPDATE',
-            action: 'DELIVERY_RECEIVED',
-            materialCode: materialCode,
-            orderId: orderId,
-            itemId: item.itemCode,
-            quantity: quantity,
-            previousStock: currentStock,
-            newStock: newStock,
-            userId: userId,
-            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        if (!materialSnapshot.empty) {
+          const materialDoc = materialSnapshot.docs[0]
+          const materialData = materialDoc.data() || {}
+          const currentStock = Number(materialData.stock || 0)
+          const newStock = currentStock + quantity
+          
+          await materialDoc.ref.update({
+            stock: newStock,
+            available: newStock - Number(materialData.reserved || 0),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastStockUpdate: {
+              orderId: orderId,
+              itemId: item.itemCode,
+              quantity: quantity,
+              previousStock: currentStock,
+              newStock: newStock,
+              timestamp: admin.firestore.FieldValue.serverTimestamp(),
+              userId: userId
+            }
           })
+          console.log(`✅ Stock updated: ${materialCode} (${currentStock} → ${newStock})`)
+          // Optional audit for large/low thresholds
+          if (quantity > 100 || newStock < 50) {
+            await db.collection('auditLogs').add({
+              type: 'STOCK_UPDATE',
+              action: 'DELIVERY_RECEIVED',
+              materialCode: materialCode,
+              orderId: orderId,
+              itemId: item.itemCode,
+              quantity: quantity,
+              previousStock: currentStock,
+              newStock: newStock,
+              userId: userId,
+              timestamp: admin.firestore.FieldValue.serverTimestamp()
+            })
+          }
+        } else {
+          console.warn('⚠️ Material not found for code:', materialCode)
         }
       }
+    } catch (stockErr) {
+      console.warn('⚠️ Stock update failed (deliver route), continuing:', stockErr?.message)
     }
     
     // Determine if order should be marked delivered
