@@ -412,6 +412,10 @@ export const API = {
       return { synced: 0, errors: 1 }
     }
   },
+  // Backward-compat alias kept for Admin.js
+  async syncLocalQuotesToFirebase() {
+    return this.syncLocalQuotesToBackend()
+  },
   async updateStatus(id, status) {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'PATCH', headers: withAuth({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status }) })

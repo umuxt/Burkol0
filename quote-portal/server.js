@@ -10,7 +10,6 @@ import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
-// Settings routes (quotes system) are disabled to avoid Firestore bootstrap
 import { setupMaterialsRoutes } from './server/materialsRoutes.js'
 import { ordersRoutes } from './server/ordersRoutes.js'
 import {
@@ -136,28 +135,31 @@ app.use((req, res, next) => {
 
 // Setup API routes
 setupAuthRoutes(app)
-// Optionally enable quote routes to avoid Firestore bootstrap on startup
-try {
-  if (process.env.QUOTES_ROUTES_ENABLED === 'true') {
-    const apiRoutesMod = await import('./server/apiRoutes.js')
-    apiRoutesMod.setupQuoteRoutes(app, uploadsDir)
-    apiRoutesMod.setupExportRoutes(app)
-    console.log('✅ Quote routes enabled')
-  } else {
-    console.log('⏭️  Quote routes disabled (set QUOTES_ROUTES_ENABLED=true to enable)')
+// Lazily bootstrap core quote routes on first access to avoid Firestore reads
+let coreRoutesBootstrapped = false
+async function ensureCoreRoutes(req, res, next) {
+  try {
+    if (!coreRoutesBootstrapped) {
+      const apiRoutesMod = await import('./server/apiRoutes.js')
+      apiRoutesMod.setupQuoteRoutes(app, uploadsDir)
+      apiRoutesMod.setupExportRoutes(app)
+      apiRoutesMod.setupSettingsRoutes(app)
+      apiRoutesMod.setupFormConfigRoutes(app)
+      coreRoutesBootstrapped = true
+      console.log('✅ Core API routes bootstrapped on-demand')
+    }
+  } catch (e) {
+    console.error('❌ Failed to bootstrap core API routes:', e?.message)
+  } finally {
+    next()
   }
-} catch (e) {
-  console.warn('⚠️ Quote routes not initialized:', e?.message)
 }
 
-// Always expose minimal form configuration routes for user form
-try {
-  // DISABLED FOR DEBUGGING: const apiRoutesMod = await import('./server/apiRoutes.js')
-  // DISABLED FOR DEBUGGING: apiRoutesMod.setupFormConfigRoutes(app)
-  console.log('⏭️  Form config routes disabled for debugging')
-} catch (e) {
-  console.warn('⚠️ Form config routes not initialized:', e?.message)
-}
+// Only when these prefixes are hit, we initialize quote/settings routes
+app.use('/api/quotes', ensureCoreRoutes)
+app.use('/api/price-settings', ensureCoreRoutes)
+app.use('/api/form-config', ensureCoreRoutes)
+app.use('/api/form-fields', ensureCoreRoutes)
 setupMaterialsRoutes(app)
 app.use('/api', ordersRoutes)
 
