@@ -17,6 +17,7 @@ import EditMaterialModal from './components/EditMaterialModal.jsx';
 import CategoryManagementModal from './components/CategoryManagementModal.jsx';
 import MaterialDeletionWarningModal from './components/MaterialDeletionWarningModal.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import MaterialsHelp from './components/MaterialsHelp.jsx';
 
 // Backend API hooks
 import { useMaterials, useMaterialActions } from './hooks/useMaterials.js';
@@ -583,6 +584,9 @@ function MaterialsApp() {
         isBulk={materialsToDelete.length > 1}
         isDeleting={isDeletionInProgress}
       />
+
+      {/* Floating Help Button + Popup */}
+      <MaterialsHelp />
     </div>
   );
 }
