@@ -879,6 +879,123 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
                   </div>
                 )}
               </div>
+
+              {/* Available Materials Section */}
+              <div style={{ marginTop: '24px' }}>
+                <h4 style={{ marginBottom: '12px' }}>Kullanılabilir Malzemeler</h4>
+                {supplierMaterialsLoading ? (
+                  <div style={{ 
+                    padding: '16px', 
+                    textAlign: 'center', 
+                    color: '#6b7280',
+                    fontStyle: 'italic'
+                  }}>
+                    Malzemeler yükleniyor...
+                  </div>
+                ) : supplierMaterialsError ? (
+                  <div style={{
+                    padding: '16px',
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '6px',
+                    color: '#dc2626'
+                  }}>
+                    <p style={{ margin: 0, fontWeight: '600' }}>⚠️ Hata</p>
+                    <p style={{ margin: '4px 0 0 0', fontSize: '14px' }}>{supplierMaterialsError}</p>
+                  </div>
+                ) : availableMaterials.length === 0 ? (
+                  <div style={{
+                    padding: '16px',
+                    backgroundColor: '#fef3c7',
+                    border: '1px solid #fbbf24',
+                    borderRadius: '6px',
+                    color: '#92400e',
+                    textAlign: 'center'
+                  }}>
+                    <p style={{ margin: 0, fontWeight: '600' }}>📦 Malzeme Bulunamadı</p>
+                    <p style={{ margin: '8px 0 0 0', fontSize: '14px' }}>
+                      Bu tedarikçi için tanımlanmış aktif malzeme bulunmuyor.
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '6px',
+                    maxHeight: '300px',
+                    overflow: 'auto'
+                  }}>
+                    {availableMaterials.map((material, index) => {
+                      return (
+                        <div
+                          key={`${material.id || material.code}-${index}`}
+                          style={{
+                            padding: '12px 16px',
+                            borderBottom: index < availableMaterials.length - 1 ? '1px solid #f3f4f6' : 'none',
+                            backgroundColor: 'white'
+                          }}
+                        >
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                          }}>
+                            <div style={{ flex: 1 }}>
+                              <div style={{ 
+                                fontWeight: '600', 
+                                fontSize: '14px',
+                                marginBottom: '4px'
+                              }}>
+                                {material.name}
+                              </div>
+                              <div style={{ 
+                                fontSize: '12px', 
+                                color: '#6b7280',
+                                marginBottom: '2px'
+                              }}>
+                                Kod: {material.code}
+                              </div>
+                              {material.category && (
+                                <div style={{ 
+                                  fontSize: '12px', 
+                                  color: '#6b7280',
+                                  marginBottom: '2px'
+                                }}>
+                                  Kategori: {material.category}
+                                </div>
+                              )}
+                              {material.unit && (
+                                <div style={{ 
+                                  fontSize: '12px', 
+                                  color: '#6b7280'
+                                }}>
+                                  Birim: {material.unit}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ marginLeft: '16px', textAlign: 'right' }}>
+                              <button
+                                onClick={() => addMaterial(material)}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#3b82f6',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  cursor: 'pointer',
+                                  fontWeight: '600'
+                                }}
+                              >
+                                Ekle
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
