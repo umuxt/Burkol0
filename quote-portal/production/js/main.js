@@ -2,6 +2,7 @@
 import { MESData, loadData, saveData, currentView, setCurrentView } from './state.js';
 import { showToast } from './ui.js';
 import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generatePlanDesigner, generateTemplates } from './views.js';
+import { initializeWorkersUI, openAddWorkerModal, editWorker, deleteWorker as deleteWorkerAction, saveWorker, closeWorkerModal } from './workers.js';
 import { initializePlanDesigner, loadOperationsToolbox, handleOperationDragStart, handleCanvasDragOver, handleCanvasDrop, renderCanvas, editNode, saveNodeEdit, closeNodeEditModal, deleteNode, toggleConnectMode, clearCanvas, handleOrderChange, savePlanAsTemplate, deployWorkOrder, handleCanvasClick } from './planDesigner.js';
 import { openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation as deleteStationAction } from './stations.js';
 import { openHelp, closeHelp, switchHelpTab, toggleFAQ, initHelp } from './help.js';
@@ -17,7 +18,7 @@ function renderView(viewId) {
     case 'settings': content = generateSettings(); break;
     case 'stations': content = generateStations(); break;
     case 'operations': content = generateOperations(); break;
-    case 'workers': content = generateWorkers(); break;
+    case 'workers': content = generateWorkers(); setTimeout(() => initializeWorkersUI(), 0); break;
     default: content = generateModernDashboard();
   }
   document.getElementById('content-area').innerHTML = content;
@@ -42,6 +43,8 @@ Object.assign(window, {
   editNode, saveNodeEdit, closeNodeEditModal, deleteNode, toggleConnectMode, clearCanvas, handleOrderChange, savePlanAsTemplate, deployWorkOrder, handleCanvasClick,
   // stations
   openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation: deleteStationAction,
+  // workers
+  openAddWorkerModal, editWorker, deleteWorker: deleteWorkerAction, saveWorker, closeWorkerModal,
   // help
   openHelp, closeHelp, switchHelpTab, toggleFAQ,
   // mobile

@@ -190,15 +190,60 @@ export function generateWorkers() {
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Workers Management</h1>
       <p style="color: var(--muted-foreground);">Manage workers, skills and assignments</p>
     </div>
-    <div style="margin-bottom: 24px;"><button onclick="alert('Add Worker functionality will be implemented')" style="background: var(--primary); color: var(--primary-foreground); padding: 12px 24px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Add Worker</button></div>
+    <div style="margin-bottom: 24px;">
+      <button onclick="openAddWorkerModal()" style="background: var(--primary); color: var(--primary-foreground); padding: 12px 24px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Add Worker</button>
+    </div>
     <div class="card">
       <div class="card-header"><div class="card-title">Worker List</div><div class="card-description">Manage your workforce</div></div>
       <div class="card-content">
-        <table class="table"><thead><tr><th>Name</th><th>Skills</th><th>Shift</th><th>Status</th><th>Actions</th></tr></thead>
-        <tbody>
-          <tr><td><strong>Ali Kaya</strong><br><small>ali@burkol.com</small></td><td><span class="badge badge-outline">Welding</span><span class="badge badge-outline">Cutting</span></td><td>Day Shift</td><td><span class="badge badge-success">Available</span></td><td><button style="padding: 4px 8px; margin-right: 4px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer;">Edit</button><button style="padding: 4px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 4px; cursor: pointer;">Delete</button></td></tr>
-          <tr><td><strong>Mehmet Yılmaz</strong><br><small>mehmet@burkol.com</small></td><td><span class="badge badge-outline">Assembly</span><span class="badge badge-outline">Quality Control</span></td><td>Day Shift</td><td><span class="badge badge-warning">Busy</span></td><td><button style="padding: 4px 8px; margin-right: 4px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer;">Edit</button><button style="padding: 4px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 4px; cursor: pointer;">Delete</button></td></tr>
-        </tbody></table>
+        <table class="table">
+          <thead><tr><th>Name</th><th>Skills</th><th>Shift</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="workers-table-body">
+            <tr><td colspan="5"><em>Loading workers...</em></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="worker-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;" onclick="closeWorkerModal(event)">
+      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 24px; width: 520px; max-height: 80vh; overflow-y: auto;" onclick="event.stopPropagation()">
+        <h3 id="worker-modal-title" style="margin: 0 0 20px 0;">Add New Worker</h3>
+        <div>
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Name</label>
+            <input type="text" id="worker-name" placeholder="Enter worker name" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;" />
+          </div>
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Email</label>
+            <input type="email" id="worker-email" placeholder="email@domain.com" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;" />
+          </div>
+          <div style="margin-bottom: 16px;">
+            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Skills</label>
+            <input type="text" id="worker-skills" placeholder="Comma separated (e.g. Welding, Cutting)" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;" />
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; margin-bottom: 8px; font-weight: 500;">Shift</label>
+              <select id="worker-shift" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;">
+                <option value="Day">Day</option>
+                <option value="Night">Night</option>
+              </select>
+            </div>
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; margin-bottom: 8px; font-weight: 500;">Status</label>
+              <select id="worker-status" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;">
+                <option value="available">Available</option>
+                <option value="busy">Busy</option>
+                <option value="break">Break</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 20px; display: flex; gap: 8px; justify-content: flex-end;">
+          <button onclick="closeWorkerModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Cancel</button>
+          <button onclick="saveWorker()" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Save</button>
+        </div>
       </div>
     </div>
   `;
@@ -326,4 +371,3 @@ export function generateTemplates() {
     </div>
   `;
 }
-
