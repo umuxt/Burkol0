@@ -4,8 +4,11 @@ import { showToast } from './ui.js';
 import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generatePlanDesigner, generateTemplates } from './views.js';
 import { initializeWorkersUI, openAddWorkerModal, editWorker, deleteWorker as deleteWorkerAction, saveWorker, closeWorkerModal } from './workers.js';
 import { initializePlanDesigner, loadOperationsToolbox, handleOperationDragStart, handleCanvasDragOver, handleCanvasDrop, renderCanvas, editNode, saveNodeEdit, closeNodeEditModal, deleteNode, toggleConnectMode, clearCanvas, handleOrderChange, savePlanAsTemplate, deployWorkOrder, handleCanvasClick } from './planDesigner.js';
-import { openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation as deleteStationAction } from './stations.js';
+import { loadOperationsToolboxBackend, editNodeBackend, handleCanvasDropBackend } from './planDesignerBackend.js';
+import { openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation as deleteStationAction, initializeStationsUI } from './stations.js';
+import { initializeOperationsUI, openAddOperationModal, editOperation, deleteOperation, saveOperation, closeOperationModal } from './operations.js';
 import { openHelp, closeHelp, switchHelpTab, toggleFAQ, initHelp } from './help.js';
+import { initMasterDataUI, addSkillFromSettings, renameSkill, deleteSkill } from './masterData.js';
 import { toggleMobileNav, closeMobileNav } from './mobile.js';
 
 function renderView(viewId) {
@@ -13,11 +16,14 @@ function renderView(viewId) {
   switch (viewId) {
     case 'dashboard': content = generateModernDashboard(); break;
     case 'worker-panel': content = generateWorkerPanel(); break;
-    case 'plan-designer': content = generatePlanDesigner(); setTimeout(() => initializePlanDesigner(), 100); break;
+    case 'plan-designer':
+      content = generatePlanDesigner();
+      setTimeout(() => { initializePlanDesigner(); loadOperationsToolboxBackend(); }, 100);
+      break;
     case 'templates': content = generateTemplates(); break;
-    case 'settings': content = generateSettings(); break;
-    case 'stations': content = generateStations(); break;
-    case 'operations': content = generateOperations(); break;
+    case 'settings': content = generateSettings(); setTimeout(() => initMasterDataUI(), 0); break;
+    case 'stations': content = generateStations(); setTimeout(() => initializeStationsUI(), 0); break;
+    case 'operations': content = generateOperations(); setTimeout(() => initializeOperationsUI(), 0); break;
     case 'workers': content = generateWorkers(); setTimeout(() => initializeWorkersUI(), 0); break;
     default: content = generateModernDashboard();
   }
@@ -39,14 +45,19 @@ Object.assign(window, {
   MESData, saveData, showToast,
   navigateToView,
   // plan designer handlers
-  loadOperationsToolbox, handleOperationDragStart, handleCanvasDragOver, handleCanvasDrop, renderCanvas,
-  editNode, saveNodeEdit, closeNodeEditModal, deleteNode, toggleConnectMode, clearCanvas, handleOrderChange, savePlanAsTemplate, deployWorkOrder, handleCanvasClick,
+  // prefer backend-enhanced versions where provided
+  loadOperationsToolbox: loadOperationsToolboxBackend, handleOperationDragStart, handleCanvasDragOver, handleCanvasDrop: handleCanvasDropBackend, renderCanvas,
+  editNode: editNodeBackend, saveNodeEdit, closeNodeEditModal, deleteNode, toggleConnectMode, clearCanvas, handleOrderChange, savePlanAsTemplate, deployWorkOrder, handleCanvasClick,
   // stations
   openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation: deleteStationAction,
+  // operations
+  openAddOperationModal, editOperation, deleteOperation, saveOperation, closeOperationModal,
   // workers
   openAddWorkerModal, editWorker, deleteWorker: deleteWorkerAction, saveWorker, closeWorkerModal,
   // help
   openHelp, closeHelp, switchHelpTab, toggleFAQ,
+  // master data (skills)
+  addSkillFromSettings, renameSkill, deleteSkill,
   // mobile
   toggleMobileNav, closeMobileNav
 });

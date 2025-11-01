@@ -51,6 +51,11 @@ router.post('/operations', withAuth, async (req, res) => {
     if (!Array.isArray(operations)) {
       throw new Error('Operations must be an array');
     }
+    // Basic validation
+    const invalid = operations.find(op => !op || !op.id || !Array.isArray(op.skills))
+    if (invalid) {
+      throw new Error('Each operation must have id and skills array')
+    }
 
     const db = getFirestore();
     const batch = db.batch();
@@ -105,6 +110,11 @@ router.post('/workers', withAuth, async (req, res) => {
     const { workers } = req.body;
     if (!Array.isArray(workers)) {
       throw new Error('Workers must be an array');
+    }
+    // Basic validation: each worker must have at least one skill
+    const invalid = workers.find(w => !w || !Array.isArray(w.skills) || w.skills.length === 0)
+    if (invalid) {
+      throw new Error('Each worker must have at least one skill');
     }
 
     const db = getFirestore();
@@ -161,6 +171,11 @@ router.post('/stations', withAuth, async (req, res) => {
     if (!Array.isArray(stations)) {
       throw new Error('Stations must be an array');
     }
+    // Basic validation: each station must be linked to at least one operation
+    const invalid = stations.find(s => !s || !Array.isArray(s.operationIds) || s.operationIds.length === 0)
+    if (invalid) {
+      throw new Error('Each station must reference at least one operation (operationIds)');
+    }
 
     const db = getFirestore();
     const batch = db.batch();
@@ -190,6 +205,16 @@ router.post('/stations', withAuth, async (req, res) => {
     await batch.commit();
     return { success: true, updated: stations.length };
   }, res);
+});
+
+// DELETE /api/mes/stations/:id - Delete a single station (does not require full payload)
+router.delete('/stations/:id', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id } = req.params
+    const db = getFirestore()
+    await db.collection('mes-stations').doc(id).delete()
+    return { success: true, id }
+  }, res)
 });
 
 // ============================================================================

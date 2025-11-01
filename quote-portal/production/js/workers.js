@@ -83,6 +83,7 @@ export async function saveWorker() {
   if (!email) { showToast('Email gerekli', 'warning'); return }
 
   const skills = skillsStr.split(',').map(s => s.trim()).filter(Boolean)
+  if (skills.length === 0) { showToast('En az bir skill giriniz', 'warning'); return }
 
   const payload = { id: editingWorkerId || genId(), name, email, skills, shift, status }
   const idx = workersState.findIndex(w => w.id === payload.id)
@@ -172,4 +173,3 @@ function capitalize(s) { s = String(s||''); return s.charAt(0).toUpperCase() + s
 function genId() { return 'w-' + Math.random().toString(36).slice(2, 9) }
 
 // No default export; named exports only
-
