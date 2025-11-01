@@ -4,7 +4,7 @@ import admin from 'firebase-admin'
 
 // Firestore database instance
 let db
-function getDb() {
+export function getDb() {
   if (!db) {
     if (!admin.apps.length) {
       try { admin.initializeApp() } catch {}
@@ -167,6 +167,24 @@ export async function createSession(email, days = 7) {
   // Save to memory stores
   memory.sessions.set(token, sessionData)
   memory.sessionsById.set(sessionId, sessionData)
+  
+  // Persist to Firestore (best-effort)
+  try {
+    await getDb().collection('sessions').doc(sessionId).set({
+      sessionId,
+      token,
+      email,
+      userName,
+      loginTime: sessionData.loginTime,
+      loginDate: sessionData.loginDate,
+      expires: sessionData.expires,
+      lastActivityAt: sessionData.lastActivityAt,
+      isActive: true,
+      logoutTime: null
+    }, { merge: true })
+  } catch (err) {
+    console.warn('[auth] Failed to persist session to Firestore:', err?.message)
+  }
   return token
 }
 
@@ -188,6 +206,10 @@ export function deleteSession(token) {
     const session = memory.sessions.get(token)
     if (session) memory.sessionsById.delete(session.sessionId)
     memory.sessions.delete(token)
+    if (session && session.sessionId) {
+      // Best-effort Firestore delete
+      getDb().collection('sessions').doc(session.sessionId).delete().catch(() => {})
+    }
   }
 }
 
@@ -233,7 +255,7 @@ export function getAllSessions() {
   return Array.from(memory.sessionsById.values())
 }
 
-export function updateSession(sessionData) {
+export async function updateSession(sessionData) {
   if (!sessionData) return
   const tokenEntry = Array.from(memory.sessions.entries()).find(([, s]) => s.sessionId === sessionData.sessionId)
   const existing = tokenEntry ? tokenEntry[1] : memory.sessionsById.get(sessionData.sessionId)
@@ -246,6 +268,15 @@ export function updateSession(sessionData) {
     memory.sessions.set(tokenEntry[0], merged)
   }
   memory.sessionsById.set(sessionData.sessionId, merged)
+  
+  // Best-effort Firestore update
+  try {
+    const patch = { ...sessionData }
+    if (patch.activityLog) delete patch.activityLog
+    await getDb().collection('sessions').doc(sessionData.sessionId).set(patch, { merge: true })
+  } catch (err) {
+    console.warn('[auth] Failed to update session in Firestore:', err?.message)
+  }
 }
 
 export function deleteSessionById(sessionId) {
@@ -254,11 +285,82 @@ export function deleteSessionById(sessionId) {
   if (tokenEntry) {
     memory.sessions.delete(tokenEntry[0])
   }
-  return memory.sessionsById.delete(sessionId)
+  const ok = memory.sessionsById.delete(sessionId)
+  // Best-effort Firestore delete
+  getDb().collection('sessions').doc(sessionId).delete().catch(() => {})
+  return ok
 }
 
 export function listUsersRaw() {
   return Array.from(memory.users.values())
+}
+
+export async function listUsersFromFirebase() {
+  try {
+    const usersSnapshot = await getDb().collection('users').get()
+    const users = []
+    
+    usersSnapshot.forEach(doc => {
+      const userData = doc.data()
+      users.push({
+        id: doc.id,
+        email: userData.email,
+        role: userData.role || 'admin',
+        active: userData.active !== false,
+        createdAt: userData.createdAt,
+        deactivatedAt: userData.deactivatedAt,
+        plainPassword: userData.plainPassword,
+        name: userData.name || userData.email,
+        pw_hash: userData.pw_hash,
+        pw_salt: userData.pw_salt
+      })
+    })
+    
+    console.log(`📋 Loaded ${users.length} users from Firebase`)
+    return users
+  } catch (error) {
+    console.error('❌ Error loading users from Firebase:', error)
+    throw error
+  }
+}
+
+export async function listSessionsFromFirebase() {
+  try {
+    const db = getDb()
+    // Primary: sessions collection
+    const sessionsSnap = await db.collection('sessions').orderBy('lastActivityAt', 'desc').limit(200).get()
+    const sessions = sessionsSnap.docs.map(doc => ({ sessionId: doc.id, ...(doc.data() || {}) }))
+
+    // Enrich with audit logs (support both names)
+    const auditCollections = ['audit_logs', 'auditLogs']
+    let audits = []
+    for (const coll of auditCollections) {
+      try {
+        const snap = await db.collection(coll).orderBy('timestamp', 'desc').limit(200).get()
+        audits = audits.concat(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      } catch {}
+    }
+    if (audits.length) {
+      const latestBySession = new Map()
+      for (const a of audits) {
+        const sid = a?.performedBy?.sessionId
+        if (!sid) continue
+        const prev = latestBySession.get(sid)
+        if (!prev || (a.timestamp > prev.timestamp)) latestBySession.set(sid, a)
+      }
+      for (const s of sessions) {
+        if (!s.lastActivityAt && latestBySession.has(s.sessionId)) {
+          s.lastActivityAt = latestBySession.get(s.sessionId).timestamp
+        }
+      }
+    }
+
+    console.log(`📋 Loaded ${sessions.length} sessions from Firestore`)
+    return sessions
+  } catch (error) {
+    console.error('❌ Error loading sessions from Firebase:', error)
+    throw error
+  }
 }
 
 export function getUserByEmail(email) {

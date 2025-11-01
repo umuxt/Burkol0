@@ -1,6 +1,6 @@
-import { updateSession } from './auth.js'
+import { updateSession, getDb } from './auth.js'
 
-export function auditSessionActivity(req, activity = {}) {
+export async function auditSessionActivity(req, activity = {}) {
   try {
     if (!activity || typeof activity !== 'object') return
 
@@ -34,10 +34,21 @@ export function auditSessionActivity(req, activity = {}) {
     })
 
     // Update session activity log in memory (append)
-    updateSession({
+    await updateSession({
       sessionId,
       activityLog: [entry]
     })
+
+    // Best-effort: persist audit entry to Firestore (audit_logs)
+    try {
+      const db = getDb()
+      // Prefer snake_case collection; keep compatibility with camelCase by also mirroring
+      await db.collection('audit_logs').add(entry)
+      // Optional mirror write for legacy readers
+      try { await db.collection('auditLogs').add(entry) } catch {}
+    } catch (err) {
+      console.warn('[auditTrail] Firestore write failed:', err?.message)
+    }
   } catch (error) {
     console.error('Audit session activity error:', error)
   }

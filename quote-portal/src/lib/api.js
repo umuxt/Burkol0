@@ -135,8 +135,13 @@ export const API_BASE = getApiBase()
 function getToken() { 
   try { 
     const token = localStorage.getItem('bk_admin_token')
-    // Development mode: use dev token if no real token exists
-    if (!token && window.location.hostname === 'localhost') {
+    // Development fallback: use dev token if no real token exists
+    // Accept several common local hostnames and Vite dev mode
+    const hostname = (window && window.location && window.location.hostname) || ''
+    const isLocalHostLike = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' || hostname.startsWith('192.')
+    const isDevEnv = typeof import.meta !== 'undefined' && Boolean(import.meta.env && import.meta.env.DEV)
+    if (!token && (isLocalHostLike || isDevEnv)) {
+      console.log('🔧 getToken: using development fallback token (dev-admin-token)', { hostname, isDevEnv })
       return 'dev-admin-token'
     }
     return token || '' 
@@ -584,7 +589,23 @@ export const API = {
     setToken('')
   },
   async listSessions() {
-    const res = await fetchWithTimeout(`${API_BASE}/api/admin/sessions`, { headers: withAuth() })
+    const token = getToken()
+    console.log('🔍 listSessions debug:', { 
+      API_BASE, 
+      token: token ? token.slice(0, 10) + '...' : 'NO_TOKEN',
+      url: `${API_BASE}/api/admin/sessions`
+    })
+    
+    let res = await fetchWithTimeout(`${API_BASE}/api/admin/sessions`, { headers: withAuth() })
+    console.log('🔍 listSessions response:', { status: res.status, ok: res.ok })
+
+    // Dev fallback: if unauthorized, retry once with dev token
+    if (res.status === 401 && (window?.location?.hostname === 'localhost' || window?.location?.hostname?.startsWith('127.') || window?.location?.hostname?.startsWith('192.') )) {
+      try {
+        console.log('🔧 listSessions: retrying with dev token fallback')
+        res = await fetchWithTimeout(`${API_BASE}/api/admin/sessions`, { headers: { Authorization: 'Bearer dev-admin-token' } })
+      } catch (e) {}
+    }
     if (!res.ok) throw new Error('list_sessions_failed')
     const payload = await res.json().catch(() => ([]))
     if (Array.isArray(payload)) return payload

@@ -158,19 +158,27 @@ async function ensureCoreRoutes(req, res, next) {
 // Only when these prefixes are hit, we initialize quote/settings routes
 app.use('/api/quotes', ensureCoreRoutes)
 app.use('/api/price-settings', ensureCoreRoutes)
+app.use('/api/form-fields', ensureCoreRoutes)
 app.use('/api/form-config', ensureCoreRoutes)
 app.use('/api/form-fields', ensureCoreRoutes)
 setupMaterialsRoutes(app)
 app.use('/api', ordersRoutes)
 
-// MES Routes
-try {
-  const mesRoutes = await import('./server/mesRoutes.js')
-  app.use('/api/mes', mesRoutes.default)
-  console.log('✅ MES routes enabled')
-} catch (e) {
-  console.warn('⚠️ MES routes not initialized:', e?.message)
-}
+// MES Routes - lazy bootstrap on first request to speed up startup
+let mesRouterPromise = null
+app.use('/api/mes', async (req, res, next) => {
+  try {
+    if (!mesRouterPromise) {
+      mesRouterPromise = import('./server/mesRoutes.js').then(m => m.default)
+      console.log('✅ MES routes bootstrapped on-demand')
+    }
+    const mesRouter = await mesRouterPromise
+    return mesRouter(req, res, next)
+  } catch (e) {
+    console.warn('⚠️ MES routes not initialized:', e?.message)
+    return res.status(500).json({ error: 'MES init failed' })
+  }
+})
 
 // Settings routes disabled
 

@@ -8,21 +8,12 @@
     <link rel="stylesheet" href="/src/styles/materials.css">
     <link rel="stylesheet" href="/styles/firebase-integration.css">
     <link rel="manifest" href="/manifest.json">
-    <script src="./components/BurkolNavigation.js"></script>
-    <script src="./components/AuthGuard.js"></script>
+    <script src="./components/BurkolNavigation.js" defer></script>
+    <script src="./components/AuthGuard.js" defer></script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <script>
-      // AuthGuard'ı başlat
-      document.addEventListener('DOMContentLoaded', function() {
-        try {
-          new AuthGuard();
-        } catch (error) {
-          console.error('AuthGuard initialization error:', error);
-        }
-      });
-    </script>
+    <!-- AuthGuard kendi içinde otomatik init ediyor; ek çağrı gerekmez -->
   </body>
 </html>
