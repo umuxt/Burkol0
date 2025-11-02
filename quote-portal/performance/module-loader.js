@@ -30,7 +30,7 @@ class ModuleLoader {
 
            componentPath.includes('/components/modals/FilterPopup.js') ||
 
-           componentPath.includes('/components/Modal.js') ||      chunkSize: 50000,  constructor() {
+           componentPath.includes('/shared/components/ui/Modal.js') ||      chunkSize: 50000,  constructor() {
 
            componentPath.includes('/hooks/useNotifications.js')
 
@@ -670,7 +670,7 @@ export default ModuleLoader        // Silent retry for performance paths      if
 
   }      'common': [
 
-        './components/Modal.js',
+        './shared/components/ui/Modal.js',
 
   // Get cache statistics        './hooks/useNotifications.js'
 

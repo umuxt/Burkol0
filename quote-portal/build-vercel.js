@@ -26,8 +26,8 @@ function bundleComponents() {
   
   // Component files to inline
   const componentFiles = [
-    'components/Field.js',
-    'components/Modal.js', 
+    'shared/components/ui/Field.js',
+    'shared/components/ui/Modal.js', 
     'components/DynamicFormRenderer.js',
     'components/admin/Admin.js',
     'components/modals/SettingsModal.js',
