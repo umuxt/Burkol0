@@ -1,7 +1,14 @@
 // App state and persistence (extracted from production.html)
 
 export let currentView = 'dashboard';
-export function setCurrentView(view) { currentView = view; }
+export function setCurrentView(view) { 
+  currentView = view; 
+  try { sessionStorage.setItem('mes_current_view', String(view || 'dashboard')) } catch {}
+}
+
+export function getSavedView() {
+  try { return sessionStorage.getItem('mes_current_view') || 'dashboard' } catch { return 'dashboard' }
+}
 
 export const MESData = {
   workOrders: [
@@ -20,9 +27,9 @@ export const MESData = {
     { id: 's-002', name: 'Station B - Assembly', status: 'maintenance', worker: null, capabilities: ['Assembly', 'Quality Control'], currentOperation: null }
   ],
   operations: [
-    { id: 'op-001', name: 'Welding', duration: 30, skills: ['Welding'], qualityCheck: true },
-    { id: 'op-002', name: 'Cutting', duration: 15, skills: ['Cutting'], qualityCheck: false },
-    { id: 'op-003', name: 'Assembly', duration: 45, skills: ['Assembly'], qualityCheck: true }
+    { id: 'op-001', name: 'Welding', skills: ['Welding'], qualityCheck: true },
+    { id: 'op-002', name: 'Cutting', skills: ['Cutting'], qualityCheck: false },
+    { id: 'op-003', name: 'Assembly', skills: ['Assembly'], qualityCheck: true }
   ]
 };
 
@@ -60,4 +67,3 @@ export function loadData() {
     Object.assign(MESData, parsedData);
   }
 }
-

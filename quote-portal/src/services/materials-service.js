@@ -37,7 +37,6 @@ export const materialsService = {
       }
       
       const materials = await response.json()
-      console.log('✅ Materials fetch successful:', materials.length, 'items')
       return materials
     } catch (error) {
       console.warn('❌ Materials fetch error (returning empty list):', error?.message || error)
@@ -60,7 +59,6 @@ export const materialsService = {
       }
       
       const newMaterial = await response.json()
-      console.log('✅ Material added:', newMaterial.id)
       return newMaterial
     } catch (error) {
       console.error('❌ Material add error:', error)
@@ -82,7 +80,6 @@ export const materialsService = {
       }
       
       const updatedMaterial = await response.json()
-      console.log('✅ Material updated:', materialId)
       return updatedMaterial
     } catch (error) {
       console.error('❌ Material update error:', error)
@@ -108,7 +105,6 @@ export const materialsService = {
       }
       
       const materials = await response.json()
-      console.log('✅ All materials fetch successful (via /api/materials/all):', materials.length, 'items', { forceRefresh })
       return materials
     } catch (error) {
       console.warn('❌ All materials fetch error (returning empty list):', error?.message || error)
@@ -134,7 +130,6 @@ export const materialsService = {
       }
       
       const materials = await response.json()
-      console.log('✅ All materials including removed fetch successful (via /api/materials/all):', materials.length, 'items', { forceRefresh })
       return materials
     } catch (error) {
       console.warn('❌ All materials including removed fetch error (returning empty list):', error?.message || error)
@@ -155,7 +150,6 @@ export const materialsService = {
       }
       
       const result = await response.json()
-      console.log('✅ Material deleted:', materialId, result)
       
       return {
         success: true,

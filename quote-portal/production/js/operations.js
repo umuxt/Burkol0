@@ -32,14 +32,13 @@ function renderOperations() {
   container.innerHTML = `
     <table class="table">
       <thead>
-        <tr><th>Name</th><th>Type</th><th>Default Time</th><th>Skills</th><th>QC</th><th>Actions</th></tr>
+        <tr><th>Name</th><th>Type</th><th>Skills</th><th>QC</th><th>Actions</th></tr>
       </thead>
       <tbody>
         ${operationsState.map(op => `
           <tr>
             <td><strong>${escapeHtml(op.name || '')}</strong></td>
             <td>${escapeHtml(op.type || 'General')}</td>
-            <td>${Number(op.defaultDuration || 0) || 0} min</td>
             <td>${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span class="badge badge-outline" style="margin-right:4px;">${escapeHtml(s)}</span>`).join('')}</td>
             <td>${op.qualityCheck ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-secondary">No</span>'}</td>
             <td>
@@ -72,18 +71,15 @@ export function closeOperationModal(ev) {
 export async function saveOperation() {
   const name = document.getElementById('operation-name')?.value?.trim()
   const type = document.getElementById('operation-type')?.value?.trim() || 'General'
-  const time = parseInt(document.getElementById('operation-time')?.value, 10) || 0
   const skills = Array.from(document.querySelectorAll('#operation-skills-box input[type="checkbox"]:checked')).map(cb => cb.value)
   const qc = Boolean(document.getElementById('operation-qc')?.checked)
   if (!name) { showToast('Operation name required', 'warning'); return }
-  if (!time || time < 1) { showToast('Default time must be >= 1', 'warning'); return }
   if (skills.length === 0) { showToast('Select at least one skill', 'warning'); return }
 
   const op = normalizeOperation({
     id: editingOperationId || genId('op-'),
     name,
     type,
-    defaultDuration: time,
     skills,
     qualityCheck: qc,
     active: true
@@ -122,7 +118,7 @@ function openOperationModal(op = null) {
   document.getElementById('operation-modal-title').textContent = op ? 'Edit Operation' : 'Add New Operation'
   document.getElementById('operation-name').value = op?.name || ''
   document.getElementById('operation-type').value = op?.type || 'General'
-  document.getElementById('operation-time').value = Number(op?.defaultDuration || 0) || 30
+  // Removed time input - duration will be station-specific
   document.getElementById('operation-qc').checked = Boolean(op?.qualityCheck)
   overlay.style.display = 'block'
   // for skill selection, store selected internally and render
@@ -136,7 +132,7 @@ async function populateOperationSkillsBox() {
   if (!box) return
   box.innerHTML = '<div style="color:#888;">Loading skills...</div>'
   try {
-    const md = await getMasterData(true)
+    const md = await getMasterData()
     const selected = new Set(
       (document.getElementById('operation-skills-selected')?.value || '')
         .split('|').filter(Boolean)

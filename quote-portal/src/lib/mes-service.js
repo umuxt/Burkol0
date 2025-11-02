@@ -281,27 +281,48 @@ export const WorkOrdersService = {
 // MASTER DATA SERVICE
 // ============================================================================
 
+let _mdCache = null
+function ssRead(key) { try { const raw = sessionStorage.getItem(key); return raw ? JSON.parse(raw) : null } catch { return null } }
+function ssWrite(key, val) { try { sessionStorage.setItem(key, JSON.stringify(val)) } catch {} }
+function ssClear(key) { try { sessionStorage.removeItem(key) } catch {} }
+function isReload() {
+  try {
+    const nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0]
+    if (nav) return nav.type === 'reload'
+    const legacy = performance.navigation && performance.navigation.type
+    return legacy === 1
+  } catch { return false }
+}
+let _reloadForcedMasterReact = false
+const MD_CHANGED_EVENT = 'master-data:changed'
+const MD_INVALIDATED_EVENT = 'master-data:invalidated'
+
 export const MasterDataService = {
-  // Get master data (skills, operation types)
-  async getMasterData() {
+  // Get master data (skills, operation types) with caching
+  async getMasterData(force = false) {
     try {
-      const response = await fetchWithRetry(`${API_BASE}/mes/master-data`, {
-        headers: withAuth()
-      })
-      
+      const shouldForce = force || (isReload() && !_reloadForcedMasterReact)
+      if (!shouldForce && _mdCache) return _mdCache
+      if (!shouldForce && !_mdCache) {
+        const persisted = ssRead('react_mes_master_data_cache')
+        if (persisted) { _mdCache = persisted; return _mdCache }
+      }
+      const response = await fetchWithRetry(`${API_BASE}/mes/master-data`, { headers: withAuth() })
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.message || `HTTP ${response.status}`)
       }
-      
-      return await response.json()
+      _mdCache = await response.json()
+      ssWrite('react_mes_master_data_cache', _mdCache)
+      if (isReload()) _reloadForcedMasterReact = true
+      return _mdCache
     } catch (error) {
       console.error('❌ Error fetching master data:', error)
       throw error
     }
   },
 
-  // Update master data
+  // Update master data and update cache + broadcast
   async setMasterData(masterData) {
     try {
       const response = await fetchWithRetry(`${API_BASE}/mes/master-data`, {
@@ -309,19 +330,37 @@ export const MasterDataService = {
         headers: withAuth(),
         body: JSON.stringify(masterData)
       })
-      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
         throw new Error(errorData.message || `HTTP ${response.status}`)
       }
-      
-      return await response.json()
+      // Backend returns { success: true }; keep client cache in sync using the payload or refetch if needed
+      try { await response.json().catch(() => ({})) } catch {}
+      _mdCache = masterData
+      ssWrite('react_mes_master_data_cache', _mdCache)
+      try { window.dispatchEvent(new CustomEvent(MD_CHANGED_EVENT, { detail: { source: 'react' } })) } catch {}
+      return _mdCache
     } catch (error) {
       console.error('❌ Error updating master data:', error)
       throw error
     }
+  },
+
+  invalidateCache() {
+    _mdCache = null
+    ssClear('react_mes_master_data_cache')
+    try { window.dispatchEvent(new CustomEvent(MD_INVALIDATED_EVENT, { detail: { source: 'react' } })) } catch {}
   }
 }
+
+// Listen cross-context events to keep cache in sync
+try {
+  window.addEventListener(MD_INVALIDATED_EVENT, () => { _mdCache = null })
+  window.addEventListener(MD_CHANGED_EVENT, async () => {
+    // Minimal strategy: invalidate, consumers can refetch via hook
+    _mdCache = null
+  })
+} catch {}
 
 // ============================================================================
 // MES SERVICE - Combined Interface
@@ -332,53 +371,5 @@ export const MESService = {
   ...WorkersService, 
   ...StationsService,
   ...WorkOrdersService,
-  ...MasterDataService,
-
-  // Polling functionality for real-time updates
-  async startPolling(callbacks = {}, interval = 5000) {
-    const poll = async () => {
-      try {
-        if (callbacks.onOperations) {
-          const operations = await this.getOperations()
-          callbacks.onOperations(operations)
-        }
-        
-        if (callbacks.onWorkers) {
-          const workers = await this.getWorkers()
-          callbacks.onWorkers(workers)
-        }
-        
-        if (callbacks.onStations) {
-          const stations = await this.getStations()
-          callbacks.onStations(stations)
-        }
-        
-        if (callbacks.onWorkOrders) {
-          const workOrders = await this.getWorkOrders()
-          callbacks.onWorkOrders(workOrders)
-        }
-        
-        if (callbacks.onMasterData) {
-          const masterData = await this.getMasterData()
-          callbacks.onMasterData(masterData)
-        }
-      } catch (error) {
-        console.error('❌ Polling error:', error)
-        if (callbacks.onError) {
-          callbacks.onError(error)
-        }
-      }
-    }
-
-    // Initial load
-    await poll()
-
-    // Set up polling
-    const pollId = setInterval(poll, interval)
-    
-    return () => {
-      clearInterval(pollId)
-      console.log('🔴 MES polling stopped')
-    }
-  }
+  ...MasterDataService
 }

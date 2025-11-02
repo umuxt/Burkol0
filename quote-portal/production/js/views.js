@@ -156,25 +156,25 @@ export function generateWorkerPanel() {
 
 export function generateSettings() {
   return `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Master Data</h1>
-      <p style="color: var(--muted-foreground);">System configuration and setup</p>
+    <div style="margin-bottom: 16px;">
+      <h1 style="font-size: 24px; font-weight: 700; margin-bottom: 4px;">Master Data</h1>
+      <p style="color: var(--muted-foreground); font-size: 0.9em;">System configuration and setup</p>
     </div>
     <div class="grid grid-cols-2">
-      <div class="card"><div class="card-header"><div class="card-title">Skills Management</div><div class="card-description">Add, rename, or remove skills (stored in Firebase)</div></div><div class="card-content">
+      <div class="card"><div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 1.1em;">Skills Management</div><div class="card-description" style="font-size: 0.9em;">Add, rename, or remove skills (stored in Firebase)</div></div><div class="card-content" style="padding: 8px 12px;">
         <div id="skills-management"></div>
       </div></div>
-      <div class="card"><div class="card-header"><div class="card-title">Production Settings</div><div class="card-description">Configure production parameters</div></div><div class="card-content">
-        <div style="margin-bottom: 16px;">
-          <label style="display: block; margin-bottom: 8px; font-weight: 500;">Default Batch Size</label>
-          <input type="number" value="100" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;" />
+      <div class="card"><div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 1.1em;">Production Settings</div><div class="card-description" style="font-size: 0.9em;">Configure production parameters</div></div><div class="card-content" style="padding: 8px 12px;">
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 0.9em;">Default Batch Size</label>
+          <input type="number" value="100" style="width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.9em;" />
         </div>
-        <div style="margin-bottom: 16px;">
-          <label style="display: block; margin-bottom: 8px; font-weight: 500;">Auto-Assignment</label>
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 0.9em;">Auto-Assignment</label>
           <div style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" checked /><span>Enable automatic worker assignment</span></div>
         </div>
-        <div style="margin-bottom: 16px;">
-          <label style="display: block; margin-bottom: 8px; font-weight: 500;">Quality Check</label>
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 0.9em;">Quality Check</label>
           <div style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" checked /><span>Require quality checks for all operations</span></div>
         </div>
       </div></div>
@@ -217,7 +217,7 @@ export function generateWorkers() {
           </div>
           <div style="margin-bottom: 16px;">
             <label style="display: block; margin-bottom: 8px; font-weight: 500;">Skills</label>
-            <input type="text" id="worker-skills" placeholder="Comma separated (e.g. Welding, Cutting)" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;" />
+            <select id="worker-skills" multiple></select>
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div style="margin-bottom: 16px;">
@@ -276,10 +276,6 @@ export function generateOperations() {
             <input id=\"operation-type\" type=\"text\" placeholder=\"e.g. Welding, Machining\" style=\"width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px;\" />
           </div>
           <div>
-            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Default Time (min)</label>
-            <input id=\"operation-time\" type=\"number\" min=\"1\" value=\"30\" style=\"width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px;\" />
-          </div>
-          <div>
             <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Skills</label>
             <div id=\"operation-skills-box\"></div>
           </div>
@@ -299,7 +295,32 @@ export function generateOperations() {
 
 export function generateStations() {
   return `
-    <div style=\"margin-bottom: 24px;\">\n      <h1 style=\"font-size: 32px; font-weight: 700; margin-bottom: 8px;\">Stations Management</h1>\n      <p style=\"color: var(--muted-foreground);\">Configure production stations and equipment</p>\n    </div>\n    <div style=\"margin-bottom: 24px;\">\n      <button onclick=\"openAddStationModal()\" style=\"background: var(--primary); color: var(--primary-foreground); padding: 12px 24px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;\">+ Add Station</button>\n    </div>\n    <div class=\"grid grid-cols-2 gap-6\" id=\"stations-list\"></div>\n\n    <div id=\"station-modal\" style=\"display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;\" onclick=\"closeStationModal(event)\">\n      <div style=\"position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 24px; width: 640px; max-height: 80vh; overflow-y: auto;\" onclick=\"event.stopPropagation()\">\n        <h3 id=\"station-modal-title\" style=\"margin: 0 0 20px 0;\">Add New Station</h3>\n        <div class=\"grid grid-cols-2\" style=\"display:grid; grid-template-columns: 1fr 1fr; gap: 12px;\">\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Name</label>\n            <input type=\"text\" id=\"station-name\" placeholder=\"Station name\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\" />\n          </div>\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Status</label>\n            <select id=\"station-status\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\">\n              <option value=\"active\">active</option>\n              <option value=\"maintenance\">maintenance</option>\n              <option value=\"inactive\">inactive</option>\n            </select>\n          </div>\n          <div style=\"grid-column: 1 / span 2;\">\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Description</label>\n            <textarea id=\"station-description\" placeholder=\"Description\" style=\"width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; min-height:60px;\"></textarea>\n          </div>\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Location</label>\n            <input type=\"text\" id=\"station-location\" placeholder=\"e.g. Line A\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\" />\n          </div>\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Sub-skills (station specific)</label>\n            <input type=\"text\" id=\"station-subskills\" placeholder=\"Comma separated\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\" />\n          </div>\n          <div style=\"grid-column: 1 / span 2;\">\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Supported Operations</label>\n            <div id=\"station-operations\" style=\"display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding:8px; border:1px solid var(--border); border-radius:6px; background:#fff;\"></div>\n          </div>\n        </div>\n        <div style=\"margin-top: 20px; display: flex; gap: 8px; justify-content: flex-end;\">\n          <button onclick=\"closeStationModal()\" style=\"padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;\">Cancel</button>\n          <button onclick=\"saveStation()\" style=\"padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;\">Save</button>\n        </div>\n      </div>\n    </div>\n  `;
+    <div style=\"margin-bottom: 24px;\">\n      <h1 style=\"font-size: 32px; font-weight: 700; margin-bottom: 8px;\">Stations Management</h1>\n      <p style=\"color: var(--muted-foreground);\">Configure production stations and equipment</p>\n    </div>\n    <div style=\"margin-bottom: 24px;\">\n      <button onclick=\"openAddStationModal()\" style=\"background: var(--primary); color: var(--primary-foreground); padding: 12px 24px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;\">+ Add Station</button>\n    </div>\n    
+    <!-- Stations Table with Tabs -->
+    <section class=\"materials-table\">
+      <!-- Operation Type Tabs -->
+      <div class=\"materials-tabs\" id=\"stations-tabs\">
+        <!-- Tabs will be populated by renderStations() -->
+      </div>
+      
+      <!-- Stations Table -->
+      <div class=\"table-container\">
+        <table id=\"stations-table\">
+          <thead>
+            <tr>
+              <th>Station Name</th>
+              <th>Status</th>
+              <th>Location</th>
+              <th>Operations</th>
+              <th>Skills</th>
+            </tr>
+          </thead>
+          <tbody id=\"stations-list\">
+            <!-- Station rows will be populated by renderStations() -->
+          </tbody>
+        </table>
+      </div>
+    </section>\n\n    <div id=\"station-modal\" style=\"display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;\" onclick=\"closeStationModal(event)\">\n      <div style=\"position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 24px; width: 640px; max-height: 80vh; overflow-y: auto;\" onclick=\"event.stopPropagation()\">\n        <h3 id=\"station-modal-title\" style=\"margin: 0 0 20px 0;\">Add New Station</h3>\n        <div class=\"grid grid-cols-2\" style=\"display:grid; grid-template-columns: 1fr 1fr; gap: 12px;\">\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Name</label>\n            <input type=\"text\" id=\"station-name\" placeholder=\"Station name\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\" />\n          </div>\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Status</label>\n            <select id=\"station-status\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\">\n              <option value=\"active\">active</option>\n              <option value=\"maintenance\">maintenance</option>\n              <option value=\"inactive\">inactive</option>\n            </select>\n          </div>\n          <div style=\"grid-column: 1 / span 2;\">\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Description</label>\n            <textarea id=\"station-description\" placeholder=\"Description\" style=\"width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; min-height:60px;\"></textarea>\n          </div>\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Location</label>\n            <input type=\"text\" id=\"station-location\" placeholder=\"e.g. Line A\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\" />\n          </div>\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Sub-skills (station specific)</label>\n            <input type=\"text\" id=\"station-subskills\" placeholder=\"Comma separated\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\" />\n          </div>\n          <div style=\"grid-column: 1 / span 2;\">\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Supported Operations</label>\n            <div id=\"station-operations\" style=\"display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding:8px; border:1px solid var(--border); border-radius:6px; background:#fff;\"></div>\n          </div>\n        </div>\n        <div style=\"margin-top: 20px; display: flex; gap: 8px; justify-content: space-between;\">\n          <div>\n            <button id=\"station-delete-btn\" onclick=\"deleteStationFromModal()\" style=\"padding: 8px 16px; background: white; border: 1px solid #ef4444; color: #ef4444; border-radius: 4px; cursor: pointer; display: none;\">Delete Station</button>\n          </div>\n          <div style=\"display: flex; gap: 8px;\">\n            <button onclick=\"closeStationModal()\" style=\"padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;\">Cancel</button>\n            <button onclick=\"saveStation()\" style=\"padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;\">Save</button>\n          </div>\n        </div>\n      </div>\n    </div>\n  `;
 }
 
 export function generatePlanDesigner() {
@@ -355,9 +376,9 @@ export function generateTemplates() {
     </div>
     <div style="margin-bottom: 24px;"><button onclick="alert('Create Template functionality will be implemented')" style="background: var(--primary); color: var(--primary-foreground); padding: 12px 24px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Create Template</button></div>
     <div class="grid grid-cols-3">
-      <div class="card"><div class="card-header"><div class="card-title">Standard Bracket Production</div><div class="card-description">Standard metal bracket manufacturing</div></div><div class="card-content"><div style="margin-bottom: 12px;"><strong>Operations:</strong> 3</div><div style="margin-bottom: 12px;"><strong>Duration:</strong> 90 min</div><div style="margin-bottom: 12px;"><strong>Skills Required:</strong><div><span class="badge badge-outline">Cutting</span><span class="badge badge-outline">Welding</span></div></div><div style="margin-top: 16px;"><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; margin-right: 8px; cursor: pointer;">Use Template</button><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Edit</button></div></div></div>
-      <div class="card"><div class="card-header"><div class="card-title">Custom Assembly Process</div><div class="card-description">Multi-component assembly workflow</div></div><div class="card-content"><div style="margin-bottom: 12px;"><strong>Operations:</strong> 5</div><div style="margin-bottom: 12px;"><strong>Duration:</strong> 150 min</div><div style="margin-bottom: 12px;"><strong>Skills Required:</strong><div><span class="badge badge-outline">Assembly</span><span class="badge badge-outline">Quality Control</span></div></div><div style="margin-top: 16px;"><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; margin-right: 8px; cursor: pointer;">Use Template</button><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Edit</button></div></div></div>
-      <div class="card"><div class="card-header"><div class="card-title">Quality Inspection</div><div class="card-description">Comprehensive quality check process</div></div><div class="card-content"><div style="margin-bottom: 12px;"><strong>Operations:</strong> 2</div><div style="margin-bottom: 12px;"><strong>Duration:</strong> 30 min</div><div style="margin-bottom: 12px;"><strong>Skills Required:</strong><div><span class="badge badge-outline">Quality Control</span></div></div><div style="margin-top: 16px;"><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; margin-right: 8px; cursor: pointer;">Use Template</button><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Edit</button></div></div></div>
+      <div class="card"><div class="card-header"><div class="card-title">Standard Bracket Production</div><div class="card-description">Standard metal bracket manufacturing</div></div><div class="card-content"><div style="margin-bottom: 12px;"><strong>Operations:</strong> 3</div><div style="margin-bottom: 12px;"><strong>Duration:</strong> Station'a bağlı</div><div style="margin-bottom: 12px;"><strong>Skills Required:</strong><div><span class="badge badge-outline">Cutting</span><span class="badge badge-outline">Welding</span></div></div><div style="margin-top: 16px;"><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; margin-right: 8px; cursor: pointer;">Use Template</button><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Edit</button></div></div></div>
+      <div class="card"><div class="card-header"><div class="card-title">Custom Assembly Process</div><div class="card-description">Multi-component assembly workflow</div></div><div class="card-content"><div style="margin-bottom: 12px;"><strong>Operations:</strong> 5</div><div style="margin-bottom: 12px;"><strong>Duration:</strong> Station'a bağlı</div><div style="margin-bottom: 12px;"><strong>Skills Required:</strong><div><span class="badge badge-outline">Assembly</span><span class="badge badge-outline">Quality Control</span></div></div><div style="margin-top: 16px;"><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; margin-right: 8px; cursor: pointer;">Use Template</button><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Edit</button></div></div></div>
+      <div class="card"><div class="card-header"><div class="card-title">Quality Inspection</div><div class="card-description">Comprehensive quality check process</div></div><div class="card-content"><div style="margin-bottom: 12px;"><strong>Operations:</strong> 2</div><div style="margin-bottom: 12px;"><strong>Duration:</strong> Station'a bağlı</div><div style="margin-bottom: 12px;"><strong>Skills Required:</strong><div><span class="badge badge-outline">Quality Control</span></div></div><div style="margin-top: 16px;"><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; margin-right: 8px; cursor: pointer;">Use Template</button><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Edit</button></div></div></div>
     </div>
   `;
 }

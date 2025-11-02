@@ -37,7 +37,6 @@ export const categoriesService = {
       }
       
       const categories = await response.json()
-      console.log('✅ Categories fetch successful:', categories.length, 'items')
       return categories
     } catch (error) {
       console.warn('❌ Categories fetch error (returning empty list):', error?.message || error)
@@ -60,7 +59,6 @@ export const categoriesService = {
       }
       
       const newCategory = await response.json()
-      console.log('✅ Category added:', newCategory.id)
       return newCategory
     } catch (error) {
       console.error('❌ Category add error:', error)
@@ -82,7 +80,6 @@ export const categoriesService = {
       }
       
       const updatedCategory = await response.json()
-      console.log('✅ Category updated:', categoryId)
       return updatedCategory
     } catch (error) {
       console.error('❌ Category update error:', error)
@@ -109,7 +106,6 @@ export const categoriesService = {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       
-      console.log('✅ Category deleted:', categoryId, { updateRemoved });
       return true;
     } catch (error) {
       console.error('❌ Category delete error:', error);

@@ -41,7 +41,7 @@ export function handleCanvasDropBackend(event) {
     operationId: op.id,
     name: op.name,
     type: op.type || 'General',
-    time: Number(op.defaultDuration || 0) || 30,
+    time: 30, // Default planning time, will be overridden by station assignment
     skills: Array.isArray(op.skills) ? op.skills : [],
     x: Math.max(0, x),
     y: Math.max(0, y),
@@ -63,7 +63,7 @@ export async function editNodeBackend(nodeId) {
   let stations = []
   try {
     workers = await getWorkers(true)
-    stations = await getStations(true)
+    stations = await getStations()
   } catch (e) {
     console.error('editNodeBackend data load failed', e)
   }
@@ -95,4 +95,3 @@ function escapeHtml(str) {
     .replace(/\"/g, '&quot;')
     .replace(/'/g, '&#039;')
 }
-

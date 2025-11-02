@@ -510,13 +510,6 @@ function appendSessionActivity(sessionId, activity) {
   ensureReady()
   if (!sessionId || !activity) return null
 
-  console.log('DEBUG appendSessionActivity called:', {
-    sessionId,
-    activityType: activity.type,
-    activityTitle: activity.title,
-    currentSessionsCount: state.sessions.length
-  })
-
   const entry = normalizeSessionActivity(activity)
   if (!entry) return null
 
@@ -546,13 +539,6 @@ function appendSessionActivity(sessionId, activity) {
     activityLog: updatedLog,
     lastActivityAt: entry.timestamp
   }
-
-  console.log('DEBUG: Updating session in memory:', {
-    sessionId,
-    oldActivityCount: session.activityLog?.length || 0,
-    newActivityCount: updatedLog.length,
-    latestActivity: entry.title
-  })
 
   state.sessions[index] = updatedSession
 

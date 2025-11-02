@@ -1,10 +1,11 @@
 // Station management backed by backend API using mesApi
-import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill } from './mesApi.js'
+import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill, invalidateStationsCache } from './mesApi.js'
 import { showToast } from './ui.js'
 
 let stationsState = []
 let operationsCache = []
 export let editingStationId = null
+let activeOperationTypeTab = 'all' // Add active tab tracking
 
 export async function initializeStationsUI() {
   await loadStationsAndRender()
@@ -15,7 +16,7 @@ async function loadStationsAndRender() {
   if (list) list.innerHTML = '<div style="padding:12px;color:#888;">Loading stations...</div>'
   try {
     operationsCache = await getOperations(true)
-    stationsState = await getStations(true)
+    stationsState = await getStations()
     renderStations()
   } catch (e) {
     console.error('Stations load error:', e)
@@ -25,39 +26,136 @@ async function loadStationsAndRender() {
 }
 
 function renderStations() {
-  const list = document.getElementById('stations-list')
-  if (!list) return
+  const tabsContainer = document.getElementById('stations-tabs')
+  const tableBody = document.getElementById('stations-list')
+  
+  if (!tabsContainer || !tableBody) return
+  
   if (!stationsState.length) {
-    list.innerHTML = '<div style="padding:12px;color:#666;">No stations yet. Add a station.</div>'
+    tableBody.innerHTML = '<tr><td colspan="5" style="padding:20px;color:#666;text-align:center;">No stations yet. Add a station.</td></tr>'
+    tabsContainer.innerHTML = ''
     return
   }
+  
+  // Create operation map for quick lookup
   const opMap = new Map(operationsCache.map(o => [o.id, o]))
-  list.innerHTML = stationsState.map(station => {
+  
+  // Get all unique operation types from stations' operations
+  const allOperationTypes = new Set()
+  stationsState.forEach(station => {
+    (station.operationIds || []).forEach(opId => {
+      const operation = opMap.get(opId)
+      if (operation && operation.type) {
+        allOperationTypes.add(operation.type)
+      }
+    })
+  })
+  
+  // Convert to sorted array for consistent ordering
+  const operationTypesArray = Array.from(allOperationTypes).sort()
+  
+  // Filter stations based on active tab
+  const filteredStations = activeOperationTypeTab === 'all' 
+    ? stationsState 
+    : stationsState.filter(station => {
+        const stationOperationTypes = (station.operationIds || [])
+          .map(opId => opMap.get(opId)?.type)
+          .filter(Boolean)
+        return stationOperationTypes.includes(activeOperationTypeTab)
+      })
+  
+  // Create tabs
+  const tabs = [
+    { id: 'all', label: 'Tümünü Göster', count: stationsState.length },
+    ...operationTypesArray.map(type => ({
+      id: type,
+      label: type,
+      count: stationsState.filter(station => {
+        const stationOperationTypes = (station.operationIds || [])
+          .map(opId => opMap.get(opId)?.type)
+          .filter(Boolean)
+        return stationOperationTypes.includes(type)
+      }).length
+    }))
+  ]
+  
+  // Render tabs
+  tabsContainer.innerHTML = tabs.map(tab => `
+    <button 
+      class="tab-button ${activeOperationTypeTab === tab.id ? 'active' : ''}"
+      onclick="setActiveStationTab('${tab.id}')"
+    >
+      ${escapeHtml(tab.label)}
+      <span class="tab-count">(${tab.count})</span>
+    </button>
+  `).join('')
+  
+  // Render table rows
+  tableBody.innerHTML = filteredStations.map(station => {
     const statusBadge = station.status === 'active' ? 'success' : (station.status === 'maintenance' ? 'warning' : 'default')
     const inherited = computeStationInheritedSkills(station.operationIds || [], operationsCache)
     const effective = Array.from(new Set([...(station.subSkills||[]), ...inherited]))
     const opsLabels = (station.operationIds || []).map(id => opMap.get(id)?.name || id)
+    
+    // Use description as tooltip for the entire row
+    const description = station.description || ''
+    
     return `
-      <div class="card">
-        <div class="card-header"><div class="card-title">${escapeHtml(station.name || '')}</div><div class="card-description">${escapeHtml(station.description || '')}</div></div>
-        <div class="card-content">
-          <div style="margin-bottom: 8px;"><strong>Status:</strong> <span class="badge badge-${statusBadge}">${escapeHtml((station.status||'').toString())}</span></div>
-          <div style="margin-bottom: 8px;"><strong>Operations:</strong> ${opsLabels.map(n=>`<span class="badge badge-outline" style="margin-right:4px;">${escapeHtml(n)}</span>`).join('')}</div>
-          <div style="margin-bottom: 8px;"><strong>Skills (heritable + sub):</strong> ${effective.map(s=>`<span class="badge badge-outline" style="margin-right:4px;">${escapeHtml(s)}</span>`).join('')}</div>
-          <div style="display:flex; gap:8px;">
-            <button onclick="editStation('${station.id}')" style="padding:6px 12px; background:white; border:1px solid var(--border); border-radius:6px; cursor:pointer;">Edit</button>
-            <button onclick="toggleStationStatus('${station.id}')" style="padding:6px 12px; background:white; border:1px solid var(--border); border-radius:6px; cursor:pointer;">${station.status==='active'?'Set Maintenance':'Set Active'}</button>
-            <button onclick="deleteStation('${station.id}')" style="padding:6px 12px; background:white; border:1px solid #ef4444; color:#ef4444; border-radius:6px; cursor:pointer;">Delete</button>
+      <tr onclick="editStation('${station.id}')" style="cursor: pointer;" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
+        <td>
+          <div style="font-weight: 500;">${escapeHtml(station.name || '')}</div>
+        </td>
+        <td>
+          <span class="badge badge-${statusBadge}" onclick="event.stopPropagation(); toggleStationStatus('${station.id}')" style="cursor: pointer;">${escapeHtml((station.status||'').toString())}</span>
+        </td>
+        <td>
+          ${escapeHtml(station.location || '-')}
+        </td>
+        <td>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            ${opsLabels.slice(0, 3).map(name => 
+              `<span class="badge badge-outline" style="font-size: 0.75rem;">${escapeHtml(name)}</span>`
+            ).join('')}
+            ${opsLabels.length > 3 ? `<span class="badge badge-outline" style="font-size: 0.75rem;">+${opsLabels.length - 3}</span>` : ''}
           </div>
-        </div>
-      </div>`
+        </td>
+        <td>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            ${effective.slice(0, 3).map(skill => 
+              `<span class="badge badge-outline" style="font-size: 0.75rem;">${escapeHtml(skill)}</span>`
+            ).join('')}
+            ${effective.length > 3 ? `<span class="badge badge-outline" style="font-size: 0.75rem;">+${effective.length - 3}</span>` : ''}
+          </div>
+        </td>
+      </tr>`
   }).join('')
+  
+  // Setup fast tooltips by disabling browser default and using our CSS tooltip
+  setTimeout(() => {
+    const stationRows = document.querySelectorAll('#stations-table tbody tr[data-tooltip]')
+    stationRows.forEach(row => {
+      let originalTitle = row.getAttribute('title')
+      
+      row.addEventListener('mouseenter', () => {
+        // Remove title to prevent browser tooltip, our CSS tooltip will show
+        row.removeAttribute('title')
+      })
+      
+      row.addEventListener('mouseleave', () => {
+        // Restore title for accessibility
+        if (originalTitle) {
+          row.setAttribute('title', originalTitle)
+        }
+      })
+    })
+  }, 0)
 }
 
 export function openAddStationModal() {
   editingStationId = null
   fillStationModal({})
   document.getElementById('station-modal-title').textContent = 'Add New Station'
+  document.getElementById('station-delete-btn').style.display = 'none'
   document.getElementById('station-modal').style.display = 'block'
 }
 
@@ -67,6 +165,7 @@ export function editStation(stationId) {
   if (!station) return
   fillStationModal(station)
   document.getElementById('station-modal-title').textContent = 'Edit Station'
+  document.getElementById('station-delete-btn').style.display = 'block'
   document.getElementById('station-modal').style.display = 'block'
 }
 
@@ -93,7 +192,7 @@ async function renderStationSubskillsBox(station) {
   inputHost.replaceWith(container)
   container.innerHTML = '<div style="color:#888;">Loading skills...</div>'
   try {
-    const md = await getMasterData(true)
+    const md = await getMasterData()
     const selected = new Set(Array.isArray(station.subSkills) ? station.subSkills : [])
     container.innerHTML = `
       <div style="display:flex; gap:8px; margin-bottom:8px;">
@@ -183,14 +282,28 @@ export async function deleteStation(stationId) {
     const { API_BASE, withAuth } = await import('../../src/lib/api.js')
     const res = await fetch(`${API_BASE}/api/mes/stations/${encodeURIComponent(stationId)}`, { method: 'DELETE', headers: withAuth() })
     if (!res.ok) throw new Error(`delete_failed ${res.status}`)
-    // Refresh from backend to ensure consistency
-    stationsState = await getStations(true)
+    // Invalidate stations cache and refetch fresh list post-change
+    invalidateStationsCache()
+    stationsState = await getStations()
     renderStations()
     showToast('Station deleted', 'success')
   } catch (e) {
     console.error('Station delete error:', e)
     showToast('Station could not be deleted', 'error')
   }
+}
+
+// Tab filtering function
+export function setActiveStationTab(tabId) {
+  activeOperationTypeTab = tabId
+  renderStations()
+}
+
+// Delete station from modal
+export function deleteStationFromModal() {
+  if (!editingStationId) return
+  deleteStation(editingStationId)
+  document.getElementById('station-modal').style.display = 'none'
 }
 
 function escapeHtml(str) {

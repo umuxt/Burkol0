@@ -2,9 +2,31 @@
 // Uses backend endpoints implemented in server/mesRoutes.js
 import { API_BASE, withAuth } from '../../src/lib/api.js'
 
+// Simple persistent cache helpers (sessionStorage)
+function readCache(key) {
+  try { const raw = sessionStorage.getItem(key); return raw ? JSON.parse(raw) : null } catch { return null }
+}
+function writeCache(key, value) {
+  try { sessionStorage.setItem(key, JSON.stringify(value)) } catch {}
+}
+function clearCache(key) { try { sessionStorage.removeItem(key) } catch {} }
+
+// Detect full page reload (F5)
+function isReload() {
+  try {
+    const nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0]
+    if (nav) return nav.type === 'reload'
+    // Legacy fallback
+    const legacy = performance.navigation && performance.navigation.type
+    return legacy === 1
+  } catch { return false }
+}
+
 let _operationsCache = null
 let _stationsCache = null
 let _workersCache = null
+let _reloadForcedStations = false
+let _reloadForcedMaster = false
 
 export async function getOperations(force = false) {
   if (!force && Array.isArray(_operationsCache)) return _operationsCache
@@ -35,18 +57,27 @@ export function normalizeOperation(op) {
     skills: Array.isArray(op.skills)
       ? op.skills
       : (typeof op.skills === 'string' ? op.skills.split(',').map(s=>s.trim()).filter(Boolean) : []),
-    defaultDuration: Number.isFinite(op.defaultDuration) ? op.defaultDuration : (Number(op.duration) || 30),
     qualityCheck: Boolean(op.qualityCheck),
     active: op.active !== false
   }
 }
 
+const STATIONS_CHANGED_EVENT = 'stations:changed'
+const STATIONS_INVALIDATED_EVENT = 'stations:invalidated'
+
 export async function getStations(force = false) {
-  if (!force && Array.isArray(_stationsCache)) return _stationsCache
+  const shouldForce = force || (isReload() && !_reloadForcedStations)
+  if (!shouldForce && Array.isArray(_stationsCache)) return _stationsCache
+  if (!shouldForce && !_stationsCache) {
+    const persisted = readCache('mes_stations_cache')
+    if (Array.isArray(persisted)) { _stationsCache = persisted; return _stationsCache }
+  }
   const res = await fetch(`${API_BASE}/api/mes/stations`, { headers: withAuth() })
   if (!res.ok) throw new Error(`stations_load_failed ${res.status}`)
   const data = await res.json()
   _stationsCache = Array.isArray(data?.stations) ? data.stations : []
+  writeCache('mes_stations_cache', _stationsCache)
+  if (isReload()) _reloadForcedStations = true
   return _stationsCache
 }
 
@@ -60,6 +91,8 @@ export async function saveStations(stations) {
   })
   if (!res.ok) throw new Error(`stations_save_failed ${res.status}`)
   _stationsCache = payload.stations
+  writeCache('mes_stations_cache', _stationsCache)
+  try { window.dispatchEvent(new CustomEvent(STATIONS_CHANGED_EVENT, { detail: { source: 'production' } })) } catch {}
   return true
 }
 
@@ -112,13 +145,23 @@ export function genId(prefix = '') { return `${prefix}${Math.random().toString(3
 
 // Master Data (skills, operation types)
 let _masterDataCache = null
+const MD_CHANGED_EVENT = 'master-data:changed'
+const MD_INVALIDATED_EVENT = 'master-data:invalidated'
+
 export async function getMasterData(force = false) {
-  if (!force && _masterDataCache) return _masterDataCache
+  const shouldForce = force || (isReload() && !_reloadForcedMaster)
+  if (!shouldForce && _masterDataCache) return _masterDataCache
+  if (!shouldForce && !_masterDataCache) {
+    const persisted = readCache('mes_master_data_cache')
+    if (persisted && typeof persisted === 'object') { _masterDataCache = persisted; return _masterDataCache }
+  }
   const res = await fetch(`${API_BASE}/api/mes/master-data`, { headers: withAuth() })
   if (!res.ok) throw new Error(`master_data_load_failed ${res.status}`)
   const data = await res.json()
   const normalized = normalizeMasterData(data)
   _masterDataCache = normalized
+  writeCache('mes_master_data_cache', _masterDataCache)
+  if (isReload()) _reloadForcedMaster = true
   return _masterDataCache
 }
 
@@ -134,6 +177,8 @@ export async function saveMasterData({ skills, operationTypes }) {
   })
   if (!res.ok) throw new Error(`master_data_save_failed ${res.status}`)
   _masterDataCache = normalizeMasterData(body)
+  writeCache('mes_master_data_cache', _masterDataCache)
+  try { window.dispatchEvent(new CustomEvent(MD_CHANGED_EVENT, { detail: { source: 'production' } })) } catch {}
   return _masterDataCache
 }
 
@@ -160,7 +205,7 @@ export function nextSkillCode(skills) {
 }
 
 export async function addSkill(name) {
-  const md = await getMasterData(true)
+  const md = await getMasterData()
   const code = nextSkillCode(md.skills)
   const skill = { id: code, name: String(name||'').trim() }
   if (!skill.name) throw new Error('skill_name_required')
@@ -169,3 +214,14 @@ export async function addSkill(name) {
   return skill
 }
 
+export function invalidateMasterDataCache() {
+  _masterDataCache = null
+  clearCache('mes_master_data_cache')
+  try { window.dispatchEvent(new CustomEvent(MD_INVALIDATED_EVENT, { detail: { source: 'production' } })) } catch {}
+}
+
+export function invalidateStationsCache() {
+  _stationsCache = null
+  clearCache('mes_stations_cache')
+  try { window.dispatchEvent(new CustomEvent(STATIONS_INVALIDATED_EVENT, { detail: { source: 'production' } })) } catch {}
+}

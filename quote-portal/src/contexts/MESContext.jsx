@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, ReactNode } from "react";
 import { MESService } from '../lib/mes-service.js';
 
 /**
@@ -179,7 +179,7 @@ export const MESProvider: React.FC<MESProviderProps> = ({ children }) => {
   const [workOrders, setWorkOrdersState] = useState<WorkOrder[]>([]);
   
   // UI States  
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // ============================================================================
@@ -221,30 +221,7 @@ export const MESProvider: React.FC<MESProviderProps> = ({ children }) => {
     }
   };
 
-  // Initial data load and setup polling
-  useEffect(() => {
-    loadAllData();
-    
-    // Setup polling for real-time updates (every 10 seconds)
-    const stopPolling = MESService.startPolling({
-      onOperations: setOperationsState,
-      onWorkers: setWorkersState,
-      onStations: setStationsState,
-      onWorkOrders: setWorkOrdersState,
-      onMasterData: (data) => {
-        setAvailableSkillsState(data.availableSkills || []);
-        setAvailableOperationTypesState(data.availableOperationTypes || []);
-      },
-      onError: (error) => {
-        console.error('❌ Polling error:', error);
-        setError(error.message);
-      }
-    }, 10000);
-
-    return () => {
-      stopPolling();
-    };
-  }, []);
+  // Note: Automatic data load and polling removed. Consumers should call refreshData() explicitly when needed.
 
   // ============================================================================
   // CRUD OPERATIONS - Backend API calls

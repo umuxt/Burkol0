@@ -8,19 +8,17 @@ let LOCAL_STORAGE_MODE = false // Global flag for localStorage fallback mode
 function initializeSampleData() {
   // Disabled - no automatic sample data initialization
   // Only Backend API data should be shown in quote table
-  console.log('🔧 DEBUG: Sample data initialization disabled - using Backend API only')
 }
 
 function lsLoad() {
   try { const raw = localStorage.getItem(LS_KEY); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : [] } catch { return [] }
 }
 function lsSave(arr) { localStorage.setItem(LS_KEY, JSON.stringify(arr)) }
-function lsClear() { localStorage.removeItem(LS_KEY); console.log('🔧 DEBUG: Cleared localStorage quotes') }
+function lsClear() { localStorage.removeItem(LS_KEY) }
 function lsAdd(q) { const arr = lsLoad(); arr.unshift(q); lsSave(arr) }
 function lsUpdate(id, patch) { 
   const arr = lsLoad().map(x => x.id === id ? { ...x, ...patch } : x); 
   lsSave(arr);
-  console.log('🔧 DEBUG: Updated localStorage quote:', id, 'with patch:', patch);
   return arr.find(x => x.id === id);
 }
 function lsDelete(id) { const arr = lsLoad().filter(x => x.id !== id); lsSave(arr) }
@@ -228,29 +226,25 @@ export const API = {
       // Add cache busting to ensure fresh data
       const cacheBuster = `?_t=${Date.now()}`
       const url = `/api/quotes${cacheBuster}`
-      console.log('🔧 DEBUG: API.listQuotes fetching from:', url)
       const res = await fetchWithTimeout(url, { headers: withAuth() }, 2000) // Shorter timeout for quick fallback
       if (res.status === 401) throw new Error('unauthorized')
       if (!res.ok) throw new Error('list failed')
       const backendQuotes = await res.json()
-      console.log('🔧 DEBUG: API.listQuotes received from Backend API:', backendQuotes.length, 'quotes')
       
       // Only return Backend API quotes - no localStorage merging
       return backendQuotes
     } catch (e) {
-      console.error('🔧 DEBUG: API.listQuotes error:', e)
+      console.error('Backend API connection failed:', e)
       // If unauthorized, bubble up to show login
       if ((e && e.message && /401|unauthorized/i.test(e.message))) throw e
       
       // For other errors, return empty array instead of localStorage fallback
-      console.log('🔧 DEBUG: Backend API connection failed, returning empty array')
       return []
     }
   },
   async applyNewPrice(id) {
     // Check localStorage mode first
     if (LOCAL_STORAGE_MODE) {
-      console.log('🔧 DEBUG: Using localStorage mode for applyNewPrice')
       // Simulate price update in localStorage
       const quotes = lsLoad()
       const quote = quotes.find(q => q.id === id)
@@ -339,29 +333,21 @@ export const API = {
     return await res.json()
   },
   async createQuote(payload) {
-    console.log('🔧 DEBUG: createQuote called with:', payload)
-    console.log('🔧 DEBUG: API_BASE:', API_BASE)
-    
     // Build correct URL - if API_BASE is already '/api', don't duplicate
     const url = API_BASE.endsWith('/api') ? `${API_BASE}/quotes` : `${API_BASE}/api/quotes`
-    console.log('🔧 DEBUG: Full URL:', url)
     
     try {
       const res = await fetchWithTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      console.log('🔧 DEBUG: Response status:', res.status)
-      console.log('🔧 DEBUG: Response ok:', res.ok)
       
       if (!res.ok) {
         const errorText = await res.text()
-        console.log('🔧 DEBUG: Error response:', errorText)
         throw new Error(`create failed: ${res.status} - ${errorText}`)
       }
       
       const result = await res.json()
-      console.log('🔧 DEBUG: Success response:', result)
       return result
     } catch (e) {
-      console.log('🔧 DEBUG: createQuote error, falling back to localStorage:', e.message)
+      // Fall back to localStorage on error
       lsAdd(payload)
       return { success: true, id: payload.id, local: true }
     }
@@ -590,19 +576,12 @@ export const API = {
   },
   async listSessions() {
     const token = getToken()
-    console.log('🔍 listSessions debug:', { 
-      API_BASE, 
-      token: token ? token.slice(0, 10) + '...' : 'NO_TOKEN',
-      url: `${API_BASE}/api/admin/sessions`
-    })
     
     let res = await fetchWithTimeout(`${API_BASE}/api/admin/sessions`, { headers: withAuth() })
-    console.log('🔍 listSessions response:', { status: res.status, ok: res.ok })
 
     // Dev fallback: if unauthorized, retry once with dev token
     if (res.status === 401 && (window?.location?.hostname === 'localhost' || window?.location?.hostname?.startsWith('127.') || window?.location?.hostname?.startsWith('192.') )) {
       try {
-        console.log('🔧 listSessions: retrying with dev token fallback')
         res = await fetchWithTimeout(`${API_BASE}/api/admin/sessions`, { headers: { Authorization: 'Bearer dev-admin-token' } })
       } catch (e) {}
     }
@@ -646,7 +625,9 @@ export const API = {
         body: JSON.stringify(settings)
       })
       if (!res.ok) throw new Error('save settings failed')
-      return await res.json()
+      const out = await res.json()
+      try { window.dispatchEvent(new CustomEvent('master-data:invalidated', { detail: { source: 'settings' } })) } catch {}
+      return out
     } catch (e) {
       throw e
     }
@@ -682,11 +663,8 @@ export const API = {
   },
 
   async saveFormConfig(formConfig) {
-    console.log('🔧 DEBUG: API.saveFormConfig called with:', formConfig)
     try {
       const url = `${API_BASE}/api/form-config`
-      console.log('🔧 DEBUG: Sending request to:', url)
-      console.log('🔧 DEBUG: Headers:', withAuth({ 'Content-Type': 'application/json' }))
       
       const res = await fetchWithTimeout(url, { 
         method: 'POST', 
@@ -694,20 +672,15 @@ export const API = {
         body: JSON.stringify(formConfig)
       })
       
-      console.log('🔧 DEBUG: Response status:', res.status)
-      console.log('🔧 DEBUG: Response ok:', res.ok)
-      
       if (!res.ok) {
         const errorText = await res.text()
-        console.log('🔧 DEBUG: Error response text:', errorText)
         throw new Error(`save form config failed: ${res.status} - ${errorText}`)
       }
       
       const result = await res.json()
-      console.log('🔧 DEBUG: Success response:', result)
       return result
     } catch (e) {
-      console.error('🔧 DEBUG: API.saveFormConfig error:', e)
+      console.error('API.saveFormConfig error:', e)
       throw e
     }
   },
@@ -826,7 +799,9 @@ export const API = {
         body: JSON.stringify(settings)
       }, 15000)
       if (!res.ok) throw new Error('save price settings failed')
-      return await res.json()
+      const out = await res.json()
+      try { window.dispatchEvent(new CustomEvent('master-data:invalidated', { detail: { source: 'price-settings' } })) } catch {}
+      return out
     } catch (e) {
       throw e
     }
@@ -863,7 +838,6 @@ export const API = {
   async getQuotePriceComparison(quoteId) {
     // Check localStorage mode first
     if (LOCAL_STORAGE_MODE) {
-      console.log('🔧 DEBUG: Using localStorage mode for getQuotePriceComparison')
       // Simulate comparison from localStorage
       const quotes = lsLoad()
       const quote = quotes.find(q => q.id === quoteId)
@@ -899,7 +873,6 @@ export const API = {
   async applyCurrentPriceToQuote(quoteId) {
     // Check localStorage mode first - same as other new functions
     if (LOCAL_STORAGE_MODE) {
-      console.log('🔧 DEBUG: Using localStorage mode for applyCurrentPriceToQuote')
       // Simulate price update in localStorage
       const quotes = lsLoad()
       const quote = quotes.find(q => q.id === quoteId)
@@ -994,9 +967,7 @@ export const API = {
   },
 
   // Local price calculation fallback
-  calculatePriceLocal(quote, priceSettings) {
-    console.log('🔧 calculatePriceLocal called with:', { quote: quote?.id, priceSettings: !!priceSettings })
-    
+  calculatePriceLocal(quote, priceSettings) {    
     if (!priceSettings || !priceSettings.parameters || !priceSettings.formula) {
       console.log('⚠️ Missing priceSettings data, returning fallback price')
       return quote.calculatedPrice || quote.price || 0
@@ -1140,7 +1111,6 @@ export const API = {
   // Update quote version without changing price
   async updateQuoteVersion(id) {
     // For now, always use localStorage mode for these new endpoints
-    console.log('🔧 DEBUG: Using localStorage mode for updateQuoteVersion (backend endpoints not implemented)')
     const updatedQuote = lsUpdate(id, { 
       priceVersionApplied: { 
         version: Date.now(), 
@@ -1155,7 +1125,6 @@ export const API = {
   // Hide version warning for quote
   async hideVersionWarning(id) {
     // For now, always use localStorage mode for these new endpoints
-    console.log('🔧 DEBUG: Using localStorage mode for hideVersionWarning (backend endpoints not implemented)')
     const updatedQuote = lsUpdate(id, { 
       versionWarningHidden: true,
       priceStatus: { status: 'current' }

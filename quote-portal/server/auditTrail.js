@@ -5,13 +5,6 @@ export async function auditSessionActivity(req, activity = {}) {
     if (!activity || typeof activity !== 'object') return
 
     const sessionId = req?.user?.sessionId
-    console.log('DEBUG auditSessionActivity:', {
-      hasReq: !!req,
-      hasUser: !!req?.user,
-      sessionId: sessionId,
-      activityType: activity.type,
-      activityTitle: activity.title
-    })
 
     if (!sessionId) return
 
@@ -26,12 +19,6 @@ export async function auditSessionActivity(req, activity = {}) {
       timestamp: activity.timestamp || new Date().toISOString(),
       ...activity
     }
-
-    console.log('DEBUG: About to append session activity:', {
-      sessionId,
-      entryType: entry.type,
-      entryTitle: entry.title
-    })
 
     // Update session activity log in memory (append)
     await updateSession({

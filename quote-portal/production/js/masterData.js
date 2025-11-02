@@ -9,7 +9,7 @@ export async function initMasterDataUI() {
   if (!host) return
   host.innerHTML = '<div style="color:#888;">Loading skills...</div>'
   try {
-    const md = await getMasterData(true)
+    const md = await getMasterData()
     skillsState = md.skills || []
     renderSkills(host)
   } catch (e) {
@@ -20,20 +20,20 @@ export async function initMasterDataUI() {
 
 function renderSkills(host) {
   host.innerHTML = `
-    <div style="display:flex; gap:8px; margin-bottom:12px;">
-      <input id="skill-new-name" type="text" placeholder="Yeni skill adı" style="flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:6px;" />
-      <button onclick="addSkillFromSettings()" style="padding:8px 12px; background: var(--primary); color: white; border:none; border-radius:6px;">+ Ekle</button>
+    <div style="display:flex; gap:4px; margin-bottom:8px;">
+      <input id="skill-new-name" type="text" placeholder="Yeni skill adı" style="flex:1; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size: 0.9em;" />
+      <button onclick="addSkillFromSettings()" style="padding:4px 8px; background: var(--primary); color: white; border:none; border-radius:4px; font-size: 0.9em;">+ Ekle</button>
     </div>
     <table class="table">
-      <thead><tr><th>Kod</th><th>Ad</th><th>İşlem</th></tr></thead>
+      <thead><tr><th style="font-size:0.9em; padding:4px;">Kod</th><th style="font-size:0.9em; padding:4px;">Ad</th><th style="font-size:0.9em; padding:4px;">İşlem</th></tr></thead>
       <tbody>
         ${skillsState.map(s => `
           <tr>
-            <td><code>${escapeHtml(s.id)}</code></td>
-            <td><input data-skill-id="${escapeHtml(s.id)}" value="${escapeHtml(s.name)}" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px;" /></td>
-            <td>
-              <button onclick="renameSkill('${escapeHtml(s.id)}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; margin-right:6px;">Kaydet</button>
-              <button onclick="deleteSkill('${escapeHtml(s.id)}')" style="padding:4px 8px; border:1px solid #ef4444; color:#ef4444; background:white; border-radius:4px;">Sil</button>
+            <td style="padding:2px 4px;"><code>${escapeHtml(s.id)}</code></td>
+            <td style="padding:2px 4px;"><input data-skill-id="${escapeHtml(s.id)}" value="${escapeHtml(s.name)}" style="width:100%; padding:3px 6px; border:1px solid var(--border); border-radius:4px; font-size:0.9em;" /></td>
+            <td style="padding:2px 4px;">
+              <button onclick="renameSkill('${escapeHtml(s.id)}')" style="padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; margin-right:4px; font-size:0.9em;">Kaydet</button>
+              <button onclick="deleteSkill('${escapeHtml(s.id)}')" style="padding:2px 6px; border:1px solid #ef4444; color:#ef4444; background:white; border-radius:4px; font-size:0.9em;">Sil</button>
             </td>
           </tr>`).join('')}
       </tbody>
@@ -96,4 +96,3 @@ function escapeHtml(str) {
     .replace(/\"/g, '&quot;')
     .replace(/'/g, '&#039;')
 }
-

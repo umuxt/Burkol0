@@ -275,9 +275,6 @@ export function setupAuthRoutes(app) {
       // İki listeyi birleştir
       const allSessions = [...firebaseSessions, ...memorySessions]
       
-      console.log('DEBUG: /api/admin/sessions called by:', session?.email, 'token:', token.slice(0, 10) + '...')
-      console.log('DEBUG: Firebase sessions:', firebaseSessions.length, 'Memory sessions:', memorySessions.length)
-      
       res.json({ sessions: allSessions })
     } catch (error) {
       console.error('❌ Error loading sessions:', error)
