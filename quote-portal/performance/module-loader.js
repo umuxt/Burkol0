@@ -24,7 +24,7 @@ class ModuleLoader {
 
            componentPath.includes('/performance/admin/') ||    this.config = {      }r React components
 
-           componentPath.includes('/components/admin/Admin.js') ||
+           componentPath.includes('/domains/admin/components/Admin.js') ||
 
            componentPath.includes('/components/modals/SettingsModal.js') ||      preloadThreshold: '100px',class ModuleLoader {
 
@@ -612,7 +612,7 @@ export default ModuleLoader        // Silent retry for performance paths      if
 
       admin: [  }
 
-        './components/admin/Admin.js',
+        './domains/admin/components/Admin.js',
 
         './components/modals/SettingsModal.js',  // Sequential loading for low priority
 
@@ -660,7 +660,7 @@ export default ModuleLoader        // Silent retry for performance paths      if
 
     this.observers.forEach(observer => observer.disconnect())      'admin': [
 
-    this.observers.clear()        './components/admin/Admin.js',
+    this.observers.clear()        './domains/admin/components/Admin.js',
 
     this.cache.clear()        './components/modals/SettingsModal.js',
 

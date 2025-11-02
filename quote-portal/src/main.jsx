@@ -3,29 +3,29 @@ import { createRoot } from 'react-dom/client';
 import { useI18n } from '../shared/i18n.js';
 import API from '../shared/lib/api.js';
 import DynamicFormRenderer from './components/DynamicFormRenderer.js';
-import Admin from './components/admin/Admin.js';
+import Admin from '../domains/admin/components/Admin.js';
 import { ToastNotification, useNotifications } from './hooks/useNotifications.js';
-import MaterialsTabs from './components/MaterialsTabs.jsx';
+import MaterialsTabs from '../domains/materials/components/MaterialsTabs.jsx';
 import StocksTabContent from './components/StocksTabContent.jsx';
 import SuppliersTabContent from './components/SuppliersTabContent.jsx';
-import MaterialsDashboard from './components/MaterialsDashboard.jsx';
-import MaterialsFilters from './components/MaterialsFilters.jsx';
-import MaterialsTable from './components/MaterialsTable.jsx';
-import MaterialsActions from './components/MaterialsActions.jsx';
-import AddMaterialModal from './components/AddMaterialModal.jsx';
-import EditMaterialModal from './components/EditMaterialModal.jsx';
+import MaterialsDashboard from '../domains/materials/components/MaterialsDashboard.jsx';
+import MaterialsFilters from '../domains/materials/components/MaterialsFilters.jsx';
+import MaterialsTable from '../domains/materials/components/MaterialsTable.jsx';
+import MaterialsActions from '../domains/materials/components/MaterialsActions.jsx';
+import AddMaterialModal from '../domains/materials/components/AddMaterialModal.jsx';
+import EditMaterialModal from '../domains/materials/components/EditMaterialModal.jsx';
 import CategoryManagementModal from './components/CategoryManagementModal.jsx';
 import MaterialDeletionWarningModal from './components/MaterialDeletionWarningModal.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
-import MaterialsHelp from './components/MaterialsHelp.jsx';
+import MaterialsHelp from '../domains/materials/components/MaterialsHelp.jsx';
 
 // Backend API hooks
-import { useMaterials, useMaterialActions } from './hooks/useMaterials.js';
-import { useMaterialCategories } from './hooks/useMaterialCategories.js';
+import { useMaterials, useMaterialActions } from '../domains/materials/hooks/useMaterials.js';
+import { useMaterialCategories } from '../domains/materials/hooks/useMaterialCategories.js';
 import { useSuppliers } from './hooks/useSuppliers.js';
 
 // Lazy loading imports
-const LazyOrdersTabContent = React.lazy(() => import('./components/OrdersTabContent.jsx'));
+const LazyOrdersTabContent = React.lazy(() => import('../domains/orders/components/OrdersTabContent.jsx'));
 import { useCategorySync } from './hooks/useCategorySync.js'; // YENİ
 
 const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin' 

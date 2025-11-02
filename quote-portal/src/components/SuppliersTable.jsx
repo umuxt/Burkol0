@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import useSupplierProcurementHistory from '../hooks/useSupplierProcurementHistory.js'
-import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
+import { useMaterials, useMaterialActions } from '../../domains/materials/hooks/useMaterials'
 import { useSuppliers } from '../hooks/useSuppliers'
 import { categoriesService } from '../services/categories-service'
 import { materialsService } from '../services/materials-service'
-import EditMaterialModal from './EditMaterialModal'
+import EditMaterialModal from '../../domains/materials/components/EditMaterialModal'
 import ErrorBoundary from './ErrorBoundary'
-import AddOrderModal from './AddOrderModal'
+import AddOrderModal from '../../domains/orders/components/AddOrderModal'
 import { 
   getEffectiveMaterialStatus, 
   createStatusBadgeProps,

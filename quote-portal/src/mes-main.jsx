@@ -2,7 +2,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { MESProvider } from './contexts/MESContext.jsx';
-import { ProductionDashboard } from './components/ProductionDashboard.jsx';
+import { ProductionDashboard } from '../domains/production/components/ProductionDashboard.jsx';
 import './styles/main.css';
 
 // MES Application Component

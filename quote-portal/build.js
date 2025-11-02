@@ -101,7 +101,7 @@ const criticalFiles = [
   'settings.html',
   'app.js',
   'settings-app.js',
-  'components/admin/Admin.js',
+  'domains/admin/components/Admin.js',
   'shared/lib/api.js'
 ]
 

@@ -29,7 +29,7 @@ function bundleComponents() {
     'shared/components/ui/Field.js',
     'shared/components/ui/Modal.js', 
     'components/DynamicFormRenderer.js',
-    'components/admin/Admin.js',
+    'domains/admin/components/Admin.js',
     'components/modals/SettingsModal.js',
     'components/modals/DetailModal.js',
     'components/modals/FilterPopup.js',

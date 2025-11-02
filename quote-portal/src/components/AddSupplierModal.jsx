@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useSuppliers } from '../hooks/useSuppliers'
-import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
+import { useMaterials, useMaterialActions } from '../../domains/materials/hooks/useMaterials'
 import { categoriesService } from '../services/categories-service'
 
 export default function AddSupplierModal({ isOpen, onClose, onSave }) {
