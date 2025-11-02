@@ -4,8 +4,25 @@
   gap: 0.75rem;
   padding: 1.5rem;
   background: #f9fafb;
-  min-height: calc(100vh - 60px); /* Navigation yüksekliği çıkarılır */
+  min-height: calc(100vh - 68px); /* BurkolNavigation yüksekliği çıkarılır */
   box-sizing: border-box;
+}
+
+/* Ensure materials page takes full available space */
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+body:has(.materials-page) {
+  background: #f9fafb;
+}
+
+#root {
+  min-height: calc(100vh - 68px);
+  display: flex;
+  flex-direction: column;
 }
 
 /* Materials Tabs Container */

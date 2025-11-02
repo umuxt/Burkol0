@@ -5,15 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Burkol | Admin - Materials</title>
     <link rel="stylesheet" href="/src/styles/main.css">
-    <link rel="stylesheet" href="/src/styles/materials.css">
     <link rel="stylesheet" href="/styles/firebase-integration.css">
-    <link rel="manifest" href="../config/manifest.json">
-    <script src="../components/BurkolNavigation.js" defer></script>
-    <script src="../components/AuthGuard.js" defer></script>
+    <link rel="manifest" href="/config/manifest.json">
+    <script src="/components/BurkolNavigation.js"></script>
+    <script src="/components/AuthGuard.js"></script>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
-    <!-- AuthGuard kendi içinde otomatik init ediyor; ek çağrı gerekmez -->
+    <script>
+      // BurkolNavigation otomatik olarak initialize olacak
+      // Eğer olmuyorsa manuel başlat
+      document.addEventListener('DOMContentLoaded', function() {
+        if (typeof BurkolNavigation !== 'undefined' && !document.querySelector('.burkol-nav')) {
+          console.log('🔧 Manual BurkolNavigation initialization for materials page');
+          BurkolNavigation.init();
+        }
+      });
+    </script>
   </body>
 </html>

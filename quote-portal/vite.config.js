@@ -76,6 +76,34 @@ export default defineConfig({
         changeOrigin: true,
         secure: false
       }
+    },
+    // Multi-page application HTML routing
+    middlewareMode: false,
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        // Handle direct HTML page requests
+        if (req.url && req.url.endsWith('.html') && !req.url.includes('/@') && !req.url.includes('vite')) {
+          let htmlPath = req.url;
+          
+          // Map root-level HTML requests to pages directory
+          if (!req.url.startsWith('/pages/')) {
+            const pageMap = {
+              '/login.html': '/pages/login.html',
+              '/admin-dashboard.html': '/pages/admin-dashboard.html',
+              '/quote-dashboard.html': '/pages/quote-dashboard.html',
+              '/materials.html': '/pages/materials.html',
+              '/production.html': '/pages/production.html',
+              '/settings.html': '/pages/settings.html'
+            };
+            
+            htmlPath = pageMap[req.url] || req.url;
+          }
+          
+          console.log(`[VITE] HTML Request: ${req.url} → ${htmlPath}`);
+          req.url = htmlPath;
+        }
+        next();
+      });
     }
   },
   build: {
