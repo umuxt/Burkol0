@@ -1,5 +1,5 @@
 // Workers management backed by backend API (no direct Firebase client)
-import { API_BASE, withAuth } from '../../src/lib/api.js'
+import { API_BASE, withAuth } from '../../shared/lib/api.js'
 import { getMasterData } from './mesApi.js'
 import { showToast } from './ui.js'
 

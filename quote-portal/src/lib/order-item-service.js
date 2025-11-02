@@ -1,5 +1,5 @@
 // Order Item Delivery Service (API-only)
-import { API } from './api.js';
+import { API } from '../../shared/lib/api.js';
 import { OrdersService } from './orders-service.js';
 
 export class OrderItemService {

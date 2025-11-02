@@ -279,7 +279,7 @@ export async function deleteStation(stationId) {
   if (!confirm('Are you sure you want to delete this station?')) return
   try {
     // Prefer backend delete to avoid failing batch validations
-    const { API_BASE, withAuth } = await import('../../src/lib/api.js')
+    const { API_BASE, withAuth } = await import('../../shared/lib/api.js')
     const res = await fetch(`${API_BASE}/api/mes/stations/${encodeURIComponent(stationId)}`, { method: 'DELETE', headers: withAuth() })
     if (!res.ok) throw new Error(`delete_failed ${res.status}`)
     // Invalidate stations cache and refetch fresh list post-change

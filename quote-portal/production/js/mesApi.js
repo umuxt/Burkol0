@@ -1,6 +1,6 @@
 // Shared MES API helpers for Operations, Stations, Workers
 // Uses backend endpoints implemented in server/mesRoutes.js
-import { API_BASE, withAuth } from '../../src/lib/api.js'
+import { API_BASE, withAuth } from '../../shared/lib/api.js'
 
 // Simple persistent cache helpers (sessionStorage)
 function readCache(key) {
