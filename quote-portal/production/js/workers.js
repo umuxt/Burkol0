@@ -5,14 +5,186 @@ import { showToast } from './ui.js'
 
 let workersState = []
 let editingWorkerId = null
+let selectedWorkerId = null
+let workerFilters = { query: '', skills: [], statuses: [] }
 
 export async function initializeWorkersUI() {
+  initWorkerFilters()
   await loadWorkersAndRender()
+}
+
+// Worker detail functions
+export function showWorkerDetail(id) {
+  selectedWorkerId = id
+  const worker = workersState.find(w => w.id === id)
+  if (!worker) return
+  
+  const detailPanel = document.getElementById('worker-detail-panel')
+  const detailContent = document.getElementById('worker-detail-content')
+  
+  if (!detailPanel || !detailContent) return
+  
+  // Show the detail panel
+  detailPanel.style.display = 'block'
+  
+  // Hide the status column when details are open
+  hideStatusColumn()
+  
+  // Highlight selected row
+  const allRows = document.querySelectorAll('#workers-table-body tr')
+  allRows.forEach(row => {
+    row.style.backgroundColor = 'white'
+  })
+  const selectedRow = document.querySelector(`tr[data-worker-id="${id}"]`)
+  if (selectedRow) {
+    selectedRow.style.backgroundColor = 'rgb(239, 246, 255)'
+  }
+  
+  // Populate detail content
+  detailContent.innerHTML = generateWorkerDetailContent(worker)
+}
+
+export function closeWorkerDetail() {
+  const detailPanel = document.getElementById('worker-detail-panel')
+  if (detailPanel) {
+    detailPanel.style.display = 'none'
+  }
+  
+  // Show the status column when details are closed
+  showStatusColumn()
+  
+  // Remove highlight from all rows
+  const allRows = document.querySelectorAll('#workers-table-body tr')
+  allRows.forEach(row => {
+    row.style.backgroundColor = 'white'
+  })
+  
+  selectedWorkerId = null
+}
+
+export function editWorkerFromDetail() {
+  if (selectedWorkerId) {
+    editWorker(selectedWorkerId)
+  }
+}
+
+export function deleteWorkerFromDetail() {
+  if (selectedWorkerId) {
+    deleteWorker(selectedWorkerId)
+  }
+}
+
+function generateWorkerDetailContent(worker) {
+  const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
+  
+  return `
+    <form id="worker-detail-form" class="worker-details-layout">
+      <!-- Temel Bilgiler -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Temel Bilgiler</h3>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Çalışan Adı:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.name || '')}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">E-posta:</span>
+          ${worker.email
+            ? `<a class="detail-value" href="${mailtoHref(worker.email)}" style="font-size: 12px; color: rgb(37, 99, 235); text-decoration: none;">${escapeHtml(worker.email)}</a>`
+            : '<span class="detail-value" style="font-size: 12px; color: rgb(107, 114, 128);">-</span>'}
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Telefon:</span>
+          ${worker.phone
+            ? `<a class="detail-value" href="${telHref(worker.phone)}" style="font-size: 12px; color: rgb(37, 99, 235); text-decoration: none;">${escapeHtml(worker.phone)}</a>`
+            : '<span class="detail-value" style="font-size: 12px; color: rgb(107, 114, 128);">-</span>'}
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Durum:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(capitalize(worker.status || 'available'))}</span>
+        </div>
+      </div>
+
+      <!-- Çalışma Bilgileri -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Çalışma Bilgileri</h3>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Vardiya:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.shift || 'Day')}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İstasyon:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.station || 'Atanmamış')}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Mevcut Görev:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.currentTask || 'Görev atanmamış')}</span>
+        </div>
+      </div>
+
+      <!-- Yetenekler -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Yetenekler</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+          ${skills.map(skill => `
+            <span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>
+          `).join('')}
+          ${skills.length === 0 ? '<span style="font-size: 12px; color: rgb(107, 114, 128);">Henüz yetenek atanmamış</span>' : ''}
+        </div>
+      </div>
+
+      <!-- Performans Bilgileri -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Performans Özeti</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tamamlanan Görev:</span>
+            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+          </div>
+          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ortalama Süre:</span>
+            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+          </div>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Verimlilik Skoru:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+        </div>
+      </div>
+    </form>
+  `
+}
+
+function hideStatusColumn() {
+  // Hide status column header
+  const statusHeader = document.querySelector('.workers-table th:nth-child(3)')
+  if (statusHeader) {
+    statusHeader.style.display = 'none'
+  }
+  
+  // Hide status column in all rows
+  const statusCells = document.querySelectorAll('#workers-table-body td:nth-child(3)')
+  statusCells.forEach(cell => {
+    cell.style.display = 'none'
+  })
+}
+
+function showStatusColumn() {
+  // Show status column header
+  const statusHeader = document.querySelector('.workers-table th:nth-child(3)')
+  if (statusHeader) {
+    statusHeader.style.display = ''
+  }
+  
+  // Show status column in all rows
+  const statusCells = document.querySelectorAll('#workers-table-body td:nth-child(3)')
+  statusCells.forEach(cell => {
+    cell.style.display = ''
+  })
 }
 
 async function loadWorkersAndRender() {
   const tbody = document.getElementById('workers-table-body')
-  if (tbody) tbody.innerHTML = `<tr><td colspan="5"><em>Loading workers...</em></td></tr>`
+  if (tbody) tbody.innerHTML = `<tr><td colspan="4"><em>Loading workers...</em></td></tr>`
   try {
     const res = await fetch(`${API_BASE}/api/mes/workers`, { headers: withAuth() })
     if (!res.ok) throw new Error(`Load failed: ${res.status}`)
@@ -21,7 +193,7 @@ async function loadWorkersAndRender() {
     renderWorkersTable()
   } catch (e) {
     console.error('Workers load error:', e)
-    if (tbody) tbody.innerHTML = `<tr><td colspan="5"><span style="color:#ef4444">Workers yüklenemedi.</span></td></tr>`
+    if (tbody) tbody.innerHTML = `<tr><td colspan="4"><span style="color:#ef4444">Workers yüklenemedi.</span></td></tr>`
     showToast('Workers yüklenemedi', 'error')
   }
 }
@@ -30,28 +202,280 @@ function renderWorkersTable() {
   const tbody = document.getElementById('workers-table-body')
   if (!tbody) return
 
+  const filtered = applyWorkersFilter(workersState)
+
   if (workersState.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5"><em>Hiç worker yok. Yeni ekleyin.</em></td></tr>`
+    tbody.innerHTML = `<tr><td colspan=\"3\"><em>Hiç worker yok. Yeni ekleyin.</em></td></tr>`
+    return
+  }
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan=\"3\"><em>Filtrelere uyan worker bulunamadı.</em></td></tr>`
     return
   }
 
-  tbody.innerHTML = workersState.map(w => {
+  tbody.innerHTML = filtered.map(w => {
     const skills = Array.isArray(w.skills) ? w.skills : (typeof w.skills === 'string' ? w.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
     const status = (w.status || 'available').toLowerCase()
     const badgeClass = status === 'available' || status === 'active' ? 'success' : status === 'busy' ? 'warning' : 'default'
-    const shiftLabel = w.shift || 'Day'
+    
     return `
-      <tr>
-        <td><strong>${escapeHtml(w.name || '')}</strong><br><small>${escapeHtml(w.email || '')}</small></td>
-        <td>${skills.map(s => `<span class="badge badge-outline" style="margin-right:4px;">${escapeHtml(s)}</span>`).join('')}</td>
-        <td>${escapeHtml(shiftLabel)} Shift</td>
-        <td><span class="badge badge-${badgeClass}">${escapeHtml(capitalize(status))}</span></td>
-        <td>
-          <button onclick="editWorker('${w.id}')" style="padding:4px 8px; margin-right:4px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">Edit</button>
-          <button onclick="deleteWorker('${w.id}')" style="padding:4px 8px; border:1px solid #ef4444; background:white; color:#ef4444; border-radius:4px; cursor:pointer;">Delete</button>
+      <tr onclick="showWorkerDetail('${w.id}')" data-worker-id="${w.id}" style="cursor: pointer; background-color: white; border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: rgb(243, 244, 246);">
+        <td style="padding: 4px 8px;"><strong>${escapeHtml(w.name || '')}</strong></td>
+        <td style="padding: 4px 8px;">
+          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+            ${skills.map(skill => `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`).join('')}
+          </div>
         </td>
+        <td style="padding: 4px 8px;"><span class="badge badge-${badgeClass}">${escapeHtml(capitalize(status))}</span></td>
       </tr>`
   }).join('')
+  
+  // If details panel is open, hide status column
+  const detailPanel = document.getElementById('worker-detail-panel')
+  if (detailPanel && detailPanel.style.display === 'block') {
+    hideStatusColumn()
+    
+    // Re-highlight selected row
+    if (selectedWorkerId) {
+      const selectedRow = document.querySelector(`tr[data-worker-id="${selectedWorkerId}"]`)
+      if (selectedRow) {
+        selectedRow.style.backgroundColor = 'rgb(239, 246, 255)'
+      }
+    }
+  }
+  
+  // Update Clear All button visibility
+  updateClearAllButton()
+}
+
+// Filtering logic
+function normalizeSkills(skills) {
+  return Array.isArray(skills)
+    ? skills
+    : (typeof skills === 'string' ? skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
+}
+
+function applyWorkersFilter(list) {
+  const q = String(workerFilters.query || '').toLowerCase()
+  const selSkills = Array.isArray(workerFilters.skills) ? workerFilters.skills : []
+  const statuses = Array.isArray(workerFilters.statuses) ? workerFilters.statuses : []
+
+  return (list || []).filter(w => {
+    // status
+    const wStatus = String(w.status || 'available').toLowerCase()
+    if (statuses.length > 0 && !statuses.includes(wStatus)) return false
+
+    // skills: require all selected skills to be present
+    const wSkills = normalizeSkills(w.skills)
+    if (selSkills.length > 0) {
+      const hasAll = selSkills.every(s => wSkills.includes(s))
+      if (!hasAll) return false
+    }
+
+    // query: match name, email, phone, shift, status, skills
+    if (q) {
+      const hay = [w.name, w.email, w.phone, w.shift, wStatus, ...wSkills]
+        .map(x => String(x || '').toLowerCase())
+        .join(' ')
+      if (!hay.includes(q)) return false
+    }
+    return true
+  })
+}
+
+function initWorkerFilters() {
+  // Search
+  const search = document.getElementById('worker-filter-search')
+  if (search) {
+    search.value = workerFilters.query
+    search.addEventListener('input', (e) => {
+      workerFilters.query = e.target.value || ''
+      updateClearAllButton()
+      renderWorkersTable()
+    })
+  }
+
+  // Skills dropdown
+  setupSkillsFilter()
+  // Status dropdown
+  setupStatusFilter()
+
+  // Clear All button
+  const clearAllBtn = document.getElementById('worker-filter-clear-all')
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', () => {
+      clearAllFilters()
+    })
+  }
+
+  // Update Clear All button visibility
+  updateClearAllButton()
+
+  // Close panels on outside click
+  document.addEventListener('click', (ev) => {
+    const closeIfOutside = (panelId, wrapId) => {
+      const panel = document.getElementById(panelId)
+      const wrap = document.getElementById(wrapId)
+      if (!panel || !wrap) return
+      if (panel.style.display === 'none') return
+      if (!wrap.contains(ev.target)) panel.style.display = 'none'
+    }
+    closeIfOutside('worker-filter-skills-panel', 'worker-filter-skills')
+    closeIfOutside('worker-filter-status-panel', 'worker-filter-status')
+  })
+}
+
+async function setupSkillsFilter() {
+  const btn = document.getElementById('worker-filter-skills-btn')
+  const panel = document.getElementById('worker-filter-skills-panel')
+  const list = document.getElementById('worker-filter-skills-list')
+  const search = document.getElementById('worker-filter-skills-search')
+  const clearBtn = document.getElementById('worker-filter-skills-clear')
+  const hideBtn = document.getElementById('worker-filter-skills-hide')
+  const countEl = document.getElementById('worker-filter-skills-count')
+
+  if (!btn || !panel || !list) return
+
+  function updateCount() {
+    if (!countEl) return
+    countEl.textContent = workerFilters.skills.length ? `(${workerFilters.skills.length})` : ''
+  }
+
+  function renderSkillsList(filterText = '') {
+    const normalized = String(filterText || '').toLowerCase()
+    const items = (setupSkillsFilter._skills || []).filter(s => s.name.toLowerCase().includes(normalized))
+    list.innerHTML = items.map(s => {
+      const checked = workerFilters.skills.includes(s.name) ? 'checked' : ''
+      return `
+        <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
+          <input type="checkbox" value="${escapeHtml(s.name)}" ${checked} />
+          <span style="font-size:12px;">${escapeHtml(s.name)}</span>
+        </label>`
+    }).join('')
+
+    // attach events
+    list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const val = e.target.value
+        if (e.target.checked) {
+          if (!workerFilters.skills.includes(val)) workerFilters.skills.push(val)
+        } else {
+          workerFilters.skills = workerFilters.skills.filter(x => x !== val)
+        }
+        updateCount()
+        renderWorkersTable()
+      })
+    })
+  }
+
+  // Load available skills from master data
+  try {
+    const md = await getMasterData()
+    setupSkillsFilter._skills = Array.isArray(md?.skills) ? md.skills : []
+  } catch {
+    setupSkillsFilter._skills = []
+  }
+
+  updateCount()
+  renderSkillsList()
+
+  // Ensure default hidden
+  if (!panel.style.display) panel.style.display = 'none'
+
+  const toggle = (e) => {
+    if (e) e.stopPropagation()
+    const willOpen = panel.style.display === 'none'
+    // Close the other panel before opening this one
+    if (willOpen) {
+      const other = document.getElementById('worker-filter-status-panel')
+      if (other) other.style.display = 'none'
+    }
+    panel.style.display = willOpen ? 'block' : 'none'
+  }
+  btn.addEventListener('click', toggle)
+  if (search) search.addEventListener('input', (e) => renderSkillsList(e.target.value))
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    workerFilters.skills = []
+    updateCount()
+    renderSkillsList()
+    renderWorkersTable()
+  })
+  if (hideBtn) hideBtn.addEventListener('click', () => { panel.style.display = 'none' })
+}
+
+function setupStatusFilter() {
+  const btn = document.getElementById('worker-filter-status-btn')
+  const panel = document.getElementById('worker-filter-status-panel')
+  const list = document.getElementById('worker-filter-status-list')
+  const clearBtn = document.getElementById('worker-filter-status-clear')
+  const hideBtn = document.getElementById('worker-filter-status-hide')
+  const countEl = document.getElementById('worker-filter-status-count')
+
+  if (!btn || !panel || !list) return
+
+  const OPTIONS = [
+    { value: 'available', label: 'Available' },
+    { value: 'active', label: 'Active' },
+    { value: 'busy', label: 'Busy' },
+    { value: 'offline', label: 'Offline' }
+  ]
+
+  function updateCount() {
+    if (!countEl) return
+    countEl.textContent = workerFilters.statuses.length ? `(${workerFilters.statuses.length})` : ''
+  }
+
+  function renderStatusList() {
+    list.innerHTML = OPTIONS.map(opt => {
+      const checked = workerFilters.statuses.includes(opt.value) ? 'checked' : ''
+      return `
+        <label style=\"display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;\">
+          <input type=\"checkbox\" value=\"${opt.value}\" ${checked} />
+          <span style=\"font-size:12px;\">${opt.label}</span>
+        </label>`
+    }).join('')
+
+    list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.addEventListener('change', (e) => {
+        const val = e.target.value
+        if (e.target.checked) {
+          if (!workerFilters.statuses.includes(val)) workerFilters.statuses.push(val)
+        } else {
+          workerFilters.statuses = workerFilters.statuses.filter(x => x !== val)
+        }
+        updateCount()
+        renderWorkersTable()
+      })
+    })
+  }
+
+  updateCount()
+  renderStatusList()
+
+  // Ensure default hidden
+  if (!panel.style.display) panel.style.display = 'none'
+
+  const toggle = (e) => {
+    if (e) e.stopPropagation()
+    const willOpen = panel.style.display === 'none'
+    if (willOpen) {
+      const other = document.getElementById('worker-filter-skills-panel')
+      if (other) other.style.display = 'none'
+    }
+    panel.style.display = willOpen ? 'block' : 'none'
+  }
+  // Use click only to avoid double-toggling (pointerdown + click)
+  btn.addEventListener('click', toggle)
+  // Prevent outside click handler from closing when interacting inside
+  panel.addEventListener('click', (e) => e.stopPropagation())
+  panel.addEventListener('pointerdown', (e) => e.stopPropagation())
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    workerFilters.statuses = []
+    updateCount()
+    renderStatusList()
+    renderWorkersTable()
+  })
+  if (hideBtn) hideBtn.addEventListener('click', () => { panel.style.display = 'none' })
 }
 
 export function openAddWorkerModal() {
@@ -93,6 +517,7 @@ export function closeWorkerModal(ev) {
 export async function saveWorker() {
   const name = document.getElementById('worker-name')?.value?.trim()
   const email = document.getElementById('worker-email')?.value?.trim()
+  const phone = document.getElementById('worker-phone')?.value?.trim()
   const shift = document.getElementById('worker-shift')?.value || 'Day'
   const status = document.getElementById('worker-status')?.value || 'available'
 
@@ -107,7 +532,7 @@ export async function saveWorker() {
     return;
   }
 
-  const payload = { id: editingWorkerId || genId(), name, email, skills, shift, status }
+  const payload = { id: editingWorkerId || genId(), name, email, phone, skills, shift, status }
   const idx = workersState.findIndex(w => w.id === payload.id)
   if (idx >= 0) workersState[idx] = { ...workersState[idx], ...payload }
   else workersState.push(payload)
@@ -116,6 +541,12 @@ export async function saveWorker() {
     await persistWorkers()
     closeWorkerModal(true)
     renderWorkersTable()
+    // If a detail panel is open for this worker, refresh it
+    try {
+      if (selectedWorkerId && selectedWorkerId === payload.id) {
+        showWorkerDetail(payload.id)
+      }
+    } catch {}
     showToast('Worker kaydedildi', 'success')
   } catch (e) {
     console.error('Worker save error:', e)
@@ -128,6 +559,7 @@ export async function deleteWorker(id) {
   workersState = workersState.filter(w => w.id !== id)
   try {
     await persistWorkers()
+    closeWorkerModal(true)
     renderWorkersTable()
     showToast('Worker silindi', 'success')
   } catch (e) {
@@ -154,6 +586,7 @@ function sanitizeWorker(w) {
     id: w.id || genId(),
     name: (w.name || '').trim(),
     email: (w.email || '').trim(),
+    phone: (w.phone || '').trim(),
     skills: Array.isArray(w.skills) ? w.skills : (typeof w.skills === 'string' ? w.skills.split(',').map(s=>s.trim()).filter(Boolean) : []),
     shift: w.shift || 'Day',
     status: (w.status || 'available').toLowerCase(),
@@ -167,17 +600,31 @@ function openWorkerModal(worker = null) {
   const title = document.getElementById('worker-modal-title')
   const nameI = document.getElementById('worker-name')
   const emailI = document.getElementById('worker-email')
+  const phoneI = document.getElementById('worker-phone')
   const shiftI = document.getElementById('worker-shift')
   const statusI = document.getElementById('worker-status')
+  const deleteBtn = document.getElementById('worker-delete-btn')
 
   if (!overlay) return
   title.textContent = worker ? 'Edit Worker' : 'Add New Worker'
   nameI.value = worker?.name || ''
   emailI.value = worker?.email || ''
+  if (phoneI) phoneI.value = worker?.phone || ''
   shiftI.value = worker?.shift || 'Day'
   statusI.value = (worker?.status || 'available').toLowerCase()
 
   overlay.style.display = 'block'
+  
+  // Configure delete button visibility and action
+  if (deleteBtn) {
+    if (worker && worker.id) {
+      deleteBtn.style.display = 'inline-block'
+      deleteBtn.onclick = () => deleteWorker(worker.id)
+    } else {
+      deleteBtn.style.display = 'none'
+      deleteBtn.onclick = null
+    }
+  }
   
   // Initialize skills interface
   initializeSkillsInterface(worker?.skills || [])
@@ -271,7 +718,7 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     overflow-y: auto;
     padding: 8px;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
   `;
   
@@ -374,22 +821,17 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
   }
   
   function renderSkills(filter = '') {
-    const filteredSkills = allSkills.filter(skill => 
-      skill.name.toLowerCase().includes(filter.toLowerCase())
-    );
-    
-    // Sort: selected first, then alphabetical
-    const sortedSkills = filteredSkills.sort((a, b) => {
-      const aSelected = currentSelected.includes(a.name);
-      const bSelected = currentSelected.includes(b.name);
-      
-      if (aSelected && !bSelected) return -1;
-      if (!aSelected && bSelected) return 1;
-      return a.name.localeCompare(b.name, 'tr');
-    });
-    
+    // Only show NOT selected skills in the list below
+    const normalized = String(filter || '').toLowerCase();
+    const filteredSkills = allSkills
+      .filter(skill => !currentSelected.includes(skill.name))
+      .filter(skill => skill.name.toLowerCase().includes(normalized));
+
+    // Sort alphabetically for easier scan
+    filteredSkills.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+
     skillsGrid.innerHTML = '';
-    sortedSkills.forEach(skill => {
+    filteredSkills.forEach(skill => {
       skillsGrid.appendChild(createSkillCard(skill));
     });
   }
@@ -434,7 +876,76 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;')
 }
 
+function mailtoHref(email) {
+  const e = String(email || '').trim()
+  if (!e) return '#'
+  return `mailto:${e}`
+}
+
+function telHref(phone) {
+  const p = String(phone || '').trim()
+  if (!p) return '#'
+  // Keep digits and leading + only
+  const normalized = p.replace(/[^0-9+]/g, '')
+  return `tel:${normalized}`
+}
+
 function capitalize(s) { s = String(s||''); return s.charAt(0).toUpperCase() + s.slice(1) }
 function genId() { return 'w-' + Math.random().toString(36).slice(2, 9) }
+
+// Clear All Filters functionality
+function clearAllFilters() {
+  // Clear search
+  workerFilters.query = ''
+  const searchInput = document.getElementById('worker-filter-search')
+  if (searchInput) {
+    searchInput.value = ''
+  }
+
+  // Clear skills filter
+  workerFilters.skills = []
+  const skillsCheckboxes = document.querySelectorAll('#worker-filter-skills-list input[type="checkbox"]')
+  skillsCheckboxes.forEach(checkbox => {
+    checkbox.checked = false
+  })
+
+  // Clear status filter
+  workerFilters.statuses = []
+  const statusCheckboxes = document.querySelectorAll('#worker-filter-status-list input[type="checkbox"]')
+  statusCheckboxes.forEach(checkbox => {
+    checkbox.checked = false
+  })
+
+  // Update UI
+  updateFilterCounts()
+  updateClearAllButton()
+  renderWorkersTable()
+}
+
+function updateClearAllButton() {
+  const clearAllBtn = document.getElementById('worker-filter-clear-all')
+  if (!clearAllBtn) return
+
+  // Show button if any filter is active
+  const hasActiveFilters = workerFilters.query.trim() !== '' || 
+                          workerFilters.skills.length > 0 || 
+                          workerFilters.statuses.length > 0
+
+  clearAllBtn.style.display = hasActiveFilters ? 'block' : 'none'
+}
+
+function updateFilterCounts() {
+  // Update skills count
+  const skillsCount = document.getElementById('worker-filter-skills-count')
+  if (skillsCount) {
+    skillsCount.textContent = workerFilters.skills.length > 0 ? `(${workerFilters.skills.length})` : ''
+  }
+
+  // Update status count
+  const statusCount = document.getElementById('worker-filter-status-count')
+  if (statusCount) {
+    statusCount.textContent = workerFilters.statuses.length > 0 ? `(${workerFilters.statuses.length})` : ''
+  }
+}
 
 // No default export; named exports only

@@ -186,50 +186,154 @@ export function generateWorkers() {
   return `
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Workers Management</h1>
-      <p style="color: var(--muted-foreground);">Manage workers, skills and assignments</p>
+      
     </div>
-    <div style="margin-bottom: 24px;">
-      <button onclick="openAddWorkerModal()" style="background: var(--primary); color: var(--primary-foreground); padding: 12px 24px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Add Worker</button>
-    </div>
-    <div class="card">
-      <div class="card-header"><div class="card-title">Worker List</div><div class="card-description">Manage your workforce</div></div>
-      <div class="card-content">
-        <table class="table">
-          <thead><tr><th>Name</th><th>Skills</th><th>Shift</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="workers-table-body">
-            <tr><td colspan="5"><em>Loading workers...</em></td></tr>
-          </tbody>
-        </table>
+    <div class="workers-filter-compact" style="margin-bottom: 24px; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
+      <button onclick="openAddWorkerModal()" class="worker-add-button" style="background: var(--primary); color: var(--primary-foreground); height: 44px; padding: 0px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Add Worker</button>
+      <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+        <input id="worker-filter-search" type="text" placeholder="Search workers..." class="worker-filter-input"
+          style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); border-radius: 6px; flex: 1; max-width: 400px;">
+        
+        <div id="worker-filter-skills" style="position: relative;">
+          <button id="worker-filter-skills-btn" type="button" class="worker-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;">
+            <span>Skills</span>
+            <span id="worker-filter-skills-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
+            <span style="margin-left: auto; opacity: .6">▾</span>
+          </button>
+          <div id="worker-filter-skills-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; max-height: 320px; overflow: hidden; z-index: 1000;">
+            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
+              <input id="worker-filter-skills-search" type="text" placeholder="Search skills..." class="worker-filter-panel-input"
+                style="flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;">
+              <button id="worker-filter-skills-clear" type="button" class="worker-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
+              <button id="worker-filter-skills-hide" type="button" title="Kapat" class="worker-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+            </div>
+            <div id="worker-filter-skills-list" style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;"></div>
+          </div>
+        </div>
+
+        <div id="worker-filter-status" style="position: relative;">
+          <button id="worker-filter-status-btn" type="button" class="worker-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;">
+            <span>Status</span>
+            <span id="worker-filter-status-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
+            <span style="margin-left: auto; opacity: .6">▾</span>
+          </button>
+          <div id="worker-filter-status-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 220px; max-height: 260px; overflow: hidden; z-index: 1000;">
+            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; justify-content:flex-end; box-sizing: border-box;">
+              <button id="worker-filter-status-clear" type="button" class="worker-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
+              <button id="worker-filter-status-hide" type="button" title="Kapat" class="worker-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+            </div>
+            <div id="worker-filter-status-list" style="max-height: 200px; overflow: auto; padding: 8px; display: grid; gap: 6px;"></div>
+          </div>
+        </div>
+        
+        <button id="worker-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="worker-filter-button"
+          style="display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;">
+          Clear All
+        </button>
       </div>
     </div>
+    
+    <section class="workers-table">
+      <div style="padding: 0px;">
+        <div class="workers-container" style="display: flex; gap: 20px; height: calc(-200px + 100vh); flex-direction: row;">
+          <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
+            <div class="workers-table">
+              <div class="table-container" style="overflow-y: auto; border: 1px solid rgb(229, 231, 235); border-radius: 6px; background: white;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <thead style="background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;">
+                    <tr>
+                      <th style="min-width: 200px; white-space: nowrap; padding: 8px;">
+                        <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                          Çalışan Adı <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
+                        <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                          Yetenekler <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 100px; white-space: nowrap; padding: 8px;">
+                        <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                          Durum <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody id="workers-table-body">
+                    <tr><td colspan="3"><em>Loading workers...</em></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          
+          <div class="worker-detail-panel" id="worker-detail-panel" style="flex: 1 1 0%; min-width: 400px; height: auto; display: none;">
+            <div style="background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;">
+              <div style="padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <button title="Detayları Kapat" onclick="closeWorkerDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">←</button>
+                  <h3 style="margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);">Çalışan Detayları</h3>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                  <button onclick="editWorkerFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">✏️ Düzenle</button>
+                  <button onclick="deleteWorkerFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;">🗑️ Sil</button>
+                </div>
+              </div>
+              <div style="flex: 1 1 0%; overflow: auto; padding: 20px;">
+                <div id="worker-detail-content">
+                  <!-- Worker details will be populated here -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <div id="worker-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;" onclick="closeWorkerModal(event)">
-      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 24px; width: 520px; max-height: 80vh; overflow-y: auto;" onclick="event.stopPropagation()">
-        <h3 id="worker-modal-title" style="margin: 0 0 20px 0;">Add New Worker</h3>
-        <div>
-          <div style="margin-bottom: 16px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Name</label>
-            <input type="text" id="worker-name" placeholder="Enter worker name" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;" />
+      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 0; width: 560px; max-height: 80vh; overflow: hidden;" onclick="event.stopPropagation()">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
+          <h3 id="worker-modal-title" style="margin: 0; font-size: 18px;">Add New Worker</h3>
+        </div>
+        <div style="padding: 16px 20px; background: rgb(249, 250, 251); max-height: calc(80vh - 120px); overflow-y: auto;">
+          <!-- Temel Bilgiler -->
+          <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+            <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Temel Bilgiler</h3>
+            <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İsim:</span>
+              <input type="text" id="worker-name" placeholder="İsim" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;" />
+            </div>
+            <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 0;">
+              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Email:</span>
+              <input type="email" id="worker-email" placeholder="email@domain.com" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;" />
+            </div>
+            <div class="detail-item" style="display: flex; align-items: center; margin-top: 8px;">
+              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Telefon:</span>
+              <input type="tel" id="worker-phone" placeholder="örn. +90 555 555 55 55" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;" />
+            </div>
           </div>
-          <div style="margin-bottom: 16px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Email</label>
-            <input type="email" id="worker-email" placeholder="email@domain.com" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;" />
+
+          <!-- Yetenekler -->
+          <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+            <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
+            <div class="detail-item" style="display: block;">
+              <select id="worker-skills" multiple></select>
+            </div>
           </div>
-          <div style="margin-bottom: 16px;">
-            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Skills</label>
-            <select id="worker-skills" multiple></select>
-          </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div style="margin-bottom: 16px;">
-              <label style="display: block; margin-bottom: 8px; font-weight: 500;">Shift</label>
-              <select id="worker-shift" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;">
+
+          <!-- Çalışma Bilgileri -->
+          <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+            <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Çalışma Bilgileri</h3>
+            <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Shift:</span>
+              <select id="worker-shift" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; max-width: 200px;">
                 <option value="Day">Day</option>
                 <option value="Night">Night</option>
               </select>
             </div>
-            <div style="margin-bottom: 16px;">
-              <label style="display: block; margin-bottom: 8px; font-weight: 500;">Status</label>
-              <select id="worker-status" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;">
+            <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 0;">
+              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Status:</span>
+              <select id="worker-status" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; max-width: 200px;">
                 <option value="available">Available</option>
                 <option value="busy">Busy</option>
                 <option value="break">Break</option>
@@ -238,9 +342,14 @@ export function generateWorkers() {
             </div>
           </div>
         </div>
-        <div style="margin-top: 20px; display: flex; gap: 8px; justify-content: flex-end;">
-          <button onclick="closeWorkerModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Cancel</button>
-          <button onclick="saveWorker()" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Save</button>
+        <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+          <div>
+            <button id="worker-delete-btn" style="display: none; padding: 8px 16px; background: white; border: 1px solid #ef4444; color: #ef4444; border-radius: 4px; cursor: pointer;">Delete</button>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="closeWorkerModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Cancel</button>
+            <button onclick="saveWorker()" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Save</button>
+          </div>
         </div>
       </div>
     </div>

@@ -45,6 +45,146 @@ body {
   overflow: hidden;
 }
 
+/* Workers Container Styles */
+.workers-container {
+  display: flex;
+  gap: 20px;
+  height: calc(100vh - 200px);
+  flex-direction: row;
+}
+
+.workers-table-panel {
+  flex: 1 1 0%;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+}
+
+.worker-detail-panel {
+  flex: 1 1 0%;
+  min-width: 400px;
+  height: auto;
+}
+
+.workers-table .table-container {
+  overflow-y: auto;
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 6px;
+  background: white;
+}
+
+.workers-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.workers-table thead {
+  background: rgb(248, 249, 250);
+  position: sticky;
+  top: 0px;
+  z-index: 1;
+}
+
+.workers-table th {
+  padding: 12px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgb(55, 65, 81);
+  border-bottom: 1px solid rgb(229, 231, 235);
+}
+
+.workers-table td {
+  padding: 12px;
+  font-size: 12px;
+  color: rgb(17, 24, 39);
+  border-bottom: 1px solid rgb(243, 244, 246);
+}
+
+.workers-table tbody tr:hover {
+  background-color: rgb(249, 250, 251);
+}
+
+.worker-details-layout .detail-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.worker-details-layout .detail-label {
+  font-weight: 600;
+  font-size: 12px;
+  color: rgb(55, 65, 81);
+  min-width: 120px;
+  margin-right: 8px;
+}
+
+.worker-details-layout .detail-value {
+  font-size: 12px;
+  color: rgb(17, 24, 39);
+}
+
+/* Worker Filter Compact Styles */
+.workers-filter-compact .worker-filter-button {
+  padding: 3px 3px !important;
+}
+
+.workers-filter-compact .worker-filter-input {
+  padding: 3px 3px !important;
+}
+
+.workers-filter-compact .worker-filter-panel-button {
+  padding: 1.5px 2px !important;
+}
+
+.workers-filter-compact .worker-filter-panel-input {
+  padding: 1.5px 2px !important;
+}
+
+.workers-filter-compact .worker-filter-label {
+  padding: 1.5px 2px !important;
+}
+
+.workers-filter-compact .worker-add-button {
+  padding: 0px 6px !important;
+}
+
+.workers-filter-compact .worker-clear-all-button {
+  padding: 0px 4px !important;
+}
+
+/* Additional specific element targeting */
+.workers-filter-compact #worker-filter-search {
+  padding: 3px 3px !important;
+}
+
+.workers-filter-compact #worker-filter-skills-btn,
+.workers-filter-compact #worker-filter-status-btn {
+  padding: 3px 3px !important;
+}
+
+.workers-filter-compact #worker-filter-clear-all {
+  padding: 0px 4px !important;
+}
+
+.workers-filter-compact #worker-filter-skills-search {
+  padding: 1.5px 2px !important;
+}
+
+.workers-filter-compact #worker-filter-skills-clear,
+.workers-filter-compact #worker-filter-skills-hide,
+.workers-filter-compact #worker-filter-status-clear,
+.workers-filter-compact #worker-filter-status-hide {
+  padding: 1.5px 2px !important;
+}
+
+/* Dinamik label elementleri için */
+.workers-filter-compact #worker-filter-skills-list label,
+.workers-filter-compact #worker-filter-status-list label {
+  padding: 1.5px 2px !important;
+}
+
 .card-header {
   padding: 24px 24px 0;
   display: flex;
@@ -265,7 +405,6 @@ body {
 .app-layout {
   display: flex;
   height: 100vh;
-  margin-top: 70px; /* Account for Burkol navbar */
 }
 
 .sidebar {
