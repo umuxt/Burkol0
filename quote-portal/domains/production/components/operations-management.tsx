@@ -47,6 +47,7 @@ export function OperationsManagement() {
     estimatedTime: 30,
     requiredSkills: [],
     requiredStationId: "",
+    semiOutputCode: "",
   });
 
   // New skill/type inputs
@@ -62,6 +63,7 @@ export function OperationsManagement() {
       estimatedTime: 30,
       requiredSkills: [],
       requiredStationId: "",
+      semiOutputCode: "",
     });
     setNewSkillInput("");
     setNewTypeInput("");
@@ -83,6 +85,40 @@ export function OperationsManagement() {
       toast.error("Operasyon adı zorunludur");
       return;
     }
+
+    // Validate semi-finished output code token (1-2 letters: First uppercase, optional second lowercase)
+    const codeRaw = (operationForm.semiOutputCode || "").toString().trim();
+    const lettersOnly = codeRaw.replace(/[^A-Za-z]/g, "");
+    const normalized = lettersOnly
+      ? (lettersOnly[0].toUpperCase() + (lettersOnly[1] ? lettersOnly[1].toLowerCase() : "")).slice(0, 2)
+      : "";
+    if (!normalized) {
+      toast.error("Yarı mamül çıktı kodu zorunludur (ör. A, Qc)");
+      return;
+    }
+    if (!/^[A-Z]([a-z])?$/.test(normalized)) {
+      toast.error("Kod 1-2 harf olmalı: İlk büyük, ikinci küçük (örn. A, Qc)");
+      return;
+    }
+    // Reserve 'M' (raw material): disallow single-letter 'M'
+    if (normalized === 'M') {
+      toast.error("'M' tek başına kullanılamaz. Lütfen farklı bir kod veya iki harfli (örn. Mq) girin.");
+      return;
+    }
+    // Enforce uniqueness among operations (case-insensitive)
+    const exists = operations.some(op => {
+      if (editingOperation && op.id === editingOperation.id) return false;
+      const cRaw = (op.semiOutputCode || "").toString().trim();
+      const cLetters = cRaw.replace(/[^A-Za-z]/g, "");
+      const cNorm = cLetters ? (cLetters[0].toUpperCase() + (cLetters[1] ? cLetters[1].toLowerCase() : "")).slice(0,2) : "";
+      return cNorm && cNorm === normalized;
+    });
+    if (exists) {
+      toast.error("Bu çıktı kodu başka bir operasyonda kullanılıyor");
+      return;
+    }
+    // Normalize code in form
+    operationForm.semiOutputCode = normalized;
 
     if (editingOperation) {
       const updatedOperations = operations.map((op) =>
@@ -184,18 +220,19 @@ export function OperationsManagement() {
             </CardHeader>
             <CardContent>
               <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Time (min)</TableHead>
-                    <TableHead>Required Skills</TableHead>
-                    <TableHead>Available Workers</TableHead>
-                    <TableHead>Station</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Output Code</TableHead>
+                  <TableHead>Time (min)</TableHead>
+                  <TableHead>Required Skills</TableHead>
+                  <TableHead>Available Workers</TableHead>
+                  <TableHead>Station</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                   {operations.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center text-muted-foreground">
@@ -219,6 +256,9 @@ export function OperationsManagement() {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{operation.operationType}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{operation.semiOutputCode || "-"}</Badge>
                           </TableCell>
                           <TableCell>{operation.estimatedTime}</TableCell>
                           <TableCell>
@@ -302,6 +342,26 @@ export function OperationsManagement() {
                 }
                 placeholder="e.g., CNC Milling, Welding, Quality Check"
               />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="semi-output-code">Yarı Mamül Çıktı Kodu *</Label>
+                <Input
+                  id="semi-output-code"
+                  value={operationForm.semiOutputCode || ""}
+                  onChange={(e) => {
+                    const v = e.target.value || "";
+                    const letters = v.replace(/[^A-Za-z]/g, "");
+                    const norm = letters
+                      ? (letters[0].toUpperCase() + (letters[1] ? letters[1].toLowerCase() : "")).slice(0, 2)
+                      : "";
+                    setOperationForm({ ...operationForm, semiOutputCode: norm });
+                  }}
+                  placeholder="Örn. A, Qc"
+                />
+                <p className="text-xs text-muted-foreground">1-2 harf: İlk büyük, ikinci küçük. Örn: Assembly=A, Quality Control=Qc. Not: 'M' tek başına kullanılamaz; iki harfli kullanın (örn. Mq).</p>
+              </div>
             </div>
 
             <div className="space-y-2">

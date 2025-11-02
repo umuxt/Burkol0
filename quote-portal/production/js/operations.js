@@ -29,13 +29,14 @@ function renderOperations() {
   const body = document.getElementById('operations-table-body')
   if (body) {
     if (!operationsState.length) {
-      body.innerHTML = `<tr><td colspan="4" style="padding:8px; color:#666;">No operations yet. Add your first operation.</td></tr>`
+      body.innerHTML = `<tr><td colspan="5" style="padding:8px; color:#666;">No operations yet. Add your first operation.</td></tr>`
       return
     }
     body.innerHTML = operationsState.map(op => `
       <tr onclick=\"showOperationDetail('${op.id}')\" style=\"cursor:pointer; background-color: white; border-bottom: 1px solid rgb(243, 244, 246);\">\n
         <td style="padding: 4px 8px;"><strong>${escapeHtml(op.name || '')}</strong></td>
         <td style="padding: 4px 8px;">${escapeHtml(op.type || 'General')}</td>
+        <td style="padding: 4px 8px;">${escapeHtml(op.semiOutputCode || '')}</td>
         <td style="padding: 4px 8px;">
           <div style="display: flex; flex-wrap: wrap; gap: 4px;">
             ${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span style=\"background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(s)}</span>`).join('')}
@@ -55,13 +56,14 @@ function renderOperations() {
   container.innerHTML = `
     <table class="table">
       <thead>
-        <tr><th>Name</th><th>Type</th><th>Skills</th><th>QC</th><th>Actions</th></tr>
+        <tr><th>Name</th><th>Type</th><th>Output Code</th><th>Skills</th><th>QC</th><th>Actions</th></tr>
       </thead>
       <tbody>
         ${operationsState.map(op => `
           <tr>
             <td><strong>${escapeHtml(op.name || '')}</strong></td>
             <td>${escapeHtml(op.type || 'General')}</td>
+            <td>${escapeHtml(op.semiOutputCode || '')}</td>
             <td>${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span class=\"badge badge-outline\" style=\"margin-right:4px;\">${escapeHtml(s)}</span>`).join('')}</td>
             <td>${op.qualityCheck ? '<span class=\"badge badge-success\">Yes</span>' : '<span class=\"badge badge-secondary\">No</span>'}</td>
             <td>
@@ -99,6 +101,7 @@ export function showOperationDetail(id) {
       <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Temel Bilgiler</h3>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Operasyon Adı:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.name||'')}</span></div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Tür:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.type||'General')}</span></div>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yarı Mamül Kodu:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.semiOutputCode || '-')}</span></div>
       <div style="display:flex; gap:8px; align-items:center;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">QC:</span><span style="font-size:12px; color: rgb(17,24,39);">${op.qualityCheck ? 'Yes' : 'No'}</span></div>
     </div>
     <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
@@ -132,15 +135,30 @@ export function closeOperationModal(ev) {
 export async function saveOperation() {
   const name = document.getElementById('operation-name')?.value?.trim()
   const type = document.getElementById('operation-type')?.value?.trim() || 'General'
+  const rawCode = document.getElementById('operation-output-code')?.value || ''
+  const letters = rawCode.replace(/[^A-Za-z]/g, '')
+  const semiCode = letters ? (letters[0].toUpperCase() + (letters[1] ? letters[1].toLowerCase() : '')).slice(0,2) : ''
   const skills = Array.from(document.querySelectorAll('#operation-skills-box input[type="checkbox"]:checked')).map(cb => cb.value)
   const qc = Boolean(document.getElementById('operation-qc')?.checked)
   if (!name) { showToast('Operation name required', 'warning'); return }
+  if (!semiCode) { showToast('Yarı mamül çıktı kodu gerekli (örn. A, Qc)', 'warning'); return }
+  if (!/^[A-Z]([a-z])?$/.test(semiCode)) { showToast('Kod 1-2 harf olmalı: İlk büyük, ikinci küçük (örn. A, Qc)', 'warning'); return }
+  if (semiCode === 'M') { showToast("'M' tek başına kullanılamaz. İki harfli kullanın (örn. Mq) veya farklı bir kod girin.", 'warning'); return }
+  const exists = operationsState.some(o => {
+    if (editingOperationId && o.id === editingOperationId) return false
+    const c = (o.semiOutputCode || '').toString()
+    const l = c.replace(/[^A-Za-z]/g, '')
+    const n = l ? (l[0].toUpperCase() + (l[1] ? l[1].toLowerCase() : '')).slice(0,2) : ''
+    return n && n === semiCode
+  })
+  if (exists) { showToast('Bu çıktı kodu başka bir operasyonda kullanılıyor', 'warning'); return }
   if (skills.length === 0) { showToast('Select at least one skill', 'warning'); return }
 
   const op = normalizeOperation({
     id: editingOperationId || genId('op-'),
     name,
     type,
+    semiOutputCode: semiCode,
     skills,
     qualityCheck: qc,
     active: true
@@ -179,6 +197,12 @@ function openOperationModal(op = null) {
   document.getElementById('operation-modal-title').textContent = op ? 'Edit Operation' : 'Add New Operation'
   document.getElementById('operation-name').value = op?.name || ''
   document.getElementById('operation-type').value = op?.type || ''
+  const codeEl = document.getElementById('operation-output-code')
+  if (codeEl) {
+    const c = (op?.semiOutputCode || '').toString()
+    const l = c.replace(/[^A-Za-z]/g, '')
+    codeEl.value = l ? (l[0].toUpperCase() + (l[1] ? l[1].toLowerCase() : '')).slice(0,2) : ''
+  }
   // Removed time input - duration will be station-specific
   document.getElementById('operation-qc').checked = Boolean(op?.qualityCheck)
   overlay.style.display = 'block'
@@ -199,31 +223,123 @@ async function populateOperationSkillsBox() {
       (document.getElementById('operation-skills-selected')?.value || '')
         .split('|').filter(Boolean)
     )
+    
+    // Create modern skills interface similar to worker skills
     box.innerHTML = `
-      <div style="display:flex; gap:8px; margin-bottom:8px;">
-        <input id="op-skill-new" type="text" placeholder="Yeni skill" style="flex:1; padding:6px 8px; border:1px solid var(--border); border-radius:6px;">
-        <button id="op-skill-add" style="padding:6px 8px; border:1px solid var(--border); background:white; border-radius:6px;">+ Ekle</button>
-      </div>
-      <div id="op-skills-list" style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:6px;"></div>`
-    const list = box.querySelector('#op-skills-list')
-    list.innerHTML = md.skills.map(s => {
-      const checked = selected.has(s.name) ? 'checked' : ''
-      return `<label style=\"display:flex; align-items:center; gap:8px;\"><input type=\"checkbox\" value=\"${escapeHtml(s.name)}\" ${checked}> ${escapeHtml(s.name)}</label>`
-    }).join('')
-    box.querySelector('#op-skill-add').onclick = async () => {
-      const inp = document.getElementById('op-skill-new')
-      const name = inp?.value?.trim()
-      if (!name) return
-      try {
-        const created = await addSkill(name)
-        const hidden = document.getElementById('operation-skills-selected')
-        const parts = (hidden?.value || '').split('|').filter(Boolean)
-        parts.push(created.name)
-        hidden.value = Array.from(new Set(parts)).join('|')
-        await populateOperationSkillsBox()
-        inp.value = ''
-      } catch { }
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
+        <div class="detail-item" style="display: block;">
+          <select id="operation-skills" multiple style="display: none;"></select>
+          <div class="modern-skills-interface" style="background: white; border: 1px solid var(--border); border-radius: 6px; overflow: hidden;">
+            <div class="selected-skills-header" style="padding: 8px 12px; background: rgb(248, 249, 250); border-bottom: 1px solid var(--border); font-weight: 500; font-size: 13px; color: var(--foreground);">
+              ${selected.size > 0 ? `${selected.size} Skill Seçili` : 'Seçili Skill Yok'}
+            </div>
+            <div class="selected-skills-display" style="padding: 8px 12px; background: white; border-bottom: 1px solid var(--border); min-height: 20px; font-size: 12px;">
+              ${selected.size > 0 ? 
+                Array.from(selected).map(skill => `<span style="display: inline-block; padding: 2px 6px; margin: 2px; background: rgb(248, 249, 250); border: 1px solid var(--border); border-radius: 4px; font-size: 11px;">${escapeHtml(skill)}</span>`).join('') :
+                '<span style="color: var(--muted-foreground); font-style: italic;">Henüz skill seçilmedi</span>'
+              }
+            </div>
+            <input type="text" placeholder="Skill arayın..." class="skills-search" id="operation-skills-search" style="width: 100%; padding: 8px 12px; border: none; border-bottom: 1px solid var(--border); outline: none; font-size: 14px; box-sizing: border-box;">
+            <div class="skills-grid" style="max-height: 200px; overflow-y: auto; padding: 8px; display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 6px;" id="operation-skills-grid"></div>
+          </div>
+        </div>
+      </div>`
+    
+    // Populate skills grid
+    const grid = box.querySelector('#operation-skills-grid')
+    const searchInput = box.querySelector('#operation-skills-search')
+    
+    function renderSkills(filteredSkills = md.skills) {
+      grid.innerHTML = filteredSkills.map(s => {
+        const isSelected = selected.has(s.name)
+        return `
+          <div class="skill-card" data-skill="${escapeHtml(s.name)}" style="
+            padding: 4px 6px; 
+            border: 1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            transition: 0.2s; 
+            background: ${isSelected ? 'rgb(248, 249, 250)' : 'white'}; 
+            color: var(--foreground); 
+            font-weight: 400; 
+            font-size: 12px; 
+            text-align: center;
+          ">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+              <span>${escapeHtml(s.name)}</span>
+            </div>
+          </div>`
+      }).join('')
+      
+      // Add click handlers
+      grid.querySelectorAll('.skill-card').forEach(card => {
+        card.onclick = () => {
+          const skillName = card.dataset.skill
+          const hidden = document.getElementById('operation-skills-selected')
+          const parts = (hidden?.value || '').split('|').filter(Boolean)
+          
+          if (selected.has(skillName)) {
+            selected.delete(skillName)
+            const index = parts.indexOf(skillName)
+            if (index > -1) parts.splice(index, 1)
+          } else {
+            selected.add(skillName)
+            parts.push(skillName)
+          }
+          
+          hidden.value = Array.from(new Set(parts)).join('|')
+          populateOperationSkillsBox() // Re-render
+        }
+      })
     }
+    
+    // Search functionality
+    searchInput.oninput = (e) => {
+      const query = e.target.value.toLowerCase()
+      const filtered = md.skills.filter(s => s.name.toLowerCase().includes(query))
+      renderSkills(filtered)
+    }
+    
+    renderSkills()
+    
+    // Add new skill functionality via search
+    searchInput.onkeydown = async (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        const name = searchInput.value.trim()
+        if (!name) return
+        
+        // Check if skill already exists
+        const existingSkill = md.skills.find(s => s.name.toLowerCase() === name.toLowerCase())
+        if (existingSkill) {
+          // Select existing skill
+          const hidden = document.getElementById('operation-skills-selected')
+          const parts = (hidden?.value || '').split('|').filter(Boolean)
+          if (!selected.has(existingSkill.name)) {
+            selected.add(existingSkill.name)
+            parts.push(existingSkill.name)
+            hidden.value = Array.from(new Set(parts)).join('|')
+          }
+          searchInput.value = ''
+          populateOperationSkillsBox()
+        } else {
+          // Create new skill
+          try {
+            const created = await addSkill(name)
+            const hidden = document.getElementById('operation-skills-selected')
+            const parts = (hidden?.value || '').split('|').filter(Boolean)
+            parts.push(created.name)
+            hidden.value = Array.from(new Set(parts)).join('|')
+            searchInput.value = ''
+            await populateOperationSkillsBox()
+          } catch (error) {
+            console.error('Error adding skill:', error)
+          }
+        }
+      }
+    }
+    
   } catch (e) {
     console.error('populateOperationSkillsBox error', e)
     box.innerHTML = '<div style="color:#ef4444;">Skills yüklenemedi</div>'
@@ -263,12 +379,13 @@ function initOperationFilters() {
       return matchesQuery && matchesSkills
     })
     if (!filtered.length) {
-      body.innerHTML = `<tr><td colspan="4" style="padding:8px; color:#666;">No operations found</td></tr>`
+      body.innerHTML = `<tr><td colspan="5" style="padding:8px; color:#666;">No operations found</td></tr>`
     } else {
       body.innerHTML = filtered.map(op => `
         <tr style="background-color: white; border-bottom: 1px solid rgb(243, 244, 246);">
           <td style="padding: 4px 8px;"><strong>${escapeHtml(op.name || "")}</strong></td>
           <td style="padding: 4px 8px;">${escapeHtml(op.type || "General")}</td>
+          <td style="padding: 4px 8px;">${escapeHtml(op.semiOutputCode || "")}</td>
           <td style="padding: 4px 8px;"><div style="display:flex; flex-wrap:wrap; gap:4px;">${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span style=\"background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(s)}</span>`).join('')}</div></td>
           <td style="padding: 4px 8px;">${op.qualityCheck ? '<span class=\"badge badge-success\">Yes</span>' : '<span class=\"badge badge-secondary\">No</span>'}</td>
         </tr>`).join('')

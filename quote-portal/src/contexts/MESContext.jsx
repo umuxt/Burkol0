@@ -38,6 +38,8 @@ export interface Operation {
   estimatedTime: number;
   requiredSkills: string[];
   requiredStationId: string;
+  // Semi-finished output code token for this operation (e.g., K, D, C)
+  semiOutputCode?: string;
 }
 
 export interface Worker {

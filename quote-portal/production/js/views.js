@@ -364,35 +364,59 @@ export function generateOperations() {
     <div class=\"operations-filter-compact\" style=\"margin-bottom: 24px; display: flex; gap: 12px; align-items: center; justify-content: space-between;\">\n      <button onclick=\"openAddOperationModal()\" class=\"operation-add-button\" style=\"background: var(--primary); color: var(--primary-foreground); height: 44px; padding: 0px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;\">+ Add Operation</button>\n      <div style=\"display: flex; align-items: center; gap: 8px; flex: 1;\">\n        <input id=\"operation-filter-search\" type=\"text\" placeholder=\"Search operations...\" class=\"operation-filter-input\" style=\"height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 500px; width: 100%; flex: 1 1 auto !important;\">\n\n        <div id=\"operation-filter-skills\" style=\"position: relative;\">\n          <button id=\"operation-filter-skills-btn\" type=\"button\" class=\"operation-filter-button\" style=\"height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;\">\n            <span>Skills</span>\n            <span id=\"operation-filter-skills-count\" style=\"color: var(--muted-foreground); font-size: 12px;\"></span>\n            <span style=\"margin-left: auto; opacity: .6\">▾</span>\n          </button>\n          <div id=\"operation-filter-skills-panel\" style=\"display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; max-height: 320px; overflow: hidden; z-index: 1000;\">\n            <div style=\"padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;\">\n              <input id=\"operation-filter-skills-search\" type=\"text\" placeholder=\"Search skills...\" class=\"operation-filter-panel-input\" style=\"flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;\">\n              <button id=\"operation-filter-skills-clear\" type=\"button\" class=\"operation-filter-panel-button\" style=\"flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">Clear</button>\n              <button id=\"operation-filter-skills-hide\" type=\"button\" title=\"Kapat\" class=\"operation-filter-panel-button\" style=\"flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">×</button>\n            </div>\n            <div id=\"operation-filter-skills-list\" style=\"max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;\"></div>\n          </div>\n        </div>\n\n        <button id=\"operation-filter-clear-all\" type=\"button\" title=\"Tüm filtreleri temizle\" class=\"operation-filter-button\" style=\"display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;\">\n          Clear All\n        </button>\n      </div>\n    </div>
     <section class=\"workers-table\">\n      <div style=\"padding: 0px;\">\n        <div class=\"workers-container\" style=\"display: flex; gap: 20px; height: auto; flex-direction: row;\">\n          <div class=\"workers-table-panel\" style=\"flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;\">\n            <div class=\"workers-table\">\n              <div class=\"table-container\" style=\"overflow-y: auto; border: 1px solid rgb(229, 231, 235); border-radius: 6px; background: white;\">\n                <table style=\"width: 100%; border-collapse: collapse;\">\n                  <thead style=\"background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;\">\n                    <tr>\n                      <th style=\"min-width: 200px; white-space: nowrap; padding: 8px;\">\n                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">\n                          Name <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>\n                        </button>\n                      </th>\n                      <th style=\"min-width: 160px; white-space: nowrap; padding: 8px;\">\n                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">\n                          Type <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>\n                          </button>\n                          <button type=\"button\" title=\"Manage Operation Types\" onclick=\"openOperationTypesModal()\" style=\"padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;\">i</button>\n                        </th>\n                      <th style=\"min-width: 160px; white-space: nowrap; padding: 8px;\">\n                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">\n                          Skills <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>\n                        </button>\n                      </th>\n                      <th style=\"min-width: 100px; white-space: nowrap; padding: 8px;\">\n                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">\n                          QC <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>\n                        </button>\n                      </th>\n                    </tr>\n                  </thead>\n                  <tbody id=\"operations-table-body\"></tbody>\n                </table>\n              </div>\n            </div>\n          </div>\n          <div class=\"worker-detail-panel\" id=\"operation-detail-panel\" style=\"flex: 1 1 0%; min-width: 400px; height: auto; display: none;\">\n            <div style=\"background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;\">\n              <div style=\"padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;\">\n                <div style=\"display: flex; align-items: center; gap: 12px;\">\n                  <button title=\"Detayları Kapat\" onclick=\"closeOperationDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;\">←</button>\n                  <h3 style=\"margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);\">Operasyon Detayları</h3>\n                </div>\n                <div style=\"display:flex; align-items:center; gap:8px;\">\n                  <button onclick=\"editOperationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;\">✏️ Düzenle</button>\n                  <button onclick=\"deleteOperationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;\">🗑️ Sil</button>\n                </div>\n              </div>\n              <div style=\"flex: 1 1 0%; overflow: auto; padding: 20px;\">\n                <div id=\"operation-detail-content\"></div>\n              </div>\n            </div>\n          </div>\n        </div>\n      </div>\n    </section>
     <div id=\"operation-modal\" style=\"display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000;\" onclick=\"closeOperationModal(event)\">
-      <div style=\"position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); background:white; border-radius:8px; width:520px; max-height:80vh; overflow:auto; padding:24px;\" onclick=\"event.stopPropagation()\">
-        <h3 id=\"operation-modal-title\" style=\"margin:0 0 20px 0;\">Add New Operation</h3>
-        <div style=\"display:grid; gap:12px;\">
-          <div>
-            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Name</label>
-            <input id=\"operation-name\" type=\"text\" style=\"width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px;\" />
-          </div>
-          <div>
-            <label style="display:block; margin-bottom:6px; font-weight:500;">Type</label>
-            <div style="position: relative;">
-              <input id="operation-type" type="text" placeholder="Select or type operation type..." style="width:100%; padding:8px 32px 8px 12px; border:1px solid var(--border); border-radius:6px;" autocomplete="off" />
-              <button type="button" onclick="toggleOperationTypeDropdown()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px;">▾</button>
-              <div id="operation-type-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--border); border-top: none; border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1001; max-height: 200px; overflow-y: auto;">
-                <div style="padding: 8px; color: var(--muted-foreground); font-size: 12px;">Loading...</div>
+      <div style=\"position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 0; width: 560px; max-height: 80vh; overflow: hidden;\" onclick=\"event.stopPropagation()\">
+        <div style=\"padding: 16px 20px; border-bottom: 1px solid var(--border);\">
+          <h3 id=\"operation-modal-title\" style=\"margin: 0; font-size: 18px;\">Add New Operation</h3>
+        </div>
+        <div style=\"padding: 16px 20px; background: rgb(249, 250, 251); max-height: calc(80vh - 120px); overflow-y: auto;\">
+          <!-- Temel Bilgiler -->
+          <div style=\"margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);\">
+            <h3 style=\"margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;\">Temel Bilgiler</h3>
+            <div class=\"detail-item\" style=\"display: flex; align-items: center; margin-bottom: 8px;\">
+              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;\">İsim:</span>
+              <input type=\"text\" id=\"operation-name\" placeholder=\"Operasyon adı\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\">
+            </div>
+            <div class=\"detail-item\" style=\"display: flex; align-items: center; margin-bottom: 8px;\">
+              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;\">Type:</span>
+              <div style=\"position: relative; flex: 1 1 0%;\">
+                <input id=\"operation-type\" type=\"text\" placeholder=\"Select or type operation type...\" style=\"width: 100%; padding: 6px 28px 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\" autocomplete=\"off\" />
+                <button type=\"button\" onclick=\"toggleOperationTypeDropdown()\" style=\"position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 2px; font-size: 10px;\">▾</button>
+                <div id=\"operation-type-dropdown\" style=\"display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--border); border-top: none; border-radius: 0 0 6px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1001; max-height: 200px; overflow-y: auto;\">
+                  <div style=\"padding: 8px; color: var(--muted-foreground); font-size: 12px;\">Loading...</div>
+                </div>
+              </div>
+            </div>
+            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 0;\">
+              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px; margin-top: 6px;\">Çıktı Kodu:</span>
+              <div style=\"flex: 1 1 0%;\">
+                <input id=\"operation-output-code\" type=\"text\" placeholder=\"Örn. A, Qc (1-2 harf)\" style=\"width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\" />
+                <div style=\"margin-top: 4px; font-size: 11px; color: var(--muted-foreground);\">1-2 harf: İlk büyük, ikinci küçük. 'M' tek başına kullanılamaz; örn. Mq.</div>
               </div>
             </div>
           </div>
-          <div>
-            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Skills</label>
-            <div id=\"operation-skills-box\"></div>
-          </div>
-          <div style=\"display:flex; align-items:center; gap:8px;\">
-            <input id=\"operation-qc\" type=\"checkbox\" />
-            <label for=\"operation-qc\">Quality Check Required</label>
+
+          <!-- Yetenekler -->
+          <div id=\"operation-skills-box\"></div>
+
+          <!-- Kalite Kontrol -->
+          <div style=\"margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);\">
+            <h3 style=\"margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;\">Kalite Kontrol</h3>
+            <div class=\"detail-item\" style=\"display: flex; align-items: center; margin-bottom: 0;\">
+              <label style=\"display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgb(55, 65, 81); cursor: pointer;\">
+                <input id=\"operation-qc\" type=\"checkbox\" style=\"margin: 0;\">
+                Quality Check Required
+              </label>
+            </div>
           </div>
         </div>
-        <div style=\"margin-top: 20px; display: flex; gap: 8px; justify-content: flex-end;\">
-          <button onclick=\"closeOperationModal()\" style=\"padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;\">Cancel</button>
-          <button onclick=\"saveOperation()\" style=\"padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;\">Save</button>
+        <div style=\"padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;\">
+          <div>
+            <button id=\"operation-delete-btn\" style=\"display: none; padding: 8px 16px; background: white; border: 1px solid #ef4444; color: #ef4444; border-radius: 4px; cursor: pointer;\">Delete</button>
+          </div>
+          <div style=\"display: flex; gap: 8px;\">
+            <button onclick=\"closeOperationModal()\" style=\"padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;\">Cancel</button>
+            <button onclick=\"saveOperation()\" style=\"padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;\">Save</button>
+          </div>
         </div>
       </div>
     </div>
