@@ -156,4 +156,6 @@ quote-portal/.env
 quote-portal/.env.local
 quote-portal/.env.production
 quote-portal/server.log
-quote-portal/serviceAccountKey.json
+# Firebase service account key - MUTLAKA GİZLE
+quote-portal/config/serviceAccountKey.json
+**/serviceAccountKey.json
