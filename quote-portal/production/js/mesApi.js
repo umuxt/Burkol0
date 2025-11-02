@@ -168,7 +168,7 @@ export async function getMasterData(force = false) {
 export async function saveMasterData({ skills, operationTypes }) {
   const body = {
     availableSkills: (skills || []).map(s => ({ id: s.id, name: s.name })),
-    availableOperationTypes: Array.isArray(operationTypes) ? operationTypes : []
+    availableOperationTypes: (operationTypes || []).map(ot => ({ id: ot.id, name: ot.name }))
   }
   const res = await fetch(`${API_BASE}/api/mes/master-data`, {
     method: 'POST',
@@ -191,7 +191,16 @@ export function normalizeMasterData(data) {
   } else {
     skills = rawSkills.map(s => ({ id: s.id || `skill-${Math.random().toString(36).slice(2,7)}`, name: s.name || '' }))
   }
-  const operationTypes = Array.isArray(data?.availableOperationTypes) ? data.availableOperationTypes : []
+  
+  const rawOperationTypes = data?.availableOperationTypes || []
+  let operationTypes
+  if (rawOperationTypes.length && typeof rawOperationTypes[0] === 'string') {
+    // Migrate strings to {id,name}
+    operationTypes = rawOperationTypes.map((name, i) => ({ id: `optype-${String(i+1).padStart(4,'0')}`, name }))
+  } else {
+    operationTypes = rawOperationTypes.map(ot => ({ id: ot.id || `optype-${Math.random().toString(36).slice(2,7)}`, name: ot.name || '' }))
+  }
+  
   return { skills, operationTypes }
 }
 
@@ -212,6 +221,48 @@ export async function addSkill(name) {
   const updated = { ...md, skills: [...md.skills, skill] }
   await saveMasterData(updated)
   return skill
+}
+
+// Operation Types CRUD
+export function nextOperationTypeCode(operationTypes) {
+  let max = 0
+  for (const ot of (operationTypes||[])) {
+    const m = /^optype-(\d+)$/.exec(ot.id || '')
+    if (m) max = Math.max(max, parseInt(m[1], 10))
+  }
+  return `optype-${String(max+1).padStart(4,'0')}`
+}
+
+export async function addOperationType(name) {
+  const md = await getMasterData()
+  const code = nextOperationTypeCode(md.operationTypes)
+  const operationType = { id: code, name: String(name||'').trim() }
+  if (!operationType.name) throw new Error('operation_type_name_required')
+  const updated = { ...md, operationTypes: [...md.operationTypes, operationType] }
+  await saveMasterData(updated)
+  return operationType
+}
+
+export async function updateOperationType(id, name) {
+  const md = await getMasterData()
+  const index = md.operationTypes.findIndex(ot => ot.id === id)
+  if (index === -1) throw new Error('operation_type_not_found')
+  const trimmedName = String(name||'').trim()
+  if (!trimmedName) throw new Error('operation_type_name_required')
+  const updated = { ...md }
+  updated.operationTypes = [...md.operationTypes]
+  updated.operationTypes[index] = { ...updated.operationTypes[index], name: trimmedName }
+  await saveMasterData(updated)
+  return updated.operationTypes[index]
+}
+
+export async function deleteOperationType(id) {
+  const md = await getMasterData()
+  const index = md.operationTypes.findIndex(ot => ot.id === id)
+  if (index === -1) throw new Error('operation_type_not_found')
+  const updated = { ...md, operationTypes: md.operationTypes.filter(ot => ot.id !== id) }
+  await saveMasterData(updated)
+  return true
 }
 
 export function invalidateMasterDataCache() {

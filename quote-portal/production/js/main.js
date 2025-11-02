@@ -6,7 +6,7 @@ import { initializeWorkersUI, openAddWorkerModal, editWorker, deleteWorker as de
 import { initializePlanDesigner, loadOperationsToolbox, handleOperationDragStart, handleCanvasDragOver, handleCanvasDrop, renderCanvas, editNode, saveNodeEdit, closeNodeEditModal, deleteNode, toggleConnectMode, clearCanvas, handleOrderChange, savePlanAsTemplate, deployWorkOrder, handleCanvasClick } from './planDesigner.js';
 import { loadOperationsToolboxBackend, editNodeBackend, handleCanvasDropBackend } from './planDesignerBackend.js';
 import { openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation as deleteStationAction, initializeStationsUI, setActiveStationTab, deleteStationFromModal } from './stations.js';
-import { initializeOperationsUI, openAddOperationModal, editOperation, deleteOperation, saveOperation, closeOperationModal } from './operations.js';
+import { initializeOperationsUI, openAddOperationModal, editOperation, deleteOperation, saveOperation, closeOperationModal, showOperationDetail, closeOperationDetail, editOperationFromDetail, deleteOperationFromDetail, openOperationTypesModal, closeOperationTypesModal, addOperationTypeFromModal, editOperationType, deleteOperationTypeConfirm, toggleOperationTypeDropdown, selectOperationTypeFromDropdown, addNewOperationTypeFromInput } from './operations.js';
 import { openHelp, closeHelp, switchHelpTab, toggleFAQ, initHelp } from './help.js';
 import { initMasterDataUI, addSkillFromSettings, renameSkill, deleteSkill } from './masterData.js';
 import { toggleMobileNav, closeMobileNav } from './mobile.js';
@@ -51,7 +51,9 @@ Object.assign(window, {
   // stations
   openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation: deleteStationAction, setActiveStationTab, deleteStationFromModal,
   // operations
-  openAddOperationModal, editOperation, deleteOperation, saveOperation, closeOperationModal,
+  openAddOperationModal, editOperation, deleteOperation, saveOperation, closeOperationModal, showOperationDetail, closeOperationDetail, editOperationFromDetail, deleteOperationFromDetail,
+  openOperationTypesModal, closeOperationTypesModal, addOperationTypeFromModal, editOperationType, deleteOperationTypeConfirm,
+  toggleOperationTypeDropdown, selectOperationTypeFromDropdown, addNewOperationTypeFromInput,
   // workers
   openAddWorkerModal, editWorker, deleteWorker: deleteWorkerAction, saveWorker, closeWorkerModal, showWorkerDetail, closeWorkerDetail, editWorkerFromDetail, deleteWorkerFromDetail,
   // help

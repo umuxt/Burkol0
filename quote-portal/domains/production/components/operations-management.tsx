@@ -11,7 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../shared/components/ui/select";
-import { toast } from "sonner@2.0.3";
+// toast: use sonner (installed as dependency). If unavailable, fallback to console.
+import { toast as sonnerToast } from "sonner";
 import {
   Table,
   TableBody,
@@ -23,7 +24,7 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "../../../shared/components/ui/dialog";
 import { Textarea } from "../../../shared/components/ui/textarea";
 import { Badge } from "../../../shared/components/ui/badge";
-import { useMES, Operation } from "../contexts/MESContext";
+import { useMES, Operation } from "../../../src/contexts/MESContext.jsx";
 
 export function OperationsManagement() {
   const { 
@@ -74,6 +75,8 @@ export function OperationsManagement() {
     setNewTypeInput("");
     setOperationDialog(true);
   };
+
+  const toast = sonnerToast as any;
 
   const handleSaveOperation = () => {
     if (!operationForm.name) {
@@ -157,9 +160,6 @@ export function OperationsManagement() {
           <SettingsIcon className="h-6 w-6" />
           <div>
             <h1>Operations Management</h1>
-            <p className="text-muted-foreground">
-              Define and manage production operations
-            </p>
           </div>
         </div>
       </div>

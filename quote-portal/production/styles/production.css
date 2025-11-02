@@ -159,6 +159,23 @@ body {
   padding: 3px 3px !important;
 }
 
+/* Operations Filter Compact Styles - allowing dynamic width */
+.operations-filter-compact .operation-filter-button {
+  padding: 6px 6px !important;
+}
+
+.operations-filter-compact .operation-filter-panel-button {
+  padding: 3px 4px !important;
+}
+
+.operations-filter-compact .operation-filter-panel-input {
+  padding: 3px 4px !important;
+}
+
+.operations-filter-compact .operation-add-button {
+  padding: 0px 12px !important;
+}
+
 .workers-filter-compact #worker-filter-skills-btn,
 .workers-filter-compact #worker-filter-status-btn {
   padding: 3px 3px !important;
