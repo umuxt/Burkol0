@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const projectRoot = path.join(__dirname, '..')
-const serviceAccountPath = path.join(projectRoot, 'serviceAccountKey.json')
+const serviceAccountPath = path.join(projectRoot, 'config/serviceAccountKey.json')
 
 async function bootstrapAdmin() {
   if (admin.apps.length) return admin.app()

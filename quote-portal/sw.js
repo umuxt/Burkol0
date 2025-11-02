@@ -8,7 +8,7 @@ const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/quote-dashboard.html',
-  '/manifest.json',
+  '/config/manifest.json',
   
   // JavaScript modules
   '/app.js',

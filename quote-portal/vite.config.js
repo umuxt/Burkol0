@@ -25,8 +25,7 @@ const copyComponents = () => {
       // Copy essential JS files
       const jsFiles = [
         'settings-app.js',
-        'sw.js',
-        'debug-console.js'
+        'sw.js'
       ]
       
       jsFiles.forEach(file => {
@@ -37,7 +36,7 @@ const copyComponents = () => {
       })
       
       // Copy manifest.json if it exists
-      const manifestPath = resolve(__dirname, 'manifest.json')
+      const manifestPath = resolve(__dirname, 'config/manifest.json')
       if (existsSync(manifestPath)) {
         copyFileSync(manifestPath, resolve(__dirname, 'dist/manifest.json'))
       }
@@ -84,15 +83,12 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: resolve(__dirname, 'index.html'),
-        login: resolve(__dirname, 'login.html'),
-        admin: resolve(__dirname, 'quote-dashboard.html'),
-        adminDashboard: resolve(__dirname, 'admin-dashboard.html'),
-        materials: resolve(__dirname, 'materials.html'),
-        production: resolve(__dirname, 'production.html'),
-        settings: resolve(__dirname, 'settings.html'),
-        addRecordDebug: resolve(__dirname, 'add-record-debug.html'),
-        inputTest: resolve(__dirname, 'input-test.html'),
-        debugTest: resolve(__dirname, 'debug-test.html')
+        login: resolve(__dirname, 'pages/login.html'),
+        admin: resolve(__dirname, 'pages/quote-dashboard.html'),
+        adminDashboard: resolve(__dirname, 'pages/admin-dashboard.html'),
+        materials: resolve(__dirname, 'pages/materials.html'),
+        production: resolve(__dirname, 'pages/production.html'),
+        settings: resolve(__dirname, 'pages/settings.html')
       }
     }
   }

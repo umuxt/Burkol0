@@ -61,17 +61,17 @@ if (!admin.apps.length) {
     }
     credential = admin.credential.cert(serviceAccount)
   } else {
-    // Fallback to serviceAccountKey.json file (development only)
-    const serviceAccountPath = path.join(__dirname, 'serviceAccountKey.json')
+    // Fallback to config/serviceAccountKey.json file (development only)
+    const serviceAccountPath = path.join(__dirname, 'config/serviceAccountKey.json')
     if (existsSync(serviceAccountPath)) {
-      console.log('🔑 Using Firebase credentials from serviceAccountKey.json')
+      console.log('🔑 Using Firebase credentials from config/serviceAccountKey.json')
       const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'))
       credential = admin.credential.cert(serviceAccount)
     } else {
       console.error('❌ Firebase credentials not found!')
       console.error('Please either:')
       console.error('1. Set environment variables (recommended for production)')
-      console.error('2. Create serviceAccountKey.json file (development only)')
+      console.error('2. Create config/serviceAccountKey.json file (development only)')
       process.exit(1)
     }
   }
