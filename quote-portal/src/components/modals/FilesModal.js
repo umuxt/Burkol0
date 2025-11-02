@@ -1,5 +1,5 @@
 import React from 'react'
-import { API_BASE } from '../../lib/api.js'
+import { API_BASE } from '../../../shared/lib/api.js'
 
 export function FilesModal({ item, onClose, t }) {
   function srcOf(f) {

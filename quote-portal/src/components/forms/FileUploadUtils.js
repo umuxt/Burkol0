@@ -1,6 +1,6 @@
 // File Upload Utils - File handling for quote forms
 import React from 'react';
-import { ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../lib/utils.js'
+import { ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../../shared/lib/utils.js'
 
 export async function handleFileUpload(fileList, currentFiles, maxFiles = MAX_FILES, showNotification) {
   const newFiles = []

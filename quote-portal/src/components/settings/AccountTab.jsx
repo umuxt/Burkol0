@@ -1,7 +1,7 @@
 // Account Settings Tab - Company and account information management
 import React, { useState, useEffect } from 'react';
 import UsersTab from './UsersTab.jsx';
-import API from '../../lib/api.js';
+import API from '../../../shared/lib/api.js';
 
 const AccountTab = ({ t, showNotification }) => {
   // Company information state

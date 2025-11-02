@@ -1,6 +1,6 @@
 // Session cleanup hook - sayfa kapanırken logout yapar
 import { useEffect } from 'react';
-import API from '../lib/api.js';
+import API from '../../shared/lib/api.js';
 
 export function useSessionCleanup() {
   useEffect(() => {

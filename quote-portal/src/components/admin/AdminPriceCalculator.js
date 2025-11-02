@@ -1,5 +1,5 @@
 // Admin Price Calculator - Price calculation and update logic
-import API from '../../lib/api.js'
+import API from '../../../shared/lib/api.js'
 
 export function calculatePrice(quote, priceSettings) {
   return API.calculatePriceLocal(quote, priceSettings)

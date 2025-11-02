@@ -1,6 +1,6 @@
 import React from 'react';
-import API from '../../lib/api.js'
-import { statusLabel, procLabel, materialLabel } from '../../i18n.js'
+import API from '../../../shared/lib/api.js'
+import { statusLabel, procLabel, materialLabel } from '../../../shared/i18n.js'
 import { getTableColumns, getFieldValue, formatFieldValue } from './AdminTableUtils.js'
 import { calculatePrice, getPriceChangeType } from './AdminPriceCalculator.js'
 import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from './AdminFilterUtils.js'

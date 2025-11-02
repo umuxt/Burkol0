@@ -1,6 +1,6 @@
 // Pricing Tab Component - Price parameter and formula management
 import React from 'react';
-import API from '../../lib/api.js'
+import API from '../../../shared/lib/api.js'
 import FormulaValidator from '../SimpleFormulaValidator.js'
 
 const { useState, useEffect } = React;

@@ -22,7 +22,7 @@ const staticFiles = [
   'quote-dashboard.html',
   'settings.html',
   'app.js',
-  'i18n.js',
+  'shared/i18n.js',
   'settings-app.js',
   'manifest.json',
   'sw.js'
@@ -102,7 +102,7 @@ const criticalFiles = [
   'app.js',
   'settings-app.js',
   'components/admin/Admin.js',
-  'lib/api.js'
+  'shared/lib/api.js'
 ]
 
 let allGood = true

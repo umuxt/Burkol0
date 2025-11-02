@@ -12,11 +12,11 @@ const STATIC_ASSETS = [
   
   // JavaScript modules
   '/app.js',
-  '/i18n.js',
+  'shared/i18n.js',
   
   // Essential components
-  '/lib/api.js',
-  '/lib/utils.js',
+  'shared/lib/api.js',
+  'shared/lib/utils.js',
   '/lib/enhanced-api.js',
   '/lib/react-optimizations.js',
   

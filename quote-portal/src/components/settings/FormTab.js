@@ -1,6 +1,6 @@
 // Form Configuration Tab - Dynamic form builder management
 import React from 'react';
-import API from '../../lib/api.js'
+import API from '../../../shared/lib/api.js'
 import { FormBuilderCompact } from '../formBuilder/FormBuilderCompact.js'
 
 const { useState, useEffect } = React;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { withAuth } from '../lib/api.js';
+import { withAuth } from '../../shared/lib/api.js';
 
 // A utility to fetch with a retry mechanism for 401 errors, useful for local dev
 async function fetchJsonWith401Retry(url, options = {}) {

@@ -1,6 +1,6 @@
 // Admin Table Utils - Table column management and data formatting
 import React from 'react';
-import * as Utils from '../../lib/utils.js'
+import * as Utils from '../../../shared/lib/utils.js'
 
 // Safe formatPrice function with fallback
 const formatPrice = Utils.formatPrice || function(price, currency = 'TL') {

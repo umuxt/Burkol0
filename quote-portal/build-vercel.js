@@ -35,8 +35,8 @@ function bundleComponents() {
     'components/modals/FilterPopup.js',
     'components/modals/FilesModal.js',
     'hooks/useNotifications.js',
-    'i18n.js',
-    'lib/api.js',
+    'shared/i18n.js',
+    'shared/lib/api.js',
     'lib/utils.js'
   ]
   
@@ -72,7 +72,7 @@ fs.writeFileSync(path.join(distDir, 'app.js'), bundledApp)
 // Copy other static files
 const staticFiles = [
   'styles.css',
-  'i18n.js'
+  'shared/i18n.js'
 ]
 
 staticFiles.forEach(file => {

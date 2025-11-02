@@ -1,6 +1,6 @@
 // Dynamic Pricing Tab Component - Completely redesigned dynamic pricing system
 import React from 'react';
-import API from '../../lib/api.js'
+import API from '../../../shared/lib/api.js'
 import FormulaValidator from '../SimpleFormulaValidator.js'
 import PricingUtils from '../../lib/pricing-utils.js'
 import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'

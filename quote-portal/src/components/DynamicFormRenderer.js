@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import API from '../lib/api.js'
-import { uid, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, extOf, readFileAsDataUrl, isImageExt } from '../lib/utils.js'
+import API from '../../shared/lib/api.js'
+import { uid, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, extOf, readFileAsDataUrl, isImageExt } from '../../shared/lib/utils.js'
 
 // Common control keys used in keydown handlers
 const CONTROL_KEYS = [
