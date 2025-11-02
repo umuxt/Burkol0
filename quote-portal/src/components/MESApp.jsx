@@ -1,12 +1,12 @@
 import React from 'react';
 import { MESProvider } from '../contexts/MESContext.jsx';
-import { ProductionDashboard } from './production-dashboard-clean';
+import { ProductionDashboard } from '../../domains/production/components/production-dashboard-clean';
 
 // Copy UI components we need from original project
-import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Badge } from './ui/badge';
-import { Progress } from './ui/progress';
+import { Button } from '../../shared/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../../shared/components/ui/card';
+import { Badge } from '../../shared/components/ui/badge';
+import { Progress } from '../../shared/components/ui/progress';
 
 function MESApp() {
   return (

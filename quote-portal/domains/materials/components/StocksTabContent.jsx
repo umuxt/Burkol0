@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import MaterialsDashboard from '../../domains/materials/components/MaterialsDashboard.jsx'
-import MaterialsFilters from '../../domains/materials/components/MaterialsFilters.jsx'
-import MaterialsTable from '../../domains/materials/components/MaterialsTable.jsx'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
+import MaterialsDashboard from './MaterialsDashboard.jsx'
+import MaterialsFilters from './MaterialsFilters.jsx'
+import MaterialsTable from './MaterialsTable.jsx'
 import BulkProgressModal from './BulkProgressModal.jsx'
-import AddOrderModal from '../../domains/orders/components/AddOrderModal.jsx'
+import AddOrderModal from '../../orders/components/AddOrderModal.jsx'
 import { materialsService } from '../services/materials-service.js'
 
 export default function StocksTabContent({ 

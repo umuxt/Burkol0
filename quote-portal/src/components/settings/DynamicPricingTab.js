@@ -2,8 +2,8 @@
 import React from 'react';
 import API from '../../../shared/lib/api.js'
 import FormulaValidator from '../SimpleFormulaValidator.js'
-import PricingUtils from '../../lib/pricing-utils.js'
-import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'
+import PricingUtils from '../../../domains/quotes/lib/pricing-utils.js'
+import EnhancedFormulaEditor from '../../../domains/quotes/forms/EnhancedFormulaEditor.js'
 
 const { useState, useEffect } = React;
 

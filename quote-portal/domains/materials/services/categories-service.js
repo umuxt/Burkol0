@@ -1,7 +1,7 @@
 // Categories Service - Backend API kullanarak
 // Backend API ile Firebase Admin SDK, frontend'de API call'lar yapıyoruz
 
-import { fetchWithTimeout } from '../../shared/lib/api.js'
+import { fetchWithTimeout } from '../../../shared/lib/api.js'
 
 console.log('✅ Categories Service: Backend API kullanımı aktif');
 

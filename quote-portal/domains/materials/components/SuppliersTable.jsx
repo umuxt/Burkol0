@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import useSupplierProcurementHistory from '../hooks/useSupplierProcurementHistory.js'
-import { useMaterials, useMaterialActions } from '../../domains/materials/hooks/useMaterials'
+import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
 import { useSuppliers } from '../hooks/useSuppliers'
 import { categoriesService } from '../services/categories-service'
 import { materialsService } from '../services/materials-service'
-import EditMaterialModal from '../../domains/materials/components/EditMaterialModal'
-import ErrorBoundary from './ErrorBoundary'
-import AddOrderModal from '../../domains/orders/components/AddOrderModal'
+import EditMaterialModal from './EditMaterialModal'
+import ErrorBoundary from '../../../shared/components/ErrorBoundary'
+import AddOrderModal from '../../orders/components/AddOrderModal'
 import { 
   getEffectiveMaterialStatus, 
   createStatusBadgeProps,
   SUPPLIER_STATUSES,
   MATERIAL_STATUSES 
 } from '../utils/material-status-utils'
-import { useNotifications } from '../hooks/useNotifications'
+import { useNotifications } from '../../../shared/hooks/useNotifications'
 
 export default function SuppliersTable({ 
   suppliers = [],

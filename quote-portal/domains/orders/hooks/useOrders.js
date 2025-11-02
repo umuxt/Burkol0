@@ -2,12 +2,11 @@
 // Orders ve OrderItems için React hooks
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNotifications } from './useNotifications.js';
+import { useNotifications } from '../../../shared/hooks/useNotifications.js';
 import { fetchWithTimeout, API_BASE, API } from '../../../shared/lib/api.js';
 function withAuth(headers = {}) { try { const t = localStorage.getItem('bk_admin_token') || (window.location.hostname === 'localhost' ? 'dev-admin-token' : ''); return t ? { ...headers, Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { ...headers, 'Content-Type': 'application/json' } } catch { return { ...headers, 'Content-Type': 'application/json' } } }
 import { OrdersService, OrderItemsService, getOrderWithItems, updateOrderStatusBasedOnItems } from '../services/orders-service.js';
 import { OrderItemService } from '../services/order-item-service.js';
-import { MaterialsService } from '../../materials/services/materials-service.js';
 
 // ================================
 // USE ORDERS HOOK

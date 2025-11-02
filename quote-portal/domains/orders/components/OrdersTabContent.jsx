@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import AddOrderModal from './AddOrderModal.jsx'
 import { fetchWithTimeout, withAuth } from '../../../shared/lib/api.js'
-import { MaterialsService } from '../../materials/services/materials-service.js'
+import { materialsService } from '../../materials/services/materials-service.js'
 
 // Shared helpers for delivery status across list and modal
 function getDeliveryStatusColor(status) {
@@ -1964,7 +1964,7 @@ export default function OrdersTabContent() {
     let cancelled = false
     const buildMap = async () => {
       try {
-        const list = await MaterialsService.getMaterials()
+        const list = await materialsService.getMaterials()
         if (cancelled) return
         const map = Object.create(null)
         for (const m of list) {

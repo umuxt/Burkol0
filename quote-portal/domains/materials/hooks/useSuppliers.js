@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { fetchWithTimeout, withAuth } from '../../shared/lib/api.js'
-import { getAuthToken } from '../utils/auth.js'
+import { fetchWithTimeout, withAuth } from '../../../shared/lib/api.js'
+import { getAuthToken } from '../../../shared/utils/auth.js'
 
 async function fetchJsonWith401Retry(url, options = {}, timeoutMs = 10000) {
   const res = await fetchWithTimeout(url, options, timeoutMs)

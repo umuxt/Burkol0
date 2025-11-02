@@ -26,25 +26,10 @@ const copyComponents = () => {
       const jsFiles = [
         'settings-app.js',
         'sw.js',
-        'shared/i18n.js',
         'debug-console.js'
       ]
       
       jsFiles.forEach(file => {
-        const sourcePath = resolve(__dirname, file)
-        if (existsSync(sourcePath)) {
-          copyFileSync(sourcePath, resolve(__dirname, `dist/${file}`))
-        }
-      })
-      
-      // Copy src files that might be needed
-      const srcDir = resolve(__dirname, 'dist/src')
-      if (!existsSync(srcDir)) {
-        mkdirSync(srcDir, { recursive: true })
-      }
-      
-      const srcFiles = ['shared/i18n.js']
-      srcFiles.forEach(file => {
         const sourcePath = resolve(__dirname, file)
         if (existsSync(sourcePath)) {
           copyFileSync(sourcePath, resolve(__dirname, `dist/${file}`))

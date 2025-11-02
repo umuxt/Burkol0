@@ -1,5 +1,5 @@
-// Orders service (Backend API only)
-import { API, fetchWithTimeout, API_BASE } from './api.js'
+// Backend API Orders Service - Backend kullanarak full CRUD operations
+import { API, fetchWithTimeout, API_BASE } from '../../../shared/lib/api.js'
 
 export class OrdersService {
   static async generateOrderCode(customYear = null) {

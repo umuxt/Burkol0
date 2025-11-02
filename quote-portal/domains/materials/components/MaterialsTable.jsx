@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import StockBar from './StockBar.jsx'
+import React, { useState, useEffect, useMemo } from 'react'
+import StockBar from '../../../shared/components/StockBar.jsx'
 
 export default function MaterialsTable({ 
   materials, 
