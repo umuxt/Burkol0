@@ -100,8 +100,6 @@ logs/
 server.log
 
 # Test result files and logs
-testing/**/test-results-*.log
-testing/**/*.log
 admin-test.log
 error-test.log
 performance-test.log
@@ -144,3 +142,18 @@ Thumbs.db
 # Environment files
 *.env
 *.env.*
+
+# Vercel
+.vercel/
+
+# Quote-portal specific
+quote-portal/db.json
+quote-portal/uploads/
+quote-portal/logs/
+quote-portal/dist/
+quote-portal/build/
+quote-portal/.env
+quote-portal/.env.local
+quote-portal/.env.production
+quote-portal/server.log
+quote-portal/serviceAccountKey.json
