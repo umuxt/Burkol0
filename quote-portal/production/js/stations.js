@@ -71,11 +71,13 @@ async function loadStationsAndRender() {
 function renderStations() {
   const tabsContainer = document.getElementById('stations-tabs')
   const tableBody = document.getElementById('stations-list')
+  const detailPanel = document.getElementById('station-detail-panel')
+  const compact = Boolean(detailPanel && detailPanel.style.display !== 'none')
   
   if (!tabsContainer || !tableBody) return
   
   if (!stationsState.length) {
-    tableBody.innerHTML = '<tr><td colspan="4" style="padding:20px;color:#666;text-align:center;">No stations yet. Add a station.</td></tr>'
+    tableBody.innerHTML = `<tr><td colspan="${compact ? 2 : 4}" style="padding:20px;color:#666;text-align:center;">No stations yet. Add a station.</td></tr>`
     tabsContainer.innerHTML = ''
     return
   }
@@ -136,6 +138,54 @@ function renderStations() {
       <span style="color: var(--muted-foreground); font-size: 11px; margin-left: 4px;">(${tab.count})</span>
     </button>
   `).join('')
+
+  // Update table header based on detail panel visibility
+  try {
+    const thead = document.querySelector('#stations-table thead')
+    if (thead) {
+      if (compact) {
+        thead.innerHTML = `
+          <tr>
+            <th style="min-width: 120px; white-space: nowrap; padding: 8px;">
+              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Station ID <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              </button>
+            </th>
+            <th style="min-width: 200px; white-space: nowrap; padding: 8px;">
+              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Station Name <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              </button>
+            </th>
+          </tr>
+        `
+      } else {
+        thead.innerHTML = `
+          <tr>
+            <th style="min-width: 120px; white-space: nowrap; padding: 8px;">
+              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Station ID <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              </button>
+            </th>
+            <th style="min-width: 200px; white-space: nowrap; padding: 8px;">
+              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Station Name <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              </button>
+            </th>
+            <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
+              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Operations <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              </button>
+            </th>
+            <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
+              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Skills <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              </button>
+            </th>
+          </tr>
+        `
+      }
+    }
+  } catch {}
   
   // Render table rows
   tableBody.innerHTML = filteredStations.map(station => {
@@ -150,6 +200,17 @@ function renderStations() {
     // Use description as tooltip for the entire row
     const description = station.description || ''
     
+    if (compact) {
+      return `
+        <tr onclick="showStationDetail('${station.id}')" style="cursor:pointer; background-color: ${rowBg}; border-bottom: 1px solid rgb(243, 244, 246); color: ${textColor};" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
+          <td style="padding: 4px 8px; color: ${textColor};">
+            <span style="font-family: monospace; font-size: 11px; color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor};">${escapeHtml(station.id || '')}</span>
+          </td>
+          <td style="padding: 4px 8px; color: ${textColor};">
+            <strong>${escapeHtml(station.name || '')}</strong>
+          </td>
+        </tr>`
+    }
     return `
       <tr onclick="showStationDetail('${station.id}')" style="cursor:pointer; background-color: ${rowBg}; border-bottom: 1px solid rgb(243, 244, 246); color: ${textColor};" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
         <td style="padding: 4px 8px; color: ${textColor};">
@@ -161,17 +222,17 @@ function renderStations() {
         <td style="padding: 4px 8px; color: ${textColor};">
           <div style="display: flex; flex-wrap: wrap; gap: 4px;">
             ${opsLabels.slice(0, 3).map(name => 
-              `<span style="background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(name)}</span>`
+              `<span style=\"background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(name)}</span>`
             ).join('')}
-            ${opsLabels.length > 3 ? `<span style="background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">+${opsLabels.length - 3}</span>` : ''}
+            ${opsLabels.length > 3 ? `<span style=\"background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">+${opsLabels.length - 3}</span>` : ''}
           </div>
         </td>
         <td style="padding: 4px 8px; color: ${textColor};">
           <div style="display: flex; flex-wrap: wrap; gap: 4px;">
             ${effective.slice(0, 3).map(skill => 
-              `<span style="background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
+              `<span style=\"background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(skill)}</span>`
             ).join('')}
-            ${effective.length > 3 ? `<span style="background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">+${effective.length - 3}</span>` : ''}
+            ${effective.length > 3 ? `<span style=\"background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">+${effective.length - 3}</span>` : ''}
           </div>
         </td>
       </tr>`
@@ -486,6 +547,7 @@ export function showStationDetail(stationId) {
   
   // Show detail panel
   detailPanel.style.display = 'block'
+  try { renderStations() } catch {}
   
   // Generate station detail content
   const inherited = computeStationInheritedSkills(station.operationIds || [], operationsCache)
@@ -557,6 +619,7 @@ export function closeStationDetail() {
     detailPanel.style.display = 'none'
   }
   editingStationId = null
+  try { renderStations() } catch {}
 }
 
 export function editStationFromDetail() {
