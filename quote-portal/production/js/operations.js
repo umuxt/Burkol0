@@ -138,7 +138,13 @@ export async function saveOperation() {
   const rawCode = document.getElementById('operation-output-code')?.value || ''
   const letters = rawCode.replace(/[^A-Za-z]/g, '')
   const semiCode = letters ? (letters[0].toUpperCase() + (letters[1] ? letters[1].toLowerCase() : '')).slice(0,2) : ''
-  const skills = Array.from(document.querySelectorAll('#operation-skills-box input[type="checkbox"]:checked')).map(cb => cb.value)
+  // Read skills from modern UI hidden field; fallback to any legacy checkboxes
+  let skills = (document.getElementById('operation-skills-selected')?.value || '')
+    .split('|')
+    .filter(Boolean)
+  if (skills.length === 0) {
+    skills = Array.from(document.querySelectorAll('#operation-skills-box input[type="checkbox"]:checked')).map(cb => cb.value)
+  }
   const qc = Boolean(document.getElementById('operation-qc')?.checked)
   if (!name) { showToast('Operation name required', 'warning'); return }
   if (!semiCode) { showToast('Yarı mamül çıktı kodu gerekli (örn. A, Qc)', 'warning'); return }
