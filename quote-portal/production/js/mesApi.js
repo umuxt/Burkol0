@@ -63,7 +63,6 @@ export function normalizeOperation(op) {
     skills: Array.isArray(op.skills)
       ? op.skills
       : (typeof op.skills === 'string' ? op.skills.split(',').map(s=>s.trim()).filter(Boolean) : []),
-    qualityCheck: Boolean(op.qualityCheck),
     active: op.active !== false
   }
 }

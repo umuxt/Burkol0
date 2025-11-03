@@ -29,7 +29,7 @@ function renderOperations() {
   const body = document.getElementById('operations-table-body')
   if (body) {
     if (!operationsState.length) {
-      body.innerHTML = `<tr><td colspan="5" style="padding:8px; color:#666;">No operations yet. Add your first operation.</td></tr>`
+      body.innerHTML = `<tr><td colspan="4" style="padding:8px; color:#666;">No operations yet. Add your first operation.</td></tr>`
       return
     }
     body.innerHTML = operationsState.map(op => `
@@ -42,7 +42,7 @@ function renderOperations() {
             ${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span style=\"background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(s)}</span>`).join('')}
           </div>
         </td>
-        <td style="padding: 4px 8px;">${op.qualityCheck ? '<span class=\"badge badge-success\">Yes</span>' : '<span class=\"badge badge-secondary\">No</span>'}</td>
+        
       </tr>`).join('')
     // Ensure header columns align (add missing Output Code header if absent)
     try {
@@ -50,9 +50,9 @@ function renderOperations() {
       const headRow = table?.querySelector('thead tr')
       if (headRow) {
         const ths = Array.from(headRow.children)
-        // Expected order with 5 columns: Name, Type, Output Code, Skills, QC
-        // If only 4 headers exist (missing Output Code), insert it after Type
-        if (ths.length === 4) {
+        // Expected order with 4 columns: Name, Type, Output Code, Skills
+        // If only 3 headers exist (missing Output Code), insert it after Type
+        if (ths.length === 3) {
           const outTh = document.createElement('th')
           outTh.setAttribute('style', 'min-width: 120px; white-space: nowrap; padding: 8px;')
           outTh.innerHTML = '<button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">Output Code <span style="font-size: 12px; opacity: 0.6;">↕</span></button>'
@@ -74,7 +74,7 @@ function renderOperations() {
   container.innerHTML = `
     <table class="table">
       <thead>
-        <tr><th>Name</th><th>Type</th><th>Output Code</th><th>Skills</th><th>QC</th><th>Actions</th></tr>
+        <tr><th>Name</th><th>Type</th><th>Output Code</th><th>Skills</th><th>Actions</th></tr>
       </thead>
       <tbody>
         ${operationsState.map(op => `
@@ -83,7 +83,7 @@ function renderOperations() {
             <td>${escapeHtml(op.type || 'General')}</td>
             <td>${escapeHtml(op.semiOutputCode || '')}</td>
             <td>${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span class=\"badge badge-outline\" style=\"margin-right:4px;\">${escapeHtml(s)}</span>`).join('')}</td>
-            <td>${op.qualityCheck ? '<span class=\"badge badge-success\">Yes</span>' : '<span class=\"badge badge-secondary\">No</span>'}</td>
+            
             <td>
               <button onclick=\"editOperation('${op.id}')\" style=\"padding:4px 8px; margin-right:4px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;\">Edit</button>
               <button onclick=\"deleteOperation('${op.id}')\" style=\"padding:4px 8px; border:1px solid #ef4444; background:white; color:#ef4444; border-radius:4px; cursor:pointer;\">Delete</button>
@@ -120,7 +120,7 @@ export function showOperationDetail(id) {
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Operasyon Adı:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.name||'')}</span></div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Tür:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.type||'General')}</span></div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yarı Mamül Kodu:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.semiOutputCode || '-')}</span></div>
-      <div style="display:flex; gap:8px; align-items:center;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">QC:</span><span style="font-size:12px; color: rgb(17,24,39);">${op.qualityCheck ? 'Yes' : 'No'}</span></div>
+      
     </div>
     <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
       <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Yetenekler</h3>
@@ -163,7 +163,7 @@ export async function saveOperation() {
   if (skills.length === 0) {
     skills = Array.from(document.querySelectorAll('#operation-skills-box input[type="checkbox"]:checked')).map(cb => cb.value)
   }
-  const qc = Boolean(document.getElementById('operation-qc')?.checked)
+  
   if (!name) { showToast('Operation name required', 'warning'); return }
   if (!semiCode) { showToast('Yarı mamül çıktı kodu gerekli (örn. A, Qc)', 'warning'); return }
   if (!/^[A-Z]([a-z])?$/.test(semiCode)) { showToast('Kod 1-2 harf olmalı: İlk büyük, ikinci küçük (örn. A, Qc)', 'warning'); return }
@@ -184,7 +184,7 @@ export async function saveOperation() {
     type,
     semiOutputCode: semiCode,
     skills,
-    qualityCheck: qc,
+    
     active: true
   })
   const idx = operationsState.findIndex(o => o.id === op.id)
@@ -228,7 +228,7 @@ function openOperationModal(op = null) {
     codeEl.value = l ? (l[0].toUpperCase() + (l[1] ? l[1].toLowerCase() : '')).slice(0,2) : ''
   }
   // Removed time input - duration will be station-specific
-  document.getElementById('operation-qc').checked = Boolean(op?.qualityCheck)
+  
   overlay.style.display = 'block'
   // for skill selection, store selected internally and render
   const hidden = document.getElementById('operation-skills-selected') || (function(){ const h = document.createElement('input'); h.type='hidden'; h.id='operation-skills-selected'; document.getElementById('operation-modal').appendChild(h); return h })()
@@ -403,7 +403,7 @@ function initOperationFilters() {
       return matchesQuery && matchesSkills
     })
     if (!filtered.length) {
-      body.innerHTML = `<tr><td colspan="5" style="padding:8px; color:#666;">No operations found</td></tr>`
+      body.innerHTML = `<tr><td colspan="4" style="padding:8px; color:#666;">No operations found</td></tr>`
     } else {
       body.innerHTML = filtered.map(op => `
         <tr style="background-color: white; border-bottom: 1px solid rgb(243, 244, 246);">
@@ -411,7 +411,7 @@ function initOperationFilters() {
           <td style="padding: 4px 8px;">${escapeHtml(op.type || "General")}</td>
           <td style="padding: 4px 8px;">${escapeHtml(op.semiOutputCode || "")}</td>
           <td style="padding: 4px 8px;"><div style="display:flex; flex-wrap:wrap; gap:4px;">${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span style=\"background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(s)}</span>`).join('')}</div></td>
-          <td style="padding: 4px 8px;">${op.qualityCheck ? '<span class=\"badge badge-success\">Yes</span>' : '<span class=\"badge badge-secondary\">No</span>'}</td>
+          
         </tr>`).join('')
     }
   }

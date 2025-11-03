@@ -6,6 +6,7 @@ let stationsState = []
 let operationsCache = []
 export let editingStationId = null
 let activeOperationTypeTab = 'all' // Add active tab tracking
+let wasDetailPanelOpen = false // Track if detail panel was open before modal
 
 // Filter state
 let stationFilters = {
@@ -475,6 +476,9 @@ export function showStationDetail(stationId) {
   const station = stationsState.find(s => s.id === stationId)
   if (!station) return
   
+  // Set the editing station ID so edit button knows which station to edit
+  editingStationId = stationId
+  
   const detailPanel = document.getElementById('station-detail-panel')
   const detailContent = document.getElementById('station-detail-content')
   
@@ -557,8 +561,14 @@ export function closeStationDetail() {
 
 export function editStationFromDetail() {
   if (!editingStationId) return
+  const stationId = editingStationId // Store the ID before closing detail
+  
+  // Check if detail panel is currently open
+  const detailPanel = document.getElementById('station-detail-panel')
+  wasDetailPanelOpen = detailPanel && detailPanel.style.display !== 'none'
+  
   closeStationDetail()
-  editStation(editingStationId)
+  editStation(stationId)
 }
 
 export function deleteStationFromDetail() {
@@ -742,6 +752,14 @@ window.updateStationSkillsDisplay = updateStationSkillsDisplay
 export function closeStationModal(event) {
   if (event && event.target !== event.currentTarget) return
   document.getElementById('station-modal').style.display = 'none'
+  
+  // If detail panel was open before modal, reopen it
+  if (wasDetailPanelOpen && editingStationId) {
+    showStationDetail(editingStationId)
+  }
+  
+  // Reset the flag
+  wasDetailPanelOpen = false
 }
 
 export async function saveStation() {
@@ -776,6 +794,14 @@ export async function saveStation() {
     document.getElementById('station-modal').style.display = 'none'
     renderStations()
     showToast(editingStationId ? 'Station updated' : 'Station added', 'success')
+    
+    // If detail panel was open before modal, reopen it
+    if (wasDetailPanelOpen && editingStationId) {
+      showStationDetail(editingStationId)
+    }
+    
+    // Reset the flag
+    wasDetailPanelOpen = false
   } catch (e) {
     console.error('Station save error:', e)
     showToast(e.message || 'Station could not be saved', 'error')

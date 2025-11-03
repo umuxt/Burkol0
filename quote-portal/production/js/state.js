@@ -27,9 +27,9 @@ export const MESData = {
     { id: 's-002', name: 'Station B - Assembly', status: 'maintenance', worker: null, capabilities: ['Assembly', 'Quality Control'], currentOperation: null }
   ],
   operations: [
-    { id: 'op-001', name: 'Welding', skills: ['Welding'], qualityCheck: true },
-    { id: 'op-002', name: 'Cutting', skills: ['Cutting'], qualityCheck: false },
-    { id: 'op-003', name: 'Assembly', skills: ['Assembly'], qualityCheck: true }
+    { id: 'op-001', name: 'Welding', skills: ['Welding'] },
+    { id: 'op-002', name: 'Cutting', skills: ['Cutting'] },
+    { id: 'op-003', name: 'Assembly', skills: ['Assembly'] }
   ]
 };
 
