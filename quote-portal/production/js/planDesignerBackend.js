@@ -1,9 +1,11 @@
 // Backend-powered overrides for Plan Designer
 import { showToast } from './ui.js'
-import { getOperations, getWorkers, getStations } from './mesApi.js'
+import { getOperations, getWorkers, getStations, getApprovedQuotes } from './mesApi.js'
 import { planDesignerState, renderCanvas } from './planDesigner.js'
 
 let _opsCache = []
+let _approvedOrders = []
+let _ordersByCode = new Map()
 
 export async function loadOperationsToolboxBackend() {
   const listContainer = document.getElementById('operations-list')
@@ -21,6 +23,39 @@ export async function loadOperationsToolboxBackend() {
   } catch (e) {
     console.error('loadOperationsToolboxBackend error', e)
     listContainer.innerHTML = '<div style="padding:6px;color:#ef4444;">Failed to load operations</div>'
+  }
+}
+
+export async function loadApprovedOrdersToSelect() {
+  const select = document.getElementById('order-select')
+  if (!select) return
+  try {
+    select.innerHTML = '<option value="">Loading orders...</option>'
+    _approvedOrders = await getApprovedQuotes()
+    _ordersByCode = new Map()
+    const options = ['<option value="">Select an order...</option>']
+    for (const q of _approvedOrders) {
+      const code = q.workOrderCode || q.id || q.quoteId
+      if (!code) continue
+      _ordersByCode.set(code, q)
+      const label = `${escapeHtml(code)} — ${escapeHtml(q.company || q.customer || q.name || '-')}`
+      options.push(`<option value="${escapeHtml(code)}">${label}</option>`)
+    }
+    select.innerHTML = options.join('')
+  } catch (e) {
+    console.error('loadApprovedOrdersToSelect error', e)
+    select.innerHTML = '<option value="">Failed to load orders</option>'
+  }
+}
+
+export function handleOrderChangeBackend() {
+  const select = document.getElementById('order-select')
+  const code = select?.value || ''
+  if (!code) return
+  const q = _ordersByCode.get(code)
+  if (q) {
+    const price = q.price != null ? `₺${Number(q.price).toFixed(2)}` : '—'
+    showToast(`Selected: ${code} • ${q.company || q.customer || q.name || '-'} • ${price}`, 'info')
   }
 }
 

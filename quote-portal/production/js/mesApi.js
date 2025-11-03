@@ -281,3 +281,11 @@ export function invalidateStationsCache() {
   clearCache('mes_stations_cache')
   try { window.dispatchEvent(new CustomEvent(STATIONS_INVALIDATED_EVENT, { detail: { source: 'production' } })) } catch {}
 }
+
+// Approved Quotes (Work Orders) API
+export async function getApprovedQuotes() {
+  const res = await fetch(`${API_BASE}/api/mes/approved-quotes?_t=${Date.now()}`, { headers: withAuth() })
+  if (!res.ok) throw new Error(`approved_quotes_load_failed ${res.status}`)
+  const payload = await res.json().catch(() => ({}))
+  return Array.isArray(payload?.approvedQuotes) ? payload.approvedQuotes : []
+}

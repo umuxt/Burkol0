@@ -557,6 +557,36 @@ export function generatePlanDesigner() {
           <div style="flex: 1; min-width: 180px;"><label style="display: block; font-weight: 500; font-size: 13px; margin-bottom: 4px;">Order</label><select id="order-select" style="width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;" onchange="handleOrderChange()"><option value="">Select an order...</option></select></div>
           <div style="display:flex; gap:8px; align-items:center;"><button onclick="savePlanAsTemplate()" style="padding:6px 10px; font-size:13px; border-radius:6px; border:1px solid var(--border); background: white;">Save</button><button onclick="deployWorkOrder()" style="padding:6px 10px; font-size:13px; border-radius:6px; background: var(--primary); color: var(--primary-foreground); border: none;">Deploy</button></div>
         </div>
+        <div style="display:flex; gap:8px; align-items:flex-end; margin-top:8px; flex-wrap: wrap;">
+          <div style="flex:1; min-width: 180px;">
+            <label style="display:block; font-weight:500; font-size:13px; margin-bottom:4px;">Plan Türü</label>
+            <select id="schedule-type" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;" onchange="handleScheduleTypeChange()">
+              <option value="one-time">Tek seferlik</option>
+              <option value="recurring">Devirli</option>
+            </select>
+          </div>
+          <div id="recurring-subtype-container" style="flex:1; min-width: 180px; display:none;">
+            <label style="display:block; font-weight:500; font-size:13px; margin-bottom:4px;">Devirli Türü</label>
+            <select id="recurring-type" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;" onchange="handleRecurringTypeChange()">
+              <option value="periodic">Periyodik devirli</option>
+              <option value="indefinite">Süresiz devirli</option>
+            </select>
+          </div>
+          <div id="periodic-frequency-container" style="flex:1; min-width: 180px; display:none;">
+            <label style="display:block; font-weight:500; font-size:13px; margin-bottom:4px;">Periyot</label>
+            <select id="periodic-frequency" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;" onchange="handlePeriodicFrequencyChange()">
+              <option value="daily">Günlük</option>
+              <option value="weekly">Haftalık</option>
+              <option value="biweekly">2 haftalık</option>
+              <option value="monthly">Aylık</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div id="custom-frequency-container" style="flex:2; min-width: 220px; display:none;">
+            <label style="display:block; font-weight:500; font-size:13px; margin-bottom:4px;">Custom Tanım</label>
+            <input type="text" id="custom-frequency" placeholder="Örn: her 3 gün, cron vb." style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;" />
+          </div>
+        </div>
         <div style="margin-top:8px;"><label style="display:block; font-weight:500; font-size:13px; margin-bottom:4px;">Description</label><textarea id="plan-description" placeholder="Plan description..." style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; min-height:42px; font-size:13px; resize:vertical;"></textarea></div>
       </div>
     </div>

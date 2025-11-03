@@ -309,6 +309,56 @@ export function handleOrderChange() {
   }
 }
 
+// Schedule type UI handlers (frontend-only)
+export function handleScheduleTypeChange() {
+  const type = document.getElementById('schedule-type')?.value;
+  const recurringBox = document.getElementById('recurring-subtype-container');
+  const periodicBox = document.getElementById('periodic-frequency-container');
+  const customBox = document.getElementById('custom-frequency-container');
+  if (!recurringBox || !periodicBox || !customBox) return;
+  if (type === 'recurring') {
+    recurringBox.style.display = '';
+    // default to periodic
+    const recurringType = document.getElementById('recurring-type');
+    if (recurringType) recurringType.value = recurringType.value || 'periodic';
+    handleRecurringTypeChange();
+  } else {
+    recurringBox.style.display = 'none';
+    periodicBox.style.display = 'none';
+    customBox.style.display = 'none';
+  }
+}
+
+export function handleRecurringTypeChange() {
+  const recurringType = document.getElementById('recurring-type')?.value;
+  const periodicBox = document.getElementById('periodic-frequency-container');
+  const customBox = document.getElementById('custom-frequency-container');
+  if (!periodicBox || !customBox) return;
+  if (recurringType === 'periodic') {
+    periodicBox.style.display = '';
+    // ensure custom input hidden by default
+    const freq = document.getElementById('periodic-frequency');
+    if (freq) {
+      if (!freq.value) freq.value = 'daily';
+    }
+    handlePeriodicFrequencyChange();
+  } else {
+    periodicBox.style.display = 'none';
+    customBox.style.display = 'none';
+  }
+}
+
+export function handlePeriodicFrequencyChange() {
+  const freq = document.getElementById('periodic-frequency')?.value;
+  const customBox = document.getElementById('custom-frequency-container');
+  if (!customBox) return;
+  if (freq === 'custom') {
+    customBox.style.display = '';
+  } else {
+    customBox.style.display = 'none';
+  }
+}
+
 export function savePlanAsTemplate() {
   if (planDesignerState.nodes.length === 0) { showToast('Cannot save empty plan as template', 'error'); return; }
   const planName = document.getElementById('plan-name').value;
@@ -340,6 +390,5 @@ export function handleCanvasClick(event) {
 }
 
 export function initializePlanDesigner() {
-  setTimeout(() => { loadOperationsToolbox(); renderCanvas(); }, 100);
+  setTimeout(() => { loadOperationsToolbox(); renderCanvas(); handleScheduleTypeChange(); }, 100);
 }
-
