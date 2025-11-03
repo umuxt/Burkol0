@@ -548,7 +548,6 @@ export function generatePlanDesigner() {
   return `
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Plan Designer</h1>
-      <p style="color: var(--muted-foreground);">Create and manage production plans with drag & drop interface</p>
     </div>
     <div class="card" style="margin-bottom: 12px;">
       <div class="card-header" style="padding: 10px 12px;"><div class="card-title" style="font-size: 16px;">Plan Configuration</div><div class="card-description" style="font-size: 12px;">Set up your production plan</div></div>
