@@ -607,3 +607,61 @@ export function generateTemplates() {
     </div>
   `;
 }
+
+// Approved Quotes view (read-only list similar to workers/operations tables)
+export function generateApprovedQuotes() {
+  return `
+    <div style="margin-bottom: 24px;">
+      <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 6px;">Approved Quotes</h1>
+      <p style="color: var(--muted-foreground);">Status'ı onaylandı/approved olan tekliflerin listesi</p>
+    </div>
+
+    <div class="workers-filter-compact" style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
+      <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+        <input id="approved-quotes-search" type="text" placeholder="Ara: müşteri, firma, teklif #..." class="worker-filter-input"
+          style="height: 40px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 500px; width: 100%; flex: 1 1 auto;">
+      </div>
+    </div>
+
+    <section class="approved-quotes-table">
+      <div style="padding: 0px;">
+        <div class="workers-container" style="display: flex; gap: 20px; height: calc(-200px + 100vh); flex-direction: row;">
+          <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
+            <div class="workers-table">
+              <div class="table-container" style="overflow-y: auto; border: 1px solid rgb(229, 231, 235); border-radius: 6px; background: white;">
+                <table style="width: 100%; border-collapse: collapse;">
+                  <thead style="background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;">
+                    <tr>
+                      <th style="min-width: 120px; white-space: nowrap; padding: 8px; text-align: left;">WO Code</th>
+                      <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Customer</th>
+                      <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Company</th>
+                      <th style="min-width: 120px; white-space: nowrap; padding: 8px; text-align: left;">Status</th>
+                      <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody id="approved-quotes-table-body">
+                    <tr><td colspan="5"><em>Loading quotes...</em></td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="worker-detail-panel" id="approved-quote-detail-panel" style="flex: 1 1 0%; min-width: 400px; height: auto; display: none;">
+            <div style="background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;">
+              <div style="padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <button title="Detayları Kapat" onclick="closeApprovedQuoteDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">←</button>
+                  <h3 style="margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);">Teklif Detayları</h3>
+                </div>
+              </div>
+              <div style="flex: 1 1 0%; overflow: auto; padding: 20px;">
+                <div id="approved-quote-detail-content"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}

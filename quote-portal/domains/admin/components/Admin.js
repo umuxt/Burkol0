@@ -289,6 +289,12 @@ function Admin({ t, onLogout, showNotification }) {
       
       await refresh() // Reload the list
       showNotification('Durum başarıyla güncellendi', 'success')
+
+      // If approved, notify MES Approved Quotes to refresh
+      if (String(newStatus).toLowerCase() === 'approved' || String(newStatus).toLowerCase() === 'onaylandı' || String(newStatus).toLowerCase() === 'onaylandi') {
+        try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: itemId }); ch.close?.() } catch {}
+        try { if (typeof window !== 'undefined' && typeof window.refreshApprovedQuotes === 'function') window.refreshApprovedQuotes() } catch {}
+      }
     } catch (error) {
       console.error('Error updating status:', error)
       showNotification('Durum güncellenirken hata oluştu', 'error')
@@ -590,6 +596,11 @@ function Admin({ t, onLogout, showNotification }) {
     // Update the specific quote in the list instead of full refresh
     setList(prevList => prevList.map(quote => quote.id === id ? { ...quote, status: st } : quote))
     showNotification('Kayıt durumu güncellendi!', 'success')
+    // If approved, notify MES Approved Quotes to refresh
+    if (String(st).toLowerCase() === 'approved' || String(st).toLowerCase() === 'onaylandı' || String(st).toLowerCase() === 'onaylandi') {
+      try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: id }); ch.close?.() } catch {}
+      try { if (typeof window !== 'undefined' && typeof window.refreshApprovedQuotes === 'function') window.refreshApprovedQuotes() } catch {}
+    }
   }
 
   async function remove(id) { 

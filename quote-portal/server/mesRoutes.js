@@ -1,5 +1,6 @@
 import express from 'express';
 import { getFirestore } from 'firebase-admin/firestore';
+import jsondb from '../src/lib/jsondb.js'
 
 const router = express.Router();
 
@@ -280,6 +281,83 @@ router.delete('/work-orders/:id', withAuth, async (req, res) => {
     return { success: true, id };
   }, res);
 });
+
+// ============================================================================
+// APPROVED QUOTES ROUTES (Read-only listing for Production Planning)
+// ============================================================================
+
+// GET /api/mes/approved-quotes - List approved quotes copied from Quotes as Work Orders
+router.get('/approved-quotes', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const db = getFirestore();
+    const snapshot = await db.collection('mes-approved-quotes')
+      .orderBy('createdAt', 'desc')
+      .get();
+    const approvedQuotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return { approvedQuotes };
+  }, res);
+});
+
+// POST /api/mes/approved-quotes/ensure - Ensure an approved quote is copied as WO
+router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { quoteId } = req.body || {}
+    if (!quoteId) {
+      return { success: false, error: 'quoteId_required' }
+    }
+
+    const db = getFirestore();
+    const col = db.collection('mes-approved-quotes')
+
+    // Already exists?
+    const existsSnap = await col.where('quoteId', '==', quoteId).limit(1).get()
+    if (!existsSnap.empty) {
+      return { success: true, ensured: true, workOrderCode: existsSnap.docs[0].id }
+    }
+
+    // Load quote from jsondb
+    const quote = jsondb.getQuote(quoteId)
+    if (!quote) {
+      const e = new Error('quote_not_found'); e.status = 404; throw e
+    }
+    const st = String(quote.status || '').toLowerCase()
+    if (!(st === 'approved' || st === 'onaylandı' || st === 'onaylandi')) {
+      return { success: false, error: 'quote_not_approved', status: quote.status || null }
+    }
+
+    // Generate next WO code
+    const snap = await col.get()
+    let maxIdx = 0
+    snap.forEach(doc => {
+      const data = doc.data() || {}
+      const code = data.workOrderCode || doc.id || ''
+      const m = /^WO-(\d+)$/.exec(String(code))
+      if (m) {
+        const n = parseInt(m[1], 10)
+        if (Number.isFinite(n)) maxIdx = Math.max(maxIdx, n)
+      }
+    })
+    const nextIdx = maxIdx + 1
+    const code = `WO-${String(nextIdx).padStart(3, '0')}`
+
+    const approvedDoc = {
+      workOrderCode: code,
+      quoteId,
+      status: 'approved',
+      customer: quote.name || quote.customer || null,
+      company: quote.company || null,
+      email: quote.email || null,
+      phone: quote.phone || null,
+      price: quote.price ?? quote.calculatedPrice ?? null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      quoteSnapshot: quote
+    }
+
+    await col.doc(code).set(approvedDoc, { merge: true })
+    return { success: true, ensured: true, workOrderCode: code }
+  }, res)
+})
 
 // ============================================================================
 // MASTER DATA ROUTES

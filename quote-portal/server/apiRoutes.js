@@ -1,6 +1,7 @@
 // Server API Routes - Express route handlers organized by functionality
 import jsondb from '../src/lib/jsondb.js'
 import { requireAuth } from './auth.js'
+import { getFirestore } from 'firebase-admin/firestore'
 import { persistFilesForQuote } from './fileHandler.js'
 import { calculatePriceServer } from './priceCalculator.js'
 import PriceStatus from './models/PriceStatus.js'
@@ -442,6 +443,56 @@ export function setupQuoteRoutes(app, uploadsDir) {
           nextStatus: status
         }
       })
+
+      // If status changed to approved, create Approved Quote Work Order in MES storage
+      ;(async () => {
+        try {
+          if (String(status).toLowerCase() === 'approved' || String(status).toLowerCase() === 'onaylandı' || String(status).toLowerCase() === 'onaylandi') {
+            const db = getFirestore()
+            const col = db.collection('mes-approved-quotes')
+
+            // Avoid duplicates for the same quote
+            const existingApproved = await col.where('quoteId', '==', id).limit(1).get()
+            if (!existingApproved.empty) return
+
+            // Generate next WO code (WO-00X)
+            const snap = await col.get()
+            let maxIdx = 0
+            snap.forEach(doc => {
+              const data = doc.data() || {}
+              const code = data.workOrderCode || data.id || ''
+              const m = /^WO-(\d+)$/.exec(String(code))
+              if (m) {
+                const n = parseInt(m[1], 10)
+                if (Number.isFinite(n)) maxIdx = Math.max(maxIdx, n)
+              }
+            })
+            const nextIdx = maxIdx + 1
+            const code = `WO-${String(nextIdx).padStart(3, '0')}`
+
+            // Build snapshot (copy essential fields + full snapshot for reference)
+            const snapshot = readOne(id) || updated
+            const approvedDoc = {
+              workOrderCode: code,
+              quoteId: id,
+              status: 'approved',
+              customer: snapshot.name || snapshot.customer || null,
+              company: snapshot.company || null,
+              email: snapshot.email || null,
+              phone: snapshot.phone || null,
+              price: snapshot.price ?? snapshot.calculatedPrice ?? null,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              quoteSnapshot: snapshot
+            }
+
+            // Use WO code as document ID
+            await col.doc(code).set(approvedDoc, { merge: true })
+          }
+        } catch (e) {
+          console.error('Failed to create Approved Quote WO:', e)
+        }
+      })()
 
       res.json(updated)
     } catch (error) {

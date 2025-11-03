@@ -411,7 +411,22 @@ export const API = {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}`, { method: 'PATCH', headers: withAuth({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status }) })
       if (!res.ok) throw new Error('update failed')
-      return await res.json()
+      const out = await res.json()
+      // Notify MES Approved Quotes listeners and ensure WO creation on approved
+      try {
+        const s = String(status).toLowerCase()
+        if (s === 'approved' || s === 'onaylandı' || s === 'onaylandi') {
+          try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: id }); ch.close?.() } catch {}
+          try {
+            await fetchWithTimeout(`${API_BASE}/api/mes/approved-quotes/ensure`, {
+              method: 'POST',
+              headers: withAuth({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ quoteId: id })
+            })
+          } catch {}
+        }
+      } catch {}
+      return out
     } catch (e) {
       lsUpdate(id, { status })
       return { ok: true, local: true }
@@ -448,7 +463,22 @@ export const API = {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/status`, { method: 'PATCH', headers: withAuth({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status }) })
       if (!res.ok) throw new Error('status update failed')
-      return await res.json()
+      const out = await res.json()
+      // Notify MES Approved Quotes listeners and ensure WO creation on approved
+      try {
+        const s = String(status).toLowerCase()
+        if (s === 'approved' || s === 'onaylandı' || s === 'onaylandi') {
+          try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: id }); ch.close?.() } catch {}
+          try {
+            await fetchWithTimeout(`${API_BASE}/api/mes/approved-quotes/ensure`, {
+              method: 'POST',
+              headers: withAuth({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ quoteId: id })
+            })
+          } catch {}
+        }
+      } catch {}
+      return out
     } catch (e) {
       console.error('Status update error:', e)
       throw e
