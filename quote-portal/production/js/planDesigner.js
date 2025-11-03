@@ -101,6 +101,18 @@ export function renderNode(node) {
     `border: 2px solid ${colors[node.type] || '#6b7280'};`, 'border-radius: 8px;', 'padding: 8px;', 'cursor: move;',
     'box-shadow: 0 2px 4px rgba(0,0,0,0.1);', 'z-index: 10;', 'user-select: none;'
   ].join('');
+  // Material summary for display
+  const matSummary = (() => {
+    const rms = Array.isArray(node.rawMaterials) ? node.rawMaterials : (node.rawMaterial ? [node.rawMaterial] : [])
+    if (!rms.length) return 'Not selected'
+    const parts = rms.slice(0,2).map(m => {
+      const nm = m.name || m.id
+      const qty = m.qty != null && m.qty !== '' ? ` (${m.qty}${m.unit?(' '+m.unit):''})` : ''
+      return (nm||'').toString() + qty
+    })
+    const extra = rms.length > 2 ? ` +${rms.length-2} more` : ''
+    return parts.join(', ') + extra
+  })()
   nodeElement.innerHTML = [
     '<div style="display: flex; justify-content: between; align-items: flex-start; margin-bottom: 4px;">',
     `<div class="drag-handle" style="font-weight: 600; font-size: 14px; color: ${colors[node.type] || '#6b7280'}; flex: 1; cursor: move; padding: 2px;">🔸 ${node.name}</div>`,
@@ -109,8 +121,8 @@ export function renderNode(node) {
     `<button onclick="event.stopPropagation(); deleteNode('${node.id}')" style="width: 20px; height: 20px; border: none; background: #fee2e2; border-radius: 3px; cursor: pointer; font-size: 10px;">🗑️</button>`,
     '</div></div>',
     `<div style="font-size: 11px; color: #6b7280; margin-bottom: 2px;">Type: ${node.type}</div>`,
-    `<div style="font-size: 11px; color: #6b7280; margin-bottom: 2px;">⏱️ ${node.time} min</div>`,
-    `<div style="font-size: 10px; color: #9ca3af;">Worker: ${node.assignedWorker || 'Not assigned'}<br>Station: ${node.assignedStation || 'Not assigned'}</div>`
+    `<div style=\"font-size: 11px; color: #6b7280; margin-bottom: 2px;\">⏱️ ${node.time} min</div>`,
+    `<div style=\"font-size: 10px; color: #9ca3af;\">Worker: ${node.assignedWorker || 'Not assigned'}<br>Station: ${node.assignedStation || 'Not assigned'}<br>Materials: ${matSummary}</div>`
   ].join('');
 
   let isDragging = false; let dragStartX = 0; let dragStartY = 0; let nodeStartX = node.x; let nodeStartY = node.y;
@@ -232,6 +244,9 @@ export function clearCanvas() {
   }
 }
 
+// Global escape handler for modal
+let modalEscapeHandler = null;
+
 export function editNode(nodeId) {
   const node = planDesignerState.nodes.find(n => n.id === nodeId);
   if (!node) return; planDesignerState.selectedNode = node;
@@ -251,7 +266,7 @@ export function editNode(nodeId) {
   const compatibleStations = stations.filter(s => s.type === node.type);
   const formContent =
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + node.name + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Time (minutes)</label><input type="number" id="edit-time" value="' + node.time + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + node.time + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Worker</label><select id="edit-worker" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;"><option value="">Not assigned</option>' +
     compatibleWorkers.map(w => '<option value="' + w.name + '" ' + (node.assignedWorker === w.name ? 'selected' : '') + '>' + w.name + '</option>').join('') +
     '</select></div>' +
@@ -260,7 +275,38 @@ export function editNode(nodeId) {
     '</select></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div style="font-size: 12px; color: var(--muted-foreground);">' + node.skills.join(', ') + '</div></div>';
   document.getElementById('node-edit-form').innerHTML = formContent;
-  document.getElementById('node-edit-modal').style.display = 'block';
+  const modal = document.getElementById('node-edit-modal');
+  if (modal) {
+    modal.style.display = 'block';
+    // Lock body scroll
+    document.body.style.overflow = 'hidden';
+    document.body.style.paddingRight = getScrollbarWidth() + 'px';
+    
+    // Add escape key listener
+    modalEscapeHandler = (e) => {
+      if (e.key === 'Escape') {
+        closeNodeEditModal()
+      }
+    }
+    document.addEventListener('keydown', modalEscapeHandler)
+  }
+}
+
+// Helper function for scrollbar width calculation
+function getScrollbarWidth() {
+  const outer = document.createElement('div')
+  outer.style.visibility = 'hidden'
+  outer.style.overflow = 'scroll'
+  outer.style.msOverflowStyle = 'scrollbar'
+  document.body.appendChild(outer)
+  
+  const inner = document.createElement('div')
+  outer.appendChild(inner)
+  
+  const scrollbarWidth = outer.offsetWidth - inner.offsetWidth
+  outer.parentNode.removeChild(outer)
+  
+  return scrollbarWidth
 }
 
 export function saveNodeEdit() {
@@ -281,12 +327,24 @@ export function saveNodeEdit() {
 
 export function closeNodeEditModal(event) {
   if (event && event.target !== event.currentTarget) return;
-  const modal = document.getElementById('node-edit-modal'); if (modal) modal.style.display = 'none';
+  const modal = document.getElementById('node-edit-modal');
+  if (modal) {
+    modal.style.display = 'none';
+    // Unlock body scroll
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+  }
   planDesignerState.selectedNode = null;
+  
+  // Remove escape key listener
+  if (modalEscapeHandler) {
+    document.removeEventListener('keydown', modalEscapeHandler);
+    modalEscapeHandler = null;
+  }
 }
 
 export function deleteNode(nodeId) {
-  if (confirm('Are you sure you want to delete this operation?')) {
+  if (confirm('Are you sure you want to delete this Production Step?')) {
     planDesignerState.nodes = planDesignerState.nodes.filter(n => n.id !== nodeId);
     planDesignerState.nodes.forEach(node => { node.connections = node.connections.filter(connId => connId !== nodeId); });
     renderCanvas();

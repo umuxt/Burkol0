@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Save,
   Send,
@@ -43,8 +43,9 @@ import {
   TableHeader,
   TableRow,
 } from "../../../shared/components/ui/table";
-import { toast } from "sonner@2.0.3";
-import { useMES, WorkOrderOperation } from "../contexts/MESContext";
+import { toast } from "sonner";
+import { useMES, WorkOrderOperation } from "../../../src/contexts/MESContext";
+import { useMaterials } from "../../../hooks/useFirebaseMaterials.js";
 
 interface Material {
   id: string;
@@ -88,16 +89,33 @@ const mockOrders: Order[] = [
 export function ProductionPlanDesigner() {
   const { operations, workers, stations, getAvailableWorkers, addWorkOrder } = useMES();
   
+  // Load raw materials from Firebase with proper filtering
+  const { materials: allMaterials, loading: materialsLoading } = useMaterials({
+    status: 'Aktif',
+    category: 'Ham madde'
+  });
+  
   const [selectedOrder, setSelectedOrder] = useState<string>("");
   const [nodes, setNodes] = useState<OperationNode[]>([]);
   const [planName, setPlanName] = useState<string>("");
   const [planDescription, setPlanDescription] = useState<string>("");
   const [packageSize, setPackageSize] = useState([25]);
-  const [materials, setMaterials] = useState<Material[]>([
-    { id: "m1", name: "Steel Block", required: 500, available: 450, unit: "kg" },
-    { id: "m2", name: "Aluminum Sheet", required: 200, available: 250, unit: "kg" },
-    { id: "m3", name: "Fasteners", required: 5000, available: 4800, unit: "pcs" },
-  ]);
+  
+  // Transform Firebase materials to component interface format
+  const [materials, setMaterials] = useState<Material[]>([]);
+  
+  useEffect(() => {
+    if (allMaterials && !materialsLoading) {
+      const transformedMaterials = allMaterials.map(mat => ({
+        id: mat.id || mat.code,
+        name: mat.name,
+        required: 0, // Will be set based on operation requirements
+        available: mat.stock || 0,
+        unit: mat.unit || 'kg'
+      }));
+      setMaterials(transformedMaterials);
+    }
+  }, [allMaterials, materialsLoading]);
   const [draggedNodeType, setDraggedNodeType] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<OperationNode | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -280,7 +298,7 @@ export function ProductionPlanDesigner() {
       stationId: node.stationId,
       stationName: node.stationName,
       estimatedTime: node.estimatedTime,
-      status: "pending" as const,
+      status: "not-started" as const,
       sequence: index + 1,
       x: node.x,
       y: node.y,
@@ -335,7 +353,7 @@ export function ProductionPlanDesigner() {
       stationId: node.stationId,
       stationName: node.stationName,
       estimatedTime: node.estimatedTime,
-      status: "pending" as const,
+      status: "not-started" as const,
       sequence: index + 1,
       x: node.x,
       y: node.y,

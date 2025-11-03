@@ -596,22 +596,29 @@ export function generatePlanDesigner() {
         <div class="card-content" style="padding: 8px;"><div id="operations-list"></div></div>
       </div>
       <div class="card">
-        <div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 14px;">Plan Canvas</div><div class="card-description"><div style="display: flex; justify-content: space-between; align-items: center;"><span style="font-size: 11px;">Design your production flow</span><div style="display: flex; gap: 6px;"><button id="connect-mode-btn" onclick="toggleConnectMode()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">🔗 Connect</button><button onclick="clearCanvas()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">🗑️ Clear</button></div></div></div></div>
+        <div class="card-header" style="padding: 8px 12px; display:flex; align-items:center;">
+          <div class="card-title" style="font-size: 14px;">Plan Canvas</div>
+          <div style="display: flex; gap: 6px; margin-left:auto;">
+            <button id="connect-mode-btn" onclick="toggleConnectMode()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">🔗 Connect</button>
+            <button onclick="clearCanvas()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">🗑️ Clear</button>
+          </div>
+        </div>
         <div class="card-content" style="padding: 0; height: 420px; position: relative; overflow: hidden;">
           <div id="plan-canvas" style="width: 100%; height: 100%; position: relative; background: var(--card); border: 1px solid var(--border);" ondrop="handleCanvasDrop(event)" ondragover="handleCanvasDragOver(event)" onclick="handleCanvasClick(event)"></div>
         </div>
       </div>
     </div>
     <div id="node-edit-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 1000;" onclick="closeNodeEditModal(event)">
-      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 520px; background: var(--card); border-radius: 12px; overflow: hidden;">
-        <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-          <div style="font-weight: 600;">Edit Operation</div>
-          <button onclick="closeNodeEditModal()" style="border: none; background: transparent; font-size: 18px; cursor: pointer;">×</button>
+      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 0; width: 560px; max-height: 80vh; overflow: hidden;" onclick="event.stopPropagation()">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
+          <h3 style="margin: 0; font-size: 18px;">Edit Production Step</h3>
         </div>
-        <div id="node-edit-form" style="padding: 16px;"></div>
-        <div style="display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border);">
-          <button onclick="closeNodeEditModal()" style="padding: 6px 12px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer;">Cancel</button>
-          <button onclick="saveNodeEdit()" style="padding: 6px 12px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 6px; cursor: pointer;">Save</button>
+        <div style="padding: 16px 20px; background: rgb(249, 250, 251); max-height: calc(80vh - 120px); overflow-y: auto;">
+          <div id="node-edit-form"></div>
+        </div>
+        <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+          <button onclick="closeNodeEditModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Cancel</button>
+          <button onclick="saveNodeEdit()" style="padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 4px; cursor: pointer;">Save</button>
         </div>
       </div>
     </div>

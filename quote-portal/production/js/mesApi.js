@@ -25,6 +25,7 @@ function isReload() {
 let _operationsCache = null
 let _stationsCache = null
 let _workersCache = null
+let _materialsCache = null
 let _reloadForcedStations = false
 let _reloadForcedMaster = false
 
@@ -144,6 +145,18 @@ export async function getWorkers(force = false) {
     skills: Array.isArray(w.skills) ? w.skills : (typeof w.skills === 'string' ? w.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   }))
   return _workersCache
+}
+
+// Materials API
+export async function getMaterials(force = false) {
+  if (!force && Array.isArray(_materialsCache)) return _materialsCache
+  // Use shared Materials API (Firestore 'materials' collection)
+  const res = await fetch(`${API_BASE}/api/materials?_t=${Date.now()}`, { headers: withAuth() })
+  if (!res.ok) throw new Error(`materials_load_failed ${res.status}`)
+  const data = await res.json()
+  // API returns raw array of materials
+  _materialsCache = Array.isArray(data) ? data : []
+  return _materialsCache
 }
 
 export function genId(prefix = '') { return `${prefix}${Math.random().toString(36).slice(2, 9)}` }
