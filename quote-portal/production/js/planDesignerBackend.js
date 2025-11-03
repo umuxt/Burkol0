@@ -43,20 +43,53 @@ let modalEscapeHandler = null;
 
 export async function loadOperationsToolboxBackend() {
   const listContainer = document.getElementById('operations-list')
-  if (!listContainer) return
-  listContainer.innerHTML = '<div style="padding:6px;color:#888;">Loading operations...</div>'
+  const fullscreenListContainer = document.getElementById('fullscreen-operations-list')
+  
+  if (listContainer) {
+    listContainer.innerHTML = '<div style="padding:6px;color:#888;">Loading operations...</div>'
+  }
+  if (fullscreenListContainer) {
+    fullscreenListContainer.innerHTML = '<div style="padding:12px;color:#888;">Loading operations...</div>'
+  }
+  
   try {
     _opsCache = await getOperations(true)
+    
+    // Store in planDesignerState for drag & drop
+    planDesignerState.availableOperations = _opsCache
+    
     if (!_opsCache.length) {
-      listContainer.innerHTML = '<div style="padding:6px;color:#666;">No operations defined yet. Add from Operations page.</div>'
+      if (listContainer) {
+        listContainer.innerHTML = '<div style="padding:6px;color:#666;">No operations defined yet. Add from Operations page.</div>'
+      }
+      if (fullscreenListContainer) {
+        fullscreenListContainer.innerHTML = '<div style="padding:12px;color:#666;">No operations defined yet. Add from Operations page.</div>'
+      }
       return
     }
-    listContainer.innerHTML = _opsCache.map(op =>
-      `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: grab; background: white; margin-bottom: 4px; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${escapeHtml(op.name)}</div>`
-    ).join('')
+    
+    // Normal operations list
+    if (listContainer) {
+      listContainer.innerHTML = _opsCache.map(op =>
+        `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: grab; background: white; margin-bottom: 4px; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${escapeHtml(op.name)}</div>`
+      ).join('')
+    }
+    
+    // Fullscreen operations list
+    if (fullscreenListContainer) {
+      fullscreenListContainer.innerHTML = _opsCache.map(op =>
+        `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${escapeHtml(op.name)}</div>`
+      ).join('')
+    }
+    
   } catch (e) {
     console.error('loadOperationsToolboxBackend error', e)
-    listContainer.innerHTML = '<div style="padding:6px;color:#ef4444;">Failed to load operations</div>'
+    if (listContainer) {
+      listContainer.innerHTML = '<div style="padding:6px;color:#ef4444;">Failed to load operations</div>'
+    }
+    if (fullscreenListContainer) {
+      fullscreenListContainer.innerHTML = '<div style="padding:12px;color:#ef4444;">Failed to load operations</div>'
+    }
   }
 }
 
@@ -99,7 +132,13 @@ export function handleCanvasDropBackend(event) {
   const op = (_opsCache||[]).find(o => o.id === planDesignerState.draggedOperation)
   if (!op) { showToast('Operation not found. Refresh list.', 'error'); return }
 
-  const canvas = document.getElementById('plan-canvas')
+  // Determine which canvas is active (normal or fullscreen)
+  const canvas = planDesignerState.isFullscreen ? 
+    document.getElementById('fullscreen-plan-canvas') : 
+    document.getElementById('plan-canvas')
+    
+  if (!canvas) return
+  
   const rect = canvas.getBoundingClientRect()
   const x = event.clientX - rect.left - 80
   const y = event.clientY - rect.top - 40
@@ -119,7 +158,19 @@ export function handleCanvasDropBackend(event) {
     assignedStation: null
   }
   planDesignerState.nodes.push(newNode)
-  renderCanvas()
+  
+  // Render appropriate canvas
+  if (planDesignerState.isFullscreen) {
+    // Import and use renderCanvasContent for fullscreen
+    import('./planDesigner.js').then(module => {
+      if (module.renderCanvasContent) {
+        module.renderCanvasContent(canvas)
+      }
+    })
+  } else {
+    renderCanvas()
+  }
+  
   planDesignerState.draggedOperation = null
   showToast(`${op.name} operasyonu eklendi`, 'success')
 }

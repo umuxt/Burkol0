@@ -7,25 +7,558 @@ export const planDesignerState = {
   connectingFrom: null,
   draggedOperation: null,
   selectedNode: null,
-  nodeIdCounter: 1
+  nodeIdCounter: 1,
+  isFullscreen: false,
+  availableOperations: [],
+  // Global drag state
+  isDragging: false,
+  draggedNode: null,
+  dragStartX: 0,
+  dragStartY: 0,
+  nodeStartX: 0,
+  nodeStartY: 0,
+  // Connection hover state
+  isConnecting: false,
+  connectionSource: null,
+  hoveredNode: null,
+  connectionTarget: null,
+  // Fullscreen zoom state
+  fullscreenZoom: 100,
+  // Canvas pan state
+  isPanning: false,
+  panStartX: 0,
+  panStartY: 0,
+  panOffsetX: 0,
+  panOffsetY: 0
 };
 
 export function loadOperationsToolbox() {
+  // Gerçek operations verilerini kullan (şimdilik hardcoded, Firebase'den gelecek)
   const operations = [
-    // Operations will be loaded from Firebase
+    { id: 'op-225d1xh', name: 'Boyama', type: 'painting', time: 30, skills: ['painter'] },
+    { id: 'op-25m0lvw', name: 'Montaj', type: 'assembly', time: 45, skills: ['assembly'] },
+    { id: 'op-me5qd1y', name: 'Press Kalıp Şekillendirme', type: 'forming', time: 60, skills: ['operator'] },
+    { id: 'op-rqjlcwf', name: 'Torna', type: 'machining', time: 40, skills: ['machinist'] }
   ];
 
+  // Normal operations list
   const listContainer = document.getElementById('operations-list');
-  if (!listContainer) return;
-  
-  if (operations.length === 0) {
-    listContainer.innerHTML = '<div style="padding: 8px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
-    return;
+  if (listContainer) {
+    if (operations.length === 0) {
+      listContainer.innerHTML = '<div style="padding: 8px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
+    } else {
+      listContainer.innerHTML = operations.map(op =>
+        `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: grab; background: white; margin-bottom: 4px; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${op.name}</div>`
+      ).join('');
+    }
   }
   
-  listContainer.innerHTML = operations.map(op =>
-    '<div draggable="true" ondragstart="handleOperationDragStart(event, \'' + op.id + '\')" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: grab; background: white; margin-bottom: 4px; font-size: 13px; font-weight: 500;" onmouseover="this.style.background=\'var(--muted)\'" onmouseout="this.style.background=\'white\'">' + op.name + '</div>'
-  ).join('');
+  // Fullscreen operations list
+  const fullscreenListContainer = document.getElementById('fullscreen-operations-list');
+  if (fullscreenListContainer) {
+    if (operations.length === 0) {
+      fullscreenListContainer.innerHTML = '<div style="padding: 12px; color: var(--muted-foreground); font-size: 14px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
+    } else {
+      fullscreenListContainer.innerHTML = operations.map(op =>
+        `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${op.name}</div>`
+      ).join('');
+    }
+  }
+  
+  // Store in planDesignerState for drag & drop
+  planDesignerState.availableOperations = operations
+  
+  // Initialize global event handlers if not already done
+  initializeGlobalEventHandlers()
+}
+
+// Global event handlers for drag functionality
+let globalEventHandlersInitialized = false;
+
+function initializeGlobalEventHandlers() {
+  if (globalEventHandlersInitialized) return;
+  
+  // Global mousedown for connection zone detection and pan start
+  document.addEventListener('mousedown', (e) => {
+    // Determine which canvas we're working with
+    const targetCanvas = getActiveCanvas(e);
+    if (!targetCanvas) return;
+    
+    // Check if we're clicking on empty canvas space (for panning in fullscreen)
+    // Pan is only allowed with right-click and when connect mode is OFF
+    if (targetCanvas.id === 'fullscreen-plan-canvas' && !planDesignerState.connectMode) {
+      const target = e.target;
+      
+      // Only allow panning with right click
+      const isRightClick = e.button === 2;
+      
+      if (isRightClick) {
+        // For right click, check that we're not on interactive elements
+        if (target.closest('button') || target.closest('.drag-handle')) {
+          return; // Don't pan on interactive elements
+        }
+        
+        planDesignerState.isPanning = true;
+        planDesignerState.panStartX = e.clientX;
+        planDesignerState.panStartY = e.clientY;
+        targetCanvas.style.cursor = 'grabbing';
+        e.preventDefault();
+        return;
+      }
+    }
+    
+    // Check if we're in a connection zone (near but not on a node)
+    if (planDesignerState.hoveredNode) {
+      planDesignerState.isConnecting = true;
+      planDesignerState.connectionSource = planDesignerState.hoveredNode;
+      console.log('Connection started from node:', planDesignerState.hoveredNode.id);
+      e.preventDefault();
+      return;
+    }
+  });
+  
+  // Disable context menu on fullscreen canvas for better pan experience
+  document.addEventListener('contextmenu', (e) => {
+    const targetCanvas = getActiveCanvas(e);
+    if (targetCanvas && targetCanvas.id === 'fullscreen-plan-canvas') {
+      e.preventDefault();
+    }
+  });
+  
+  document.addEventListener('mousemove', (e) => {
+    // Determine which canvas we're working with
+    const targetCanvas = getActiveCanvas(e);
+    if (!targetCanvas) return;
+    
+    // Handle canvas panning
+    if (planDesignerState.isPanning) {
+      const deltaX = e.clientX - planDesignerState.panStartX;
+      const deltaY = e.clientY - planDesignerState.panStartY;
+      planDesignerState.panOffsetX += deltaX;
+      planDesignerState.panOffsetY += deltaY;
+      planDesignerState.panStartX = e.clientX;
+      planDesignerState.panStartY = e.clientY;
+      updateCanvasPan();
+      return;
+    }
+    
+    // Handle drag functionality
+    if (planDesignerState.isDragging && planDesignerState.draggedNode) {
+      const deltaX = e.clientX - planDesignerState.dragStartX;
+      const deltaY = e.clientY - planDesignerState.dragStartY;
+      const newX = Math.max(0, planDesignerState.nodeStartX + deltaX);
+      const newY = Math.max(0, planDesignerState.nodeStartY + deltaY);
+      
+      // Update node position
+      planDesignerState.draggedNode.x = newX;
+      planDesignerState.draggedNode.y = newY;
+      
+      // Update DOM element in the appropriate canvas
+      const nodeElement = targetCanvas.querySelector('#node-' + planDesignerState.draggedNode.id);
+      if (nodeElement) {
+        nodeElement.style.left = newX + 'px';
+        nodeElement.style.top = newY + 'px';
+      }
+      
+      // Update connections in the appropriate canvas
+      updateConnectionsForNodeInCanvas(planDesignerState.draggedNode.id, targetCanvas);
+      return;
+    }
+    
+    // Handle connection hover detection
+    if (!planDesignerState.isDragging) {
+      checkNodeHover(e);
+      
+      // If we're in connection mode, highlight potential target
+      if (planDesignerState.isConnecting && planDesignerState.connectionSource) {
+        highlightConnectionTarget(e);
+      }
+    }
+  });
+  
+  document.addEventListener('mouseup', (e) => {
+    // Determine which canvas we're working with
+    const targetCanvas = getActiveCanvas(e);
+    if (!targetCanvas) return;
+    
+    // Handle pan end
+    if (planDesignerState.isPanning) {
+      planDesignerState.isPanning = false;
+      if (targetCanvas && targetCanvas.id === 'fullscreen-plan-canvas') {
+        // Set cursor based on current mode
+        updateCanvasCursor();
+      }
+      return;
+    }
+    
+    // Handle drag end
+    if (planDesignerState.isDragging && planDesignerState.draggedNode) {
+      planDesignerState.isDragging = false;
+      
+      const nodeElement = targetCanvas.querySelector('#node-' + planDesignerState.draggedNode.id);
+      if (nodeElement) {
+        nodeElement.style.zIndex = '10';
+        nodeElement.style.transform = 'scale(1)';
+      }
+      
+      planDesignerState.draggedNode = null;
+      return;
+    }
+    
+    // Handle connection drop
+    if (planDesignerState.isConnecting && planDesignerState.connectionSource) {
+      // First check if we have a connection target
+      let targetNode = planDesignerState.connectionTarget;
+      
+      // If no connection target, check direct mouse position for any node
+      if (!targetNode) {
+        const canvasRect = targetCanvas.getBoundingClientRect();
+        const mouseX = e.clientX - canvasRect.left;
+        const mouseY = e.clientY - canvasRect.top;
+        
+        const nodes = targetCanvas.querySelectorAll('.canvas-node');
+        for (const nodeEl of nodes) {
+          const rect = nodeEl.getBoundingClientRect();
+          const nodeX = rect.left - canvasRect.left;
+          const nodeY = rect.top - canvasRect.top;
+          
+          if (mouseX >= nodeX && mouseX <= nodeX + rect.width && 
+              mouseY >= nodeY && mouseY <= nodeY + rect.height) {
+            const nodeId = nodeEl.id.replace('node-', '');
+            targetNode = planDesignerState.nodes.find(n => n.id === nodeId);
+            break;
+          }
+        }
+      }
+      
+      // Create connection if we found a target
+      if (targetNode && planDesignerState.connectionSource.id !== targetNode.id) {
+        connectNodes(planDesignerState.connectionSource.id, targetNode.id);
+        console.log('Connection created:', planDesignerState.connectionSource.id, '->', targetNode.id);
+      }
+      
+      // Reset connection state
+      resetConnectionState();
+    }
+  });
+  
+  globalEventHandlersInitialized = true;
+}
+
+// Helper function to get active canvas based on mouse event
+function getActiveCanvas(e) {
+  // Check if mouse is over fullscreen canvas
+  const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+  const normalCanvas = document.getElementById('plan-canvas');
+  
+  console.log('Checking canvases:', {
+    fullscreen: !!fullscreenCanvas,
+    normal: !!normalCanvas,
+    fullscreenVisible: fullscreenCanvas?.offsetParent !== null,
+    normalVisible: normalCanvas?.offsetParent !== null
+  });
+  
+  if (fullscreenCanvas && fullscreenCanvas.offsetParent !== null) {
+    const rect = fullscreenCanvas.getBoundingClientRect();
+    console.log('Fullscreen canvas rect:', rect);
+    if (e.clientX >= rect.left && e.clientX <= rect.right && 
+        e.clientY >= rect.top && e.clientY <= rect.bottom) {
+      console.log('Mouse is over fullscreen canvas');
+      return fullscreenCanvas;
+    }
+  }
+  
+  if (normalCanvas && normalCanvas.offsetParent !== null) {
+    const rect = normalCanvas.getBoundingClientRect();
+    console.log('Normal canvas rect:', rect);
+    if (e.clientX >= rect.left && e.clientX <= rect.right && 
+        e.clientY >= rect.top && e.clientY <= rect.bottom) {
+      console.log('Mouse is over normal canvas');
+      return normalCanvas;
+    }
+  }
+  
+  // Fallback to current mode
+  const fallback = planDesignerState.isFullscreen ? fullscreenCanvas : normalCanvas;
+  console.log('Using fallback canvas:', fallback?.id);
+  return fallback;
+}
+
+// Updated connection update function that works with specific canvas
+function updateConnectionsForNodeInCanvas(nodeId, canvas) {
+  if (!canvas) return;
+  
+  const existing = canvas.querySelectorAll('.connection-container');
+  existing.forEach(el => el.remove());
+  
+  planDesignerState.nodes.forEach(node => {
+    node.connections.forEach(targetId => {
+      const targetNode = planDesignerState.nodes.find(n => n.id === targetId);
+      if (targetNode) {
+        renderConnection(node, targetNode, canvas);
+      }
+    });
+  });
+}
+
+// Connection hover and highlighting functions
+function checkNodeHover(e) {
+  const nearbyNode = getNodeNearMouse(e);
+  
+  // Remove previous hover effects
+  if (planDesignerState.hoveredNode && planDesignerState.hoveredNode !== nearbyNode) {
+    removeNodeHoverEffect(planDesignerState.hoveredNode);
+  }
+  
+  planDesignerState.hoveredNode = nearbyNode;
+  
+  if (nearbyNode) {
+    console.log('Hovering near node:', nearbyNode.id);
+    addNodeHoverEffect(nearbyNode);
+    document.body.style.cursor = 'crosshair';
+    // Also try setting on both canvases
+    const normalCanvas = document.getElementById('plan-canvas');
+    const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+    
+    if (normalCanvas) normalCanvas.style.cursor = 'crosshair';
+    if (fullscreenCanvas) fullscreenCanvas.style.cursor = 'crosshair';
+  } else {
+    document.body.style.cursor = 'default';
+    const normalCanvas = document.getElementById('plan-canvas');
+    const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+    
+    if (normalCanvas) normalCanvas.style.cursor = 'default';
+    if (fullscreenCanvas) fullscreenCanvas.style.cursor = 'default';
+  }
+}
+
+function getNodeNearMouse(e) {
+  const activeCanvas = getActiveCanvas(e);
+  if (!activeCanvas) {
+    console.log('No active canvas found');
+    return null;
+  }
+  
+  console.log('Active canvas:', activeCanvas.id);
+  
+  const canvasRect = activeCanvas.getBoundingClientRect();
+  let mouseX = e.clientX - canvasRect.left;
+  let mouseY = e.clientY - canvasRect.top;
+  
+  // Default hover distance
+  let hoverDistance = 25;
+  
+  console.log('Original mouse position:', mouseX, mouseY);
+  console.log('Canvas rect:', canvasRect);
+  
+  // If this is the fullscreen canvas, account for transform
+  if (activeCanvas.id === 'fullscreen-plan-canvas') {
+    const transform = activeCanvas.style.transform;
+    console.log('Canvas transform:', transform);
+    
+    if (transform && transform !== 'none') {
+      // Parse scale from transform
+      const scaleMatch = transform.match(/scale\(([^)]+)\)/);
+      const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
+      
+      // Parse translate from transform
+      const translateMatch = transform.match(/translate\(([^,]+)px[^,]*,\s*([^)]+)px\)/);
+      const translateX = translateMatch ? parseFloat(translateMatch[1]) : 0;
+      const translateY = translateMatch ? parseFloat(translateMatch[2]) : 0;
+      
+      // Adjust hover distance based on zoom level
+      hoverDistance = 25 * scale;
+      
+      console.log('Transform values:', { scale, translateX, translateY, hoverDistance });
+      
+      // For CSS transform: scale() translate(), we need to:
+      // 1. Undo the translation first
+      // 2. Then undo the scaling around center
+      const centerX = canvasRect.width / 2;
+      const centerY = canvasRect.height / 2;
+      
+      // Inverse transform: first undo translate, then undo scale around center
+      mouseX = mouseX - translateX;
+      mouseY = mouseY - translateY;
+      
+      // Scale around center point
+      mouseX = (mouseX - centerX) / scale + centerX;
+      mouseY = (mouseY - centerY) / scale + centerY;
+      
+      console.log('Adjusted mouse position:', mouseX, mouseY);
+    } else {
+      console.log('No transform applied, using original coordinates');
+    }
+  }
+  
+  // Find node within hover distance range
+  const nodes = activeCanvas.querySelectorAll('.canvas-node');
+  console.log('Found nodes:', nodes.length, 'hover distance:', hoverDistance);
+  
+  for (const nodeEl of nodes) {
+    let nodeX, nodeY, nodeWidth, nodeHeight;
+    
+    if (activeCanvas.id === 'fullscreen-plan-canvas') {
+      // For fullscreen canvas, use the node's actual position style
+      const style = nodeEl.style;
+      nodeX = parseFloat(style.left) || 0;
+      nodeY = parseFloat(style.top) || 0;
+      nodeWidth = parseFloat(style.width) || 160; // default width
+      nodeHeight = 80; // approximate height
+      
+      console.log('Fullscreen node:', nodeEl.id, { nodeX, nodeY, nodeWidth, nodeHeight });
+    } else {
+      // For normal canvas, use bounding rect
+      const rect = nodeEl.getBoundingClientRect();
+      nodeX = rect.left - canvasRect.left;
+      nodeY = rect.top - canvasRect.top;
+      nodeWidth = rect.width;
+      nodeHeight = rect.height;
+      
+      console.log('Normal node:', nodeEl.id, { nodeX, nodeY, nodeWidth, nodeHeight });
+    }
+    
+    // Check if mouse is within hover distance around the node (not on it)
+    const isNearNode = (
+      mouseX >= nodeX - hoverDistance && mouseX <= nodeX + nodeWidth + hoverDistance &&
+      mouseY >= nodeY - hoverDistance && mouseY <= nodeY + nodeHeight + hoverDistance
+    );
+    
+    // But not directly on the node
+    const isOnNode = (
+      mouseX >= nodeX && mouseX <= nodeX + nodeWidth &&
+      mouseY >= nodeY && mouseY <= nodeY + nodeHeight
+    );
+    
+    console.log('Node check:', nodeEl.id, {
+      mouseX, mouseY, nodeX, nodeY, nodeWidth, nodeHeight,
+      isNearNode, isOnNode, hoverDistance
+    });
+    
+    if (isNearNode && !isOnNode) {
+      const nodeId = nodeEl.id.replace('node-', '');
+      const foundNode = planDesignerState.nodes.find(n => n.id === nodeId);
+      console.log('Found nearby node:', foundNode?.id);
+      return foundNode;
+    }
+  }
+  
+  console.log('No nearby node found');
+  return null;
+}
+
+function addNodeHoverEffect(node) {
+  // Update hover effect in both normal and fullscreen canvases
+  const normalNodeElement = document.querySelector('#plan-canvas #node-' + node.id);
+  const fullscreenNodeElement = document.querySelector('#fullscreen-plan-canvas #node-' + node.id);
+  
+  [normalNodeElement, fullscreenNodeElement].forEach(nodeElement => {
+    if (nodeElement) {
+      nodeElement.style.boxShadow = '0 0 15px 3px #3b82f6, 0 2px 4px rgba(0,0,0,0.1)';
+      nodeElement.style.borderColor = '#3b82f6';
+      nodeElement.style.transition = 'all 0.2s ease';
+      console.log('Added hover effect to:', nodeElement.id, 'in canvas:', nodeElement.parentElement.id);
+    }
+  });
+}
+
+function removeNodeHoverEffect(node) {
+  // Remove hover effect from both normal and fullscreen canvases
+  const normalNodeElement = document.querySelector('#plan-canvas #node-' + node.id);
+  const fullscreenNodeElement = document.querySelector('#fullscreen-plan-canvas #node-' + node.id);
+  
+  [normalNodeElement, fullscreenNodeElement].forEach(nodeElement => {
+    if (nodeElement) {
+      nodeElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+      nodeElement.style.borderColor = '';
+      nodeElement.style.transition = '';
+      console.log('Removed hover effect from:', nodeElement.id, 'in canvas:', nodeElement.parentElement.id);
+    }
+  });
+}
+
+function highlightConnectionTarget(e) {
+  const activeCanvas = getActiveCanvas(e);
+  if (!activeCanvas) return;
+  
+  const canvasRect = activeCanvas.getBoundingClientRect();
+  const mouseX = e.clientX - canvasRect.left;
+  const mouseY = e.clientY - canvasRect.top;
+  
+  // Find target node under mouse
+  const nodes = activeCanvas.querySelectorAll('.canvas-node');
+  let targetNode = null;
+  
+  for (const nodeEl of nodes) {
+    const rect = nodeEl.getBoundingClientRect();
+    const nodeX = rect.left - canvasRect.left;
+    const nodeY = rect.top - canvasRect.top;
+    
+    if (mouseX >= nodeX && mouseX <= nodeX + rect.width && 
+        mouseY >= nodeY && mouseY <= nodeY + rect.height) {
+      const nodeId = nodeEl.id.replace('node-', '');
+      const foundNode = planDesignerState.nodes.find(n => n.id === nodeId);
+      
+      // Don't highlight source node
+      if (foundNode && foundNode.id !== planDesignerState.connectionSource.id) {
+        targetNode = foundNode;
+      }
+      break;
+    }
+  }
+  
+  // Remove previous target highlight
+  if (planDesignerState.connectionTarget) {
+    removeConnectionTargetHighlight(planDesignerState.connectionTarget);
+  }
+  
+  // Add new target highlight
+  if (targetNode) {
+    addConnectionTargetHighlight(targetNode);
+    planDesignerState.connectionTarget = targetNode;
+  } else {
+    planDesignerState.connectionTarget = null;
+  }
+}
+
+function addConnectionTargetHighlight(node) {
+  const nodeElement = document.getElementById('node-' + node.id);
+  if (nodeElement) {
+    nodeElement.style.borderColor = '#3b82f6';
+    nodeElement.style.borderWidth = '3px';
+    nodeElement.style.boxShadow = '0 0 10px 2px rgba(59, 130, 246, 0.3)';
+  }
+}
+
+function removeConnectionTargetHighlight(node) {
+  const nodeElement = document.getElementById('node-' + node.id);
+  if (nodeElement) {
+    nodeElement.style.borderColor = '';
+    nodeElement.style.borderWidth = '2px';
+    nodeElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+  }
+}
+
+function resetConnectionState() {
+  planDesignerState.isConnecting = false;
+  planDesignerState.connectionSource = null;
+  
+  if (planDesignerState.hoveredNode) {
+    removeNodeHoverEffect(planDesignerState.hoveredNode);
+  }
+  planDesignerState.hoveredNode = null;
+  
+  if (planDesignerState.connectionTarget) {
+    removeConnectionTargetHighlight(planDesignerState.connectionTarget);
+  }
+  planDesignerState.connectionTarget = null;
+  
+  document.body.style.cursor = 'default';
+  const normalCanvas = document.getElementById('plan-canvas');
+  const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+  
+  if (normalCanvas) normalCanvas.style.cursor = 'default';
+  if (fullscreenCanvas) fullscreenCanvas.style.cursor = 'default';
 }
 
 export function handleOperationDragStart(event, operationId) {
@@ -42,14 +575,19 @@ export function handleCanvasDrop(event) {
   event.preventDefault();
   if (!planDesignerState.draggedOperation) return;
 
-  const canvas = document.getElementById('plan-canvas');
+  // Determine which canvas is active
+  const canvas = planDesignerState.isFullscreen ? 
+    document.getElementById('fullscreen-plan-canvas') : 
+    document.getElementById('plan-canvas');
+    
+  if (!canvas) return;
+  
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left - 80;
   const y = event.clientY - rect.top - 40;
 
-  // TODO: Get operations from Firebase/global state
-  const operations = [];
-  const operation = operations.find(op => op.id === planDesignerState.draggedOperation);
+  // Get operations from state
+  const operation = planDesignerState.availableOperations.find(op => op.id === planDesignerState.draggedOperation);
   if (!operation) {
     console.warn('Operation not found:', planDesignerState.draggedOperation);
     return;
@@ -70,7 +608,13 @@ export function handleCanvasDrop(event) {
     assignedStation: null
   };
   planDesignerState.nodes.push(newNode);
-  renderCanvas();
+  
+  // Render appropriate canvas
+  if (planDesignerState.isFullscreen) {
+    renderCanvasContent(canvas);
+  } else {
+    renderCanvas();
+  }
   planDesignerState.draggedOperation = null;
   showToast(operation.name + ' operasyonu eklendi', 'success');
 }
@@ -90,8 +634,9 @@ export function renderCanvas() {
   planDesignerState.nodes.forEach(node => renderNode(node));
 }
 
-export function renderNode(node) {
-  const canvas = document.getElementById('plan-canvas');
+export function renderNode(node, targetCanvas = null) {
+  const canvas = targetCanvas || document.getElementById('plan-canvas');
+  if (!canvas) return;
   const colors = { 'Machining': '#3b82f6', 'Welding': '#ef4444', 'Quality': '#10b981', 'Assembly': '#8b5cf6', 'Packaging': '#f97316', 'Treatment': '#06b6d4', 'Finishing': '#ec4899' };
   const nodeElement = document.createElement('div');
   nodeElement.className = 'canvas-node';
@@ -125,68 +670,124 @@ export function renderNode(node) {
     `<div style=\"font-size: 10px; color: #9ca3af;\">Worker: ${node.assignedWorker || 'Not assigned'}<br>Station: ${node.assignedStation || 'Not assigned'}<br>Materials: ${matSummary}</div>`
   ].join('');
 
-  let isDragging = false; let dragStartX = 0; let dragStartY = 0; let nodeStartX = node.x; let nodeStartY = node.y;
+  // Use global drag state instead of local variables
   nodeElement.onmousedown = (e) => {
     if (e.target.closest('button')) return;
     if (planDesignerState.connectMode) { handleNodeClick(node.id); return; }
-    isDragging = true; dragStartX = e.clientX; dragStartY = e.clientY; nodeStartX = node.x; nodeStartY = node.y;
-    nodeElement.style.zIndex = '20'; nodeElement.style.transform = 'scale(1.05)'; e.preventDefault();
+    
+    // Only handle drag if we're directly on the node (not in connection zone)
+    if (!planDesignerState.hoveredNode) {
+      // Set global drag state
+      planDesignerState.isDragging = true;
+      planDesignerState.draggedNode = node;
+      planDesignerState.dragStartX = e.clientX;
+      planDesignerState.dragStartY = e.clientY;
+      planDesignerState.nodeStartX = node.x;
+      planDesignerState.nodeStartY = node.y;
+      
+      const nodeElement = document.getElementById('node-' + node.id);
+      if (nodeElement) {
+        nodeElement.style.zIndex = '20';
+        nodeElement.style.transform = 'scale(1.05)';
+      }
+      e.preventDefault();
+    }
   };
-  document.onmousemove = (e) => {
-    if (!isDragging) return; const deltaX = e.clientX - dragStartX; const deltaY = e.clientY - dragStartY;
-    const newX = Math.max(0, nodeStartX + deltaX); const newY = Math.max(0, nodeStartY + deltaY);
-    node.x = newX; node.y = newY; nodeElement.style.left = newX + 'px'; nodeElement.style.top = newY + 'px'; updateConnectionsForNode(node.id);
+  
+  nodeElement.onclick = (e) => { 
+    e.stopPropagation(); 
+    if (!planDesignerState.isDragging) handleNodeClick(node.id); 
   };
-  document.onmouseup = () => { if (isDragging) { isDragging = false; nodeElement.style.zIndex = '10'; nodeElement.style.transform = 'scale(1)'; } };
-  nodeElement.onclick = (e) => { e.stopPropagation(); if (!isDragging) handleNodeClick(node.id); };
   canvas.appendChild(nodeElement);
 }
 
-export function renderConnection(fromNode, toNode) {
-  const canvas = document.getElementById('plan-canvas');
+export function renderConnection(fromNode, toNode, targetCanvas = null) {
+  const canvas = targetCanvas || document.getElementById('plan-canvas');
+  if (!canvas) return;
   const connectionId = 'connection-' + fromNode.id + '-' + toNode.id;
   const container = document.createElement('div');
   container.className = 'connection-container';
-  container.id = connectionId; container.style.cssText = 'position: absolute;pointer-events: none;z-index: 5;';
-  const fromX = fromNode.x + 80; const fromY = fromNode.y + 40; const toX = toNode.x + 80; const toY = toNode.y + 40;
+  container.id = connectionId; 
+  container.style.cssText = 'position: absolute; z-index: 5;';
+  
+  const fromX = fromNode.x + 80; const fromY = fromNode.y + 40; 
+  const toX = toNode.x + 80; const toY = toNode.y + 40;
   const length = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
   const angle = Math.atan2(toY - fromY, toX - fromX) * 180 / Math.PI;
 
   const line = document.createElement('div');
   line.className = 'connection-line';
-  line.style.cssText = `position:absolute; left:${fromX}px; top:${fromY}px; width:${length}px; height:2px; background:#9ca3af; transform-origin: 0 0; transform: rotate(${angle}deg);`;
+  line.style.cssText = `position:absolute; left:${fromX}px; top:${fromY}px; width:${length}px; height:8px; background:transparent; transform-origin: 0 0; transform: rotate(${angle}deg); cursor: pointer;`;
+  
+  // Visible line inside the clickable area
+  const visibleLine = document.createElement('div');
+  visibleLine.style.cssText = `position:absolute; top:3px; left:0; width:100%; height:2px; background:#9ca3af; pointer-events: none;`;
+  line.appendChild(visibleLine);
 
   const middleArrow = document.createElement('div');
   const middleX = fromX + (toX - fromX) / 2; const middleY = fromY + (toY - fromY) / 2;
   middleArrow.className = 'middle-arrow';
-  middleArrow.style.cssText = `position:absolute; left:${middleX - 4}px; top:${middleY - 4}px; width:0; height:0; border-left:8px solid #6b7280; border-top:4px solid transparent; border-bottom:4px solid transparent; transform: rotate(${angle}deg);`;
+  middleArrow.style.cssText = `position:absolute; left:${middleX - 4}px; top:${middleY - 4}px; width:0; height:0; border-left:8px solid #6b7280; border-top:4px solid transparent; border-bottom:4px solid transparent; transform: rotate(${angle}deg); pointer-events: none; cursor: pointer;`;
 
   const arrowHead = document.createElement('div');
   arrowHead.className = 'arrow-head';
-  arrowHead.style.cssText = `position:absolute; left:${toX - 4}px; top:${toY - 4}px; width:0; height:0; border-left:8px solid #6b7280; border-top:4px solid transparent; border-bottom:4px solid transparent; transform: rotate(${angle}deg);`;
+  // Arrow head should be at the exact end of the line, positioned correctly
+  const arrowX = fromX + Math.cos(angle * Math.PI / 180) * length;
+  const arrowY = fromY + Math.sin(angle * Math.PI / 180) * length;
+  arrowHead.style.cssText = `position:absolute; left:${arrowX - 6}px; top:${arrowY - 6}px; width:0; height:0; border-left:12px solid #6b7280; border-top:6px solid transparent; border-bottom:6px solid transparent; transform: rotate(${angle}deg); pointer-events: none; cursor: pointer;`;
 
   const deleteBtn = document.createElement('button');
   deleteBtn.className = 'connection-delete-btn';
-  deleteBtn.textContent = '×';
-  deleteBtn.style.cssText = `position:absolute; left:${middleX - 10}px; top:${middleY - 10}px; width:20px; height:20px; border:none; border-radius:50%; background:#ef4444; color:white; cursor:pointer; opacity:0; pointer-events:none;`;
-  const showDeleteBtn = () => { deleteBtn.style.opacity = '1'; deleteBtn.style.pointerEvents = 'auto'; };
-  const hideDeleteBtn = () => { deleteBtn.style.opacity = '0'; deleteBtn.style.pointerEvents = 'none'; };
-  [line, middleArrow, arrowHead].forEach(el => { el.onmouseenter = showDeleteBtn; el.onmouseleave = hideDeleteBtn; });
-  deleteBtn.onmouseenter = showDeleteBtn; deleteBtn.onmouseleave = hideDeleteBtn;
-  deleteBtn.onclick = () => deleteConnection(fromNode.id, toNode.id);
+  deleteBtn.innerHTML = '🗑️';
+  deleteBtn.style.cssText = `position:absolute; left:${middleX - 12}px; top:${middleY - 12}px; width:24px; height:24px; border:2px solid white; border-radius:50%; background:#ef4444; color:white; cursor:pointer; opacity:0; pointer-events:none; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.2);`;
+  
+  const showDeleteBtn = () => { 
+    deleteBtn.style.opacity = '1'; 
+    deleteBtn.style.pointerEvents = 'auto';
+    deleteBtn.style.transform = 'scale(1.1)';
+  };
+  const hideDeleteBtn = () => { 
+    deleteBtn.style.opacity = '0'; 
+    deleteBtn.style.pointerEvents = 'none'; 
+    deleteBtn.style.transform = 'scale(1)';
+  };
+  
+  // Hover events for line and arrows
+  [line, middleArrow, arrowHead].forEach(el => { 
+    el.onmouseenter = showDeleteBtn; 
+    el.onmouseleave = hideDeleteBtn; 
+  });
+  deleteBtn.onmouseenter = showDeleteBtn; 
+  deleteBtn.onmouseleave = hideDeleteBtn;
+  deleteBtn.onclick = (e) => {
+    e.stopPropagation();
+    deleteConnection(fromNode.id, toNode.id);
+  };
 
-  container.appendChild(line); container.appendChild(middleArrow); container.appendChild(arrowHead); container.appendChild(deleteBtn);
+  container.appendChild(line); 
+  container.appendChild(middleArrow); 
+  container.appendChild(arrowHead); 
+  container.appendChild(deleteBtn);
   canvas.appendChild(container);
 }
 
 export function updateConnectionsForNode(nodeId) {
-  const canvas = document.getElementById('plan-canvas');
+  // Determine which canvas is active
+  const canvas = planDesignerState.isFullscreen ? 
+    document.getElementById('fullscreen-plan-canvas') : 
+    document.getElementById('plan-canvas');
+    
+  if (!canvas) return;
+  
   const existing = canvas.querySelectorAll('.connection-container');
   existing.forEach(el => el.remove());
+  
   planDesignerState.nodes.forEach(node => {
     node.connections.forEach(targetId => {
       const targetNode = planDesignerState.nodes.find(n => n.id === targetId);
-      if (targetNode) renderConnection(node, targetNode);
+      if (targetNode) {
+        renderConnection(node, targetNode, canvas);
+      }
     });
   });
 }
@@ -195,7 +796,15 @@ export function deleteConnection(fromNodeId, toNodeId) {
   const fromNode = planDesignerState.nodes.find(n => n.id === fromNodeId);
   if (fromNode) {
     fromNode.connections = fromNode.connections.filter(id => id !== toNodeId);
-    renderCanvas();
+    
+    // Render appropriate canvas
+    if (planDesignerState.isFullscreen) {
+      const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+      if (fullscreenCanvas) renderCanvasContent(fullscreenCanvas);
+    } else {
+      renderCanvas();
+    }
+    
     showToast('Connection deleted', 'success');
   }
 }
@@ -216,7 +825,15 @@ export function connectNodes(fromId, toId) {
   const fromNode = planDesignerState.nodes.find(n => n.id === fromId);
   if (fromNode && !fromNode.connections.includes(toId)) {
     fromNode.connections.push(toId);
-    renderCanvas();
+    
+    // Render appropriate canvas
+    if (planDesignerState.isFullscreen) {
+      const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+      if (fullscreenCanvas) renderCanvasContent(fullscreenCanvas);
+    } else {
+      renderCanvas();
+    }
+    
     showToast('Operations connected', 'success');
   }
 }
@@ -225,22 +842,64 @@ export function toggleConnectMode() {
   planDesignerState.connectMode = !planDesignerState.connectMode;
   planDesignerState.connectingFrom = null;
   updateConnectButton();
-  if (planDesignerState.connectMode) showToast('Connect mode active. Click source operation, then target operation.', 'info');
+  updateCanvasCursor();
+  if (planDesignerState.connectMode) {
+    showToast('Connect mode active. Click source operation, then target operation.', 'info');
+  }
+}
+
+function updateCanvasCursor() {
+  const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+  if (fullscreenCanvas) {
+    if (planDesignerState.connectMode) {
+      fullscreenCanvas.style.cursor = 'crosshair';
+    } else {
+      fullscreenCanvas.style.cursor = 'grab';
+    }
+  }
 }
 
 export function updateConnectButton() {
   const btn = document.getElementById('connect-mode-btn');
+  const fullscreenBtn = document.getElementById('fullscreen-connect-mode-btn');
+  
   if (btn) {
     btn.style.background = planDesignerState.connectMode ? 'var(--primary)' : 'white';
     btn.style.color = planDesignerState.connectMode ? 'white' : 'black';
     btn.innerHTML = planDesignerState.connectMode ? '🔗 Connecting...' : '🔗 Connect';
   }
+  
+  if (fullscreenBtn) {
+    fullscreenBtn.style.background = planDesignerState.connectMode ? 'var(--primary)' : 'white';
+    fullscreenBtn.style.color = planDesignerState.connectMode ? 'white' : 'black';
+    fullscreenBtn.innerHTML = planDesignerState.connectMode ? '🔗 Connecting...' : '🔗 Connect';
+  }
+  
+  // Update canvas cursor based on mode
+  updateCanvasCursor();
 }
 
 export function clearCanvas() {
-  if (planDesignerState.nodes.length === 0) { showToast('Canvas is already empty', 'info'); return; }
+  if (planDesignerState.nodes.length === 0) { 
+    showToast('Canvas is already empty', 'info'); 
+    return; 
+  }
   if (confirm('Are you sure you want to clear all operations?')) {
-    planDesignerState.nodes = []; planDesignerState.connectMode = false; planDesignerState.connectingFrom = null; updateConnectButton(); renderCanvas(); showToast('Canvas cleared', 'success');
+    planDesignerState.nodes = []; 
+    planDesignerState.connectMode = false; 
+    planDesignerState.connectingFrom = null; 
+    updateConnectButton(); 
+    updateCanvasCursor(); 
+    
+    // Clear both canvases
+    if (planDesignerState.isFullscreen) {
+      const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+      if (fullscreenCanvas) renderCanvasContent(fullscreenCanvas);
+    } else {
+      renderCanvas();
+    }
+    
+    showToast('Canvas cleared', 'success');
   }
 }
 
@@ -347,7 +1006,15 @@ export function deleteNode(nodeId) {
   if (confirm('Are you sure you want to delete this Production Step?')) {
     planDesignerState.nodes = planDesignerState.nodes.filter(n => n.id !== nodeId);
     planDesignerState.nodes.forEach(node => { node.connections = node.connections.filter(connId => connId !== nodeId); });
-    renderCanvas();
+    
+    // Render appropriate canvas
+    if (planDesignerState.isFullscreen) {
+      const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+      if (fullscreenCanvas) renderCanvasContent(fullscreenCanvas);
+    } else {
+      renderCanvas();
+    }
+    
     showToast('Operation deleted', 'success');
   }
 }
@@ -424,6 +1091,12 @@ export function savePlanAsTemplate() {
   showToast(`Plan "${planName}" saved as template`, 'success');
 }
 
+export function savePlanDraft() {
+  if (planDesignerState.nodes.length === 0) { showToast('Draft saved (no steps yet)', 'info'); return; }
+  const planName = document.getElementById('plan-name')?.value || 'Untitled';
+  showToast(`Plan "${planName}" saved as draft`, 'success');
+}
+
 export function deployWorkOrder() {
   if (planDesignerState.nodes.length === 0) { showToast('Cannot deploy empty plan', 'error'); return; }
   const planName = document.getElementById('plan-name').value;
@@ -448,5 +1121,225 @@ export function handleCanvasClick(event) {
 }
 
 export function initializePlanDesigner() {
-  setTimeout(() => { loadOperationsToolbox(); renderCanvas(); handleScheduleTypeChange(); }, 100);
+  setTimeout(() => {
+    loadOperationsToolbox();
+    renderCanvas();
+    handleScheduleTypeChange();
+    // Initialize order/type dropdown button labels from hidden selects
+    try {
+      const orderSelect = document.getElementById('order-select');
+      const orderLabel = document.getElementById('plan-order-label');
+      const selOpt = orderSelect && orderSelect.options ? orderSelect.options[orderSelect.selectedIndex] : null;
+      if (orderLabel) orderLabel.textContent = selOpt && selOpt.value ? (selOpt.text || selOpt.value) : 'Select an order...';
+    } catch {}
+    try {
+      const typeSelect = document.getElementById('schedule-type');
+      const typeLabel = document.getElementById('plan-type-label');
+      const val = typeSelect ? typeSelect.value : 'one-time';
+      if (typeLabel) typeLabel.textContent = val === 'recurring' ? 'Devirli' : 'Tek seferlik';
+    } catch {}
+  }, 100);
 }
+
+// Plan Order dropdown (button + panel) helpers
+export function togglePlanOrderPanel() {
+  const panel = document.getElementById('plan-order-panel');
+  if (!panel) return;
+  renderPlanOrderListFromSelect();
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'block';
+}
+
+export function hidePlanOrderPanel() { const p = document.getElementById('plan-order-panel'); if (p) p.style.display = 'none'; }
+
+export function clearPlanOrder() {
+  const sel = document.getElementById('order-select');
+  const label = document.getElementById('plan-order-label');
+  if (sel) sel.value = '';
+  if (label) label.textContent = 'Select an order...';
+  hidePlanOrderPanel();
+  // Trigger change handler to clear dependent UI
+  try { if (typeof window.handleOrderChange === 'function') window.handleOrderChange(); } catch {}
+}
+
+export function filterPlanOrderList() {
+  const q = (document.getElementById('plan-order-search')?.value || '').toLowerCase();
+  const items = document.querySelectorAll('#plan-order-list label');
+  items.forEach(lab => { const t = lab.textContent?.toLowerCase() || ''; lab.style.display = t.includes(q) ? '' : 'none'; });
+}
+
+export function selectPlanOrder(value, labelText) {
+  const sel = document.getElementById('order-select');
+  const label = document.getElementById('plan-order-label');
+  if (sel) sel.value = value;
+  if (label) label.textContent = labelText || value;
+  hidePlanOrderPanel();
+  try { if (typeof window.handleOrderChange === 'function') window.handleOrderChange(); } catch {}
+}
+
+export function renderPlanOrderListFromSelect() {
+  const list = document.getElementById('plan-order-list');
+  const sel = document.getElementById('order-select');
+  if (!list || !sel) return;
+  const opts = Array.from(sel.options || []);
+  const rows = opts
+    .filter(o => o.value)
+    .map(o => `<label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
+      <input type="radio" name="plan-order-radio" value="${o.value}" onclick="selectPlanOrder('${o.value}', '${(o.text||o.value).replace(/'/g, "\'")}')">
+      <span style="font-size:12px;">${o.text || o.value}</span>
+    </label>`)
+    .join('');
+  list.innerHTML = rows || '<div style="color: var(--muted-foreground); font-size: 12px;">No orders</div>';
+}
+
+// Plan Type dropdown (button + panel) helpers
+export function togglePlanTypePanel() {
+  const p = document.getElementById('plan-type-panel'); if (!p) return; const isOpen = p.style.display !== 'none'; p.style.display = isOpen ? 'none' : 'block';
+}
+export function hidePlanTypePanel() { const p = document.getElementById('plan-type-panel'); if (p) p.style.display = 'none'; }
+export function clearPlanType() { selectPlanType('one-time', 'Tek seferlik'); }
+export function selectPlanType(value, labelText) {
+  const sel = document.getElementById('schedule-type');
+  const label = document.getElementById('plan-type-label');
+  if (sel) sel.value = value;
+  if (label) label.textContent = labelText || (value === 'recurring' ? 'Devirli' : 'Tek seferlik');
+  hidePlanTypePanel();
+  try { if (typeof window.handleScheduleTypeChange === 'function') window.handleScheduleTypeChange(); } catch {}
+}
+
+// Fullscreen Canvas Functions
+export function toggleCanvasFullscreen() {
+  const modal = document.getElementById('canvas-fullscreen-modal');
+  const sidebar = document.getElementById('sidebar');
+  const mainContent = document.querySelector('.main-content');
+  
+  if (!modal) return;
+  
+  const isFullscreen = modal.style.display !== 'none';
+  
+  if (isFullscreen) {
+    // Exit fullscreen
+    modal.style.display = 'none';
+    if (sidebar) sidebar.style.display = 'block';
+    syncCanvasFromFullscreen();
+  } else {
+    // Enter fullscreen  
+    modal.style.display = 'block';
+    if (sidebar) sidebar.style.display = 'none';
+    syncCanvasToFullscreen();
+  }
+}
+
+function syncCanvasToFullscreen() {
+  // Set fullscreen mode
+  planDesignerState.isFullscreen = true;
+  
+  // Reset zoom to 100% and pan to center
+  planDesignerState.fullscreenZoom = 100;
+  resetCanvasPan();
+  setCanvasZoom(100);
+  
+  // Set appropriate cursor based on current mode
+  updateCanvasCursor();
+  
+  // Load operations in fullscreen list
+  loadOperationsToolbox();
+  
+  // Render existing nodes in fullscreen canvas
+  const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+  if (fullscreenCanvas) {
+    renderCanvasContent(fullscreenCanvas);
+  }
+}
+
+function syncCanvasFromFullscreen() {
+  // Exit fullscreen mode
+  planDesignerState.isFullscreen = false;
+  
+  // Render nodes back to normal canvas
+  const normalCanvas = document.getElementById('plan-canvas');
+  if (normalCanvas) {
+    renderCanvas(); // Use the existing renderCanvas function for normal mode
+  }
+}
+
+export function renderCanvasContent(canvasElement) {
+  if (!canvasElement) return;
+  
+  // Clear existing content
+  const existingElements = canvasElement.querySelectorAll('.canvas-node, .connection-container');
+  existingElements.forEach(element => element.remove());
+
+  // Render connections first
+  planDesignerState.nodes.forEach(node => {
+    node.connections.forEach(targetId => {
+      const targetNode = planDesignerState.nodes.find(n => n.id === targetId);
+      if (targetNode) renderConnection(node, targetNode, canvasElement);
+    });
+  });
+  
+  // Render nodes using the same renderNode function
+  planDesignerState.nodes.forEach(node => renderNode(node, canvasElement));
+}
+
+// Make functions globally available
+window.toggleCanvasFullscreen = toggleCanvasFullscreen;
+
+// Fullscreen Zoom Functions
+export function adjustCanvasZoom(delta) {
+  const newZoom = Math.max(30, Math.min(150, planDesignerState.fullscreenZoom + (delta * 100)));
+  setCanvasZoom(newZoom);
+}
+
+export function setCanvasZoom(zoomValue) {
+  const zoom = Math.max(30, Math.min(150, parseFloat(zoomValue)));
+  planDesignerState.fullscreenZoom = zoom;
+  
+  const canvas = document.getElementById('fullscreen-plan-canvas');
+  if (canvas) {
+    // Set overflow hidden on container and apply transform with proper boundaries
+    const container = canvas.parentElement;
+    if (container) {
+      container.style.overflow = 'hidden';
+    }
+    
+    // Apply both zoom and pan transforms
+    const scaleTransform = `scale(${zoom / 100})`;
+    const translateTransform = `translate(${planDesignerState.panOffsetX}px, ${planDesignerState.panOffsetY}px)`;
+    canvas.style.transform = `${translateTransform} ${scaleTransform}`;
+    canvas.style.transformOrigin = 'center center';
+    
+    // Ensure canvas stays within container bounds
+    canvas.style.maxWidth = '100%';
+    canvas.style.maxHeight = '100%';
+  }
+  
+  // Update UI elements
+  const slider = document.getElementById('zoom-slider');
+  const percentage = document.getElementById('zoom-percentage');
+  
+  if (slider) slider.value = zoom;
+  if (percentage) percentage.textContent = `${Math.round(zoom)}%`;
+}
+
+// Pan functionality for canvas navigation
+export function updateCanvasPan() {
+  const canvas = document.getElementById('fullscreen-plan-canvas');
+  if (canvas) {
+    const zoom = planDesignerState.fullscreenZoom / 100;
+    const scaleTransform = `scale(${zoom})`;
+    const translateTransform = `translate(${planDesignerState.panOffsetX}px, ${planDesignerState.panOffsetY}px)`;
+    canvas.style.transform = `${translateTransform} ${scaleTransform}`;
+  }
+}
+
+export function resetCanvasPan() {
+  planDesignerState.panOffsetX = 0;
+  planDesignerState.panOffsetY = 0;
+  updateCanvasPan();
+}
+
+// Make zoom and pan functions globally available
+window.adjustCanvasZoom = adjustCanvasZoom;
+window.setCanvasZoom = setCanvasZoom;
+window.resetCanvasPan = resetCanvasPan;

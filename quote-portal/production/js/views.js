@@ -157,11 +157,10 @@ export function generateWorkerPanel() {
 export function generateSettings() {
   return `
     <div style="margin-bottom: 16px;">
-      <h1 style="font-size: 24px; font-weight: 700; margin-bottom: 4px;">Master Data</h1>
-      <p style="color: var(--muted-foreground); font-size: 0.9em;">System configuration and setup</p>
+      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Master Data</h1>
     </div>
     <div class="grid grid-cols-2">
-      <div class="card"><div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 1.1em;">Skills Management</div><div class="card-description" style="font-size: 0.9em;">Add, rename, or remove skills (stored in Firebase)</div></div><div class="card-content" style="padding: 8px 12px;">
+      <div class="card"><div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 1.1em;">Skills Management</div></div><div class="card-content" style="padding: 8px 12px;">
         <div id="skills-management"></div>
       </div></div>
       <div class="card"><div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 1.1em;">Production settings</div></div><div class="card-content" style="padding: 8px 12px;"></div></div>
@@ -546,79 +545,316 @@ export function generateStations() {
 
 export function generatePlanDesigner() {
   return `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Plan Designer</h1>
+    <div id="plans-header" style="margin-bottom: 8px;">
+      <h1 id="plans-title" style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Planning</h1>
     </div>
-    <div class="card" style="margin-bottom: 12px;">
-      <div class="card-header" style="padding: 10px 12px;"><div class="card-title" style="font-size: 16px;">Plan Configuration</div><div class="card-description" style="font-size: 12px;">Set up your production plan</div></div>
-      <div class="card-content" style="padding: 8px 12px;">
-        <div style="display: flex; gap: 8px; align-items: flex-end;">
-          <div style="flex: 1; min-width: 140px;"><label style="display: block; font-weight: 500; font-size: 13px; margin-bottom: 4px;">Plan</label><input type="text" id="plan-name" placeholder="Plan name" style="width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;" /></div>
-          <div style="flex: 1; min-width: 180px;"><label style="display: block; font-weight: 500; font-size: 13px; margin-bottom: 4px;">Order</label><select id="order-select" style="width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;" onchange="handleOrderChange()"><option value="">Select an order...</option></select></div>
-          <div style="display:flex; gap:8px; align-items:center;"><button onclick="savePlanAsTemplate()" style="padding:6px 10px; font-size:13px; border-radius:6px; border:1px solid var(--border); background: white;">Save</button><button onclick="deployWorkOrder()" style="padding:6px 10px; font-size:13px; border-radius:6px; background: var(--primary); color: var(--primary-foreground); border: none;">Deploy</button></div>
-        </div>
-        <div style="display:flex; gap:8px; align-items:flex-end; margin-top:8px; flex-wrap: wrap;">
-          <div style="flex:1; min-width: 180px;">
-            <label style="display:block; font-weight:500; font-size:13px; margin-bottom:4px;">Plan Türü</label>
-            <select id="schedule-type" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;" onchange="handleScheduleTypeChange()">
-              <option value="one-time">Tek seferlik</option>
-              <option value="recurring">Devirli</option>
-            </select>
-          </div>
-          <div id="recurring-subtype-container" style="flex:1; min-width: 180px; display:none;">
-            <label style="display:block; font-weight:500; font-size:13px; margin-bottom:4px;">Devirli Türü</label>
-            <select id="recurring-type" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;" onchange="handleRecurringTypeChange()">
-              <option value="periodic">Periyodik devirli</option>
-              <option value="indefinite">Süresiz devirli</option>
-            </select>
-          </div>
-          <div id="periodic-frequency-container" style="flex:1; min-width: 180px; display:none;">
-            <label style="display:block; font-weight:500; font-size:13px; margin-bottom:4px;">Periyot</label>
-            <select id="periodic-frequency" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;" onchange="handlePeriodicFrequencyChange()">
-              <option value="daily">Günlük</option>
-              <option value="weekly">Haftalık</option>
-              <option value="biweekly">2 haftalık</option>
-              <option value="monthly">Aylık</option>
-              <option value="custom">Custom</option>
-            </select>
-          </div>
-          <div id="custom-frequency-container" style="flex:2; min-width: 220px; display:none;">
-            <label style="display:block; font-weight:500; font-size:13px; margin-bottom:4px;">Custom Tanım</label>
-            <input type="text" id="custom-frequency" placeholder="Örn: her 3 gün, cron vb." style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;" />
+
+    <div class="plans-filter-compact" id="plans-filter-compact" style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
+      <button id="create-plan-button" onclick="openCreatePlan()" style="background: var(--primary); color: var(--primary-foreground); height: 44px; padding: 0px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Create New Production Plan</button>
+
+      <div id="plans-header-controls" style="display: flex; align-items: center; gap: 8px; flex: 1 1 0%;">
+        <input id="plan-filter-search" type="text" placeholder="Search plans..." class="plan-filter-input" style="height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 500px; width: 100%; flex: 1 1 auto;" oninput="filterProductionPlans()">
+
+        <div id="plan-filter-status" style="position: relative;">
+          <button id="plan-filter-status-btn" type="button" class="plan-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 120px; display: flex; align-items: center; gap: 8px;" onclick="togglePlanFilterPanel('status')">
+            <span>Status</span>
+            <span id="plan-filter-status-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
+            <span style="margin-left: auto; opacity: .6">▾</span>
+          </button>
+          <div id="plan-filter-status-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 240px; overflow: hidden; z-index: 1000;">
+            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
+              <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearPlanFilter('status')">Clear</button>
+              <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="hidePlanFilterPanel('status')">×</button>
+            </div>
+            <div style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('status','planned',this.checked)"> planned</label>
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('status','in-progress',this.checked)"> in-progress</label>
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('status','completed',this.checked)"> completed</label>
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('status','canceled',this.checked)"> canceled</label>
+            </div>
           </div>
         </div>
-        <div style="margin-top:8px;"><label style="display:block; font-weight:500; font-size:13px; margin-bottom:4px;">Description</label><textarea id="plan-description" placeholder="Plan description..." style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; min-height:42px; font-size:13px; resize:vertical;"></textarea></div>
+
+        <div id="plan-filter-priority" style="position: relative;">
+          <button id="plan-filter-priority-btn" type="button" class="plan-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 120px; display: flex; align-items: center; gap: 8px;" onclick="togglePlanFilterPanel('priority')">
+            <span>Priority</span>
+            <span id="plan-filter-priority-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
+            <span style="margin-left: auto; opacity: .6">▾</span>
+          </button>
+          <div id="plan-filter-priority-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 240px; overflow: hidden; z-index: 1000;">
+            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
+              <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearPlanFilter('priority')">Clear</button>
+              <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="hidePlanFilterPanel('priority')">×</button>
+            </div>
+            <div style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('priority','high',this.checked)"> high</label>
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('priority','medium',this.checked)"> medium</label>
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('priority','low',this.checked)"> low</label>
+            </div>
+          </div>
+        </div>
+
+        <div id="plan-filter-type" style="position: relative;">
+          <button id="plan-filter-type-btn" type="button" class="plan-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 140px; display: flex; align-items: center; gap: 8px;" onclick="togglePlanFilterPanel('type')">
+            <span>Type</span>
+            <span id="plan-filter-type-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
+            <span style="margin-left: auto; opacity: .6">▾</span>
+          </button>
+          <div id="plan-filter-type-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 240px; overflow: hidden; z-index: 1000;">
+            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
+              <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearPlanFilter('type')">Clear</button>
+              <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="hidePlanFilterPanel('type')">×</button>
+            </div>
+            <div style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('type','one-time',this.checked)"> one-time</label>
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('type','recurring',this.checked)"> recurring</label>
+            </div>
+          </div>
+        </div>
+
+        <button id="plan-filter-clear-all" type="button" title="Clear all filters" class="plan-filter-button" style="display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;" onclick="clearAllPlanFilters()">
+          Clear All
+        </button>
       </div>
     </div>
-    <div style="display: grid; grid-template-columns: 240px 1fr; gap: 16px; height: 500px;">
-      <div class="card" style="height: fit-content;">
-        <div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 14px;">Operations</div><div class="card-description" style="font-size: 11px;">Drag to canvas</div></div>
-        <div class="card-content" style="padding: 8px;"><div id="operations-list"></div></div>
-      </div>
-      <div class="card">
-        <div class="card-header" style="padding: 8px 12px; display:flex; align-items:center;">
-          <div class="card-title" style="font-size: 14px;">Plan Canvas</div>
-          <div style="display: flex; gap: 6px; margin-left:auto;">
-            <button id="connect-mode-btn" onclick="toggleConnectMode()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">🔗 Connect</button>
-            <button onclick="clearCanvas()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">🗑️ Clear</button>
-          </div>
+
+    <div class="stations-tabs" id="plans-tabs" style="padding: 8px; background: rgb(248, 249, 250); border-bottom: 1px solid rgb(229, 231, 235); border-radius: 6px 6px 0 0;">
+      <button class="station-tab-button active" onclick="setActivePlanTab('production')" style="padding: 6px 12px; font-size: 12px; border: none; background: white; border-radius: 4px; cursor: pointer; margin-right: 6px; font-weight: 600; color: rgb(17, 24, 39); box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: all 0.2s ease;">
+        Production Plans
+        <span id="production-count" style="color: var(--muted-foreground); font-size: 11px; margin-left: 4px;">(0)</span>
+      </button>
+      <button class="station-tab-button" onclick="setActivePlanTab('templates')" style="padding: 6px 12px; font-size: 12px; border: none; background: transparent; border-radius: 4px; cursor: pointer; margin-right: 6px; font-weight: 400; color: rgb(75, 85, 99); box-shadow: none; transition: all 0.2s ease;">
+        Templates
+        <span id="templates-count" style="color: var(--muted-foreground); font-size: 11px; margin-left: 4px;">(0)</span>
+      </button>
+    </div>
+
+    <div id="plans-panel-card" class="card" style="border-radius: 0 0 6px 6px;">
+      <div class="card-content" style="padding: 0;">
+        <div id="production-table-panel" style="display: block;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: var(--muted); text-align: left;">
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Plan</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Order</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Status</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="production-table-body">
+              <tr>
+                <td colspan="5" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-        <div class="card-content" style="padding: 0; height: 420px; position: relative; overflow: hidden;">
-          <div id="plan-canvas" style="width: 100%; height: 100%; position: relative; background: var(--card); border: 1px solid var(--border);" ondrop="handleCanvasDrop(event)" ondragover="handleCanvasDragOver(event)" onclick="handleCanvasClick(event)"></div>
+        <div id="templates-table-panel" style="display: none;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr style="background: var(--muted); text-align: left;">
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Template</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Steps</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Owner</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="templates-table-body">
+              <tr>
+                <td colspan="4" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
-    <div id="node-edit-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 1000;" onclick="closeNodeEditModal(event)">
-      <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 0; width: 560px; max-height: 80vh; overflow: hidden;" onclick="event.stopPropagation()">
-        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
-          <h3 style="margin: 0; font-size: 18px;">Edit Production Step</h3>
+
+    <div id="plan-designer-section" style="margin-top: 16px; display: none;">
+      <div class="card" style="margin-bottom: 10px;">
+        <div class="card-header" style="padding: 8px 10px;"><div class="card-title" style="font-size: 15px;">Plan Configuration</div></div>
+        <div class="card-content" style="padding: 6px 10px;">
+          <!-- Row 1: Plan name + short description -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <label style="font-weight: 500; font-size: 12px; margin: 0; min-width: 48px;">Plan</label>
+              <input type="text" id="plan-name" placeholder="Plan name" style="flex:1; width: 100%; height: 32px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px;" />
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <label style="font-weight: 500; font-size: 12px; margin: 0; min-width: 80px;">Description</label>
+              <input type="text" id="plan-description" placeholder="Plan description..." style="flex:1; width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" />
+            </div>
+          </div>
+
+          <!-- Row 2: Order + Schedule type + Recurrence details -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: end; margin-top: 8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <label style="font-weight: 500; font-size: 12px; margin: 0; min-width: 48px;">Order</label>
+              <select id="order-select" style="display:none;" onchange="handleOrderChange()"><option value="">Select an order...</option></select>
+              <div style="position: relative; flex:1;">
+                <button id="plan-order-btn" type="button" class="plan-filter-button" onclick="togglePlanOrderPanel()" style="height: 32px; padding: 4px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 200px; width: 100%; display: flex; align-items: center; gap: 8px;">
+                  <span id="plan-order-label">Select an order...</span>
+                  <span style="margin-left: auto; opacity: .6">▾</span>
+                </button>
+                <div id="plan-order-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 360px; max-height: 320px; overflow: hidden; z-index: 1000;">
+                  <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
+                    <input id="plan-order-search" type="text" placeholder="Search orders..." class="plan-filter-panel-input" oninput="filterPlanOrderList()" style="flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;">
+                    <button type="button" class="plan-filter-panel-button" onclick="clearPlanOrder()" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
+                    <button type="button" title="Close" class="plan-filter-panel-button" onclick="hidePlanOrderPanel()" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+                  </div>
+                  <div id="plan-order-list" style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;"></div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <label style="font-weight:500; font-size:12px; margin:0; min-width:72px;">Plan Türü</label>
+              <select id="schedule-type" style="display:none;" onchange="handleScheduleTypeChange()">
+                <option value="one-time">Tek seferlik</option>
+                <option value="recurring">Devirli</option>
+              </select>
+              <div style="position: relative; flex:1;">
+                <button id="plan-type-btn" type="button" class="plan-filter-button" onclick="togglePlanTypePanel()" style="height: 32px; padding: 4px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; width: 100%; display: flex; align-items: center; gap: 8px;">
+                  <span id="plan-type-label">Tek seferlik</span>
+                  <span style="margin-left: auto; opacity: .6">▾</span>
+                </button>
+                <div id="plan-type-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 240px; max-height: 240px; overflow: hidden; z-index: 1000;">
+                  <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
+                    <button type="button" class="plan-filter-panel-button" onclick="clearPlanType()" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
+                    <button type="button" title="Close" class="plan-filter-panel-button" onclick="hidePlanTypePanel()" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+                  </div>
+                  <div style="max-height: 180px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
+                    <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
+                      <input type="radio" name="plan-type-radio" value="one-time" onclick="selectPlanType('one-time','Tek seferlik')">
+                      <span style="font-size:12px;">Tek seferlik</span>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
+                      <input type="radio" name="plan-type-radio" value="recurring" onclick="selectPlanType('recurring','Devirli')">
+                      <span style="font-size:12px;">Devirli</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div>
+              <!-- Recurrence details area (shown when recurring) -->
+              <div id="recurring-subtype-container" style="display:none;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <label style="font-weight:500; font-size:12px; margin:0; min-width:90px;">Devirli Türü</label>
+                  <select id="recurring-type" style="flex:1; width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" onchange="handleRecurringTypeChange()">
+                    <option value="periodic">Periyodik devirli</option>
+                    <option value="indefinite">Süresiz devirli</option>
+                  </select>
+                </div>
+              </div>
+              <div id="periodic-frequency-container" style="display:none; margin-top: 6px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <label style="font-weight:500; font-size:12px; margin:0; min-width:60px;">Periyot</label>
+                  <select id="periodic-frequency" style="flex:1; width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" onchange="handlePeriodicFrequencyChange()">
+                    <option value="daily">Günlük</option>
+                    <option value="weekly">Haftalık</option>
+                    <option value="biweekly">2 haftalık</option>
+                    <option value="monthly">Aylık</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                </div>
+              </div>
+                <div id="custom-frequency-container" style="display:none; margin-top: 6px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <label style="font-weight:500; font-size:12px; margin:0; min-width:96px;">Custom Tanım</label>
+                  <input type="text" id="custom-frequency" placeholder="Örn: her 3 gün, cron vb." style="flex:1; width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" />
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end;">
+              <button onclick="savePlanDraft()" style="height: 32px; padding:0 10px; font-size:12px; border-radius:6px; border:1px solid var(--border); background: white;">Save</button>
+              <button onclick="savePlanAsTemplate()" style="height: 32px; padding:0 10px; font-size:12px; border-radius:6px; border:1px solid var(--border); background: white;">Save As Template</button>
+              <button onclick="cancelPlanCreation()" style="height: 32px; padding:0 12px; font-size:12px; border-radius:6px; background: #f3f4f6; color: #111827; border: 1px solid var(--border);">Cancel</button>
+            </div>
+          </div>
         </div>
-        <div style="padding: 16px 20px; background: rgb(249, 250, 251); max-height: calc(80vh - 120px); overflow-y: auto;">
-          <div id="node-edit-form"></div>
+      </div>
+      <div style="display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start;">
+        <div class="card" style="height: fit-content;">
+          <div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 14px;">Operations</div><div class="card-description" style="font-size: 11px;">Drag to canvas</div></div>
+          <div class="card-content" style="padding: 8px;"><div id="operations-list"></div></div>
         </div>
-        <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
-          <button onclick="closeNodeEditModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Cancel</button>
-          <button onclick="saveNodeEdit()" style="padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 4px; cursor: pointer;">Save</button>
+        <div class="card">
+          <div class="card-header" style="padding: 8px 12px !important; display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important;">
+            <div class="card-title" style="font-size: 14px;">Plan Canvas</div>
+            <div style="display: flex; gap: 6px;">
+              <button id="fullscreen-canvas-btn" onclick="toggleCanvasFullscreen()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">⛶ Fullscreen</button>
+              <button id="connect-mode-btn" onclick="toggleConnectMode()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">🔗 Connect</button>
+              <button onclick="clearCanvas()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">🗑️ Clear</button>
+            </div>
+          </div>
+          <div class="card-content" style="padding: 0; max-height: 400px; position: relative; overflow: hidden;">
+            <div id="plan-canvas" style="width: 100%; height: 400px; max-height: 400px; position: relative; background: var(--card); border: 1px solid var(--border);" ondrop="handleCanvasDrop(event)" ondragover="handleCanvasDragOver(event)" onclick="handleCanvasClick(event)"></div>
+          </div>
+        </div>
+      </div>
+      <div id="node-edit-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 3000;" onclick="closeNodeEditModal(event)">
+        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 0; width: 560px; max-height: 80vh; overflow: hidden;" onclick="event.stopPropagation()">
+          <div style="padding: 16px 20px; border-bottom: 1px solid var(--border);">
+            <h3 style="margin: 0; font-size: 18px;">Edit Production Step</h3>
+          </div>
+          <div style="padding: 16px 20px; background: rgb(249, 250, 251); max-height: calc(80vh - 120px); overflow-y: auto;">
+            <div id="node-edit-form"></div>
+          </div>
+          <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+            <button onclick="closeNodeEditModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Cancel</button>
+            <button onclick="saveNodeEdit()" style="padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 4px; cursor: pointer;">Save</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Fullscreen Canvas Modal -->
+      <div id="canvas-fullscreen-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: white; z-index: 2000;">
+        <div style="height: 100vh; display: flex; flex-direction: column;">
+          <!-- Fullscreen Header -->
+          <div style="padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: center; background: white; position: relative;">
+            <div style="position: absolute; left: 20px; display: flex; align-items: center;">
+              <h3 style="margin: 0; font-size: 18px; font-weight: 600;">Plan Canvas - Fullscreen</h3>
+            </div>
+            <!-- Centered Controls -->
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <!-- Zoom Controls (Left Side) -->
+              <div style="display: flex; gap: 4px; align-items: center; margin-right: 12px;">
+                <button id="zoom-out-btn" onclick="adjustCanvasZoom(-0.1)" style="padding: 6px 8px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">🔍<span style="font-size: 10px; margin-left: -2px;">-</span></button>
+                <input type="range" id="zoom-slider" min="30" max="150" value="100" step="10" oninput="setCanvasZoom(this.value)" style="width: 80px; height: 4px; background: #ddd; outline: none; border-radius: 2px; cursor: pointer;">
+                <button id="zoom-in-btn" onclick="adjustCanvasZoom(0.1)" style="padding: 6px 8px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">🔍<span style="font-size: 10px; margin-left: -2px;">+</span></button>
+                <span id="zoom-percentage" style="font-size: 11px; color: var(--muted-foreground); min-width: 35px;">100%</span>
+                <button onclick="resetCanvasPan()" title="Reset Pan" style="padding: 6px 8px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 12px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; margin-left: 8px;">⌂</button>
+              </div>
+              
+              <!-- Main Controls -->
+              <button id="fullscreen-connect-mode-btn" onclick="toggleConnectMode()" style="padding: 6px 12px; background: white; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">🔗 Connect</button>
+              <button onclick="clearCanvas()" style="padding: 6px 12px; background: white; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">🗑️ Clear</button>
+              <button onclick="toggleCanvasFullscreen()" style="padding: 6px 12px; background: var(--muted); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">✕ Exit Fullscreen</button>
+            </div>
+          </div>
+          
+          <!-- Fullscreen Content -->
+          <div style="flex: 1; display: flex; min-height: 0;">
+            <!-- Operations Panel in Fullscreen -->
+            <div style="width: 280px; background: var(--muted); border-right: 1px solid var(--border); display: flex; flex-direction: column;">
+              <div style="padding: 16px; border-bottom: 1px solid var(--border);">
+                <h4 style="margin: 0 0 4px; font-size: 16px; font-weight: 600;">Operations</h4>
+                <p style="margin: 0; font-size: 12px; color: var(--muted-foreground);">Drag to canvas</p>
+              </div>
+              <div style="flex: 1; padding: 16px; overflow-y: auto;">
+                <div id="fullscreen-operations-list">
+                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-225d1xh')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Boyama</div>
+                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-25m0lvw')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Montaj</div>
+                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-me5qd1y')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Press Kalıp Şekillendirme</div>
+                  <div draggable="true" ondragstart="handleOperationDragStart(event, 'op-rqjlcwf')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">Torna</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Fullscreen Canvas Area -->
+            <div style="flex: 1; position: relative; background: var(--card); overflow: hidden;">
+              <div id="fullscreen-plan-canvas" style="width: 100%; height: 100%; position: relative; background: var(--card); cursor: grab;" ondrop="handleCanvasDrop(event)" ondragover="handleCanvasDragOver(event)" onclick="handleCanvasClick(event)"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -649,8 +885,7 @@ export function generateTemplates() {
 export function generateApprovedQuotes() {
   return `
     <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 28px; font-weight: 700; margin-bottom: 6px;">Approved Quotes</h1>
-      <p style="color: var(--muted-foreground);">Status'ı onaylandı/approved olan tekliflerin listesi</p>
+      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Approved Quotes</h1>
     </div>
 
     <div class="workers-filter-compact" style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
