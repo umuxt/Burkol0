@@ -164,7 +164,7 @@ export function generateSettings() {
       <div class="card"><div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 1.1em;">Skills Management</div><div class="card-description" style="font-size: 0.9em;">Add, rename, or remove skills (stored in Firebase)</div></div><div class="card-content" style="padding: 8px 12px;">
         <div id="skills-management"></div>
       </div></div>
-      <div class="card"><div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 1.1em;">Production Settings</div><div class="card-description" style="font-size: 0.9em;">Configure production parameters</div></div><div class="card-content" style="padding: 8px 12px;">
+      <div class="card"><div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 1.1em;">Production Settings</div></div><div class="card-content" style="padding: 8px 12px;">
         <div style="margin-bottom: 12px;">
           <label style="display: block; margin-bottom: 4px; font-weight: 500; font-size: 0.9em;">Default Batch Size</label>
           <input type="number" value="100" style="width: 100%; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.9em;" />
@@ -425,32 +425,140 @@ export function generateOperations() {
 
 export function generateStations() {
   return `
-    <div style=\"margin-bottom: 24px;\">\n      <h1 style=\"font-size: 32px; font-weight: 700; margin-bottom: 8px;\">Stations Management</h1>\n      <p style=\"color: var(--muted-foreground);\">Configure production stations and equipment</p>\n    </div>\n    <div style=\"margin-bottom: 24px;\">\n      <button onclick=\"openAddStationModal()\" style=\"background: var(--primary); color: var(--primary-foreground); padding: 12px 24px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;\">+ Add Station</button>\n    </div>\n    
+    <div style=\"margin-bottom: 24px;\">\n      <h1 style=\"font-size: 32px; font-weight: 700; margin-bottom: 8px;\">Stations Management</h1>\n      </div>\n    <div class=\"stations-filter-compact\" style=\"margin-bottom: 24px; display: flex; gap: 12px; align-items: center; justify-content: space-between;\">\n      <button onclick=\"openAddStationModal()\" class=\"station-add-button\" style=\"background: var(--primary); color: var(--primary-foreground); height: 44px; padding: 0px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;\">+ Add Station</button>\n      <div style=\"display: flex; align-items: center; gap: 8px; flex: 1;\">\n        <input id=\"station-filter-search\" type=\"text\" placeholder=\"Search stations...\" class=\"station-filter-input\" style=\"height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 500px; width: 100%; flex: 1 1 auto !important;\">\n\n        <div id=\"station-filter-status\" style=\"position: relative;\">\n          <button id=\"station-filter-status-btn\" type=\"button\" class=\"station-filter-button\" style=\"height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 120px; display: flex; align-items: center; gap: 8px;\">\n            <span>Status</span>\n            <span id=\"station-filter-status-count\" style=\"color: var(--muted-foreground); font-size: 12px;\"></span>\n            <span style=\"margin-left: auto; opacity: .6\">▾</span>\n          </button>\n          <div id=\"station-filter-status-panel\" style=\"display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 240px; max-height: 320px; overflow: hidden; z-index: 1000;\">\n            <div style=\"padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;\">\n              <button id=\"station-filter-status-clear\" type=\"button\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">Clear</button>\n              <button id=\"station-filter-status-hide\" type=\"button\" title=\"Kapat\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">×</button>\n            </div>\n            <div id=\"station-filter-status-list\" style=\"max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;\"></div>\n          </div>\n        </div>\n\n        <div id=\"station-filter-skills\" style=\"position: relative;\">\n          <button id=\"station-filter-skills-btn\" type=\"button\" class=\"station-filter-button\" style=\"height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;\">\n            <span>Skills</span>\n            <span id=\"station-filter-skills-count\" style=\"color: var(--muted-foreground); font-size: 12px;\"></span>\n            <span style=\"margin-left: auto; opacity: .6\">▾</span>\n          </button>\n          <div id=\"station-filter-skills-panel\" style=\"display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; max-height: 320px; overflow: hidden; z-index: 1000;\">\n            <div style=\"padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;\">\n              <input id=\"station-filter-skills-search\" type=\"text\" placeholder=\"Search skills...\" class=\"station-filter-panel-input\" style=\"flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;\">\n              <button id=\"station-filter-skills-clear\" type=\"button\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">Clear</button>\n              <button id=\"station-filter-skills-hide\" type=\"button\" title=\"Kapat\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">×</button>\n            </div>\n            <div id=\"station-filter-skills-list\" style=\"max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;\"></div>\n          </div>\n        </div>\n\n        <div id=\"station-filter-operations\" style=\"position: relative;\">\n          <button id=\"station-filter-operations-btn\" type=\"button\" class=\"station-filter-button\" style=\"height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;\">\n            <span>Operations</span>\n            <span id=\"station-filter-operations-count\" style=\"color: var(--muted-foreground); font-size: 12px;\"></span>\n            <span style=\"margin-left: auto; opacity: .6\">▾</span>\n          </button>\n          <div id=\"station-filter-operations-panel\" style=\"display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; max-height: 320px; overflow: hidden; z-index: 1000;\">\n            <div style=\"padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;\">\n              <input id=\"station-filter-operations-search\" type=\"text\" placeholder=\"Search operations...\" class=\"station-filter-panel-input\" style=\"flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;\">\n              <button id=\"station-filter-operations-clear\" type=\"button\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">Clear</button>\n              <button id=\"station-filter-operations-hide\" type=\"button\" title=\"Kapat\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">×</button>\n            </div>\n            <div id=\"station-filter-operations-list\" style=\"max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;\"></div>\n          </div>\n        </div>\n\n        <button id=\"station-filter-clear-all\" type=\"button\" title=\"Tüm filtreleri temizle\" class=\"station-filter-button\" style=\"display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;\">\n          Clear All\n        </button>\n      </div>\n    </div>\n    
     <!-- Stations Table with Tabs -->
-    <section class=\"materials-table\">
-      <!-- Operation Type Tabs -->
-      <div class=\"materials-tabs\" id=\"stations-tabs\">
-        <!-- Tabs will be populated by renderStations() -->
+    <section class=\"workers-table\">
+      <div style=\"padding: 0px;\">
+        <div class=\"workers-container\" style=\"display: flex; gap: 20px; height: auto; flex-direction: row;\">
+          <div class=\"workers-table-panel\" style=\"flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;\">
+            <div class=\"workers-table\">
+              <!-- Stations Table with integrated tabs -->
+              <div class=\"table-container\" style=\"overflow-y: auto; border: 1px solid rgb(229, 231, 235); border-radius: 6px; background: white;\">
+                <!-- Station Type Tabs - integrated as part of table -->
+                <div class=\"stations-tabs\" id=\"stations-tabs\" style=\"padding: 8px; background: rgb(248, 249, 250); border-bottom: 1px solid rgb(229, 231, 235); border-radius: 6px 6px 0 0;\">
+                  <!-- Tabs will be populated by renderStations() -->
+                </div>
+                
+                <table id=\"stations-table\" style=\"width: 100%; border-collapse: collapse;\">
+                  <thead style=\"background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;\">
+                    <tr>
+                      <th style=\"min-width: 120px; white-space: nowrap; padding: 8px;\">
+                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
+                          Station ID <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
+                        </button>
+                      </th>
+                      <th style=\"min-width: 200px; white-space: nowrap; padding: 8px;\">
+                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
+                          Station Name <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
+                        </button>
+                      </th>
+                      <th style=\"min-width: 160px; white-space: nowrap; padding: 8px;\">
+                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
+                          Operations <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
+                        </button>
+                      </th>
+                      <th style=\"min-width: 160px; white-space: nowrap; padding: 8px;\">
+                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
+                          Skills <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
+                        </button>
+                      </th>
+                      <th style=\"min-width: 120px; white-space: nowrap; padding: 8px;\">
+                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
+                          Status <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody id=\"stations-list\">
+                    <!-- Station rows will be populated by renderStations() -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class=\"worker-detail-panel\" id=\"station-detail-panel\" style=\"flex: 1 1 0%; min-width: 400px; height: auto; display: none;\">
+            <div style=\"background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;\">
+              <div style=\"padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;\">
+                <div style=\"display: flex; align-items: center; gap: 12px;\">
+                  <button title=\"Detayları Kapat\" onclick=\"closeStationDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;\">←</button>
+                  <h3 style=\"margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);\">Station Detayları</h3>
+                </div>
+                <div style=\"display:flex; align-items:center; gap:8px;\">
+                  <button onclick=\"editStationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;\">✏️ Düzenle</button>
+                  <button onclick=\"deleteStationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;\">🗑️ Sil</button>
+                </div>
+              </div>
+              <div style=\"flex: 1 1 0%; overflow: auto; padding: 20px;\">
+                <div id=\"station-detail-content\"></div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      
-      <!-- Stations Table -->
-      <div class=\"table-container\">
-        <table id=\"stations-table\">
-          <thead>
-            <tr>
-              <th>Station Name</th>
-              <th>Status</th>
-              <th>Location</th>
-              <th>Operations</th>
-              <th>Skills</th>
-            </tr>
-          </thead>
-          <tbody id=\"stations-list\">
-            <!-- Station rows will be populated by renderStations() -->
-          </tbody>
-        </table>
+    </section>\n\n    <div id=\"station-modal\" style=\"display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000;\" onclick=\"closeStationModal(event)\">
+      <div style=\"position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 0; width: 560px; max-height: 80vh; overflow: hidden;\" onclick=\"event.stopPropagation()\">
+        <div style=\"padding: 16px 20px; border-bottom: 1px solid var(--border);\">
+          <h3 id=\"station-modal-title\" style=\"margin: 0; font-size: 18px;\">Add New Station</h3>
+        </div>
+        <div style=\"padding: 16px 20px; background: rgb(249, 250, 251); max-height: calc(80vh - 120px); overflow-y: auto;\">
+          <!-- Temel Bilgiler -->
+          <div style=\"margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);\">
+            <h3 style=\"margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;\">Temel Bilgiler</h3>
+            <div class=\"detail-item\" style=\"display: flex; align-items: center; margin-bottom: 8px;\">
+              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;\">İsim:</span>
+              <input type=\"text\" id=\"station-name\" placeholder=\"Station name\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\">
+            </div>
+            <div class=\"detail-item\" style=\"display: flex; align-items: center; margin-bottom: 8px;\">
+              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;\">Status:</span>
+              <select id=\"station-status\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\">
+                <option value=\"active\">active</option>
+                <option value=\"maintenance\">maintenance</option>
+                <option value=\"inactive\">inactive</option>
+              </select>
+            </div>
+            <div class=\"detail-item\" style=\"display: flex; align-items: center; margin-bottom: 8px;\">
+              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;\">Location:</span>
+              <input type=\"text\" id=\"station-location\" placeholder=\"e.g. Line A\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\">
+            </div>
+            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 0;\">
+              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px; margin-top: 6px;\">Açıklama:</span>
+              <textarea id=\"station-description\" placeholder=\"Description\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; min-height: 60px; resize: vertical;\"></textarea>
+            </div>
+          </div>
+
+          <!-- Desteklenen Operasyonlar -->
+          <div style=\"margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);\">
+            <h3 style=\"margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;\">Desteklenen Operasyonlar</h3>
+            <div class=\"detail-item\" style=\"display: block;\">
+              <div id=\"station-operations\" style=\"display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 6px; max-height: 200px; overflow-y: auto;\">
+                <!-- Operations will be populated by fillStationModal() -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Yetenekler -->
+          <div id=\"station-skills-box\">
+            <div style=\"margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);\">
+              <h3 style=\"margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;\">İstasyon Özel Yetenekleri</h3>
+              <div class=\"detail-item\" style=\"display: block;\">
+                <div id=\"station-subskills-box\" style=\"background: white;\">
+                  <!-- Skills will be populated by renderStationSubskillsBox() -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style=\"padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;\">
+          <div>
+            <button id=\"station-delete-btn\" onclick=\"deleteStationFromModal()\" style=\"display: none; padding: 8px 16px; background: white; border: 1px solid #ef4444; color: #ef4444; border-radius: 4px; cursor: pointer;\">Delete</button>
+          </div>
+          <div style=\"display: flex; gap: 8px;\">
+            <button onclick=\"closeStationModal()\" style=\"padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;\">Cancel</button>
+            <button onclick=\"saveStation()\" style=\"padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;\">Save</button>
+          </div>
+        </div>
       </div>
-    </section>\n\n    <div id=\"station-modal\" style=\"display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;\" onclick=\"closeStationModal(event)\">\n      <div style=\"position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 24px; width: 640px; max-height: 80vh; overflow-y: auto;\" onclick=\"event.stopPropagation()\">\n        <h3 id=\"station-modal-title\" style=\"margin: 0 0 20px 0;\">Add New Station</h3>\n        <div class=\"grid grid-cols-2\" style=\"display:grid; grid-template-columns: 1fr 1fr; gap: 12px;\">\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Name</label>\n            <input type=\"text\" id=\"station-name\" placeholder=\"Station name\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\" />\n          </div>\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Status</label>\n            <select id=\"station-status\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\">\n              <option value=\"active\">active</option>\n              <option value=\"maintenance\">maintenance</option>\n              <option value=\"inactive\">inactive</option>\n            </select>\n          </div>\n          <div style=\"grid-column: 1 / span 2;\">\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Description</label>\n            <textarea id=\"station-description\" placeholder=\"Description\" style=\"width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; min-height:60px;\"></textarea>\n          </div>\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Location</label>\n            <input type=\"text\" id=\"station-location\" placeholder=\"e.g. Line A\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\" />\n          </div>\n          <div>\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Sub-skills (station specific)</label>\n            <input type=\"text\" id=\"station-subskills\" placeholder=\"Comma separated\" style=\"width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px;\" />\n          </div>\n          <div style=\"grid-column: 1 / span 2;\">\n            <label style=\"display:block; margin-bottom:6px; font-weight:500;\">Supported Operations</label>\n            <div id=\"station-operations\" style=\"display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding:8px; border:1px solid var(--border); border-radius:6px; background:#fff;\"></div>\n          </div>\n        </div>\n        <div style=\"margin-top: 20px; display: flex; gap: 8px; justify-content: space-between;\">\n          <div>\n            <button id=\"station-delete-btn\" onclick=\"deleteStationFromModal()\" style=\"padding: 8px 16px; background: white; border: 1px solid #ef4444; color: #ef4444; border-radius: 4px; cursor: pointer; display: none;\">Delete Station</button>\n          </div>\n          <div style=\"display: flex; gap: 8px;\">\n            <button onclick=\"closeStationModal()\" style=\"padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;\">Cancel</button>\n            <button onclick=\"saveStation()\" style=\"padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;\">Save</button>\n          </div>\n        </div>\n      </div>\n    </div>\n  `;
+    </div>\n  `;
 }
 
 export function generatePlanDesigner() {
