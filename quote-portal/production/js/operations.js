@@ -44,6 +44,24 @@ function renderOperations() {
         </td>
         <td style="padding: 4px 8px;">${op.qualityCheck ? '<span class=\"badge badge-success\">Yes</span>' : '<span class=\"badge badge-secondary\">No</span>'}</td>
       </tr>`).join('')
+    // Ensure header columns align (add missing Output Code header if absent)
+    try {
+      const table = body.closest('table')
+      const headRow = table?.querySelector('thead tr')
+      if (headRow) {
+        const ths = Array.from(headRow.children)
+        // Expected order with 5 columns: Name, Type, Output Code, Skills, QC
+        // If only 4 headers exist (missing Output Code), insert it after Type
+        if (ths.length === 4) {
+          const outTh = document.createElement('th')
+          outTh.setAttribute('style', 'min-width: 120px; white-space: nowrap; padding: 8px;')
+          outTh.innerHTML = '<button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">Output Code <span style="font-size: 12px; opacity: 0.6;">↕</span></button>'
+          // Insert as 3rd column (index 2)
+          if (ths[1]?.nextSibling) headRow.insertBefore(outTh, ths[1].nextSibling)
+          else headRow.appendChild(outTh)
+        }
+      }
+    } catch {}
     return
   }
   // Legacy container fallback
