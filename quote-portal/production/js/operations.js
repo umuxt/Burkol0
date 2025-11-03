@@ -123,7 +123,7 @@ export function showOperationDetail(id) {
       
     </div>
     <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Yetenekler</h3>
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Gerekli Yetenekler</h3>
       <div style="display:flex; flex-wrap:wrap; gap:6px;">${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span style=\"background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(s)}</span>`).join('') || '<span style="font-size:12px; color: rgb(107,114,128);">-</span>'}</div>
     </div>
   `

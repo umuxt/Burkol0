@@ -75,7 +75,7 @@ function renderStations() {
   if (!tabsContainer || !tableBody) return
   
   if (!stationsState.length) {
-    tableBody.innerHTML = '<tr><td colspan="5" style="padding:20px;color:#666;text-align:center;">No stations yet. Add a station.</td></tr>'
+    tableBody.innerHTML = '<tr><td colspan="4" style="padding:20px;color:#666;text-align:center;">No stations yet. Add a station.</td></tr>'
     tabsContainer.innerHTML = ''
     return
   }
@@ -139,7 +139,10 @@ function renderStations() {
   
   // Render table rows
   tableBody.innerHTML = filteredStations.map(station => {
-    const statusBadge = station.status === 'active' ? 'success' : (station.status === 'maintenance' ? 'warning' : 'default')
+    const isInactive = station.status === 'inactive'
+    const isMaintenance = station.status === 'maintenance'
+    const rowBg = isInactive ? '#fff1f2' : (isMaintenance ? '#fffbeb' : 'white')
+    const textColor = isInactive ? '#dc2626' : (isMaintenance ? '#b45309' : 'inherit')
     const inherited = computeStationInheritedSkills(station.operationIds || [], operationsCache)
     const effective = Array.from(new Set([...(station.subSkills||[]), ...inherited]))
     const opsLabels = (station.operationIds || []).map(id => opMap.get(id)?.name || id)
@@ -148,31 +151,28 @@ function renderStations() {
     const description = station.description || ''
     
     return `
-      <tr onclick="showStationDetail('${station.id}')" style="cursor:pointer; background-color: white; border-bottom: 1px solid rgb(243, 244, 246);" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
-        <td style="padding: 4px 8px;">
-          <span style="font-family: monospace; font-size: 11px; color: rgb(107, 114, 128);">${escapeHtml(station.id || '')}</span>
+      <tr onclick="showStationDetail('${station.id}')" style="cursor:pointer; background-color: ${rowBg}; border-bottom: 1px solid rgb(243, 244, 246); color: ${textColor};" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
+        <td style="padding: 4px 8px; color: ${textColor};">
+          <span style="font-family: monospace; font-size: 11px; color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor};">${escapeHtml(station.id || '')}</span>
         </td>
-        <td style="padding: 4px 8px;">
+        <td style="padding: 4px 8px; color: ${textColor};">
           <strong>${escapeHtml(station.name || '')}</strong>
         </td>
-        <td style="padding: 4px 8px;">
+        <td style="padding: 4px 8px; color: ${textColor};">
           <div style="display: flex; flex-wrap: wrap; gap: 4px;">
             ${opsLabels.slice(0, 3).map(name => 
-              `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(name)}</span>`
+              `<span style="background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(name)}</span>`
             ).join('')}
-            ${opsLabels.length > 3 ? `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">+${opsLabels.length - 3}</span>` : ''}
+            ${opsLabels.length > 3 ? `<span style="background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">+${opsLabels.length - 3}</span>` : ''}
           </div>
         </td>
-        <td style="padding: 4px 8px;">
+        <td style="padding: 4px 8px; color: ${textColor};">
           <div style="display: flex; flex-wrap: wrap; gap: 4px;">
             ${effective.slice(0, 3).map(skill => 
-              `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
+              `<span style="background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
             ).join('')}
-            ${effective.length > 3 ? `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">+${effective.length - 3}</span>` : ''}
+            ${effective.length > 3 ? `<span style="background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">+${effective.length - 3}</span>` : ''}
           </div>
-        </td>
-        <td style="padding: 4px 8px;">
-          <span class="badge badge-${statusBadge}" onclick="event.stopPropagation(); toggleStationStatus('${station.id}')" style="cursor: pointer;">${escapeHtml((station.status||'').toString())}</span>
         </td>
       </tr>`
   }).join('')

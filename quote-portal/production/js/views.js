@@ -449,11 +449,7 @@ export function generateStations() {
                           Skills <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
                         </button>
                       </th>
-                      <th style=\"min-width: 120px; white-space: nowrap; padding: 8px;\">
-                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
-                          Status <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
-                        </button>
-                      </th>
+
                     </tr>
                   </thead>
                   <tbody id=\"stations-list\">
