@@ -595,11 +595,16 @@ export function generateTemplates() {
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Templates</h1>
       <p style="color: var(--muted-foreground);">Reusable production plan templates</p>
     </div>
-    <div style="margin-bottom: 24px;"><button onclick="alert('Create Template functionality will be implemented')" style="background: var(--primary); color: var(--primary-foreground); padding: 12px 24px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Create Template</button></div>
-    <div class="grid grid-cols-3">
-      <div class="card"><div class="card-header"><div class="card-title">Standard Bracket Production</div><div class="card-description">Standard metal bracket manufacturing</div></div><div class="card-content"><div style="margin-bottom: 12px;"><strong>Operations:</strong> 3</div><div style="margin-bottom: 12px;"><strong>Duration:</strong> Station'a bağlı</div><div style="margin-bottom: 12px;"><strong>Skills Required:</strong><div><span class="badge badge-outline">Cutting</span><span class="badge badge-outline">Welding</span></div></div><div style="margin-top: 16px;"><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; margin-right: 8px; cursor: pointer;">Use Template</button><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Edit</button></div></div></div>
-      <div class="card"><div class="card-header"><div class="card-title">Custom Assembly Process</div><div class="card-description">Multi-component assembly workflow</div></div><div class="card-content"><div style="margin-bottom: 12px;"><strong>Operations:</strong> 5</div><div style="margin-bottom: 12px;"><strong>Duration:</strong> Station'a bağlı</div><div style="margin-bottom: 12px;"><strong>Skills Required:</strong><div><span class="badge badge-outline">Assembly</span><span class="badge badge-outline">Quality Control</span></div></div><div style="margin-top: 16px;"><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; margin-right: 8px; cursor: pointer;">Use Template</button><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Edit</button></div></div></div>
-      <div class="card"><div class="card-header"><div class="card-title">Quality Inspection</div><div class="card-description">Comprehensive quality check process</div></div><div class="card-content"><div style="margin-bottom: 12px;"><strong>Operations:</strong> 2</div><div style="margin-bottom: 12px;"><strong>Duration:</strong> Station'a bağlı</div><div style="margin-bottom: 12px;"><strong>Skills Required:</strong><div><span class="badge badge-outline">Quality Control</span></div></div><div style="margin-top: 16px;"><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; margin-right: 8px; cursor: pointer;">Use Template</button><button style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Edit</button></div></div></div>
+    <div style="margin-bottom: 24px;">
+      <button onclick="createNewTemplate()" style="background: var(--primary); color: var(--primary-foreground); padding: 12px 24px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Create Template</button>
+    </div>
+    <div id="templates-container" class="grid grid-cols-3" style="gap: 16px;">
+      <div class="card" style="border: 2px dashed var(--border); text-align: center; padding: 40px;">
+        <div style="color: var(--muted-foreground); font-size: 14px;">
+          <p>No templates found</p>
+          <p style="font-size: 12px;">Create your first production template to get started</p>
+        </div>
+      </div>
     </div>
   `;
 }

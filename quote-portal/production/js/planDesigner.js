@@ -12,18 +12,17 @@ export const planDesignerState = {
 
 export function loadOperationsToolbox() {
   const operations = [
-    { id: 'op1', name: 'CNC Milling', type: 'Machining', time: 45, skills: ['CNC Programming', 'CAM Software'] },
-    { id: 'op2', name: 'MIG Welding', type: 'Welding', time: 30, skills: ['MIG Welding', 'Blueprint Reading'] },
-    { id: 'op3', name: 'Quality Control', type: 'Quality', time: 20, skills: ['Quality Inspection', 'Measurement'] },
-    { id: 'op4', name: 'Assembly', type: 'Assembly', time: 25, skills: ['Assembly', 'Hand Tools'] },
-    { id: 'op5', name: 'Packaging', type: 'Packaging', time: 15, skills: ['Packaging'] },
-    { id: 'op6', name: 'Surface Treatment', type: 'Treatment', time: 40, skills: ['Surface Treatment'] },
-    { id: 'op7', name: 'Drilling', type: 'Machining', time: 20, skills: ['Drilling', 'Precision Tools'] },
-    { id: 'op8', name: 'Painting', type: 'Finishing', time: 35, skills: ['Painting', 'Spray Equipment'] }
+    // Operations will be loaded from Firebase
   ];
 
   const listContainer = document.getElementById('operations-list');
   if (!listContainer) return;
+  
+  if (operations.length === 0) {
+    listContainer.innerHTML = '<div style="padding: 8px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
+    return;
+  }
+  
   listContainer.innerHTML = operations.map(op =>
     '<div draggable="true" ondragstart="handleOperationDragStart(event, \'' + op.id + '\')" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: grab; background: white; margin-bottom: 4px; font-size: 13px; font-weight: 500;" onmouseover="this.style.background=\'var(--muted)\'" onmouseout="this.style.background=\'white\'">' + op.name + '</div>'
   ).join('');
@@ -48,18 +47,13 @@ export function handleCanvasDrop(event) {
   const x = event.clientX - rect.left - 80;
   const y = event.clientY - rect.top - 40;
 
-  const operations = [
-    { id: 'op1', name: 'CNC Milling', type: 'Machining', time: 45, skills: ['CNC Programming', 'CAM Software'] },
-    { id: 'op2', name: 'MIG Welding', type: 'Welding', time: 30, skills: ['MIG Welding', 'Blueprint Reading'] },
-    { id: 'op3', name: 'Quality Control', type: 'Quality', time: 20, skills: ['Quality Inspection', 'Measurement'] },
-    { id: 'op4', name: 'Assembly', type: 'Assembly', time: 25, skills: ['Assembly', 'Hand Tools'] },
-    { id: 'op5', name: 'Packaging', type: 'Packaging', time: 15, skills: ['Packaging'] },
-    { id: 'op6', name: 'Surface Treatment', type: 'Treatment', time: 40, skills: ['Surface Treatment'] },
-    { id: 'op7', name: 'Drilling', type: 'Machining', time: 20, skills: ['Drilling', 'Precision Tools'] },
-    { id: 'op8', name: 'Painting', type: 'Finishing', time: 35, skills: ['Painting', 'Spray Equipment'] }
-  ];
+  // TODO: Get operations from Firebase/global state
+  const operations = [];
   const operation = operations.find(op => op.id === planDesignerState.draggedOperation);
-  if (!operation) return;
+  if (!operation) {
+    console.warn('Operation not found:', planDesignerState.draggedOperation);
+    return;
+  }
 
   const nodeId = 'node-' + planDesignerState.nodeIdCounter++;
   const newNode = {
@@ -304,13 +298,14 @@ export function handleOrderChange() {
   const select = document.getElementById('order-select');
   const selectedOrder = select.value;
   if (selectedOrder) {
-    const orderData = {
-      'WO-2401': { product: 'Engine Block', quantity: 500, dueDate: '2025-02-15' },
-      'WO-2402': { product: 'Gear Assembly', quantity: 800, dueDate: '2025-02-20' },
-      'WO-2403': { product: 'Control Panel', quantity: 300, dueDate: '2025-02-18' }
-    };
+    // TODO: Get order data from Firebase/backend
+    const orderData = {};
     const order = orderData[selectedOrder];
-    if (order) showToast(`Selected: ${order.product} (${order.quantity} units, due ${order.dueDate})`, 'info');
+    if (order) {
+      showToast(`Selected: ${order.product} (${order.quantity} units, due ${order.dueDate})`, 'info');
+    } else {
+      console.warn('Order data not found for:', selectedOrder);
+    }
   }
 }
 
