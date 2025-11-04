@@ -1,13 +1,155 @@
 // Plan Overview UI: tabs, filter, and create action
 
+import { getProductionPlans, getPlanTemplates } from './mesApi.js'
+import { loadPlanNodes, setReadOnly, setPlanMeta } from './planDesigner.js'
+
 export function initPlanOverviewUI() {
   // Default active tab
   setActivePlanTab('production');
   updatePlanFilterCounts();
+  // Load plans and templates from backend
+  try { loadAndRenderPlans(); } catch (e) { console.warn('Plans load init failed', e?.message) }
+}
+
+// First-time loader moved below to avoid duplicate declarations
+
+function fmtDate(d) {
+  try {
+    if (!d) return '—'
+    if (typeof d?.toDate === 'function') {
+      const dt = d.toDate()
+      return isNaN(dt?.getTime?.()) ? '—' : dt.toLocaleString()
+    }
+    if (typeof d?.seconds === 'number') {
+      const dt = new Date(d.seconds * 1000)
+      return isNaN(dt.getTime()) ? '—' : dt.toLocaleString()
+    }
+    const dt = new Date(d)
+    return isNaN(dt.getTime()) ? '—' : dt.toLocaleString()
+  } catch { return '—' }
+}
+
+function renderProductionPlans(plans) {
+  const body = document.getElementById('production-table-body')
+  const count = document.getElementById('production-count')
+  if (!body) return
+  if (!plans || plans.length === 0) {
+    body.innerHTML = '<tr><td colspan="6" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td></tr>'
+  } else {
+    body.innerHTML = plans.map(p => {
+      const name = (p.name || p.id || '').toString()
+      const order = (p.orderCode || '—')
+      const status = (p.status || 'Draft')
+      const created = fmtDate(p.createdAt)
+      const createdBy = p.createdBy || '—'
+      return `<tr data-status="${status}">
+        <td style="padding: 10px 12px;">${name}</td>
+        <td style="padding: 10px 12px;">${order}</td>
+        <td style="padding: 10px 12px;">${status}</td>
+        <td style="padding: 10px 12px;">${created}</td>
+        <td style="padding: 10px 12px;">${createdBy}</td>
+        <td style="padding: 10px 12px; text-align:right;">
+          <button onclick="viewProductionPlan('${p.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;">View</button>
+        </td>
+      </tr>`
+    }).join('')
+  }
+  if (count) count.textContent = `(${plans?.length || 0})`
+}
+
+function renderTemplatesList(templates) {
+  const body = document.getElementById('templates-table-body')
+  const count = document.getElementById('templates-count')
+  if (!body) return
+  if (!templates || templates.length === 0) {
+    body.innerHTML = '<tr><td colspan="5" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td></tr>'
+  } else {
+    body.innerHTML = templates.map(t => {
+      const name = (t.name || t.id || '').toString()
+      const steps = Array.isArray(t.steps) ? t.steps.length : (t.stepsCount || 0)
+      const editor = t.lastModifiedBy || t.owner || t.createdBy || '—'
+      const updated = fmtDate(t.lastModifiedAt || t.updatedAt || t.createdAt)
+      return `<tr>
+        <td style="padding: 10px 12px;">${name}</td>
+        <td style="padding: 10px 12px;">${steps}</td>
+        <td style="padding: 10px 12px;">${editor}</td>
+        <td style="padding: 10px 12px;">${updated}</td>
+        <td style="padding: 10px 12px; text-align:right;">
+          <button onclick="editTemplateById('${t.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;">Edit</button>
+        </td>
+      </tr>`
+    }).join('')
+  }
+  if (count) count.textContent = `(${templates?.length || 0})`
+}
+
+let _plansCache = []
+let _templatesCache = []
+// Keep caches for actions
+async function loadAndRenderPlans() {
+  try {
+    const [plans, templates] = await Promise.all([
+      getProductionPlans().catch(() => []),
+      getPlanTemplates().catch(() => [])
+    ])
+    _plansCache = plans
+    _templatesCache = templates
+    renderProductionPlans(plans)
+    renderTemplatesList(templates)
+  } catch (e) {
+    console.warn('Failed to load plans/templates', e?.message)
+  }
+}
+// Make reloader accessible to other modules
+try { Object.assign(window, { loadAndRenderPlans }) } catch {}
+
+export async function viewProductionPlan(id) {
+  try {
+    let p = (_plansCache || []).find(x => x.id === id)
+    if (!p) {
+      // Cache miss: reload plans from backend and try again
+      try {
+        const fresh = await getProductionPlans().catch(() => [])
+        _plansCache = fresh
+        p = (_plansCache || []).find(x => x.id === id)
+      } catch {}
+    }
+    if (!p) return
+    // Open designer in read-only view
+    if (typeof window.openCreatePlan === 'function') window.openCreatePlan()
+    // Title should reflect view mode
+    try {
+      const title = document.getElementById('plans-title');
+      if (title) title.textContent = 'Production Planning / Overview';
+    } catch {}
+    setReadOnly(true)
+    setPlanMeta({ name: p.name, description: p.description, orderCode: p.orderCode, scheduleType: p.scheduleType })
+    const nodes = Array.isArray(p.nodes) ? p.nodes : (Array.isArray(p.steps) ? p.steps : (p.graph && Array.isArray(p.graph.nodes) ? p.graph.nodes : []))
+    loadPlanNodes(nodes || [])
+  } catch (e) { console.warn('viewProductionPlan failed', e?.message) }
+}
+
+export function editTemplateById(id) {
+  try {
+    const openTpl = (tpl) => {
+      if (!tpl) return
+      if (typeof window.openCreatePlan === 'function') window.openCreatePlan()
+      setReadOnly(false)
+      setPlanMeta({ name: tpl.name, description: tpl.description || '', orderCode: '', scheduleType: 'one-time' })
+      loadPlanNodes(tpl.steps || [])
+    }
+
+    let t = (_templatesCache || []).find(x => x.id === id)
+    if (t) { openTpl(t); return }
+    // Fallback: refresh templates from backend then try again
+    getPlanTemplates()
+      .then(list => { _templatesCache = list || []; openTpl((_templatesCache || []).find(x => x.id === id)) })
+      .catch(e => console.warn('editTemplateById reload failed', e?.message))
+  } catch (e) { console.warn('editTemplateById failed', e?.message) }
 }
 
 export function setActivePlanTab(tabId) {
-  const buttons = document.querySelectorAll('.plan-tab-button');
+  const buttons = document.querySelectorAll('.station-tab-button, .plan-tab-button');
   buttons.forEach(btn => {
     const isActive = (tabId === 'production' && btn.textContent.trim().startsWith('Production')) || (tabId === 'templates' && btn.textContent.trim().startsWith('Templates'));
     if (isActive) {
@@ -16,12 +158,19 @@ export function setActivePlanTab(tabId) {
       btn.style.color = 'rgb(17, 24, 39)';
       btn.style.fontWeight = '600';
       btn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+      // Bring active tab visually in front of the panel
+      btn.style.position = 'relative';
+      btn.style.zIndex = '3';
+      btn.style.borderBottom = '1px solid white';
     } else {
       btn.classList.remove('active');
       btn.style.background = 'transparent';
       btn.style.color = 'rgb(75, 85, 99)';
       btn.style.fontWeight = '400';
       btn.style.boxShadow = 'none';
+      btn.style.position = '';
+      btn.style.zIndex = '';
+      btn.style.borderBottom = '';
     }
   });
 
@@ -31,6 +180,25 @@ export function setActivePlanTab(tabId) {
     prodPanel.style.display = tabId === 'production' ? 'block' : 'none';
     templPanel.style.display = tabId === 'templates' ? 'block' : 'none';
   }
+
+  // Ensure tabs overlap the panel top border nicely
+  try {
+    const tabsBar = document.getElementById('plans-tabs');
+    const panelCard = document.getElementById('plans-panel-card');
+    if (tabsBar) {
+      tabsBar.style.position = 'relative';
+      tabsBar.style.zIndex = '2';
+    }
+    if (panelCard) {
+      panelCard.style.position = 'relative';
+      panelCard.style.zIndex = '1';
+      panelCard.style.marginTop = '-6px';
+      const content = panelCard.querySelector('.card-content');
+      if (content) content.style.paddingTop = '6px';
+    }
+    // Refresh current lists to reflect any external changes/deletions
+    try { loadAndRenderPlans(); } catch {}
+  } catch {}
 }
 
 export function filterProductionPlans() {
@@ -63,12 +231,14 @@ export function openCreatePlan() {
   const createButton = document.getElementById('create-plan-button');
   const filterBar = document.getElementById('plans-filter-compact');
   const title = document.getElementById('plans-title');
+  const backBtn = document.getElementById('plans-back-btn');
   if (tabs) tabs.style.display = 'none';
   if (panelCard) panelCard.style.display = 'none';
   if (headerControls) headerControls.style.display = 'none';
   if (createButton) createButton.style.display = 'none';
   if (filterBar) filterBar.style.display = 'none';
   if (title) title.textContent = 'Production Planning / New Plan Creation';
+  if (backBtn) backBtn.style.display = '';
 
   // Show designer
   section.style.display = 'block';
@@ -82,15 +252,23 @@ export function cancelPlanCreation() {
   const createButton = document.getElementById('create-plan-button');
   const filterBar = document.getElementById('plans-filter-compact');
   const title = document.getElementById('plans-title');
+  const backBtn = document.getElementById('plans-back-btn');
   if (section) section.style.display = 'none';
   if (tabs) tabs.style.display = '';
   if (panelCard) panelCard.style.display = '';
-  if (headerControls) headerControls.style.display = '';
+  if (headerControls) {
+    headerControls.style.display = 'flex'; // Restore flex layout
+  }
   if (createButton) createButton.style.display = '';
-  if (filterBar) filterBar.style.display = '';
+  if (filterBar) {
+    filterBar.style.display = 'flex'; // Restore flex layout
+  }
   if (title) title.textContent = 'Production Planning';
+  if (backBtn) backBtn.style.display = 'none';
   // Optionally scroll back to top
   setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0);
+  // Reload lists on return
+  try { loadAndRenderPlans(); } catch {}
 }
 
 // --- Rich Filters (Status / Priority / Type) ---

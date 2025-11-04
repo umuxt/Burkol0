@@ -643,8 +643,50 @@ export default function EditMaterialModal({
               </div>
             </div>
             
-            {/* Sağ kolon - Tedarikçiler */}
+            {/* Sağ kolon - Üretim Bilgisi + Tedarikçiler */}
             <div className="details-right-section">
+              {material?.type === 'wip_produced' && (
+                <div style={{ marginBottom: '12px', border: '1px solid #e5e7eb', borderRadius: '6px', background: '#fff' }}>
+                  <div style={{ padding: '8px 12px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '14px' }}>🏭</span>
+                    <h3 style={{ margin: 0 }}>Üretilmiş Yarı Mamül Bilgisi</h3>
+                  </div>
+                  <div style={{ padding: '8px 12px', fontSize: '12px', color: '#374151' }}>
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '4px' }}>
+                      <span style={{ minWidth: 120, color: '#6b7280' }}>İstasyon:</span>
+                      <span>{material?.producedInfo?.stationName || material?.producedInfo?.stationId || '-'}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '4px' }}>
+                      <span style={{ minWidth: 120, color: '#6b7280' }}>Operasyon:</span>
+                      <span>{material?.producedInfo?.operationName || material?.producedInfo?.operationId || '-'}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '4px' }}>
+                      <span style={{ minWidth: 120, color: '#6b7280' }}>Çıkış:</span>
+                      <span>{(material?.producedInfo?.outputQty ?? '') + (material?.producedInfo?.outputUnit ? ' ' + material.producedInfo.outputUnit : '') || '-'}</span>
+                    </div>
+                    <div style={{ marginTop: '8px' }}>
+                      <div style={{ fontWeight: 600, marginBottom: '6px' }}>Kullanılan Girdiler</div>
+                      <div style={{ border: '1px solid #e5e7eb', borderRadius: 4 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', padding: '6px 8px', background: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>
+                          <div>Malzeme</div>
+                          <div>Adet</div>
+                          <div>Birim</div>
+                        </div>
+                        {(material?.producedInfo?.inputs || []).map((inp, i) => (
+                          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', padding: '6px 8px', borderTop: '1px solid #e5e7eb' }}>
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{inp.id || '-'}</div>
+                            <div>{inp.qty ?? '-'}</div>
+                            <div>{inp.unit || '-'}</div>
+                          </div>
+                        ))}
+                        {(!material?.producedInfo?.inputs || material.producedInfo.inputs.length === 0) && (
+                          <div style={{ padding: '8px', color: '#6b7280' }}>Girdi bilgisi yok</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="suppliers-section" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ 
                   fontSize: '14px', 

@@ -159,6 +159,116 @@ export async function getMaterials(force = false) {
   return _materialsCache
 }
 
+// Production Plans API
+export async function createProductionPlan(plan) {
+  const res = await fetch(`${API_BASE}/api/mes/production-plans`, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(plan)
+  })
+  if (!res.ok) throw new Error(`production_plan_create_failed ${res.status}`)
+  return await res.json()
+}
+
+export async function createTemplate(template) {
+  // Write templates into the single collection as production plans with status='template'
+  const payload = { ...template, status: 'template' }
+  const res = await fetch(`${API_BASE}/api/mes/production-plans`, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload)
+  })
+  if (!res.ok) throw new Error(`template_create_failed ${res.status}`)
+  return await res.json()
+}
+
+// Fetch production plans
+export async function getProductionPlans() {
+  const res = await fetch(`${API_BASE}/api/mes/production-plans`, { headers: withAuth() })
+  if (!res.ok) throw new Error(`production_plans_load_failed ${res.status}`)
+  const data = await res.json()
+  return Array.isArray(data?.productionPlans) ? data.productionPlans : []
+}
+
+// Fetch plan templates
+export async function getPlanTemplates() {
+  const res = await fetch(`${API_BASE}/api/mes/templates`, { headers: withAuth() })
+  if (!res.ok) throw new Error(`templates_load_failed ${res.status}`)
+  const data = await res.json()
+  return Array.isArray(data?.templates) ? data.templates : []
+}
+
+// Generate next plan id: prod-plan-YYYY-xxxxx
+export async function getNextProductionPlanId(year) {
+  try {
+    const res = await fetch(`${API_BASE}/api/mes/production-plans/next-id`, {
+      method: 'POST',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ year })
+    })
+    if (!res.ok) throw new Error(`next_plan_id_failed ${res.status}`)
+    const data = await res.json()
+    if (data?.id) return data.id
+    throw new Error('no_id')
+  } catch (e) {
+    // Fallback: generate client-side unique id with same format
+    const now = new Date()
+    const y = (year || now.getFullYear())
+    const pad = (n) => String(n).padStart(5, '0')
+    const pseudo = Number(String(now.getTime()).slice(-5)) // last 5 digits
+    return `prod-plan-${y}-${pad(pseudo)}`
+  }
+}
+
+// Generate next template id: tpl-plan-YYYY-xxxxx
+// (No separate template id; we use production plan next-id for all)
+
+// Create or update a material (uses POST with custom ID = code)
+export async function createOrUpdateMaterial(material) {
+  const res = await fetch(`${API_BASE}/api/materials`, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(material)
+  })
+  if (!res.ok) throw new Error(`material_upsert_failed ${res.status}`)
+  const data = await res.json()
+  // Invalidate local cache
+  _materialsCache = null
+  return data
+}
+
+// Upsert a produced WIP material from a plan node
+export async function upsertProducedWipFromNode(node, ops = [], stations = []) {
+  if (!node || !node.semiCode) return null
+  const station = Array.isArray(stations)
+    ? stations.find(s => (s.id && s.id === node.assignedStation) || (s.name && s.name === node.assignedStation))
+    : null
+  const operation = Array.isArray(ops) ? ops.find(o => o.id === node.operationId) : null
+  const inputs = Array.isArray(node.rawMaterials) ? node.rawMaterials.map(m => ({ id: m.id, qty: m.qty ?? null, unit: m.unit || '' })) : []
+  const body = {
+    code: node.semiCode,
+    name: node.semiCode,
+    type: 'wip_produced',
+    unit: node.outputUnit || '',
+    stock: 0,
+    category: '',
+    description: `Produced via Plan Canvas${station ? ` @ ${station.name || station.id}` : ''}`,
+    status: 'Aktif',
+    produced: true,
+    producedInfo: {
+      nodeId: node.id,
+      operationId: node.operationId,
+      operationName: operation?.name || '',
+      stationId: station?.id || '',
+      stationName: station?.name || (typeof node.assignedStation === 'string' ? node.assignedStation : ''),
+      outputQty: node.outputQty ?? null,
+      outputUnit: node.outputUnit || '',
+      inputs
+    }
+  }
+  return await createOrUpdateMaterial(body)
+}
+
 export function genId(prefix = '') { return `${prefix}${Math.random().toString(36).slice(2, 9)}` }
 
 // Master Data (skills, operation types)

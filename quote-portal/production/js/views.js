@@ -546,7 +546,10 @@ export function generateStations() {
 export function generatePlanDesigner() {
   return `
     <div id="plans-header" style="margin-bottom: 8px;">
-      <h1 id="plans-title" style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Planning</h1>
+      <div style="display:flex; align-items:center; justify-content: space-between; gap: 8px; margin-bottom: 8px;">
+        <h1 id="plans-title" style="font-size: 32px; font-weight: 700; margin: 0;">Production Planning</h1>
+        <button id="plans-back-btn" onclick="cancelPlanCreation()" title="Go back" style="display:none; padding: 6px 10px; font-size: 12px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer;">← Back</button>
+      </div>
     </div>
 
     <div class="plans-filter-compact" id="plans-filter-compact" style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
@@ -639,12 +642,13 @@ export function generatePlanDesigner() {
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Order</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Status</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">Actions</th>
               </tr>
             </thead>
             <tbody id="production-table-body">
               <tr>
-                <td colspan="5" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td>
+                <td colspan="6" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td>
               </tr>
             </tbody>
           </table>
@@ -655,13 +659,14 @@ export function generatePlanDesigner() {
               <tr style="background: var(--muted); text-align: left;">
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Template</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Steps</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Owner</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Editor</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">Actions</th>
               </tr>
             </thead>
             <tbody id="templates-table-body">
               <tr>
-                <td colspan="4" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td>
+                <td colspan="5" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td>
               </tr>
             </tbody>
           </table>
@@ -691,15 +696,15 @@ export function generatePlanDesigner() {
               <label style="font-weight: 500; font-size: 12px; margin: 0; min-width: 48px;">Order</label>
               <select id="order-select" style="display:none;" onchange="handleOrderChange()"><option value="">Select an order...</option></select>
               <div style="position: relative; flex:1;">
-                <button id="plan-order-btn" type="button" class="plan-filter-button" onclick="togglePlanOrderPanel()" style="height: 32px; padding: 4px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 200px; width: 100%; display: flex; align-items: center; gap: 8px;">
+                <button id="plan-order-btn" type="button" class="plan-filter-button" style="height: 32px; padding: 4px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 200px; width: 100%; display: flex; align-items: center; gap: 8px;">
                   <span id="plan-order-label">Select an order...</span>
                   <span style="margin-left: auto; opacity: .6">▾</span>
                 </button>
                 <div id="plan-order-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 360px; max-height: 320px; overflow: hidden; z-index: 1000;">
                   <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-                    <input id="plan-order-search" type="text" placeholder="Search orders..." class="plan-filter-panel-input" oninput="filterPlanOrderList()" style="flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;">
-                    <button type="button" class="plan-filter-panel-button" onclick="clearPlanOrder()" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
-                    <button type="button" title="Close" class="plan-filter-panel-button" onclick="hidePlanOrderPanel()" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+                    <input id="plan-order-search" type="text" placeholder="Search orders..." class="plan-filter-panel-input" style="flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;">
+                    <button id="plan-order-clear" type="button" class="plan-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
+                    <button id="plan-order-close" type="button" title="Close" class="plan-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
                   </div>
                   <div id="plan-order-list" style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;"></div>
                 </div>
@@ -712,22 +717,22 @@ export function generatePlanDesigner() {
                 <option value="recurring">Devirli</option>
               </select>
               <div style="position: relative; flex:1;">
-                <button id="plan-type-btn" type="button" class="plan-filter-button" onclick="togglePlanTypePanel()" style="height: 32px; padding: 4px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; width: 100%; display: flex; align-items: center; gap: 8px;">
+                <button id="plan-type-btn" type="button" class="plan-filter-button" style="height: 32px; padding: 4px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; width: 100%; display: flex; align-items: center; gap: 8px;">
                   <span id="plan-type-label">Tek seferlik</span>
                   <span style="margin-left: auto; opacity: .6">▾</span>
                 </button>
                 <div id="plan-type-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 240px; max-height: 240px; overflow: hidden; z-index: 1000;">
                   <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-                    <button type="button" class="plan-filter-panel-button" onclick="clearPlanType()" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
-                    <button type="button" title="Close" class="plan-filter-panel-button" onclick="hidePlanTypePanel()" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+                    <button id="plan-type-clear" type="button" class="plan-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
+                    <button id="plan-type-close" type="button" title="Close" class="plan-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
                   </div>
                   <div style="max-height: 180px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
                     <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
-                      <input type="radio" name="plan-type-radio" value="one-time" onclick="selectPlanType('one-time','Tek seferlik')">
+                      <input type="radio" name="plan-type-radio" value="one-time">
                       <span style="font-size:12px;">Tek seferlik</span>
                     </label>
                     <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
-                      <input type="radio" name="plan-type-radio" value="recurring" onclick="selectPlanType('recurring','Devirli')">
+                      <input type="radio" name="plan-type-radio" value="recurring">
                       <span style="font-size:12px;">Devirli</span>
                     </label>
                   </div>
@@ -765,17 +770,17 @@ export function generatePlanDesigner() {
               </div>
             </div>
             <div style="display:flex; gap:6px; align-items:center; justify-content:flex-end;">
-              <button onclick="savePlanDraft()" style="height: 32px; padding:0 10px; font-size:12px; border-radius:6px; border:1px solid var(--border); background: white;">Save</button>
-              <button onclick="savePlanAsTemplate()" style="height: 32px; padding:0 10px; font-size:12px; border-radius:6px; border:1px solid var(--border); background: white;">Save As Template</button>
-              <button onclick="cancelPlanCreation()" style="height: 32px; padding:0 12px; font-size:12px; border-radius:6px; background: #f3f4f6; color: #111827; border: 1px solid var(--border);">Cancel</button>
+              <button id="plan-save-btn" onclick="savePlanDraft()" style="height: 32px; padding:0 10px; font-size:12px; border-radius:6px; border:1px solid var(--border); background: white;">Save</button>
+              <button id="plan-save-as-template-btn" onclick="savePlanAsTemplate()" style="height: 32px; padding:0 10px; font-size:12px; border-radius:6px; border:1px solid var(--border); background: white;">Save As Template</button>
+              <button id="plan-cancel-btn" onclick="cancelPlanCreation()" style="height: 32px; padding:0 12px; font-size:12px; border-radius:6px; background: #f3f4f6; color: #111827; border: 1px solid var(--border);">Cancel</button>
             </div>
           </div>
         </div>
       </div>
-      <div style="display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start;">
+      <div id="plan-workspace-grid" style="display: grid; grid-template-columns: 240px 1fr; gap: 16px; align-items: start;">
         <div class="card" style="height: fit-content;">
           <div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 14px;">Operations</div><div class="card-description" style="font-size: 11px;">Drag to canvas</div></div>
-          <div class="card-content" style="padding: 8px;"><div id="operations-list"></div></div>
+          <div id="operations-panel" class="card-content" style="padding: 8px;"><div id="operations-list"></div></div>
         </div>
         <div class="card">
           <div class="card-header" style="padding: 8px 12px !important; display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: space-between !important;">
@@ -844,7 +849,7 @@ export function generatePlanDesigner() {
           <!-- Fullscreen Content -->
           <div style="flex: 1; display: flex; min-height: 0;">
             <!-- Operations Panel in Fullscreen -->
-            <div style="width: 280px; background: var(--muted); border-right: 1px solid var(--border); display: flex; flex-direction: column;">
+            <div id="fullscreen-operations-panel" style="width: 280px; background: var(--muted); border-right: 1px solid var(--border); display: flex; flex-direction: column;">
               <div style="padding: 16px; border-bottom: 1px solid var(--border);">
                 <h4 style="margin: 0 0 4px; font-size: 16px; font-weight: 600;">Operations</h4>
                 <p style="margin: 0; font-size: 12px; color: var(--muted-foreground);">Drag to canvas</p>

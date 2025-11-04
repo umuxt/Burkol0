@@ -36,6 +36,7 @@ const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin'
 const materialTypes = [
   { id: 'raw_material', label: 'Ham Madde' },
   { id: 'wip', label: 'Yarı Mamül' },
+  { id: 'wip_produced', label: 'Üretilmiş Yarı Mamül' },
   { id: 'final_product', label: 'Bitmiş Ürün' }
 ];
 

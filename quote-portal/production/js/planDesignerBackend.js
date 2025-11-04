@@ -1,6 +1,6 @@
 // Backend-powered overrides for Plan Designer
 import { showToast } from './ui.js'
-import { getOperations, getWorkers, getStations, getApprovedQuotes, getMaterials } from './mesApi.js'
+import { getOperations, getWorkers, getStations, getApprovedQuotes, getMaterials, upsertProducedWipFromNode } from './mesApi.js'
 import { planDesignerState, renderCanvas, closeNodeEditModal } from './planDesigner.js'
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
@@ -380,7 +380,17 @@ export function saveNodeEditBackend() {
     node.rawMaterials = rawMaterials
     node.rawMaterial = rawMaterials.length ? { ...rawMaterials[0] } : null
     // Compute/update semi-finished product code based on op, station and materials
-    try { computeAndAssignSemiCode(node, _opsCache, _stationsCacheFull) } catch {}
+    try {
+      computeAndAssignSemiCode(node, _opsCache, _stationsCacheFull)
+      if (node.semiCode) {
+        // Upsert produced WIP into materials backend
+        upsertProducedWipFromNode(node, _opsCache, _stationsCacheFull)
+          .then(() => {
+            try { window.dispatchEvent(new CustomEvent('materialStockUpdated', { detail: { code: node.semiCode } })) } catch {}
+          })
+          .catch(e => console.warn('Produced WIP upsert failed:', e?.message))
+      }
+    } catch {}
     renderCanvas()
     const modal = document.getElementById('node-edit-modal')
     if (modal) {

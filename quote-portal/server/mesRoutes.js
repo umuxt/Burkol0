@@ -1,17 +1,27 @@
 import express from 'express';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getSession } from './auth.js'
 import jsondb from '../src/lib/jsondb.js'
 
 const router = express.Router();
 
 // Middleware to authenticate requests (reuse existing auth)
 function withAuth(req, res, next) {
-  // Use same auth logic as materials routes
-  const token = req.headers.authorization?.replace('Bearer ', '') || '';
+  // Basic token presence check
+  const token = req.headers.authorization?.replace('Bearer ', '') || ''
   if (!token && req.hostname !== 'localhost') {
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ error: 'Unauthorized' })
   }
-  next();
+  // Attach session user when possible (for createdBy/updatedBy fields)
+  try {
+    if (token && token.startsWith('dev-')) {
+      req.user = { email: 'dev@burkol.com', userName: 'Dev User' }
+    } else if (token) {
+      const s = getSession(token)
+      if (s) req.user = s
+    }
+  } catch {}
+  next()
 }
 
 // Helper function to handle Firestore operations
@@ -401,17 +411,39 @@ router.post('/master-data', withAuth, async (req, res) => {
 // PRODUCTION PLANS ROUTES  
 // ============================================================================
 
-// GET /api/mes/production-plans - Get all production plans
+// POST /api/mes/production-plans/next-id - Generate next sequential plan id (prod-plan-YYYY-xxxxx)
+router.post('/production-plans/next-id', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const db = getFirestore();
+    const now = new Date();
+    const year = (req.body && req.body.year) || now.getFullYear();
+    const pad = (n) => String(n).padStart(5, '0');
+    const counterRef = db.collection('mes-counters').doc(`prod-plan-${year}`);
+
+    const id = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(counterRef);
+      let next = 1;
+      if (snap.exists) {
+        const data = snap.data() || {};
+        next = Number.isFinite(data.next) ? data.next : 1;
+      }
+      const newId = `prod-plan-${year}-${pad(next)}`;
+      tx.set(counterRef, { next: next + 1, updatedAt: new Date() }, { merge: true });
+      return newId;
+    });
+
+    return { id };
+  }, res);
+});
+
+// GET /api/mes/production-plans - Get production plans (exclude templates)
 router.get('/production-plans', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const db = getFirestore();
-    const snapshot = await db.collection('mes-production-plans')
-      .orderBy('createdAt', 'desc')
-      .get();
-    const productionPlans = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    // Fetch all then filter out templates to avoid relying on composite indexes
+    const snapshot = await db.collection('mes-production-plans').orderBy('createdAt', 'desc').get();
+    const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const productionPlans = all.filter(p => (p.status || p.type || '').toString().toLowerCase() !== 'template');
     return { productionPlans };
   }, res);
 });
@@ -425,11 +457,15 @@ router.post('/production-plans', withAuth, async (req, res) => {
     }
 
     const db = getFirestore();
+    const now = new Date()
+    const createdBy = (req.user && (req.user.email || req.user.userName)) || null
     await db.collection('mes-production-plans').doc(productionPlan.id).set({
       ...productionPlan,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
+      createdAt: now,
+      updatedAt: now,
+      createdBy,
+      updatedBy: createdBy
+    }, { merge: true });
 
     return { success: true, id: productionPlan.id };
   }, res);
@@ -442,10 +478,12 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     const updates = req.body;
 
     const db = getFirestore();
-    await db.collection('mes-production-plans').doc(id).update({
+    const updatedBy = (req.user && (req.user.email || req.user.userName)) || null
+    await db.collection('mes-production-plans').doc(id).set({
       ...updates,
-      updatedAt: new Date()
-    });
+      updatedAt: new Date(),
+      ...(updatedBy ? { updatedBy } : {})
+    }, { merge: true });
 
     return { success: true, id };
   }, res);
@@ -465,22 +503,29 @@ router.delete('/production-plans/:id', withAuth, async (req, res) => {
 // TEMPLATES ROUTES
 // ============================================================================
 
-// GET /api/mes/templates - Get all production plan templates
+// GET /api/mes/templates - Get templates from the same collection using status/type flag
 router.get('/templates', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const db = getFirestore();
-    const snapshot = await db.collection('mes-templates')
-      .orderBy('createdAt', 'desc')
-      .get();
-    const templates = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    // Prefer status == 'template' when available; otherwise filter client-side
+    let templates = [];
+    try {
+      const snapshot = await db.collection('mes-production-plans')
+        .where('status', '==', 'template')
+        .orderBy('createdAt', 'desc')
+        .get();
+      templates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+      // Fallback without where (in case of missing index) and filter in memory
+      const snapshot = await db.collection('mes-production-plans').orderBy('createdAt', 'desc').get();
+      const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      templates = all.filter(t => (t.status || t.type || '').toString().toLowerCase() === 'template');
+    }
     return { templates };
   }, res);
 });
 
-// POST /api/mes/templates - Create template
+// POST /api/mes/templates - Create template in mes-production-plans with status = 'template'
 router.post('/templates', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const template = req.body;
@@ -489,25 +534,76 @@ router.post('/templates', withAuth, async (req, res) => {
     }
 
     const db = getFirestore();
-    await db.collection('mes-templates').doc(template.id).set({
+    const now = new Date()
+    const actor = (req.user && (req.user.email || req.user.userName)) || null
+    await db.collection('mes-production-plans').doc(template.id).set({
       ...template,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
+      status: (template.status || 'template'),
+      createdAt: template.createdAt ? new Date(template.createdAt) : now,
+      updatedAt: now,
+      // Track template edit info
+      lastModifiedAt: now,
+      ...(actor ? { lastModifiedBy: actor } : {}),
+      // Also keep owner/createdBy for listing
+      ...(actor && !template.owner ? { owner: actor } : {}),
+      ...(actor && !template.createdBy ? { createdBy: actor } : {})
+    }, { merge: true });
+
+    // Safety: if a legacy collection 'mes-templates' exists and was written by old client, remove duplicate
+    try {
+      const legacyRef = db.collection('mes-templates').doc(template.id)
+      const legacySnap = await legacyRef.get()
+      if (legacySnap.exists) {
+        await legacyRef.delete()
+        console.log(`[MES] Removed legacy duplicate from mes-templates: ${template.id}`)
+      }
+    } catch (e) {
+      // best-effort cleanup, ignore
+    }
 
     return { success: true, id: template.id };
   }, res);
 });
 
-// DELETE /api/mes/templates/:id - Delete template
+// DELETE /api/mes/templates/:id - Delete template from mes-production-plans
 router.delete('/templates/:id', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const { id } = req.params;
     const db = getFirestore();
-    await db.collection('mes-templates').doc(id).delete();
+    await db.collection('mes-production-plans').doc(id).delete();
+    // Best-effort cleanup in legacy collection too
+    try { await db.collection('mes-templates').doc(id).delete() } catch {}
     return { success: true, id };
   }, res);
 });
+
+// One-time migration endpoint: move any legacy 'mes-templates' docs into 'mes-production-plans'
+router.post('/templates/migrate-from-legacy', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const db = getFirestore()
+    const legacyCol = db.collection('mes-templates')
+    let migrated = 0
+    let removed = 0
+    try {
+      const snap = await legacyCol.get()
+      for (const doc of snap.docs) {
+        const data = doc.data() || {}
+        const id = doc.id
+        await db.collection('mes-production-plans').doc(id).set({
+          ...data,
+          status: (data.status || 'template'),
+          migratedAt: new Date()
+        }, { merge: true })
+        migrated++
+        await legacyCol.doc(id).delete()
+        removed++
+      }
+    } catch (e) {
+      console.warn('[MES] Legacy templates migration issue:', e?.message)
+    }
+    return { success: true, migrated, removed }
+  }, res)
+})
 
 // ============================================================================
 // MATERIALS ROUTES
