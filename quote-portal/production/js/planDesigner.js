@@ -4,6 +4,7 @@ import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from '
 import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
+import { API_BASE, withAuth } from '../../shared/lib/api.js';
 
 export const planDesignerState = {
   nodes: [],
@@ -91,6 +92,21 @@ function initializeGlobalEventHandlers() {
   
   // Global mousedown for connection zone detection and pan start
   document.addEventListener('mousedown', (e) => {
+    const normalCanvas = document.getElementById('plan-canvas');
+    const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+
+    // Guard clause: Check if the click originated inside a canvas.
+    // If not, exit early to avoid interfering with other UI elements like dropdowns.
+    const isClickOnCanvas = (normalCanvas && normalCanvas.contains(e.target)) ||
+                            (fullscreenCanvas && fullscreenCanvas.contains(e.target));
+
+    if (!isClickOnCanvas) {
+        console.log('DEBUG: Mousedown event ignored because click was outside canvas. Target:', e.target);
+        return;
+    }
+    console.log('DEBUG: Mousedown event is ON CANVAS. Processing...');
+
+
     // Determine which canvas we're working with
     const targetCanvas = getActiveCanvas(e);
     if (!targetCanvas) return;
@@ -1249,23 +1265,42 @@ export function savePlanAsTemplate() {
   if (planDesignerState.nodes.length === 0) { showToast('Cannot save empty plan as template', 'error'); return; }
   const planNameInput = document.getElementById('plan-name');
   const planDescInput = document.getElementById('plan-description');
+  const orderSelect = document.getElementById('order-select');
+  const scheduleTypeSelect = document.getElementById('schedule-type');
+  
   let planName = planNameInput ? planNameInput.value : '';
   const planDesc = planDescInput?.value || '';
+  const orderCode = orderSelect ? orderSelect.value : '';
+  const scheduleType = scheduleTypeSelect ? scheduleTypeSelect.value : 'one-time';
+  
   if (planDesignerState.readOnly) {
     const base = (planDesignerState.currentPlanMeta?.name) || planName || 'Untitled';
     planName = `${base} - kopyası`;
   }
   if (!planName) { showToast('Please enter a plan name', 'error'); return; }
+  
   // If editing from an existing template, keep the same id to update and track lastModifiedBy
   const existingTplId = planDesignerState.currentPlanMeta?.sourceTemplateId || null;
   const template = {
     id: existingTplId || undefined,
     name: planName,
     description: planDesc,
+    orderCode: orderCode,
+    scheduleType: scheduleType,
     steps: JSON.parse(JSON.stringify(planDesignerState.nodes)),
     createdAt: new Date().toISOString(),
     status: 'template'
   };
+  
+  // Debug: Log the template object being saved
+  console.log('🔍 TEMPLATE BEING SAVED:', {
+    orderCode: template.orderCode,
+    scheduleType: template.scheduleType,
+    name: template.name,
+    description: template.description,
+    status: template.status,
+    fullTemplate: template
+  });
   // If no existing template id, generate a new one; otherwise update existing via POST /templates (merge)
   const ensureId = template.id 
     ? Promise.resolve(template.id)
@@ -1396,6 +1431,10 @@ export function initializePlanDesigner() {
   setTimeout(() => {
     loadOperationsToolbox();
     renderCanvas();
+    
+    // Load orders into the dropdown
+    loadOrdersIntoSelect();
+    
     handleScheduleTypeChange();
 
     // Wire dropdowns programmatically (we removed inline onclick in views)
@@ -1474,18 +1513,44 @@ function wirePlanDropdownsOnce() {
 
 // Plan Order dropdown (button + panel) helpers
 export function togglePlanOrderPanel() {
+  console.warn('DEBUG: togglePlanOrderPanel function was successfully called!');
   console.log('togglePlanOrderPanel called');
   const now = Date.now();
   if (now - (planDesignerState._orderPanelLastToggle || 0) < 150) { console.log('debounced order panel toggle'); return; }
   planDesignerState._orderPanelLastToggle = now;
+  
   const panel = document.getElementById('plan-order-panel');
+  const button = document.getElementById('plan-order-btn');
   console.log('panel found:', panel);
-  if (!panel) return;
+  
+  if (!panel || !button) return;
+  
   renderPlanOrderListFromSelect();
+  
   const isOpen = (typeof window !== 'undefined' ? window.getComputedStyle(panel).display : panel.style.display) !== 'none';
   console.log('isOpen:', isOpen, 'current display:', panel.style.display);
-  panel.style.display = isOpen ? 'none' : 'block';
+  
+  if (isOpen) {
+    panel.style.display = 'none';
+  } else {
+    // Force positioning and visibility
+    const buttonRect = button.getBoundingClientRect();
+    panel.style.position = 'fixed';
+    panel.style.top = (buttonRect.bottom + 6) + 'px';
+    panel.style.left = (buttonRect.right - 360) + 'px';
+    panel.style.zIndex = '9999';
+    panel.style.display = 'block';
+    panel.style.visibility = 'visible';
+    panel.style.opacity = '1';
+    console.log('Panel positioned at:', {
+      top: panel.style.top,
+      left: panel.style.left,
+      display: panel.style.display
+    });
+  }
+  
   console.log('new display:', panel.style.display);
+  
   // Hide the other panel to avoid overlaps
   if (panel.style.display === 'block') {
     const other = document.getElementById('plan-type-panel');
@@ -1547,18 +1612,46 @@ export function renderPlanOrderListFromSelect() {
 
 // Plan Type dropdown (button + panel) helpers
 export function togglePlanTypePanel() {
+  console.warn('DEBUG: togglePlanTypePanel function was successfully called!');
   console.log('togglePlanTypePanel called');
   const now = Date.now();
   if (now - (planDesignerState._typePanelLastToggle || 0) < 150) { console.log('debounced type panel toggle'); return; }
   planDesignerState._typePanelLastToggle = now;
-  const p = document.getElementById('plan-type-panel'); 
-  console.log('plan-type-panel found:', p);
-  if (!p) return; 
-  const isOpen = (typeof window !== 'undefined' ? window.getComputedStyle(p).display : p.style.display) !== 'none';
-  console.log('isOpen:', isOpen, 'current display:', p.style.display);
-  p.style.display = isOpen ? 'none' : 'block';
-  console.log('new display:', p.style.display);
-  if (p.style.display === 'block') {
+  
+  const panel = document.getElementById('plan-type-panel');
+  const button = document.getElementById('plan-type-btn');
+  console.log('plan-type-panel found:', panel);
+  
+  if (!panel || !button) return;
+  
+  const isOpen = (typeof window !== 'undefined' ? window.getComputedStyle(panel).display : panel.style.display) !== 'none';
+  console.log('isOpen:', isOpen, 'current display:', panel.style.display);
+  
+  if (isOpen) {
+    panel.style.display = 'none';
+  } else {
+    // Initialize modal state before showing
+    initializePlanTypeModal();
+    
+    // Force positioning and visibility  
+    const buttonRect = button.getBoundingClientRect();
+    panel.style.position = 'fixed';
+    panel.style.top = (buttonRect.bottom + 6) + 'px';
+    panel.style.left = (buttonRect.right - 320) + 'px'; // Adjusted for wider modal
+    panel.style.zIndex = '9999';
+    panel.style.display = 'block';
+    panel.style.visibility = 'visible';
+    panel.style.opacity = '1';
+    console.log('Panel positioned at:', {
+      top: panel.style.top,
+      left: panel.style.left,
+      display: panel.style.display
+    });
+  }
+  
+  console.log('new display:', panel.style.display);
+  
+  if (panel.style.display === 'block') {
     const other = document.getElementById('plan-order-panel');
     if (other) other.style.display = 'none';
   }
@@ -1568,9 +1661,34 @@ export function clearPlanType() { selectPlanType('one-time', 'Tek seferlik'); }
 export function selectPlanType(value, labelText) {
   const sel = document.getElementById('schedule-type');
   const label = document.getElementById('plan-type-label');
+  const planTypeButton = document.getElementById('plan-type-btn');
+  
   if (sel) sel.value = value;
   if (label) label.textContent = labelText || (value === 'recurring' ? 'Devirli' : 'Tek seferlik');
-  hidePlanTypePanel();
+  
+  // Update the plan type button text
+  if (planTypeButton) {
+    const displayText = labelText || (value === 'recurring' ? 'Devirli' : 'Tek seferlik');
+    planTypeButton.innerHTML = `<span>${displayText}</span><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+  
+  // Update state
+  if (planDesignerState.currentPlanMeta) {
+    planDesignerState.currentPlanMeta.scheduleType = value;
+  }
+  
+  // Sync modal radio buttons
+  const radioButtons = document.querySelectorAll('input[name="plan-type-radio"]');
+  radioButtons.forEach(radio => {
+    radio.checked = radio.value === value;
+  });
+  
+  // Only close panel if "Tek seferlik" is selected
+  // Keep panel open for "Devirli" so user can fill additional fields
+  if (value !== 'recurring') {
+    hidePlanTypePanel();
+  }
+  
   try { if (typeof window.handleScheduleTypeChange === 'function') window.handleScheduleTypeChange(); } catch {}
 }
 
@@ -1767,12 +1885,24 @@ export function setPlanMeta(meta = {}) {
     const orderLabel = document.getElementById('plan-order-label');
     const typeSel = document.getElementById('schedule-type');
     const typeLabel = document.getElementById('plan-type-label');
+    
     if (nameEl) nameEl.value = meta.name || '';
     if (descEl) descEl.value = meta.description || '';
     if (orderSel) orderSel.value = meta.orderCode || '';
-    if (orderLabel) orderLabel.textContent = meta.orderCode ? meta.orderCode : 'Select an order...';
+    
+    // Update order label - try to find matching option text
+    if (orderLabel) {
+      if (meta.orderCode && orderSel) {
+        const matchingOption = Array.from(orderSel.options).find(opt => opt.value === meta.orderCode);
+        orderLabel.textContent = matchingOption ? matchingOption.text : meta.orderCode;
+      } else {
+        orderLabel.textContent = 'Select an order...';
+      }
+    }
+    
     if (typeSel) typeSel.value = meta.scheduleType || 'one-time';
     if (typeLabel) typeLabel.textContent = (meta.scheduleType === 'recurring') ? 'Devirli' : 'Tek seferlik';
+    
     // Update recurring UI visibility
     try { if (typeof window.handleScheduleTypeChange === 'function') window.handleScheduleTypeChange(); } catch {}
     // Apply read-only state to config fields
@@ -1838,4 +1968,248 @@ export function getExecutionOrder() {
     console.warn('Cycle detected in plan graph. Remaining nodes:', Array.from(remaining));
   }
   return order;
+}
+
+// Load approved quotes with WO codes into the order select dropdown
+export async function loadOrdersIntoSelect() {
+  try {
+    const response = await fetch(`${API_BASE}/api/quotes`, { headers: withAuth() });
+    if (!response.ok) {
+      console.warn('Failed to load quotes:', response.status);
+      return;
+    }
+    
+    const data = await response.json();
+    const quotes = Array.isArray(data.quotes) ? data.quotes : [];
+    
+    // Filter for approved quotes with WO codes
+    const approvedQuotesWithWO = quotes.filter(quote => 
+      quote.status === 'approved' && 
+      quote.workOrderCode && 
+      quote.workOrderCode.startsWith('WO-')
+    );
+    
+    const orderSelect = document.getElementById('order-select');
+    if (!orderSelect) return;
+    
+    // Clear existing options except the first one
+    orderSelect.innerHTML = '<option value="">Select an order...</option>';
+    
+    // Add approved quotes with WO codes as options
+    approvedQuotesWithWO.forEach(quote => {
+      const option = document.createElement('option');
+      option.value = quote.workOrderCode;
+      option.textContent = `${quote.workOrderCode} — ${quote.companyName || quote.customerName || 'Unknown'}`;
+      orderSelect.appendChild(option);
+    });
+    
+    // Update the dropdown panel list after loading
+    setTimeout(() => {
+      try { renderPlanOrderListFromSelect(); } catch (e) { console.warn('Failed to render order list:', e); }
+    }, 100);
+    
+    console.log(`Loaded ${approvedQuotesWithWO.length} approved quotes with WO codes into plan order select`);
+  } catch (error) {
+    console.error('Error loading approved quotes:', error);
+  }
+}
+
+// Initialize order loading when plan designer is opened
+export function initializePlanOrdersDropdown() {
+  // Load orders when plan designer is initialized
+  loadOrdersIntoSelect();
+}
+
+// Modal functions for plan type panel
+window.handlePlanTypeModalChange = function(planType) {
+  console.log('handlePlanTypeModalChange called with:', planType);
+  const recurringOptions = document.getElementById('modal-recurring-options');
+  console.log('Found modal-recurring-options element:', recurringOptions);
+  
+  if (planType === 'recurring') {
+    if (recurringOptions) {
+      recurringOptions.style.display = 'block';
+      console.log('Showing recurring options');
+    } else {
+      console.warn('modal-recurring-options element not found!');
+    }
+  } else {
+    if (recurringOptions) {
+      recurringOptions.style.display = 'none';
+      console.log('Hiding recurring options');
+    }
+  }
+};
+
+window.handleModalRecurringTypeChange = function() {
+  console.log('handleModalRecurringTypeChange called');
+  const recurringType = document.getElementById('modal-recurring-type');
+  const periodicContainer = document.getElementById('modal-periodic-frequency-container');
+  
+  console.log('Found elements:', { recurringType, periodicContainer });
+  
+  if (recurringType && periodicContainer) {
+    console.log('Recurring type value:', recurringType.value);
+    if (recurringType.value === 'periodic') {
+      periodicContainer.style.display = 'block';
+      console.log('Showing periodic frequency container');
+    } else {
+      periodicContainer.style.display = 'none';
+      console.log('Hiding periodic frequency container');
+    }
+  }
+};
+
+window.handleModalPeriodicFrequencyChange = function() {
+  console.log('handleModalPeriodicFrequencyChange called');
+  const periodicFrequency = document.getElementById('modal-periodic-frequency');
+  const customContainer = document.getElementById('modal-custom-frequency-container');
+  
+  console.log('Found elements:', { periodicFrequency, customContainer });
+  
+  if (periodicFrequency && customContainer) {
+    console.log('Periodic frequency value:', periodicFrequency.value);
+    if (periodicFrequency.value === 'custom') {
+      customContainer.style.display = 'block';
+      console.log('Showing custom frequency container');
+    } else {
+      customContainer.style.display = 'none';
+      console.log('Hiding custom frequency container');
+    }
+  }
+};
+
+window.clearPlanType = function() {
+  // Clear radio buttons
+  const radioButtons = document.querySelectorAll('input[name="plan-type-radio"]');
+  radioButtons.forEach(radio => radio.checked = false);
+  
+  // Hide recurring options
+  const recurringOptions = document.getElementById('modal-recurring-options');
+  if (recurringOptions) {
+    recurringOptions.style.display = 'none';
+  }
+  
+  // Reset plan type in state
+  if (planDesignerState.currentPlanMeta) {
+    planDesignerState.currentPlanMeta.scheduleType = null;
+  }
+  
+  // Update button text
+  const planTypeButton = document.getElementById('plan-type-selector');
+  if (planTypeButton) {
+    planTypeButton.innerHTML = `<span>Plan Türü</span><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+};
+
+window.hidePlanTypePanel = function() {
+  const panel = document.getElementById('plan-type-panel');
+  if (panel) {
+    panel.style.display = 'none';
+  }
+};
+
+// Apply plan type modal selections and close
+window.applyPlanTypeModal = function() {
+  console.log('applyPlanTypeModal called');
+  
+  // Get selected plan type
+  const selectedRadio = document.querySelector('input[name="plan-type-radio"]:checked');
+  if (!selectedRadio) {
+    console.warn('No plan type selected');
+    return;
+  }
+  
+  const planType = selectedRadio.value;
+  console.log('Selected plan type:', planType);
+  
+  // Get recurring options if applicable
+  if (planType === 'recurring') {
+    const recurringType = document.getElementById('modal-recurring-type')?.value;
+    const periodicFrequency = document.getElementById('modal-periodic-frequency')?.value;
+    const customFrequency = document.getElementById('modal-custom-frequency')?.value;
+    
+    console.log('Recurring options:', {
+      recurringType,
+      periodicFrequency,
+      customFrequency
+    });
+    
+    // Save recurring options to state
+    if (planDesignerState.currentPlanMeta) {
+      planDesignerState.currentPlanMeta.recurringType = recurringType;
+      planDesignerState.currentPlanMeta.periodicFrequency = periodicFrequency;
+      planDesignerState.currentPlanMeta.customFrequency = customFrequency;
+    }
+    
+    // Update button text to show more detail
+    const planTypeButton = document.getElementById('plan-type-btn');
+    if (planTypeButton && recurringType) {
+      let displayText = 'Devirli';
+      if (recurringType === 'periodic' && periodicFrequency) {
+        const frequencyLabels = {
+          'daily': 'Günlük',
+          'weekly': 'Haftalık', 
+          'biweekly': '2 haftalık',
+          'monthly': 'Aylık',
+          'custom': 'Custom'
+        };
+        displayText += ` (${frequencyLabels[periodicFrequency] || periodicFrequency})`;
+      } else if (recurringType === 'indefinite') {
+        displayText += ' (Süresiz)';
+      }
+      planTypeButton.innerHTML = `<span>${displayText}</span><svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    }
+  }
+  
+  // Close the modal
+  hidePlanTypePanel();
+  console.log('Plan type modal applied and closed');
+};
+
+// Initialize plan type modal with current values
+function initializePlanTypeModal() {
+  console.log('initializePlanTypeModal called');
+  const currentType = planDesignerState.currentPlanMeta?.scheduleType || 'one-time';
+  console.log('Current plan type:', currentType);
+  
+  // Set radio buttons
+  const radioButtons = document.querySelectorAll('input[name="plan-type-radio"]');
+  console.log('Found radio buttons:', radioButtons.length);
+  radioButtons.forEach(radio => {
+    radio.checked = radio.value === currentType;
+    console.log(`Radio button ${radio.value} checked:`, radio.checked);
+  });
+  
+  // Show/hide recurring options
+  const recurringOptions = document.getElementById('modal-recurring-options');
+  console.log('Found recurring options element:', recurringOptions);
+  if (recurringOptions) {
+    recurringOptions.style.display = currentType === 'recurring' ? 'block' : 'none';
+    console.log('Recurring options display:', recurringOptions.style.display);
+  }
+  
+  // If recurring, initialize sub-options
+  if (currentType === 'recurring') {
+    console.log('Initializing recurring sub-options');
+    // Initialize recurring type (default to periodic)
+    const recurringType = document.getElementById('modal-recurring-type');
+    if (recurringType && !recurringType.value) {
+      recurringType.value = 'periodic';
+      console.log('Set recurring type to:', recurringType.value);
+    }
+    
+    // Show/hide periodic frequency based on recurring type
+    window.handleModalRecurringTypeChange();
+    
+    // Initialize periodic frequency (default to daily)
+    const periodicFrequency = document.getElementById('modal-periodic-frequency');
+    if (periodicFrequency && !periodicFrequency.value) {
+      periodicFrequency.value = 'daily';
+      console.log('Set periodic frequency to:', periodicFrequency.value);
+    }
+    
+    // Show/hide custom frequency based on periodic frequency
+    window.handleModalPeriodicFrequencyChange();
+  }
 }

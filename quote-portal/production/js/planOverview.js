@@ -39,19 +39,24 @@ function renderProductionPlans(plans) {
   const count = document.getElementById('production-count')
   if (!body) return
   if (!plans || plans.length === 0) {
-    body.innerHTML = '<tr><td colspan="7" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td></tr>'
+    body.innerHTML = '<tr><td colspan="9" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td></tr>'
   } else {
     body.innerHTML = plans.map(p => {
+      const fullPlanId = (p.id || '—').toString()
+      const planId = fullPlanId === '—' ? '—' : fullPlanId.slice(-10)
       const name = (p.name || p.id || '').toString()
       const order = (p.orderCode || '—')
+      const steps = Array.isArray(p.nodes) ? p.nodes.length : (Array.isArray(p.steps) ? p.steps.length : (p.stepsCount || 0))
       const status = (p.status || 'Draft')
       const created = (p.createdDate && p.createdTime) ? `${p.createdDate} ${p.createdTime}` : fmtDate(p.createdAt)
       const createdBy = p.createdByName || p.createdBy || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
       const updated = (p.updatedDate && p.updatedTime) ? `${p.updatedDate} ${p.updatedTime}` : fmtDate(p.updatedAt || p.lastModifiedAt || p.createdAt)
       const updatedBy = p.updatedByName || p.lastModifiedByName || p.updatedBy || p.lastModifiedBy || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
       return `<tr data-status="${status}">
+        <td style="padding: 10px 12px;">${planId}</td>
         <td style="padding: 10px 12px;">${name}</td>
         <td style="padding: 10px 12px;">${order}</td>
+        <td style="padding: 10px 12px;">${steps}</td>
         <td class="metadata-column hidden" style="padding: 10px 12px;">${created}</td>
         <td class="metadata-column hidden" style="padding: 10px 12px;">${createdBy}</td>
         <td class="metadata-column hidden" style="padding: 10px 12px;">${updated}</td>
@@ -70,17 +75,22 @@ function renderTemplatesList(templates) {
   const count = document.getElementById('templates-count')
   if (!body) return
   if (!templates || templates.length === 0) {
-    body.innerHTML = '<tr><td colspan="7" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td></tr>'
+    body.innerHTML = '<tr><td colspan="9" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td></tr>'
   } else {
     body.innerHTML = templates.map(t => {
+      const fullTemplateId = (t.id || '—').toString()
+      const templateId = fullTemplateId === '—' ? '—' : fullTemplateId.slice(-10)
       const name = (t.name || t.id || '').toString()
+      const order = (t.orderCode || '—')
       const steps = Array.isArray(t.steps) ? t.steps.length : (t.stepsCount || 0)
       const created = (t.createdDate && t.createdTime) ? `${t.createdDate} ${t.createdTime}` : fmtDate(t.createdAt)
       const createdBy = t.createdByName || t.ownerName || t.createdBy || t.owner || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
       const updated = (t.updatedDate && t.updatedTime) ? `${t.updatedDate} ${t.updatedTime}` : fmtDate(t.lastModifiedAt || t.updatedAt || t.createdAt)
       const updatedBy = t.lastModifiedByName || t.updatedByName || t.lastModifiedBy || t.updatedBy || t.ownerName || t.createdByName || t.owner || t.createdBy || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
       return `<tr>
+        <td style="padding: 10px 12px;">${templateId}</td>
         <td style="padding: 10px 12px;">${name}</td>
+        <td style="padding: 10px 12px;">${order}</td>
         <td style="padding: 10px 12px;">${steps}</td>
         <td class="metadata-column hidden" style="padding: 10px 12px;">${created}</td>
         <td class="metadata-column hidden" style="padding: 10px 12px;">${createdBy}</td>
@@ -146,6 +156,15 @@ export async function viewProductionPlan(id) {
       const title = document.getElementById('plans-title');
       if (title) title.textContent = 'Production Planning / Overview';
     } catch {}
+    // Show plan ID in configuration header
+    try {
+      const planIdElement = document.getElementById('plan-config-id');
+      if (planIdElement && id) {
+        const displayId = id.slice(-10); // Show last 10 characters like in table
+        planIdElement.textContent = displayId;
+        planIdElement.style.display = 'inline';
+      }
+    } catch {}
     setReadOnly(true)
     setPlanMeta({ name: p.name, description: p.description, orderCode: p.orderCode, scheduleType: p.scheduleType })
     const nodes = Array.isArray(p.nodes) ? p.nodes : (Array.isArray(p.steps) ? p.steps : (p.graph && Array.isArray(p.graph.nodes) ? p.graph.nodes : []))
@@ -159,8 +178,37 @@ export function editTemplateById(id) {
       if (!tpl) return
       if (typeof window.openCreatePlan === 'function') window.openCreatePlan()
       setReadOnly(false)
+      
+      // Show plan ID in configuration header for template editing
+      try {
+        const planIdElement = document.getElementById('plan-config-id');
+        if (planIdElement && tpl.id) {
+          const displayId = tpl.id.slice(-10); // Show last 10 characters like in table
+          planIdElement.textContent = displayId;
+          planIdElement.style.display = 'inline';
+        }
+      } catch {}
+      
+      // Debug: Log template data being loaded
+      console.log('🔍 TEMPLATE BEING LOADED:', {
+        id: tpl.id,
+        orderCode: tpl.orderCode,
+        scheduleType: tpl.scheduleType,
+        name: tpl.name,
+        description: tpl.description,
+        fullTemplate: tpl
+      });
+      
       // Mark that we're editing from a template so UI can adapt (e.g., Save button label)
-      setPlanMeta({ name: tpl.name, description: tpl.description || '', orderCode: '', scheduleType: 'one-time', status: 'template', sourceTemplateId: tpl.id })
+      // Use actual template data instead of hard-coded values
+      setPlanMeta({ 
+        name: tpl.name, 
+        description: tpl.description || '', 
+        orderCode: tpl.orderCode || '', 
+        scheduleType: tpl.scheduleType || 'one-time', 
+        status: 'template', 
+        sourceTemplateId: tpl.id 
+      });
       loadPlanNodes(tpl.steps || [])
     }
 
@@ -264,6 +312,14 @@ export function openCreatePlan() {
   if (filterBar) filterBar.style.display = 'none';
   if (title) title.textContent = 'Production Planning / New Plan Creation';
   if (backBtn) backBtn.style.display = '';
+
+  // Hide plan ID in configuration header for new plans
+  try {
+    const planIdElement = document.getElementById('plan-config-id');
+    if (planIdElement) {
+      planIdElement.style.display = 'none';
+    }
+  } catch {}
 
   // Show designer
   section.style.display = 'block';

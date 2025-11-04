@@ -643,21 +643,22 @@ export function generatePlanDesigner() {
           <table style="width: 100%; border-collapse: collapse;">
             <thead>
               <tr style="background: var(--muted); text-align: left;">
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Plan</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Plan ID</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Plan Adı</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Order</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Steps</th>
                 <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created At</th>
                 <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
                 <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated At</th>
                 <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated By</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">
-                  Actions
                   <button class="metadata-toggle-btn" onclick="toggleMetadataColumns()">Show Details</button>
                 </th>
               </tr>
             </thead>
             <tbody id="production-table-body">
               <tr>
-                <td colspan="7" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td>
+                <td colspan="9" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td>
               </tr>
             </tbody>
           </table>
@@ -666,21 +667,22 @@ export function generatePlanDesigner() {
           <table style="width: 100%; border-collapse: collapse;">
             <thead>
               <tr style="background: var(--muted); text-align: left;">
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Template</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Plan ID</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Template Adı</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Order</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Steps</th>
                 <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created At</th>
                 <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
                 <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated At</th>
                 <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated By</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">
-                  Actions
                   <button class="metadata-toggle-btn" onclick="toggleMetadataColumns()">Show Details</button>
                 </th>
               </tr>
             </thead>
             <tbody id="templates-table-body">
               <tr>
-                <td colspan="7" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td>
+                <td colspan="9" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td>
               </tr>
             </tbody>
           </table>
@@ -690,7 +692,12 @@ export function generatePlanDesigner() {
 
     <div id="plan-designer-section" style="margin-top: 16px; display: none;">
       <div class="card" style="margin-bottom: 10px;">
-        <div class="card-header" style="padding: 8px 10px;"><div class="card-title" style="font-size: 15px;">Plan Configuration</div></div>
+        <div class="card-header" style="padding: 8px 10px;">
+          <div class="card-title" style="font-size: 15px; display: flex; align-items: center; gap: 8px;">
+            Plan Configuration
+            <span id="plan-config-id" style="font-family: 'Monaco', 'Menlo', 'Consolas', monospace; font-size: 15px; font-weight: normal; opacity: 0.6; display: none;"></span>
+          </div>
+        </div>
         <div class="card-content" style="padding: 6px 10px;">
           <!-- Row 1: Plan name + short description -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center;">
@@ -704,8 +711,8 @@ export function generatePlanDesigner() {
             </div>
           </div>
 
-          <!-- Row 2: Order + Schedule type + Recurrence details -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: end; margin-top: 8px;">
+          <!-- Row 2: Order + Schedule type + Buttons -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; margin-top: 8px;">
             <div style="display:flex; align-items:center; gap:8px;">
               <label style="font-weight: 500; font-size: 12px; margin: 0; min-width: 48px;">Order</label>
               <select id="order-select" style="display:none;" onchange="handleOrderChange()"><option value="">Select an order...</option></select>
@@ -714,7 +721,7 @@ export function generatePlanDesigner() {
                   <span id="plan-order-label">Select an order...</span>
                   <span style="margin-left: auto; opacity: .6">▾</span>
                 </button>
-                <div id="plan-order-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 360px; max-height: 320px; overflow: hidden; z-index: 1000;">
+                <div id="plan-order-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 360px; max-height: 320px; overflow: hidden; z-index: 9999;">
                   <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
                     <input id="plan-order-search" type="text" placeholder="Search orders..." class="plan-filter-panel-input" style="flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;">
                     <button id="plan-order-clear" type="button" class="plan-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
@@ -735,51 +742,55 @@ export function generatePlanDesigner() {
                   <span id="plan-type-label">Tek seferlik</span>
                   <span style="margin-left: auto; opacity: .6">▾</span>
                 </button>
-                <div id="plan-type-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 240px; max-height: 240px; overflow: hidden; z-index: 1000;">
+                <div id="plan-type-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; min-height: fit-content; max-height: 80vh; overflow: hidden; z-index: 9999;">
                   <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-                    <button id="plan-type-clear" type="button" class="plan-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
-                    <button id="plan-type-close" type="button" title="Close" class="plan-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+                    <button id="plan-type-clear" type="button" class="plan-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearPlanType()">Clear</button>
+                    <button id="modal-apply-btn" type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid black; background:black; color:white; border-radius:6px; cursor:pointer;" onclick="applyPlanTypeModal()">Apply</button>
+                    <button id="plan-type-close" type="button" title="Close" class="plan-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer; margin-left:auto;" onclick="hidePlanTypePanel()">×</button>
                   </div>
-                  <div style="max-height: 180px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
-                    <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
-                      <input type="radio" name="plan-type-radio" value="one-time">
-                      <span style="font-size:12px;">Tek seferlik</span>
-                    </label>
-                    <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
-                      <input type="radio" name="plan-type-radio" value="recurring">
-                      <span style="font-size:12px;">Devirli</span>
-                    </label>
+                  <div style="max-height: 70vh; overflow-y: auto; padding: 8px; box-sizing: border-box;">
+                    <!-- Plan Type Selection -->
+                    <div style="display: grid; gap: 6px; margin-bottom: 12px;">
+                      <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
+                        <input type="radio" name="plan-type-radio" value="one-time" onchange="if(this.checked) { selectPlanType('one-time', 'Tek seferlik'); handlePlanTypeModalChange('one-time'); }">
+                        <span style="font-size:12px;">Tek seferlik</span>
+                      </label>
+                      <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
+                        <input type="radio" name="plan-type-radio" value="recurring" onchange="if(this.checked) { selectPlanType('recurring', 'Devirli'); handlePlanTypeModalChange('recurring'); }">
+                        <span style="font-size:12px;">Devirli</span>
+                      </label>
+                    </div>
+                    
+                    <!-- Recurring Options (shown when recurring is selected) -->
+                    <div id="modal-recurring-options" style="display:none; border-top: 1px solid var(--border); padding-top: 12px;">
+                      <!-- Devirli Türü -->
+                      <div style="margin-bottom: 12px;">
+                        <label style="font-weight:500; font-size:12px; margin:0 0 4px 0; display:block;">Devirli Türü</label>
+                        <select id="modal-recurring-type" style="width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" onchange="handleModalRecurringTypeChange()">
+                          <option value="periodic">Periyodik devirli</option>
+                          <option value="indefinite">Süresiz devirli</option>
+                        </select>
+                      </div>
+                      
+                      <!-- Periyot (shown when periodic is selected) -->
+                      <div id="modal-periodic-frequency-container" style="margin-bottom: 12px;">
+                        <label style="font-weight:500; font-size:12px; margin:0 0 4px 0; display:block;">Periyot</label>
+                        <select id="modal-periodic-frequency" style="width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" onchange="handleModalPeriodicFrequencyChange()">
+                          <option value="daily">Günlük</option>
+                          <option value="weekly">Haftalık</option>
+                          <option value="biweekly">2 haftalık</option>
+                          <option value="monthly">Aylık</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                      
+                      <!-- Custom Frequency (shown when custom is selected) -->
+                      <div id="modal-custom-frequency-container" style="display:none; margin-bottom: 12px;">
+                        <label style="font-weight:500; font-size:12px; margin:0 0 4px 0; display:block;">Custom Tanım</label>
+                        <input type="text" id="modal-custom-frequency" placeholder="Örn: her 3 gün, cron vb." style="width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;">
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-            <div>
-              <!-- Recurrence details area (shown when recurring) -->
-              <div id="recurring-subtype-container" style="display:none;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <label style="font-weight:500; font-size:12px; margin:0; min-width:90px;">Devirli Türü</label>
-                  <select id="recurring-type" style="flex:1; width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" onchange="handleRecurringTypeChange()">
-                    <option value="periodic">Periyodik devirli</option>
-                    <option value="indefinite">Süresiz devirli</option>
-                  </select>
-                </div>
-              </div>
-              <div id="periodic-frequency-container" style="display:none; margin-top: 6px;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <label style="font-weight:500; font-size:12px; margin:0; min-width:60px;">Periyot</label>
-                  <select id="periodic-frequency" style="flex:1; width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" onchange="handlePeriodicFrequencyChange()">
-                    <option value="daily">Günlük</option>
-                    <option value="weekly">Haftalık</option>
-                    <option value="biweekly">2 haftalık</option>
-                    <option value="monthly">Aylık</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                </div>
-              </div>
-                <div id="custom-frequency-container" style="display:none; margin-top: 6px;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <label style="font-weight:500; font-size:12px; margin:0; min-width:96px;">Custom Tanım</label>
-                  <input type="text" id="custom-frequency" placeholder="Örn: her 3 gün, cron vb." style="flex:1; width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" />
                 </div>
               </div>
             </div>

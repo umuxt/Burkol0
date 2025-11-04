@@ -1269,3 +1269,42 @@ body {
   background: #f8fafc;
 }
 
+/* Plan Designer Dropdown Fixes */
+#plan-order-panel {
+  position: fixed !important;
+  z-index: 9999 !important;
+  background: white !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
+  overflow: visible !important;
+  width: 360px !important;
+  max-height: 320px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+#plan-type-panel {
+  position: fixed !important;
+  z-index: 9999 !important;
+  background: white !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08) !important;
+  overflow: visible !important;
+  width: 240px !important;
+  max-height: 240px !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+#plan-order-panel[style*="display: block"] {
+  display: block !important;
+}
+
+#plan-type-panel[style*="display: block"] {
+  display: block !important;
+}
+
