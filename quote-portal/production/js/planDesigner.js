@@ -574,6 +574,11 @@ export function handleCanvasDrop(event) {
     type: operation.type,
     time: operation.time,
     skills: operation.skills,
+    // Scheduling and material fields
+    predecessors: [],
+    // Optional logical successors; not required for scheduling but useful
+    // successors: [],
+    rawMaterials: [],
     x: Math.max(0, x),
     y: Math.max(0, y),
     connections: [],
@@ -772,19 +777,31 @@ export function updateConnectionsForNode(nodeId) {
 
 export function deleteConnection(fromNodeId, toNodeId) {
   const fromNode = planDesignerState.nodes.find(n => n.id === fromNodeId);
+  const toNode = planDesignerState.nodes.find(n => n.id === toNodeId);
   if (fromNode) {
     fromNode.connections = fromNode.connections.filter(id => id !== toNodeId);
-    
-    // Render appropriate canvas
-    if (planDesignerState.isFullscreen) {
-      const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
-      if (fullscreenCanvas) renderCanvasContent(fullscreenCanvas);
-    } else {
-      renderCanvas();
-    }
-    
-    showToast('Connection deleted', 'success');
   }
+  if (toNode) {
+    // Remove scheduling dependency
+    if (Array.isArray(toNode.predecessors)) {
+      toNode.predecessors = toNode.predecessors.filter(pid => pid !== fromNodeId);
+    }
+    // Remove auto-propagated material
+    if (Array.isArray(toNode.rawMaterials)) {
+      toNode.rawMaterials = toNode.rawMaterials.filter(m => !(m && m.derivedFrom === fromNodeId));
+      toNode.rawMaterial = toNode.rawMaterials.length ? { ...toNode.rawMaterials[0] } : null;
+    }
+  }
+  
+  // Render appropriate canvas
+  if (planDesignerState.isFullscreen) {
+    const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+    if (fullscreenCanvas) renderCanvasContent(fullscreenCanvas);
+  } else {
+    renderCanvas();
+  }
+  
+  showToast('Connection deleted', 'success');
 }
 
 export function handleNodeClick(nodeId) {
@@ -810,9 +827,30 @@ export function handleNodeClick(nodeId) {
 
 export function connectNodes(fromId, toId) {
   const fromNode = planDesignerState.nodes.find(n => n.id === fromId);
-  if (fromNode && !fromNode.connections.includes(toId)) {
+  const toNode = planDesignerState.nodes.find(n => n.id === toId);
+  if (fromNode && toNode && !fromNode.connections.includes(toId)) {
+    // Graph edge (from -> to)
     fromNode.connections.push(toId);
-    
+    // Scheduling dependency: to cannot start before from completes
+    if (!Array.isArray(toNode.predecessors)) toNode.predecessors = [];
+    if (!toNode.predecessors.includes(fromId)) toNode.predecessors.push(fromId);
+
+    // Material propagation: from's output becomes default raw material of to
+    if (!Array.isArray(toNode.rawMaterials)) toNode.rawMaterials = [];
+    const existingIdx = toNode.rawMaterials.findIndex(m => m && (m.derivedFrom === fromId || m.id === `node-${fromId}-output`));
+    if (existingIdx === -1) {
+      const autoMat = {
+        id: `node-${fromId}-output`,
+        name: `${fromNode.name} (semi)`,
+        qty: null,
+        unit: '',
+        derivedFrom: fromId
+      };
+      toNode.rawMaterials.push(autoMat);
+      // Keep legacy rawMaterial for compatibility with older summaries
+      toNode.rawMaterial = toNode.rawMaterials.length ? { ...toNode.rawMaterials[0] } : null;
+    }
+
     // Render appropriate canvas
     if (planDesignerState.isFullscreen) {
       const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
@@ -996,8 +1034,22 @@ export function closeNodeEditModal(event) {
 
 export function deleteNode(nodeId) {
   if (confirm('Are you sure you want to delete this Production Step?')) {
+    // Remove the node itself
     planDesignerState.nodes = planDesignerState.nodes.filter(n => n.id !== nodeId);
-    planDesignerState.nodes.forEach(node => { node.connections = node.connections.filter(connId => connId !== nodeId); });
+    // Clean up edges, scheduling deps and auto-materials in remaining nodes
+    planDesignerState.nodes.forEach(node => {
+      // Outgoing edges
+      node.connections = (node.connections || []).filter(connId => connId !== nodeId);
+      // Scheduling predecessors
+      if (Array.isArray(node.predecessors)) {
+        node.predecessors = node.predecessors.filter(pid => pid !== nodeId);
+      }
+      // Auto-propagated materials that originated from the deleted node
+      if (Array.isArray(node.rawMaterials)) {
+        node.rawMaterials = node.rawMaterials.filter(m => !(m && m.derivedFrom === nodeId));
+        node.rawMaterial = node.rawMaterials.length ? { ...node.rawMaterials[0] } : null;
+      }
+    });
     
     // Render appropriate canvas
     if (planDesignerState.isFullscreen) {
@@ -1343,3 +1395,29 @@ export function resetCanvasPan() {
 window.adjustCanvasZoom = adjustCanvasZoom;
 window.setCanvasZoom = setCanvasZoom;
 window.resetCanvasPan = resetCanvasPan;
+
+// Scheduling helpers (topological order based on predecessors)
+export function getExecutionOrder() {
+  const nodes = planDesignerState.nodes.map(n => ({ id: n.id, preds: new Set(n.predecessors || []) }));
+  const idToNode = new Map(nodes.map(n => [n.id, n]));
+  const order = [];
+  const queue = nodes.filter(n => n.preds.size === 0).map(n => n.id);
+  const remaining = new Set(nodes.map(n => n.id));
+  while (queue.length) {
+    const id = queue.shift();
+    if (!remaining.has(id)) continue;
+    remaining.delete(id);
+    order.push(id);
+    // Remove as predecessor from others
+    for (const m of nodes) {
+      if (m.preds.has(id)) {
+        m.preds.delete(id);
+        if (m.preds.size === 0) queue.push(m.id);
+      }
+    }
+  }
+  if (remaining.size) {
+    console.warn('Cycle detected in plan graph. Remaining nodes:', Array.from(remaining));
+  }
+  return order;
+}
