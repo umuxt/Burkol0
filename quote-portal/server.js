@@ -79,6 +79,15 @@ if (!admin.apps.length) {
   admin.initializeApp({
     credential: credential
   })
+  
+  // Set Firestore settings with timeout
+  const db = admin.firestore()
+  db.settings({
+    ignoreUndefinedProperties: true,
+    // Add timeout settings to prevent hanging
+    preferRest: true
+  })
+  
   console.log('🔥 Firebase Admin SDK initialized successfully')
 }
 

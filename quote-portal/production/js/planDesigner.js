@@ -169,9 +169,16 @@ function initializeGlobalEventHandlers() {
     if (!planDesignerState.isDragging) {
       checkNodeHover(e);
       
-      // If we're in connection mode, highlight potential target
+      // If we're in drag-to-connect flow, highlight potential target
       if (planDesignerState.isConnecting && planDesignerState.connectionSource) {
         highlightConnectionTarget(e);
+      } else if (planDesignerState.connectMode && planDesignerState.connectingFrom !== null) {
+        // Also support highlight while in manual connect mode
+        const src = planDesignerState.nodes.find(n => n.id === planDesignerState.connectingFrom);
+        if (src) {
+          planDesignerState.connectionSource = src;
+          highlightConnectionTarget(e);
+        }
       }
     }
   });
@@ -304,6 +311,7 @@ function updateConnectionsForNodeInCanvas(nodeId, canvas) {
 // Connection hover and highlighting functions
 function checkNodeHover(e) {
   const nearbyNode = getNodeNearMouse(e);
+  const activeCanvas = getActiveCanvas(e);
   
   // Remove previous hover effects
   if (planDesignerState.hoveredNode && planDesignerState.hoveredNode !== nearbyNode) {
@@ -313,110 +321,45 @@ function checkNodeHover(e) {
   planDesignerState.hoveredNode = nearbyNode;
   
   if (nearbyNode) {
-    console.log('Hovering near node:', nearbyNode.id);
     addNodeHoverEffect(nearbyNode);
-    document.body.style.cursor = 'crosshair';
-    // Also try setting on both canvases
-    const normalCanvas = document.getElementById('plan-canvas');
-    const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
-    
-    if (normalCanvas) normalCanvas.style.cursor = 'crosshair';
-    if (fullscreenCanvas) fullscreenCanvas.style.cursor = 'crosshair';
+    if (activeCanvas) activeCanvas.style.cursor = 'crosshair';
   } else {
-    document.body.style.cursor = 'default';
-    const normalCanvas = document.getElementById('plan-canvas');
-    const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
-    
-    if (normalCanvas) normalCanvas.style.cursor = 'default';
-    if (fullscreenCanvas) fullscreenCanvas.style.cursor = 'default';
+    // Restore cursor based on context
+    if (activeCanvas) {
+      if (activeCanvas.id === 'fullscreen-plan-canvas') {
+        activeCanvas.style.cursor = planDesignerState.connectMode ? 'crosshair' : 'grab';
+      } else {
+        activeCanvas.style.cursor = 'default';
+      }
+    }
   }
 }
 
 function getNodeNearMouse(e) {
   const activeCanvas = getActiveCanvas(e);
   if (!activeCanvas) {
-    console.log('No active canvas found');
     return null;
   }
   
-  console.log('Active canvas:', activeCanvas.id);
-  
   const canvasRect = activeCanvas.getBoundingClientRect();
-  let mouseX = e.clientX - canvasRect.left;
-  let mouseY = e.clientY - canvasRect.top;
+  const mouseX = e.clientX - canvasRect.left;
+  const mouseY = e.clientY - canvasRect.top;
   
-  // Default hover distance
-  let hoverDistance = 25;
-  
-  console.log('Original mouse position:', mouseX, mouseY);
-  console.log('Canvas rect:', canvasRect);
-  
-  // If this is the fullscreen canvas, account for transform
-  if (activeCanvas.id === 'fullscreen-plan-canvas') {
-    const transform = activeCanvas.style.transform;
-    console.log('Canvas transform:', transform);
-    
-    if (transform && transform !== 'none') {
-      // Parse scale from transform
-      const scaleMatch = transform.match(/scale\(([^)]+)\)/);
-      const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
-      
-      // Parse translate from transform
-      const translateMatch = transform.match(/translate\(([^,]+)px[^,]*,\s*([^)]+)px\)/);
-      const translateX = translateMatch ? parseFloat(translateMatch[1]) : 0;
-      const translateY = translateMatch ? parseFloat(translateMatch[2]) : 0;
-      
-      // Adjust hover distance based on zoom level
-      hoverDistance = 25 * scale;
-      
-      console.log('Transform values:', { scale, translateX, translateY, hoverDistance });
-      
-      // For CSS transform: scale() translate(), we need to:
-      // 1. Undo the translation first
-      // 2. Then undo the scaling around center
-      const centerX = canvasRect.width / 2;
-      const centerY = canvasRect.height / 2;
-      
-      // Inverse transform: first undo translate, then undo scale around center
-      mouseX = mouseX - translateX;
-      mouseY = mouseY - translateY;
-      
-      // Scale around center point
-      mouseX = (mouseX - centerX) / scale + centerX;
-      mouseY = (mouseY - centerY) / scale + centerY;
-      
-      console.log('Adjusted mouse position:', mouseX, mouseY);
-    } else {
-      console.log('No transform applied, using original coordinates');
-    }
-  }
+  // On-screen hover tolerance in pixels
+  const hoverDistance = 25;
   
   // Find node within hover distance range
   const nodes = activeCanvas.querySelectorAll('.canvas-node');
-  console.log('Found nodes:', nodes.length, 'hover distance:', hoverDistance);
   
   for (const nodeEl of nodes) {
     let nodeX, nodeY, nodeWidth, nodeHeight;
     
-    if (activeCanvas.id === 'fullscreen-plan-canvas') {
-      // For fullscreen canvas, use the node's actual position style
-      const style = nodeEl.style;
-      nodeX = parseFloat(style.left) || 0;
-      nodeY = parseFloat(style.top) || 0;
-      nodeWidth = parseFloat(style.width) || 160; // default width
-      nodeHeight = 80; // approximate height
-      
-      console.log('Fullscreen node:', nodeEl.id, { nodeX, nodeY, nodeWidth, nodeHeight });
-    } else {
-      // For normal canvas, use bounding rect
-      const rect = nodeEl.getBoundingClientRect();
-      nodeX = rect.left - canvasRect.left;
-      nodeY = rect.top - canvasRect.top;
-      nodeWidth = rect.width;
-      nodeHeight = rect.height;
-      
-      console.log('Normal node:', nodeEl.id, { nodeX, nodeY, nodeWidth, nodeHeight });
-    }
+    // Use transformed bounding rect for both modes
+    const rect = nodeEl.getBoundingClientRect();
+    nodeX = rect.left - canvasRect.left;
+    nodeY = rect.top - canvasRect.top;
+    nodeWidth = rect.width;
+    nodeHeight = rect.height;
     
     // Check if mouse is within hover distance around the node (not on it)
     const isNearNode = (
@@ -430,20 +373,13 @@ function getNodeNearMouse(e) {
       mouseY >= nodeY && mouseY <= nodeY + nodeHeight
     );
     
-    console.log('Node check:', nodeEl.id, {
-      mouseX, mouseY, nodeX, nodeY, nodeWidth, nodeHeight,
-      isNearNode, isOnNode, hoverDistance
-    });
-    
     if (isNearNode && !isOnNode) {
       const nodeId = nodeEl.id.replace('node-', '');
       const foundNode = planDesignerState.nodes.find(n => n.id === nodeId);
-      console.log('Found nearby node:', foundNode?.id);
       return foundNode;
     }
   }
   
-  console.log('No nearby node found');
   return null;
 }
 
@@ -522,21 +458,28 @@ function highlightConnectionTarget(e) {
 }
 
 function addConnectionTargetHighlight(node) {
-  const nodeElement = document.getElementById('node-' + node.id);
-  if (nodeElement) {
-    nodeElement.style.borderColor = '#3b82f6';
-    nodeElement.style.borderWidth = '3px';
-    nodeElement.style.boxShadow = '0 0 10px 2px rgba(59, 130, 246, 0.3)';
-  }
+  // Apply highlight in both canvases to avoid ID collision issues
+  const normalNodeElement = document.querySelector('#plan-canvas #node-' + node.id);
+  const fullscreenNodeElement = document.querySelector('#fullscreen-plan-canvas #node-' + node.id);
+  [normalNodeElement, fullscreenNodeElement].forEach(nodeElement => {
+    if (nodeElement) {
+      nodeElement.style.borderColor = '#3b82f6';
+      nodeElement.style.borderWidth = '3px';
+      nodeElement.style.boxShadow = '0 0 10px 2px rgba(59, 130, 246, 0.3)';
+    }
+  });
 }
 
 function removeConnectionTargetHighlight(node) {
-  const nodeElement = document.getElementById('node-' + node.id);
-  if (nodeElement) {
-    nodeElement.style.borderColor = '';
-    nodeElement.style.borderWidth = '2px';
-    nodeElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-  }
+  const normalNodeElement = document.querySelector('#plan-canvas #node-' + node.id);
+  const fullscreenNodeElement = document.querySelector('#fullscreen-plan-canvas #node-' + node.id);
+  [normalNodeElement, fullscreenNodeElement].forEach(nodeElement => {
+    if (nodeElement) {
+      nodeElement.style.borderColor = '';
+      nodeElement.style.borderWidth = '2px';
+      nodeElement.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+    }
+  });
 }
 
 function resetConnectionState() {
@@ -583,8 +526,38 @@ export function handleCanvasDrop(event) {
   if (!canvas) return;
   
   const rect = canvas.getBoundingClientRect();
-  const x = event.clientX - rect.left - 80;
-  const y = event.clientY - rect.top - 40;
+  let x = event.clientX - rect.left - 80;
+  let y = event.clientY - rect.top - 40;
+
+  // If fullscreen canvas, adjust for transform
+  if (planDesignerState.isFullscreen) {
+    const transform = canvas.style.transform;
+    
+    if (transform && transform !== 'none') {
+      // Parse scale from transform
+      const scaleMatch = transform.match(/scale\(([^)]+)\)/);
+      const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
+      
+      // Parse translate from transform
+      const translateMatch = transform.match(/translate\(([^,]+)px[^,]*,\s*([^)]+)px\)/);
+      const translateX = translateMatch ? parseFloat(translateMatch[1]) : 0;
+      const translateY = translateMatch ? parseFloat(translateMatch[2]) : 0;
+      
+      // Adjust drop coordinates for transform (same logic as hover)
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      
+      // Undo translate
+      x = x - translateX;
+      y = y - translateY;
+      
+      // Undo scale around center
+      x = (x - centerX) / scale + centerX;
+      y = (y - centerY) / scale + centerY;
+      
+      console.log('Adjusted drop coordinates:', { x, y, scale, translateX, translateY });
+    }
+  }
 
   // Get operations from state
   const operation = planDesignerState.availableOperations.find(op => op.id === planDesignerState.draggedOperation);
@@ -593,7 +566,7 @@ export function handleCanvasDrop(event) {
     return;
   }
 
-  const nodeId = 'node-' + planDesignerState.nodeIdCounter++;
+  const nodeId = planDesignerState.nodeIdCounter++;
   const newNode = {
     id: nodeId,
     operationId: operation.id,
@@ -607,14 +580,19 @@ export function handleCanvasDrop(event) {
     assignedWorker: null,
     assignedStation: null
   };
+  
+  console.log('Adding new node:', newNode);
   planDesignerState.nodes.push(newNode);
   
   // Render appropriate canvas
   if (planDesignerState.isFullscreen) {
+    console.log('Rendering fullscreen canvas');
     renderCanvasContent(canvas);
   } else {
+    console.log('Rendering normal canvas');
     renderCanvas();
   }
+  
   planDesignerState.draggedOperation = null;
   showToast(operation.name + ' operasyonu eklendi', 'success');
 }
@@ -813,10 +791,19 @@ export function handleNodeClick(nodeId) {
   if (planDesignerState.connectMode) {
     if (planDesignerState.connectingFrom === null) {
       planDesignerState.connectingFrom = nodeId;
+      // Set source for hover/highlight feedback in connect mode
+      planDesignerState.connectionSource = planDesignerState.nodes.find(n => n.id === nodeId) || null;
       showToast('Select target operation to connect', 'info');
     } else if (planDesignerState.connectingFrom !== nodeId) {
       connectNodes(planDesignerState.connectingFrom, nodeId);
+      // Keep connect mode active for chaining? If desired, comment next line to keep mode.
       planDesignerState.connectingFrom = null; planDesignerState.connectMode = false; updateConnectButton();
+      // Clear temporary source and any target highlight
+      planDesignerState.connectionSource = null;
+      if (planDesignerState.connectionTarget) {
+        removeConnectionTargetHighlight(planDesignerState.connectionTarget);
+        planDesignerState.connectionTarget = null;
+      }
     }
   }
 }
@@ -841,6 +828,11 @@ export function connectNodes(fromId, toId) {
 export function toggleConnectMode() {
   planDesignerState.connectMode = !planDesignerState.connectMode;
   planDesignerState.connectingFrom = null;
+  // Clear any pending target highlight
+  if (planDesignerState.connectionTarget) {
+    removeConnectionTargetHighlight(planDesignerState.connectionTarget);
+    planDesignerState.connectionTarget = null;
+  }
   updateConnectButton();
   updateCanvasCursor();
   if (planDesignerState.connectMode) {
@@ -1115,8 +1107,14 @@ export function deployWorkOrder() {
 }
 
 export function handleCanvasClick(event) {
-  if (planDesignerState.connectMode && event.target.id === 'plan-canvas') {
+  if (planDesignerState.connectMode && (event.target.id === 'plan-canvas' || event.target.id === 'fullscreen-plan-canvas')) {
     planDesignerState.connectMode = false; planDesignerState.connectingFrom = null; updateConnectButton(); showToast('Connect mode cancelled', 'info');
+    // Clear any target highlight
+    if (planDesignerState.connectionTarget) {
+      removeConnectionTargetHighlight(planDesignerState.connectionTarget);
+      planDesignerState.connectionTarget = null;
+    }
+    planDesignerState.connectionSource = null;
   }
 }
 
@@ -1303,10 +1301,10 @@ export function setCanvasZoom(zoomValue) {
       container.style.overflow = 'hidden';
     }
     
-    // Apply both zoom and pan transforms
+    // Apply both zoom and pan transforms - CONSISTENT ORDER: scale first, then translate
     const scaleTransform = `scale(${zoom / 100})`;
     const translateTransform = `translate(${planDesignerState.panOffsetX}px, ${planDesignerState.panOffsetY}px)`;
-    canvas.style.transform = `${translateTransform} ${scaleTransform}`;
+    canvas.style.transform = `${scaleTransform} ${translateTransform}`;
     canvas.style.transformOrigin = 'center center';
     
     // Ensure canvas stays within container bounds
@@ -1329,7 +1327,9 @@ export function updateCanvasPan() {
     const zoom = planDesignerState.fullscreenZoom / 100;
     const scaleTransform = `scale(${zoom})`;
     const translateTransform = `translate(${planDesignerState.panOffsetX}px, ${planDesignerState.panOffsetY}px)`;
-    canvas.style.transform = `${translateTransform} ${scaleTransform}`;
+    // Keep transform order consistent with setCanvasZoom: scale first, then translate
+    canvas.style.transform = `${scaleTransform} ${translateTransform}`;
+    canvas.style.transformOrigin = 'center center';
   }
 }
 
