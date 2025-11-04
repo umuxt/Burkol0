@@ -1,7 +1,7 @@
 // Entry point: wire modules to global for inline handlers to keep working
 import { MESData, loadData, saveData, currentView, setCurrentView, getSavedView } from './state.js';
 import { showToast } from './ui.js';
-import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generatePlanDesigner, generateTemplates, generateApprovedQuotes } from './views.js';
+import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generatePlanDesigner, generateTemplates, generateApprovedQuotes, injectMetadataToggleStyles, toggleMetadataColumns } from './views.js';
 import { initPlanOverviewUI, setActivePlanTab, openCreatePlan, filterProductionPlans, togglePlanFilterPanel, hidePlanFilterPanel, onPlanFilterChange, clearPlanFilter, clearAllPlanFilters, cancelPlanCreation, viewProductionPlan, editTemplateById } from './planOverview.js';
 import { initializeWorkersUI, openAddWorkerModal, editWorker, deleteWorker as deleteWorkerAction, saveWorker, closeWorkerModal, showWorkerDetail, closeWorkerDetail, editWorkerFromDetail, deleteWorkerFromDetail } from './workers.js';
 import { initializePlanDesigner, loadOperationsToolbox, handleOperationDragStart, handleCanvasDragOver, handleCanvasDrop, renderCanvas, editNode, saveNodeEdit, closeNodeEditModal, deleteNode, toggleConnectMode, clearCanvas, handleOrderChange, savePlanAsTemplate, deployWorkOrder, handleCanvasClick, handleScheduleTypeChange, handleRecurringTypeChange, handlePeriodicFrequencyChange, savePlanDraft, togglePlanOrderPanel, hidePlanOrderPanel, clearPlanOrder, filterPlanOrderList, selectPlanOrder, togglePlanTypePanel, hidePlanTypePanel, clearPlanType, selectPlanType } from './planDesigner.js';
@@ -26,6 +26,8 @@ function renderView(viewId) {
         initializePlanDesigner();
         loadOperationsToolboxBackend();
         loadApprovedOrdersToSelect();
+        // Inject metadata toggle styles
+        injectMetadataToggleStyles();
       }, 100);
       break;
     case 'templates': content = generateTemplates(); break;
@@ -89,7 +91,9 @@ Object.assign(window, {
   // plan overview (tabs/filter/create)
   setActivePlanTab, openCreatePlan, filterProductionPlans,
   togglePlanFilterPanel, hidePlanFilterPanel, onPlanFilterChange, clearPlanFilter, clearAllPlanFilters, cancelPlanCreation
-  , viewProductionPlan, editTemplateById
+  , viewProductionPlan, editTemplateById,
+  // metadata toggle functionality
+  toggleMetadataColumns
 });
 
 document.addEventListener('DOMContentLoaded', () => {

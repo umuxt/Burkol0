@@ -1,6 +1,11 @@
 // View generators (HTML strings)
 import { MESData } from './state.js';
 
+// Global state for table column visibility
+export const tableState = {
+  showMetadataColumns: false
+};
+
 export function updateKPIs() {
   const activeOrders = MESData.workOrders.filter(wo => wo.status !== 'completed').length;
   const completedToday = MESData.workOrders.filter(wo => wo.status === 'completed').length;
@@ -640,11 +645,14 @@ export function generatePlanDesigner() {
               <tr style="background: var(--muted); text-align: left;">
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Plan</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Order</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created At</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated At</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated By</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">Actions</th>
+                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created At</th>
+                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
+                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated At</th>
+                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated By</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">
+                  Actions
+                  <button class="metadata-toggle-btn" onclick="toggleMetadataColumns()">Show Details</button>
+                </th>
               </tr>
             </thead>
             <tbody id="production-table-body">
@@ -660,11 +668,14 @@ export function generatePlanDesigner() {
               <tr style="background: var(--muted); text-align: left;">
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Template</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Steps</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created At</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated At</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated By</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">Actions</th>
+                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created At</th>
+                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
+                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated At</th>
+                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated By</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">
+                  Actions
+                  <button class="metadata-toggle-btn" onclick="toggleMetadataColumns()">Show Details</button>
+                </th>
               </tr>
             </thead>
             <tbody id="templates-table-body">
@@ -953,4 +964,66 @@ export function generateApprovedQuotes() {
       </div>
     </section>
   `;
+}
+
+// CSS for metadata column visibility
+export function injectMetadataToggleStyles() {
+  if (document.getElementById('metadata-toggle-styles')) return;
+  
+  const style = document.createElement('style');
+  style.id = 'metadata-toggle-styles';
+  style.textContent = `
+    .metadata-column {
+      transition: opacity 0.2s ease, width 0.2s ease;
+    }
+    
+    .metadata-column.hidden {
+      display: none !important;
+    }
+    
+    .metadata-toggle-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 11px;
+      color: var(--muted-foreground);
+      cursor: pointer;
+      margin-left: 8px;
+      transition: all 0.2s ease;
+    }
+    
+    .metadata-toggle-btn:hover {
+      background: var(--muted);
+      color: var(--foreground);
+    }
+    
+    .metadata-toggle-btn.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+// Toggle metadata columns visibility
+export function toggleMetadataColumns() {
+  tableState.showMetadataColumns = !tableState.showMetadataColumns;
+  
+  const metadataColumns = document.querySelectorAll('.metadata-column');
+  const toggleBtn = document.querySelector('.metadata-toggle-btn');
+  
+  metadataColumns.forEach(col => {
+    if (tableState.showMetadataColumns) {
+      col.classList.remove('hidden');
+    } else {
+      col.classList.add('hidden');
+    }
+  });
+  
+  if (toggleBtn) {
+    toggleBtn.textContent = tableState.showMetadataColumns ? 'Hide Details' : 'Show Details';
+    toggleBtn.classList.toggle('active', tableState.showMetadataColumns);
+  }
 }

@@ -52,10 +52,10 @@ function renderProductionPlans(plans) {
       return `<tr data-status="${status}">
         <td style="padding: 10px 12px;">${name}</td>
         <td style="padding: 10px 12px;">${order}</td>
-        <td style="padding: 10px 12px;">${created}</td>
-        <td style="padding: 10px 12px;">${createdBy}</td>
-        <td style="padding: 10px 12px;">${updated}</td>
-        <td style="padding: 10px 12px;">${updatedBy}</td>
+        <td class="metadata-column hidden" style="padding: 10px 12px;">${created}</td>
+        <td class="metadata-column hidden" style="padding: 10px 12px;">${createdBy}</td>
+        <td class="metadata-column hidden" style="padding: 10px 12px;">${updated}</td>
+        <td class="metadata-column hidden" style="padding: 10px 12px;">${updatedBy}</td>
         <td style="padding: 10px 12px; text-align:right;">
           <button onclick="viewProductionPlan('${p.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;">View</button>
         </td>
@@ -82,10 +82,10 @@ function renderTemplatesList(templates) {
       return `<tr>
         <td style="padding: 10px 12px;">${name}</td>
         <td style="padding: 10px 12px;">${steps}</td>
-        <td style="padding: 10px 12px;">${created}</td>
-        <td style="padding: 10px 12px;">${createdBy}</td>
-        <td style="padding: 10px 12px;">${updated}</td>
-        <td style="padding: 10px 12px;">${updatedBy}</td>
+        <td class="metadata-column hidden" style="padding: 10px 12px;">${created}</td>
+        <td class="metadata-column hidden" style="padding: 10px 12px;">${createdBy}</td>
+        <td class="metadata-column hidden" style="padding: 10px 12px;">${updated}</td>
+        <td class="metadata-column hidden" style="padding: 10px 12px;">${updatedBy}</td>
         <td style="padding: 10px 12px; text-align:right;">
           <button onclick="editTemplateById('${t.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;">Edit</button>
         </td>
