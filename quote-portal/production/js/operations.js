@@ -1,5 +1,5 @@
 // Operations management UI backed by backend API
-import { getOperations, saveOperations, normalizeOperation, genId, getMasterData, addSkill, addOperationType, updateOperationType, deleteOperationType } from './mesApi.js'
+import { getOperations, saveOperations, normalizeOperation, genId, getMasterData, addSkill, addOperationType, updateOperationType, deleteOperationType, getWorkers } from './mesApi.js'
 import { showToast } from './ui.js'
 
 let operationsState = []
@@ -106,7 +106,7 @@ export function editOperation(id) {
 }
 
 // Detail panel helpers (safe no-ops if panel not present)
-export function showOperationDetail(id) {
+export async function showOperationDetail(id) {
   selectedOperationId = id
   const op = operationsState.find(o => o.id === id)
   if (!op) return
@@ -114,12 +114,33 @@ export function showOperationDetail(id) {
   const content = document.getElementById('operation-detail-content')
   if (!panel || !content) return
   panel.style.display = 'block'
+  let supervisorHtml = ''
+  try {
+    if (op.supervisorId) {
+      const workers = await getWorkers()
+      const w = workers.find(x => x.id === op.supervisorId)
+      if (w) {
+        supervisorHtml = `
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Şef:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(w.name || '')}</span></div>
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">E-posta:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(w.email || '-')}</span></div>
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Telefon:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(w.phone || '-')}</span></div>`
+      } else {
+        supervisorHtml = `<div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Şef:</span><span style="font-size:12px; color: rgb(107,114,128);">-</span></div>`
+      }
+    } else {
+      supervisorHtml = `<div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Şef:</span><span style="font-size:12px; color: rgb(107,114,128);">-</span></div>`
+    }
+  } catch {
+    supervisorHtml = `<div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Şef:</span><span style="font-size:12px; color: rgb(107,114,128);">-</span></div>`
+  }
+
   content.innerHTML = `
     <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
       <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Temel Bilgiler</h3>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Operasyon Adı:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.name||'')}</span></div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Tür:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.type||'General')}</span></div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yarı Mamül Kodu:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.semiOutputCode || '-')}</span></div>
+      ${supervisorHtml}
       
     </div>
     <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
@@ -156,6 +177,7 @@ export async function saveOperation() {
   const rawCode = document.getElementById('operation-output-code')?.value || ''
   const letters = rawCode.replace(/[^A-Za-z]/g, '')
   const semiCode = letters ? (letters[0].toUpperCase() + (letters[1] ? letters[1].toLowerCase() : '')).slice(0,2) : ''
+  const supervisorId = document.getElementById('operation-supervisor')?.value || ''
   // Read skills from modern UI hidden field; fallback to any legacy checkboxes
   let skills = (document.getElementById('operation-skills-selected')?.value || '')
     .split('|')
@@ -182,6 +204,7 @@ export async function saveOperation() {
     id: editingOperationId || genId('op-'),
     name,
     type,
+    supervisorId: supervisorId || null,
     semiOutputCode: semiCode,
     skills,
     
@@ -235,6 +258,25 @@ function openOperationModal(op = null) {
   hidden.value = Array.isArray(op?.skills) ? op.skills.join('|') : ''
   setTimeout(populateOperationSkillsBox, 0)
   setTimeout(initializeOperationTypeDropdown, 0)
+  // Inject supervisor select block dynamically (keeps views.js unchanged)
+  try {
+    const existingSupervisor = document.getElementById('operation-supervisor')
+    if (!existingSupervisor) {
+      const outputCodeEl = document.getElementById('operation-output-code')
+      const outputDetail = outputCodeEl && outputCodeEl.closest('.detail-item')
+      if (outputDetail && outputDetail.parentElement) {
+        const supervisorBlock = `
+          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Şef (Opsiyonel):</span>
+            <select id="operation-supervisor" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; min-width: 200px;">
+              <option value="">— Şef seçilmedi —</option>
+            </select>
+          </div>`
+        outputDetail.insertAdjacentHTML('beforebegin', supervisorBlock)
+      }
+    }
+  } catch {}
+  setTimeout(() => populateOperationSupervisorSelect(op?.supervisorId || ''), 0)
 }
 
 async function populateOperationSkillsBox() {
@@ -480,6 +522,27 @@ function initOperationFilters() {
     applyFilters()
     updateClearAllVisibility()
   })
+}
+
+async function populateOperationSupervisorSelect(currentId = '') {
+  const select = document.getElementById('operation-supervisor')
+  if (!select) return
+  select.disabled = true
+  select.innerHTML = '<option value="">Loading...</option>'
+  try {
+    const workers = await getWorkers(true)
+    const options = [
+      '<option value="">— Şef seçilmedi —</option>',
+      ...workers.map(w => `<option value="${escapeHtml(w.id)}">${escapeHtml(w.name || w.id)}</option>`)
+    ].join('')
+    select.innerHTML = options
+    if (currentId) select.value = currentId
+  } catch (e) {
+    console.error('load workers failed', e)
+    select.innerHTML = '<option value="">— Şef seçilmedi —</option>'
+  } finally {
+    select.disabled = false
+  }
 }
 
 // Operation Types Modal Management

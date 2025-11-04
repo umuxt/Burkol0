@@ -55,6 +55,8 @@ export function normalizeOperation(op) {
     id: op.id || genId('op-'),
     name: (op.name || '').trim(),
     type: (op.type || 'General'),
+    // Optional supervisor user id (selected from workers list)
+    supervisorId: op.supervisorId || null,
     semiOutputCode: (function(){
       const raw = (op.semiOutputCode || '').toString()
       const letters = raw.replace(/[^A-Za-z]/g, '')
