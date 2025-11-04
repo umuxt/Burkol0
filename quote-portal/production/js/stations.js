@@ -1,5 +1,5 @@
 // Station management backed by backend API using mesApi
-import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill, invalidateStationsCache } from './mesApi.js'
+import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill, invalidateStationsCache, getStationWorkers } from './mesApi.js'
 import { showToast } from './ui.js'
 
 let stationsState = []
@@ -202,7 +202,7 @@ function renderStations() {
     
     if (compact) {
       return `
-        <tr onclick="showStationDetail('${station.id}')" style="cursor:pointer; background-color: ${rowBg}; border-bottom: 1px solid rgb(243, 244, 246); color: ${textColor};" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
+        <tr onclick="(async () => await showStationDetail('${station.id}'))()" style="cursor:pointer; background-color: ${rowBg}; border-bottom: 1px solid rgb(243, 244, 246); color: ${textColor};" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
           <td style="padding: 4px 8px; color: ${textColor};">
             <span style="font-family: monospace; font-size: 11px; color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor};">${escapeHtml(station.id || '')}</span>
           </td>
@@ -212,7 +212,7 @@ function renderStations() {
         </tr>`
     }
     return `
-      <tr onclick="showStationDetail('${station.id}')" style="cursor:pointer; background-color: ${rowBg}; border-bottom: 1px solid rgb(243, 244, 246); color: ${textColor};" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
+      <tr onclick="(async () => await showStationDetail('${station.id}'))()" style="cursor:pointer; background-color: ${rowBg}; border-bottom: 1px solid rgb(243, 244, 246); color: ${textColor};" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
         <td style="padding: 4px 8px; color: ${textColor};">
           <span style="font-family: monospace; font-size: 11px; color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor};">${escapeHtml(station.id || '')}</span>
         </td>
@@ -533,7 +533,7 @@ export function openAddStationModal() {
   document.getElementById('station-modal').style.display = 'block'
 }
 
-export function showStationDetail(stationId) {
+export async function showStationDetail(stationId) {
   const station = stationsState.find(s => s.id === stationId)
   if (!station) return
   
@@ -549,65 +549,190 @@ export function showStationDetail(stationId) {
   detailPanel.style.display = 'block'
   try { renderStations() } catch {}
   
-  // Generate station detail content
-  const inherited = computeStationInheritedSkills(station.operationIds || [], operationsCache)
-  const effective = Array.from(new Set([...(station.subSkills||[]), ...inherited]))
-  const opsLabels = (station.operationIds || []).map(id => {
-    const op = operationsCache.find(o => o.id === id)
-    return op ? op.name : id
-  })
-  
+  // Show loading state first
   detailContent.innerHTML = `
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Temel Bilgiler</h3>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İsim:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.name || '')}</span>
-      </div>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Status:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">
-          <span class="badge badge-${station.status === 'active' ? 'success' : (station.status === 'maintenance' ? 'warning' : 'default')}">${escapeHtml(station.status || '')}</span>
-        </span>
-      </div>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Location:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.location || '-')}</span>
-      </div>
-      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Açıklama:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.description || '-')}</span>
-      </div>
-    </div>
-    
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Desteklenen Operasyonlar</h3>
-      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-        ${opsLabels.length > 0 ? opsLabels.map(name => 
-          `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(name)}</span>`
-        ).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Operasyon tanımlanmamış</span>'}
-      </div>
-    </div>
-    
-    <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
-      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-        ${effective.length > 0 ? effective.map(skill => 
-          `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(skill)}</span>`
-        ).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Yetenek tanımlanmamış</span>'}
-      </div>
-      ${(station.subSkills || []).length > 0 ? `
-        <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
-          <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px;">İstasyon Özel Yetenekleri:</div>
-          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-            ${(station.subSkills || []).map(skill => 
-              `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
-            ).join('')}
-          </div>
-        </div>
-      ` : ''}
+    <div style="padding: 20px; text-align: center;">
+      <div style="font-size: 14px; color: rgb(107, 114, 128);">Yükleniyor...</div>
     </div>
   `
+  
+  try {
+    // Load compatible workers
+    const stationWorkersData = await getStationWorkers(stationId)
+    
+    // Generate station detail content
+    const inherited = computeStationInheritedSkills(station.operationIds || [], operationsCache)
+    const effective = Array.from(new Set([...(station.subSkills||[]), ...inherited]))
+    const opsLabels = (station.operationIds || []).map(id => {
+      const op = operationsCache.find(o => o.id === id)
+      return op ? op.name : id
+    })
+    
+    detailContent.innerHTML = `
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Temel Bilgiler</h3>
+        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İsim:</span>
+          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.name || '')}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Status:</span>
+          <span style="flex: 1 1 0%; font-size: 12px;">
+            <span class="badge badge-${station.status === 'active' ? 'success' : (station.status === 'maintenance' ? 'warning' : 'default')}">${escapeHtml(station.status || '')}</span>
+          </span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Location:</span>
+          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.location || '-')}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Açıklama:</span>
+          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.description || '-')}</span>
+        </div>
+      </div>
+      
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Desteklenen Operasyonlar</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          ${opsLabels.length > 0 ? opsLabels.map(name => 
+            `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(name)}</span>`
+          ).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Operasyon tanımlanmamış</span>'}
+        </div>
+      </div>
+      
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          ${effective.length > 0 ? effective.map(skill => 
+            `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(skill)}</span>`
+          ).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Yetenek tanımlanmamış</span>'}
+        </div>
+        ${(station.subSkills || []).length > 0 ? `
+          <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
+            <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px;">İstasyon Özel Yetenekleri:</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              ${(station.subSkills || []).map(skill => 
+                `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
+              ).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+      
+      <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Çalışabilecek Personel (${stationWorkersData.compatibleWorkers.length})</h3>
+        ${stationWorkersData.requiredSkills.length > 0 ? `
+          <div style="margin-bottom: 12px; padding: 8px; background: rgb(249, 250, 251); border-radius: 4px; border: 1px solid rgb(229, 231, 235);">
+            <div style="font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 4px;">Gerekli Yetenekler:</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              ${stationWorkersData.requiredSkills.map(skill => 
+                `<span style="background-color: rgb(219, 234, 254); color: rgb(30, 64, 175); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
+              ).join('')}
+            </div>
+          </div>
+        ` : ''}
+        ${stationWorkersData.compatibleWorkers.length > 0 ? `
+          <div style="display: grid; gap: 8px;">
+            ${stationWorkersData.compatibleWorkers.map(worker => `
+              <div style="padding: 8px; background: rgb(249, 250, 251); border-radius: 4px; border: 1px solid rgb(229, 231, 235);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                  <span style="font-weight: 600; font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.name || '')}</span>
+                  <span style="font-size: 10px; color: rgb(107, 114, 128);">${escapeHtml(worker.status || 'available')}</span>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 3px;">
+                  ${(worker.skills || []).map(skill => 
+                    `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: 500;">${escapeHtml(skill)}</span>`
+                  ).join('')}
+                </div>
+                ${worker.station ? `
+                  <div style="margin-top: 4px; font-size: 10px; color: rgb(107, 114, 128);">
+                    Mevcut İstasyon: ${escapeHtml(worker.station)}
+                  </div>
+                ` : ''}
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div style="text-align: center; padding: 16px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+            Bu istasyonda çalışabilecek uygun personel bulunamadı.
+            ${stationWorkersData.requiredSkills.length > 0 ? 
+              `<br><span style="font-size: 11px;">Tüm gerekli yeteneklere sahip personel gerekiyor.</span>` : 
+              ''
+            }
+          </div>
+        `}
+      </div>
+    `
+  } catch (error) {
+    console.error('Error loading station workers:', error)
+    
+    // Fallback to original view if workers loading fails
+    const inherited = computeStationInheritedSkills(station.operationIds || [], operationsCache)
+    const effective = Array.from(new Set([...(station.subSkills||[]), ...inherited]))
+    const opsLabels = (station.operationIds || []).map(id => {
+      const op = operationsCache.find(o => o.id === id)
+      return op ? op.name : id
+    })
+    
+    detailContent.innerHTML = `
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Temel Bilgiler</h3>
+        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İsim:</span>
+          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.name || '')}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Status:</span>
+          <span style="flex: 1 1 0%; font-size: 12px;">
+            <span class="badge badge-${station.status === 'active' ? 'success' : (station.status === 'maintenance' ? 'warning' : 'default')}">${escapeHtml(station.status || '')}</span>
+          </span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Location:</span>
+          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.location || '-')}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Açıklama:</span>
+          <span style="flex: 1 1 0%; font-size: 12px;">${escapeHtml(station.description || '-')}</span>
+        </div>
+      </div>
+      
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Desteklenen Operasyonlar</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          ${opsLabels.length > 0 ? opsLabels.map(name => 
+            `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(name)}</span>`
+          ).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Operasyon tanımlanmamış</span>'}
+        </div>
+      </div>
+      
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+          ${effective.length > 0 ? effective.map(skill => 
+            `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(skill)}</span>`
+          ).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Yetenek tanımlanmamış</span>'}
+        </div>
+        ${(station.subSkills || []).length > 0 ? `
+          <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
+            <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px;">İstasyon Özel Yetenekleri:</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              ${(station.subSkills || []).map(skill => 
+                `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
+              ).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+      
+      <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Çalışabilecek Personel</h3>
+        <div style="text-align: center; padding: 16px; color: rgb(220, 38, 38); font-size: 12px;">
+          Personel bilgileri yüklenirken hata oluştu.
+        </div>
+      </div>
+    `
+  }
   
   // Store current station ID for detail panel actions
   editingStationId = stationId
@@ -818,7 +943,7 @@ export function closeStationModal(event) {
   
   // If detail panel was open before modal, reopen it
   if (wasDetailPanelOpen && editingStationId) {
-    showStationDetail(editingStationId)
+    showStationDetail(editingStationId).catch(console.error)
   }
   
   // Reset the flag
@@ -860,7 +985,7 @@ export async function saveStation() {
     
     // If detail panel was open before modal, reopen it
     if (wasDetailPanelOpen && editingStationId) {
-      showStationDetail(editingStationId)
+      showStationDetail(editingStationId).catch(console.error)
     }
     
     // Reset the flag

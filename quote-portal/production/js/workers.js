@@ -1,6 +1,6 @@
 // Workers management backed by backend API (no direct Firebase client)
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
-import { getMasterData } from './mesApi.js'
+import { getMasterData, getWorkerStations } from './mesApi.js'
 import { showToast } from './ui.js'
 
 let workersState = []
@@ -14,7 +14,7 @@ export async function initializeWorkersUI() {
 }
 
 // Worker detail functions
-export function showWorkerDetail(id) {
+export async function showWorkerDetail(id) {
   selectedWorkerId = id
   const worker = workersState.find(w => w.id === id)
   if (!worker) return
@@ -40,8 +40,25 @@ export function showWorkerDetail(id) {
     selectedRow.style.backgroundColor = 'rgb(239, 246, 255)'
   }
   
-  // Populate detail content
-  detailContent.innerHTML = generateWorkerDetailContent(worker)
+  // Show loading state first
+  detailContent.innerHTML = `
+    <div style="padding: 20px; text-align: center;">
+      <div style="font-size: 14px; color: rgb(107, 114, 128);">Yükleniyor...</div>
+    </div>
+  `
+  
+  try {
+    // Load compatible stations
+    const workerStationsData = await getWorkerStations(id)
+    
+    // Populate detail content
+    detailContent.innerHTML = generateWorkerDetailContentWithStations(worker, workerStationsData)
+  } catch (error) {
+    console.error('Error loading worker stations:', error)
+    
+    // Fallback to original view if stations loading fails
+    detailContent.innerHTML = generateWorkerDetailContent(worker)
+  }
 }
 
 export function closeWorkerDetail() {
@@ -154,6 +171,131 @@ function generateWorkerDetailContent(worker) {
   `
 }
 
+function generateWorkerDetailContentWithStations(worker, workerStationsData) {
+  const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
+  
+  return `
+    <form id="worker-detail-form" class="worker-details-layout">
+      <!-- Temel Bilgiler -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Temel Bilgiler</h3>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Çalışan Adı:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.name || '')}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">E-posta:</span>
+          ${worker.email
+            ? `<a class="detail-value" href="${mailtoHref(worker.email)}" style="font-size: 12px; color: rgb(37, 99, 235); text-decoration: none;">${escapeHtml(worker.email)}</a>`
+            : '<span class="detail-value" style="font-size: 12px; color: rgb(107, 114, 128);">-</span>'}
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Telefon:</span>
+          ${worker.phone
+            ? `<a class="detail-value" href="${telHref(worker.phone)}" style="font-size: 12px; color: rgb(37, 99, 235); text-decoration: none;">${escapeHtml(worker.phone)}</a>`
+            : '<span class="detail-value" style="font-size: 12px; color: rgb(107, 114, 128);">-</span>'}
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Durum:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(capitalize(worker.status || 'available'))}</span>
+        </div>
+      </div>
+
+      <!-- Çalışma Bilgileri -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Çalışma Bilgileri</h3>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Vardiya:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.shift || 'Day')}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İstasyon:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.station || 'Atanmamış')}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Mevcut Görev:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.currentTask || 'Görev atanmamış')}</span>
+        </div>
+      </div>
+
+      <!-- Yetenekler -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Sahip Olunan Yetenekler</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+          ${skills.map(skill => `
+            <span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>
+          `).join('')}
+          ${skills.length === 0 ? '<span style="font-size: 12px; color: rgb(107, 114, 128);">Henüz yetenek atanmamış</span>' : ''}
+        </div>
+      </div>
+
+      <!-- Çalışabileceği İstasyonlar -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Çalışabileceği İstasyonlar (${workerStationsData.compatibleStations.length})</h3>
+        ${workerStationsData.workerSkills.length > 0 ? `
+          <div style="margin-bottom: 12px; padding: 8px; background: rgb(249, 250, 251); border-radius: 4px; border: 1px solid rgb(229, 231, 235);">
+            <div style="font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 4px;">Sahip Olunan Yetenekler:</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              ${workerStationsData.workerSkills.map(skill => 
+                `<span style="background-color: rgb(219, 234, 254); color: rgb(30, 64, 175); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
+              ).join('')}
+            </div>
+          </div>
+        ` : ''}
+        ${workerStationsData.compatibleStations.length > 0 ? `
+          <div style="display: grid; gap: 8px;">
+            ${workerStationsData.compatibleStations.map(station => `
+              <div style="padding: 8px; background: rgb(249, 250, 251); border-radius: 4px; border: 1px solid rgb(229, 231, 235);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;">
+                  <span style="font-weight: 600; font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(station.name || '')}</span>
+                  <span style="font-size: 10px; color: rgb(107, 114, 128);">${escapeHtml(station.status || 'active')}</span>
+                </div>
+                ${station.location ? `
+                  <div style="margin-bottom: 4px; font-size: 10px; color: rgb(107, 114, 128);">
+                    Lokasyon: ${escapeHtml(station.location)}
+                  </div>
+                ` : ''}
+                <div style="display: flex; flex-wrap: wrap; gap: 3px;">
+                  ${(station.requiredSkills || []).map(skill => 
+                    `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: 500;">${escapeHtml(skill)}</span>`
+                  ).join('')}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div style="text-align: center; padding: 16px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+            Bu çalışan için uygun istasyon bulunamadı.
+            ${workerStationsData.workerSkills.length > 0 ? 
+              `<br><span style="font-size: 11px;">Mevcut yetenekleri ile tam eşleşen istasyon yok.</span>` : 
+              `<br><span style="font-size: 11px;">Önce yetenek tanımlaması yapılması gerekiyor.</span>`
+            }
+          </div>
+        `}
+      </div>
+
+      <!-- Performans Bilgileri -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Performans Özeti</h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tamamlanan Görev:</span>
+            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+          </div>
+          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ortalama Süre:</span>
+            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+          </div>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Verimlilik Skoru:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">-</span>
+        </div>
+      </div>
+    </form>
+  `
+}
+
 function hideStatusColumn() {
   // Hide status column header
   const statusHeader = document.querySelector('.workers-table th:nth-child(3)')
@@ -219,7 +361,7 @@ function renderWorkersTable() {
     const badgeClass = status === 'available' || status === 'active' ? 'success' : status === 'busy' ? 'warning' : 'default'
     
     return `
-      <tr onclick="showWorkerDetail('${w.id}')" data-worker-id="${w.id}" style="cursor: pointer; background-color: white; border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: rgb(243, 244, 246);">
+      <tr onclick="(async () => await showWorkerDetail('${w.id}'))()" data-worker-id="${w.id}" style="cursor: pointer; background-color: white; border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: rgb(243, 244, 246);">
         <td style="padding: 4px 8px;"><strong>${escapeHtml(w.name || '')}</strong></td>
         <td style="padding: 4px 8px;">
           <div style="display: flex; flex-wrap: wrap; gap: 4px;">

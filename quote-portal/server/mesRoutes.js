@@ -175,6 +175,84 @@ router.post('/workers', withAuth, async (req, res) => {
   }, res);
 });
 
+// GET /api/mes/workers/:id/stations - Get stations where this worker can work
+router.get('/workers/:id/stations', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id } = req.params;
+    const db = getFirestore();
+    
+    // Get the worker data
+    const workerDoc = await db.collection('mes-workers').doc(id).get();
+    if (!workerDoc.exists) {
+      throw new Error('Worker not found');
+    }
+    
+    const worker = { id: workerDoc.id, ...workerDoc.data() };
+    const workerSkills = Array.isArray(worker.skills) ? worker.skills : [];
+    
+    // Get all stations
+    const stationsSnapshot = await db.collection('mes-stations').get();
+    const stations = stationsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Get operations to compute inherited skills for stations
+    const operationsSnapshot = await db.collection('mes-operations').get();
+    const operations = operationsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Filter stations where worker can work (has all required skills)
+    const compatibleStations = stations.filter(station => {
+      // Compute station's effective skills (from operations + station-specific skills)
+      const inheritedSkills = [];
+      if (Array.isArray(station.operationIds)) {
+        station.operationIds.forEach(opId => {
+          const operation = operations.find(op => op.id === opId);
+          if (operation && Array.isArray(operation.subSkills)) {
+            inheritedSkills.push(...operation.subSkills);
+          }
+        });
+      }
+      
+      const stationSpecificSkills = Array.isArray(station.subSkills) ? station.subSkills : [];
+      const stationEffectiveSkills = Array.from(new Set([...inheritedSkills, ...stationSpecificSkills]));
+      
+      // Check if worker has all required skills for this station
+      return stationEffectiveSkills.every(requiredSkill => 
+        workerSkills.includes(requiredSkill)
+      );
+    });
+    
+    return { 
+      workerId: id,
+      workerName: worker.name,
+      workerSkills: workerSkills,
+      compatibleStations: compatibleStations.map(station => {
+        // Also include the required skills for each station for display
+        const inheritedSkills = [];
+        if (Array.isArray(station.operationIds)) {
+          station.operationIds.forEach(opId => {
+            const operation = operations.find(op => op.id === opId);
+            if (operation && Array.isArray(operation.subSkills)) {
+              inheritedSkills.push(...operation.subSkills);
+            }
+          });
+        }
+        const stationSpecificSkills = Array.isArray(station.subSkills) ? station.subSkills : [];
+        const stationEffectiveSkills = Array.from(new Set([...inheritedSkills, ...stationSpecificSkills]));
+        
+        return {
+          ...station,
+          requiredSkills: stationEffectiveSkills
+        };
+      })
+    };
+  }, res);
+});
+
 // ============================================================================
 // STATIONS ROUTES
 // ============================================================================
@@ -232,6 +310,67 @@ router.post('/stations', withAuth, async (req, res) => {
 
     await batch.commit();
     return { success: true, updated: stations.length };
+  }, res);
+});
+
+// GET /api/mes/stations/:id/workers - Get workers that can work at this station
+router.get('/stations/:id/workers', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id } = req.params;
+    const db = getFirestore();
+    
+    // Get the station data
+    const stationDoc = await db.collection('mes-stations').doc(id).get();
+    if (!stationDoc.exists) {
+      throw new Error('Station not found');
+    }
+    
+    const station = { id: stationDoc.id, ...stationDoc.data() };
+    
+    // Get operations to compute inherited skills
+    const operationsSnapshot = await db.collection('mes-operations').get();
+    const operations = operationsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Compute station's effective skills (from operations + station-specific skills)
+    const inheritedSkills = [];
+    if (Array.isArray(station.operationIds)) {
+      station.operationIds.forEach(opId => {
+        const operation = operations.find(op => op.id === opId);
+        if (operation && Array.isArray(operation.subSkills)) {
+          inheritedSkills.push(...operation.subSkills);
+        }
+      });
+    }
+    
+    const stationSpecificSkills = Array.isArray(station.subSkills) ? station.subSkills : [];
+    const stationEffectiveSkills = Array.from(new Set([...inheritedSkills, ...stationSpecificSkills]));
+    
+    // Get all workers
+    const workersSnapshot = await db.collection('mes-workers').orderBy('name').get();
+    const allWorkers = workersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    // Filter workers that have ALL the skills required by the station
+    const compatibleWorkers = allWorkers.filter(worker => {
+      const workerSkills = Array.isArray(worker.skills) ? worker.skills : [];
+      
+      // Check if worker has all required skills
+      return stationEffectiveSkills.every(requiredSkill => 
+        workerSkills.includes(requiredSkill)
+      );
+    });
+    
+    return { 
+      stationId: id,
+      stationName: station.name,
+      requiredSkills: stationEffectiveSkills,
+      compatibleWorkers
+    };
   }, res);
 });
 

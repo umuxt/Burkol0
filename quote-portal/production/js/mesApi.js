@@ -149,6 +149,22 @@ export async function getWorkers(force = false) {
   return _workersCache
 }
 
+// Get workers that can work at a specific station
+export async function getStationWorkers(stationId) {
+  const res = await fetch(`${API_BASE}/api/mes/stations/${stationId}/workers`, { headers: withAuth() })
+  if (!res.ok) throw new Error(`station_workers_load_failed ${res.status}`)
+  const data = await res.json()
+  return data
+}
+
+// Get stations where a specific worker can work
+export async function getWorkerStations(workerId) {
+  const res = await fetch(`${API_BASE}/api/mes/workers/${workerId}/stations`, { headers: withAuth() })
+  if (!res.ok) throw new Error(`worker_stations_load_failed ${res.status}`)
+  const data = await res.json()
+  return data
+}
+
 // Materials API
 export async function getMaterials(force = false) {
   if (!force && Array.isArray(_materialsCache)) return _materialsCache
