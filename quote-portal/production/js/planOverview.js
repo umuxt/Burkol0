@@ -1,6 +1,7 @@
 // Plan Overview UI: tabs, filter, and create action
 
 import { getProductionPlans, getPlanTemplates } from './mesApi.js'
+import { API_BASE, withAuth } from '../../shared/lib/api.js'
 import { loadPlanNodes, setReadOnly, setPlanMeta } from './planDesigner.js'
 
 export function initPlanOverviewUI() {
@@ -8,7 +9,7 @@ export function initPlanOverviewUI() {
   setActivePlanTab('production');
   updatePlanFilterCounts();
   // Load plans and templates from backend
-  try { loadAndRenderPlans(); } catch (e) { console.warn('Plans load init failed', e?.message) }
+  try { fetchCurrentUser().finally(() => loadAndRenderPlans()); } catch (e) { console.warn('Plans load init failed', e?.message); try { loadAndRenderPlans(); } catch {} }
 }
 
 // First-time loader moved below to avoid duplicate declarations
@@ -16,16 +17,20 @@ export function initPlanOverviewUI() {
 function fmtDate(d) {
   try {
     if (!d) return '—'
-    if (typeof d?.toDate === 'function') {
-      const dt = d.toDate()
-      return isNaN(dt?.getTime?.()) ? '—' : dt.toLocaleString()
-    }
-    if (typeof d?.seconds === 'number') {
-      const dt = new Date(d.seconds * 1000)
-      return isNaN(dt.getTime()) ? '—' : dt.toLocaleString()
-    }
-    const dt = new Date(d)
-    return isNaN(dt.getTime()) ? '—' : dt.toLocaleString()
+    const dt = (typeof d?.toDate === 'function')
+      ? d.toDate()
+      : (typeof d?.seconds === 'number'
+          ? new Date(d.seconds * 1000)
+          : (typeof d?._seconds === 'number' ? new Date(d._seconds * 1000) : new Date(d)))
+    if (isNaN(dt.getTime())) return '—'
+    const pad = (n) => String(n).padStart(2, '0')
+    const yyyy = dt.getFullYear()
+    const mm = pad(dt.getMonth() + 1)
+    const dd = pad(dt.getDate())
+    const HH = pad(dt.getHours())
+    const MM = pad(dt.getMinutes())
+    const SS = pad(dt.getSeconds())
+    return `${yyyy}-${mm}-${dd} ${HH}:${MM}:${SS}`
   } catch { return '—' }
 }
 
@@ -34,20 +39,23 @@ function renderProductionPlans(plans) {
   const count = document.getElementById('production-count')
   if (!body) return
   if (!plans || plans.length === 0) {
-    body.innerHTML = '<tr><td colspan="6" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td></tr>'
+    body.innerHTML = '<tr><td colspan="7" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td></tr>'
   } else {
     body.innerHTML = plans.map(p => {
       const name = (p.name || p.id || '').toString()
       const order = (p.orderCode || '—')
       const status = (p.status || 'Draft')
-      const created = fmtDate(p.createdAt)
-      const createdBy = p.createdBy || '—'
+      const created = (p.createdDate && p.createdTime) ? `${p.createdDate} ${p.createdTime}` : fmtDate(p.createdAt)
+      const createdBy = p.createdByName || p.createdBy || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
+      const updated = (p.updatedDate && p.updatedTime) ? `${p.updatedDate} ${p.updatedTime}` : fmtDate(p.updatedAt || p.lastModifiedAt || p.createdAt)
+      const updatedBy = p.updatedByName || p.lastModifiedByName || p.updatedBy || p.lastModifiedBy || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
       return `<tr data-status="${status}">
         <td style="padding: 10px 12px;">${name}</td>
         <td style="padding: 10px 12px;">${order}</td>
-        <td style="padding: 10px 12px;">${status}</td>
         <td style="padding: 10px 12px;">${created}</td>
         <td style="padding: 10px 12px;">${createdBy}</td>
+        <td style="padding: 10px 12px;">${updated}</td>
+        <td style="padding: 10px 12px;">${updatedBy}</td>
         <td style="padding: 10px 12px; text-align:right;">
           <button onclick="viewProductionPlan('${p.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;">View</button>
         </td>
@@ -62,18 +70,22 @@ function renderTemplatesList(templates) {
   const count = document.getElementById('templates-count')
   if (!body) return
   if (!templates || templates.length === 0) {
-    body.innerHTML = '<tr><td colspan="5" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td></tr>'
+    body.innerHTML = '<tr><td colspan="7" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td></tr>'
   } else {
     body.innerHTML = templates.map(t => {
       const name = (t.name || t.id || '').toString()
       const steps = Array.isArray(t.steps) ? t.steps.length : (t.stepsCount || 0)
-      const editor = t.lastModifiedBy || t.owner || t.createdBy || '—'
-      const updated = fmtDate(t.lastModifiedAt || t.updatedAt || t.createdAt)
+      const created = (t.createdDate && t.createdTime) ? `${t.createdDate} ${t.createdTime}` : fmtDate(t.createdAt)
+      const createdBy = t.createdByName || t.ownerName || t.createdBy || t.owner || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
+      const updated = (t.updatedDate && t.updatedTime) ? `${t.updatedDate} ${t.updatedTime}` : fmtDate(t.lastModifiedAt || t.updatedAt || t.createdAt)
+      const updatedBy = t.lastModifiedByName || t.updatedByName || t.lastModifiedBy || t.updatedBy || t.ownerName || t.createdByName || t.owner || t.createdBy || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
       return `<tr>
         <td style="padding: 10px 12px;">${name}</td>
         <td style="padding: 10px 12px;">${steps}</td>
-        <td style="padding: 10px 12px;">${editor}</td>
+        <td style="padding: 10px 12px;">${created}</td>
+        <td style="padding: 10px 12px;">${createdBy}</td>
         <td style="padding: 10px 12px;">${updated}</td>
+        <td style="padding: 10px 12px;">${updatedBy}</td>
         <td style="padding: 10px 12px; text-align:right;">
           <button onclick="editTemplateById('${t.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;">Edit</button>
         </td>
@@ -85,6 +97,18 @@ function renderTemplatesList(templates) {
 
 let _plansCache = []
 let _templatesCache = []
+let _currentUser = null
+
+async function fetchCurrentUser() {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/me`, { headers: withAuth() })
+    if (!res.ok) throw new Error('me_failed')
+    const data = await res.json()
+    _currentUser = data || null
+  } catch (e) {
+    _currentUser = null
+  }
+}
 // Keep caches for actions
 async function loadAndRenderPlans() {
   try {
@@ -135,7 +159,8 @@ export function editTemplateById(id) {
       if (!tpl) return
       if (typeof window.openCreatePlan === 'function') window.openCreatePlan()
       setReadOnly(false)
-      setPlanMeta({ name: tpl.name, description: tpl.description || '', orderCode: '', scheduleType: 'one-time' })
+      // Mark that we're editing from a template so UI can adapt (e.g., Save button label)
+      setPlanMeta({ name: tpl.name, description: tpl.description || '', orderCode: '', scheduleType: 'one-time', status: 'template', sourceTemplateId: tpl.id })
       loadPlanNodes(tpl.steps || [])
     }
 
@@ -265,6 +290,8 @@ export function cancelPlanCreation() {
   }
   if (title) title.textContent = 'Production Planning';
   if (backBtn) backBtn.style.display = 'none';
+  // Reset any template-origin context to avoid stale labels next time
+  try { setPlanMeta({ status: undefined, sourceTemplateId: undefined }); } catch {}
   // Optionally scroll back to top
   setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0);
   // Reload lists on return

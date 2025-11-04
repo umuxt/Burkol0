@@ -640,15 +640,16 @@ export function generatePlanDesigner() {
               <tr style="background: var(--muted); text-align: left;">
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Plan</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Order</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Status</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created At</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated At</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated By</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">Actions</th>
               </tr>
             </thead>
             <tbody id="production-table-body">
               <tr>
-                <td colspan="6" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td>
+                <td colspan="7" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td>
               </tr>
             </tbody>
           </table>
@@ -659,14 +660,16 @@ export function generatePlanDesigner() {
               <tr style="background: var(--muted); text-align: left;">
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Template</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Steps</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Editor</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created At</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated At</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated By</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">Actions</th>
               </tr>
             </thead>
             <tbody id="templates-table-body">
               <tr>
-                <td colspan="5" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td>
+                <td colspan="7" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td>
               </tr>
             </tbody>
           </table>

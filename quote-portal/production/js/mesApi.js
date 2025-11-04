@@ -171,14 +171,25 @@ export async function createProductionPlan(plan) {
 }
 
 export async function createTemplate(template) {
-  // Write templates into the single collection as production plans with status='template'
+  // Use dedicated templates endpoint; server records createdBy/owner and lastModifiedBy
   const payload = { ...template, status: 'template' }
-  const res = await fetch(`${API_BASE}/api/mes/production-plans`, {
+  const res = await fetch(`${API_BASE}/api/mes/templates`, {
     method: 'POST',
     headers: withAuth({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload)
   })
   if (!res.ok) throw new Error(`template_create_failed ${res.status}`)
+  return await res.json()
+}
+
+// Update an existing production plan (or template doc) by id
+export async function updateProductionPlan(id, updates) {
+  const res = await fetch(`${API_BASE}/api/mes/production-plans/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(updates)
+  })
+  if (!res.ok) throw new Error(`production_plan_update_failed ${res.status}`)
   return await res.json()
 }
 

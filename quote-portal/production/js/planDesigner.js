@@ -1,7 +1,7 @@
 // Plan Designer logic and state
 import { showToast } from './ui.js';
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js';
-import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId } from './mesApi.js';
+import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
 
@@ -36,6 +36,8 @@ export const planDesignerState = {
   panOffsetY: 0,
   // Read-only viewing mode
   readOnly: false,
+  // Metadata about the currently opened plan/template (e.g., status, name)
+  currentPlanMeta: null,
   // Dropdown debounce timestamps
   _orderPanelLastToggle: 0,
   _typePanelLastToggle: 0
@@ -1254,24 +1256,33 @@ export function savePlanAsTemplate() {
     planName = `${base} - kopyası`;
   }
   if (!planName) { showToast('Please enter a plan name', 'error'); return; }
+  // If editing from an existing template, keep the same id to update and track lastModifiedBy
+  const existingTplId = planDesignerState.currentPlanMeta?.sourceTemplateId || null;
   const template = {
-    id: undefined,
+    id: existingTplId || undefined,
     name: planName,
     description: planDesc,
     steps: JSON.parse(JSON.stringify(planDesignerState.nodes)),
     createdAt: new Date().toISOString(),
     status: 'template'
   };
-  // Use the same ID scheme as production plans
-  getNextProductionPlanId()
-    .then((newId) => { template.id = newId || genId('plan-'); return createTemplate(template) })
+  // If no existing template id, generate a new one; otherwise update existing via POST /templates (merge)
+  const ensureId = template.id 
+    ? Promise.resolve(template.id)
+    : getNextProductionPlanId().then((newId) => { template.id = newId || genId('plan-'); return template.id })
+
+  ensureId
+    .then(() => createTemplate(template))
     .catch(() => {
       // As an extra fallback, still try to save with a local id
       template.id = template.id || genId('tpl-');
       return createTemplate(template)
     })
     .then(() => {
-      showToast(planDesignerState.readOnly ? `Copied to template: ${template.name}` : `Template saved: ${template.name}`, 'success');
+      const msg = existingTplId
+        ? `Template updated: ${template.name}`
+        : (planDesignerState.readOnly ? `Copied to template: ${template.name}` : `Template saved: ${template.name}`);
+      showToast(msg, 'success');
       // Exit to list and reload strictly from backend to avoid stale DOM
       // Reset graph only when not in view-copy flow (optional)
       if (!planDesignerState.readOnly) {
@@ -1294,6 +1305,34 @@ export function savePlanDraft() {
   const planDesc = document.getElementById('plan-description')?.value || '';
   const orderCode = document.getElementById('order-select')?.value || '';
   const scheduleType = document.getElementById('schedule-type')?.value || 'one-time';
+  const meta = planDesignerState.currentPlanMeta || {};
+  const isFromTemplate = (meta.status === 'template' && meta.sourceTemplateId);
+  if (isFromTemplate) {
+    const id = meta.sourceTemplateId;
+    const updates = {
+      name: planName,
+      description: planDesc,
+      orderCode,
+      scheduleType,
+      nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
+      status: 'production'
+    };
+    updateProductionPlan(id, updates)
+      .then(() => {
+        showToast(`Plan converted to production: ${planName}`, 'success');
+        planDesignerState.nodes = [];
+        renderCanvas();
+        cancelPlanCreation();
+        setActivePlanTab('production');
+        try { if (typeof window.loadAndRenderPlans === 'function') window.loadAndRenderPlans(); } catch {}
+      })
+      .catch(e => {
+        console.error('Plan conversion failed', e);
+        showToast('Plan conversion failed', 'error');
+      });
+    return;
+  }
+
   const plan = {
     id: undefined,
     name: planName,
@@ -1312,7 +1351,6 @@ export function savePlanDraft() {
     })
     .then(() => {
       showToast(`Plan saved: ${plan.name}`, 'success');
-      // Reset and exit designer; lists will be reloaded from backend (no DOM patching)
       planDesignerState.nodes = [];
       renderCanvas();
       cancelPlanCreation();
@@ -1721,6 +1759,8 @@ export function setReadOnly(flag) {
 // Set metadata (name, description, order, schedule type) into Plan Configuration UI
 export function setPlanMeta(meta = {}) {
   try {
+    // Persist meta for contextual UI decisions (e.g., button labels)
+    planDesignerState.currentPlanMeta = { ...(planDesignerState.currentPlanMeta || {}), ...(meta || {}) };
     const nameEl = document.getElementById('plan-name');
     const descEl = document.getElementById('plan-description');
     const orderSel = document.getElementById('order-select');
@@ -1759,9 +1799,14 @@ function configurePlanActionButtons() {
     const saveBtn = document.getElementById('plan-save-btn');
     const satBtn = document.getElementById('plan-save-as-template-btn');
     if (saveBtn) {
+      // Hide Save completely in read-only (production plan view)
+      saveBtn.style.display = planDesignerState.readOnly ? 'none' : '';
       saveBtn.disabled = !!planDesignerState.readOnly;
       saveBtn.style.opacity = planDesignerState.readOnly ? '0.6' : '';
       saveBtn.style.cursor = planDesignerState.readOnly ? 'not-allowed' : 'pointer';
+      // If user is editing a template (draft), show conversion intent on Save
+      const isFromTemplate = (planDesignerState.currentPlanMeta && planDesignerState.currentPlanMeta.status === 'template');
+      saveBtn.textContent = isFromTemplate ? 'Taslağı Plana Dönüştür' : 'Save';
     }
     if (satBtn) {
       satBtn.textContent = planDesignerState.readOnly ? 'Copy As Template' : 'Save As Template';

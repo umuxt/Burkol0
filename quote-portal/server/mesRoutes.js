@@ -24,6 +24,23 @@ function withAuth(req, res, next) {
   next()
 }
 
+// Date helpers to store explicit date and time parts
+function formatDateParts(d) {
+  try {
+    const dt = (d instanceof Date) ? d : new Date(d)
+    const pad = (n) => String(n).padStart(2, '0')
+    const yyyy = dt.getFullYear()
+    const mm = pad(dt.getMonth() + 1)
+    const dd = pad(dt.getDate())
+    const HH = pad(dt.getHours())
+    const MM = pad(dt.getMinutes())
+    const SS = pad(dt.getSeconds())
+    return { date: `${yyyy}-${mm}-${dd}`, time: `${HH}:${MM}:${SS}` }
+  } catch {
+    return { date: null, time: null }
+  }
+}
+
 // Helper function to handle Firestore operations
 async function handleFirestoreOperation(operation, res) {
   try {
@@ -458,13 +475,23 @@ router.post('/production-plans', withAuth, async (req, res) => {
 
     const db = getFirestore();
     const now = new Date()
-    const createdBy = (req.user && (req.user.email || req.user.userName)) || null
+    const parts = formatDateParts(now)
+    const actorEmail = (req.user && req.user.email) || null
+    const actorName = (req.user && (req.user.name || req.user.userName)) || null
+    const createdBy = actorEmail || actorName || null
     await db.collection('mes-production-plans').doc(productionPlan.id).set({
       ...productionPlan,
       createdAt: now,
       updatedAt: now,
-      createdBy,
-      updatedBy: createdBy
+      // explicit date/time parts for analytics and UI
+      createdDate: productionPlan.createdDate || parts.date,
+      createdTime: productionPlan.createdTime || parts.time,
+      updatedDate: parts.date,
+      updatedTime: parts.time,
+      createdBy: actorEmail || createdBy,
+      createdByName: actorName || createdBy || null,
+      updatedBy: actorEmail || createdBy,
+      updatedByName: actorName || createdBy || null
     }, { merge: true });
 
     return { success: true, id: productionPlan.id };
@@ -478,11 +505,17 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     const updates = req.body;
 
     const db = getFirestore();
-    const updatedBy = (req.user && (req.user.email || req.user.userName)) || null
+    const updatedByEmail = (req.user && req.user.email) || null
+    const updatedByName = (req.user && (req.user.name || req.user.userName)) || null
+    const now = new Date()
+    const parts = formatDateParts(now)
     await db.collection('mes-production-plans').doc(id).set({
       ...updates,
-      updatedAt: new Date(),
-      ...(updatedBy ? { updatedBy } : {})
+      updatedAt: now,
+      updatedDate: parts.date,
+      updatedTime: parts.time,
+      ...(updatedByEmail ? { updatedBy: updatedByEmail } : {}),
+      ...(updatedByName ? { updatedByName } : {})
     }, { merge: true });
 
     return { success: true, id };
@@ -535,18 +568,32 @@ router.post('/templates', withAuth, async (req, res) => {
 
     const db = getFirestore();
     const now = new Date()
-    const actor = (req.user && (req.user.email || req.user.userName)) || null
+    const parts = formatDateParts(now)
+    const actorEmail = (req.user && req.user.email) || null
+    const actorName = (req.user && (req.user.name || req.user.userName)) || null
+    // Normalize createdAt to Date
+    const createdAtDate = template.createdAt ? new Date(template.createdAt) : now
+    const createdParts = formatDateParts(createdAtDate)
     await db.collection('mes-production-plans').doc(template.id).set({
       ...template,
       status: (template.status || 'template'),
-      createdAt: template.createdAt ? new Date(template.createdAt) : now,
+      createdAt: createdAtDate,
       updatedAt: now,
+      createdDate: template.createdDate || createdParts.date,
+      createdTime: template.createdTime || createdParts.time,
+      updatedDate: parts.date,
+      updatedTime: parts.time,
       // Track template edit info
       lastModifiedAt: now,
-      ...(actor ? { lastModifiedBy: actor } : {}),
+      lastModifiedDate: parts.date,
+      lastModifiedTime: parts.time,
+      ...(actorEmail ? { lastModifiedBy: actorEmail, updatedBy: actorEmail } : {}),
+      ...(actorName ? { lastModifiedByName: actorName, updatedByName: actorName } : {}),
       // Also keep owner/createdBy for listing
-      ...(actor && !template.owner ? { owner: actor } : {}),
-      ...(actor && !template.createdBy ? { createdBy: actor } : {})
+      ...(!template.owner ? (actorEmail ? { owner: actorEmail } : {}) : {}),
+      ...(!template.createdBy ? (actorEmail ? { createdBy: actorEmail } : {}) : {}),
+      ...(!template.ownerName ? (actorName ? { ownerName: actorName } : {}) : {}),
+      ...(!template.createdByName ? (actorName ? { createdByName: actorName } : {}) : {})
     }, { merge: true });
 
     // Safety: if a legacy collection 'mes-templates' exists and was written by old client, remove duplicate
