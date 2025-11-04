@@ -1,5 +1,7 @@
 // Plan Designer logic and state
 import { showToast } from './ui.js';
+import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js';
+import { populateUnitSelect } from './units.js';
 
 export const planDesignerState = {
   nodes: [],
@@ -579,6 +581,7 @@ export function handleCanvasDrop(event) {
     // Optional logical successors; not required for scheduling but useful
     // successors: [],
     rawMaterials: [],
+    semiCode: null,
     x: Math.max(0, x),
     y: Math.max(0, y),
     connections: [],
@@ -840,10 +843,10 @@ export function connectNodes(fromId, toId) {
     const existingIdx = toNode.rawMaterials.findIndex(m => m && (m.derivedFrom === fromId || m.id === `node-${fromId}-output`));
     if (existingIdx === -1) {
       const autoMat = {
-        id: `node-${fromId}-output`,
-        name: `${fromNode.name} (semi)`,
-        qty: null,
-        unit: '',
+        id: fromNode.semiCode || `node-${fromId}-output`,
+        name: fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`,
+        qty: (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : null,
+        unit: fromNode.outputUnit || '',
         derivedFrom: fromId
       };
       toNode.rawMaterials.push(autoMat);
@@ -970,6 +973,23 @@ export function editNode(nodeId) {
     // Lock body scroll
     document.body.style.overflow = 'hidden';
     document.body.style.paddingRight = getScrollbarWidth() + 'px';
+    // Populate output code preview in footer label if exists
+    try {
+      const label = document.getElementById('node-output-code-label');
+      if (label) {
+        const preview = node.semiCode || getSemiCodePreview(node, planDesignerState.availableOperations || [], []);
+        if (preview) {
+          label.textContent = `Output: ${preview}`;
+        } else {
+          const prefix = getPrefixForNode(node, planDesignerState.availableOperations || [], []);
+          label.textContent = prefix ? `Output: ${prefix}-` : 'Output: —';
+        }
+      }
+      const qtyEl = document.getElementById('edit-output-qty');
+      const unitEl = document.getElementById('edit-output-unit');
+      if (qtyEl) qtyEl.value = node.outputQty != null ? String(node.outputQty) : '';
+      if (unitEl) populateUnitSelect(unitEl, node.outputUnit || '');
+    } catch {}
     
     // Add escape key listener
     modalEscapeHandler = (e) => {
@@ -1004,11 +1024,17 @@ export function saveNodeEdit() {
   const time = parseInt(document.getElementById('edit-time').value);
   const worker = document.getElementById('edit-worker').value;
   const station = document.getElementById('edit-station').value;
+  const outQtyVal = document.getElementById('edit-output-qty')?.value;
+  const outUnit = document.getElementById('edit-output-unit')?.value || '';
   if (!name || !time || time < 1) { showToast('Please fill all required fields', 'error'); return; }
   planDesignerState.selectedNode.name = name;
   planDesignerState.selectedNode.time = time;
   planDesignerState.selectedNode.assignedWorker = worker || null;
   planDesignerState.selectedNode.assignedStation = station || null;
+  const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal);
+  planDesignerState.selectedNode.outputQty = Number.isFinite(outQtyNum) ? outQtyNum : null;
+  planDesignerState.selectedNode.outputUnit = (outUnit || '').trim();
+  try { computeAndAssignSemiCode(planDesignerState.selectedNode, planDesignerState.availableOperations || [], []); } catch {}
   renderCanvas();
   closeNodeEditModal();
   showToast('Operation updated', 'success');

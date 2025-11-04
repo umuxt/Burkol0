@@ -2,6 +2,8 @@
 import { showToast } from './ui.js'
 import { getOperations, getWorkers, getStations, getApprovedQuotes, getMaterials } from './mesApi.js'
 import { planDesignerState, renderCanvas, closeNodeEditModal } from './planDesigner.js'
+import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js'
+import { populateUnitSelect } from './units.js'
 
 // Helper functions to manage body scroll lock
 function lockBodyScroll() {
@@ -151,6 +153,9 @@ export function handleCanvasDropBackend(event) {
     type: op.type || 'General',
     time: 30, // Default planning time, will be overridden by station assignment
     skills: Array.isArray(op.skills) ? op.skills : [],
+    predecessors: [],
+    rawMaterials: [],
+    semiCode: null,
     x: Math.max(0, x),
     y: Math.max(0, y),
     connections: [],
@@ -220,28 +225,40 @@ export async function editNodeBackend(nodeId) {
     '</select></div>' +
     (function(){
       const rows = Array.isArray(node.rawMaterials) ? node.rawMaterials : (node.rawMaterial ? [node.rawMaterial] : [])
-      const buildRow = (rm, idx) => (
-        '<div class="material-row" data-row-index="'+idx+'" style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">' +
-          '<div style="position:relative; flex: 3;">' +
-            '<input type="hidden" id="edit-material-id-'+idx+'" value="' + (rm?.id ?? '') + '" />' +
-            '<input type="hidden" id="edit-material-name-'+idx+'" value="' + escapeHtml(rm?.name ?? '') + '" />' +
-            '<input id="edit-material-display-'+idx+'" type="text" readonly placeholder="Select material" value="' + escapeHtml(formatMaterialLabel(rm)) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; cursor: pointer;" onclick="openMaterialDropdown('+idx+')" />' +
-            '<div id="edit-material-dropdown-'+idx+'" style="display:none; position:absolute; left:0; right:0; top:38px; background:white; border:1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 16px rgba(0,0,0,0.08); z-index:9999;">' +
-              '<div style="padding:6px; border-bottom:1px solid var(--border);"><input id="edit-material-search-'+idx+'" type="text" placeholder="Ara: kod, isim, tedarikçi" oninput="filterMaterialDropdown('+idx+')" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;" /></div>' +
-              '<div id="edit-material-list-'+idx+'" style="max-height:220px; overflow:auto; font-size:13px;"></div>' +
+      const buildRow = (rm, idx) => {
+        const isDerived = !!(rm && rm.derivedFrom)
+        const badge = isDerived ? '<span style="margin-left:6px; font-size:11px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:8px;">auto</span>' : ''
+        const displayInput = isDerived
+          ? `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f3f4f6; color:#6b7280; cursor: default;" />${badge}`
+          : `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; cursor: pointer;" onclick="openMaterialDropdown(${idx})" />`
+        const dropdown = isDerived
+          ? ''
+          : `<div id="edit-material-dropdown-${idx}" style="display:none; position:absolute; left:0; right:0; top:38px; background:white; border:1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 16px rgba(0,0,0,0.08); z-index:9999;">
+              <div style="padding:6px; border-bottom:1px solid var(--border);"><input id="edit-material-search-${idx}" type="text" placeholder="Ara: kod, isim, tedarikçi" oninput="filterMaterialDropdown(${idx})" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;" /></div>
+              <div id="edit-material-list-${idx}" style="max-height:220px; overflow:auto; font-size:13px;"></div>
+            </div>`
+        const qtyInput = `<input id="edit-material-qty-${idx}" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;${isDerived ? ' background:#f3f4f6; color:#6b7280;' : ''}" value="${rm?.qty ?? ''}" ${isDerived ? 'disabled' : 'oninput="updateOutputCodePreviewBackend()"'} />`
+        const removeBtn = isDerived ? '' : `<button type="button" onclick="removeMaterialRow(${idx})" title="Kaldır" style="width:28px; height:32px; border:1px solid var(--border); background:#fee2e2; color:#ef4444; border-radius:6px;">-</button>`
+        return (
+          `<div class="material-row" data-row-index="${idx}" ${isDerived?'data-derived="1"':''} style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">` +
+            '<div style="position:relative; flex: 3;">' +
+              `<input type="hidden" id="edit-material-id-${idx}" value="${rm?.id ?? ''}" />` +
+              `<input type="hidden" id="edit-material-name-${idx}" value="${escapeHtml(rm?.name ?? '')}" />` +
+              displayInput +
+              dropdown +
             '</div>' +
-          '</div>' +
-          '<div style="flex:2;">' +
-            '<input id="edit-material-qty-'+idx+'" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" value="' + (rm?.qty ?? '') + '" />' +
-          '</div>' +
-          '<div style="flex:1;">' +
-            '<input id="edit-material-unit-'+idx+'" type="text" readonly placeholder="Unit" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; color: #6b7280;" value="' + (rm?.unit ?? '') + '" />' +
-          '</div>' +
-          '<div style="flex:0; display:flex; align-items:center;">' +
-            '<button type="button" onclick="removeMaterialRow('+idx+')" title="Kaldır" style="width:28px; height:32px; border:1px solid var(--border); background:#fee2e2; color:#ef4444; border-radius:6px;">-</button>' +
-          '</div>' +
-        '</div>'
-      )
+            '<div style="flex:2;">' +
+              qtyInput +
+            '</div>' +
+            '<div style="flex:1;">' +
+              `<input id="edit-material-unit-${idx}" type="text" readonly placeholder="Unit" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; color: #6b7280;" value="${rm?.unit ?? ''}" />` +
+            '</div>' +
+            '<div style="flex:0; display:flex; align-items:center;">' +
+              removeBtn +
+            '</div>' +
+          '</div>'
+        )
+      }
       const rowsHtml = (rows.length ? rows : [null]).map((rm, i)=>buildRow(rm, i)).join('')
       return '<div style="margin-bottom: 16px;">' +
         '<label style="display:block; margin-bottom: 4px; font-weight: 500;">Raw Material</label>' +
@@ -258,6 +275,15 @@ export async function editNodeBackend(nodeId) {
   if (modal) {
     modal.style.display = 'block'
     lockBodyScroll() // Prevent background scrolling
+    // Populate output qty/unit fields from node if present
+    try {
+      const qtyEl = document.getElementById('edit-output-qty')
+      const unitEl = document.getElementById('edit-output-unit')
+      if (qtyEl) qtyEl.value = node.outputQty != null ? String(node.outputQty) : ''
+      if (unitEl) populateUnitSelect(unitEl, node.outputUnit || '')
+    } catch {}
+    // Initial output code preview
+    try { updateOutputCodePreviewBackend() } catch {}
     
     // Add escape key listener
     modalEscapeHandler = (e) => {
@@ -288,6 +314,8 @@ export function saveNodeEditBackend() {
   const station = document.getElementById('edit-station')?.value || null
   const assignMode = (document.querySelector('input[name="edit-assign-mode"]:checked')?.value || null)
   const manualWorker = document.getElementById('edit-worker')?.value || null
+  const outQtyVal = document.getElementById('edit-output-qty')?.value
+  const outUnit = document.getElementById('edit-output-unit')?.value || ''
   // collect materials rows
   const rowsContainer = document.getElementById('edit-materials-rows')
   const rows = rowsContainer ? Array.from(rowsContainer.querySelectorAll('.material-row')) : []
@@ -309,6 +337,9 @@ export function saveNodeEditBackend() {
   node.time = time
   node.assignedStation = station || null
   node.assignmentMode = station ? (assignMode || 'auto') : null
+  const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal)
+  node.outputQty = Number.isFinite(outQtyNum) ? outQtyNum : null
+  node.outputUnit = (outUnit || '').trim()
 
   // Auto-assign worker by best skill overlap
   if (station && node.assignmentMode === 'auto') {
@@ -348,6 +379,8 @@ export function saveNodeEditBackend() {
     // Support multi materials; keep legacy rawMaterial as first for compatibility
     node.rawMaterials = rawMaterials
     node.rawMaterial = rawMaterials.length ? { ...rawMaterials[0] } : null
+    // Compute/update semi-finished product code based on op, station and materials
+    try { computeAndAssignSemiCode(node, _opsCache, _stationsCacheFull) } catch {}
     renderCanvas()
     const modal = document.getElementById('node-edit-modal')
     if (modal) {
@@ -516,6 +549,7 @@ export function selectMaterialFromDropdown(id, rowIdx) {
       unitEl.value = m.unit || m.measurementUnit || m.birim || ''
     }
     dd.style.display = 'none'
+    try { updateOutputCodePreviewBackend() } catch {}
   } catch {}
 }
 
@@ -548,7 +582,7 @@ export function addMaterialRow() {
         '</div>' +
       '</div>' +
       '<div style="flex:2;">' +
-        '<input id="edit-material-qty-'+idx+'" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" value="" />' +
+        '<input id="edit-material-qty-'+idx+'" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" value="" oninput="updateOutputCodePreviewBackend()" />' +
       '</div>' +
       '<div style="flex:1;">' +
         '<input id="edit-material-unit-'+idx+'" type="text" readonly placeholder="Unit" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; color: #6b7280;" value="" />' +
@@ -563,9 +597,43 @@ export function addMaterialRow() {
   container.appendChild(wrapper.firstChild)
 }
 
+// Update footer output code label based on current form values
+export function updateOutputCodePreviewBackend() {
+  try {
+    const node = planDesignerState.selectedNode
+    if (!node) return
+    const stName = document.getElementById('edit-station')?.value || null
+    const rowsContainer = document.getElementById('edit-materials-rows')
+    const rows = rowsContainer ? Array.from(rowsContainer.querySelectorAll('.material-row')) : []
+    const mats = []
+    for (const row of rows) {
+      const idx = row.getAttribute('data-row-index')
+      const id = document.getElementById('edit-material-id-'+idx)?.value || ''
+      const qtyVal = document.getElementById('edit-material-qty-'+idx)?.value
+      const qty = qtyVal === '' ? null : parseFloat(qtyVal)
+      const unit = document.getElementById('edit-material-unit-'+idx)?.value || ''
+      if (id) mats.push({ id, qty: Number.isFinite(qty) ? qty : null, unit })
+    }
+    const temp = { ...node, assignedStation: stName, rawMaterials: mats }
+    const code = getSemiCodePreview(temp, _opsCache, _stationsCacheFull)
+    const label = document.getElementById('node-output-code-label')
+    if (label) {
+      if (code) {
+        label.textContent = `Output: ${code}`
+      } else {
+        const prefix = getPrefixForNode(temp, _opsCache, _stationsCacheFull)
+        label.textContent = prefix ? `Output: ${prefix}-` : 'Output: —'
+      }
+    }
+  } catch (e) {
+    console.warn('updateOutputCodePreviewBackend failed', e)
+  }
+}
+
 export function removeMaterialRow(idx) {
   const row = document.querySelector('.material-row[data-row-index="'+idx+'"]')
   if (!row) return
+  if (row.getAttribute('data-derived') === '1') return // do not remove auto-derived materials
   const container = row.parentElement
   row.remove()
   if (!container) return
@@ -575,7 +643,14 @@ export function removeMaterialRow(idx) {
     r.setAttribute('data-row-index', i)
     const hid = r.querySelector('[id^="edit-material-id-"]'); if (hid) hid.id = 'edit-material-id-' + i
     const hname = r.querySelector('[id^="edit-material-name-"]'); if (hname) hname.id = 'edit-material-name-' + i
-    const disp = r.querySelector('[id^="edit-material-display-"]'); if (disp) { disp.id = 'edit-material-display-' + i; disp.setAttribute('onclick', 'openMaterialDropdown('+i+')') }
+    const disp = r.querySelector('[id^="edit-material-display-"]'); if (disp) {
+      disp.id = 'edit-material-display-' + i
+      if (r.getAttribute('data-derived') !== '1') {
+        disp.setAttribute('onclick', 'openMaterialDropdown('+i+')')
+      } else {
+        disp.removeAttribute('onclick')
+      }
+    }
     const dd = r.querySelector('[id^="edit-material-dropdown-"]'); if (dd) dd.id = 'edit-material-dropdown-' + i
     const search = r.querySelector('[id^="edit-material-search-"]'); if (search) { search.id = 'edit-material-search-' + i; search.setAttribute('oninput', 'filterMaterialDropdown('+i+')') }
     const list = r.querySelector('[id^="edit-material-list-"]'); if (list) list.id = 'edit-material-list-' + i
@@ -622,6 +697,8 @@ export function handleStationChangeInEdit() {
         opts.push(`<option value="${escapeHtml(w.name)}">${escapeHtml(w.name)}</option>`) }
       select.innerHTML = opts.join('')
     }
+    // Update output code preview when station changes
+    try { updateOutputCodePreviewBackend() } catch {}
   } catch (e) { console.warn('handleStationChangeInEdit failed', e) }
 }
 

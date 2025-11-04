@@ -799,9 +799,18 @@ export function generatePlanDesigner() {
           <div style="padding: 16px 20px; background: rgb(249, 250, 251); max-height: calc(80vh - 120px); overflow-y: auto;">
             <div id="node-edit-form"></div>
           </div>
-          <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
-            <button onclick="closeNodeEditModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Cancel</button>
-            <button onclick="saveNodeEdit()" style="padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 4px; cursor: pointer;">Save</button>
+          <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <div id="node-output-code-label" style="font-size: 12px; color: var(--muted-foreground);">Output: —</div>
+              <input id="edit-output-qty" type="number" min="0" step="0.01" placeholder="Qty" title="Output quantity" style="width: 90px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;" />
+              <select id="edit-output-unit" title="Output unit" style="width: 110px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; background: white;">
+                <option value="">Birim seçin</option>
+              </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button onclick="closeNodeEditModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Cancel</button>
+              <button onclick="saveNodeEdit()" style="padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 4px; cursor: pointer;">Save</button>
+            </div>
           </div>
         </div>
       </div>
