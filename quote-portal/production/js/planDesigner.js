@@ -1,7 +1,7 @@
 // Plan Designer logic and state
 import { showToast } from './ui.js';
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js';
-import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan } from './mesApi.js';
+import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
 import { API_BASE, withAuth } from '../../shared/lib/api.js';
@@ -43,6 +43,15 @@ export const planDesignerState = {
   _orderPanelLastToggle: 0,
   _typePanelLastToggle: 0
 };
+
+function escapeHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 export function loadOperationsToolbox() {
   // Gerçek operations verilerini kullan (şimdilik hardcoded, Firebase'den gelecek)
@@ -2130,45 +2139,83 @@ export function getExecutionOrder() {
 
 // Load approved quotes with WO codes into the order select dropdown
 export async function loadOrdersIntoSelect() {
+  const select = document.getElementById('order-select');
+  if (!select) return;
+
+  const previouslySelected = select.value || planDesignerState.currentPlanMeta?.orderCode || '';
+  select.innerHTML = '<option value="">Loading orders...</option>';
+
   try {
-    const response = await fetch(`${API_BASE}/api/quotes`, { headers: withAuth() });
-    if (!response.ok) {
-      console.warn('Failed to load quotes:', response.status);
-      return;
-    }
-    
-    const data = await response.json();
-    const quotes = Array.isArray(data.quotes) ? data.quotes : [];
-    
-    // Filter for approved quotes with WO codes
-    const approvedQuotesWithWO = quotes.filter(quote => 
-      quote.status === 'approved' && 
-      quote.workOrderCode && 
-      quote.workOrderCode.startsWith('WO-')
+    const [quotes, plans] = await Promise.all([
+      getApprovedQuotes().catch(() => []),
+      getProductionPlans().catch(() => [])
+    ]);
+
+    const takenCodes = new Set(
+      (Array.isArray(plans) ? plans : [])
+        .map(plan => (plan?.orderCode || '').trim())
+        .filter(Boolean)
     );
-    
-    const orderSelect = document.getElementById('order-select');
-    if (!orderSelect) return;
-    
-    // Clear existing options except the first one
-    orderSelect.innerHTML = '<option value="">Select an order...</option>';
-    
-    // Add approved quotes with WO codes as options
-    approvedQuotesWithWO.forEach(quote => {
-      const option = document.createElement('option');
-      option.value = quote.workOrderCode;
-      option.textContent = `${quote.workOrderCode} — ${quote.companyName || quote.customerName || 'Unknown'}`;
-      orderSelect.appendChild(option);
+
+    if (previouslySelected) {
+      takenCodes.delete(String(previouslySelected).trim());
+    }
+
+    const availableQuotes = (Array.isArray(quotes) ? quotes : []).filter(quote => {
+      const code = (quote?.workOrderCode || quote?.id || quote?.quoteId || '').trim();
+      return code && !takenCodes.has(code);
     });
-    
-    // Update the dropdown panel list after loading
+
+    const ensuredList = [...availableQuotes];
+    if (previouslySelected) {
+      const normalized = String(previouslySelected).trim();
+      const alreadyIncluded = ensuredList.some(q => (q?.workOrderCode || q?.id || q?.quoteId || '').trim() === normalized);
+      if (!alreadyIncluded) {
+        const fallback = (Array.isArray(quotes) ? quotes : []).find(q => (q?.workOrderCode || q?.id || q?.quoteId || '').trim() === normalized);
+        if (fallback) {
+          ensuredList.unshift(fallback);
+        } else {
+          ensuredList.unshift({ workOrderCode: normalized, company: planDesignerState.currentPlanMeta?.orderCompany || '-', name: normalized });
+        }
+      }
+    }
+
+    const options = ['<option value="">Select an order...</option>'];
+    if (ensuredList.length === 0) {
+      options.push('<option value="" disabled>No unplanned work orders available</option>');
+    }
+
+    ensuredList.forEach(quote => {
+      const rawCode = quote?.workOrderCode || quote?.id || quote?.quoteId;
+      const code = (rawCode || '').trim();
+      if (!code) return;
+      const label = `${escapeHtml(code)} — ${escapeHtml(quote?.companyName || quote?.company || quote?.customerName || quote?.customer || quote?.name || '-')}`;
+      options.push(`<option value="${escapeHtml(code)}">${label}</option>`);
+    });
+
+    select.innerHTML = options.join('');
+    if (previouslySelected) {
+      select.value = previouslySelected;
+    }
+
+    const labelEl = document.getElementById('plan-order-label');
+    if (labelEl) {
+      if (select.value) {
+        const selectedOpt = Array.from(select.options).find(opt => opt.value === select.value);
+        labelEl.textContent = selectedOpt ? selectedOpt.textContent : select.value;
+      } else {
+        labelEl.textContent = 'Select an order...';
+      }
+    }
+
     setTimeout(() => {
       try { renderPlanOrderListFromSelect(); } catch (e) { console.warn('Failed to render order list:', e); }
     }, 100);
-    
-    console.log(`Loaded ${approvedQuotesWithWO.length} approved quotes with WO codes into plan order select`);
+
+    console.log(`Loaded ${ensuredList.length} unplanned work orders into plan order select`);
   } catch (error) {
     console.error('Error loading approved quotes:', error);
+    select.innerHTML = '<option value="">Failed to load orders</option>';
   }
 }
 

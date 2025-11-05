@@ -1,7 +1,7 @@
 // Backend-powered overrides for Plan Designer
 import { showToast } from './ui.js'
-import { getOperations, getWorkers, getStations, getApprovedQuotes, getMaterials, upsertProducedWipFromNode } from './mesApi.js'
-import { planDesignerState, renderCanvas, closeNodeEditModal } from './planDesigner.js'
+import { getOperations, getWorkers, getStations, getApprovedQuotes, getMaterials, upsertProducedWipFromNode, getProductionPlans } from './mesApi.js'
+import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect } from './planDesigner.js'
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
 
@@ -99,18 +99,76 @@ export async function loadApprovedOrdersToSelect() {
   const select = document.getElementById('order-select')
   if (!select) return
   try {
+    const previouslySelected = select.value || planDesignerState.currentPlanMeta?.orderCode || ''
     select.innerHTML = '<option value="">Loading orders...</option>'
-    _approvedOrders = await getApprovedQuotes()
+
+    const [quotes, plans] = await Promise.all([
+      getApprovedQuotes().catch(() => []),
+      getProductionPlans().catch(() => [])
+    ])
+    _approvedOrders = Array.isArray(quotes) ? quotes : []
+
+    const takenCodes = new Set(
+      (Array.isArray(plans) ? plans : [])
+        .map(p => (p?.orderCode || '').trim())
+        .filter(Boolean)
+    )
+
+    if (previouslySelected) {
+      takenCodes.delete(String(previouslySelected).trim())
+    }
+
+    const availableQuotes = _approvedOrders.filter(q => {
+      const code = (q?.workOrderCode || q?.id || q?.quoteId || '').trim()
+      return code && !takenCodes.has(code)
+    })
+
+    const ensuredList = [...availableQuotes]
+    if (previouslySelected) {
+      const normalized = String(previouslySelected).trim()
+      const alreadyIncluded = ensuredList.some(q => (q?.workOrderCode || q?.id || q?.quoteId || '').trim() === normalized)
+      if (!alreadyIncluded) {
+        const fallback = _approvedOrders.find(q => (q?.workOrderCode || q?.id || q?.quoteId || '').trim() === normalized)
+        if (fallback) {
+          ensuredList.unshift(fallback)
+        } else {
+          ensuredList.unshift({ workOrderCode: normalized, company: planDesignerState.currentPlanMeta?.orderCompany || '-', name: normalized })
+        }
+      }
+    }
+
     _ordersByCode = new Map()
     const options = ['<option value="">Select an order...</option>']
-    for (const q of _approvedOrders) {
-      const code = q.workOrderCode || q.id || q.quoteId
+    if (ensuredList.length === 0) {
+      options.push('<option value="" disabled>No unplanned work orders available</option>')
+    }
+
+    for (const q of ensuredList) {
+      const rawCode = q?.workOrderCode || q?.id || q?.quoteId
+      const code = (rawCode || '').trim()
       if (!code) continue
       _ordersByCode.set(code, q)
-      const label = `${escapeHtml(code)} — ${escapeHtml(q.company || q.customer || q.name || '-')}`
+      const label = `${escapeHtml(code)} — ${escapeHtml(q?.company || q?.customer || q?.name || '-')}`
       options.push(`<option value="${escapeHtml(code)}">${label}</option>`)
     }
     select.innerHTML = options.join('')
+    if (previouslySelected) {
+      select.value = previouslySelected
+    }
+
+    const labelEl = document.getElementById('plan-order-label')
+    if (labelEl) {
+      if (select.value) {
+        const selectedOpt = Array.from(select.options).find(opt => opt.value === select.value)
+        labelEl.textContent = selectedOpt ? selectedOpt.textContent : select.value
+      } else {
+        labelEl.textContent = 'Select an order...'
+      }
+    }
+
+    setTimeout(() => {
+      try { renderPlanOrderListFromSelect() } catch (err) { console.warn('Failed to render plan order list:', err) }
+    }, 100)
   } catch (e) {
     console.error('loadApprovedOrdersToSelect error', e)
     select.innerHTML = '<option value="">Failed to load orders</option>'
