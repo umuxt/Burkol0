@@ -99,6 +99,30 @@ Object.assign(window, {
 document.addEventListener('DOMContentLoaded', () => {
   loadData();
   initHelp();
-  const initialView = getSavedView();
-  navigateToView(initialView);
+  
+  // Check URL parameters for direct plan access
+  const urlParams = new URLSearchParams(window.location.search);
+  const viewPlanId = urlParams.get('viewPlanId');
+  const editPlanId = urlParams.get('editPlanId');
+  
+  if (viewPlanId) {
+    // Navigate to plan designer and load plan in view mode
+    navigateToView('plan-designer');
+    setTimeout(() => {
+      if (typeof viewProductionPlan === 'function') {
+        viewProductionPlan(viewPlanId);
+      }
+    }, 100);
+  } else if (editPlanId) {
+    // Navigate to plan designer and load template in edit mode
+    navigateToView('plan-designer');
+    setTimeout(() => {
+      if (typeof editTemplateById === 'function') {
+        editTemplateById(editPlanId);
+      }
+    }, 100);
+  } else {
+    const initialView = getSavedView();
+    navigateToView(initialView);
+  }
 });

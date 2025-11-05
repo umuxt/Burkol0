@@ -946,7 +946,7 @@ export function generateApprovedQuotes() {
                       <th style="min-width: 120px; white-space: nowrap; padding: 8px; text-align: left;">WO Code</th>
                       <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Customer</th>
                       <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Company</th>
-                      <th style="min-width: 120px; white-space: nowrap; padding: 8px; text-align: left;">Status</th>
+                      <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Production Plan</th>
                       <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Created</th>
                     </tr>
                   </thead>

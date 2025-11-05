@@ -5,6 +5,7 @@ let quotesState = []
 let selectedQuoteId = null
 let queryFilter = ''
 let approvedChannel = null
+let productionPlansMap = {} // Map of workOrderCode to production plan data
 
 export async function initializeApprovedQuotesUI() {
   // Subscribe to cross-tab notifications from Quotes dashboard
@@ -47,13 +48,62 @@ async function ensureApprovedQuote(quoteId) {
   } catch {}
 }
 
+async function fetchProductionPlans() {
+  try {
+    // Fetch both production plans and templates
+    const [plansRes, templatesRes] = await Promise.all([
+      fetch(`${API_BASE}/api/mes/production-plans?_t=${Date.now()}`, { headers: withAuth() }),
+      fetch(`${API_BASE}/api/mes/templates?_t=${Date.now()}`, { headers: withAuth() })
+    ])
+    
+    const plansData = plansRes.ok ? await plansRes.json() : { productionPlans: [] }
+    const templatesData = templatesRes.ok ? await templatesRes.json() : { templates: [] }
+    
+    const plans = Array.isArray(plansData?.productionPlans) ? plansData.productionPlans : []
+    const templates = Array.isArray(templatesData?.templates) ? templatesData.templates : []
+    
+    // Create a map of orderCode to plan data
+    productionPlansMap = {}
+    
+    // Add production plans
+    plans.forEach(plan => {
+      if (plan.orderCode) {
+        productionPlansMap[plan.orderCode] = {
+          id: plan.id,
+          name: plan.name,
+          type: 'production'
+        }
+      }
+    })
+    
+    // Add templates
+    templates.forEach(template => {
+      if (template.orderCode) {
+        productionPlansMap[template.orderCode] = {
+          id: template.id,
+          name: template.name,
+          type: 'template'
+        }
+      }
+    })
+  } catch (e) {
+    console.error('Failed to fetch production plans:', e)
+    productionPlansMap = {}
+  }
+}
+
 async function loadQuotesAndRender() {
   const tbody = document.getElementById('approved-quotes-table-body')
   if (tbody) tbody.innerHTML = '<tr><td colspan="5"><em>Loading quotes...</em></td></tr>'
   try {
-    const res = await fetch(`${API_BASE}/api/mes/approved-quotes?_t=${Date.now()}`, { headers: withAuth() })
-    if (!res.ok) throw new Error(`quotes_load_failed ${res.status}`)
-    const data = await res.json()
+    // Load both quotes and production plans in parallel
+    const [quotesRes] = await Promise.all([
+      fetch(`${API_BASE}/api/mes/approved-quotes?_t=${Date.now()}`, { headers: withAuth() }),
+      fetchProductionPlans()
+    ])
+    
+    if (!quotesRes.ok) throw new Error(`quotes_load_failed ${quotesRes.status}`)
+    const data = await quotesRes.json()
     // API returns { approvedQuotes }
     const rows = Array.isArray(data?.approvedQuotes) ? data.approvedQuotes : []
     quotesState = rows
@@ -82,18 +132,32 @@ function renderApprovedQuotesTable() {
   }
 
   tbody.innerHTML = rows.map(q => {
-    const created = q.createdAt ? new Date(q.createdAt).toLocaleString() : '-'
+    const created = q.createdAt ? new Date(q.createdAt).toLocaleDateString() : '-'
     const customer = q.customer || q.name || '-'
     const company = q.company || '-'
-    const status = q.status || 'approved'
     const idForRow = q.workOrderCode || q.id || q.quoteId || ''
     const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]))
+    
+    // Get production plan info
+    let planCell = '-'
+    const plan = productionPlansMap[idForRow]
+    if (plan) {
+      const fullPlanId = plan.id || ''
+      const shortPlanId = fullPlanId.length > 10 ? fullPlanId.slice(-10) : fullPlanId
+      const planName = plan.name || ''
+      const typeIcon = plan.type === 'production' ? '✅' : '☑️'
+      const actionIcon = plan.type === 'production' ? '👁️' : '✏️'
+      const actionMode = plan.type === 'production' ? 'view' : 'edit'
+      const planUrl = `../pages/production.html?${actionMode}PlanId=${encodeURIComponent(fullPlanId)}`
+      planCell = `${shortPlanId} / ${planName} ${typeIcon} <button onclick="event.stopPropagation(); window.open('${planUrl}', '_blank')" style="border:none; background:transparent; cursor:pointer; font-size:16px; padding:2px 4px; vertical-align:middle;" title="${actionMode === 'view' ? 'View Plan' : 'Edit Plan'}">${actionIcon}</button>`
+    }
+    
     return `
       <tr data-quote-id="${esc(idForRow)}" onclick="showApprovedQuoteDetail('${esc(idForRow)}')" style="cursor: pointer;">
         <td style="padding:8px; border-bottom:1px solid var(--border);"><strong>${esc(idForRow)}</strong></td>
         <td style="padding:8px; border-bottom:1px solid var(--border);">${esc(customer)}</td>
         <td style="padding:8px; border-bottom:1px solid var(--border);">${esc(company)}</td>
-        <td style="padding:8px; border-bottom:1px solid var(--border);"><span class="badge badge-success">${esc(status)}</span></td>
+        <td style="padding:8px; border-bottom:1px solid var(--border);">${planCell}</td>
         <td style="padding:8px; border-bottom:1px solid var(--border);">${esc(created)}</td>
       </tr>
     `
@@ -170,7 +234,7 @@ function setTableDetailMode(isDetailsOpen) {
   if (!table) return
   const theadCells = table.querySelectorAll('thead th')
   const tbodyRows = table.querySelectorAll('tbody tr')
-  // We keep columns 1 (Quote #) and 3 (Company); hide 2 (Customer), 4 (Status), 5 (Created)
+  // We keep columns 1 (WO Code) and 3 (Company); hide 2 (Customer), 4 (Production Plan), 5 (Created)
   const hideCols = [2, 4, 5] // 1-based index
   hideCols.forEach(colIdx => {
     const th = theadCells[colIdx - 1]
