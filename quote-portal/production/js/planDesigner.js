@@ -1893,14 +1893,118 @@ export function resetPlanDesignerState({ preserveMeta = false } = {}) {
 }
 
 // Public helpers to open plans/templates in designer
+function extractNumericSuffix(id) {
+  if (id == null) return 0;
+  const match = String(id).match(/(\d+)(?!.*\d)/);
+  return match ? parseInt(match[1], 10) || 0 : 0;
+}
+
+function normalizeIncomingNodes(rawNodes = []) {
+  const source = Array.isArray(rawNodes) ? rawNodes : [];
+  const cloned = JSON.parse(JSON.stringify(source));
+  const usedIds = new Set();
+  const remap = new Map();
+  let sequentialSeed = 1;
+  const duplicateAlerts = [];
+
+  const generateSequentialId = () => {
+    let candidate;
+    do {
+      candidate = `node-${sequentialSeed++}`;
+    } while (usedIds.has(candidate));
+    return candidate;
+  };
+
+  cloned.forEach((node, index) => {
+    const preferred = (() => {
+      const candidates = [node?.id, node?.nodeId, node?.localId, node?.tempId];
+      for (const value of candidates) {
+        if (value != null) {
+          const str = String(value).trim();
+          if (str) return str;
+        }
+      }
+      return '';
+    })();
+
+    let assignedId = preferred && !usedIds.has(preferred) ? preferred : '';
+    if (!assignedId) {
+      assignedId = generateSequentialId();
+      if (preferred) {
+        duplicateAlerts.push({ original: preferred, reassigned: assignedId });
+      }
+    } else {
+      usedIds.add(assignedId);
+    }
+
+    if (!usedIds.has(assignedId)) {
+      usedIds.add(assignedId);
+    }
+
+    if (preferred) {
+      if (!remap.has(preferred)) {
+        remap.set(preferred, assignedId);
+      }
+    }
+    remap.set(`__idx_${index}`, assignedId);
+    node.id = assignedId;
+
+    node.connections = Array.isArray(node?.connections)
+      ? node.connections.filter(Boolean).map(val => String(val).trim())
+      : [];
+    node.predecessors = Array.isArray(node?.predecessors)
+      ? node.predecessors.filter(Boolean).map(val => String(val).trim())
+      : [];
+
+    const materials = Array.isArray(node?.rawMaterials)
+      ? node.rawMaterials
+      : (node?.rawMaterial ? [node.rawMaterial] : []);
+    node.rawMaterials = materials.map(mat => ({ ...mat }));
+    node.rawMaterial = node.rawMaterials.length ? { ...node.rawMaterials[0] } : null;
+
+    if (!Number.isFinite(node?.x)) {
+      node.x = 80 + (index % 6) * 180;
+    }
+    if (!Number.isFinite(node?.y)) {
+      node.y = 80 + Math.floor(index / 6) * 140;
+    }
+  });
+
+  if (duplicateAlerts.length) {
+    console.warn('Plan Designer normalized duplicate/missing node ids', duplicateAlerts);
+  }
+
+  const resolveId = (value) => {
+    if (value == null) return null;
+    const key = String(value).trim();
+    if (remap.has(key)) return remap.get(key);
+    return usedIds.has(key) ? key : null;
+  };
+
+  cloned.forEach(node => {
+    node.connections = node.connections.map(resolveId).filter(Boolean);
+    node.predecessors = node.predecessors.map(resolveId).filter(Boolean);
+    node.rawMaterials = node.rawMaterials.map(mat => ({
+      ...mat,
+      derivedFrom: resolveId(mat?.derivedFrom)
+    }));
+    node.rawMaterial = node.rawMaterials.length ? { ...node.rawMaterials[0] } : null;
+  });
+
+  let maxNumeric = 0;
+  usedIds.forEach(id => {
+    const numeric = extractNumericSuffix(id);
+    if (numeric > maxNumeric) maxNumeric = numeric;
+  });
+
+  const nextCounter = Math.max(maxNumeric + 1, sequentialSeed);
+  return { normalizedNodes: cloned, nextCounter };
+}
+
 export function loadPlanNodes(nodes = []) {
-  const cloned = JSON.parse(JSON.stringify(nodes || []));
-  planDesignerState.nodes = cloned;
-  // Reset counters
-  try {
-    const maxId = cloned.reduce((m, n) => Math.max(m, parseInt(n.id, 10) || 0), 0);
-    planDesignerState.nodeIdCounter = (maxId || 0) + 1;
-  } catch { planDesignerState.nodeIdCounter = 1; }
+  const { normalizedNodes, nextCounter } = normalizeIncomingNodes(nodes);
+  planDesignerState.nodes = normalizedNodes;
+  planDesignerState.nodeIdCounter = nextCounter;
   renderCanvas();
 }
 
