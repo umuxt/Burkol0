@@ -2,7 +2,7 @@
 
 import { getProductionPlans, getPlanTemplates } from './mesApi.js'
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
-import { loadPlanNodes, setReadOnly, setPlanMeta } from './planDesigner.js'
+import { loadPlanNodes, setReadOnly, setPlanMeta, resetPlanDesignerState } from './planDesigner.js'
 
 export function initPlanOverviewUI() {
   // Default active tab
@@ -295,6 +295,9 @@ export function filterProductionPlans() {
 }
 
 export function openCreatePlan() {
+  try { resetPlanDesignerState(); } catch (e) { console.warn('Failed to reset designer state before opening', e); }
+  try { setReadOnly(false); } catch (e) { console.warn('Failed to set designer editable mode', e); }
+  try { setPlanMeta({ name: '', description: '', orderCode: '', scheduleType: 'one-time' }); } catch (e) { console.warn('Failed to clear plan configuration inputs', e); }
   const section = document.getElementById('plan-designer-section');
   if (!section) return;
   // Hide list-related UI
@@ -326,6 +329,7 @@ export function openCreatePlan() {
 }
 
 export function cancelPlanCreation() {
+  try { resetPlanDesignerState(); } catch (e) { console.warn('Failed to reset designer state on cancel', e); }
   const section = document.getElementById('plan-designer-section');
   const tabs = document.getElementById('plans-tabs');
   const panelCard = document.getElementById('plans-panel-card');
@@ -346,8 +350,6 @@ export function cancelPlanCreation() {
   }
   if (title) title.textContent = 'Production Planning';
   if (backBtn) backBtn.style.display = 'none';
-  // Reset any template-origin context to avoid stale labels next time
-  try { setPlanMeta({ status: undefined, sourceTemplateId: undefined }); } catch {}
   // Optionally scroll back to top
   setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0);
   // Reload lists on return

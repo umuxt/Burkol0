@@ -1838,6 +1838,60 @@ try {
   });
 } catch {}
 
+export function resetPlanDesignerState({ preserveMeta = false } = {}) {
+  planDesignerState.nodes = [];
+  planDesignerState.nodeIdCounter = 1;
+  planDesignerState.draggedOperation = null;
+  planDesignerState.selectedNode = null;
+  planDesignerState.isDragging = false;
+  planDesignerState.draggedNode = null;
+  planDesignerState.dragStartX = 0;
+  planDesignerState.dragStartY = 0;
+  planDesignerState.nodeStartX = 0;
+  planDesignerState.nodeStartY = 0;
+  planDesignerState.connectMode = false;
+  planDesignerState.connectingFrom = null;
+  planDesignerState.isConnecting = false;
+  planDesignerState.connectionSource = null;
+  planDesignerState.connectionTarget = null;
+  planDesignerState.hoveredNode = null;
+  planDesignerState.isPanning = false;
+  planDesignerState.panOffsetX = 0;
+  planDesignerState.panOffsetY = 0;
+  planDesignerState.isFullscreen = false;
+  planDesignerState.fullscreenZoom = 100;
+  planDesignerState.readOnly = false;
+  resetConnectionState();
+  updateConnectButton();
+  updateCanvasCursor();
+
+  if (!preserveMeta) {
+    planDesignerState.currentPlanMeta = {};
+  }
+
+  renderCanvas();
+  const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+  if (fullscreenCanvas) {
+    renderCanvasContent(fullscreenCanvas);
+  }
+
+  const modal = document.getElementById('canvas-fullscreen-modal');
+  if (modal) modal.style.display = 'none';
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) sidebar.style.display = 'block';
+
+  setCanvasZoom(100);
+  resetCanvasPan();
+
+  if (!preserveMeta) {
+    const planIdElement = document.getElementById('plan-config-id');
+    if (planIdElement) {
+      planIdElement.textContent = '';
+      planIdElement.style.display = 'none';
+    }
+  }
+}
+
 // Public helpers to open plans/templates in designer
 export function loadPlanNodes(nodes = []) {
   const cloned = JSON.parse(JSON.stringify(nodes || []));
