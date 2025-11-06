@@ -991,16 +991,17 @@ export function generateApprovedQuotes() {
                 <table style="width: 100%; border-collapse: collapse;">
                   <thead style="background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;">
                     <tr>
-                      <th style="min-width: 120px; white-space: nowrap; padding: 8px; text-align: left;">WO Code</th>
+                      <th style="min-width: 80px; white-space: normal; padding: 8px; text-align: left;">WO Code</th>
                       <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Customer</th>
                       <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Company</th>
+                      <th style="min-width: 140px; white-space: nowrap; padding: 8px; text-align: left;">Delivery Date</th>
                       <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Production Plan</th>
                       <th style="min-width: 180px; white-space: nowrap; padding: 8px; text-align: left;">Üretim Durumu</th>
                       <th style="min-width: 200px; white-space: nowrap; padding: 8px; text-align: left;">Actions</th>
                     </tr>
                   </thead>
                   <tbody id="approved-quotes-table-body">
-                    <tr><td colspan="6"><em>Loading quotes...</em></td></tr>
+                    <tr><td colspan="7"><em>Loading quotes...</em></td></tr>
                   </tbody>
                 </table>
               </div>

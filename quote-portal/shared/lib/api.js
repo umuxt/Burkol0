@@ -462,7 +462,18 @@ export const API = {
   async updateQuoteStatus(id, status) {
     try {
       const res = await fetchWithTimeout(`${API_BASE}/api/quotes/${id}/status`, { method: 'PATCH', headers: withAuth({ 'Content-Type': 'application/json' }), body: JSON.stringify({ status }) })
-      if (!res.ok) throw new Error('status update failed')
+      if (!res.ok) {
+        let errMsg = 'status update failed'
+        try {
+          const err = await res.json()
+          if (err && (err.error === 'delivery_date_required')) {
+            errMsg = 'Teslim tarihi olmadan onaylanamaz.'
+          } else if (err && err.message) {
+            errMsg = err.message
+          }
+        } catch {}
+        throw new Error(errMsg)
+      }
       const out = await res.json()
       // Notify MES Approved Quotes listeners and ensure WO creation on approved
       try {

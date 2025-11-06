@@ -426,6 +426,15 @@ export function setupQuoteRoutes(app, uploadsDir) {
         return res.status(404).json({ error: 'Quote not found' })
       }
 
+      // Prevent approving without required delivery date
+      const isApproving = (String(status).toLowerCase() === 'approved' || String(status).toLowerCase() === 'onaylandı' || String(status).toLowerCase() === 'onaylandi')
+      if (isApproving) {
+        const hasDelivery = !!(existing.deliveryDate && String(existing.deliveryDate).trim())
+        if (!hasDelivery) {
+          return res.status(400).json({ error: 'delivery_date_required', message: 'Teslim tarihi olmadan onaylanamaz.' })
+        }
+      }
+
       const updated = update(id, { status })
       if (!updated) {
         return res.status(404).json({ error: 'Quote not found' })
@@ -480,6 +489,7 @@ export function setupQuoteRoutes(app, uploadsDir) {
               company: snapshot.company || null,
               email: snapshot.email || null,
               phone: snapshot.phone || null,
+              deliveryDate: snapshot.deliveryDate || null,
               price: snapshot.price ?? snapshot.calculatedPrice ?? null,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),

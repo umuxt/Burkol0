@@ -297,7 +297,8 @@ function Admin({ t, onLogout, showNotification }) {
       }
     } catch (error) {
       console.error('Error updating status:', error)
-      showNotification('Durum güncellenirken hata oluştu', 'error')
+      const msg = error && error.message ? error.message : 'Durum güncellenirken hata oluştu'
+      showNotification(msg, 'error')
     }
   }
 

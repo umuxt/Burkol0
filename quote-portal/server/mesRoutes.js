@@ -492,6 +492,11 @@ router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
       return { success: false, error: 'quote_not_approved', status: quote.status || null }
     }
 
+    // Delivery date required to ensure approved quote is usable in MES
+    if (!quote.deliveryDate || String(quote.deliveryDate).trim() === '') {
+      return { success: false, error: 'delivery_date_required' }
+    }
+
     // Generate next WO code
     const snap = await col.get()
     let maxIdx = 0
@@ -515,6 +520,7 @@ router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
       company: quote.company || null,
       email: quote.email || null,
       phone: quote.phone || null,
+      deliveryDate: quote.deliveryDate || null,
       price: quote.price ?? quote.calculatedPrice ?? null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
