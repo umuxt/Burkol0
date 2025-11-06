@@ -242,6 +242,14 @@ export async function editNodeBackend(nodeId) {
   const node = planDesignerState.nodes.find(n => n.id === nodeId)
   if (!node) return
   planDesignerState.selectedNode = node
+  
+  // Legacy migration: convert assignedStation to assignedStations array
+  if (node.assignedStation && !Array.isArray(node.assignedStations)) {
+    node.assignedStations = [{ name: node.assignedStation, priority: 1 }]
+  } else if (!Array.isArray(node.assignedStations)) {
+    node.assignedStations = []
+  }
+  
   let workers = []
   let stations = []
   let materials = []
@@ -271,9 +279,7 @@ export async function editNodeBackend(nodeId) {
   const formContent =
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + Number(node.time || 0) + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Station</label><select id="edit-station" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" onchange="handleStationChangeInEdit()"><option value="">Not assigned</option>' +
-    compatibleStations.map(s => '<option value="' + escapeHtml(s.name) + '" ' + (node.assignedStation === s.name ? 'selected' : '') + '>' + escapeHtml(s.name) + '</option>').join('') +
-    '</select><div style="color:#6b7280; font-size: 12px; margin-top: 4px;">Select station to enable worker assignment</div></div>' +
+    generateMultiStationSelector(node, compatibleStations) +
     '<div style="margin-bottom: 8px;"><label style="display:block; margin-bottom: 6px; font-weight: 500;">Worker Assignment</label>' +
       `<label style="margin-right:12px; font-size:13px; opacity:${manualEnabled?1:0.5}"><input type="radio" name="edit-assign-mode" value="auto" ${selectedAssignMode==='auto'?'checked':''} ${manualEnabled?'':'disabled'} onchange="handleAssignModeChangeBackend()"> Auto-assign</label>` +
       `<label style="font-size:13px; opacity:${manualEnabled?1:0.5}"><input type="radio" name="edit-assign-mode" value="manual" ${selectedAssignMode==='manual'?'checked':''} ${manualEnabled?'':'disabled'} onchange="handleAssignModeChangeBackend()"> Manual-assign</label>` +
@@ -343,6 +349,12 @@ export async function editNodeBackend(nodeId) {
     // Initial output code preview
     try { updateOutputCodePreviewBackend() } catch {}
     
+    // Setup drag and drop for station selection
+    setTimeout(() => {
+      setupStationDragAndDrop()
+      setupGlobalDropdownHandlers()
+    }, 100)
+    
     // Add escape key listener
     modalEscapeHandler = (e) => {
       if (e.key === 'Escape') {
@@ -369,11 +381,17 @@ export function saveNodeEditBackend() {
   if (!node) return
   const name = document.getElementById('edit-name')?.value?.trim()
   const time = parseInt(document.getElementById('edit-time')?.value, 10)
-  const station = document.getElementById('edit-station')?.value || null
   const assignMode = (document.querySelector('input[name="edit-assign-mode"]:checked')?.value || null)
   const manualWorker = document.getElementById('edit-worker')?.value || null
   const outQtyVal = document.getElementById('edit-output-qty')?.value
   const outUnit = document.getElementById('edit-output-unit')?.value || ''
+  
+  // Validate assigned stations (at least 1 required)
+  if (!Array.isArray(node.assignedStations) || node.assignedStations.length === 0) {
+    showToast('At least 1 station must be selected', 'error')
+    return
+  }
+
   // collect materials rows
   const rowsContainer = document.getElementById('edit-materials-rows')
   const rows = rowsContainer ? Array.from(rowsContainer.querySelectorAll('.material-row')) : []
@@ -393,17 +411,24 @@ export function saveNodeEditBackend() {
 
   node.name = name
   node.time = time
-  node.assignedStation = station || null
-  node.assignmentMode = station ? (assignMode || 'auto') : null
+  
+  // Keep assignedStations as is (already managed by UI)
+  // For backward compatibility, set assignedStation to primary station
+  const primaryStation = node.assignedStations.length > 0 
+    ? node.assignedStations.sort((a, b) => (a.priority || 0) - (b.priority || 0))[0]
+    : null
+  node.assignedStation = primaryStation ? primaryStation.name : null
+  
+  node.assignmentMode = primaryStation ? (assignMode || 'auto') : null
   const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal)
   node.outputQty = Number.isFinite(outQtyNum) ? outQtyNum : null
   node.outputUnit = (outUnit || '').trim()
 
   // Auto-assign worker by best skill overlap
-  if (station && node.assignmentMode === 'auto') {
+  if (primaryStation && node.assignmentMode === 'auto') {
     // We don't have workers list here; reuse last loaded compatible workers by reopening quick filter
     getWorkers(true).then(ws => {
-      const st = (_stationsCacheFull||[]).find(s => s.name === station)
+      const st = (_stationsCacheFull||[]).find(s => s.name === primaryStation.name)
       const stSkills = st ? computeStationEffectiveSkills(st) : []
       const requiredList = Array.from(new Set([...(node.skills||[]), ...stSkills]))
       const required = new Set(requiredList)
@@ -670,7 +695,14 @@ export function updateOutputCodePreviewBackend() {
   try {
     const node = planDesignerState.selectedNode
     if (!node) return
-    const stName = document.getElementById('edit-station')?.value || null
+    
+    // Get primary station name for preview
+    let primaryStationName = null
+    if (Array.isArray(node.assignedStations) && node.assignedStations.length > 0) {
+      const primaryStation = node.assignedStations.sort((a, b) => (a.priority || 0) - (b.priority || 0))[0]
+      primaryStationName = primaryStation.name
+    }
+    
     const rowsContainer = document.getElementById('edit-materials-rows')
     const rows = rowsContainer ? Array.from(rowsContainer.querySelectorAll('.material-row')) : []
     const mats = []
@@ -682,7 +714,7 @@ export function updateOutputCodePreviewBackend() {
       const unit = document.getElementById('edit-material-unit-'+idx)?.value || ''
       if (id) mats.push({ id, qty: Number.isFinite(qty) ? qty : null, unit })
     }
-    const temp = { ...node, assignedStation: stName, rawMaterials: mats }
+    const temp = { ...node, assignedStation: primaryStationName, rawMaterials: mats }
     const code = getSemiCodePreview(temp, _opsCache, _stationsCacheFull)
     const label = document.getElementById('node-output-code-label')
     if (label) {
@@ -735,39 +767,363 @@ function formatMaterialLabel(m) {
   return [code, name].filter(Boolean).join(' — ')
 }
 
+// Multi-station selector generator
+function generateMultiStationSelector(node, compatibleStations) {
+  // Get current assigned stations or convert legacy assignedStation
+  let assignedStations = []
+  if (Array.isArray(node.assignedStations)) {
+    assignedStations = [...node.assignedStations]
+  } else if (node.assignedStation) {
+    // Convert legacy single station to array format
+    assignedStations = [{ name: node.assignedStation, priority: 1 }]
+  }
+
+  const selectedStationNames = new Set(assignedStations.map(s => s.name))
+  const availableStations = compatibleStations.filter(s => !selectedStationNames.has(s.name))
+
+  return '<div style="margin-bottom: 16px;">' +
+    '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Stations (Priority Order)</label>' +
+    '<div id="selected-stations-list" style="margin-bottom: 8px; min-height: 40px; border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: #f9fafb;">' +
+    generateSelectedStationsList(assignedStations) +
+    '</div>' +
+    '<div style="display: flex; gap: 8px; align-items: center;">' +
+    '<div class="custom-dropdown" style="flex: 1; position: relative;">' +
+    '<div id="station-selector-button" onclick="toggleStationDropdown()" ' +
+    'style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: white; cursor: pointer; ' +
+    'display: flex; align-items: center; justify-content: space-between; min-height: 40px;">' +
+    '<span id="station-selector-text" style="color: #6b7280;">Select station to add...</span>' +
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M6 9l6 6 6-6"></path>' +
+    '</svg>' +
+    '</div>' +
+    '<div id="station-dropdown-list" style="position: absolute; top: 100%; left: 0; right: 0; background: white; ' +
+    'border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); ' +
+    'max-height: 200px; overflow-y: auto; z-index: 1000; display: none;">' +
+    (availableStations.length === 0 ? 
+      '<div style="padding: 12px; color: #6b7280; text-align: center; font-style: italic;">No available stations</div>' :
+      availableStations.map(s => {
+        const displayName = s.id ? `${s.id} - ${s.name}` : s.name
+        return '<div class="station-dropdown-item" data-value="' + escapeHtml(s.name) + '" onclick="selectStationFromDropdown(\'' + escapeHtml(s.name) + '\')" ' +
+        'style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">' +
+        '<div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; flex-shrink: 0;"></div>' +
+        '<span style="flex: 1; font-weight: 500;">' + escapeHtml(displayName) + '</span>' +
+        '<span style="font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 6px; border-radius: 10px;">' + escapeHtml(s.id || 'Station') + '</span>' +
+        '</div>'
+      }).join('')
+    ) +
+    '</div>' +
+    '</div>' +
+    '<button type="button" onclick="addSelectedStation()" style="padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">Add</button>' +
+    '</div>' +
+    '<div style="color:#6b7280; font-size: 12px; margin-top: 4px;">Select stations in priority order. At least 1 station required. Drag to reorder.</div>' +
+    '</div>'
+}
+
+function generateSelectedStationsList(assignedStations) {
+  if (!assignedStations || assignedStations.length === 0) {
+    return '<div style="color: #6b7280; font-style: italic; text-align: center; padding: 8px;">No stations selected</div>'
+  }
+
+  return assignedStations
+    .sort((a, b) => (a.priority || 0) - (b.priority || 0))
+    .map((station, index) => {
+      // Find station details to get ID
+      const stationDetails = (_stationsCacheFull || []).find(s => s.name === station.name)
+      const stationId = stationDetails ? stationDetails.id : ''
+      const displayText = stationId ? `${stationId} - ${station.name}` : station.name
+      
+      return '<div class="selected-station-item" data-station="' + escapeHtml(station.name) + '" draggable="true" ' +
+        'style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; padding: 6px 8px; ' +
+        'background: white; border: 1px solid #e5e7eb; border-radius: 4px; cursor: move;">' +
+        '<span style="flex: 1; font-weight: 500;">' + (index + 1) + '. ' + escapeHtml(displayText) + '</span>' +
+        '<button type="button" onclick="removeSelectedStation(\'' + escapeHtml(station.name) + '\')" ' +
+        'style="margin-left: 8px; padding: 2px 6px; background: #ef4444; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">×</button>' +
+        '</div>'
+    }).join('')
+}
+
   // Station change handler inside edit modal
 export function handleStationChangeInEdit() {
   try {
-    const stName = document.getElementById('edit-station')?.value || ''
-    const st = (_stationsCacheFull||[]).find(s => s.name === stName)
-    const stSkills = st ? computeStationEffectiveSkills(st) : []
-    const node = planDesignerState.selectedNode
-    const req = Array.from(new Set([ ...((node?.skills)||[]), ...stSkills ]))
-    const reqEl = document.getElementById('required-skills-display')
-    if (reqEl) reqEl.textContent = req.join(', ')
-    // Enable/disable assignment controls based on station selection and fix label opacity
-    const radios = document.querySelectorAll('input[name="edit-assign-mode"]')
-    radios.forEach(r => { r.disabled = !st })
-    const labelInputs = document.querySelectorAll('label input[name="edit-assign-mode"]')
-    labelInputs.forEach(inp => {
-      const lbl = inp.closest('label')
-      if (lbl) lbl.style.opacity = st ? '1' : '0.5'
-    })
-    // Rebuild manual worker options
-    const select = document.getElementById('edit-worker')
-    const box = document.getElementById('manual-worker-select')
-    if (box) box.style.display = (document.querySelector('input[name="edit-assign-mode"][value="manual"]')?.checked && !!st) ? '' : 'none'
-    if (select) {
-      select.disabled = !st
-      const opts = ['<option value="">Not assigned</option>']
-      const compatible = getWorkersMatchingAllSkills(req)
-      for (const w of compatible) {
-        opts.push(`<option value="${escapeHtml(w.name)}">${escapeHtml(w.name)}</option>`) }
-      select.innerHTML = opts.join('')
-    }
-    // Update output code preview when station changes
-    try { updateOutputCodePreviewBackend() } catch {}
+    updateWorkerAssignmentFromStations()
+    updateOutputCodePreviewBackend()
   } catch (e) { console.warn('handleStationChangeInEdit failed', e) }
+}
+
+// Station management functions for multi-select
+window.addSelectedStation = function() {
+  const selectedStationName = window.selectedStationValue || null
+  if (!selectedStationName) {
+    showToast('Please select a station first', 'warning')
+    return
+  }
+
+  const node = planDesignerState.selectedNode
+  if (!node) return
+
+  // Initialize assignedStations if not exists
+  if (!Array.isArray(node.assignedStations)) {
+    node.assignedStations = []
+  }
+
+  // Check if already selected
+  if (node.assignedStations.find(s => s.name === selectedStationName)) {
+    showToast('Station already selected', 'warning')
+    return
+  }
+
+  // Add with next priority
+  const maxPriority = Math.max(0, ...node.assignedStations.map(s => s.priority || 0))
+  node.assignedStations.push({
+    name: selectedStationName,
+    priority: maxPriority + 1
+  })
+
+  // Reset selection
+  window.selectedStationValue = null
+  const textEl = document.getElementById('station-selector-text')
+  if (textEl) {
+    textEl.textContent = 'Select station to add...'
+    textEl.style.color = '#6b7280' // Reset to gray placeholder color
+  }
+  
+  // Close dropdown
+  const dropdown = document.getElementById('station-dropdown-list')
+  if (dropdown) dropdown.style.display = 'none'
+
+  // Refresh UI
+  refreshStationSelector()
+  handleStationChangeInEdit()
+  showToast('Station added', 'success')
+}
+
+// Custom dropdown functions
+window.toggleStationDropdown = function() {
+  const dropdown = document.getElementById('station-dropdown-list')
+  if (!dropdown) return
+  
+  const isVisible = dropdown.style.display !== 'none'
+  
+  // Close all other dropdowns first
+  document.querySelectorAll('.station-dropdown-list, [id*="dropdown"]').forEach(d => {
+    if (d !== dropdown) d.style.display = 'none'
+  })
+  
+  dropdown.style.display = isVisible ? 'none' : 'block'
+  
+  // Add click outside handler
+  if (!isVisible) {
+    setTimeout(() => {
+      document.addEventListener('click', function closeDropdown(e) {
+        if (!e.target.closest('.custom-dropdown')) {
+          dropdown.style.display = 'none'
+          document.removeEventListener('click', closeDropdown)
+        }
+      })
+    }, 0)
+  }
+}
+
+window.selectStationFromDropdown = function(stationName) {
+  window.selectedStationValue = stationName
+  const textEl = document.getElementById('station-selector-text')
+  if (textEl) {
+    // Find station details to show ID + name
+    const stationDetails = (_stationsCacheFull || []).find(s => s.name === stationName)
+    const displayText = stationDetails && stationDetails.id ? `${stationDetails.id} - ${stationName}` : stationName
+    
+    textEl.textContent = displayText
+    textEl.style.color = '#111827' // Darker color when selected
+  }
+  
+  // Close dropdown
+  const dropdown = document.getElementById('station-dropdown-list')
+  if (dropdown) dropdown.style.display = 'none'
+}
+
+window.removeSelectedStation = function(stationName) {
+  const node = planDesignerState.selectedNode
+  if (!node || !Array.isArray(node.assignedStations)) return
+
+  // Remove station
+  node.assignedStations = node.assignedStations.filter(s => s.name !== stationName)
+
+  // Renumber priorities
+  node.assignedStations.forEach((station, index) => {
+    station.priority = index + 1
+  })
+
+  // Refresh UI
+  refreshStationSelector()
+  handleStationChangeInEdit()
+  showToast('Station removed', 'success')
+}
+
+function refreshStationSelector() {
+  const node = planDesignerState.selectedNode
+  if (!node) return
+
+  // Get compatible stations
+  const compatibleStations = _stationsCacheFull.filter(s => 
+    Array.isArray(s.operationIds) && s.operationIds.includes(node.operationId)
+  )
+
+  // Update the entire multi-station selector
+  const container = document.querySelector('#selected-stations-list').parentElement
+  container.outerHTML = generateMultiStationSelector(node, compatibleStations)
+
+  // Reset selected value
+  window.selectedStationValue = null
+
+  // Set up drag and drop
+  setupStationDragAndDrop()
+}
+
+function setupStationDragAndDrop() {
+  const container = document.getElementById('selected-stations-list')
+  if (!container) return
+
+  let draggedElement = null
+
+  container.addEventListener('dragstart', (e) => {
+    if (e.target.classList.contains('selected-station-item')) {
+      draggedElement = e.target
+      e.target.style.opacity = '0.5'
+    }
+  })
+
+  container.addEventListener('dragend', (e) => {
+    if (e.target.classList.contains('selected-station-item')) {
+      e.target.style.opacity = '1'
+      draggedElement = null
+    }
+  })
+
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault()
+  })
+
+  container.addEventListener('drop', (e) => {
+    e.preventDefault()
+    if (!draggedElement) return
+
+    const dropTarget = e.target.closest('.selected-station-item')
+    if (!dropTarget || dropTarget === draggedElement) return
+
+    const container = document.getElementById('selected-stations-list')
+    const allItems = Array.from(container.querySelectorAll('.selected-station-item'))
+    const draggedIndex = allItems.indexOf(draggedElement)
+    const targetIndex = allItems.indexOf(dropTarget)
+
+    if (draggedIndex < targetIndex) {
+      dropTarget.parentNode.insertBefore(draggedElement, dropTarget.nextSibling)
+    } else {
+      dropTarget.parentNode.insertBefore(draggedElement, dropTarget)
+    }
+
+    // Update priorities in node
+    updateStationPriorities()
+    handleStationChangeInEdit()
+  })
+}
+
+function setupGlobalDropdownHandlers() {
+  // Close dropdowns when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.custom-dropdown')) {
+      const dropdowns = document.querySelectorAll('[id$="-dropdown-list"]')
+      dropdowns.forEach(dropdown => {
+        dropdown.style.display = 'none'
+      })
+    }
+  })
+
+  // Close dropdowns on Escape key
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const dropdowns = document.querySelectorAll('[id$="-dropdown-list"]')
+      dropdowns.forEach(dropdown => {
+        dropdown.style.display = 'none'
+      })
+    }
+  })
+}
+
+function updateStationPriorities() {
+  const node = planDesignerState.selectedNode
+  if (!node || !Array.isArray(node.assignedStations)) return
+
+  const items = Array.from(document.querySelectorAll('.selected-station-item'))
+  const newOrder = items.map(item => item.dataset.station)
+
+  // Reorder assignedStations array
+  const reorderedStations = []
+  newOrder.forEach((stationName, index) => {
+    const station = node.assignedStations.find(s => s.name === stationName)
+    if (station) {
+      station.priority = index + 1
+      reorderedStations.push(station)
+    }
+  })
+
+  node.assignedStations = reorderedStations
+  
+  // Update display text with station ID and name
+  items.forEach((item, index) => {
+    const stationName = item.dataset.station
+    const stationDetails = (_stationsCacheFull || []).find(s => s.name === stationName)
+    const stationId = stationDetails ? stationDetails.id : ''
+    const displayText = stationId ? `${stationId} - ${stationName}` : stationName
+    
+    const mainSpan = item.querySelector('span:first-child')
+    if (mainSpan) {
+      mainSpan.textContent = `${index + 1}. ${displayText}`
+    }
+  })
+}
+
+function updateWorkerAssignmentFromStations() {
+  const node = planDesignerState.selectedNode
+  if (!node) return
+
+  // Get primary station (first in priority)
+  const primaryStation = Array.isArray(node.assignedStations) && node.assignedStations.length > 0 
+    ? node.assignedStations.sort((a, b) => (a.priority || 0) - (b.priority || 0))[0]
+    : null
+
+  const hasStations = !!primaryStation
+  const stName = primaryStation ? primaryStation.name : ''
+  const st = (_stationsCacheFull||[]).find(s => s.name === stName)
+  const stSkills = st ? computeStationEffectiveSkills(st) : []
+  const req = Array.from(new Set([ ...((node?.skills)||[]), ...stSkills ]))
+  
+  const reqEl = document.getElementById('required-skills-display')
+  if (reqEl) reqEl.textContent = req.join(', ')
+
+  // Enable/disable assignment controls based on station selection
+  const radios = document.querySelectorAll('input[name="edit-assign-mode"]')
+  radios.forEach(r => { r.disabled = !hasStations })
+  
+  const labelInputs = document.querySelectorAll('label input[name="edit-assign-mode"]')
+  labelInputs.forEach(inp => {
+    const lbl = inp.closest('label')
+    if (lbl) lbl.style.opacity = hasStations ? '1' : '0.5'
+  })
+
+  // Rebuild manual worker options
+  const select = document.getElementById('edit-worker')
+  const box = document.getElementById('manual-worker-select')
+  if (box) box.style.display = (document.querySelector('input[name="edit-assign-mode"][value="manual"]')?.checked && hasStations) ? '' : 'none'
+  
+  if (select) {
+    select.disabled = !hasStations
+    const opts = ['<option value="">Not assigned</option>']
+    const compatible = getWorkersMatchingAllSkills(req)
+    for (const w of compatible) {
+      opts.push(`<option value="${escapeHtml(w.name)}">${escapeHtml(w.name)}</option>`)
+    }
+    select.innerHTML = opts.join('')
+  }
 }
 
 // Helpers
