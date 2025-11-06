@@ -1079,12 +1079,36 @@ export function generateApprovedQuotes() {
                 <table style="width: 100%; border-collapse: collapse;">
                   <thead style="background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;">
                     <tr>
-                      <th style="min-width: 80px; white-space: normal; padding: 8px; text-align: left;">WO Code</th>
-                      <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Customer</th>
-                      <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Company</th>
-                      <th style="min-width: 140px; white-space: nowrap; padding: 8px; text-align: left;">Delivery Date</th>
-                      <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Production Plan</th>
-                      <th style="min-width: 180px; white-space: nowrap; padding: 8px; text-align: left;">Üretim Durumu</th>
+                      <th style="min-width: 80px; white-space: normal; padding: 8px;">
+                        <button type="button" onclick="sortApprovedQuotes('woCode')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                          WO Code <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
+                        <button type="button" onclick="sortApprovedQuotes('customer')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                          Customer <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
+                        <button type="button" onclick="sortApprovedQuotes('company')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                          Company <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 140px; white-space: nowrap; padding: 8px;">
+                        <button type="button" onclick="sortApprovedQuotes('deliveryDate')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                          Delivery Date <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
+                        <button type="button" onclick="sortApprovedQuotes('productionPlan')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                          Production Plan <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 180px; white-space: nowrap; padding: 8px;">
+                        <button type="button" onclick="sortApprovedQuotes('productionState')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                          Üretim Durumu <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                        </button>
+                      </th>
                       <th style="min-width: 200px; white-space: nowrap; padding: 8px; text-align: left;">Actions</th>
                     </tr>
                   </thead>

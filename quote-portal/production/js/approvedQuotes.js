@@ -7,6 +7,10 @@ let selectedQuoteId = null
 let queryFilter = ''
 let approvedChannel = null
 let productionPlansMap = {} // Map of workOrderCode to production plan data
+
+// Sorting state
+let currentSort = { field: null, direction: 'asc' }
+
 // Filters state for Approved Quotes
 const aqFilters = {
   planTypes: new Set(), // 'production' | 'template' | 'none'
@@ -64,8 +68,7 @@ export async function initializeApprovedQuotesUI() {
       renderApprovedQuotesTable()
     })
   }
-  // Default to show completed (production) plans
-  try { aqFilters.planTypes.add('production') } catch {}
+  // No default filters applied - show all quotes
   updateAQFilterBadges()
   // Also bind filter toggle buttons (in case inline onclick isn't executed)
   const btnPlan = document.getElementById('aq-filter-plan-type-btn')
@@ -79,6 +82,9 @@ export async function initializeApprovedQuotesUI() {
   
   // Add event listeners for panel controls that used to use onclick
   setupPanelEventListeners()
+  
+  // Initialize sort indicators
+  updateSortIndicators()
   
   // Initialize complete
   await loadQuotesAndRender()
@@ -333,6 +339,59 @@ function renderApprovedQuotesTable() {
     return true
   })
 
+  // Apply sorting
+  if (currentSort.field) {
+    rows.sort((a, b) => {
+      let valueA, valueB
+      
+      switch (currentSort.field) {
+        case 'woCode':
+          valueA = (a.workOrderCode || a.id || a.quoteId || '').toLowerCase()
+          valueB = (b.workOrderCode || b.id || b.quoteId || '').toLowerCase()
+          break
+        case 'customer':
+          valueA = (a.customer || a.name || '').toLowerCase()
+          valueB = (b.customer || b.name || '').toLowerCase()
+          break
+        case 'company':
+          valueA = (a.company || '').toLowerCase()
+          valueB = (b.company || '').toLowerCase()
+          break
+        case 'deliveryDate':
+          valueA = a.deliveryDate || (a.quoteSnapshot && a.quoteSnapshot.deliveryDate) || ''
+          valueB = b.deliveryDate || (b.quoteSnapshot && b.quoteSnapshot.deliveryDate) || ''
+          // Convert to date for proper sorting
+          valueA = valueA ? new Date(valueA) : new Date(0)
+          valueB = valueB ? new Date(valueB) : new Date(0)
+          break
+        case 'productionPlan':
+          const planA = productionPlansMap[a.workOrderCode || a.id || a.quoteId || '']
+          const planB = productionPlansMap[b.workOrderCode || b.id || b.quoteId || '']
+          valueA = planA ? (planA.id || '').toLowerCase() : ''
+          valueB = planB ? (planB.id || '').toLowerCase() : ''
+          break
+        case 'productionState':
+          const stateA = getProductionState(a.workOrderCode || a.id || a.quoteId || '')
+          const stateB = getProductionState(b.workOrderCode || b.id || b.quoteId || '')
+          valueA = stateA.toLowerCase()
+          valueB = stateB.toLowerCase()
+          break
+        default:
+          return 0
+      }
+      
+      // Handle date comparison
+      if (valueA instanceof Date && valueB instanceof Date) {
+        return currentSort.direction === 'asc' ? valueA - valueB : valueB - valueA
+      }
+      
+      // Handle string comparison
+      if (valueA < valueB) return currentSort.direction === 'asc' ? -1 : 1
+      if (valueA > valueB) return currentSort.direction === 'asc' ? 1 : -1
+      return 0
+    })
+  }
+
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="7"><em>Kayıt bulunamadı</em></td></tr>'
     return
@@ -392,7 +451,7 @@ function renderApprovedQuotesTable() {
       const actionIcon = plan.type === 'production' ? '👁️' : '✏️'
       const actionMode = plan.type === 'production' ? 'view' : 'edit'
       const planUrl = `../pages/production.html?${actionMode}PlanId=${encodeURIComponent(fullPlanId)}&orderCode=${encodeURIComponent(idForRow)}`
-      planCell = `<span style=\\"display:inline-flex; align-items:center; gap:4px;\\">${shortPlanId} / ${planName} ${typeIcon}<button onclick="event.stopPropagation(); window.open('${planUrl}', '_blank')" style="border:none; background:transparent; cursor:pointer; font-size:12px; line-height:1; padding:0 2px; vertical-align:baseline;" title="${actionMode === 'view' ? 'View Plan' : 'Edit Plan'}">${actionIcon}</button></span>`
+      planCell = `<span style=\\"display:inline-flex; align-items:center; gap:4px;\\">${shortPlanId} ${typeIcon}<button onclick="event.stopPropagation(); window.open('${planUrl}', '_blank')" style="border:none; background:transparent; cursor:pointer; font-size:12px; line-height:1; padding:0 2px; vertical-align:baseline;" title="${actionMode === 'view' ? 'View Plan' : 'Edit Plan'}">${actionIcon}</button></span>`
     } else {
       // No production plan exists - show create button
       const createPlanUrl = `../pages/production.html?view=plan-designer&action=create&orderCode=${encodeURIComponent(idForRow)}`
@@ -420,7 +479,7 @@ function renderApprovedQuotesTable() {
       }
       productionStateCell = `<div style=\"color: ${stateColor}; font-weight: 600; font-size: 12px;\">${esc(currentState)}</div>`
 
-      const buttonStyle = 'border: none; background: transparent; cursor: pointer; font-size: 11px; padding: 3px 6px; margin: 1px; border-radius: 3px; white-space: nowrap; display: inline-block;'
+      const buttonStyle = 'border: none; background: transparent; cursor: pointer; font-size: 9px; padding: 1px 3px; margin: 1px; border-radius: 3px; white-space: nowrap; display: inline-block;'
       if (currentState === PRODUCTION_STATES.WAITING_APPROVAL) {
         actionsCell += `<button onclick=\"event.stopPropagation(); startProduction('${esc(idForRow)}')\" style=\"${buttonStyle} background: #dcfce7; color: #166534;\" title=\"Üretimi Başlat\">🏁 Başlat</button>`
       } else if (currentState === PRODUCTION_STATES.IN_PRODUCTION) {
@@ -565,6 +624,41 @@ function applyQuickDateFilter(days) {
   renderApprovedQuotesTable()
 }
 
+// Sıralama fonksiyonu
+function sortApprovedQuotes(field) {
+  // Toggle direction if same field, otherwise reset to ascending
+  if (currentSort.field === field) {
+    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc'
+  } else {
+    currentSort.field = field
+    currentSort.direction = 'asc'
+  }
+  
+  // Update sort indicators
+  updateSortIndicators()
+  
+  // Re-render table with sorted data
+  renderApprovedQuotesTable()
+}
+
+// Güncelle sıralama göstergelerini
+function updateSortIndicators() {
+  // Reset all sort indicators
+  document.querySelectorAll('[onclick*="sortApprovedQuotes"] span').forEach(span => {
+    span.textContent = '↕'
+    span.style.opacity = '0.6'
+  })
+  
+  // Set active sort indicator
+  if (currentSort.field) {
+    const button = document.querySelector(`[onclick*="sortApprovedQuotes('${currentSort.field}')"] span`)
+    if (button) {
+      button.textContent = currentSort.direction === 'asc' ? '↑' : '↓'
+      button.style.opacity = '1'
+    }
+  }
+}
+
 function updateAQFilterBadges() {
   const planCount = document.getElementById('aq-filter-plan-type-count')
   if (planCount) planCount.textContent = ''
@@ -681,4 +775,4 @@ function setTableDetailMode(isDetailsOpen) {
 }
 
 // Export the filter functions for use in main.js
-export { toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter, toggleAQPlanType, applyOverdueFilter, applyQuickDateFilter }
+export { toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter, toggleAQPlanType, applyOverdueFilter, applyQuickDateFilter, sortApprovedQuotes }
