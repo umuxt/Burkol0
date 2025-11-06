@@ -18,6 +18,12 @@ let stationFilters = {
   operations: new Set()
 }
 
+// Sorting state
+let stationSortConfig = {
+  field: null, // 'id', 'name', 'amount', 'operations', 'skills'
+  direction: 'asc' // 'asc' or 'desc'
+}
+
 export async function initializeStationsUI() {
   await loadStationsAndRender()
   setupStationFilters()
@@ -114,6 +120,9 @@ function renderStations() {
   // Apply additional filters
   filteredStations = applyStationFilters(filteredStations)
   
+  // Apply sorting
+  filteredStations = applySorting(filteredStations)
+  
   // Create tabs
   const tabs = [
     { id: 'all', label: 'Tümünü Göster', count: stationsState.length },
@@ -149,13 +158,13 @@ function renderStations() {
         thead.innerHTML = `
           <tr>
             <th style="min-width: 120px; white-space: nowrap; padding: 8px;">
-              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                Station ID <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              <button type="button" onclick="sortStations('id')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Station ID <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('id')}</span>
               </button>
             </th>
             <th style="min-width: 200px; white-space: nowrap; padding: 8px;">
-              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                Station Name <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              <button type="button" onclick="sortStations('name')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Station Name <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('name')}</span>
               </button>
             </th>
           </tr>
@@ -164,28 +173,28 @@ function renderStations() {
         thead.innerHTML = `
           <tr>
             <th style="min-width: 120px; white-space: nowrap; padding: 8px;">
-              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                Station ID <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              <button type="button" onclick="sortStations('id')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Station ID <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('id')}</span>
               </button>
             </th>
             <th style="min-width: 200px; white-space: nowrap; padding: 8px;">
-              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                Station Name <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              <button type="button" onclick="sortStations('name')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Station Name <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('name')}</span>
               </button>
             </th>
             <th style="min-width: 100px; white-space: nowrap; padding: 8px; text-align: right;">
-              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                Amount <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              <button type="button" onclick="sortStations('amount')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Amount <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('amount')}</span>
               </button>
             </th>
             <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
-              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                Operations <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              <button type="button" onclick="sortStations('operations')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Operations <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('operations')}</span>
               </button>
             </th>
             <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
-              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                Skills <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              <button type="button" onclick="sortStations('skills')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Skills <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('skills')}</span>
               </button>
             </th>
           </tr>
@@ -498,6 +507,95 @@ function clearAllFilters() {
   renderStations()
   updateFilterCounts()
   closeAllFilterPanels()
+}
+
+// Sorting functions
+export function sortStations(field) {
+  // Toggle direction if same field, otherwise default to asc
+  if (stationSortConfig.field === field) {
+    stationSortConfig.direction = stationSortConfig.direction === 'asc' ? 'desc' : 'asc'
+  } else {
+    stationSortConfig.field = field
+    stationSortConfig.direction = 'asc'
+  }
+  
+  renderStations()
+}
+
+function applySorting(stations) {
+  if (!stationSortConfig.field) return stations
+  
+  const sorted = [...stations].sort((a, b) => {
+    let valueA, valueB
+    
+    switch (stationSortConfig.field) {
+      case 'id':
+        valueA = a.id || ''
+        valueB = b.id || ''
+        break
+      case 'name':
+        valueA = a.name || ''
+        valueB = b.name || ''
+        break
+      case 'amount':
+        valueA = a.subStationCount || 0
+        valueB = b.subStationCount || 0
+        break
+      case 'operations':
+        // Sort by number of operations, then by operation names
+        valueA = (a.operationIds || []).length
+        valueB = (b.operationIds || []).length
+        if (valueA === valueB) {
+          const opsA = (a.operationIds || []).map(id => {
+            const op = operationsCache.find(o => o.id === id)
+            return op?.name || ''
+          }).sort().join(', ')
+          const opsB = (b.operationIds || []).map(id => {
+            const op = operationsCache.find(o => o.id === id)
+            return op?.name || ''
+          }).sort().join(', ')
+          valueA = opsA
+          valueB = opsB
+        }
+        break
+      case 'skills':
+        // Sort by number of skills, then by skill names
+        const skillsA = computeStationInheritedSkills(a, operationsCache)
+        const skillsB = computeStationInheritedSkills(b, operationsCache)
+        valueA = skillsA.length
+        valueB = skillsB.length
+        if (valueA === valueB) {
+          valueA = skillsA.sort().join(', ')
+          valueB = skillsB.sort().join(', ')
+        }
+        break
+      default:
+        return 0
+    }
+    
+    // Handle numeric vs string comparison
+    if (typeof valueA === 'number' && typeof valueB === 'number') {
+      return stationSortConfig.direction === 'asc' ? valueA - valueB : valueB - valueA
+    } else {
+      // Convert to strings for comparison
+      const strA = String(valueA).toLowerCase()
+      const strB = String(valueB).toLowerCase()
+      if (stationSortConfig.direction === 'asc') {
+        return strA.localeCompare(strB)
+      } else {
+        return strB.localeCompare(strA)
+      }
+    }
+  })
+  
+  return sorted
+}
+
+function getSortIcon(field) {
+  if (stationSortConfig.field !== field) {
+    return '↕'
+  }
+  return stationSortConfig.direction === 'asc' ? '↑' : '↓'
 }
 
 function applyStationFilters(stations) {
