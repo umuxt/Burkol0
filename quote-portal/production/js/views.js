@@ -995,11 +995,12 @@ export function generateApprovedQuotes() {
                       <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Customer</th>
                       <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Company</th>
                       <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Production Plan</th>
-                      <th style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">Created</th>
+                      <th style="min-width: 180px; white-space: nowrap; padding: 8px; text-align: left;">Üretim Durumu</th>
+                      <th style="min-width: 200px; white-space: nowrap; padding: 8px; text-align: left;">Actions</th>
                     </tr>
                   </thead>
                   <tbody id="approved-quotes-table-body">
-                    <tr><td colspan="5"><em>Loading quotes...</em></td></tr>
+                    <tr><td colspan="6"><em>Loading quotes...</em></td></tr>
                   </tbody>
                 </table>
               </div>

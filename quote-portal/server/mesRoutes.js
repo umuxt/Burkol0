@@ -1,5 +1,6 @@
 import express from 'express';
 import { getFirestore } from 'firebase-admin/firestore';
+import admin from 'firebase-admin';
 import { getSession } from './auth.js'
 import jsondb from '../src/lib/jsondb.js'
 
@@ -907,6 +908,65 @@ router.get('/orders', withAuth, async (req, res) => {
     const snapshot = await db.collection('mes-orders').get();
     const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     return { orders };
+  }, res);
+});
+
+// PATCH /api/mes/approved-quotes/:workOrderCode/production-state - Update production state
+router.patch('/approved-quotes/:workOrderCode/production-state', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { workOrderCode } = req.params;
+    const { productionState } = req.body || {};
+    
+    if (!workOrderCode) {
+      const e = new Error('workOrderCode_required'); e.status = 400; throw e;
+    }
+    
+    if (!productionState) {
+      const e = new Error('productionState_required'); e.status = 400; throw e;
+    }
+    
+    // Validate production state
+    const validStates = [
+      'Üretim Onayı Bekliyor',
+      'Üretiliyor',
+      'Üretim Durduruldu', 
+      'Üretim Tamamlandı',
+      'İptal Edildi'
+    ];
+    
+    if (!validStates.includes(productionState)) {
+      const e = new Error('invalid_production_state'); e.status = 400; throw e;
+    }
+    
+    const db = getFirestore();
+    const col = db.collection('mes-approved-quotes');
+    
+    // Find document by workOrderCode
+    const snapshot = await col.where('workOrderCode', '==', workOrderCode).limit(1).get();
+    
+    if (snapshot.empty) {
+      const e = new Error('work_order_not_found'); e.status = 404; throw e;
+    }
+    
+    const doc = snapshot.docs[0];
+    
+    // Update production state
+    await doc.ref.update({
+      productionState,
+      updatedAt: new Date().toISOString(),
+      productionStateHistory: admin.firestore.FieldValue.arrayUnion({
+        state: productionState,
+        timestamp: new Date().toISOString(),
+        updatedBy: req.user?.email || 'system'
+      })
+    });
+    
+    return { 
+      success: true, 
+      workOrderCode,
+      productionState,
+      updatedAt: new Date().toISOString()
+    };
   }, res);
 });
 

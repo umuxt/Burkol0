@@ -1,11 +1,24 @@
 // Approved Quotes listing (read-only). Uses backend API only.
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
+import { updateProductionState } from './mesApi.js'
 
 let quotesState = []
 let selectedQuoteId = null
 let queryFilter = ''
 let approvedChannel = null
 let productionPlansMap = {} // Map of workOrderCode to production plan data
+
+// Production state management - simulated for UI only
+let productionStates = {} // Map of workOrderCode to production state
+
+// Production state constants
+const PRODUCTION_STATES = {
+  WAITING_APPROVAL: 'Üretim Onayı Bekliyor',
+  IN_PRODUCTION: 'Üretiliyor', 
+  PAUSED: 'Üretim Durduruldu',
+  COMPLETED: 'Üretim Tamamlandı',
+  CANCELLED: 'İptal Edildi'
+}
 
 export async function initializeApprovedQuotesUI() {
   // Subscribe to cross-tab notifications from Quotes dashboard
@@ -35,6 +48,72 @@ export async function initializeApprovedQuotesUI() {
 
 // Optional: expose manual refresh hook for other apps to call directly
 try { window.refreshApprovedQuotes = () => loadQuotesAndRender() } catch {}
+
+// Production state management functions
+function getProductionState(workOrderCode) {
+  // First check if we have it from server data
+  const quote = quotesState.find(q => (q.workOrderCode || q.id || q.quoteId) === workOrderCode)
+  if (quote && quote.productionState) {
+    return quote.productionState
+  }
+  
+  // Fallback to local state or default
+  return productionStates[workOrderCode] || PRODUCTION_STATES.WAITING_APPROVAL
+}
+
+async function setProductionState(workOrderCode, newState) {
+  try {
+    // Update in Firebase via API
+    await updateProductionState(workOrderCode, newState)
+    
+    // Update local state
+    productionStates[workOrderCode] = newState
+    
+    // Update the quote in quotesState as well
+    const quoteIndex = quotesState.findIndex(q => (q.workOrderCode || q.id || q.quoteId) === workOrderCode)
+    if (quoteIndex !== -1) {
+      quotesState[quoteIndex].productionState = newState
+    }
+    
+    renderApprovedQuotesTable()
+    console.log(`Production state updated to ${newState} for ${workOrderCode}`)
+  } catch (error) {
+    console.error('Failed to update production state:', error)
+    alert('Üretim durumu güncellenirken hata oluştu. Lütfen tekrar deneyin.')
+  }
+}
+
+async function startProduction(workOrderCode) {
+  await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION)
+}
+
+async function pauseProduction(workOrderCode) {
+  await setProductionState(workOrderCode, PRODUCTION_STATES.PAUSED)
+}
+
+async function resumeProduction(workOrderCode) {
+  await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION)
+}
+
+async function completeProduction(workOrderCode) {
+  await setProductionState(workOrderCode, PRODUCTION_STATES.COMPLETED)
+}
+
+async function cancelProduction(workOrderCode) {
+  // Show confirmation dialog
+  const confirmed = confirm('Tüm İşlemi Sonlandırmak İstediğinizden Emin misiniz?\n\nBu işlemin geri dönüşü yoktur.')
+  
+  if (confirmed) {
+    await setProductionState(workOrderCode, PRODUCTION_STATES.CANCELLED)
+  }
+}
+
+// Expose functions globally for onclick handlers
+window.startProduction = startProduction
+window.pauseProduction = pauseProduction
+window.resumeProduction = resumeProduction
+window.completeProduction = completeProduction
+window.cancelProduction = cancelProduction
 
 async function ensureApprovedQuote(quoteId) {
   try {
@@ -127,12 +206,11 @@ function renderApprovedQuotesTable() {
   }
 
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="5"><em>Kayıt bulunamadı</em></td></tr>'
+    tbody.innerHTML = '<tr><td colspan="6"><em>Kayıt bulunamadı</em></td></tr>'
     return
   }
 
   tbody.innerHTML = rows.map(q => {
-    const created = q.createdAt ? new Date(q.createdAt).toLocaleDateString() : '-'
     const customer = q.customer || q.name || '-'
     const company = q.company || '-'
     const idForRow = q.workOrderCode || q.id || q.quoteId || ''
@@ -152,13 +230,59 @@ function renderApprovedQuotesTable() {
       planCell = `${shortPlanId} / ${planName} ${typeIcon} <button onclick="event.stopPropagation(); window.open('${planUrl}', '_blank')" style="border:none; background:transparent; cursor:pointer; font-size:16px; padding:2px 4px; vertical-align:middle;" title="${actionMode === 'view' ? 'View Plan' : 'Edit Plan'}">${actionIcon}</button>`
     }
     
+    // Get production state
+    const currentState = getProductionState(idForRow)
+    let stateColor = '#6b7280' // default gray
+    switch(currentState) {
+      case PRODUCTION_STATES.WAITING_APPROVAL:
+        stateColor = '#f59e0b' // amber
+        break
+      case PRODUCTION_STATES.IN_PRODUCTION:
+        stateColor = '#10b981' // green
+        break
+      case PRODUCTION_STATES.PAUSED:
+        stateColor = '#ef4444' // red
+        break
+      case PRODUCTION_STATES.COMPLETED:
+        stateColor = '#3b82f6' // blue
+        break
+      case PRODUCTION_STATES.CANCELLED:
+        stateColor = '#6b7280' // gray
+        break
+    }
+    
+    const productionStateCell = `<div style="color: ${stateColor}; font-weight: 600; font-size: 12px;">${esc(currentState)}</div>`
+    
+    // Actions column with buttons
+    let actionsCell = ''
+    const buttonStyle = 'border: none; background: transparent; cursor: pointer; font-size: 11px; padding: 3px 6px; margin: 1px; border-radius: 3px; white-space: nowrap; display: inline-block;'
+    
+    // State-specific action buttons first
+    if (currentState === PRODUCTION_STATES.WAITING_APPROVAL) {
+      actionsCell += `<button onclick="event.stopPropagation(); startProduction('${esc(idForRow)}')" style="${buttonStyle} background: #dcfce7; color: #166534;" title="Üretimi Başlat">🏁 Başlat</button>`
+    } else if (currentState === PRODUCTION_STATES.IN_PRODUCTION) {
+      actionsCell += `<button onclick="event.stopPropagation(); pauseProduction('${esc(idForRow)}')" style="${buttonStyle} background: #fef3c7; color: #92400e;" title="Üretimi Durdur">⏹️ Durdur</button>`
+    } else if (currentState === PRODUCTION_STATES.PAUSED) {
+      actionsCell += `<button onclick="event.stopPropagation(); resumeProduction('${esc(idForRow)}')" style="${buttonStyle} background: #dbeafe; color: #1d4ed8;" title="Üretime Devam Et">▶️ Devam Et</button>`
+    } else if (currentState === PRODUCTION_STATES.COMPLETED) {
+      actionsCell += `<span style="color: #3b82f6; font-size: 11px;">✅ Tamamlandı</span>`
+    } else if (currentState === PRODUCTION_STATES.CANCELLED) {
+      actionsCell = `<span style="color: #6b7280; font-size: 11px;">❌ İptal Edildi</span>`
+    }
+    
+    // Cancel button on the right (except for cancelled items)
+    if (currentState !== PRODUCTION_STATES.CANCELLED) {
+      actionsCell += ` <button onclick="event.stopPropagation(); cancelProduction('${esc(idForRow)}')" style="${buttonStyle} background: #fee2e2; color: #dc2626;" title="İptal Et">❌ İptal Et</button>`
+    }
+    
     return `
       <tr data-quote-id="${esc(idForRow)}" onclick="showApprovedQuoteDetail('${esc(idForRow)}')" style="cursor: pointer;">
         <td style="padding:8px; border-bottom:1px solid var(--border);"><strong>${esc(idForRow)}</strong></td>
         <td style="padding:8px; border-bottom:1px solid var(--border);">${esc(customer)}</td>
         <td style="padding:8px; border-bottom:1px solid var(--border);">${esc(company)}</td>
         <td style="padding:8px; border-bottom:1px solid var(--border);">${planCell}</td>
-        <td style="padding:8px; border-bottom:1px solid var(--border);">${esc(created)}</td>
+        <td style="padding:8px; border-bottom:1px solid var(--border);">${productionStateCell}</td>
+        <td style="padding:8px; border-bottom:1px solid var(--border);">${actionsCell}</td>
       </tr>
     `
   }).join('')
@@ -234,8 +358,8 @@ function setTableDetailMode(isDetailsOpen) {
   if (!table) return
   const theadCells = table.querySelectorAll('thead th')
   const tbodyRows = table.querySelectorAll('tbody tr')
-  // We keep columns 1 (WO Code) and 3 (Company); hide 2 (Customer), 4 (Production Plan), 5 (Created)
-  const hideCols = [2, 4, 5] // 1-based index
+  // We keep columns 1 (WO Code) and 3 (Company); hide 2 (Customer), 4 (Production Plan), 5 (Production State), 6 (Actions)
+  const hideCols = [2, 4, 5, 6] // 1-based index
   hideCols.forEach(colIdx => {
     const th = theadCells[colIdx - 1]
     if (th) th.style.display = isDetailsOpen ? 'none' : ''

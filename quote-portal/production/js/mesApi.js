@@ -456,3 +456,14 @@ export async function getApprovedQuotes() {
   const payload = await res.json().catch(() => ({}))
   return Array.isArray(payload?.approvedQuotes) ? payload.approvedQuotes : []
 }
+
+// Update production state for work order
+export async function updateProductionState(workOrderCode, productionState) {
+  const res = await fetch(`${API_BASE}/api/mes/approved-quotes/${encodeURIComponent(workOrderCode)}/production-state`, {
+    method: 'PATCH',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ productionState })
+  })
+  if (!res.ok) throw new Error(`production_state_update_failed ${res.status}`)
+  return await res.json()
+}
