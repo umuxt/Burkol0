@@ -306,10 +306,6 @@ export function generateWorkers() {
 
           <!-- Yetenekler -->
           <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-            <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Sub İstasyon Sayısı:</span>
-              <input type="number" id="station-substation-count" min="1" value="1" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;" />
-            </div>
             <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
             <div class="detail-item" style="display: block;">
               <select id="worker-skills" multiple></select>
@@ -512,9 +508,13 @@ export function generateStations() {
               <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;\">Location:</span>
               <input type=\"text\" id=\"station-location\" placeholder=\"e.g. Line A\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\">
             </div>
-            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 0;\">
+            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 8px;\">
               <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px; margin-top: 6px;\">Açıklama:</span>
               <textarea id=\"station-description\" placeholder=\"Description\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; min-height: 60px; resize: vertical;\"></textarea>
+            </div>
+            <div class=\"detail-item\" style=\"display: flex; align-items: center; margin-bottom: 0;\">
+              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;\">İstasyon Sayısı:</span>
+              <input type=\"number\" id=\"station-substation-count\" min=\"1\" value=\"1\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\">
             </div>
           </div>
 
@@ -551,6 +551,49 @@ export function generateStations() {
         </div>
       </div>
     </div>\n  `;
+}
+
+export function generateStationDuplicateModal() {
+  return `
+    <div id="station-duplicate-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1010;" onclick="closeStationDuplicateModal(event)">
+      <div style="display:flex; align-items:center; justify-content:center; min-height:100%; padding:20px;">
+        <div style="background:white; border-radius:8px; max-width:500px; width:100%; max-height:90vh; overflow:auto;" onclick="event.stopPropagation()">
+          <div style="padding:20px 24px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="margin:0; font-size:18px; font-weight:600; color:rgb(17,24,39);">İstasyon Kopyalama</h3>
+            <div style="display:flex; gap:12px;">
+              <button onclick="closeStationDuplicateModal()" style="padding:8px 16px; background:white; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:14px;">
+                İptal
+              </button>
+              <button onclick="confirmStationDuplicate()" style="padding:8px 16px; background:rgb(34,197,94); color:white; border:none; border-radius:6px; cursor:pointer; font-size:14px;">
+                Kopyala
+              </button>
+            </div>
+          </div>
+          <div style="padding:24px;">
+            <div style="margin-bottom:20px;">
+              <p style="margin:0 0 16px; color:rgb(75,85,99); font-size:14px;">
+                <span id="duplicate-station-name-display" style="font-weight:600;"></span> istasyonunu kopyalıyorsunuz.
+              </p>
+              <div>
+                <label style="display:block; margin-bottom:6px; font-size:14px; font-weight:500; color:rgb(17,24,39);">
+                  Yeni İstasyon Adı
+                </label>
+                <input 
+                  type="text" 
+                  id="duplicate-station-new-name" 
+                  placeholder=""
+                  style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;"
+                />
+                <p style="margin:6px 0 0; color:rgb(107,114,128); font-size:12px;">
+                  Boş bırakırsanız: "<span id="duplicate-default-name-preview"></span>"
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 export function generatePlanDesigner() {

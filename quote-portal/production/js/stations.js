@@ -676,6 +676,8 @@ export async function showStationDetail(stationId) {
     // Generate station detail content
     const inherited = computeStationInheritedSkills(station.operationIds || [], operationsCache)
     const effective = Array.from(new Set([...(station.subSkills||[]), ...inherited]))
+    // Filter out inherited skills from subSkills to show only station-specific skills
+    const stationSpecificSkills = (station.subSkills || []).filter(skill => !inherited.includes(skill))
     const opsLabels = (station.operationIds || []).map(id => {
       const op = operationsCache.find(o => o.id === id)
       return op ? op.name : id
@@ -721,11 +723,11 @@ export async function showStationDetail(stationId) {
             `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(skill)}</span>`
           ).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Yetenek tanımlanmamış</span>'}
         </div>
-        ${(station.subSkills || []).length > 0 ? `
+        ${stationSpecificSkills.length > 0 ? `
           <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
             <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px;">İstasyon Özel Yetenekleri:</div>
             <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-              ${(station.subSkills || []).map(skill => 
+              ${stationSpecificSkills.map(skill => 
                 `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
               ).join('')}
             </div>
@@ -889,19 +891,48 @@ export async function duplicateStationFromDetail() {
     return
   }
   
+  // Show confirmation modal
+  showStationDuplicateModal(originalStation)
+}
+
+// Station duplication modal functions
+let stationToDuplicate = null
+
+export function showStationDuplicateModal(station) {
+  stationToDuplicate = station
+  const defaultName = `${station.name} (Kopya)`
+  
+  document.getElementById('duplicate-station-name-display').textContent = station.name
+  document.getElementById('duplicate-default-name-preview').textContent = defaultName
+  document.getElementById('duplicate-station-new-name').value = ''
+  document.getElementById('station-duplicate-modal').style.display = 'block'
+}
+
+export function closeStationDuplicateModal(event) {
+  if (event && event.target !== event.currentTarget) return
+  document.getElementById('station-duplicate-modal').style.display = 'none'
+  stationToDuplicate = null
+}
+
+export async function confirmStationDuplicate() {
+  if (!stationToDuplicate) return
+  
+  const customName = document.getElementById('duplicate-station-new-name').value.trim()
+  const newName = customName || `${stationToDuplicate.name} (Kopya)`
+  
   try {
     // Generate new station ID based on the same operations
-    const newStationId = await generateStationId(originalStation.operationIds)
+    const newStationId = await generateStationId(stationToDuplicate.operationIds)
     
     // Create duplicated station with new ID and updated name
     const duplicatedStation = {
-      ...originalStation,
+      ...stationToDuplicate,
       id: newStationId,
-      name: `${originalStation.name} (Kopya)`,
+      name: newName,
       // Generate new sub-stations with the new parent station ID
-      subStations: originalStation.subStations ? 
-        generateInitialSubStations(newStationId, originalStation.subStations.length, originalStation.status) :
-        generateInitialSubStations(newStationId, 1, originalStation.status)
+      subStations: stationToDuplicate.subStations ? 
+        generateInitialSubStations(newStationId, stationToDuplicate.subStations.length, stationToDuplicate.status) :
+        generateInitialSubStations(newStationId, 1, stationToDuplicate.status)
     }
     
     // Normalize the station data
@@ -916,13 +947,16 @@ export async function duplicateStationFromDetail() {
     // Re-render stations
     renderStations()
     
-    // Close detail panel and show success message
+    // Close modal and detail panel
+    closeStationDuplicateModal()
     closeStationDetail()
-    showToast(`Station successfully duplicated as "${duplicatedStation.name}"`, 'success')
+    
+    // Show success message
+    showToast(`İstasyon başarıyla "${newName}" adıyla kopyalandı`, 'success')
     
   } catch (e) {
     console.error('Station duplication error:', e)
-    showToast(e.message || 'Station could not be duplicated', 'error')
+    showToast(e.message || 'İstasyon kopyalanamadı', 'error')
   }
 }
 
@@ -1185,11 +1219,11 @@ function buildSubStationsSection(station) {
     const subCode = escapeHtml(sub.code)
     const subCodeJs = escapeJsString(sub.code)
     return `
-      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: white;" data-substation-code="${subCode}">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: white;" data-substation-code="${subCode}">
         <span style="font-family: monospace; font-size: 12px;">${subCode}</span>
         <div style="display: flex; gap: 8px;">
-          <button type="button" data-role="status-toggle" style="padding: 4px 8px; border: 1px solid ${border}; background: ${bg}; color: ${color}; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 500;" onclick="toggleSubStationStatus('${stationIdJs}', '${subCodeJs}')">${escapeHtml(status)}</button>
-          <button type="button" style="padding: 4px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="deleteSubStation('${stationIdJs}', '${subCodeJs}')">Sil</button>
+          <button type="button" data-role="status-toggle" style="padding: 1px 2px; border: 1px solid ${border}; background: ${bg}; color: ${color}; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 500;" onclick="toggleSubStationStatus('${stationIdJs}', '${subCodeJs}')">${escapeHtml(status)}</button>
+          <button type="button" style="padding: 1px 2px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="deleteSubStation('${stationIdJs}', '${subCodeJs}')">Sil</button>
         </div>
       </div>
     `
@@ -1200,15 +1234,19 @@ function buildSubStationsSection(station) {
   `
 
   return `
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Sub İstasyonlar</h3>
-      <div data-role="substation-total" data-station-id="${escapeHtml(station.id || '')}" style="font-size: 12px; color: rgb(107, 114, 128); margin-bottom: 8px;">Toplam: ${total}</div>
-      <div class="substation-list" style="display: grid; gap: 8px;">
+    <div style="margin-bottom: 4px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; padding-bottom: 6px; border-bottom: 1px solid var(--border);">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">İstasyonlar</h3>
+          <span data-role="substation-total" data-station-id="${escapeHtml(station.id || '')}" style="font-size: 12px; color: rgb(107, 114, 128);">(${total})</span>
+        </div>
+        <button type="button" data-role="button" onclick="handleSubStationAdd('${stationIdJs}')" style="padding: 6px 12px; border: 1px solid var(--border); background: white; border-radius: 4px; font-size: 12px; cursor: pointer;">İstasyon Ekle</button>
+      </div>
+      <div class="substation-list" style="display: grid; gap: 4px;">
         ${listHtml}
       </div>
-      <div class="substation-add" data-station-id="${escapeHtml(station.id || '')}" data-mode="idle" style="margin-top: 12px; display: flex; gap: 8px; align-items: center;">
+      <div class="substation-add" data-station-id="${escapeHtml(station.id || '')}" data-mode="idle" style="margin-top: 3px; display: flex; gap: 8px; align-items: center;">
         <input type="number" min="1" value="1" data-role="input" oninput="handleSubStationAddInputChange('${stationIdJs}')" style="display: none; width: 80px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;" />
-  <button type="button" data-role="button" onclick="handleSubStationAdd('${stationIdJs}')" style="padding: 6px 12px; border: 1px solid var(--border); background: white; border-radius: 4px; font-size: 12px; cursor: pointer;">İstasyon Ekle</button>
       </div>
     </div>
   `

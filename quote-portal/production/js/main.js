@@ -1,12 +1,12 @@
 // Entry point: wire modules to global for inline handlers to keep working
 import { MESData, loadData, saveData, currentView, setCurrentView, getSavedView } from './state.js';
 import { showToast } from './ui.js';
-import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generatePlanDesigner, generateTemplates, generateApprovedQuotes, injectMetadataToggleStyles, toggleMetadataColumns } from './views.js';
+import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generateStationDuplicateModal, generatePlanDesigner, generateTemplates, generateApprovedQuotes, injectMetadataToggleStyles, toggleMetadataColumns } from './views.js';
 import { initPlanOverviewUI, setActivePlanTab, openCreatePlan, filterProductionPlans, togglePlanFilterPanel, hidePlanFilterPanel, onPlanFilterChange, clearPlanFilter, clearAllPlanFilters, cancelPlanCreation, viewProductionPlan, editTemplateById } from './planOverview.js';
 import { initializeWorkersUI, openAddWorkerModal, editWorker, deleteWorker as deleteWorkerAction, saveWorker, closeWorkerModal, showWorkerDetail, closeWorkerDetail, editWorkerFromDetail, deleteWorkerFromDetail } from './workers.js';
 import { initializePlanDesigner, loadOperationsToolbox, handleOperationDragStart, handleCanvasDragOver, handleCanvasDrop, renderCanvas, editNode, saveNodeEdit, closeNodeEditModal, deleteNode, toggleConnectMode, clearCanvas, handleOrderChange, savePlanAsTemplate, deployWorkOrder, handleCanvasClick, handleScheduleTypeChange, handleRecurringTypeChange, handlePeriodicFrequencyChange, savePlanDraft, togglePlanOrderPanel, hidePlanOrderPanel, clearPlanOrder, filterPlanOrderList, selectPlanOrder, togglePlanTypePanel, hidePlanTypePanel, clearPlanType, selectPlanType } from './planDesigner.js';
 import { loadOperationsToolboxBackend, editNodeBackend, handleCanvasDropBackend, loadApprovedOrdersToSelect, handleOrderChangeBackend, saveNodeEditBackend, handleAssignModeChangeBackend, handleStationChangeInEdit, openMaterialDropdown, filterMaterialDropdown, selectMaterialFromDropdown, debugMaterialsLoad, debugShowAllMaterials, addMaterialRow, removeMaterialRow, updateOutputCodePreviewBackend } from './planDesignerBackend.js';
-import { openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation as deleteStationAction, initializeStationsUI, setActiveStationTab, deleteStationFromModal, showStationDetail, closeStationDetail, editStationFromDetail, duplicateStationFromDetail, deleteStationFromDetail, handleSubStationAdd, handleSubStationAddInputChange, toggleSubStationStatus, deleteSubStation, sortStations } from './stations.js';
+import { openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation as deleteStationAction, initializeStationsUI, setActiveStationTab, deleteStationFromModal, showStationDetail, closeStationDetail, editStationFromDetail, duplicateStationFromDetail, showStationDuplicateModal, closeStationDuplicateModal, confirmStationDuplicate, deleteStationFromDetail, handleSubStationAdd, handleSubStationAddInputChange, toggleSubStationStatus, deleteSubStation, sortStations } from './stations.js';
 import { initializeOperationsUI, openAddOperationModal, editOperation, deleteOperation, saveOperation, closeOperationModal, showOperationDetail, closeOperationDetail, editOperationFromDetail, deleteOperationFromDetail, openOperationTypesModal, closeOperationTypesModal, addOperationTypeFromModal, editOperationType, deleteOperationTypeConfirm, toggleOperationTypeDropdown, selectOperationTypeFromDropdown, addNewOperationTypeFromInput } from './operations.js';
 import { openHelp, closeHelp, switchHelpTab, toggleFAQ, initHelp } from './help.js';
 import { initializeApprovedQuotesUI, showApprovedQuoteDetail, closeApprovedQuoteDetail } from './approvedQuotes.js';
@@ -33,7 +33,7 @@ function renderView(viewId) {
     case 'templates': content = generateTemplates(); break;
     case 'approved-quotes': content = generateApprovedQuotes(); setTimeout(() => initializeApprovedQuotesUI(), 0); break;
     case 'settings': content = generateSettings(); setTimeout(() => initMasterDataUI(), 0); break;
-    case 'stations': content = generateStations(); setTimeout(() => initializeStationsUI(), 0); break;
+    case 'stations': content = generateStations() + generateStationDuplicateModal(); setTimeout(() => initializeStationsUI(), 0); break;
     case 'operations': content = generateOperations(); setTimeout(() => initializeOperationsUI(), 0); break;
     case 'workers': content = generateWorkers(); setTimeout(() => initializeWorkersUI(), 0); break;
     default: content = generateModernDashboard();
@@ -72,7 +72,7 @@ Object.assign(window, {
   togglePlanOrderPanel, hidePlanOrderPanel, clearPlanOrder, filterPlanOrderList, selectPlanOrder,
   togglePlanTypePanel, hidePlanTypePanel, clearPlanType, selectPlanType,
   // stations
-  openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation: deleteStationAction, setActiveStationTab, deleteStationFromModal, showStationDetail, closeStationDetail, editStationFromDetail, duplicateStationFromDetail, deleteStationFromDetail,
+  openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation: deleteStationAction, setActiveStationTab, deleteStationFromModal, showStationDetail, closeStationDetail, editStationFromDetail, duplicateStationFromDetail, showStationDuplicateModal, closeStationDuplicateModal, confirmStationDuplicate, deleteStationFromDetail, sortStations,
   handleSubStationAdd, handleSubStationAddInputChange, toggleSubStationStatus, deleteSubStation, sortStations,
   // operations
   openAddOperationModal, editOperation, deleteOperation, saveOperation, closeOperationModal, showOperationDetail, closeOperationDetail, editOperationFromDetail, deleteOperationFromDetail,
