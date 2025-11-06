@@ -29,6 +29,8 @@ let _materialsCache = null
 let _reloadForcedStations = false
 let _reloadForcedMaster = false
 
+const STATION_STATUS_VALUES = ['active', 'maintenance', 'inactive']
+
 export async function getOperations(force = false) {
   if (!force && Array.isArray(_operationsCache)) return _operationsCache
   const res = await fetch(`${API_BASE}/api/mes/operations`, { headers: withAuth() })
@@ -111,6 +113,17 @@ export function normalizeStation(station, operations) {
     : (typeof station.subSkills === 'string' ? station.subSkills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   const inherited = computeStationInheritedSkills(opIds, operations)
   const effectiveSkills = Array.from(new Set([ ...inherited, ...subSkills ]))
+  const subStations = Array.isArray(station.subStations)
+    ? station.subStations.map(sub => {
+        const code = String(sub?.code || '').trim()
+        if (!code) return null
+        const status = STATION_STATUS_VALUES.includes(sub?.status) ? sub.status : 'active'
+        return { code, status }
+      }).filter(Boolean)
+    : []
+  const subStationCount = Number.isFinite(station.subStationCount)
+    ? Math.max(0, Number(station.subStationCount))
+    : subStations.length
   return {
     id: station.id || genId('s-'),
     name: (station.name || '').trim(),
@@ -120,6 +133,8 @@ export function normalizeStation(station, operations) {
     operationIds: opIds,
     subSkills,
     effectiveSkills,
+    subStations,
+    subStationCount,
     currentWorker: station.currentWorker || null,
     currentOperation: station.currentOperation || null
   }

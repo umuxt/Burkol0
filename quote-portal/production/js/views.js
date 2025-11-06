@@ -306,6 +306,10 @@ export function generateWorkers() {
 
           <!-- Yetenekler -->
           <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+            <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Sub İstasyon Sayısı:</span>
+              <input type="number" id="station-substation-count" min="1" value="1" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;" />
+            </div>
             <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
             <div class="detail-item" style="display: block;">
               <select id="worker-skills" multiple></select>

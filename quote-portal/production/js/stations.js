@@ -8,6 +8,8 @@ export let editingStationId = null
 let activeOperationTypeTab = 'all' // Add active tab tracking
 let wasDetailPanelOpen = false // Track if detail panel was open before modal
 
+const SUB_STATION_STATUSES = ['active', 'maintenance', 'inactive']
+
 // Filter state
 let stationFilters = {
   search: '',
@@ -59,7 +61,7 @@ async function loadStationsAndRender() {
   if (list) list.innerHTML = '<div style="padding:12px;color:#888;">Loading stations...</div>'
   try {
     operationsCache = await getOperations(true)
-    stationsState = await getStations()
+    stationsState = (await getStations()).map(station => normalizeStationForState(station))
     renderStations()
   } catch (e) {
     console.error('Stations load error:', e)
@@ -77,7 +79,7 @@ function renderStations() {
   if (!tabsContainer || !tableBody) return
   
   if (!stationsState.length) {
-    tableBody.innerHTML = `<tr><td colspan="${compact ? 2 : 4}" style="padding:20px;color:#666;text-align:center;">No stations yet. Add a station.</td></tr>`
+    tableBody.innerHTML = `<tr><td colspan="${compact ? 2 : 5}" style="padding:20px;color:#666;text-align:center;">No stations yet. Add a station.</td></tr>`
     tabsContainer.innerHTML = ''
     return
   }
@@ -171,6 +173,11 @@ function renderStations() {
                 Station Name <span style="font-size: 12px; opacity: 0.6;">↕</span>
               </button>
             </th>
+            <th style="min-width: 100px; white-space: nowrap; padding: 8px; text-align: right;">
+              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+                Amount <span style="font-size: 12px; opacity: 0.6;">↕</span>
+              </button>
+            </th>
             <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
               <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
                 Operations <span style="font-size: 12px; opacity: 0.6;">↕</span>
@@ -196,6 +203,11 @@ function renderStations() {
     const inherited = computeStationInheritedSkills(station.operationIds || [], operationsCache)
     const effective = Array.from(new Set([...(station.subSkills||[]), ...inherited]))
     const opsLabels = (station.operationIds || []).map(id => opMap.get(id)?.name || id)
+    const subStationCount = Array.isArray(station.subStations)
+      ? station.subStations.length
+      : Number.isFinite(Number(station.subStationCount))
+        ? Number(station.subStationCount)
+        : 0
     
     // Use description as tooltip for the entire row
     const description = station.description || ''
@@ -218,6 +230,9 @@ function renderStations() {
         </td>
         <td style="padding: 4px 8px; color: ${textColor};">
           <strong>${escapeHtml(station.name || '')}</strong>
+        </td>
+        <td style="padding: 4px 8px; color: ${textColor}; text-align: right;">
+          <span style="display: inline-flex; align-items: center; justify-content: center; min-width: 32px; padding: 2px 6px; border-radius: 12px; background: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(55, 65, 81)' : textColor}; font-size: 11px; font-weight: 600;">${subStationCount}</span>
         </td>
         <td style="padding: 4px 8px; color: ${textColor};">
           <div style="display: flex; flex-wrap: wrap; gap: 4px;">
@@ -567,6 +582,7 @@ export async function showStationDetail(stationId) {
       const op = operationsCache.find(o => o.id === id)
       return op ? op.name : id
     })
+    const subStationsSection = buildSubStationsSection(station)
     
     detailContent.innerHTML = `
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
@@ -618,6 +634,7 @@ export async function showStationDetail(stationId) {
           </div>
         ` : ''}
       </div>
+      ${subStationsSection}
       
       <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
         <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Çalışabilecek Personel (${stationWorkersData.compatibleWorkers.length})</h3>
@@ -663,6 +680,8 @@ export async function showStationDetail(stationId) {
         `}
       </div>
     `
+
+    initializeSubStationAddSection(station.id)
   } catch (error) {
     console.error('Error loading station workers:', error)
     
@@ -673,6 +692,7 @@ export async function showStationDetail(stationId) {
       const op = operationsCache.find(o => o.id === id)
       return op ? op.name : id
     })
+    const subStationsSection = buildSubStationsSection(station)
     
     detailContent.innerHTML = `
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
@@ -724,6 +744,7 @@ export async function showStationDetail(stationId) {
           </div>
         ` : ''}
       </div>
+      ${subStationsSection}
       
       <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
         <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Çalışabilecek Personel</h3>
@@ -732,6 +753,8 @@ export async function showStationDetail(stationId) {
         </div>
       </div>
     `
+
+    initializeSubStationAddSection(station.id)
   }
   
   // Store current station ID for detail panel actions
@@ -781,6 +804,20 @@ function fillStationModal(station) {
   document.getElementById('station-description').value = station.description || ''
   document.getElementById('station-location').value = station.location || ''
   document.getElementById('station-status').value = station.status || 'active'
+  const subStationCountInput = document.getElementById('station-substation-count')
+  if (subStationCountInput) {
+    if (editingStationId) {
+      const existingCount = Array.isArray(station.subStations)
+        ? station.subStations.length
+        : (Number.isFinite(station.subStationCount) ? station.subStationCount : 1)
+      subStationCountInput.value = Math.max(1, existingCount || 1)
+      subStationCountInput.disabled = true
+    } else {
+      subStationCountInput.disabled = false
+      const defaultCount = Number.isFinite(station.subStationCount) ? station.subStationCount : 1
+      subStationCountInput.value = Math.max(1, defaultCount || 1)
+    }
+  }
   
   // operations checkboxes with new styling and change handler
   const opsContainer = document.getElementById('station-operations')
@@ -937,6 +974,334 @@ function updateStationSkillsDisplay() {
 // Expose function globally for inline handlers
 window.updateStationSkillsDisplay = updateStationSkillsDisplay
 
+function normalizeSubStationEntry(entry) {
+  if (!entry) return null
+  const code = String(entry.code || '').trim()
+  if (!code) return null
+  const status = SUB_STATION_STATUSES.includes(entry.status) ? entry.status : 'active'
+  return { code, status }
+}
+
+function getSubStationNumericSuffix(code) {
+  const match = /-(\d+)$/.exec(String(code || ''))
+  return match ? parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER
+}
+
+function sortSubStations(subStations = []) {
+  return [...subStations].sort((a, b) => getSubStationNumericSuffix(a.code) - getSubStationNumericSuffix(b.code))
+}
+
+function normalizeStationForState(station) {
+  const normalizedSubStations = Array.isArray(station?.subStations)
+    ? sortSubStations(station.subStations.map(normalizeSubStationEntry).filter(Boolean))
+    : []
+  const normalizedCount = Number.isFinite(station?.subStationCount)
+    ? Math.max(0, station.subStationCount)
+    : normalizedSubStations.length
+  return {
+    ...station,
+    subStations: normalizedSubStations,
+    subStationCount: normalizedCount
+  }
+}
+
+function generateInitialSubStations(stationId, count, status) {
+  const safeCount = Math.max(1, count || 1)
+  const safeStatus = SUB_STATION_STATUSES.includes(status) ? status : 'active'
+  const list = []
+  for (let i = 1; i <= safeCount; i++) {
+    list.push({ code: `${stationId}-${i}`, status: safeStatus })
+  }
+  return list
+}
+
+function getSubStationStatusStyles(status) {
+  switch (status) {
+    case 'active':
+      return { bg: 'rgb(220, 252, 231)', color: 'rgb(22, 101, 52)', border: 'rgba(22, 101, 52, 0.4)' }
+    case 'maintenance':
+      return { bg: 'rgb(254, 249, 195)', color: 'rgb(161, 98, 7)', border: 'rgba(161, 98, 7, 0.4)' }
+    case 'inactive':
+    default:
+      return { bg: 'rgb(254, 226, 226)', color: 'rgb(153, 27, 27)', border: 'rgba(153, 27, 27, 0.4)' }
+  }
+}
+
+function escapeJsString(value) {
+  return String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
+function buildSubStationsSection(station) {
+  const subStations = sortSubStations(Array.isArray(station.subStations) ? station.subStations : [])
+  const total = subStations.length
+  const stationIdJs = escapeJsString(station.id || '')
+  const listHtml = subStations.length ? subStations.map(sub => {
+    const status = SUB_STATION_STATUSES.includes(sub.status) ? sub.status : 'active'
+    const { bg, color, border } = getSubStationStatusStyles(status)
+    const subCode = escapeHtml(sub.code)
+    const subCodeJs = escapeJsString(sub.code)
+    return `
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px; border: 1px solid var(--border); border-radius: 6px; background: white;" data-substation-code="${subCode}">
+        <span style="font-family: monospace; font-size: 12px;">${subCode}</span>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" data-role="status-toggle" style="padding: 4px 8px; border: 1px solid ${border}; background: ${bg}; color: ${color}; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 500;" onclick="toggleSubStationStatus('${stationIdJs}', '${subCodeJs}')">${escapeHtml(status)}</button>
+          <button type="button" style="padding: 4px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="deleteSubStation('${stationIdJs}', '${subCodeJs}')">Sil</button>
+        </div>
+      </div>
+    `
+  }).join('') : `
+    <div style="padding: 12px; border: 1px dashed var(--border); border-radius: 6px; font-size: 12px; color: var(--muted-foreground); text-align: center;">
+      Henüz sub istasyon eklenmemiş.
+    </div>
+  `
+
+  return `
+    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Sub İstasyonlar</h3>
+      <div data-role="substation-total" data-station-id="${escapeHtml(station.id || '')}" style="font-size: 12px; color: rgb(107, 114, 128); margin-bottom: 8px;">Toplam: ${total}</div>
+      <div class="substation-list" style="display: grid; gap: 8px;">
+        ${listHtml}
+      </div>
+      <div class="substation-add" data-station-id="${escapeHtml(station.id || '')}" data-mode="idle" style="margin-top: 12px; display: flex; gap: 8px; align-items: center;">
+        <input type="number" min="1" value="1" data-role="input" oninput="handleSubStationAddInputChange('${stationIdJs}')" style="display: none; width: 80px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;" />
+  <button type="button" data-role="button" onclick="handleSubStationAdd('${stationIdJs}')" style="padding: 6px 12px; border: 1px solid var(--border); background: white; border-radius: 4px; font-size: 12px; cursor: pointer;">İstasyon Ekle</button>
+      </div>
+    </div>
+  `
+}
+
+function initializeSubStationAddSection(stationId) {
+  const container = findSubStationAddContainer(stationId)
+  if (!container) return
+  container.dataset.mode = 'idle'
+  const input = container.querySelector('input[data-role="input"]')
+  if (input) {
+    input.value = '1'
+    input.style.display = 'none'
+  }
+  const button = container.querySelector('button[data-role="button"]')
+  if (button) {
+    button.textContent = 'İstasyon Ekle'
+  }
+}
+
+function findSubStationAddContainer(stationId) {
+  const containers = document.querySelectorAll('.substation-add')
+  return Array.from(containers).find(el => el.dataset.stationId === stationId) || null
+}
+
+function updateSubStationAddButtonLabel(container) {
+  if (!container) return
+  const input = container.querySelector('input[data-role="input"]')
+  const button = container.querySelector('button[data-role="button"]')
+  if (!input || !button) return
+  const value = Math.max(1, parseInt(input.value || '1', 10) || 1)
+  button.innerHTML = `<strong>${value}</strong> istasyon ekle`
+}
+
+function findStationIndexById(stationId) {
+  return stationsState.findIndex(s => s.id === stationId)
+}
+
+function updateSubStationDomElements(subStationCode, status) {
+  const row = document.querySelector(`.substation-list [data-substation-code="${subStationCode}"]`)
+  if (!row) return
+  const toggle = row.querySelector('[data-role="status-toggle"]')
+  const { bg, color, border } = getSubStationStatusStyles(status)
+  if (toggle) {
+    toggle.textContent = status
+    toggle.style.background = bg
+    toggle.style.color = color
+    toggle.style.border = `1px solid ${border}`
+  }
+}
+
+function removeSubStationDomElement(subStationCode) {
+  const row = document.querySelector(`.substation-list [data-substation-code="${subStationCode}"]`)
+  if (row?.parentElement) {
+    row.parentElement.removeChild(row)
+  }
+}
+
+function updateSubStationTotalCount(stationId, total) {
+  const target = document.querySelector(`[data-role="substation-total"][data-station-id="${stationId}"]`)
+  if (target) {
+    target.textContent = `Toplam: ${total}`
+  }
+}
+
+async function addSubStationsToStation(stationId, count) {
+  const idx = findStationIndexById(stationId)
+  if (idx < 0) {
+    showToast('Station not found', 'error')
+    return
+  }
+
+  const normalizedStation = normalizeStationForState(stationsState[idx])
+  stationsState[idx] = normalizedStation
+
+  const sanitizedCount = Math.max(1, count || 1)
+  const usedNumbers = new Set((normalizedStation.subStations || []).map(sub => getSubStationNumericSuffix(sub.code)))
+  const newEntries = []
+  let candidate = 1
+  while (newEntries.length < sanitizedCount) {
+    if (!usedNumbers.has(candidate)) {
+      const baseStatus = SUB_STATION_STATUSES.includes(normalizedStation.status) ? normalizedStation.status : 'active'
+      newEntries.push({ code: `${normalizedStation.id}-${candidate}`, status: baseStatus })
+      usedNumbers.add(candidate)
+    }
+    candidate += 1
+    if (candidate > 10000) break
+  }
+
+  if (!newEntries.length) {
+    showToast('Yeni sub istasyon için uygun numara bulunamadı', 'warning')
+    return
+  }
+
+  const previousStation = stationsState[idx]
+  const updatedStation = normalizeStationForState({
+    ...normalizedStation,
+    subStations: sortSubStations([...(normalizedStation.subStations || []), ...newEntries]),
+    subStationCount: (normalizedStation.subStations?.length || 0) + newEntries.length
+  })
+
+  stationsState[idx] = updatedStation
+
+  try {
+    await saveStations(stationsState)
+    showToast(`${newEntries.length} sub istasyon eklendi`, 'success')
+    renderStations()
+    await showStationDetail(stationId)
+  } catch (error) {
+    console.error('Sub station add error:', error)
+    stationsState[idx] = previousStation
+    showToast('Sub istasyon eklenemedi', 'error')
+  }
+}
+
+export function handleSubStationAdd(stationId) {
+  const container = findSubStationAddContainer(stationId)
+  if (!container) return
+  const input = container.querySelector('input[data-role="input"]')
+  const mode = container.dataset.mode || 'idle'
+
+  if (mode === 'idle') {
+    container.dataset.mode = 'input'
+    if (input) {
+      input.style.display = 'block'
+      input.focus()
+      input.select()
+    }
+    updateSubStationAddButtonLabel(container)
+    return
+  }
+
+  if (!input) return
+  const count = Math.max(1, parseInt(input.value || '1', 10) || 1)
+  addSubStationsToStation(stationId, count).catch(() => {})
+}
+
+export function handleSubStationAddInputChange(stationId) {
+  const container = findSubStationAddContainer(stationId)
+  if (!container) return
+  updateSubStationAddButtonLabel(container)
+}
+
+export async function toggleSubStationStatus(stationId, subStationCode) {
+  const idx = findStationIndexById(stationId)
+  if (idx < 0) {
+    showToast('Station not found', 'error')
+    return
+  }
+
+  const normalizedStation = normalizeStationForState(stationsState[idx])
+  stationsState[idx] = normalizedStation
+
+  const subStations = [...(normalizedStation.subStations || [])]
+  const targetIndex = subStations.findIndex(sub => sub.code === subStationCode)
+  if (targetIndex < 0) {
+    showToast('Sub istasyon bulunamadı', 'warning')
+    return
+  }
+
+  const row = document.querySelector(`.substation-list [data-substation-code="${subStationCode}"]`)
+  const toggleButton = row?.querySelector('[data-role="status-toggle"]')
+  if (toggleButton) toggleButton.disabled = true
+
+  const currentStatus = subStations[targetIndex].status
+  const currentIdx = SUB_STATION_STATUSES.indexOf(currentStatus)
+  const nextStatus = SUB_STATION_STATUSES[(currentIdx + 1) % SUB_STATION_STATUSES.length]
+
+  const previousStation = stationsState[idx]
+  subStations[targetIndex] = { ...subStations[targetIndex], status: nextStatus }
+
+  const updatedStation = normalizeStationForState({
+    ...normalizedStation,
+    subStations,
+    subStationCount: subStations.length
+  })
+  stationsState[idx] = updatedStation
+
+  try {
+    await saveStations(stationsState)
+    showToast('Sub istasyon durumu güncellendi', 'success')
+    updateSubStationDomElements(subStationCode, nextStatus)
+  } catch (error) {
+    console.error('Sub station status update error:', error)
+    stationsState[idx] = previousStation
+    showToast('Sub istasyon durumu güncellenemedi', 'error')
+    updateSubStationDomElements(subStationCode, currentStatus)
+  } finally {
+    if (toggleButton) toggleButton.disabled = false
+  }
+}
+
+export async function deleteSubStation(stationId, subStationCode) {
+  const idx = findStationIndexById(stationId)
+  if (idx < 0) {
+    showToast('Station not found', 'error')
+    return
+  }
+
+  const normalizedStation = normalizeStationForState(stationsState[idx])
+  stationsState[idx] = normalizedStation
+
+  if ((normalizedStation.subStations || []).length <= 1) {
+    showToast('Bir istasyonun en az 1 sub istasyonu olmalı', 'warning')
+    return
+  }
+
+  if (!confirm('Bu sub istasyonu silmek istediğinize emin misiniz?')) return
+
+  if (!(normalizedStation.subStations || []).some(sub => sub.code === subStationCode)) {
+    showToast('Sub istasyon bulunamadı', 'warning')
+    return
+  }
+
+  const remaining = (normalizedStation.subStations || []).filter(sub => sub.code !== subStationCode)
+  const previousStation = stationsState[idx]
+
+  const updatedStation = normalizeStationForState({
+    ...normalizedStation,
+    subStations: remaining,
+    subStationCount: remaining.length
+  })
+
+  stationsState[idx] = updatedStation
+
+  try {
+    await saveStations(stationsState)
+    showToast('Sub istasyon silindi', 'success')
+    removeSubStationDomElement(subStationCode)
+    updateSubStationTotalCount(stationId, remaining.length)
+  } catch (error) {
+    console.error('Sub station delete error:', error)
+    stationsState[idx] = previousStation
+    showToast('Sub istasyon silinemedi', 'error')
+  }
+}
+
 export function closeStationModal(event) {
   if (event && event.target !== event.currentTarget) return
   document.getElementById('station-modal').style.display = 'none'
@@ -957,6 +1322,8 @@ export async function saveStation() {
   const status = document.getElementById('station-status').value
   const operationIds = Array.from(document.querySelectorAll('#station-operations input[type="checkbox"]:checked')).map(cb => cb.value)
   const subSkills = Array.from(document.querySelectorAll('#station-subskills-box input[type="checkbox"]:checked')).map(cb => cb.value)
+  const subStationCountInput = document.getElementById('station-substation-count')
+  const requestedSubStationCount = Math.max(1, parseInt(subStationCountInput?.value ?? '1', 10) || 1)
 
   if (!name) { showToast('Please enter a station name', 'error'); return }
   if (operationIds.length < 1) { showToast('Select at least one operation for this station', 'warning'); return }
@@ -969,14 +1336,31 @@ export async function saveStation() {
       stationId = await generateStationId(operationIds)
     }
 
+    const existingStation = editingStationId
+      ? stationsState.find(s => s.id === editingStationId)
+      : null
+
+    let subStations = []
+    if (!editingStationId) {
+      subStations = generateInitialSubStations(stationId, requestedSubStationCount, status)
+    } else if (existingStation && Array.isArray(existingStation.subStations)) {
+      subStations = sortSubStations(existingStation.subStations.map(normalizeSubStationEntry).filter(Boolean))
+    } else {
+      subStations = []
+    }
+    const subStationCount = subStations.length
+
     const payload = normalizeStation({
       id: stationId,
-      name, description, location, status, operationIds, subSkills
+      name, description, location, status, operationIds, subSkills,
+      subStations,
+      subStationCount
     }, operationsCache)
 
+    const normalizedForState = normalizeStationForState(payload)
     const idx = stationsState.findIndex(s => s.id === payload.id)
-    if (idx >= 0) stationsState[idx] = { ...stationsState[idx], ...payload }
-    else stationsState.push(payload)
+    if (idx >= 0) stationsState[idx] = { ...stationsState[idx], ...normalizedForState }
+    else stationsState.push(normalizedForState)
 
     await saveStations(stationsState)
     document.getElementById('station-modal').style.display = 'none'
@@ -1021,7 +1405,7 @@ export async function deleteStation(stationId) {
     if (!res.ok) throw new Error(`delete_failed ${res.status}`)
     // Invalidate stations cache and refetch fresh list post-change
     invalidateStationsCache()
-    stationsState = await getStations()
+    stationsState = (await getStations()).map(station => normalizeStationForState(station))
     renderStations()
     showToast('Station deleted', 'success')
   } catch (e) {
