@@ -14,6 +14,20 @@ const aqFilters = {
   deliveryFrom: '',     // YYYY-MM-DD
   deliveryTo: ''
 }
+// Plan type toggle helper (cycles: all -> production -> template -> all)
+function toggleAQPlanType() {
+  const hasProd = aqFilters.planTypes.has('production')
+  const hasTpl = aqFilters.planTypes.has('template')
+  if (!hasProd && !hasTpl) {
+    aqFilters.planTypes.clear(); aqFilters.planTypes.add('production')
+  } else if (hasProd) {
+    aqFilters.planTypes.clear(); aqFilters.planTypes.add('template')
+  } else {
+    aqFilters.planTypes.clear()
+  }
+  updateAQFilterBadges()
+  renderApprovedQuotesTable()
+}
 
 // Production state management - simulated for UI only
 let productionStates = {} // Map of workOrderCode to production state
@@ -50,18 +64,75 @@ export async function initializeApprovedQuotesUI() {
       renderApprovedQuotesTable()
     })
   }
+  // Default to show completed (production) plans
+  try { aqFilters.planTypes.add('production') } catch {}
+  updateAQFilterBadges()
   // Also bind filter toggle buttons (in case inline onclick isn't executed)
   const btnPlan = document.getElementById('aq-filter-plan-type-btn')
-  if (btnPlan) btnPlan.addEventListener('click', () => toggleAQFilterPanel('planType'))
+  if (btnPlan) btnPlan.addEventListener('click', () => toggleAQPlanType())
   const btnState = document.getElementById('aq-filter-state-btn')
   if (btnState) btnState.addEventListener('click', () => toggleAQFilterPanel('state'))
   const btnDel = document.getElementById('aq-filter-delivery-btn')
   if (btnDel) btnDel.addEventListener('click', () => toggleAQFilterPanel('delivery'))
   const btnClearAll = document.getElementById('aq-filter-clear-all')
   if (btnClearAll) btnClearAll.addEventListener('click', clearAllAQFilters)
-  // Initialize filter controls (panels are toggled via inline onclick)
-  updateAQFilterBadges()
+  
+  // Add event listeners for panel controls that used to use onclick
+  setupPanelEventListeners()
+  
+  // Initialize complete
   await loadQuotesAndRender()
+}
+
+// Setup event listeners for panel controls
+function setupPanelEventListeners() {
+  // State panel controls - use more specific selectors
+  const stateButtons = document.querySelectorAll('#aq-filter-state-panel button')
+  stateButtons.forEach(btn => {
+    if (btn.textContent.trim() === 'Clear') {
+      btn.addEventListener('click', () => clearAQFilter('state'))
+    } else if (btn.title === 'Close') {
+      btn.addEventListener('click', () => hideAQFilterPanel('state'))
+    }
+  })
+  
+  // Delivery panel controls
+  const deliveryButtons = document.querySelectorAll('#aq-filter-delivery-panel button')
+  deliveryButtons.forEach(btn => {
+    if (btn.textContent.trim() === 'Clear') {
+      btn.addEventListener('click', () => clearAQFilter('delivery'))
+    } else if (btn.title === 'Close') {
+      btn.addEventListener('click', () => hideAQFilterPanel('delivery'))
+    } else if (btn.textContent.trim() === 'Apply') {
+      btn.addEventListener('click', () => applyAQDeliveryFilter())
+    }
+  })
+  
+  // Gecikmiş workorderlar butonu
+  const overdueBtn = document.getElementById('aq-filter-delivery-overdue')
+  if (overdueBtn) {
+    overdueBtn.addEventListener('click', () => applyOverdueFilter())
+  }
+  
+  // Hızlı seçim butonları
+  const quickSelectBtns = document.querySelectorAll('.quick-select-btn')
+  quickSelectBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const days = parseInt(e.target.getAttribute('data-days'))
+      applyQuickDateFilter(days)
+    })
+  })
+  
+  // State filter checkboxes using data-state attribute
+  const stateCheckboxes = document.querySelectorAll('#aq-filter-state-panel input[type="checkbox"][data-state]')
+  stateCheckboxes.forEach(checkbox => {
+    const stateValue = checkbox.getAttribute('data-state')
+    if (stateValue) {
+      checkbox.addEventListener('change', (e) => {
+        onAQFilterChange('state', stateValue, e.target.checked)
+      })
+    }
+  })
 }
 
 // Optional: expose manual refresh hook for other apps to call directly
@@ -320,7 +391,7 @@ function renderApprovedQuotesTable() {
       const typeIcon = plan.type === 'production' ? '✅' : '☑️'
       const actionIcon = plan.type === 'production' ? '👁️' : '✏️'
       const actionMode = plan.type === 'production' ? 'view' : 'edit'
-      const planUrl = `../pages/production.html?${actionMode}PlanId=${encodeURIComponent(fullPlanId)}`
+      const planUrl = `../pages/production.html?${actionMode}PlanId=${encodeURIComponent(fullPlanId)}&orderCode=${encodeURIComponent(idForRow)}`
       planCell = `<span style=\\"display:inline-flex; align-items:center; gap:4px;\\">${shortPlanId} / ${planName} ${typeIcon}<button onclick="event.stopPropagation(); window.open('${planUrl}', '_blank')" style="border:none; background:transparent; cursor:pointer; font-size:12px; line-height:1; padding:0 2px; vertical-align:baseline;" title="${actionMode === 'view' ? 'View Plan' : 'Edit Plan'}">${actionIcon}</button></span>`
     } else {
       // No production plan exists - show create button
@@ -386,9 +457,33 @@ function renderApprovedQuotesTable() {
 
 // Panel helpers (inline onclick targets)
 function toggleAQFilterPanel(type) {
-  const el = document.getElementById(`aq-filter-${type}-panel`)
-  if (!el) return
-  el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none'
+  const panel = document.getElementById(`aq-filter-${type}-panel`)
+  const btn = document.getElementById(`aq-filter-${type}-btn`)
+  if (!panel || !btn) return
+  const willShow = (panel.style.display === 'none' || !panel.style.display)
+  if (willShow) {
+    // Render as body-level floating panel to avoid clipping
+    try {
+      const rect = btn.getBoundingClientRect()
+      panel.style.position = 'fixed'
+      panel.style.top = `${Math.round(rect.bottom + 6)}px`
+      panel.style.left = 'auto'
+      panel.style.right = `${Math.round(window.innerWidth - rect.right)}px`
+      panel.style.zIndex = '10000'
+      if (panel.parentElement !== document.body) document.body.appendChild(panel)
+      panel.style.display = 'block'
+      // One‑off click outside to close
+      const closer = (e) => {
+        if (!panel.contains(e.target) && e.target !== btn) {
+          panel.style.display = 'none'
+          document.removeEventListener('mousedown', closer)
+        }
+      }
+      document.addEventListener('mousedown', closer)
+    } catch { panel.style.display = 'block' }
+  } else {
+    panel.style.display = 'none'
+  }
 }
 function hideAQFilterPanel(type) {
   const el = document.getElementById(`aq-filter-${type}-panel`)
@@ -429,9 +524,58 @@ function applyAQDeliveryFilter() {
   hideAQFilterPanel('delivery')
   renderApprovedQuotesTable()
 }
+
+// Gecikmiş workorderları filtrele
+function applyOverdueFilter() {
+  const today = new Date().toISOString().split('T')[0] // YYYY-MM-DD format
+  aqFilters.deliveryFrom = ''
+  aqFilters.deliveryTo = today
+  
+  // Input alanlarını da güncelle
+  const f = document.getElementById('aq-filter-delivery-from')
+  const t = document.getElementById('aq-filter-delivery-to')
+  if (f) f.value = ''
+  if (t) t.value = today
+  
+  updateAQFilterBadges()
+  hideAQFilterPanel('delivery')
+  renderApprovedQuotesTable()
+}
+
+// Hızlı tarih filtreleri (X gün kaldı)
+function applyQuickDateFilter(days) {
+  const today = new Date()
+  const targetDate = new Date(today)
+  targetDate.setDate(today.getDate() + days)
+  
+  const todayStr = today.toISOString().split('T')[0]
+  const targetStr = targetDate.toISOString().split('T')[0]
+  
+  aqFilters.deliveryFrom = todayStr
+  aqFilters.deliveryTo = targetStr
+  
+  // Input alanlarını da güncelle
+  const f = document.getElementById('aq-filter-delivery-from')
+  const t = document.getElementById('aq-filter-delivery-to')
+  if (f) f.value = todayStr
+  if (t) t.value = targetStr
+  
+  updateAQFilterBadges()
+  hideAQFilterPanel('delivery')
+  renderApprovedQuotesTable()
+}
+
 function updateAQFilterBadges() {
   const planCount = document.getElementById('aq-filter-plan-type-count')
-  if (planCount) planCount.textContent = aqFilters.planTypes.size ? `(${aqFilters.planTypes.size})` : ''
+  if (planCount) planCount.textContent = ''
+  const planLabel = document.getElementById('aq-filter-plan-type-label')
+  if (planLabel) {
+    const hasProd = aqFilters.planTypes.has('production')
+    const hasTpl = aqFilters.planTypes.has('template')
+    if (hasProd) planLabel.textContent = 'Tamamlanan Planlar'
+    else if (hasTpl) planLabel.textContent = 'Taslak Planlar'
+    else planLabel.textContent = 'Plan'
+  }
   const stateCount = document.getElementById('aq-filter-state-count')
   if (stateCount) stateCount.textContent = aqFilters.states.size ? `(${aqFilters.states.size})` : ''
   const del = document.getElementById('aq-filter-delivery-summary')
@@ -447,10 +591,10 @@ function updateAQFilterBadges() {
   }
 }
 
-// Expose helpers for inline HTML onclicks
-try {
-  Object.assign(window, { toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter })
-} catch {}
+// Expose helpers for inline HTML onclicks - moved to main.js to avoid conflicts
+// try {
+//   Object.assign(window, { toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter, toggleAQPlanType })
+// } catch {}
 
 export function showApprovedQuoteDetail(id) {
   selectedQuoteId = id
@@ -535,3 +679,6 @@ function setTableDetailMode(isDetailsOpen) {
     })
   })
 }
+
+// Export the filter functions for use in main.js
+export { toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter, toggleAQPlanType, applyOverdueFilter, applyQuickDateFilter }

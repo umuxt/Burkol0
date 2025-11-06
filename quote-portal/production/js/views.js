@@ -980,70 +980,91 @@ export function generateApprovedQuotes() {
         <input id="approved-quotes-search" type="text" placeholder="Ara: müşteri, firma, teklif #..." class="worker-filter-input"
           style="height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 100%; width: 100%; flex: 1 1 auto;">
 
-        <!-- Plan Type Filter -->
+        <!-- Plan Type Toggle: Tamamlanan / Taslak -->
         <div id="aq-filter-plan-type" style="position: relative;">
-          <button id="aq-filter-plan-type-btn" type="button" class="station-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;" onclick="toggleAQFilterPanel('planType')">
-            <span>Plan</span>
+          <button id="aq-filter-plan-type-btn" type="button" class="station-filter-button" style="height: 44px; padding: 6px 10px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 180px; display: flex; align-items: center; gap: 8px;">
+            <span id="aq-filter-plan-type-label" style="white-space: nowrap;">Tamamlanan Planlar</span>
             <span id="aq-filter-plan-type-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
-            <span style="margin-left: auto; opacity: .6">▾</span>
+            <span style="margin-left: auto; opacity: .6">⇆</span>
           </button>
-          <div id="aq-filter-plan-type-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 240px; overflow: hidden; z-index: 3000;">
-            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-              <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearAQFilter('planType')">Clear</button>
-              <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="hideAQFilterPanel('planType')">×</button>
-            </div>
-            <div style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onAQFilterChange('planType','production',this.checked)"> Tamamlandı (production)</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onAQFilterChange('planType','template',this.checked)"> Taslak (template)</label>
-            </div>
-          </div>
         </div>
 
         <!-- Production State Filter -->
         <div id="aq-filter-state" style="position: relative;">
-          <button id="aq-filter-state-btn" type="button" class="station-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;" onclick="toggleAQFilterPanel('state')">
+          <button id="aq-filter-state-btn" type="button" class="station-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;">
             <span>Üretim Durumu</span>
             <span id="aq-filter-state-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
             <span style="margin-left: auto; opacity: .6">▾</span>
           </button>
-          <div id="aq-filter-state-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 280px; overflow: hidden; z-index: 3000;">
+          <div id="aq-filter-state-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 280px; overflow: hidden; z-index: 10000;">
             <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-              <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearAQFilter('state')">Clear</button>
-              <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="hideAQFilterPanel('state')">×</button>
+              <div style="margin-left: auto; display: flex; gap: 6px;">
+                <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
+                <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+              </div>
             </div>
             <div style="max-height: 260px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onAQFilterChange('state','Üretim Onayı Bekliyor',this.checked)"> Üretim Onayı Bekliyor</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onAQFilterChange('state','Üretiliyor',this.checked)"> Üretiliyor</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onAQFilterChange('state','Üretim Durduruldu',this.checked)"> Üretim Durduruldu</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onAQFilterChange('state','Üretim Tamamlandı',this.checked)"> Üretim Tamamlandı</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onAQFilterChange('state','İptal Edildi',this.checked)"> İptal Edildi</label>
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" data-state="Üretim Onayı Bekliyor"> Üretim Onayı Bekliyor</label>
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" data-state="Üretiliyor"> Üretiliyor</label>
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" data-state="Üretim Durduruldu"> Üretim Durduruldu</label>
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" data-state="Üretim Tamamlandı"> Üretim Tamamlandı</label>
+              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" data-state="İptal Edildi"> İptal Edildi</label>
             </div>
           </div>
         </div>
 
         <!-- Delivery Date Range Filter -->
         <div id="aq-filter-delivery" style="position: relative;">
-          <button id="aq-filter-delivery-btn" type="button" class="station-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;" onclick="toggleAQFilterPanel('delivery')">
-            <span>Teslim Tarihi</span>
-            <span id="aq-filter-delivery-summary" style="color: var(--muted-foreground); font-size: 12px;"></span>
-            <span style="margin-left: auto; opacity: .6">▾</span>
+          <button id="aq-filter-delivery-btn" type="button" class="station-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 6px; overflow: hidden;">
+            <span style="white-space: nowrap;">Teslim Tarihi</span>
+            <span id="aq-filter-delivery-summary" style="color: var(--muted-foreground); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;"></span>
+            <span style="opacity: .6; flex-shrink: 0;">▾</span>
           </button>
-          <div id="aq-filter-delivery-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; overflow: hidden; z-index: 3000;">
+          <div id="aq-filter-delivery-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; overflow: hidden; z-index: 10000;">
             <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-              <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearAQFilter('delivery')">Clear</button>
-              <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="hideAQFilterPanel('delivery')">×</button>
+              <div style="margin-left: auto; display: flex; gap: 6px;">
+                <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
+                <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+              </div>
             </div>
             <div style="padding: 8px; display: grid; gap: 8px;">
-              <label style="font-size:12px; color: var(--muted-foreground);">Başlangıç</label>
-              <input id="aq-filter-delivery-from" type="date" style="height: 32px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px;">
-              <label style="font-size:12px; color: var(--muted-foreground);">Bitiş</label>
-              <input id="aq-filter-delivery-to" type="date" style="height: 32px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px;">
-              <button type="button" class="station-filter-button" style="height: 32px; padding: 4px 6px; border: 1px solid black; background: black; color: white; border-radius: 6px; cursor: pointer; font-size: 12px;" onclick="applyAQDeliveryFilter()">Apply</button>
+              <!-- Gecikmiş Workorderlar butonu -->
+              <button type="button" id="aq-filter-delivery-overdue" style="width: 100%; height: 32px; padding: 4px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500;">
+                📅 Gecikmiş Workorderlar
+              </button>
+              
+              <!-- Başlangıç ve Bitiş yan yana -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end;">
+                <div>
+                  <label style="font-size:12px; color: var(--muted-foreground); display: block; margin-bottom: 4px;">Başlangıç</label>
+                  <input id="aq-filter-delivery-from" type="date" style="height: 28px; width: 100%; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px;">
+                </div>
+                <div>
+                  <label style="font-size:12px; color: var(--muted-foreground); display: block; margin-bottom: 4px;">Bitiş</label>
+                  <input id="aq-filter-delivery-to" type="date" style="height: 28px; width: 100%; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; font-size: 11px;">
+                </div>
+              </div>
+              
+              <!-- Hızlı seçimler -->
+              <div style="display: grid; gap: 4px;">
+                <label style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 2px;">Hızlı Seçimler:</label>
+                <button type="button" class="quick-select-btn" data-days="1" style="width: 100%; height: 24px; padding: 2px 6px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: left;">
+                  ⚡ 1 Gün Kaldı
+                </button>
+                <button type="button" class="quick-select-btn" data-days="3" style="width: 100%; height: 24px; padding: 2px 6px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: left;">
+                  ⏰ 3 Gün Kaldı
+                </button>
+                <button type="button" class="quick-select-btn" data-days="5" style="width: 100%; height: 24px; padding: 2px 6px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: left;">
+                  📅 5 Gün Kaldı
+                </button>
+              </div>
+              
+              <button type="button" class="station-filter-button" style="height: 32px; padding: 4px 6px; border: 1px solid black; background: black; color: white; border-radius: 6px; cursor: pointer; font-size: 12px;">Apply</button>
             </div>
           </div>
         </div>
 
-        <button id="aq-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="station-filter-button" style="display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;" onclick="clearAllAQFilters()">
+        <button id="aq-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="station-filter-button" style="display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;">
           Clear All
         </button>
       </div>
