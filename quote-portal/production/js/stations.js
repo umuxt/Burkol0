@@ -782,6 +782,52 @@ export function editStationFromDetail() {
   editStation(stationId)
 }
 
+export async function duplicateStationFromDetail() {
+  if (!editingStationId) return
+  
+  const originalStation = stationsState.find(s => s.id === editingStationId)
+  if (!originalStation) {
+    showToast('Station not found', 'error')
+    return
+  }
+  
+  try {
+    // Generate new station ID based on the same operations
+    const newStationId = await generateStationId(originalStation.operationIds)
+    
+    // Create duplicated station with new ID and updated name
+    const duplicatedStation = {
+      ...originalStation,
+      id: newStationId,
+      name: `${originalStation.name} (Kopya)`,
+      // Generate new sub-stations with the new parent station ID
+      subStations: originalStation.subStations ? 
+        generateInitialSubStations(newStationId, originalStation.subStations.length, originalStation.status) :
+        generateInitialSubStations(newStationId, 1, originalStation.status)
+    }
+    
+    // Normalize the station data
+    const normalizedForState = normalizeStationForState(duplicatedStation)
+    
+    // Add to stations state
+    stationsState.push(normalizedForState)
+    
+    // Save to backend
+    await saveStations(stationsState)
+    
+    // Re-render stations
+    renderStations()
+    
+    // Close detail panel and show success message
+    closeStationDetail()
+    showToast(`Station successfully duplicated as "${duplicatedStation.name}"`, 'success')
+    
+  } catch (e) {
+    console.error('Station duplication error:', e)
+    showToast(e.message || 'Station could not be duplicated', 'error')
+  }
+}
+
 export function deleteStationFromDetail() {
   if (!editingStationId) return
   const stationId = editingStationId

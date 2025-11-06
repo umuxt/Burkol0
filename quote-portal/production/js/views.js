@@ -476,6 +476,7 @@ export function generateStations() {
                 </div>
                 <div style=\"display:flex; align-items:center; gap:8px;\">
                   <button onclick=\"editStationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;\">✏️ Düzenle</button>
+                  <button onclick=\"duplicateStationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(34, 197, 94); border-radius: 4px; background: white; color: rgb(34, 197, 94); cursor: pointer; font-size: 12px;\">📋 Kopyala</button>
                   <button onclick=\"deleteStationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;\">🗑️ Sil</button>
                 </div>
               </div>
