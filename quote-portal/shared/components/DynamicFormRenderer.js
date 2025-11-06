@@ -14,6 +14,8 @@ const FIXED_DEFAULT_FIELDS = [
   { id: 'name', label: 'Müşteri Adı', type: 'text', required: true },
   { id: 'company', label: 'Şirket', type: 'text', required: false },
   { id: 'proj', label: 'Proje Adı', type: 'text', required: true },
+  // Required delivery date for the order
+  { id: 'deliveryDate', label: 'Sipariş Teslimat Tarihi', type: 'date', required: true },
   { id: 'phone', label: 'Telefon', type: 'phone', required: true },
   { id: 'email', label: 'E-posta', type: 'email', required: true }
 ]
@@ -1000,6 +1002,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
         name: formData.name,
         company: formData.company,
         proj: formData.proj,
+        deliveryDate: formData.deliveryDate,
         phone: formData.phone,
         email: formData.email,
         customFields: formData.customFields || {},
