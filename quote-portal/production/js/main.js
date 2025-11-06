@@ -28,6 +28,40 @@ function renderView(viewId) {
         loadApprovedOrdersToSelect();
         // Inject metadata toggle styles
         injectMetadataToggleStyles();
+        
+        // Check URL parameters for auto-actions
+        const urlParams = new URLSearchParams(window.location.search);
+        const action = urlParams.get('action');
+        const orderCode = urlParams.get('orderCode');
+        
+        if (action === 'create') {
+          // Trigger create new plan
+          openCreatePlan();
+
+          // If orderCode is provided, auto-select it after orders load
+          if (orderCode) {
+            // Try multiple times in case async population takes longer
+            let attempts = 0;
+            const trySelect = () => {
+              attempts++;
+              try {
+                const select = document.getElementById('order-select');
+                const labelEl = document.getElementById('plan-order-label');
+                if (select && select.options && select.options.length > 0) {
+                  // Prefer the actual option label if present
+                  const opt = Array.from(select.options).find(o => o.value === orderCode);
+                  const label = opt ? opt.textContent : `${orderCode}`;
+                  selectPlanOrder(orderCode, label);
+                  // Ensure visible label reflects selection
+                  if (labelEl) labelEl.textContent = label;
+                  return; // success
+                }
+              } catch (_) {}
+              if (attempts < 10) setTimeout(trySelect, 200);
+            };
+            setTimeout(trySelect, 400);
+          }
+        }
       }, 100);
       break;
     case 'templates': content = generateTemplates(); break;
@@ -103,10 +137,15 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Check URL parameters for direct plan access
   const urlParams = new URLSearchParams(window.location.search);
+  // If a direct view is requested, honor it first
+  const directView = urlParams.get('view');
   const viewPlanId = urlParams.get('viewPlanId');
   const editPlanId = urlParams.get('editPlanId');
   
-  if (viewPlanId) {
+  if (directView) {
+    navigateToView(directView);
+    return;
+  } else if (viewPlanId) {
     // Navigate to plan designer and load plan in view mode
     navigateToView('plan-designer');
     setTimeout(() => {

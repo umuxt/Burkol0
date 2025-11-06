@@ -227,7 +227,11 @@ function renderApprovedQuotesTable() {
       const actionIcon = plan.type === 'production' ? '👁️' : '✏️'
       const actionMode = plan.type === 'production' ? 'view' : 'edit'
       const planUrl = `../pages/production.html?${actionMode}PlanId=${encodeURIComponent(fullPlanId)}`
-      planCell = `${shortPlanId} / ${planName} ${typeIcon} <button onclick="event.stopPropagation(); window.open('${planUrl}', '_blank')" style="border:none; background:transparent; cursor:pointer; font-size:16px; padding:2px 4px; vertical-align:middle;" title="${actionMode === 'view' ? 'View Plan' : 'Edit Plan'}">${actionIcon}</button>`
+      planCell = `<span style=\\"display:inline-flex; align-items:center; gap:4px;\\">${shortPlanId} / ${planName} ${typeIcon}<button onclick="event.stopPropagation(); window.open('${planUrl}', '_blank')" style="border:none; background:transparent; cursor:pointer; font-size:12px; line-height:1; padding:0 2px; vertical-align:baseline;" title="${actionMode === 'view' ? 'View Plan' : 'Edit Plan'}">${actionIcon}</button>`
+    } else {
+      // No production plan exists - show create button
+      const createPlanUrl = `../pages/production.html?view=plan-designer&action=create&orderCode=${encodeURIComponent(idForRow)}`
+      planCell = `<span style=\\"display:inline-flex; align-items:center;\\"><button onclick="event.stopPropagation(); window.open('${createPlanUrl}', '_blank')" style="background: var(--primary); color: var(--primary-foreground); padding: 4px 8px; border: none; border-radius: 4px; font-size: 11px; font-weight: 500; cursor: pointer; white-space: nowrap;" title="Üretim Planı Oluştur">+ Üretim Planı Oluştur</button></span>`
     }
     
     // Get production state

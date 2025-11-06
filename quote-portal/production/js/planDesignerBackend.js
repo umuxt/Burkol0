@@ -99,7 +99,10 @@ export async function loadApprovedOrdersToSelect() {
   const select = document.getElementById('order-select')
   if (!select) return
   try {
-    const previouslySelected = select.value || planDesignerState.currentPlanMeta?.orderCode || ''
+    // Allow URL param to pre-seed selection before list is loaded
+    const urlParams = new URLSearchParams(window.location.search)
+    const urlOrderCode = urlParams.get('orderCode') || ''
+    const previouslySelected = urlOrderCode || select.value || planDesignerState.currentPlanMeta?.orderCode || ''
     select.innerHTML = '<option value="">Loading orders...</option>'
 
     const [quotes, plans] = await Promise.all([
