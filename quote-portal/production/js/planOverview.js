@@ -3,6 +3,7 @@
 import { getProductionPlans, getPlanTemplates } from './mesApi.js'
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
 import { loadPlanNodes, setReadOnly, setPlanMeta, resetPlanDesignerState } from './planDesigner.js'
+import { loadApprovedOrdersToSelect } from './planDesignerBackend.js'
 
 export function initPlanOverviewUI() {
   // Default active tab
@@ -167,6 +168,8 @@ export async function viewProductionPlan(id) {
     } catch {}
     setReadOnly(true)
     setPlanMeta({ name: p.name, description: p.description, orderCode: p.orderCode, scheduleType: p.scheduleType })
+    // Ensure the order dropdown reflects this plan's order even if it's taken
+    try { await loadApprovedOrdersToSelect(); } catch {}
     const nodes = Array.isArray(p.nodes) ? p.nodes : (Array.isArray(p.steps) ? p.steps : (p.graph && Array.isArray(p.graph.nodes) ? p.graph.nodes : []))
     loadPlanNodes(nodes || [])
   } catch (e) { console.warn('viewProductionPlan failed', e?.message) }
@@ -209,6 +212,7 @@ export function editTemplateById(id) {
         status: 'template', 
         sourceTemplateId: tpl.id 
       });
+      try { loadApprovedOrdersToSelect(); } catch {}
       loadPlanNodes(tpl.steps || [])
     }
 

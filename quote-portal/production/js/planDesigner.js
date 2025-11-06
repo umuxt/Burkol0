@@ -1279,12 +1279,14 @@ export function savePlanAsTemplate() {
   
   let planName = planNameInput ? planNameInput.value : '';
   const planDesc = planDescInput?.value || '';
-  const orderCode = orderSelect ? orderSelect.value : '';
+  let orderCode = orderSelect ? orderSelect.value : '';
   const scheduleType = scheduleTypeSelect ? scheduleTypeSelect.value : 'one-time';
   
   if (planDesignerState.readOnly) {
     const base = (planDesignerState.currentPlanMeta?.name) || planName || 'Untitled';
     planName = `${base} - kopyası`;
+    // Copying from a production plan: clear order linkage for the template
+    orderCode = '';
   }
   if (!planName) { showToast('Please enter a plan name', 'error'); return; }
   

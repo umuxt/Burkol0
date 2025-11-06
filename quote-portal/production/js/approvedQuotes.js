@@ -7,6 +7,13 @@ let selectedQuoteId = null
 let queryFilter = ''
 let approvedChannel = null
 let productionPlansMap = {} // Map of workOrderCode to production plan data
+// Filters state for Approved Quotes
+const aqFilters = {
+  planTypes: new Set(), // 'production' | 'template' | 'none'
+  states: new Set(),    // labels from PRODUCTION_STATES
+  deliveryFrom: '',     // YYYY-MM-DD
+  deliveryTo: ''
+}
 
 // Production state management - simulated for UI only
 let productionStates = {} // Map of workOrderCode to production state
@@ -43,6 +50,17 @@ export async function initializeApprovedQuotesUI() {
       renderApprovedQuotesTable()
     })
   }
+  // Also bind filter toggle buttons (in case inline onclick isn't executed)
+  const btnPlan = document.getElementById('aq-filter-plan-type-btn')
+  if (btnPlan) btnPlan.addEventListener('click', () => toggleAQFilterPanel('planType'))
+  const btnState = document.getElementById('aq-filter-state-btn')
+  if (btnState) btnState.addEventListener('click', () => toggleAQFilterPanel('state'))
+  const btnDel = document.getElementById('aq-filter-delivery-btn')
+  if (btnDel) btnDel.addEventListener('click', () => toggleAQFilterPanel('delivery'))
+  const btnClearAll = document.getElementById('aq-filter-clear-all')
+  if (btnClearAll) btnClearAll.addEventListener('click', clearAllAQFilters)
+  // Initialize filter controls (panels are toggled via inline onclick)
+  updateAQFilterBadges()
   await loadQuotesAndRender()
 }
 
@@ -205,6 +223,45 @@ function renderApprovedQuotesTable() {
     })
   }
 
+  // Apply advanced filters
+  rows = rows.filter(q => {
+    const idForRow = q.workOrderCode || q.id || q.quoteId || ''
+    const plan = productionPlansMap[idForRow]
+    const planType = plan ? plan.type : 'none'
+
+    // Plan type filter
+    if (aqFilters.planTypes.size > 0 && !aqFilters.planTypes.has(planType)) return false
+
+    // Delivery date range filter
+    const deliveryDate = q.deliveryDate || (q.quoteSnapshot && q.quoteSnapshot.deliveryDate) || ''
+    if (aqFilters.deliveryFrom || aqFilters.deliveryTo) {
+      const parseYMD = (str) => {
+        if (typeof str !== 'string') return new Date('');
+        const m = str.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+        if (m) return new Date(parseInt(m[1],10), parseInt(m[2],10)-1, parseInt(m[3],10))
+        return new Date(str)
+      }
+      const d = parseYMD(deliveryDate)
+      if (aqFilters.deliveryFrom) {
+        const from = parseYMD(aqFilters.deliveryFrom)
+        if (!(d instanceof Date) || isNaN(d.getTime()) || d < from) return false
+      }
+      if (aqFilters.deliveryTo) {
+        const to = parseYMD(aqFilters.deliveryTo)
+        if (!(d instanceof Date) || isNaN(d.getTime()) || d > to) return false
+      }
+    }
+
+    // Production state filter (only meaningful if has production plan)
+    if (aqFilters.states.size > 0) {
+      if (!plan || planType !== 'production') return false
+      const st = getProductionState(idForRow)
+      if (!aqFilters.states.has(st)) return false
+    }
+
+    return true
+  })
+
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="7"><em>Kayıt bulunamadı</em></td></tr>'
     return
@@ -326,6 +383,74 @@ function renderApprovedQuotesTable() {
   // If details are open, keep only Quote # and Company visible
   setTableDetailMode(Boolean(selectedQuoteId))
 }
+
+// Panel helpers (inline onclick targets)
+function toggleAQFilterPanel(type) {
+  const el = document.getElementById(`aq-filter-${type}-panel`)
+  if (!el) return
+  el.style.display = (el.style.display === 'none' || !el.style.display) ? 'block' : 'none'
+}
+function hideAQFilterPanel(type) {
+  const el = document.getElementById(`aq-filter-${type}-panel`)
+  if (el) el.style.display = 'none'
+}
+function onAQFilterChange(type, value, checked) {
+  const set = (type === 'planType') ? aqFilters.planTypes : aqFilters.states
+  if (checked) set.add(value)
+  else set.delete(value)
+  updateAQFilterBadges()
+  renderApprovedQuotesTable()
+}
+function clearAQFilter(type) {
+  if (type === 'planType') aqFilters.planTypes.clear()
+  else if (type === 'state') aqFilters.states.clear()
+  else if (type === 'delivery') { aqFilters.deliveryFrom = ''; aqFilters.deliveryTo = '';
+    const f = document.getElementById('aq-filter-delivery-from'); if (f) f.value = ''
+    const t = document.getElementById('aq-filter-delivery-to'); if (t) t.value = ''
+  }
+  updateAQFilterBadges()
+  renderApprovedQuotesTable()
+}
+function clearAllAQFilters() {
+  aqFilters.planTypes.clear(); aqFilters.states.clear(); aqFilters.deliveryFrom = ''; aqFilters.deliveryTo = ''
+  const f = document.getElementById('aq-filter-delivery-from'); if (f) f.value = ''
+  const t = document.getElementById('aq-filter-delivery-to'); if (t) t.value = ''
+  // Uncheck all checkboxes in panels
+  document.querySelectorAll('#aq-filter-plan-type-panel input[type=checkbox], #aq-filter-state-panel input[type=checkbox]').forEach(cb => cb.checked = false)
+  updateAQFilterBadges()
+  renderApprovedQuotesTable()
+}
+function applyAQDeliveryFilter() {
+  const f = document.getElementById('aq-filter-delivery-from')
+  const t = document.getElementById('aq-filter-delivery-to')
+  aqFilters.deliveryFrom = (f && f.value) || ''
+  aqFilters.deliveryTo = (t && t.value) || ''
+  updateAQFilterBadges()
+  hideAQFilterPanel('delivery')
+  renderApprovedQuotesTable()
+}
+function updateAQFilterBadges() {
+  const planCount = document.getElementById('aq-filter-plan-type-count')
+  if (planCount) planCount.textContent = aqFilters.planTypes.size ? `(${aqFilters.planTypes.size})` : ''
+  const stateCount = document.getElementById('aq-filter-state-count')
+  if (stateCount) stateCount.textContent = aqFilters.states.size ? `(${aqFilters.states.size})` : ''
+  const del = document.getElementById('aq-filter-delivery-summary')
+  if (del) {
+    if (aqFilters.deliveryFrom || aqFilters.deliveryTo) {
+      del.textContent = `${aqFilters.deliveryFrom || '—'} → ${aqFilters.deliveryTo || '—'}`
+    } else del.textContent = ''
+  }
+  const clearAll = document.getElementById('aq-filter-clear-all')
+  if (clearAll) {
+    const any = aqFilters.planTypes.size || aqFilters.states.size || aqFilters.deliveryFrom || aqFilters.deliveryTo
+    clearAll.style.display = any ? 'inline-flex' : 'none'
+  }
+}
+
+// Expose helpers for inline HTML onclicks
+try {
+  Object.assign(window, { toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter })
+} catch {}
 
 export function showApprovedQuoteDetail(id) {
   selectedQuoteId = id
