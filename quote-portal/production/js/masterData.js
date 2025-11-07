@@ -5,6 +5,7 @@ import { showToast } from './ui.js'
 let skillsState = []
 let activeSkillId = null
 let globalSkillsClickAttached = false
+let skillsQuery = ''
 
 export async function initMasterDataUI() {
   const host = document.getElementById('skills-management')
@@ -21,10 +22,13 @@ export async function initMasterDataUI() {
 }
 
 function renderSkills(host) {
+  const q = (skillsQuery || '').toLowerCase()
+  const filtered = q ? skillsState.filter(s => String(s.name || '').toLowerCase().includes(q)) : skillsState
+
   host.innerHTML = `
     <div class="skills-input-row" style="display:flex; gap:4px; margin-bottom:8px;">
-      <input id="skill-new-name" type="text" placeholder="Yeni skill adı" style="flex:1 1 auto; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size: 0.9em; max-width:600px;" />
-      <button onclick="addSkillFromSettings()" style="padding:4px 8px; background: var(--primary); color: white; border:none; border-radius:4px; font-size: 0.9em;">+ Ekle</button>
+      <input id="skill-new-name" type="text" placeholder="Yeni skill adı veya ara" value="${escapeHtml(skillsQuery)}" oninput="onSkillsSearchInput()" style="flex:1 1 auto; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size: 0.9em; max-width:600px;" />
+      <button id="skill-add-btn" onclick="addSkillFromSettings()" disabled style="padding:4px 8px; background:#e5e7eb; color:#9ca3af; border:none; border-radius:4px; font-size: 0.9em; cursor:not-allowed;">+ Ekle</button>
     </div>
     <div class="skills-scroll" style="overflow-y:auto; border:1px solid var(--border); border-radius:6px; position: relative; min-width:300px;">
       <table style="width: 100%; border-collapse: collapse;">
@@ -36,7 +40,7 @@ function renderSkills(host) {
           </tr>
         </thead>
         <tbody>
-          ${skillsState.map(s => `
+          ${filtered.map(s => `
             <tr data-skill-row="${escapeHtml(s.id)}" onclick="activateSkillRow('${escapeHtml(s.id)}')" style="cursor:pointer; background-color: white; border-bottom: 1px solid rgb(243, 244, 246);">
               <td style="padding: 6px 8px;">
                 <div class="skill-row" style="display:inline-flex; align-items:center; gap:8px;">
@@ -60,7 +64,7 @@ function renderSkills(host) {
     </div>
   `
 
-  // Görünen satır sayısını 10 ile sınırla ve kaydırılabilir yap
+  // Görünen satır sayısını 5 ile sınırla ve kaydırılabilir yap
   try {
     const scroll = host.querySelector('.skills-scroll')
     if (scroll) {
@@ -70,8 +74,11 @@ function renderSkills(host) {
       let rowH = firstRow ? firstRow.getBoundingClientRect().height : 36
       if (headerH < 24) headerH = 24
       if (rowH < 24) rowH = 24
-      const rowsToShow = 10
-      scroll.style.maxHeight = `${Math.round(headerH + rowH * rowsToShow + 2)}px`
+      const rowsToShow = 5
+      const fixedH = Math.round(headerH + rowH * rowsToShow + 2)
+      scroll.style.maxHeight = `${fixedH}px`
+      scroll.style.minHeight = `${fixedH}px`
+      scroll.style.height = `${fixedH}px`
       // Üstteki input genişliğini tabloya göre sınırla
       const newInput = host.querySelector('#skill-new-name')
       const inputRow = host.querySelector('.skills-input-row')
@@ -81,6 +88,28 @@ function renderSkills(host) {
         newInput.style.maxWidth = `${maxW}px`
         if (inputRow) inputRow.style.maxWidth = `${Math.round(w)}px`
       }
+
+      // Add button enable/disable based on filter
+      try {
+        const addBtn = host.querySelector('#skill-add-btn')
+        const query = (host.querySelector('#skill-new-name')?.value || '').trim()
+        if (addBtn) {
+          const hasText = query.length > 0
+          const filteredCount = filtered.length
+          const enable = hasText && filteredCount === 0
+          if (enable) {
+            addBtn.removeAttribute('disabled')
+            addBtn.style.background = 'var(--primary)'
+            addBtn.style.color = 'var(--primary-foreground, white)'
+            addBtn.style.cursor = 'pointer'
+          } else {
+            addBtn.setAttribute('disabled', 'true')
+            addBtn.style.background = '#e5e7eb'
+            addBtn.style.color = '#9ca3af'
+            addBtn.style.cursor = 'not-allowed'
+          }
+        }
+      } catch {}
     }
   } catch (_) { /* ignore measurement issues */ }
 
@@ -150,6 +179,27 @@ export function cancelSkillEdit(skillId) {
   } catch (e) { /* ignore */ }
 }
 
+// Search/filter input handler; also toggles add button availability
+export function onSkillsSearchInput() {
+  const input = document.getElementById('skill-new-name')
+  const val = input ? input.value : ''
+  // Caret positions to restore after re-render
+  const selStart = input && typeof input.selectionStart === 'number' ? input.selectionStart : val.length
+  const selEnd = input && typeof input.selectionEnd === 'number' ? input.selectionEnd : val.length
+  // Update query (do not trim to avoid caret jumps while typing)
+  skillsQuery = val
+  // Re-render to apply filter and button state, then restore focus + caret
+  const host = document.getElementById('skills-management')
+  if (host) {
+    renderSkills(host)
+    const i2 = document.getElementById('skill-new-name')
+    if (i2) {
+      i2.focus()
+      try { i2.setSelectionRange(selStart, selEnd) } catch {}
+    }
+  }
+}
+
 export async function addSkillFromSettings() {
   const input = document.getElementById('skill-new-name')
   const name = input?.value?.trim()
@@ -158,6 +208,7 @@ export async function addSkillFromSettings() {
     const created = await addSkill(name)
     skillsState.push(created)
     input.value = ''
+    skillsQuery = ''
     renderSkills(document.getElementById('skills-management'))
     showToast('Skill eklendi', 'success')
   } catch (e) {
