@@ -164,13 +164,199 @@ export function generateSettings() {
     <div style="margin-bottom: 16px;">
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Master Data</h1>
     </div>
-    <div class="grid grid-cols-2">
-      <div class="card"><div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 1.1em;">Skills Management</div></div><div class="card-content" style="padding: 8px 12px;">
-        <div id="skills-management"></div>
-      </div></div>
-      <div class="card"><div class="card-header" style="padding: 8px 12px;"><div class="card-title" style="font-size: 1.1em;">Production settings</div></div><div class="card-content" style="padding: 8px 12px;"></div></div>
+    
+    <!-- İlk satır: Skills ve Production Settings -->
+    <div class="grid grid-cols-2" style="margin-bottom: 24px;">
+      <div class="card">
+        <div class="card-header" style="padding: 8px 12px;">
+          <div class="card-title" style="font-size: 1.1em;">Skills Management</div>
+        </div>
+        <div class="card-content" style="padding: 8px 12px;">
+          <div id="skills-management"></div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-header" style="padding: 8px 12px;">
+          <div class="card-title" style="font-size: 1.1em;">Production Settings</div>
+        </div>
+        <div class="card-content" style="padding: 8px 12px;"></div>
+      </div>
+    </div>
+
+    <!-- İkinci satır: Zaman Yönetimi (tek başına) -->
+    <div class="card">
+      <div class="card-header" style="padding: 8px 12px;">
+        <div class="card-title" style="font-size: 1.1em;">Zaman Yönetimi</div>
+      </div>
+      <div class="card-content" style="padding: 16px 20px;">
+        <!-- Çalışma Tipi Seçimi -->
+        <div style="margin-bottom: 24px;">
+          <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px;">Çalışma Tipi</label>
+          <div style="display: flex; gap: 12px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="radio" name="work-type" value="fixed" checked style="margin: 0;" onchange="switchWorkType('fixed')">
+              <span style="font-size: 14px;">Sabit Zamanlı</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="radio" name="work-type" value="shift" style="margin: 0;" onchange="switchWorkType('shift')">
+              <span style="font-size: 14px;">Vardiyalı</span>
+            </label>
+          </div>
+          <!-- Vardiya Sayısı: yalnızca Vardiyalı modda görünür -->
+          <div id="lane-controls" style="display:none; align-items:center; gap:10px; margin: 12px 0 0 0;">
+            <span style="font-weight:600; font-size:13px;">Vardiya Sayısı</span>
+            <input id="lane-count-input" type="number" min="1" max="7" step="1" value="1" style="width:72px; height:30px; padding:4px 6px; border:1px solid var(--border); border-radius:6px;">
+          </div>
+        </div>
+
+        <!-- Sabit Zamanlı Timeline -->
+        <div id="fixed-schedule" style="display: block;">
+          <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--foreground);">Haftalık Çalışma Programı</h3>
+          ${generateWeeklyTimeline('fixed')}
+        </div>
+
+        <!-- Vardiyalı Timeline -->
+        <div id="shift-schedule" style="display: none;">
+          <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--foreground);">Vardiyalı Program</h3>
+          ${generateWeeklyTimeline('shift')}
+        </div>
+
+        <!-- Kaydet Butonu -->
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+          <button onclick="saveTimeManagement()" style="background: var(--primary); color: var(--primary-foreground); padding: 8px 16px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">
+            Zaman Ayarlarını Kaydet
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Block/Schedule Edit Modal -->
+    <div id="schedule-edit-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 8px; padding: 20px; max-width: 400px; width: 90%;">
+        <h3 style="margin-top: 0; margin-bottom: 16px;">Zaman Bloğu Düzenle</h3>
+        
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; margin-bottom: 4px; font-weight: 600;">Blok Tipi:</label>
+          <select id="block-type" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+            <option value="work">Çalışma</option>
+            <option value="break">Mola</option>
+            <option value="rest">Dinlenme</option>
+          </select>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-weight: 600;">Başlangıç:</label>
+            <input type="time" id="block-start" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-weight: 600;">Bitiş:</label>
+            <input type="time" id="block-end" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+          </div>
+        </div>
+        
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+          <button onclick="deleteScheduleBlock()" style="background: #dc2626; color: white; padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer;">Sil</button>
+          <button onclick="cancelScheduleEdit()" style="background: var(--border); color: var(--foreground); padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer;">İptal</button>
+          <button onclick="saveScheduleBlock()" style="background: var(--primary); color: var(--primary-foreground); padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer;">Kaydet</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Global state for schedule management
+      window.scheduleBlocks = {};
+      window.currentEditBlock = null;
+
+      // Çalışma tipi değişikliği
+      document.querySelectorAll('input[name="work-type"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+          const fixedSchedule = document.getElementById('fixed-schedule');
+          const shiftSchedule = document.getElementById('shift-schedule');
+          
+          if (this.value === 'fixed') {
+            fixedSchedule.style.display = 'block';
+            shiftSchedule.style.display = 'none';
+          } else {
+            fixedSchedule.style.display = 'none';
+            shiftSchedule.style.display = 'block';
+          }
+        });
+      });
+    </script>
+  `;
+}
+
+// Generate weekly timeline with vertical time and horizontal days
+function generateWeeklyTimeline(scheduleType) {
+  const dayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+  const dayIds = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(id => 
+    scheduleType === 'fixed' ? id : `${scheduleType}-${id}`
+  );
+  
+  return `
+    <div style="border: 1px solid var(--border); border-radius: 8px; background: var(--card); overflow: hidden;">
+      <!-- Header with days -->
+      <div style="display: grid; grid-template-columns: 60px repeat(7, 1fr); background: var(--muted); border-bottom: 1px solid var(--border);">
+        <div style="padding: 8px; font-size: 12px; font-weight: 600; border-right: 1px solid var(--border); display: flex; align-items: center; justify-content: center;">Saat</div>
+        ${dayNames.map((day, index) => `
+          <div style="padding: 8px; text-align: center; border-right: 1px solid var(--border); ${index === dayNames.length - 1 ? 'border-right: none;' : ''}">
+            <div style="font-size: 13px; font-weight: 600;">${day}</div>
+          </div>
+        `).join('')}
+      </div>
+      
+      <!-- Timeline grid -->
+      <div class="weekly-timeline" style="display: grid; grid-template-columns: 60px repeat(7, 1fr); height: 360px; position: relative;">
+        <!-- Hour labels -->
+        <div style="background: var(--muted); border-right: 1px solid var(--border); position: relative;">
+          ${generateVerticalHourMarks()}
+        </div>
+        
+        <!-- Day columns -->
+        ${dayIds.map((dayId, index) => `
+          <div id="timeline-${dayId}" class="day-timeline-vertical" 
+               style="position: relative; background: white; border-right: 1px solid var(--border); cursor: crosshair; ${index === dayIds.length - 1 ? 'border-right: none;' : ''}"
+               data-day="${dayId}">
+            <!-- Blocks container -->
+            <div id="blocks-${dayId}" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0;">
+              <!-- Drag created blocks will be added here -->
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      
+      <!-- Instructions -->
+      <div style="padding: 8px 12px; background: var(--muted); border-top: 1px solid var(--border); font-size: 11px; color: var(--muted-foreground); text-align: center;">
+        Sürükleyerek zaman bloğu oluşturun • Blokları tıklayarak düzenleyin
+      </div>
     </div>
   `;
+}
+
+// Generate vertical hour marks (0-24) with compressed spacing
+function generateVerticalHourMarks() {
+  let marks = '';
+  for (let i = 0; i <= 24; i += 2) {
+    // Evenly distribute 0:00..24:00 across full height
+    const percentage = (i / 24) * 100;
+    const translate = (i === 0) ? 'translateY(0)' : (i === 24 ? 'translateY(-100%)' : 'translateY(-50%)');
+    marks += `<div style="position: absolute; top: ${percentage}%; left: 0; right: 0; height: 1px; background: var(--border);"></div>`;
+    marks += `<div style="position: absolute; top: ${percentage}%; transform: ${translate}; left: 4px; font-size: 10px; color: var(--muted-foreground); background: var(--muted); padding: 0 4px;">${i}:00</div>`;
+  }
+  return marks;
+}
+
+// Generate time grid lines for day columns with compressed spacing
+function generateTimeGridLines() {
+  let lines = '';
+  for(let i = 0; i <= 24; i += 2) {
+    // Compress the spacing by 25% (multiply by 0.75)
+    const percentage = ((i / 24) * 100) * 0.75;
+    lines += `<div style="position: absolute; top: ${percentage}%; left: 0; right: 0; height: 1px; background: var(--border); opacity: 0.3;"></div>`;
+  }
+  return lines;
 }
 
 export function generateWorkers() {
