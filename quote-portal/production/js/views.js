@@ -166,7 +166,7 @@ export function generateSettings() {
     </div>
     
     <!-- İlk satır: Skills ve Production Settings -->
-    <div class="grid grid-cols-2" style="margin-bottom: 24px;">
+    <div class="grid grid-cols-2" style="margin-bottom: 24px; grid-template-columns: minmax(280px, 420px) 1fr; align-items: start; gap: 16px;">
       <div class="card">
         <div class="card-header" style="padding: 8px 12px;">
           <div class="card-title" style="font-size: 1.1em;">Skills Management</div>
@@ -190,23 +190,25 @@ export function generateSettings() {
         <div class="card-title" style="font-size: 1.1em;">Zaman Yönetimi</div>
       </div>
       <div class="card-content" style="padding: 16px 20px;">
-        <!-- Vardiya Sayısı ve Tek Timeline (laneCount ile kontrol) -->
-        <div style="margin-bottom: 12px; display:flex; align-items:center; gap:10px;">
-          <span style="font-weight:600; font-size:13px;">Vardiya Sayısı</span>
-          <input id="lane-count-input" type="number" min="1" max="7" step="1" value="1" style="width:72px; height:30px; padding:4px 6px; border:1px solid var(--border); border-radius:6px;">
-          <span style="font-size:12px; color: var(--muted-foreground);">1 = tek düzen, &gt;1 = gün başına çoklu vardiya</span>
-        </div>
         <div id="shift-schedule" style="display: block;">
-          <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--foreground);">Haftalık Çalışma Programı</h3>
-          ${generateWeeklyTimeline('shift')}
+          <div style="display:flex; align-items:center; justify-content: space-between; gap:12px; margin-bottom:16px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <h3 style="font-size: 16px; font-weight: 600; margin: 0; color: var(--foreground);">Haftalık Çalışma Programı</h3>
+              <span style="font-size: 11px; color: var(--muted-foreground);">( Çalışma: 🟩 , Mola: 🟨 , Dinlenme: ⬜️ )</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button id="timeline-edit-btn" onclick="startTimelineEdit()" style="background: white; color: var(--foreground); padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 12px; line-height: 1;">Düzenle</button>
+              <button id="timeline-cancel-btn" onclick="stopTimelineEdit()" style="display:none; background: white; color: var(--foreground); padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 12px; line-height: 1;">İptal</button>
+              <button id="timeline-save-btn" onclick="saveTimeManagement()" style="display:none; background: var(--primary); color: var(--primary-foreground); padding: 6px 10px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px; line-height: 1;">Çalışma Programını Kaydet</button>
+            </div>
+          </div>
+          <div id="timeline-wrapper" style="position: relative;">
+            ${generateWeeklyTimeline('shift')}
+            <div id="timeline-edit-overlay" style="position:absolute; inset:0; background: rgba(255,255,255,0.6); z-index: 5;"></div>
+          </div>
         </div>
 
-        <!-- Kaydet Butonu -->
-        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
-          <button onclick="saveTimeManagement()" style="background: var(--primary); color: var(--primary-foreground); padding: 8px 16px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">
-            Zaman Ayarlarını Kaydet
-          </button>
-        </div>
+        
       </div>
     </div>
 
@@ -290,6 +292,14 @@ export function generateWeeklyTimeline(scheduleType) {
           </div>
         `).join('')}
       </div>
+
+      <!-- Lane header row (outside of day columns) -->
+      <div class="lanes-header" style="display: grid; grid-template-columns: 60px repeat(7, 1fr); background: var(--muted); border-bottom: 1px solid var(--border);">
+        <div style="padding: 4px; border-right: 1px solid var(--border);"></div>
+        ${dayIds.map((dayId, index) => `
+          <div id="lanes-header-${dayId}" class="lanes-header-cell" style="padding: 4px; border-right: 1px solid var(--border); ${index === dayIds.length - 1 ? 'border-right: none;' : ''}"></div>
+        `).join('')}
+      </div>
       
       <!-- Timeline grid -->
       <div class="weekly-timeline" style="display: grid; grid-template-columns: 60px repeat(7, 1fr); height: 360px; position: relative;">
@@ -311,9 +321,13 @@ export function generateWeeklyTimeline(scheduleType) {
         `).join('')}
       </div>
       
-      <!-- Instructions -->
-      <div style="padding: 8px 12px; background: var(--muted); border-top: 1px solid var(--border); font-size: 11px; color: var(--muted-foreground); text-align: center;">
-        Sürükleyerek zaman bloğu oluşturun • Blokları tıklayarak düzenleyin
+      <!-- Instructions + Lane count -->
+      <div style="padding: 8px 12px; background: var(--muted); border-top: 1px solid var(--border); font-size: 11px; color: var(--muted-foreground); display:flex; align-items:center; gap:12px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-weight:600; font-size:12px;">Vardiya Sayısı</span>
+          <input id="lane-count-input" type="number" min="1" max="7" step="1" value="1" style="width:72px; height:28px; padding:2px 3px; border:1px solid var(--border); border-radius:6px;">
+        </div>
+        <span>Sürükleyerek zaman bloğu oluşturun • Blokları tıklayarak düzenleyin</span>
       </div>
     </div>
   `;

@@ -10,7 +10,7 @@ import { openAddStationModal, editStation, closeStationModal, saveStation, toggl
 import { initializeOperationsUI, openAddOperationModal, editOperation, deleteOperation, saveOperation, closeOperationModal, showOperationDetail, closeOperationDetail, editOperationFromDetail, deleteOperationFromDetail, openOperationTypesModal, closeOperationTypesModal, addOperationTypeFromModal, editOperationType, deleteOperationTypeConfirm, toggleOperationTypeDropdown, selectOperationTypeFromDropdown, addNewOperationTypeFromInput } from './operations.js';
 import { openHelp, closeHelp, switchHelpTab, toggleFAQ, initHelp } from './help.js';
 import { initializeApprovedQuotesUI, showApprovedQuoteDetail, closeApprovedQuoteDetail, toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter, toggleAQPlanType, applyOverdueFilter, applyQuickDateFilter, sortApprovedQuotes } from './approvedQuotes.js';
-import { initMasterDataUI, addSkillFromSettings, renameSkill, deleteSkill } from './masterData.js';
+import { initMasterDataUI, addSkillFromSettings, renameSkill, deleteSkill, activateSkillRow, onSkillNameInput, cancelSkillEdit } from './masterData.js';
 import { toggleMobileNav, closeMobileNav } from './mobile.js';
 import { API_BASE, withAuth } from '../../shared/lib/api.js';
 import { getMasterData, invalidateMasterDataCache } from './mesApi.js';
@@ -131,7 +131,7 @@ Object.assign(window, {
   // help
   openHelp, closeHelp, switchHelpTab, toggleFAQ,
   // master data (skills)
-  addSkillFromSettings, renameSkill, deleteSkill,
+  addSkillFromSettings, renameSkill, deleteSkill, activateSkillRow, onSkillNameInput, cancelSkillEdit,
   // time management
   saveTimeManagement, initializeTimeline, createScheduleBlock, editScheduleBlock, saveScheduleBlock, deleteScheduleBlock, cancelScheduleEdit, clearOldTimeSettings,
   // mobile
@@ -147,7 +147,11 @@ Object.assign(window, {
   // metadata toggle functionality
   toggleMetadataColumns,
   // time management / schedules
-  switchWorkType
+  switchWorkType,
+  // timeline edit helpers
+  startTimelineEdit,
+  stopTimelineEdit,
+  markTimelineDirty
 });
 
 // Clear old localStorage data (run once)
@@ -221,10 +225,162 @@ async function saveTimeManagement() {
       console.error('Master time settings save error:', e);
     }
     showToast(remoteOk ? 'Zaman ayarları kaydedildi' : 'Zaman ayarları yerelde kaydedildi, sunucuya yazılamadı', remoteOk ? 'success' : 'warning');
+    // Apply lane count to UI only after saving
+    try { setTimelineLaneCount(laneCount); } catch {}
   } catch (e) {
     console.error('saveTimeManagement error', e);
     showToast('Zaman ayarları kaydedilemedi', 'error');
   }
+}
+
+// --- Timeline edit UI helpers ---
+window.timelineEditMode = false;
+window.timelineDirty = false;
+window.timelineSnapshot = null;
+window._laneCountDirtyHandler = null;
+
+function getTimelineContainers() {
+  const wrapper = document.getElementById('timeline-wrapper');
+  if (!wrapper) return [];
+  return Array.from(wrapper.querySelectorAll('[id^="blocks-"]'));
+}
+
+function snapshotTimeline() {
+  const snap = {};
+  // include lane count in snapshot
+  try {
+    const laneInput = document.getElementById('lane-count-input');
+    const val = laneInput ? parseInt(laneInput.value || '1', 10) || 1 : (typeof timelineLaneCount === 'number' ? timelineLaneCount : 1);
+    snap.__laneCount = val;
+  } catch {}
+  getTimelineContainers().forEach(cnt => {
+    const dayId = cnt.id.replace(/^blocks-/, '');
+    const list = Array.from(cnt.querySelectorAll('[data-block-info]')).map(el => {
+      try { return JSON.parse(el.dataset.blockInfo) } catch { return null }
+    }).filter(Boolean);
+    snap[dayId] = list;
+  });
+  return snap;
+}
+
+function restoreTimeline(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return;
+  Object.entries(snapshot).forEach(([dayId, list]) => {
+    const cnt = document.getElementById(`blocks-${dayId}`);
+    if (!cnt) return;
+    cnt.innerHTML = '';
+    (Array.isArray(list) ? list : []).forEach(b => {
+      try {
+        const sh = typeof b.startHour === 'number' ? b.startHour : timeToHour(b.startTime);
+        const eh = typeof b.endHour === 'number' ? b.endHour : timeToHour(b.endTime);
+        const startTime = b.startTime || formatHourToTime(sh);
+        const endTime = b.endTime || formatHourToTime(eh);
+        createScheduleBlock(dayId, b.type || 'work', sh, eh, startTime, endTime, (typeof b.laneIndex === 'number' ? b.laneIndex : 0));
+      } catch {}
+    });
+  });
+}
+
+function startTimelineEdit() {
+  const overlay = document.getElementById('timeline-edit-overlay');
+  if (overlay) overlay.style.display = 'none';
+  // take snapshot of current blocks
+  window.timelineSnapshot = snapshotTimeline();
+  // listen lane-count changes to update dirty state immediately
+  try {
+    const laneInput = document.getElementById('lane-count-input');
+    if (laneInput) {
+      laneInput.disabled = false;
+      window._laneCountDirtyHandler = () => markTimelineDirty();
+      laneInput.addEventListener('input', window._laneCountDirtyHandler);
+      laneInput.addEventListener('change', window._laneCountDirtyHandler);
+    }
+  } catch {}
+  const btnEdit = document.getElementById('timeline-edit-btn');
+  const btnSave = document.getElementById('timeline-save-btn');
+  const btnCancel = document.getElementById('timeline-cancel-btn');
+  if (btnEdit) btnEdit.style.display = 'none';
+  if (btnCancel) btnCancel.style.display = 'inline-flex';
+  window.timelineDirty = false;
+  if (btnSave) btnSave.style.display = 'none';
+  window.timelineEditMode = true;
+}
+
+function stopTimelineEdit() {
+  const overlay = document.getElementById('timeline-edit-overlay');
+  if (overlay) overlay.style.display = 'block';
+  // restore from snapshot and clear dirty state
+  try { restoreTimeline(window.timelineSnapshot); } catch {}
+  // remove lane-count listeners
+  try {
+    const laneInput = document.getElementById('lane-count-input');
+    if (laneInput && window._laneCountDirtyHandler) {
+      laneInput.removeEventListener('input', window._laneCountDirtyHandler);
+      laneInput.removeEventListener('change', window._laneCountDirtyHandler);
+    }
+    if (laneInput) {
+      // restore input value from snapshot and disable when not editing
+      const snapLane = (typeof (window.timelineSnapshot?.__laneCount) === 'number') ? window.timelineSnapshot.__laneCount : undefined;
+      if (typeof snapLane === 'number') laneInput.value = String(snapLane);
+      laneInput.disabled = true;
+    }
+    window._laneCountDirtyHandler = null;
+  } catch {}
+  // finally clear snapshot reference
+  window.timelineSnapshot = null;
+  const btnEdit = document.getElementById('timeline-edit-btn');
+  const btnSave = document.getElementById('timeline-save-btn');
+  const btnCancel = document.getElementById('timeline-cancel-btn');
+  if (btnEdit) btnEdit.style.display = 'inline-flex';
+  if (btnCancel) btnCancel.style.display = 'none';
+  if (btnSave) btnSave.style.display = 'none';
+  window.timelineEditMode = false;
+  window.timelineDirty = false;
+}
+
+function markTimelineDirty() {
+  // Compare with snapshot and set dirty accordingly
+  try {
+    const current = snapshotTimeline();
+    const snap = window.timelineSnapshot || {};
+    const isEqual = timelinesEqual(snap, current);
+    window.timelineDirty = !isEqual;
+  } catch { window.timelineDirty = true; }
+  if (!window.timelineEditMode) return;
+  const btnSave = document.getElementById('timeline-save-btn');
+  if (btnSave) btnSave.style.display = (window.timelineDirty ? 'inline-flex' : 'none');
+}
+
+function normalizeBlocks(list) {
+  const arr = (Array.isArray(list) ? list : []).map(b => ({
+    type: b.type || 'work',
+    startHour: typeof b.startHour === 'number' ? b.startHour : timeToHour(b.startTime),
+    endHour: typeof b.endHour === 'number' ? b.endHour : timeToHour(b.endTime),
+    laneIndex: typeof b.laneIndex === 'number' ? b.laneIndex : 0
+  }));
+  arr.sort((a,b) => a.startHour - b.startHour || a.endHour - b.endHour || (a.type > b.type ? 1 : a.type < b.type ? -1 : 0) || a.laneIndex - b.laneIndex);
+  return arr;
+}
+
+function timelinesEqual(snapA, snapB) {
+  // compare lane counts first (default to 1)
+  const laneA = (typeof snapA?.__laneCount === 'number') ? snapA.__laneCount : 1;
+  const laneB = (typeof snapB?.__laneCount === 'number') ? snapB.__laneCount : 1;
+  if (laneA !== laneB) return false;
+  const keys = new Set([...Object.keys(snapA||{}), ...Object.keys(snapB||{})]);
+  for (const k of keys) {
+    if (k === '__laneCount') continue;
+    const a = normalizeBlocks(snapA?.[k]);
+    const b = normalizeBlocks(snapB?.[k]);
+    if (a.length !== b.length) return false;
+    for (let i=0;i<a.length;i++) {
+      const x = a[i], y = b[i];
+      if (x.type !== y.type || Math.abs(x.startHour - y.startHour) > 0.0001 || Math.abs(x.endHour - y.endHour) > 0.0001 || x.laneIndex !== y.laneIndex) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 // Populate Settings timeline from saved company time settings (master-data)
@@ -524,15 +680,25 @@ function initializeLaneControls() {
   const dec = document.getElementById('lane-dec');
   const inc = document.getElementById('lane-inc');
   const inp = document.getElementById('lane-count-input');
-  const apply = (n) => { setTimelineLaneCount(n); if (inp) inp.value = String(timelineLaneCount); };
-  if (dec) dec.addEventListener('click', () => apply(Math.max(1, (timelineLaneCount - 1))));
-  if (inc) inc.addEventListener('click', () => apply(Math.min(7, (timelineLaneCount + 1))));
-  if (inp) inp.addEventListener('change', (e) => {
-    const v = parseInt(e.target.value, 10);
-    apply(isFinite(v) ? Math.max(1, Math.min(7, v)) : 1);
+  const clampLane = (v) => (isFinite(v) ? Math.max(1, Math.min(7, v)) : 1);
+  const applyImmediate = (n) => { setTimelineLaneCount(n); if (inp) inp.value = String(n); };
+  const setInputOnly = (n) => { if (inp) inp.value = String(n); if (typeof markTimelineDirty === 'function') markTimelineDirty(); };
+  if (dec) dec.addEventListener('click', () => {
+    const next = clampLane((parseInt(inp?.value || String(timelineLaneCount), 10) || 1) - 1);
+    if (window.timelineEditMode) setInputOnly(next); else applyImmediate(next);
   });
-  // First time apply
-  apply(parseInt(inp?.value || '1', 10));
+  if (inc) inc.addEventListener('click', () => {
+    const next = clampLane((parseInt(inp?.value || String(timelineLaneCount), 10) || 1) + 1);
+    if (window.timelineEditMode) setInputOnly(next); else applyImmediate(next);
+  });
+  if (inp) inp.addEventListener('change', (e) => {
+    const v = clampLane(parseInt(e.target.value, 10));
+    if (window.timelineEditMode) setInputOnly(v); else applyImmediate(v);
+  });
+  // First time apply to reflect current value
+  applyImmediate(parseInt(inp?.value || '1', 10));
+  // Disable input when not in edit mode
+  if (inp) inp.disabled = !window.timelineEditMode;
 }
 
 function setTimelineLaneCount(n) {
@@ -543,49 +709,47 @@ function setTimelineLaneCount(n) {
     // Update lane guides (simple separators)
     // Remove old
     col.querySelectorAll('.lanes-overlay, .lanes-labels').forEach(x => x.remove());
-    if (timelineLaneCount <= 1) return;
-    const overlay = document.createElement('div');
-    overlay.className = 'lanes-overlay';
-    overlay.style.position = 'absolute';
-    overlay.style.top = '0';
-    overlay.style.left = '0';
-    overlay.style.right = '0';
-    overlay.style.bottom = '0';
-    overlay.style.pointerEvents = 'none';
-    for (let i = 1; i < timelineLaneCount; i++) {
-      const sep = document.createElement('div');
-      const leftPct = (i * 100) / timelineLaneCount;
-      sep.style.position = 'absolute';
-      sep.style.top = '0';
-      sep.style.bottom = '0';
-      sep.style.left = `calc(${leftPct}% - 0.5px)`;
-      sep.style.width = '1px';
-      sep.style.background = 'var(--border)';
-      overlay.appendChild(sep);
-    }
-    col.appendChild(overlay);
 
-    // Add lane labels (1..N) under day area (stick to top of the column)
-    const labels = document.createElement('div');
-    labels.className = 'lanes-labels';
-    labels.style.position = 'absolute';
-    labels.style.top = '2px';
-    labels.style.left = '2px';
-    labels.style.right = '2px';
-    labels.style.height = '16px';
-    labels.style.display = 'grid';
-    labels.style.gridTemplateColumns = `repeat(${timelineLaneCount}, 1fr)`;
-    labels.style.gap = '0px';
-    labels.style.pointerEvents = 'none';
-    for (let i = 1; i <= timelineLaneCount; i++) {
-      const tag = document.createElement('div');
-      tag.textContent = String(i);
-      tag.style.fontSize = '11px';
-      tag.style.color = 'var(--muted-foreground)';
-      tag.style.textAlign = 'center';
-      labels.appendChild(tag);
+    // Update outside lane header for this day
+    const headerCell = document.getElementById(`lanes-header-${col.dataset.day}`);
+    if (headerCell) {
+      headerCell.innerHTML = '';
+      headerCell.style.display = 'grid';
+      headerCell.style.gridTemplateColumns = `repeat(${timelineLaneCount}, 1fr)`;
+      headerCell.style.gap = '4px';
+      for (let i = 1; i <= timelineLaneCount; i++) {
+        const span = document.createElement('div');
+        span.textContent = String(i);
+        span.style.fontSize = '11px';
+        span.style.color = 'var(--muted-foreground)';
+        span.style.textAlign = 'center';
+        headerCell.appendChild(span);
+      }
     }
-    col.appendChild(labels);
+
+    // Add vertical separators overlay if multi-lane
+    if (timelineLaneCount > 1) {
+      const overlay = document.createElement('div');
+      overlay.className = 'lanes-overlay';
+      overlay.style.position = 'absolute';
+      overlay.style.top = '0';
+      overlay.style.left = '0';
+      overlay.style.right = '0';
+      overlay.style.bottom = '0';
+      overlay.style.pointerEvents = 'none';
+      for (let i = 1; i < timelineLaneCount; i++) {
+        const sep = document.createElement('div');
+        const leftPct = (i * 100) / timelineLaneCount;
+        sep.style.position = 'absolute';
+        sep.style.top = '0';
+        sep.style.bottom = '0';
+        sep.style.left = `calc(${leftPct}% - 0.5px)`;
+        sep.style.width = '1px';
+        sep.style.background = 'var(--border)';
+        overlay.appendChild(sep);
+      }
+      col.appendChild(overlay);
+    }
   });
 }
 
@@ -771,14 +935,16 @@ function createScheduleBlock(dayId, type, startHour, endHour, startTime, endTime
   block.style.padding = '2px';
   block.style.overflow = 'hidden';
   
-  // Content depends on height
-  if (height > 8) { // Large enough for text
-    block.innerHTML = `<div>${typeLabels[type]}</div><div style="font-size: 9px; margin-top: 1px;">${startTime}-${endTime}</div>`;
-  } else if (height > 4) { // Medium size
-    block.textContent = `${startTime}-${endTime}`;
-  } else { // Very small
-    block.textContent = typeLabels[type].substr(0, 1);
-  }
+  // Always show times stacked in the block, use inclusive end (end-1min)
+  const _toMin = (t) => { const [hh,mm] = String(t||'0:0').split(':').map(x=>parseInt(x,10)||0); return hh*60+mm; };
+  const _toHM = (m) => { m = Math.max(0, m); const hh=String(Math.floor(m/60)).padStart(2,'0'); const mm=String(m%60).padStart(2,'0'); return `${hh}:${mm}`; };
+  const dispStart = startTime;
+  const dispEnd = _toHM(_toMin(endTime)-1);
+  block.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; line-height:1.1; gap:1px;">
+    <div style="font-size:9px;">${dispStart}</div>
+    <div style="font-size:9px;">-</div>
+    <div style="font-size:9px;">${dispEnd}</div>
+  </div>`;
   
   // Store block data
   block.dataset.blockInfo = JSON.stringify({
@@ -793,6 +959,7 @@ function createScheduleBlock(dayId, type, startHour, endHour, startTime, endTime
   block.addEventListener('click', () => editScheduleBlock(block));
 
   blocksContainer.appendChild(block);
+  if (window.timelineEditMode && typeof markTimelineDirty === 'function') markTimelineDirty();
 }
 
 function updateScheduleBlock(blockElement, type, startHour, endHour, startTime, endTime) {
@@ -825,14 +992,19 @@ function updateScheduleBlock(blockElement, type, startHour, endHour, startTime, 
   blockElement.style.border = `1px solid ${colors[type].border}`;
   blockElement.style.color = colors[type].text;
   
-  // Update content based on size
-  if (height > 8) {
-    blockElement.innerHTML = `<div>${typeLabels[type]}</div><div style="font-size: 9px; margin-top: 1px;">${startTime}-${endTime}</div>`;
-  } else if (height > 4) {
-    blockElement.textContent = `${startTime}-${endTime}`;
-  } else {
-    blockElement.textContent = typeLabels[type].substr(0, 1);
-  }
+  // Always show times stacked, use inclusive end (end-1min)
+  const _toMin2 = (t) => { const [hh,mm] = String(t||'0:0').split(':').map(x=>parseInt(x,10)||0); return hh*60+mm; };
+  const _toHM2 = (m) => { m = Math.max(0, m); const hh=String(Math.floor(m/60)).padStart(2,'0'); const mm=String(m%60).padStart(2,'0'); return `${hh}:${mm}`; };
+  const dispStart2 = startTime;
+  const dispEnd2 = _toHM2(_toMin2(endTime)-1);
+  blockElement.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; line-height:1.1; gap:1px;">
+    <div style="font-size:9px;">${dispStart2}</div>
+    <div style="font-size:9px;">-</div>
+    <div style="font-size:9px;">${dispEnd2}</div>
+  </div>`;
+  
+  //
+  blockElement.textContent = '';
   
   // Keep laneIndex from element dataset
   blockElement.dataset.blockInfo = JSON.stringify({
@@ -843,6 +1015,7 @@ function updateScheduleBlock(blockElement, type, startHour, endHour, startTime, 
     endHour: endHour,
     laneIndex: laneIdx
   });
+  if (window.timelineEditMode && typeof markTimelineDirty === 'function') markTimelineDirty();
 }
 
 function deleteScheduleBlock() {
@@ -856,6 +1029,7 @@ function deleteScheduleBlock() {
   if (confirm('Bu zaman bloğunu silmek istediğinizden emin misiniz?')) {
     editData.element.remove();
     cancelScheduleEdit();
+    if (window.timelineEditMode && typeof markTimelineDirty === 'function') markTimelineDirty();
   }
 }
 
