@@ -133,7 +133,7 @@ Object.assign(window, {
   // master data (skills)
   addSkillFromSettings, renameSkill, deleteSkill,
   // time management
-  saveTimeManagement, initializeTimeline, editScheduleBlock, saveScheduleBlock, deleteScheduleBlock, cancelScheduleEdit, clearOldTimeSettings,
+  saveTimeManagement, initializeTimeline, createScheduleBlock, editScheduleBlock, saveScheduleBlock, deleteScheduleBlock, cancelScheduleEdit, clearOldTimeSettings,
   // mobile
   toggleMobileNav, closeMobileNav
   ,

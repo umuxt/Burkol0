@@ -138,6 +138,15 @@ export function deleteWorkerFromDetail() {
 export function openWorkerScheduleModal() {
   const modal = document.getElementById('worker-schedule-modal')
   if (!modal) return
+  // Ensure a clean timeline (avoid previous worker's personal blocks sticking around)
+  try {
+    const blockContainers = modal.querySelectorAll('[id^="blocks-worker-"]')
+    blockContainers.forEach(cnt => {
+      // Remove only created blocks, keep grid/lines intact
+      const blocks = cnt.querySelectorAll('[data-block-info]')
+      blocks.forEach(el => el.remove())
+    })
+  } catch {}
   // Determine current worker state
   const worker = workersState.find(w => w.id === selectedWorkerId) || {}
   const savedMode = (worker.personalSchedule && worker.personalSchedule.mode) ? worker.personalSchedule.mode : 'company'
@@ -176,6 +185,33 @@ export function openWorkerScheduleModal() {
   })()
 
   handleWorkerScheduleModeChange(savedMode)
+
+  // Prefill personal schedule blocks if this worker already uses personal mode
+  try {
+    if (savedMode === 'personal' && worker.personalSchedule && worker.personalSchedule.blocks) {
+      const blocksByDay = worker.personalSchedule.blocks
+      const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+      const toHour = (t) => {
+        if (!t || typeof t !== 'string') return 0
+        const parts = t.split(':')
+        const h = parseInt(parts[0] || '0', 10) || 0
+        const m = parseInt(parts[1] || '0', 10) || 0
+        return h + (m/60)
+      }
+      days.forEach(d => {
+        const list = Array.isArray(blocksByDay[d]) ? blocksByDay[d] : []
+        list.forEach(b => {
+          const type = b.type || 'work'
+          const startHour = typeof b.startHour === 'number' ? b.startHour : toHour(b.startTime)
+          const endHour = typeof b.endHour === 'number' ? b.endHour : toHour(b.endTime)
+          const startTime = b.startTime || (Number.isFinite(startHour) ? `${String(Math.floor(startHour)).padStart(2,'0')}:${String(Math.round((startHour-Math.floor(startHour))*60)).padStart(2,'0')}` : '00:00')
+          const endTime = b.endTime || (Number.isFinite(endHour) ? `${String(Math.floor(endHour)).padStart(2,'0')}:${String(Math.round((endHour-Math.floor(endHour))*60)).padStart(2,'0')}` : '00:00')
+          const laneIdx = Number.isFinite(b.laneIndex) ? b.laneIndex : 0
+          try { createScheduleBlock(`worker-${d}`, type, startHour, endHour, startTime, endTime, laneIdx) } catch {}
+        })
+      })
+    }
+  } catch {}
   // Show modal
   modal.style.display = 'flex'
   // Initialize timeline if personal area is visible later
@@ -183,6 +219,32 @@ export function openWorkerScheduleModal() {
     if (typeof initializeTimeline === 'function') {
       try { initializeTimeline() } catch {}
     }
+    // Prefill again after timeline init to ensure blocks render if earlier call happened before any wiring
+    try {
+      if (savedMode === 'personal' && worker.personalSchedule && worker.personalSchedule.blocks) {
+        const blocksByDay = worker.personalSchedule.blocks
+        const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+        const toHour = (t) => {
+          if (!t || typeof t !== 'string') return 0
+          const parts = t.split(':')
+          const h = parseInt(parts[0] || '0', 10) || 0
+          const m = parseInt(parts[1] || '0', 10) || 0
+          return h + (m/60)
+        }
+        days.forEach(d => {
+          const list = Array.isArray(blocksByDay[d]) ? blocksByDay[d] : []
+          list.forEach(b => {
+            const type = b.type || 'work'
+            const startHour = typeof b.startHour === 'number' ? b.startHour : toHour(b.startTime)
+            const endHour = typeof b.endHour === 'number' ? b.endHour : toHour(b.endTime)
+            const startTime = b.startTime || (Number.isFinite(startHour) ? `${String(Math.floor(startHour)).padStart(2,'0')}:${String(Math.round((startHour-Math.floor(startHour))*60)).padStart(2,'0')}` : '00:00')
+            const endTime = b.endTime || (Number.isFinite(endHour) ? `${String(Math.floor(endHour)).padStart(2,'0')}:${String(Math.round((endHour-Math.floor(endHour))*60)).padStart(2,'0')}` : '00:00')
+            const laneIdx = Number.isFinite(b.laneIndex) ? b.laneIndex : 0
+            try { createScheduleBlock(`worker-${d}`, type, startHour, endHour, startTime, endTime, laneIdx) } catch {}
+          })
+        })
+      }
+    } catch {}
   }, 0)
 }
 
@@ -200,6 +262,15 @@ export function handleWorkerScheduleModeChange(mode) {
   if (mode === 'personal') {
     company.style.display = 'none'
     personal.style.display = 'block'
+    // Ensure personal timeline starts empty when switching
+    try {
+      const modal = document.getElementById('worker-schedule-modal')
+      const blockContainers = modal ? modal.querySelectorAll('[id^="blocks-worker-"]') : []
+      blockContainers.forEach(cnt => {
+        const blocks = cnt.querySelectorAll('[data-block-info]')
+        blocks.forEach(el => el.remove())
+      })
+    } catch {}
     // Ensure timeline is wired
     if (typeof initializeTimeline === 'function') {
       setTimeout(() => { try { initializeTimeline() } catch {} }, 0)

@@ -149,6 +149,123 @@ router.post('/workers', withAuth, async (req, res) => {
     const db = getFirestore();
     const batch = db.batch();
 
+    // Load master time settings once to compute company schedules when needed
+    const mdDoc = await db.collection('mes-settings').doc('master-data').get();
+    const master = mdDoc.exists ? (mdDoc.data() || {}) : {};
+    const timeSettings = master.timeSettings || { workType: 'fixed', laneCount: 1, fixedBlocks: {}, shiftBlocks: {} };
+
+    // Helper to compute blocks for a day from master time settings
+    function getShiftBlocksForDay(ts, day, shiftNo) {
+      // Aggregated model with laneIndex under `shift-${day}`
+      const agg = ts?.shiftBlocks?.[`shift-${day}`];
+      if (Array.isArray(agg)) {
+        if (!shiftNo) return agg;
+        const idx = (parseInt(shiftNo, 10) || 1) - 1;
+        return agg.filter(b => (b && typeof b.laneIndex === 'number') ? b.laneIndex === idx : false);
+      }
+      // Split‑by‑lane model: shiftByLane: { '1': { day: [...] }, '2': { day: [...] } }
+      const byLane = ts?.shiftByLane;
+      if (byLane && typeof byLane === 'object') {
+        if (shiftNo) {
+          return Array.isArray(byLane[String(parseInt(shiftNo, 10) || 1)]?.[day])
+            ? byLane[String(parseInt(shiftNo, 10) || 1)][day]
+            : [];
+        }
+        let combined = [];
+        Object.keys(byLane).forEach(k => { if (Array.isArray(byLane[k]?.[day])) combined = combined.concat(byLane[k][day]) });
+        return combined;
+      }
+      // Named keys like `${day}-1`, `${day}_1`, `shift-1-${day}`, `shift-${day}-1`
+      const keys = Object.keys(ts || {});
+      if (keys.length) {
+        const collect = (n) => {
+          const patterns = [
+            new RegExp(`^${day}[-_]${n}$`, 'i'),
+            new RegExp(`^shift[-_]${day}[-_]${n}$`, 'i'),
+            new RegExp(`^shift[-_]${n}[-_]${day}$`, 'i')
+          ];
+          const matchKey = keys.find(k => patterns.some(p => p.test(k)));
+          const arr = matchKey && Array.isArray(ts[matchKey]) ? ts[matchKey] : [];
+          return arr;
+        };
+        if (shiftNo) return collect(parseInt(shiftNo, 10) || 1);
+        let combined = [];
+        for (let n = 1; n <= 7; n++) { const arr = collect(n); if (arr.length) combined = combined.concat(arr) }
+        return combined;
+      }
+      return [];
+    }
+
+    function buildCompanyBlocks(ts, shiftNo) {
+      const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+      const result = {};
+      const isShift = (ts?.workType === 'shift');
+      for (const d of days) {
+        if (isShift) {
+          result[d] = getShiftBlocksForDay(ts, d, shiftNo);
+        } else {
+          result[d] = Array.isArray(ts?.fixedBlocks?.[d]) ? ts.fixedBlocks[d] : [];
+        }
+      }
+      return result;
+    }
+
+    function normalizeSkills(skills) {
+      if (Array.isArray(skills)) return skills;
+      if (typeof skills === 'string') return skills.split(',').map(s=>s.trim()).filter(Boolean);
+      return [];
+    }
+
+    function sanitizeWorkerPayload(worker) {
+      const id = worker.id || `w-${Math.random().toString(36).slice(2,9)}`;
+      const skills = normalizeSkills(worker.skills);
+      const status = (worker.status || 'available').toLowerCase();
+
+      // Normalize schedule: only allow one model via personalSchedule with mode
+      const ps = (worker.personalSchedule && typeof worker.personalSchedule === 'object') ? worker.personalSchedule : null;
+      let personalSchedule = null;
+      if (ps) {
+        const mode = (ps.mode === 'personal' || ps.mode === 'company') ? ps.mode : 'company';
+        if (mode === 'company') {
+          const shiftNo = ps.shiftNo || (timeSettings?.workType === 'shift' ? '1' : undefined);
+          personalSchedule = {
+            mode: 'company',
+            ...(shiftNo ? { shiftNo } : {}),
+            blocks: buildCompanyBlocks(timeSettings, shiftNo)
+          };
+        } else {
+          // personal mode: accept provided blocks, default missing days to []
+          const blocks = ps.blocks && typeof ps.blocks === 'object' ? ps.blocks : {};
+          const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+          const normalized = {};
+          days.forEach(d => { normalized[d] = Array.isArray(blocks[d]) ? blocks[d] : [] });
+          personalSchedule = { mode: 'personal', blocks: normalized };
+        }
+      } else {
+        // No schedule provided: default to company with computed blocks
+        const shiftNo = (timeSettings?.workType === 'shift') ? '1' : undefined;
+        personalSchedule = {
+          mode: 'company',
+          ...(shiftNo ? { shiftNo } : {}),
+          blocks: buildCompanyBlocks(timeSettings, shiftNo)
+        };
+      }
+
+      const payload = {
+        id,
+        name: (worker.name || '').trim(),
+        email: (worker.email || '').trim(),
+        phone: (worker.phone || '').trim(),
+        skills,
+        status,
+        station: worker.station || '',
+        currentTask: worker.currentTask || '',
+        personalSchedule,
+        updatedAt: new Date()
+      };
+      return payload;
+    }
+
     // Get existing workers to find deletions
     const existingSnapshot = await db.collection('mes-workers').get();
     const existingIds = new Set(existingSnapshot.docs.map(doc => doc.id));
@@ -156,11 +273,17 @@ router.post('/workers', withAuth, async (req, res) => {
 
     // Add/Update workers
     workers.forEach(worker => {
-      const docRef = db.collection('mes-workers').doc(worker.id);
-      batch.set(docRef, {
-        ...worker,
-        updatedAt: new Date()
-      }, { merge: true });
+      const payload = sanitizeWorkerPayload(worker);
+      const docRef = db.collection('mes-workers').doc(payload.id);
+      // Delete legacy/duplicate schedule fields to enforce single weekly schedule source
+      const deletes = {
+        schedule: admin.firestore.FieldValue.delete(),
+        companySchedule: admin.firestore.FieldValue.delete(),
+        personalScheduleOld: admin.firestore.FieldValue.delete(),
+        companyTimeSettings: admin.firestore.FieldValue.delete(),
+        timeSource: admin.firestore.FieldValue.delete()
+      };
+      batch.set(docRef, { ...deletes, ...payload }, { merge: true });
     });
 
     // Delete removed workers
