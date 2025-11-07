@@ -1,7 +1,7 @@
 // Backend-powered overrides for Plan Designer
 import { showToast } from './ui.js'
 import { getOperations, getWorkers, getStations, getApprovedQuotes, getMaterials, upsertProducedWipFromNode, getProductionPlans } from './mesApi.js'
-import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect } from './planDesigner.js'
+import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate } from './planDesigner.js'
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
 
@@ -33,6 +33,52 @@ function getScrollbarWidth() {
   return scrollbarWidth
 }
 
+// Rebuild material rows UI from current node state (includes auto-derived materials)
+function rebuildMaterialRowsFromNode(node) {
+  try {
+    const container = document.getElementById('edit-materials-rows')
+    if (!container || !node) return
+    const rows = Array.isArray(node.rawMaterials) ? node.rawMaterials : (node.rawMaterial ? [node.rawMaterial] : [])
+    const buildRow = (rm, idx) => {
+      const isDerived = !!(rm && rm.derivedFrom)
+      const badge = isDerived ? '<span style="margin-left:6px; font-size:11px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:8px;">auto</span>' : ''
+      const displayInput = isDerived
+        ? `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f3f4f6; color:#6b7280; cursor: default;" />${badge}`
+        : `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; cursor: pointer;" onclick="openMaterialDropdown(${idx})" />`
+      const dropdown = isDerived ? '' : (
+        `<div id="edit-material-dropdown-${idx}" style="display:none; position:absolute; left:0; right:0; top:38px; background:white; border:1px solid var(--border); border-radius: 6px; box-shadow: 0 8px 16px rgba(0,0,0,0.08); z-index:9999;">
+           <div style=\"padding:6px; border-bottom:1px solid var(--border);\"><input id=\"edit-material-search-${idx}\" type=\"text\" placeholder=\"Ara: kod, isim, tedarikçi\" oninput=\"filterMaterialDropdown(${idx})\" style=\"width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;\" /></div>
+           <div id=\"edit-material-list-${idx}\" style=\"max-height:220px; overflow:auto; font-size:13px;\"></div>
+         </div>`)
+      const qtyInput = `<input id="edit-material-qty-${idx}" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;${isDerived ? ' background:#f3f4f6; color:#6b7280;' : ''}" value="${rm?.qty ?? ''}" ${isDerived ? 'disabled' : 'oninput="updateOutputCodePreviewBackend()"'} />`
+      const removeBtn = isDerived ? '' : `<button type=\"button\" onclick=\"removeMaterialRow(${idx})\" title=\"Kaldır\" style=\"width:28px; height:32px; border:1px solid var(--border); background:#fee2e2; color:#ef4444; border-radius:6px;\">-</button>`
+      return (
+        `<div class=\"material-row\" data-row-index=\"${idx}\" ${isDerived?'data-derived=\"1\"':''} style=\"display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;\">` +
+          '<div style=\"position:relative; flex: 3;\">' +
+            `<input type=\"hidden\" id=\"edit-material-id-${idx}\" value=\"${escapeHtml(rm?.id ?? '')}\" />` +
+            `<input type=\"hidden\" id=\"edit-material-name-${idx}\" value=\"${escapeHtml(rm?.name ?? '')}\" />` +
+            displayInput +
+            dropdown +
+          '</div>' +
+          '<div style=\"flex:2;\">' +
+            qtyInput +
+          '</div>' +
+          '<div style=\"flex:1;\">' +
+            `<input id=\"edit-material-unit-${idx}\" type=\"text\" readonly placeholder=\"Unit\" style=\"width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; color: #6b7280;\" value=\"${escapeHtml(rm?.unit ?? '')}\" />` +
+          '</div>' +
+          '<div style=\"flex:0; display:flex; align-items:center;\">' +
+            removeBtn +
+          '</div>' +
+        '</div>'
+      )
+    }
+    const rowsHtml = rows.map((rm, i) => buildRow(rm, i)).join('')
+    container.innerHTML = rowsHtml
+  } catch (e) {
+    console.warn('rebuildMaterialRowsFromNode failed', e)
+  }
+}
+
 let _opsCache = []
 let _approvedOrders = []
 let _ordersByCode = new Map()
@@ -42,6 +88,8 @@ let _materialsCacheFull = []
 
 // Global escape handler for modal
 let modalEscapeHandler = null;
+// Listener for live-sync of materials when graph changes while modal is open
+let materialChangeHandler = null;
 
 export async function loadOperationsToolboxBackend() {
   const listContainer = document.getElementById('operations-list')
@@ -348,9 +396,39 @@ export async function editNodeBackend(nodeId) {
       const unitEl = document.getElementById('edit-output-unit')
       if (qtyEl) qtyEl.value = node.outputQty != null ? String(node.outputQty) : ''
       if (unitEl) populateUnitSelect(unitEl, node.outputUnit || '')
+      // dynamic preview on output qty/unit change
+      try {
+        if (qtyEl) qtyEl.addEventListener('input', updateOutputCodePreviewBackend)
+        if (unitEl) unitEl.addEventListener('change', updateOutputCodePreviewBackend)
+      } catch {}
     } catch {}
     // Initial output code preview
     try { updateOutputCodePreviewBackend() } catch {}
+
+    // Live update: when connections/materials change on this node while modal is open
+    try {
+      if (materialChangeHandler) {
+        window.removeEventListener('nodeMaterialsChanged', materialChangeHandler)
+        materialChangeHandler = null
+      }
+      materialChangeHandler = (ev) => {
+        try {
+          const modalEl = document.getElementById('node-edit-modal')
+          if (!modalEl || modalEl.style.display === 'none') {
+            // modal closed, cleanup listener
+            window.removeEventListener('nodeMaterialsChanged', materialChangeHandler)
+            materialChangeHandler = null
+            return
+          }
+          const nid = ev?.detail?.nodeId
+          if (!nid || nid !== node.id) return
+          // Rebuild rows from current node state to include auto-derived materials and then refresh preview
+          rebuildMaterialRowsFromNode(node)
+          updateOutputCodePreviewBackend()
+        } catch (e) { console.warn('materialChangeHandler failed', e) }
+      }
+      window.addEventListener('nodeMaterialsChanged', materialChangeHandler)
+    } catch {}
     
     // Setup drag and drop for station selection
     setTimeout(() => {
@@ -399,6 +477,17 @@ export function saveNodeEditBackend() {
   const rowsContainer = document.getElementById('edit-materials-rows')
   const rows = rowsContainer ? Array.from(rowsContainer.querySelectorAll('.material-row')) : []
   const rawMaterials = []
+  // Map previous derived relations to preserve derivedFrom on save
+  const prev = Array.isArray(node.rawMaterials) ? node.rawMaterials : (node.rawMaterial ? [node.rawMaterial] : [])
+  const derivedMap = new Map()
+  prev.forEach(pm => {
+    if (pm && pm.derivedFrom) {
+      const keyA = (pm.id || '').toString()
+      const keyB = (pm.name || '').toString()
+      if (keyA) derivedMap.set(keyA, pm.derivedFrom)
+      if (keyB) derivedMap.set(keyB, pm.derivedFrom)
+    }
+  })
   for (const row of rows) {
     const idx = row.getAttribute('data-row-index')
     const id = document.getElementById('edit-material-id-'+idx)?.value || ''
@@ -406,8 +495,14 @@ export function saveNodeEditBackend() {
     const qtyVal = document.getElementById('edit-material-qty-'+idx)?.value
     const qty = qtyVal === '' ? null : (parseFloat(qtyVal))
     const unit = document.getElementById('edit-material-unit-'+idx)?.value || ''
+    const isDerived = row.getAttribute('data-derived') === '1'
     if (id) {
-      rawMaterials.push({ id, name: name || id, qty: Number.isFinite(qty)?qty:null, unit })
+      const base = { id, name: name || id, qty: Number.isFinite(qty)?qty:null, unit }
+      if (isDerived) {
+        const df = derivedMap.get(id) || derivedMap.get(name)
+        if (df) base.derivedFrom = df
+      }
+      rawMaterials.push(base)
     }
   }
   if (!name || !Number.isFinite(time) || time < 1) { showToast('Please fill all required fields', 'error'); return }
@@ -468,6 +563,8 @@ export function saveNodeEditBackend() {
     // Compute/update semi-finished product code based on op, station and materials
     try {
       computeAndAssignSemiCode(node, _opsCache, _stationsCacheFull)
+      // Propagate changes to downstream nodes (derived materials)
+      try { propagateDerivedMaterialUpdate(node.id) } catch {}
       if (node.semiCode) {
         // Upsert produced WIP into materials backend
         upsertProducedWipFromNode(node, _opsCache, _stationsCacheFull)
@@ -489,6 +586,11 @@ export function saveNodeEditBackend() {
     if (modalEscapeHandler) {
       document.removeEventListener('keydown', modalEscapeHandler)
       modalEscapeHandler = null
+    }
+    // Remove materials sync listener
+    if (materialChangeHandler) {
+      try { window.removeEventListener('nodeMaterialsChanged', materialChangeHandler) } catch {}
+      materialChangeHandler = null
     }
     showToast('Operation updated', 'success')
   }
