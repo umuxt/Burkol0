@@ -558,6 +558,13 @@ router.get('/master-data', withAuth, async (req, res) => {
     }
 
     const data = doc.data() || {}
+    // Backward compatibility: map legacy fields if present
+    if (!data.availableSkills && Array.isArray(data.skills)) {
+      data.availableSkills = data.skills
+    }
+    if (!data.availableOperationTypes && Array.isArray(data.operationTypes)) {
+      data.availableOperationTypes = data.operationTypes
+    }
     // Ensure timeSettings exists with safe defaults
     data.timeSettings = data.timeSettings || { workType: 'fixed', laneCount: 1, fixedBlocks: {}, shiftBlocks: {} }
     return data;
@@ -569,6 +576,8 @@ router.post('/master-data', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const { availableSkills, availableOperationTypes, timeSettings } = req.body || {};
     
+    console.log('POST /api/mes/master-data - Received:', { availableSkills, availableOperationTypes, timeSettings });
+    
     const db = getFirestore();
     const payload = {
       ...(availableSkills ? { availableSkills } : {}),
@@ -576,6 +585,8 @@ router.post('/master-data', withAuth, async (req, res) => {
       ...(timeSettings ? { timeSettings } : {}),
       updatedAt: new Date()
     }
+    
+    console.log('Firebase payload to save:', payload);
     await db.collection('mes-settings').doc('master-data').set(payload, { merge: true });
 
     return { success: true };

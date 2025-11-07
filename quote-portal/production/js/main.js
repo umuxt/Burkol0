@@ -13,7 +13,7 @@ import { initializeApprovedQuotesUI, showApprovedQuoteDetail, closeApprovedQuote
 import { initMasterDataUI, addSkillFromSettings, renameSkill, deleteSkill } from './masterData.js';
 import { toggleMobileNav, closeMobileNav } from './mobile.js';
 import { API_BASE, withAuth } from '../../shared/lib/api.js';
-import { getMasterData } from './mesApi.js';
+import { getMasterData, invalidateMasterDataCache } from './mesApi.js';
 
 function renderView(viewId) {
   let content = '';
@@ -70,7 +70,10 @@ function renderView(viewId) {
     case 'approved-quotes': content = generateApprovedQuotes(); setTimeout(() => initializeApprovedQuotesUI(), 0); break;
     case 'settings': 
       content = generateSettings(); 
-      setTimeout(() => {
+      setTimeout(async () => {
+        // Ensure fresh master data for skills UI
+        try { invalidateMasterDataCache() } catch {}
+        clearOldTimeSettings();
         initMasterDataUI();
         initializeTimeline();
         applyCompanyTimeSettingsToUI();
@@ -130,7 +133,7 @@ Object.assign(window, {
   // master data (skills)
   addSkillFromSettings, renameSkill, deleteSkill,
   // time management
-  saveTimeManagement, initializeTimeline, editScheduleBlock, saveScheduleBlock, deleteScheduleBlock, cancelScheduleEdit,
+  saveTimeManagement, initializeTimeline, editScheduleBlock, saveScheduleBlock, deleteScheduleBlock, cancelScheduleEdit, clearOldTimeSettings,
   // mobile
   toggleMobileNav, closeMobileNav
   ,
@@ -147,12 +150,20 @@ Object.assign(window, {
   switchWorkType
 });
 
+// Clear old localStorage data (run once)
+function clearOldTimeSettings() {
+  if (localStorage.getItem('companyTimeSettings')) {
+    console.log('Clearing old localStorage timeSettings data...');
+    localStorage.removeItem('companyTimeSettings');
+  }
+}
+
 // Time management placeholder function
 async function saveTimeManagement() {
   try {
-    const workType = (document.querySelector('input[name="work-type"]:checked')?.value) || 'fixed';
     const laneInput = document.getElementById('lane-count-input');
     const laneCount = laneInput ? parseInt(laneInput.value || '1', 10) || 1 : 1;
+    const workType = laneCount > 1 ? 'shift' : 'fixed';
 
     // Collect blocks from fixed schedule
     const fixedBlocks = {};
@@ -188,21 +199,28 @@ async function saveTimeManagement() {
       shiftByLane[String(lane)] = laneDays;
     }
 
-    const payload = { workType, laneCount, fixedBlocks, shiftBlocks, shiftByLane, savedAt: Date.now() };
-    localStorage.setItem('companyTimeSettings', JSON.stringify(payload));
-
     // Persist to backend master data (mes-settings/master-data.timeSettings)
+    let remoteOk = true;
     try {
+      const timeSettingsData = { workType, laneCount, fixedBlocks, shiftBlocks, shiftByLane };
+      console.log('Saving timeSettings to Firebase:', timeSettingsData);
+      
       const res = await fetch(`${API_BASE}/api/mes/master-data`, {
         method: 'POST',
         headers: withAuth({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ timeSettings: { workType, laneCount, fixedBlocks, shiftBlocks, shiftByLane } })
+        body: JSON.stringify({ timeSettings: timeSettingsData })
       });
-      if (!res.ok) throw new Error(`master_data_time_save_failed ${res.status}`);
+      
+      console.log('Firebase save response status:', res.status);
+      const responseData = await res.json();
+      console.log('Firebase save response data:', responseData);
+      
+      if (!res.ok) throw new Error(`master_data_time_save_failed ${res.status}: ${JSON.stringify(responseData)}`);
     } catch (e) {
-      console.warn('Master time settings save warning:', e);
+      remoteOk = false;
+      console.error('Master time settings save error:', e);
     }
-    showToast('Zaman ayarları kaydedildi', 'success');
+    showToast(remoteOk ? 'Zaman ayarları kaydedildi' : 'Zaman ayarları yerelde kaydedildi, sunucuya yazılamadı', remoteOk ? 'success' : 'warning');
   } catch (e) {
     console.error('saveTimeManagement error', e);
     showToast('Zaman ayarları kaydedilemedi', 'error');
@@ -213,9 +231,7 @@ async function saveTimeManagement() {
 async function applyCompanyTimeSettingsToUI() {
   try {
     const md = await getMasterData().catch(() => null);
-    const ts = md && md.timeSettings ? md.timeSettings : (() => {
-      try { return JSON.parse(localStorage.getItem('companyTimeSettings') || 'null') } catch { return null }
-    })();
+    const ts = md && md.timeSettings ? md.timeSettings : null;
     if (!ts) return;
 
     // Set work type radio and lane count
@@ -575,22 +591,17 @@ function setTimelineLaneCount(n) {
 
 // Switch work type: 'fixed' | 'shift'
 function switchWorkType(type) {
-  const fixed = document.getElementById('fixed-schedule');
+  // Single-timeline mode: always show shift-schedule container
   const shift = document.getElementById('shift-schedule');
-  const laneControls = document.getElementById('lane-controls');
-  if (type === 'shift') {
-    if (fixed) fixed.style.display = 'none';
-    if (shift) shift.style.display = 'block';
-    if (laneControls) laneControls.style.display = 'flex';
-  } else {
-    if (fixed) fixed.style.display = 'block';
-    if (shift) shift.style.display = 'none';
-    if (laneControls) laneControls.style.display = 'none';
-    // Reset lanes to 1 in fixed mode for clarity
+  if (shift) shift.style.display = 'block';
+  // Set lanes: fixed => 1, shift => keep current or set by input
+  if (type === 'fixed') {
     setTimelineLaneCount(1);
+  } else {
+    const laneInput = document.getElementById('lane-count-input');
+    const laneCount = laneInput ? parseInt(laneInput.value || '1', 10) || 1 : 1;
+    setTimelineLaneCount(laneCount);
   }
-  // Re‑apply lane UI (controls and overlays)
-  initializeLaneControls();
 }
 
 function showBlockTypeModal(startHour, endHour, dayIdOrDays, top, height) {
@@ -696,6 +707,22 @@ function createScheduleBlock(dayId, type, startHour, endHour, startTime, endTime
   const blocksContainer = document.getElementById(`blocks-${dayId}`);
   
   if (!blocksContainer) return;
+  
+  // Check for duplicate blocks with same time range
+  const existingBlocks = Array.from(blocksContainer.querySelectorAll('[data-block-info]'));
+  for (const existing of existingBlocks) {
+    try {
+      const existingData = JSON.parse(existing.dataset.blockInfo);
+      if (Math.abs(existingData.startHour - startHour) < 0.01 && 
+          Math.abs(existingData.endHour - endHour) < 0.01 &&
+          existingData.type === type) {
+        console.warn('Duplicate block detected, skipping:', { dayId, startTime, endTime, type });
+        return; // Don't create duplicate
+      }
+    } catch (e) {
+      console.warn('Error parsing existing block data:', e);
+    }
+  }
   
   // Position linearly across full 24h height
   const top = (startHour / 24) * 100;

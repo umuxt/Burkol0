@@ -338,18 +338,20 @@ export async function getMasterData(force = false) {
 }
 
 export async function saveMasterData({ skills, operationTypes, timeSettings }) {
-  const body = {
-    availableSkills: (skills || []).map(s => ({ id: s.id, name: s.name })),
-    availableOperationTypes: (operationTypes || []).map(ot => ({ id: ot.id, name: ot.name })),
-    ...(timeSettings ? { timeSettings } : {})
+  // Merge with existing cache to avoid dropping fields when only one section is saved
+  const current = _masterDataCache || (await getMasterData().catch(() => null)) || {}
+  const merged = {
+    availableSkills: (skills ? skills.map(s => ({ id: s.id, name: s.name })) : current.skills || []).map(s => ({ id: s.id, name: s.name })),
+    availableOperationTypes: (operationTypes ? operationTypes.map(ot => ({ id: ot.id, name: ot.name })) : current.operationTypes || []).map(ot => ({ id: ot.id, name: ot.name })),
+    ...(timeSettings ? { timeSettings } : (current.timeSettings ? { timeSettings: current.timeSettings } : {}))
   }
   const res = await fetch(`${API_BASE}/api/mes/master-data`, {
     method: 'POST',
     headers: withAuth({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(body)
+    body: JSON.stringify(merged)
   })
   if (!res.ok) throw new Error(`master_data_save_failed ${res.status}`)
-  _masterDataCache = normalizeMasterData({ ...body })
+  _masterDataCache = normalizeMasterData({ ...merged })
   writeCache('mes_master_data_cache', _masterDataCache)
   try { window.dispatchEvent(new CustomEvent(MD_CHANGED_EVENT, { detail: { source: 'production' } })) } catch {}
   return _masterDataCache

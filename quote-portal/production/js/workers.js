@@ -2,6 +2,7 @@
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
 import { getMasterData, getWorkerStations } from './mesApi.js'
 import { showToast } from './ui.js'
+import { generateWeeklyTimeline } from './views.js'
 
 let workersState = []
 let editingWorkerId = null
@@ -11,6 +12,48 @@ let workerFilters = { query: '', skills: [], statuses: [] }
 export async function initializeWorkersUI() {
   initWorkerFilters()
   await loadWorkersAndRender()
+  
+  // Listen for master data changes to auto-update company settings users
+  window.addEventListener('master-data:changed', handleMasterDataChanged)
+}
+
+// Auto-update workers using company settings when company time settings change
+function handleMasterDataChanged(event) {
+  if (!event.detail || event.detail.source === 'production') return // avoid self-loops
+  
+  // Update workers that are using company mode
+  let hasUpdates = false
+  const newCompanySettings = safeLoadCompanyTimeSettings()
+  
+  workersState.forEach((worker, idx) => {
+    const ps = worker.personalSchedule
+    if (ps && ps.mode === 'company') {
+      // Auto-populate new schedule blocks based on updated company settings
+      if (newCompanySettings) {
+        const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+        const shiftNo = ps.shiftNo || '1'
+        const blocksByDay = {}
+        days.forEach(d => {
+          const list = getShiftBlocksForDay(newCompanySettings, d, shiftNo)
+          blocksByDay[d] = Array.isArray(list) ? list : []
+        })
+        // Update worker's blocks with new company schedule
+        workersState[idx].personalSchedule = { ...ps, blocks: blocksByDay }
+        hasUpdates = true
+      }
+    }
+  })
+  
+  if (hasUpdates) {
+    // Persist updated workers
+    persistWorkers().then(() => {
+      console.log('Workers using company settings auto-updated')
+      // Refresh UI if worker details are open
+      if (selectedWorkerId) showWorkerDetail(selectedWorkerId).catch(() => {})
+    }).catch(e => {
+      console.warn('Failed to auto-update worker schedules:', e)
+    })
+  }
 }
 
 // Worker detail functions
@@ -171,7 +214,7 @@ export function saveWorkerSchedule() {
   if (!selectedWorkerId) { closeWorkerScheduleModal(); return }
   const modal = document.getElementById('worker-schedule-modal')
   if (!modal) return
-  const selectedMode = modal.querySelector('input[name="worker-schedule-mode"]:checked')?.value || 'company'
+  const selectedMode = modal.querySelector('input[name="worker-schedule-mode"]:checked')?.value || 'company' // default to company mode
   const shiftNo = (document.getElementById('worker-schedule-shift-no')?.value) || null
 
   // Validate when company settings are shift-based
@@ -183,7 +226,7 @@ export function saveWorkerSchedule() {
   const schedule = { mode: selectedMode }
   if (selectedMode === 'company') {
     if (shiftNo) schedule.shiftNo = shiftNo
-    // Resolve and attach day-by-day blocks from master data based on selected shift number
+    // AUTO-POPULATE: Resolve and attach day-by-day blocks from company master data
     const ts = safeLoadCompanyTimeSettings()
     if (ts) {
       const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
@@ -192,19 +235,55 @@ export function saveWorkerSchedule() {
         const list = getShiftBlocksForDay(ts, d, shiftNo)
         blocksByDay[d] = Array.isArray(list) ? list : []
       })
+      // Important: Auto-populate blocks so schedule is determined by company settings
       schedule.blocks = blocksByDay
+    } else {
+      // No company settings available, clear blocks
+      schedule.blocks = {}
     }
   } else {
     // Collect blocks from worker-prefixed timeline columns
     const cols = modal.querySelectorAll('.day-timeline-vertical')
     const blocksByDay = {}
+    const standardDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+    
     cols.forEach(col => {
       const dayId = col.dataset.day
-      const blocks = Array.from(col.querySelectorAll('[data-block-info]')).map(el => {
+      let blocks = Array.from(col.querySelectorAll('[data-block-info]')).map(el => {
         try { return JSON.parse(el.dataset.blockInfo) } catch { return null }
       }).filter(Boolean)
-      blocksByDay[dayId] = blocks
+      
+      // Remove duplicates within same day based on startHour, endHour, type
+      const uniqueBlocks = []
+      blocks.forEach(block => {
+        const isDuplicate = uniqueBlocks.some(existing => 
+          Math.abs(existing.startHour - block.startHour) < 0.01 &&
+          Math.abs(existing.endHour - block.endHour) < 0.01 &&
+          existing.type === block.type
+        )
+        if (!isDuplicate) {
+          uniqueBlocks.push(block)
+        }
+      })
+      
+      // Convert worker-prefixed keys to standard day names for clean storage
+      if (dayId && dayId.startsWith('worker-')) {
+        const standardDay = dayId.replace('worker-', '')
+        if (standardDays.includes(standardDay)) {
+          blocksByDay[standardDay] = uniqueBlocks
+        }
+      } else {
+        blocksByDay[dayId] = uniqueBlocks
+      }
     })
+    
+    // Ensure all standard days exist (empty arrays for unused days)
+    standardDays.forEach(day => {
+      if (!blocksByDay[day]) {
+        blocksByDay[day] = []
+      }
+    })
+    
     schedule.blocks = blocksByDay
   }
   // Store on worker object in memory and persist
@@ -227,6 +306,39 @@ export function saveWorkerSchedule() {
   })()
 }
 
+// Normalize schedule blocks to remove worker- prefixes and old duplicates
+function normalizeScheduleBlocks(blocks) {
+  if (!blocks || typeof blocks !== 'object') return {}
+  
+  const standardDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+  const normalized = {}
+  
+  // Initialize all days as empty arrays
+  standardDays.forEach(day => {
+    normalized[day] = []
+  })
+  
+  // Process each key in blocks
+  Object.keys(blocks).forEach(key => {
+    let targetDay = key
+    
+    // Convert worker-prefixed keys to standard day names
+    if (key.startsWith('worker-')) {
+      targetDay = key.replace('worker-', '')
+    }
+    
+    // Only accept standard day names
+    if (standardDays.includes(targetDay) && Array.isArray(blocks[key])) {
+      // If we already have blocks for this day, merge them (prefer worker- prefixed version)
+      if (key.startsWith('worker-') || normalized[targetDay].length === 0) {
+        normalized[targetDay] = blocks[key]
+      }
+    }
+  })
+  
+  return normalized
+}
+
 // --- Helpers: generate schedule summary section in details ---
 function normalizeDayKey(key) {
   if (!key) return ''
@@ -243,69 +355,8 @@ function dayLabel(trKey) {
 }
 
 function generateWorkerScheduleSummary(worker) {
-  const schedule = worker.personalSchedule
-  // Header and container
-  let html = `
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-      <div style="display:flex; align-items:center; justify-content: space-between;">
-        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); padding-bottom: 6px;">Çalışma Saatleri</h3>
-        <button type="button" onclick="openWorkerScheduleModal()" style="padding: 4px 8px; border: 1px solid var(--border); background: white; border-radius: 4px; font-size: 12px; cursor: pointer;">Düzenle</button>
-      </div>
-  `
-
-  if (!schedule) {
-    // Try to load company time settings
-    const company = safeLoadCompanyTimeSettings()
-    if (!company) {
-      html += `
-        <div style="font-size:12px; color: rgb(107,114,128);">Bu çalışan için şirket genel ayarları kullanılacak. Detaylı saat bilgisi girilmedi.</div>
-      </div>`
-      return html
-    }
-    return html + renderCompanyScheduleTimeline(company, /*shiftNo*/ null) + '</div>'
-  }
-
-  if (schedule.mode === 'company') {
-    const company = safeLoadCompanyTimeSettings()
-    // Prefer resolved blocks if present on worker record
-    if (schedule.blocks && typeof schedule.blocks === 'object') {
-      html += renderStaticWeeklyTimeline(schedule.blocks)
-      html += `</div>`
-      return html
-    }
-    if (!company) {
-      html += `
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#eef2ff; color:#4338ca; font-weight:600;">Genel Ayar</span>
-          ${schedule.shiftNo ? `<span style=\"font-size:12px; color: rgb(55,65,81);\">Vardiya No: <strong>${escapeHtml(String(schedule.shiftNo))}</strong></span>` : ''}
-        </div>
-      </div>`
-      return html
-    }
-    return html + renderCompanyScheduleTimeline(company, schedule.shiftNo) + '</div>'
-  }
-
-  // Personal schedule with blocks
-  const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
-  const chipsStyle = {
-    work: 'background: rgba(34,197,94,.15); color:#065f46; border:1px solid #22c55e;',
-    break: 'background: rgba(251,191,36,.15); color:#92400e; border:1px solid #fbbf24;',
-    rest: 'background: rgba(156,163,175,.2); color:#1f2937; border:1px solid #9ca3af;'
-  }
-  // Build blocks per day and render compact static weekly timeline
-  const blocksByDay = {}
-  for (const d of days) {
-    const keysToCheck = [d, `fixed-${d}`, `shift-${d}`, `worker-${d}`]
-    let blocks = []
-    for (const k of keysToCheck) {
-      const found = schedule.blocks?.[k]
-      if (Array.isArray(found) && found.length) { blocks = found; break }
-    }
-    blocksByDay[d] = blocks
-  }
-  html += renderStaticWeeklyTimeline(blocksByDay)
-  html += `</div>`
-  return html
+  // This function is deprecated - schedule info now shown in new worker detail UI
+  return ''
 }
 
 function safeLoadCompanyTimeSettings() {
@@ -338,15 +389,6 @@ function renderCompanyScheduleGrid(company, shiftNo) {
   }
   const useShift = company?.workType === 'shift'
   let buf = ''
-  buf += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">`
-  buf += `<span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#eef2ff; color:#4338ca; font-weight:600;">Genel Ayar</span>`
-  if (useShift) {
-    buf += `<span style="font-size:12px; color: rgb(55,65,81);">Mod: Vardiyalı</span>`
-    if (shiftNo) buf += `<span style="font-size:12px; color: rgb(55,65,81);">Vardiya No: <strong>${escapeHtml(String(shiftNo))}</strong></span>`
-  } else {
-    buf += `<span style="font-size:12px; color: rgb(55,65,81);">Mod: Sabit</span>`
-  }
-  buf += `</div>`
   
   // Build blocks per day and render compact static weekly timeline
   const blocksByDay = {}
@@ -480,6 +522,7 @@ function timeToHourLocal(timeString) {
 }
 
 function generateWorkerDetailContent(worker) {
+  // MAIN WORKER DETAIL FUNCTION
   const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   
   return `
@@ -509,21 +552,42 @@ function generateWorkerDetailContent(worker) {
         </div>
       </div>
 
-      <!-- Çalışma Bilgileri -->
+      <!-- Çalışma Zaman Bilgileri -->
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Çalışma Bilgileri</h3>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Vardiya:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.shift || 'Day')}</span>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Çalışma Zaman Bilgileri</h3>
+          <button type="button" onclick="openWorkerScheduleModal()" style="padding:6px 10px; border:1px solid var(--border); border-radius:4px; background:white; cursor:pointer;">Detaylı Düzenle</button>
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İstasyon:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.station || 'Atanmamış')}</span>
-        </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Mevcut Görev:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.currentTask || 'Görev atanmamış')}</span>
-        </div>
+        
+        ${(() => {
+          const savedMode = (worker.personalSchedule && worker.personalSchedule.mode) ? worker.personalSchedule.mode : 'company'
+          const shiftNo = (worker.personalSchedule && worker.personalSchedule.shiftNo) ? worker.personalSchedule.shiftNo : '1'
+          const company = safeLoadCompanyTimeSettings()
+          
+          if (savedMode === 'company') {
+            return `
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                <span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#eef2ff; color:#4338ca; font-weight:600;">Genel Ayarlar</span>
+                <span style="font-size:12px; color: rgb(55,65,81);">Vardiya No: <strong>${escapeHtml(String(shiftNo))}</strong></span>
+              </div>
+              <div>
+                ${company ? renderCompanyScheduleTimeline(company, shiftNo) : '<div style="font-size:12px;color:var(--muted-foreground);">Genel ayarlar bulunamadı</div>'}
+              </div>
+            `
+          } else {
+            // Personal schedule - show saved blocks (normalize to remove duplicates)
+            const rawBlocks = worker.personalSchedule?.blocks || {}
+            const normalizedBlocks = normalizeScheduleBlocks(rawBlocks)
+            return `
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                <span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#fef2e2; color:#d97706; font-weight:600;">Kişisel Ayar</span>
+              </div>
+              <div>
+                ${renderStaticWeeklyTimeline(normalizedBlocks)}
+              </div>
+            `
+          }
+        })()}
       </div>
 
       <!-- Çalışma Saatleri -->
@@ -592,21 +656,42 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData) {
         </div>
       </div>
 
-      <!-- Çalışma Bilgileri -->
+      <!-- Çalışma Zaman Bilgileri -->
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Çalışma Bilgileri</h3>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Vardiya:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.shift || 'Day')}</span>
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Çalışma Zaman Bilgileri</h3>
+          <button type="button" onclick="openWorkerScheduleModal()" style="padding:6px 10px; border:1px solid var(--border); border-radius:4px; background:white; cursor:pointer;">Detaylı Düzenle</button>
         </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İstasyon:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.station || 'Atanmamış')}</span>
-        </div>
-        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Mevcut Görev:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.currentTask || 'Görev atanmamış')}</span>
-        </div>
+        
+        ${(() => {
+          const savedMode = (worker.personalSchedule && worker.personalSchedule.mode) ? worker.personalSchedule.mode : 'company'
+          const shiftNo = (worker.personalSchedule && worker.personalSchedule.shiftNo) ? worker.personalSchedule.shiftNo : '1'
+          const company = safeLoadCompanyTimeSettings()
+          
+          if (savedMode === 'company') {
+            return `
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                <span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#eef2ff; color:#4338ca; font-weight:600;">Genel Ayarlar</span>
+                <span style="font-size:12px; color: rgb(55,65,81);">Vardiya No: <strong>${escapeHtml(String(shiftNo))}</strong></span>
+              </div>
+              <div>
+                ${company ? renderCompanyScheduleTimeline(company, shiftNo) : '<div style="font-size:12px;color:var(--muted-foreground);">Genel ayarlar bulunamadı</div>'}
+              </div>
+            `
+          } else {
+            // Personal schedule - show saved blocks (normalize to remove duplicates)
+            const rawBlocks = worker.personalSchedule?.blocks || {}
+            const normalizedBlocks = normalizeScheduleBlocks(rawBlocks)
+            return `
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                <span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#fef2e2; color:#d97706; font-weight:600;">Kişisel Ayar</span>
+              </div>
+              <div>
+                ${renderStaticWeeklyTimeline(normalizedBlocks)}
+              </div>
+            `
+          }
+        })()}
       </div>
 
       <!-- Çalışma Saatleri -->
@@ -626,16 +711,7 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData) {
       <!-- Çalışabileceği İstasyonlar -->
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
         <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Çalışabileceği İstasyonlar (${workerStationsData.compatibleStations.length})</h3>
-        ${workerStationsData.workerSkills.length > 0 ? `
-          <div style="margin-bottom: 12px; padding: 8px; background: rgb(249, 250, 251); border-radius: 4px; border: 1px solid rgb(229, 231, 235);">
-            <div style="font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 4px;">Sahip Olunan Yetenekler:</div>
-            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-              ${workerStationsData.workerSkills.map(skill => 
-                `<span style="background-color: rgb(219, 234, 254); color: rgb(30, 64, 175); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
-              ).join('')}
-            </div>
-          </div>
-        ` : ''}
+
         ${workerStationsData.compatibleStations.length > 0 ? `
           <div style="display: grid; gap: 8px;">
             ${workerStationsData.compatibleStations.map(station => `
@@ -808,9 +884,9 @@ function applyWorkersFilter(list) {
       if (!hasAll) return false
     }
 
-    // query: match name, email, phone, shift, status, skills
+    // query: match name, email, phone, status, skills
     if (q) {
-      const hay = [w.name, w.email, w.phone, w.shift, wStatus, ...wSkills]
+      const hay = [w.name, w.email, w.phone, wStatus, ...wSkills]
         .map(x => String(x || '').toLowerCase())
         .join(' ')
       if (!hay.includes(q)) return false
@@ -1054,7 +1130,7 @@ export async function saveWorker() {
   const name = document.getElementById('worker-name')?.value?.trim()
   const email = document.getElementById('worker-email')?.value?.trim()
   const phone = document.getElementById('worker-phone')?.value?.trim()
-  const shift = document.getElementById('worker-shift')?.value || 'Day'
+  const timeSource = document.getElementById('worker-time-source')?.value || 'company'
   const status = document.getElementById('worker-status')?.value || 'available'
 
   if (!name) { showToast('İsim gerekli', 'warning'); return }
@@ -1068,7 +1144,31 @@ export async function saveWorker() {
     return;
   }
 
-  const payload = { id: editingWorkerId || genId(), name, email, phone, skills, shift, status }
+  // Set up default personal schedule based on time source
+  let personalSchedule = null
+  if (timeSource === 'company') {
+    // AUTO-SET: Default to company settings with auto-populated blocks
+    const company = safeLoadCompanyTimeSettings()
+    if (company) {
+      const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+      const shiftNo = '1' // default shift
+      const blocksByDay = {}
+      days.forEach(d => {
+        const list = getShiftBlocksForDay(company, d, shiftNo)
+        blocksByDay[d] = Array.isArray(list) ? list : []
+      })
+      personalSchedule = { mode: 'company', shiftNo, blocks: blocksByDay }
+    } else {
+      personalSchedule = { mode: 'company', blocks: {} }
+    }
+  }
+  // If personal, it will be set up later in worker schedule modal
+
+  const payload = { 
+    id: editingWorkerId || genId(), 
+    name, email, phone, skills, status,
+    personalSchedule
+  }
   const idx = workersState.findIndex(w => w.id === payload.id)
   if (idx >= 0) workersState[idx] = { ...workersState[idx], ...payload }
   else workersState.push(payload)
@@ -1124,7 +1224,6 @@ function sanitizeWorker(w) {
     email: (w.email || '').trim(),
     phone: (w.phone || '').trim(),
     skills: Array.isArray(w.skills) ? w.skills : (typeof w.skills === 'string' ? w.skills.split(',').map(s=>s.trim()).filter(Boolean) : []),
-    shift: w.shift || 'Day',
     status: (w.status || 'available').toLowerCase(),
     station: w.station || '',
     currentTask: w.currentTask || '',
@@ -1147,7 +1246,6 @@ function openWorkerModal(worker = null) {
   const nameI = document.getElementById('worker-name')
   const emailI = document.getElementById('worker-email')
   const phoneI = document.getElementById('worker-phone')
-  const shiftI = document.getElementById('worker-shift')
   const statusI = document.getElementById('worker-status')
   const deleteBtn = document.getElementById('worker-delete-btn')
 
@@ -1156,7 +1254,6 @@ function openWorkerModal(worker = null) {
   nameI.value = worker?.name || ''
   emailI.value = worker?.email || ''
   if (phoneI) phoneI.value = worker?.phone || ''
-  shiftI.value = worker?.shift || 'Day'
   statusI.value = (worker?.status || 'available').toLowerCase()
 
   overlay.style.display = 'block'

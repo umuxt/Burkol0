@@ -190,35 +190,14 @@ export function generateSettings() {
         <div class="card-title" style="font-size: 1.1em;">Zaman Yönetimi</div>
       </div>
       <div class="card-content" style="padding: 16px 20px;">
-        <!-- Çalışma Tipi Seçimi -->
-        <div style="margin-bottom: 24px;">
-          <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px;">Çalışma Tipi</label>
-          <div style="display: flex; gap: 12px;">
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-              <input type="radio" name="work-type" value="fixed" checked style="margin: 0;" onchange="switchWorkType('fixed')">
-              <span style="font-size: 14px;">Sabit Zamanlı</span>
-            </label>
-            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-              <input type="radio" name="work-type" value="shift" style="margin: 0;" onchange="switchWorkType('shift')">
-              <span style="font-size: 14px;">Vardiyalı</span>
-            </label>
-          </div>
-          <!-- Vardiya Sayısı: yalnızca Vardiyalı modda görünür -->
-          <div id="lane-controls" style="display:none; align-items:center; gap:10px; margin: 12px 0 0 0;">
-            <span style="font-weight:600; font-size:13px;">Vardiya Sayısı</span>
-            <input id="lane-count-input" type="number" min="1" max="7" step="1" value="1" style="width:72px; height:30px; padding:4px 6px; border:1px solid var(--border); border-radius:6px;">
-          </div>
+        <!-- Vardiya Sayısı ve Tek Timeline (laneCount ile kontrol) -->
+        <div style="margin-bottom: 12px; display:flex; align-items:center; gap:10px;">
+          <span style="font-weight:600; font-size:13px;">Vardiya Sayısı</span>
+          <input id="lane-count-input" type="number" min="1" max="7" step="1" value="1" style="width:72px; height:30px; padding:4px 6px; border:1px solid var(--border); border-radius:6px;">
+          <span style="font-size:12px; color: var(--muted-foreground);">1 = tek düzen, &gt;1 = gün başına çoklu vardiya</span>
         </div>
-
-        <!-- Sabit Zamanlı Timeline -->
-        <div id="fixed-schedule" style="display: block;">
+        <div id="shift-schedule" style="display: block;">
           <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--foreground);">Haftalık Çalışma Programı</h3>
-          ${generateWeeklyTimeline('fixed')}
-        </div>
-
-        <!-- Vardiyalı Timeline -->
-        <div id="shift-schedule" style="display: none;">
-          <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--foreground);">Vardiyalı Program</h3>
           ${generateWeeklyTimeline('shift')}
         </div>
 
@@ -289,7 +268,7 @@ export function generateSettings() {
 }
 
 // Generate weekly timeline with vertical time and horizontal days
-function generateWeeklyTimeline(scheduleType) {
+export function generateWeeklyTimeline(scheduleType) {
   const dayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
   // Optional idPrefix for avoiding collisions across views
   let idPrefix = '';
@@ -503,14 +482,14 @@ export function generateWorkers() {
             </div>
           </div>
 
-          <!-- Çalışma Bilgileri -->
+          <!-- Çalışma Saatleri Ayarı -->
           <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-            <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Çalışma Bilgileri</h3>
+            <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Çalışma Saatleri</h3>
             <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Shift:</span>
-              <select id="worker-shift" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; max-width: 200px;">
-                <option value="Day">Day</option>
-                <option value="Night">Night</option>
+              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Zaman Kaynağı:</span>
+              <select id="worker-time-source" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; max-width: 200px;">
+                <option value="company" selected>Şirket Genel Ayarları</option>
+                <option value="personal">Kişisel Ayar</option>
               </select>
             </div>
             <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 0;">
