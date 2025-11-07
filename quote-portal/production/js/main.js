@@ -3,7 +3,7 @@ import { MESData, loadData, saveData, currentView, setCurrentView, getSavedView 
 import { showToast } from './ui.js';
 import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generateStationDuplicateModal, generatePlanDesigner, generateTemplates, generateApprovedQuotes, injectMetadataToggleStyles, toggleMetadataColumns } from './views.js';
 import { initPlanOverviewUI, setActivePlanTab, openCreatePlan, filterProductionPlans, togglePlanFilterPanel, hidePlanFilterPanel, onPlanFilterChange, clearPlanFilter, clearAllPlanFilters, cancelPlanCreation, viewProductionPlan, editTemplateById } from './planOverview.js';
-import { initializeWorkersUI, openAddWorkerModal, editWorker, deleteWorker as deleteWorkerAction, saveWorker, closeWorkerModal, showWorkerDetail, closeWorkerDetail, editWorkerFromDetail, deleteWorkerFromDetail } from './workers.js';
+import { initializeWorkersUI, openAddWorkerModal, editWorker, deleteWorker as deleteWorkerAction, saveWorker, closeWorkerModal, showWorkerDetail, closeWorkerDetail, editWorkerFromDetail, deleteWorkerFromDetail, openWorkerScheduleModal, closeWorkerScheduleModal, handleWorkerScheduleModeChange, saveWorkerSchedule } from './workers.js';
 import { initializePlanDesigner, loadOperationsToolbox, handleOperationDragStart, handleCanvasDragOver, handleCanvasDrop, renderCanvas, editNode, saveNodeEdit, closeNodeEditModal, deleteNode, toggleConnectMode, clearCanvas, handleOrderChange, savePlanAsTemplate, deployWorkOrder, handleCanvasClick, handleScheduleTypeChange, handleRecurringTypeChange, handlePeriodicFrequencyChange, savePlanDraft, togglePlanOrderPanel, hidePlanOrderPanel, clearPlanOrder, filterPlanOrderList, selectPlanOrder, togglePlanTypePanel, hidePlanTypePanel, clearPlanType, selectPlanType } from './planDesigner.js';
 import { loadOperationsToolboxBackend, editNodeBackend, handleCanvasDropBackend, loadApprovedOrdersToSelect, handleOrderChangeBackend, saveNodeEditBackend, handleAssignModeChangeBackend, handleStationChangeInEdit, openMaterialDropdown, filterMaterialDropdown, selectMaterialFromDropdown, debugMaterialsLoad, debugShowAllMaterials, addMaterialRow, removeMaterialRow, updateOutputCodePreviewBackend } from './planDesignerBackend.js';
 import { openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation as deleteStationAction, initializeStationsUI, setActiveStationTab, deleteStationFromModal, showStationDetail, closeStationDetail, editStationFromDetail, duplicateStationFromDetail, showStationDuplicateModal, closeStationDuplicateModal, confirmStationDuplicate, deleteStationFromDetail, handleSubStationAdd, handleSubStationAddInputChange, toggleSubStationStatus, deleteSubStation, sortStations } from './stations.js';
@@ -120,6 +120,8 @@ Object.assign(window, {
   toggleOperationTypeDropdown, selectOperationTypeFromDropdown, addNewOperationTypeFromInput,
   // workers
   openAddWorkerModal, editWorker, deleteWorker: deleteWorkerAction, saveWorker, closeWorkerModal, showWorkerDetail, closeWorkerDetail, editWorkerFromDetail, deleteWorkerFromDetail,
+  // worker schedule modal
+  openWorkerScheduleModal, closeWorkerScheduleModal, handleWorkerScheduleModeChange, saveWorkerSchedule,
   // help
   openHelp, closeHelp, switchHelpTab, toggleFAQ,
   // master data (skills)
@@ -144,8 +146,39 @@ Object.assign(window, {
 
 // Time management placeholder function
 function saveTimeManagement() {
-  console.log('Time management settings saved - placeholder function');
-  // Bu fonksiyon ileride gerçek backend entegrasyonu için kullanılacak
+  try {
+    const workType = (document.querySelector('input[name="work-type"]:checked')?.value) || 'fixed';
+    const laneInput = document.getElementById('lane-count-input');
+    const laneCount = laneInput ? parseInt(laneInput.value || '1', 10) || 1 : 1;
+
+    // Collect blocks from fixed schedule
+    const fixedBlocks = {};
+    ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].forEach(day => {
+      const col = document.getElementById(`timeline-${day}`);
+      const blocks = col ? Array.from(col.querySelectorAll('[data-block-info]')).map(el => {
+        try { return JSON.parse(el.dataset.blockInfo) } catch { return null }
+      }).filter(Boolean) : [];
+      fixedBlocks[day] = blocks;
+    });
+
+    // Collect blocks from shift schedule
+    const shiftBlocks = {};
+    ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].forEach(day => {
+      const key = `shift-${day}`;
+      const col = document.getElementById(`timeline-${key}`);
+      const blocks = col ? Array.from(col.querySelectorAll('[data-block-info]')).map(el => {
+        try { return JSON.parse(el.dataset.blockInfo) } catch { return null }
+      }).filter(Boolean) : [];
+      shiftBlocks[key] = blocks;
+    });
+
+    const payload = { workType, laneCount, fixedBlocks, shiftBlocks, savedAt: Date.now() };
+    localStorage.setItem('companyTimeSettings', JSON.stringify(payload));
+    showToast('Zaman ayarları kaydedildi', 'success');
+  } catch (e) {
+    console.error('saveTimeManagement error', e);
+    showToast('Zaman ayarları kaydedilemedi', 'error');
+  }
 }
 
 // Timeline drag & drop functionality
@@ -613,7 +646,8 @@ function createScheduleBlock(dayId, type, startHour, endHour, startTime, endTime
     startTime: startTime,
     endTime: endTime,
     startHour: startHour,
-    endHour: endHour
+    endHour: endHour,
+    laneIndex: laneIdx
   });
   
   block.addEventListener('click', () => editScheduleBlock(block));
@@ -660,12 +694,14 @@ function updateScheduleBlock(blockElement, type, startHour, endHour, startTime, 
     blockElement.textContent = typeLabels[type].substr(0, 1);
   }
   
+  // Keep laneIndex from element dataset
   blockElement.dataset.blockInfo = JSON.stringify({
     type: type,
     startTime: startTime,
     endTime: endTime,
     startHour: startHour,
-    endHour: endHour
+    endHour: endHour,
+    laneIndex: laneIdx
   });
 }
 

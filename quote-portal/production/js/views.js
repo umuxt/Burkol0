@@ -291,8 +291,13 @@ export function generateSettings() {
 // Generate weekly timeline with vertical time and horizontal days
 function generateWeeklyTimeline(scheduleType) {
   const dayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+  // Optional idPrefix for avoiding collisions across views
+  let idPrefix = '';
+  if (arguments.length > 1 && typeof arguments[1] === 'string') {
+    idPrefix = arguments[1] || '';
+  }
   const dayIds = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(id => 
-    scheduleType === 'fixed' ? id : `${scheduleType}-${id}`
+    idPrefix + (scheduleType === 'fixed' ? id : `${scheduleType}-${id}`)
   );
   
   return `
@@ -526,6 +531,95 @@ export function generateWorkers() {
           <div style="display: flex; gap: 8px;">
             <button onclick="closeWorkerModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Cancel</button>
             <button onclick="saveWorker()" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Worker Schedule Modal -->
+    <div id="worker-schedule-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;" onclick="closeWorkerScheduleModal(event)">
+      <div style="position: relative; background: white; border-radius: 8px; padding: 0; width: 820px; max-width: 95vw; max-height: 86vh; overflow: hidden;" onclick="event.stopPropagation()">
+        <div style="padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+          <h3 style="margin: 0; font-size: 16px; font-weight: 600;">Çalışma Saatleri</h3>
+          <button onclick="closeWorkerScheduleModal()" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; background: white; cursor: pointer;">✕</button>
+        </div>
+        <div style="padding: 14px 18px; background: #f9fafb; max-height: calc(86vh - 102px); overflow-y: auto;">
+          <!-- Mode selection -->
+          <div style="margin-bottom: 12px;">
+            <label style="display: block; font-weight: 600; margin-bottom: 8px; font-size: 14px;">Zaman Kaynağı</label>
+            <div style="display: flex; gap: 16px; align-items: center;">
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="worker-schedule-mode" value="company" checked onchange="handleWorkerScheduleModeChange('company')" />
+                <span>Şirket Genel Ayarlarını Kullan</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                <input type="radio" name="worker-schedule-mode" value="personal" onchange="handleWorkerScheduleModeChange('personal')" />
+                <span>Kişisel Ayar Kullan</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Company settings section -->
+          <div id="worker-schedule-company" style="display: block; margin-bottom: 16px; padding: 12px; background: white; border: 1px solid var(--border); border-radius: 8px;">
+            <div style="font-size: 12px; color: var(--muted-foreground); margin-bottom: 8px;">Bu çalışan için şirketin zaman yönetimi ayarları uygulanır.</div>
+            <div class="detail-item" style="display: flex; align-items: center;">
+              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Vardiya No:</span>
+              <select id="worker-schedule-shift-no" style="flex: 0 0 160px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; background: white;">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+              </select>
+              <span style="margin-left: 8px; font-size: 11px; color: var(--muted-foreground);">Eğer vardiyalı çalışıyorsa seçiniz.</span>
+            </div>
+          </div>
+
+          <!-- Personal settings section -->
+          <div id="worker-schedule-personal" style="display: none;">
+            <h3 style="font-size: 14px; font-weight: 600; margin: 0 0 10px; color: var(--foreground);">Kişisel Haftalık Çalışma Programı</h3>
+            ${generateWeeklyTimeline('fixed', 'worker-')}
+          </div>
+        </div>
+        <div style="padding: 10px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+          <button onclick="closeWorkerScheduleModal()" style="padding: 8px 14px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Vazgeç</button>
+          <button onclick="saveWorkerSchedule()" style="padding: 8px 14px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 4px; cursor: pointer;">Kaydet</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Block/Schedule Edit Modal (used inside schedule editors) -->
+    <div id="schedule-edit-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+      <div style="background: white; border-radius: 8px; padding: 20px; max-width: 400px; width: 90%;">
+        <h3 style="margin-top: 0; margin-bottom: 16px;">Zaman Bloğu Düzenle</h3>
+        
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; margin-bottom: 4px; font-weight: 600;">Blok Tipi:</label>
+          <select id="block-type" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+            <option value="work">Çalışma</option>
+            <option value="break">Mola</option>
+            <option value="rest">Dinlenme</option>
+          </select>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-weight: 600;">Başlangıç:</label>
+            <input type="time" id="block-start" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+          </div>
+          <div>
+            <label style="display: block; margin-bottom: 4px; font-weight: 600;">Bitiş:</label>
+            <input type="time" id="block-end" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+          </div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; gap: 8px;">
+          <button onclick="deleteScheduleBlock()" style="padding: 8px 16px; background: white; border: 1px solid #ef4444; color: #ef4444; border-radius: 4px; cursor: pointer;">Sil</button>
+          <div style="display: flex; gap: 8px;">
+            <button onclick="cancelScheduleEdit()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Vazgeç</button>
+            <button onclick="saveScheduleBlock()" style="padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer;">Kaydet</button>
           </div>
         </div>
       </div>

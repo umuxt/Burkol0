@@ -91,6 +91,281 @@ export function deleteWorkerFromDetail() {
   }
 }
 
+// Worker schedule modal handlers
+export function openWorkerScheduleModal() {
+  const modal = document.getElementById('worker-schedule-modal')
+  if (!modal) return
+  // Default to company mode when opening
+  const radios = modal.querySelectorAll('input[name="worker-schedule-mode"][value="company"]')
+  if (radios && radios[0]) radios[0].checked = true
+  handleWorkerScheduleModeChange('company')
+  // Show modal
+  modal.style.display = 'flex'
+  // Initialize timeline if personal area is visible later
+  setTimeout(() => {
+    if (typeof initializeTimeline === 'function') {
+      try { initializeTimeline() } catch {}
+    }
+  }, 0)
+}
+
+export function closeWorkerScheduleModal(ev) {
+  // Support clicking overlay or close button
+  const modal = document.getElementById('worker-schedule-modal')
+  if (!modal) return
+  modal.style.display = 'none'
+}
+
+export function handleWorkerScheduleModeChange(mode) {
+  const company = document.getElementById('worker-schedule-company')
+  const personal = document.getElementById('worker-schedule-personal')
+  if (!company || !personal) return
+  if (mode === 'personal') {
+    company.style.display = 'none'
+    personal.style.display = 'block'
+    // Ensure timeline is wired
+    if (typeof initializeTimeline === 'function') {
+      setTimeout(() => { try { initializeTimeline() } catch {} }, 0)
+    }
+  } else {
+    company.style.display = 'block'
+    personal.style.display = 'none'
+  }
+}
+
+export function saveWorkerSchedule() {
+  if (!selectedWorkerId) {
+    closeWorkerScheduleModal()
+    return
+  }
+  const modal = document.getElementById('worker-schedule-modal')
+  if (!modal) return
+  const selectedMode = modal.querySelector('input[name="worker-schedule-mode"]:checked')?.value || 'company'
+  const shiftNo = (document.getElementById('worker-schedule-shift-no')?.value) || null
+  const schedule = { mode: selectedMode }
+  if (selectedMode === 'company') {
+    schedule.shiftNo = shiftNo
+  } else {
+    // Collect blocks from worker-prefixed timeline columns
+    const cols = modal.querySelectorAll('.day-timeline-vertical')
+    const blocksByDay = {}
+    cols.forEach(col => {
+      const dayId = col.dataset.day
+      const blocks = Array.from(col.querySelectorAll('[data-block-info]')).map(el => {
+        try { return JSON.parse(el.dataset.blockInfo) } catch { return null }
+      }).filter(Boolean)
+      blocksByDay[dayId] = blocks
+    })
+    schedule.blocks = blocksByDay
+  }
+  // Store temporarily on worker object in memory
+  const idx = workersState.findIndex(w => w.id === selectedWorkerId)
+  if (idx >= 0) {
+    workersState[idx].personalSchedule = schedule
+  }
+  showToast('Çalışma saatleri kaydedildi (geçici)', 'success')
+  closeWorkerScheduleModal()
+}
+
+// --- Helpers: generate schedule summary section in details ---
+function normalizeDayKey(key) {
+  if (!key) return ''
+  // strip known prefixes
+  return String(key)
+    .replace(/^worker-/, '')
+    .replace(/^fixed-/, '')
+    .replace(/^shift-/, '')
+}
+
+function dayLabel(trKey) {
+  const map = { monday: 'Pzt', tuesday: 'Sal', wednesday: 'Çar', thursday: 'Per', friday: 'Cum', saturday: 'Cmt', sunday: 'Paz' }
+  return map[trKey] || trKey
+}
+
+function generateWorkerScheduleSummary(worker) {
+  const schedule = worker.personalSchedule
+  // Header and container
+  let html = `
+    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+      <div style="display:flex; align-items:center; justify-content: space-between;">
+        <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); padding-bottom: 6px;">Çalışma Saatleri</h3>
+        <button type="button" onclick="openWorkerScheduleModal()" style="padding: 4px 8px; border: 1px solid var(--border); background: white; border-radius: 4px; font-size: 12px; cursor: pointer;">Düzenle</button>
+      </div>
+  `
+
+  if (!schedule) {
+    // Try to load company time settings
+    const company = safeLoadCompanyTimeSettings()
+    if (!company) {
+      html += `
+        <div style="font-size:12px; color: rgb(107,114,128);">Bu çalışan için şirket genel ayarları kullanılacak. Detaylı saat bilgisi girilmedi.</div>
+      </div>`
+      return html
+    }
+    return html + renderCompanyScheduleTimeline(company, /*shiftNo*/ null) + '</div>'
+  }
+
+  if (schedule.mode === 'company') {
+    const company = safeLoadCompanyTimeSettings()
+    if (!company) {
+      html += `
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#eef2ff; color:#4338ca; font-weight:600;">Genel Ayar</span>
+          ${schedule.shiftNo ? `<span style=\"font-size:12px; color: rgb(55,65,81);\">Vardiya No: <strong>${escapeHtml(String(schedule.shiftNo))}</strong></span>` : ''}
+        </div>
+      </div>`
+      return html
+    }
+    return html + renderCompanyScheduleTimeline(company, schedule.shiftNo) + '</div>'
+  }
+
+  // Personal schedule with blocks
+  const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+  const chipsStyle = {
+    work: 'background: rgba(34,197,94,.15); color:#065f46; border:1px solid #22c55e;',
+    break: 'background: rgba(251,191,36,.15); color:#92400e; border:1px solid #fbbf24;',
+    rest: 'background: rgba(156,163,175,.2); color:#1f2937; border:1px solid #9ca3af;'
+  }
+  // Build blocks per day and render compact static weekly timeline
+  const blocksByDay = {}
+  for (const d of days) {
+    const keysToCheck = [d, `fixed-${d}`, `shift-${d}`, `worker-${d}`]
+    let blocks = []
+    for (const k of keysToCheck) {
+      const found = schedule.blocks?.[k]
+      if (Array.isArray(found) && found.length) { blocks = found; break }
+    }
+    blocksByDay[d] = blocks
+  }
+  html += renderStaticWeeklyTimeline(blocksByDay)
+  html += `</div>`
+  return html
+}
+
+function safeLoadCompanyTimeSettings() {
+  try {
+    const raw = localStorage.getItem('companyTimeSettings')
+    if (!raw) return null
+    const data = JSON.parse(raw)
+    if (!data || typeof data !== 'object') return null
+    return data
+  } catch { return null }
+}
+
+// Backward-compat name retained; used as core builder
+function renderCompanyScheduleGrid(company, shiftNo) {
+  const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+  const chipsStyle = {
+    work: 'background: rgba(34,197,94,.15); color:#065f46; border:1px solid #22c55e;',
+    break: 'background: rgba(251,191,36,.15); color:#92400e; border:1px solid #fbbf24;',
+    rest: 'background: rgba(156,163,175,.2); color:#1f2937; border:1px solid #9ca3af;'
+  }
+  const useShift = company?.workType === 'shift'
+  let buf = ''
+  buf += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">`
+  buf += `<span style="display:inline-block; font-size:11px; padding:2px 6px; border-radius:4px; background:#eef2ff; color:#4338ca; font-weight:600;">Genel Ayar</span>`
+  if (useShift) {
+    buf += `<span style="font-size:12px; color: rgb(55,65,81);">Mod: Vardiyalı</span>`
+    if (shiftNo) buf += `<span style="font-size:12px; color: rgb(55,65,81);">Vardiya No: <strong>${escapeHtml(String(shiftNo))}</strong></span>`
+  } else {
+    buf += `<span style="font-size:12px; color: rgb(55,65,81);">Mod: Sabit</span>`
+  }
+  buf += `</div>`
+  
+  // Build blocks per day and render compact static weekly timeline
+  const blocksByDay = {}
+  for (const d of days) {
+    const fixedList = company?.fixedBlocks?.[d] || []
+    const shiftList = company?.shiftBlocks?.[`shift-${d}`] || []
+    let list = []
+    if (useShift) {
+      if (shiftNo) {
+        const idx = (parseInt(shiftNo, 10) || 1) - 1
+        list = shiftList.filter(b => (b && typeof b.laneIndex === 'number') ? b.laneIndex === idx : true)
+      } else {
+        list = shiftList
+      }
+    } else {
+      list = fixedList
+    }
+    blocksByDay[d] = list
+  }
+  buf += renderStaticWeeklyTimeline(blocksByDay)
+  return buf
+}
+
+// Preferred name used by details renderer
+function renderCompanyScheduleTimeline(company, shiftNo) {
+  return renderCompanyScheduleGrid(company, shiftNo)
+}
+
+// Render read-only compact weekly timeline (hour labels + day columns)
+function renderStaticWeeklyTimeline(blocksByDay) {
+  const dayOrder = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+  const dayLabels = { monday:'Pzt', tuesday:'Sal', wednesday:'Çar', thursday:'Per', friday:'Cum', saturday:'Cmt', sunday:'Paz' }
+  const colors = {
+    work: { bg: 'rgba(34, 197, 94, 0.8)', border: '#22c55e', text: 'white' },
+    break: { bg: 'rgba(251, 191, 36, 0.8)', border: '#fbbf24', text: 'black' },
+    rest: { bg: 'rgba(156, 163, 175, 0.8)', border: '#9ca3af', text: 'white' }
+  }
+  const hourMarks = generateStaticHourMarks()
+  let html = ''
+  html += `
+    <div style="border: 1px solid var(--border); border-radius: 8px; background: var(--card); overflow: hidden;">
+      <div style="display: grid; grid-template-columns: 50px repeat(7, 1fr); background: var(--muted); border-bottom: 1px solid var(--border);">
+        <div style="padding: 6px; font-size: 11px; font-weight: 600; border-right: 1px solid var(--border); display: flex; align-items: center; justify-content: center;">Saat</div>
+        ${dayOrder.map((d, i) => `
+          <div style="padding: 6px; text-align: center; border-right: 1px solid var(--border); ${i === dayOrder.length - 1 ? 'border-right: none;' : ''}">
+            <div style="font-size: 12px; font-weight: 600;">${dayLabels[d]}</div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="display: grid; grid-template-columns: 50px repeat(7, 1fr); height: 220px; position: relative;">
+        <div style="background: var(--muted); border-right: 1px solid var(--border); position: relative;">${hourMarks}</div>
+        ${dayOrder.map((d, i) => {
+          const blocks = Array.isArray(blocksByDay[d]) ? blocksByDay[d] : []
+          const blocksHtml = blocks.map(b => {
+            const sh = typeof b.startHour === 'number' ? b.startHour : timeToHourLocal(b.startTime)
+            const eh = typeof b.endHour === 'number' ? b.endHour : timeToHourLocal(b.endTime)
+            const top = Math.max(0, Math.min(100, (sh / 24) * 100))
+            const height = Math.max(1, Math.min(100, ((eh - sh) / 24) * 100))
+            const c = colors[b.type] || colors.work
+            const label = b.type === 'break' ? 'Mola' : (b.type === 'rest' ? 'Dinlenme' : 'Çalışma')
+            const time = `${escapeHtml(b.startTime || '')}-${escapeHtml(b.endTime || '')}`
+            return `
+              <div style="position:absolute; left:2px; right:2px; top:${top}%; height:${height}%; background:${c.bg}; border:1px solid ${c.border}; color:${c.text}; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:10px; pointer-events:none;">
+                <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${label} ${time}</span>
+              </div>`
+          }).join('')
+          return `
+            <div style="position: relative; background: white; border-right: 1px solid var(--border); ${i === dayOrder.length - 1 ? 'border-right: none;' : ''}; pointer-events: none;">
+              ${blocksHtml}
+            </div>`
+        }).join('')}
+      </div>
+    </div>`
+  return html
+}
+
+function generateStaticHourMarks() {
+  let marks = ''
+  for (let i = 0; i <= 24; i += 2) {
+    const percentage = (i / 24) * 100
+    const translate = (i === 0) ? 'translateY(0)' : (i === 24 ? 'translateY(-100%)' : 'translateY(-50%)')
+    marks += `<div style=\"position: absolute; top: ${percentage}%; left: 0; right: 0; height: 1px; background: var(--border);\"></div>`
+    marks += `<div style=\"position: absolute; top: ${percentage}%; transform: ${translate}; left: 4px; font-size: 10px; color: var(--muted-foreground); background: var(--muted); padding: 0 2px;\">${i}:00</div>`
+  }
+  return marks
+}
+
+function timeToHourLocal(timeString) {
+  if (!timeString) return 0
+  const [h, m] = String(timeString).split(':').map(Number)
+  const hh = isNaN(h) ? 0 : h
+  const mm = isNaN(m) ? 0 : m
+  return hh + (mm / 60)
+}
+
 function generateWorkerDetailContent(worker) {
   const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   
@@ -137,6 +412,9 @@ function generateWorkerDetailContent(worker) {
           <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.currentTask || 'Görev atanmamış')}</span>
         </div>
       </div>
+
+      <!-- Çalışma Saatleri -->
+      ${generateWorkerScheduleSummary(worker)}
 
       <!-- Yetenekler -->
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
@@ -217,6 +495,9 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData) {
           <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(worker.currentTask || 'Görev atanmamış')}</span>
         </div>
       </div>
+
+      <!-- Çalışma Saatleri -->
+      ${generateWorkerScheduleSummary(worker)}
 
       <!-- Yetenekler -->
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
