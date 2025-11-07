@@ -12,6 +12,8 @@ import { openHelp, closeHelp, switchHelpTab, toggleFAQ, initHelp } from './help.
 import { initializeApprovedQuotesUI, showApprovedQuoteDetail, closeApprovedQuoteDetail, toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter, toggleAQPlanType, applyOverdueFilter, applyQuickDateFilter, sortApprovedQuotes } from './approvedQuotes.js';
 import { initMasterDataUI, addSkillFromSettings, renameSkill, deleteSkill } from './masterData.js';
 import { toggleMobileNav, closeMobileNav } from './mobile.js';
+import { API_BASE, withAuth } from '../../shared/lib/api.js';
+import { getMasterData } from './mesApi.js';
 
 function renderView(viewId) {
   let content = '';
@@ -71,6 +73,7 @@ function renderView(viewId) {
       setTimeout(() => {
         initMasterDataUI();
         initializeTimeline();
+        applyCompanyTimeSettingsToUI();
       }, 0); 
       break;
     case 'stations': content = generateStations() + generateStationDuplicateModal(); setTimeout(() => initializeStationsUI(), 0); break;
@@ -145,7 +148,7 @@ Object.assign(window, {
 });
 
 // Time management placeholder function
-function saveTimeManagement() {
+async function saveTimeManagement() {
   try {
     const workType = (document.querySelector('input[name="work-type"]:checked')?.value) || 'fixed';
     const laneInput = document.getElementById('lane-count-input');
@@ -172,12 +175,122 @@ function saveTimeManagement() {
       shiftBlocks[key] = blocks;
     });
 
-    const payload = { workType, laneCount, fixedBlocks, shiftBlocks, savedAt: Date.now() };
+    // Build split-by-lane structure for shift (easier consumption: Pazartesi 1, Pazartesi 2, ...)
+    const shiftByLane = {};
+    for (let lane = 1; lane <= laneCount; lane++) {
+      const laneIdx = lane - 1;
+      const laneDays = {};
+      ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].forEach(day => {
+        const key = `shift-${day}`;
+        const list = Array.isArray(shiftBlocks[key]) ? shiftBlocks[key] : [];
+        laneDays[day] = list.filter(b => (typeof b?.laneIndex === 'number') ? b.laneIndex === laneIdx : false);
+      });
+      shiftByLane[String(lane)] = laneDays;
+    }
+
+    const payload = { workType, laneCount, fixedBlocks, shiftBlocks, shiftByLane, savedAt: Date.now() };
     localStorage.setItem('companyTimeSettings', JSON.stringify(payload));
+
+    // Persist to backend master data (mes-settings/master-data.timeSettings)
+    try {
+      const res = await fetch(`${API_BASE}/api/mes/master-data`, {
+        method: 'POST',
+        headers: withAuth({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ timeSettings: { workType, laneCount, fixedBlocks, shiftBlocks, shiftByLane } })
+      });
+      if (!res.ok) throw new Error(`master_data_time_save_failed ${res.status}`);
+    } catch (e) {
+      console.warn('Master time settings save warning:', e);
+    }
     showToast('Zaman ayarları kaydedildi', 'success');
   } catch (e) {
     console.error('saveTimeManagement error', e);
     showToast('Zaman ayarları kaydedilemedi', 'error');
+  }
+}
+
+// Populate Settings timeline from saved company time settings (master-data)
+async function applyCompanyTimeSettingsToUI() {
+  try {
+    const md = await getMasterData().catch(() => null);
+    const ts = md && md.timeSettings ? md.timeSettings : (() => {
+      try { return JSON.parse(localStorage.getItem('companyTimeSettings') || 'null') } catch { return null }
+    })();
+    if (!ts) return;
+
+    // Set work type radio and lane count
+    const workType = ts.workType === 'shift' ? 'shift' : 'fixed';
+    const laneCount = Number.isFinite(ts.laneCount) ? Math.max(1, Math.min(7, ts.laneCount)) : 1;
+    const fixedRadio = document.querySelector('input[name="work-type"][value="fixed"]');
+    const shiftRadio = document.querySelector('input[name="work-type"][value="shift"]');
+    if (workType === 'shift' && shiftRadio) shiftRadio.checked = true; else if (fixedRadio) fixedRadio.checked = true;
+    switchWorkType(workType);
+    const laneInput = document.getElementById('lane-count-input');
+    if (laneInput) laneInput.value = String(laneCount);
+    setTimelineLaneCount(laneCount);
+
+    // Helper to clear all blocks
+    const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+    const clearBlocks = (prefix) => {
+      days.forEach(d => {
+        const el = document.getElementById(`blocks-${prefix ? `${prefix}-` : ''}${d}`);
+        if (el) el.innerHTML = '';
+      });
+    };
+    clearBlocks(''); // fixed
+    clearBlocks('shift');
+
+    // Add fixed blocks
+    if (ts.fixedBlocks && typeof ts.fixedBlocks === 'object') {
+      days.forEach(d => {
+        const list = Array.isArray(ts.fixedBlocks[d]) ? ts.fixedBlocks[d] : [];
+        list.forEach(b => {
+          const sh = typeof b.startHour === 'number' ? b.startHour : timeToHour(b.startTime);
+          const eh = typeof b.endHour === 'number' ? b.endHour : timeToHour(b.endTime);
+          const type = b.type || 'work';
+          const startTime = b.startTime || formatHourToTime(sh);
+          const endTime = b.endTime || formatHourToTime(eh);
+          const laneIdx = Number.isFinite(b.laneIndex) ? b.laneIndex : 0;
+          createScheduleBlock(d, type, sh, eh, startTime, endTime, laneIdx);
+        });
+      });
+    }
+
+  // Add shift blocks
+    if (ts.shiftBlocks && typeof ts.shiftBlocks === 'object') {
+      days.forEach(d => {
+        const key = `shift-${d}`;
+        const list = Array.isArray(ts.shiftBlocks[key]) ? ts.shiftBlocks[key] : [];
+        list.forEach(b => {
+          const sh = typeof b.startHour === 'number' ? b.startHour : timeToHour(b.startTime);
+          const eh = typeof b.endHour === 'number' ? b.endHour : timeToHour(b.endTime);
+          const type = b.type || 'work';
+          const startTime = b.startTime || formatHourToTime(sh);
+          const endTime = b.endTime || formatHourToTime(eh);
+          const laneIdx = Number.isFinite(b.laneIndex) ? b.laneIndex : 0;
+          createScheduleBlock(key, type, sh, eh, startTime, endTime, laneIdx);
+        });
+      });
+    } else if (ts.shiftByLane && typeof ts.shiftByLane === 'object') {
+      // Reconstruct UI blocks from split-by-lane model
+      Object.entries(ts.shiftByLane).forEach(([laneNo, daysMap]) => {
+        const laneIdx = Math.max(0, (parseInt(laneNo, 10) || 1) - 1);
+        days.forEach(d => {
+          const key = `shift-${d}`;
+          const list = Array.isArray(daysMap?.[d]) ? daysMap[d] : [];
+          list.forEach(b => {
+            const sh = typeof b.startHour === 'number' ? b.startHour : timeToHour(b.startTime);
+            const eh = typeof b.endHour === 'number' ? b.endHour : timeToHour(b.endTime);
+            const type = b.type || 'work';
+            const startTime = b.startTime || formatHourToTime(sh);
+            const endTime = b.endTime || formatHourToTime(eh);
+            createScheduleBlock(key, type, sh, eh, startTime, endTime, laneIdx);
+          });
+        });
+      });
+    }
+  } catch (e) {
+    console.warn('applyCompanyTimeSettingsToUI failed', e);
   }
 }
 

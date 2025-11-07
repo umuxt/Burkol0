@@ -337,10 +337,11 @@ export async function getMasterData(force = false) {
   return _masterDataCache
 }
 
-export async function saveMasterData({ skills, operationTypes }) {
+export async function saveMasterData({ skills, operationTypes, timeSettings }) {
   const body = {
     availableSkills: (skills || []).map(s => ({ id: s.id, name: s.name })),
-    availableOperationTypes: (operationTypes || []).map(ot => ({ id: ot.id, name: ot.name }))
+    availableOperationTypes: (operationTypes || []).map(ot => ({ id: ot.id, name: ot.name })),
+    ...(timeSettings ? { timeSettings } : {})
   }
   const res = await fetch(`${API_BASE}/api/mes/master-data`, {
     method: 'POST',
@@ -348,7 +349,7 @@ export async function saveMasterData({ skills, operationTypes }) {
     body: JSON.stringify(body)
   })
   if (!res.ok) throw new Error(`master_data_save_failed ${res.status}`)
-  _masterDataCache = normalizeMasterData(body)
+  _masterDataCache = normalizeMasterData({ ...body })
   writeCache('mes_master_data_cache', _masterDataCache)
   try { window.dispatchEvent(new CustomEvent(MD_CHANGED_EVENT, { detail: { source: 'production' } })) } catch {}
   return _masterDataCache
@@ -373,7 +374,8 @@ export function normalizeMasterData(data) {
     operationTypes = rawOperationTypes.map(ot => ({ id: ot.id || `optype-${Math.random().toString(36).slice(2,7)}`, name: ot.name || '' }))
   }
   
-  return { skills, operationTypes }
+  const timeSettings = data?.timeSettings || null
+  return { skills, operationTypes, ...(timeSettings ? { timeSettings } : {}) }
 }
 
 export function nextSkillCode(skills) {

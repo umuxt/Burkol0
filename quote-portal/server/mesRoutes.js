@@ -546,25 +546,37 @@ router.get('/master-data', withAuth, async (req, res) => {
       // Return defaults if no master data exists
       return {
         availableSkills: ['Kaynak', 'Tornalama', 'Freze', 'Montaj'],
-        availableOperationTypes: ['İmalat', 'Kontrol', 'Montaj', 'Paketleme']
+        availableOperationTypes: ['İmalat', 'Kontrol', 'Montaj', 'Paketleme'],
+        // default empty time settings for company schedule
+        timeSettings: {
+          workType: 'fixed',
+          laneCount: 1,
+          fixedBlocks: {},
+          shiftBlocks: {}
+        }
       };
     }
 
-    return doc.data();
+    const data = doc.data() || {}
+    // Ensure timeSettings exists with safe defaults
+    data.timeSettings = data.timeSettings || { workType: 'fixed', laneCount: 1, fixedBlocks: {}, shiftBlocks: {} }
+    return data;
   }, res);
 });
 
 // POST /api/mes/master-data - Update master data
 router.post('/master-data', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
-    const { availableSkills, availableOperationTypes } = req.body;
+    const { availableSkills, availableOperationTypes, timeSettings } = req.body || {};
     
     const db = getFirestore();
-    await db.collection('mes-settings').doc('master-data').set({
-      availableSkills: availableSkills || [],
-      availableOperationTypes: availableOperationTypes || [],
+    const payload = {
+      ...(availableSkills ? { availableSkills } : {}),
+      ...(availableOperationTypes ? { availableOperationTypes } : {}),
+      ...(timeSettings ? { timeSettings } : {}),
       updatedAt: new Date()
-    }, { merge: true });
+    }
+    await db.collection('mes-settings').doc('master-data').set(payload, { merge: true });
 
     return { success: true };
   }, res);

@@ -95,10 +95,44 @@ export function deleteWorkerFromDetail() {
 export function openWorkerScheduleModal() {
   const modal = document.getElementById('worker-schedule-modal')
   if (!modal) return
-  // Default to company mode when opening
-  const radios = modal.querySelectorAll('input[name="worker-schedule-mode"][value="company"]')
-  if (radios && radios[0]) radios[0].checked = true
-  handleWorkerScheduleModeChange('company')
+  // Determine current worker state
+  const worker = workersState.find(w => w.id === selectedWorkerId) || {}
+  const savedMode = (worker.personalSchedule && worker.personalSchedule.mode) ? worker.personalSchedule.mode : 'company'
+  // Preselect radio
+  const radioCompany = modal.querySelector('input[name="worker-schedule-mode"][value="company"]')
+  const radioPersonal = modal.querySelector('input[name="worker-schedule-mode"][value="personal"]')
+  if (savedMode === 'personal' && radioPersonal) radioPersonal.checked = true
+  else if (radioCompany) radioCompany.checked = true
+
+  // Populate shift-no options from master-data lane count
+  const select = document.getElementById('worker-schedule-shift-no')
+  ;(async () => {
+    try {
+      const md = await getMasterData().catch(() => null)
+      const ts = md && md.timeSettings ? md.timeSettings : null
+      const laneCount = Math.max(1, Math.min(7, Number(ts?.laneCount || 1)))
+      // Build options 1..laneCount
+      if (select) {
+        let opts = ''
+        for (let i = 1; i <= laneCount; i++) opts += `<option value="${i}">${i}</option>`
+        select.innerHTML = opts
+        // Disable select if company workType is not shift
+        if (ts && ts.workType !== 'shift') {
+          select.disabled = true
+          select.title = 'Genel ayarlar sabit modda; vardiya seçimi devre dışı'
+        } else {
+          select.disabled = false
+          select.title = ''
+        }
+        // Preselect saved shiftNo if present
+        const savedShift = (worker.personalSchedule && worker.personalSchedule.shiftNo) ? parseInt(worker.personalSchedule.shiftNo, 10) : null
+        const selectedVal = (savedShift && savedShift >= 1 && savedShift <= laneCount) ? String(savedShift) : '1'
+        select.value = selectedVal
+      }
+    } catch {}
+  })()
+
+  handleWorkerScheduleModeChange(savedMode)
   // Show modal
   modal.style.display = 'flex'
   // Initialize timeline if personal area is visible later
@@ -134,17 +168,32 @@ export function handleWorkerScheduleModeChange(mode) {
 }
 
 export function saveWorkerSchedule() {
-  if (!selectedWorkerId) {
-    closeWorkerScheduleModal()
-    return
-  }
+  if (!selectedWorkerId) { closeWorkerScheduleModal(); return }
   const modal = document.getElementById('worker-schedule-modal')
   if (!modal) return
   const selectedMode = modal.querySelector('input[name="worker-schedule-mode"]:checked')?.value || 'company'
   const shiftNo = (document.getElementById('worker-schedule-shift-no')?.value) || null
+
+  // Validate when company settings are shift-based
+  const company = safeLoadCompanyTimeSettings()
+  if (selectedMode === 'company' && company && company.workType === 'shift') {
+    if (!shiftNo) { showToast('Vardiyalı modda vardiya no seçiniz', 'warning'); return }
+  }
+
   const schedule = { mode: selectedMode }
   if (selectedMode === 'company') {
-    schedule.shiftNo = shiftNo
+    if (shiftNo) schedule.shiftNo = shiftNo
+    // Resolve and attach day-by-day blocks from master data based on selected shift number
+    const ts = safeLoadCompanyTimeSettings()
+    if (ts) {
+      const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+      const blocksByDay = {}
+      days.forEach(d => {
+        const list = getShiftBlocksForDay(ts, d, shiftNo)
+        blocksByDay[d] = Array.isArray(list) ? list : []
+      })
+      schedule.blocks = blocksByDay
+    }
   } else {
     // Collect blocks from worker-prefixed timeline columns
     const cols = modal.querySelectorAll('.day-timeline-vertical')
@@ -158,13 +207,24 @@ export function saveWorkerSchedule() {
     })
     schedule.blocks = blocksByDay
   }
-  // Store temporarily on worker object in memory
+  // Store on worker object in memory and persist
   const idx = workersState.findIndex(w => w.id === selectedWorkerId)
   if (idx >= 0) {
     workersState[idx].personalSchedule = schedule
   }
-  showToast('Çalışma saatleri kaydedildi (geçici)', 'success')
-  closeWorkerScheduleModal()
+  (async () => {
+    try {
+      await persistWorkers()
+      showToast('Çalışma saatleri kaydedildi', 'success')
+      // refresh details if open
+      try { if (selectedWorkerId) await showWorkerDetail(selectedWorkerId) } catch {}
+    } catch (e) {
+      console.error('saveWorkerSchedule persist error', e)
+      showToast('Çalışma saatleri kaydedilemedi', 'error')
+    } finally {
+      closeWorkerScheduleModal()
+    }
+  })()
 }
 
 // --- Helpers: generate schedule summary section in details ---
@@ -207,6 +267,12 @@ function generateWorkerScheduleSummary(worker) {
 
   if (schedule.mode === 'company') {
     const company = safeLoadCompanyTimeSettings()
+    // Prefer resolved blocks if present on worker record
+    if (schedule.blocks && typeof schedule.blocks === 'object') {
+      html += renderStaticWeeklyTimeline(schedule.blocks)
+      html += `</div>`
+      return html
+    }
     if (!company) {
       html += `
         <div style="display:flex; align-items:center; gap:8px;">
@@ -244,11 +310,21 @@ function generateWorkerScheduleSummary(worker) {
 
 function safeLoadCompanyTimeSettings() {
   try {
+    // Prefer cached master-data from sessionStorage (written by mesApi)
+    try {
+      const cached = sessionStorage.getItem('mes_master_data_cache')
+      if (cached) {
+        const md = JSON.parse(cached)
+        if (md && md.timeSettings) return md.timeSettings
+      }
+    } catch {}
+    // Fallback to local persisted companyTimeSettings
     const raw = localStorage.getItem('companyTimeSettings')
-    if (!raw) return null
-    const data = JSON.parse(raw)
-    if (!data || typeof data !== 'object') return null
-    return data
+    if (raw) {
+      const data = JSON.parse(raw)
+      if (data && typeof data === 'object') return data
+    }
+    return null
   } catch { return null }
 }
 
@@ -276,15 +352,9 @@ function renderCompanyScheduleGrid(company, shiftNo) {
   const blocksByDay = {}
   for (const d of days) {
     const fixedList = company?.fixedBlocks?.[d] || []
-    const shiftList = company?.shiftBlocks?.[`shift-${d}`] || []
     let list = []
     if (useShift) {
-      if (shiftNo) {
-        const idx = (parseInt(shiftNo, 10) || 1) - 1
-        list = shiftList.filter(b => (b && typeof b.laneIndex === 'number') ? b.laneIndex === idx : true)
-      } else {
-        list = shiftList
-      }
+      list = getShiftBlocksForDay(company, d, shiftNo)
     } else {
       list = fixedList
     }
@@ -292,6 +362,49 @@ function renderCompanyScheduleGrid(company, shiftNo) {
   }
   buf += renderStaticWeeklyTimeline(blocksByDay)
   return buf
+}
+
+function getShiftBlocksForDay(ts, day, shiftNo) {
+  // 1) Aggregated model with laneIndex under `shift-${day}`
+  const agg = ts?.shiftBlocks?.[`shift-${day}`]
+  if (Array.isArray(agg)) {
+    if (!shiftNo) return agg
+    const idx = (parseInt(shiftNo, 10) || 1) - 1
+    return agg.filter(b => (b && typeof b.laneIndex === 'number') ? b.laneIndex === idx : false)
+  }
+  // 2) Split‑by‑lane model: shiftByLane: { '1': { day: [...] }, '2': { day: [...] } }
+  const byLane = ts?.shiftByLane
+  if (byLane && typeof byLane === 'object') {
+    if (shiftNo) {
+      return Array.isArray(byLane[String(parseInt(shiftNo, 10) || 1)]?.[day])
+        ? byLane[String(parseInt(shiftNo, 10) || 1)][day]
+        : []
+    }
+    // No specific shift requested: combine all lanes for display
+    let combined = []
+    Object.keys(byLane).forEach(k => { if (Array.isArray(byLane[k]?.[day])) combined = combined.concat(byLane[k][day]) })
+    return combined
+  }
+  // 3) Named keys like `${day}-1`, `${day}_1`, `shift-1-${day}`, `shift-${day}-1`
+  const keys = Object.keys(ts || {})
+  if (keys.length) {
+    const collect = (n) => {
+      const patterns = [
+        new RegExp(`^${day}[-_]${n}$`, 'i'),
+        new RegExp(`^shift[-_]${day}[-_]${n}$`, 'i'),
+        new RegExp(`^shift[-_]${n}[-_]${day}$`, 'i')
+      ]
+      const matchKey = keys.find(k => patterns.some(p => p.test(k)))
+      const arr = matchKey && Array.isArray(ts[matchKey]) ? ts[matchKey] : []
+      return arr
+    }
+    if (shiftNo) return collect(parseInt(shiftNo, 10) || 1)
+    // else combine all lanes 1..7
+    let combined = []
+    for (let n = 1; n <= 7; n++) { const arr = collect(n); if (arr.length) combined = combined.concat(arr) }
+    return combined
+  }
+  return []
 }
 
 // Preferred name used by details renderer
@@ -1014,7 +1127,17 @@ function sanitizeWorker(w) {
     shift: w.shift || 'Day',
     status: (w.status || 'available').toLowerCase(),
     station: w.station || '',
-    currentTask: w.currentTask || ''
+    currentTask: w.currentTask || '',
+    // Schedule fields
+    personalSchedule: (function(){
+      const ps = w.personalSchedule
+      if (!ps || typeof ps !== 'object') return null
+      const mode = (ps.mode === 'personal' || ps.mode === 'company') ? ps.mode : 'company'
+      const out = { mode }
+      if (ps.shiftNo) out.shiftNo = ps.shiftNo
+      if (ps.blocks && typeof ps.blocks === 'object') out.blocks = ps.blocks
+      return out
+    })()
   }
 }
 
