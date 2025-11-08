@@ -703,6 +703,55 @@ function generateWorkerDetailContent(worker) {
   `
 }
 
+// Generate current task section for worker detail panel
+function generateCurrentTaskSection(worker) {
+  const currentTask = worker.currentTask;
+  
+  if (!currentTask || !currentTask.planId) {
+    return `
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Mevcut Görev</h3>
+        <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+          Şu anda atanmış bir görev bulunmuyor
+        </div>
+      </div>
+    `;
+  }
+  
+  const { planId, stationId, stationName, nodeId, status } = currentTask;
+  const statusColors = {
+    'active': { bg: '#ecfdf5', text: '#059669', label: 'Aktif' },
+    'paused': { bg: '#fef3c7', text: '#d97706', label: 'Duraklatıldı' },
+    'completed': { bg: '#f3f4f6', text: '#6b7280', label: 'Tamamlandı' }
+  };
+  const statusConfig = statusColors[status] || { bg: '#f3f4f6', text: '#6b7280', label: status || 'Unknown' };
+  
+  return `
+    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+      <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Mevcut Görev</h3>
+      <div style="padding: 12px; background: ${statusConfig.bg}; border-radius: 4px; border-left: 3px solid ${statusConfig.text};">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-weight: 600; font-size: 13px; color: rgb(17, 24, 39);">Üretim Planı</span>
+          <span style="font-size: 11px; padding: 2px 8px; background: ${statusConfig.text}; color: white; border-radius: 12px; font-weight: 500;">${escapeHtml(statusConfig.label)}</span>
+        </div>
+        <div style="font-size: 11px; color: rgb(75, 85, 99); margin-bottom: 4px;">
+          Plan ID: <span style="font-family: monospace; background: white; padding: 2px 4px; border-radius: 2px;">${escapeHtml(planId.slice(-10))}</span>
+        </div>
+        ${stationName ? `
+          <div style="font-size: 11px; color: rgb(75, 85, 99); margin-bottom: 4px;">
+            İstasyon: <strong>${escapeHtml(stationName)}</strong>
+          </div>
+        ` : ''}
+        ${nodeId ? `
+          <div style="font-size: 11px; color: rgb(75, 85, 99);">
+            Operasyon ID: <span style="font-family: monospace; background: white; padding: 2px 4px; border-radius: 2px;">${escapeHtml(nodeId.slice(-8))}</span>
+          </div>
+        ` : ''}
+      </div>
+    </div>
+  `;
+}
+
 function generateWorkerDetailContentWithStations(worker, workerStationsData, assignments = []) {
   const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   
@@ -820,6 +869,9 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
           </div>
         `}
       </div>
+
+      <!-- Mevcut Görev -->
+      ${generateCurrentTaskSection(worker)}
 
       <!-- Yaklaşan Görevler -->
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">

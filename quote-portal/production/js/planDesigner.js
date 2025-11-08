@@ -1,7 +1,7 @@
 // Plan Designer logic and state
 import { showToast } from './ui.js';
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js';
-import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments, getMaterials, checkMesMaterialAvailability, getGeneralMaterials } from './mesApi.js';
+import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments, getMaterials, checkMesMaterialAvailability, getGeneralMaterials, activateWorkerAssignments } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
 import { API_BASE, withAuth } from '../../shared/lib/api.js';
@@ -2629,6 +2629,85 @@ export function deployWorkOrder() {
   const pd = document.getElementById('plan-description'); if (pd) pd.value = '';
   const os = document.getElementById('order-select'); if (os) os.value = '';
   renderCanvas();
+}
+
+// Release plan to production (activate worker assignments)
+export async function releasePlanToProduction() {
+  // Validation: Plan must be saved
+  const currentPlanMeta = planDesignerState.currentPlanMeta;
+  if (!currentPlanMeta || !currentPlanMeta.id) {
+    showToast('Plan must be saved before releasing to production', 'warning');
+    return;
+  }
+  
+  const planId = currentPlanMeta.id;
+  
+  // Validation: All nodes must be assigned
+  const unassignedNodes = planDesignerState.nodes.filter(n => 
+    !n.assignedWorkerId && !n.assignedWorker
+  );
+  
+  if (unassignedNodes.length > 0) {
+    showToast(`Cannot release: ${unassignedNodes.length} operation(s) need worker assignment`, 'error');
+    return;
+  }
+  
+  // Validation: Check material availability
+  if (!planDesignerState.materialCheckResult || planDesignerState.materialCheckResult.hasShortages) {
+    const proceed = confirm(
+      'Material shortages detected or materials not checked.\n\n' +
+      'Do you want to proceed with release anyway?'
+    );
+    
+    if (!proceed) {
+      showToast('Release cancelled - check materials first', 'info');
+      return;
+    }
+  }
+  
+  try {
+    showToast('Releasing plan to production...', 'info');
+    
+    // Step 1: Update plan status to 'released'
+    await updateProductionPlan(planId, {
+      status: 'released',
+      releaseNotes: `Released on ${new Date().toLocaleString('tr-TR')}`
+    });
+    
+    console.log(`✓ Plan ${planId} status updated to 'released'`);
+    
+    // Step 2: Activate worker assignments
+    const activationResult = await activateWorkerAssignments(planId);
+    
+    console.log(`✓ Activated assignments:`, activationResult);
+    
+    // Show success message
+    const successMsg = `Plan released! Activated ${activationResult.activatedCount} assignment(s), ` +
+      `updated ${activationResult.workersUpdated} worker(s) and ${activationResult.stationsUpdated} station(s).`;
+    
+    showToast(successMsg, 'success');
+    
+    // Dispatch event to refresh workers view
+    window.dispatchEvent(new CustomEvent('assignments:updated'));
+    
+    // Update current plan meta to reflect new status
+    if (planDesignerState.currentPlanMeta) {
+      planDesignerState.currentPlanMeta.status = 'released';
+    }
+    
+    // Refresh plan list
+    try {
+      if (typeof window.loadAndRenderPlans === 'function') {
+        window.loadAndRenderPlans();
+      }
+    } catch (e) {
+      console.warn('Could not refresh plan list:', e);
+    }
+    
+  } catch (error) {
+    console.error('Failed to release plan:', error);
+    showToast(`Failed to release plan: ${error.message}`, 'error');
+  }
 }
 
 export function handleCanvasClick(event) {

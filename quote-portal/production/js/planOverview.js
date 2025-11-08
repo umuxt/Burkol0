@@ -77,6 +77,12 @@ function renderProductionPlans(plans) {
         tooltipText = `Est. completion: ${days} day${days !== 1 ? 's' : ''} @ ${shiftHrs}h shifts`;
       }
       
+      // Action buttons based on status
+      const viewBtn = `<button onclick="viewProductionPlan('${p.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px; margin-right: 4px;">View</button>`;
+      const releaseBtn = status !== 'released' 
+        ? `<button onclick="releasePlanFromOverview('${p.id || ''}', '${name.replace(/'/g, "\\'")}')" style="padding:4px 8px; border:1px solid #059669; background:#059669; color:white; border-radius:4px; cursor:pointer; font-size:12px; font-weight:500;">Release</button>` 
+        : `<span style="font-size:11px; color:#059669; font-weight:500;">✓ Released</span>`;
+      
       return `<tr data-status="${status}">
         <td style="padding: 10px 12px;">${planId}</td>
         <td style="padding: 10px 12px;">${name}</td>
@@ -89,7 +95,7 @@ function renderProductionPlans(plans) {
         <td class="metadata-column hidden" style="padding: 10px 12px;">${updated}</td>
         <td class="metadata-column hidden" style="padding: 10px 12px;">${updatedBy}</td>
         <td style="padding: 10px 12px; text-align:right;">
-          <button onclick="viewProductionPlan('${p.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;">View</button>
+          ${viewBtn}${releaseBtn}
         </td>
       </tr>`
     }).join('')
@@ -200,6 +206,42 @@ export async function viewProductionPlan(id) {
     const nodes = Array.isArray(p.nodes) ? p.nodes : (Array.isArray(p.steps) ? p.steps : (p.graph && Array.isArray(p.graph.nodes) ? p.graph.nodes : []))
     loadPlanNodes(nodes || [])
   } catch (e) { console.warn('viewProductionPlan failed', e?.message) }
+}
+
+export async function releasePlanFromOverview(planId, planName) {
+  if (!planId) {
+    window.showToast?.('No plan ID specified', 'error');
+    return;
+  }
+  
+  // Confirm with user
+  const confirmMsg = `Release plan "${planName || planId}" to production?\n\nThis will:\n- Mark the plan as released\n- Activate all worker assignments\n- Update worker/station current tasks`;
+  if (!confirm(confirmMsg)) return;
+  
+  try {
+    // Import required API functions dynamically if not already imported
+    const { updateProductionPlan, activateWorkerAssignments } = await import('./mesApi.js');
+    
+    // Step 1: Update plan status to released
+    await updateProductionPlan(planId, { status: 'released' });
+    
+    // Step 2: Activate all worker assignments
+    const result = await activateWorkerAssignments(planId);
+    
+    // Success feedback
+    const updatedCount = result?.updated || 0;
+    window.showToast?.(`Plan released! ${updatedCount} assignment${updatedCount !== 1 ? 's' : ''} activated.`, 'success');
+    
+    // Dispatch event for other modules
+    document.dispatchEvent(new CustomEvent('assignments:updated', { detail: { planId } }));
+    
+    // Reload the plans table
+    await loadAndRenderPlans();
+    
+  } catch (error) {
+    console.error('Release plan failed:', error);
+    window.showToast?.(`Failed to release plan: ${error.message}`, 'error');
+  }
 }
 
 export function editTemplateById(id) {
