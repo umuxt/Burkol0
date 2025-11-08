@@ -2504,13 +2504,40 @@ export async function savePlanDraft() {
     const assignments = generateAssignmentsPayload(planDesignerState.nodes);
     
     // Prepare material summary for the plan document
+    // NOTE: Material consumption happens automatically during plan release.
+    // rawMaterials includes both base materials and derived WIP materials consumed.
+    // wipOutputs includes all semi-finished products produced by nodes.
+    const wipOutputs = [];
+    nodes.forEach(node => {
+      if (node.semiCode) {
+        wipOutputs.push({
+          code: node.semiCode,
+          name: node.semiCode,
+          quantity: (node.outputQty || 1) * planQuantity,
+          unit: node.outputUnit || 'pcs',
+          nodeId: node.id,
+          operationId: node.operationId
+        });
+      }
+    });
+    
     const materialSummary = {
       checkedAt: materialCheck.checkedAt || new Date().toISOString(),
       totalItems: materialCheck.items?.length || 0,
       allAvailable: materialCheck.allAvailable,
       hasShortages: materialCheck.hasShortages,
-      items: materialCheck.items || [],
-      shortages: materialCheck.shortageDetails || []
+      items: materialCheck.items || [], // All materials for reference
+      shortages: materialCheck.shortageDetails || [],
+      // Separated for stock management during release:
+      rawMaterials: (materialCheck.items || []).map(item => ({
+        id: item.id,
+        code: item.code,
+        name: item.name,
+        required: item.required,
+        unit: item.unit,
+        isDerived: item.isDerived || false // Flag for WIP materials
+      })),
+      wipOutputs // WIP materials produced by this plan
     };
     
     // Prepare timing summary for the plan document
@@ -2550,13 +2577,41 @@ export async function savePlanDraft() {
   }
 
   // Prepare material summary for the plan document
+  // Prepare material summary for the plan document
+  // NOTE: Material consumption happens automatically during plan release.
+  // rawMaterials includes both base materials and derived WIP materials consumed.
+  // wipOutputs includes all semi-finished products produced by nodes.
+  const wipOutputs = [];
+  nodes.forEach(node => {
+    if (node.semiCode) {
+      wipOutputs.push({
+        code: node.semiCode,
+        name: node.semiCode,
+        quantity: (node.outputQty || 1) * planQuantity,
+        unit: node.outputUnit || 'pcs',
+        nodeId: node.id,
+        operationId: node.operationId
+      });
+    }
+  });
+  
   const materialSummary = {
     checkedAt: materialCheck.checkedAt || new Date().toISOString(),
     totalItems: materialCheck.items?.length || 0,
     allAvailable: materialCheck.allAvailable,
     hasShortages: materialCheck.hasShortages,
-    items: materialCheck.items || [],
-    shortages: materialCheck.shortageDetails || []
+    items: materialCheck.items || [], // All materials for reference
+    shortages: materialCheck.shortageDetails || [],
+    // Separated for stock management during release:
+    rawMaterials: (materialCheck.items || []).map(item => ({
+      id: item.id,
+      code: item.code,
+      name: item.name,
+      required: item.required,
+      unit: item.unit,
+      isDerived: item.isDerived || false // Flag for WIP materials
+    })),
+    wipOutputs // WIP materials produced by this plan
   };
   
   // Prepare timing summary for the plan document

@@ -984,6 +984,36 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
         });
       }
       
+      // ========================================================================
+      // AUTOMATIC MATERIAL CONSUMPTION & WIP PRODUCTION ON PLAN RELEASE
+      // ========================================================================
+      // When a production plan transitions to 'released' status, the system
+      // automatically processes material movements based on the materialSummary
+      // stored in the plan document.
+      //
+      // MATERIAL SUMMARY STRUCTURE:
+      // - materialSummary.rawMaterials: All input materials (raw + derived WIP)
+      //   Each item: { id, code, name, required, unit, isDerived }
+      // - materialSummary.wipOutputs: All WIP materials produced by plan nodes
+      //   Each item: { code, name, quantity, unit, nodeId, operationId }
+      //
+      // CONSUMPTION FLOW:
+      // 1. Raw Materials: Consumed from stock (negative delta)
+      //    - Base raw materials (steel, plastic, etc.)
+      //    - Derived WIP materials (semi-finished products from previous operations)
+      //    - WIP consumption is tracked in material.consumedBy array
+      //
+      // 2. WIP Production: Added to stock (positive delta)
+      //    - Creates WIP material if doesn't exist
+      //    - Sets metadata: type='wip', category='WIP', consumedBy=[]
+      //    - Links to source plan/node/operation
+      //
+      // ERROR HANDLING:
+      // - Continues on individual material errors (continueOnError: true)
+      // - Insufficient stock errors are logged but don't fail the release
+      // - Results stored in plan.stockMovements for audit trail
+      // ========================================================================
+      
       // If status is transitioning to 'released', process material consumption and WIP production
       if (updates.status === 'released') {
         try {
@@ -999,16 +1029,20 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
             const stockResults = { rawMaterials: null, wipOutputs: null };
             
             // 1. Consume raw materials (negative delta)
+            // NOTE: This includes both base raw materials and derived WIP materials
+            // consumed as inputs. WIP materials will be tracked in their consumedBy array.
             if (Array.isArray(materialSummary.rawMaterials) && materialSummary.rawMaterials.length > 0) {
               const consumptionList = materialSummary.rawMaterials.map(mat => ({
                 code: mat.code || mat.id,
                 qty: mat.required || 0,
-                reason: `production_plan_${id}`
+                reason: `production_plan_${id}`,
+                nodeId: null // Could be enhanced to track per-node consumption
               }));
               
               stockResults.rawMaterials = await consumeMaterials(consumptionList, {
                 userId: updatedByEmail || 'system',
                 orderId: planData.orderCode || id,
+                planId: id, // Pass planId for WIP consumption tracking
                 continueOnError: true // Continue even if some materials fail
               });
               
@@ -1016,6 +1050,12 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
                 `✓ Raw materials: ${stockResults.rawMaterials.consumed.length} consumed, ` +
                 `${stockResults.rawMaterials.failed.length} failed`
               );
+              
+              // Log WIP consumption separately for visibility
+              const wipConsumed = stockResults.rawMaterials.consumed.filter(m => m.isWIP);
+              if (wipConsumed.length > 0) {
+                console.log(`  └─ WIP materials consumed: ${wipConsumed.map(w => w.material).join(', ')}`);
+              }
             }
             
             // 2. Produce WIP outputs (positive delta)
@@ -1054,15 +1094,20 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
                       await newWipRef.set({
                         code: wipCode,
                         name: wip.name || wipCode,
+                        type: 'wip', // Explicit WIP type
                         category: 'WIP',
                         stock: wipQty,
                         unit: wip.unit || 'pcs',
                         status: 'Aktif',
+                        produced: true,
                         createdAt: now,
                         updatedAt: now,
                         createdBy: updatedByEmail || 'system',
                         source: 'production_plan',
-                        sourcePlanId: id
+                        sourcePlanId: id,
+                        sourceNodeId: wip.nodeId || null,
+                        sourceOperationId: wip.operationId || null,
+                        consumedBy: [] // Initialize empty array for consumption tracking
                       });
                       
                       wipResults.produced.push({

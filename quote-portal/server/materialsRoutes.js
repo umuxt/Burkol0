@@ -176,12 +176,42 @@ async function propagateMaterialNameToOrders(materialCode, newName) {
 // ============================================================================
 // STOCK ADJUSTMENT HELPERS (for MES integration)
 // ============================================================================
+// These functions provide atomic stock management for production operations.
+//
+// USAGE DURING PRODUCTION PLAN RELEASE:
+// When a production plan is released (status → 'released'), the system
+// automatically consumes raw materials and produces WIP outputs based on
+// the plan's materialSummary data.
+//
+// KEY FUNCTIONS:
+// - adjustMaterialStock(materialIdOrCode, delta, options)
+//   * Atomic stock update using Firestore transaction
+//   * Delta: positive = add stock, negative = consume
+//   * For WIP materials: tracks consumption in 'consumedBy' array
+//   * Options: { reason, userId, orderId, planId, nodeId }
+//
+// - consumeMaterials(consumptionList, options)
+//   * Batch consumption of multiple materials
+//   * Handles both raw materials and derived WIP materials
+//   * continueOnError: Process all materials even if some fail
+//   * Returns: { success, consumed[], failed[] }
+//
+// WIP MATERIAL TRACKING:
+// - WIP materials (type: 'wip' or category: 'WIP') have special handling
+// - Each consumption is recorded in material.consumedBy array:
+//   { planId, nodeId, quantity, timestamp, userId }
+// - This enables traceability and production reporting
+//
+// AUDIT TRAIL:
+// - Every adjustment stores lastStockAdjustment with full details
+// - Results are also stored in plan.stockMovements for reference
+// ============================================================================
 
 /**
  * Adjust material stock with Firestore transaction
  * @param {string} materialIdOrCode - Material ID or code
  * @param {number} delta - Stock adjustment (positive = add, negative = consume)
- * @param {object} options - Additional options: { reason, userId, orderId }
+ * @param {object} options - Additional options: { reason, userId, orderId, planId, nodeId }
  * @returns {Promise<{success: boolean, materialCode: string, previousStock: number, newStock: number}>}
  */
 export async function adjustMaterialStock(materialIdOrCode, delta, options = {}) {
@@ -223,8 +253,8 @@ export async function adjustMaterialStock(materialIdOrCode, delta, options = {})
         );
       }
       
-      // Update stock
-      transaction.update(materialDoc.ref, {
+      // Prepare update object
+      const updateData = {
         stock: newStock,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         lastStockAdjustment: {
@@ -234,14 +264,38 @@ export async function adjustMaterialStock(materialIdOrCode, delta, options = {})
           timestamp: new Date().toISOString(),
           reason: options.reason || (delta < 0 ? 'production_consumption' : 'production_output'),
           userId: options.userId || 'system',
-          orderId: options.orderId || null
+          orderId: options.orderId || null,
+          planId: options.planId || null,
+          nodeId: options.nodeId || null
         }
-      });
+      };
+      
+      // For WIP materials (type: 'wip' or category: 'WIP'), track consumption history
+      const isWIP = currentData.type === 'wip' || currentData.category === 'WIP' || currentData.produced === true;
+      
+      if (isWIP && delta < 0 && options.planId) {
+        // Add consumption record to consumedBy array
+        const consumedByEntry = {
+          planId: options.planId,
+          nodeId: options.nodeId || null,
+          quantity: Math.abs(delta),
+          timestamp: new Date().toISOString(),
+          userId: options.userId || 'system'
+        };
+        
+        // Use arrayUnion to append to consumedBy array (creates array if doesn't exist)
+        updateData.consumedBy = admin.firestore.FieldValue.arrayUnion(consumedByEntry);
+      }
+      
+      // Update stock
+      transaction.update(materialDoc.ref, updateData);
       
       return {
         success: true,
         materialCode: currentData.code || materialDoc.id,
         materialName: currentData.name || '',
+        materialType: currentData.type || currentData.category || 'unknown',
+        isWIP,
         previousStock: currentStock,
         newStock,
         delta
@@ -267,8 +321,8 @@ export async function adjustMaterialStock(materialIdOrCode, delta, options = {})
 
 /**
  * Consume multiple materials in batch (for production plan release)
- * @param {Array} consumptionList - Array of {code/id, qty, reason}
- * @param {object} options - Additional options: { userId, orderId, skipValidation }
+ * @param {Array} consumptionList - Array of {code/id, qty, reason, nodeId}
+ * @param {object} options - Additional options: { userId, orderId, planId, skipValidation, continueOnError }
  * @returns {Promise<{success: boolean, consumed: Array, failed: Array}>}
  */
 export async function consumeMaterials(consumptionList, options = {}) {
@@ -298,12 +352,16 @@ export async function consumeMaterials(consumptionList, options = {}) {
       const result = await adjustMaterialStock(materialId, -qty, {
         reason: item.reason || options.reason || 'production_consumption',
         userId: options.userId,
-        orderId: options.orderId
+        orderId: options.orderId,
+        planId: options.planId, // Pass planId for WIP tracking
+        nodeId: item.nodeId || null // Pass nodeId if available
       });
       
       consumed.push({
         material: result.materialCode,
         name: result.materialName,
+        type: result.materialType,
+        isWIP: result.isWIP,
         qty,
         previousStock: result.previousStock,
         newStock: result.newStock
