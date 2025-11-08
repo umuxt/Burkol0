@@ -191,6 +191,9 @@ export async function getWorkerStations(workerId) {
 }
 
 // Materials API
+// NOTE: All materials are now stored in the unified 'materials' collection.
+// The 'mes-materials' collection has been removed from the codebase.
+// This function fetches materials from the single source of truth: 'materials'
 export async function getMaterials(force = false) {
   if (!force && Array.isArray(_materialsCache)) return _materialsCache
   // Use shared Materials API (Firestore 'materials' collection)
@@ -203,11 +206,13 @@ export async function getMaterials(force = false) {
 }
 
 // Get general materials list (alias for getMaterials for consistency)
+// NOTE: This is now identical to getMaterials since we use a single 'materials' collection
 export async function getGeneralMaterials(force = false) {
   return getMaterials(force);
 }
 
 // Check material availability via MES API
+// NOTE: This endpoint queries the unified 'materials' collection only
 export async function checkMesMaterialAvailability(requiredMaterials) {
   try {
     // requiredMaterials format: [{code, name, required, unit}]
@@ -335,7 +340,9 @@ export async function getNextProductionPlanId(year) {
 // Generate next template id: tpl-plan-YYYY-xxxxx
 // (No separate template id; we use production plan next-id for all)
 
-// Create or update a material (uses POST with custom ID = code)
+// Create or update a material
+// NOTE: Materials are stored in the unified 'materials' collection.
+// The 'mes-materials' collection has been removed.
 export async function createOrUpdateMaterial(material) {
   const res = await fetch(`${API_BASE}/api/materials`, {
     method: 'POST',

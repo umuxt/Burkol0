@@ -1141,12 +1141,16 @@ router.post('/templates/migrate-from-legacy', withAuth, async (req, res) => {
 // ============================================================================
 // MATERIALS ROUTES
 // ============================================================================
+// NOTE: The 'mes-materials' collection has been removed from the codebase.
+// All materials are now stored in the unified 'materials' collection.
+// If you have legacy data in 'mes-materials', it should be migrated to 'materials'
+// before running this code.
 
-// GET /api/mes/materials - Get all materials
+// GET /api/mes/materials - Get all materials from unified materials collection
 router.get('/materials', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const db = getFirestore();
-    const snapshot = await db.collection('mes-materials')
+    const snapshot = await db.collection('materials')
       .orderBy('name')
       .get();
     const materials = snapshot.docs.map(doc => ({
@@ -1169,13 +1173,13 @@ router.post('/materials', withAuth, async (req, res) => {
     const batch = db.batch();
 
     // Get existing materials to find deletions
-    const existingSnapshot = await db.collection('mes-materials').get();
+    const existingSnapshot = await db.collection('materials').get();
     const existingIds = new Set(existingSnapshot.docs.map(doc => doc.id));
     const newIds = new Set(materials.map(m => m.id));
 
     // Add/Update materials
     materials.forEach(material => {
-      const docRef = db.collection('mes-materials').doc(material.id);
+      const docRef = db.collection('materials').doc(material.id);
       batch.set(docRef, {
         ...material,
         updatedAt: new Date()
@@ -1185,7 +1189,7 @@ router.post('/materials', withAuth, async (req, res) => {
     // Delete removed materials
     existingIds.forEach(id => {
       if (!newIds.has(id)) {
-        const docRef = db.collection('mes-materials').doc(id);
+        const docRef = db.collection('materials').doc(id);
         batch.delete(docRef);
       }
     });
@@ -1206,36 +1210,23 @@ router.post('/materials/check-availability', withAuth, async (req, res) => {
 
     const db = getFirestore();
     
-    // Fetch materials from both MES and general materials collections
-    const [mesSnapshot, generalSnapshot] = await Promise.all([
-      db.collection('mes-materials').get(),
-      db.collection('materials').get()
-    ]);
+    // Fetch materials from the unified materials collection only
+    // NOTE: 'mes-materials' collection has been removed - all data is in 'materials'
+    const snapshot = await db.collection('materials').get();
     
     // Build lookup maps by code, id, and name
     const materialStockMap = new Map();
     
-    // Process MES materials
-    mesSnapshot.docs.forEach(doc => {
-      const mat = { id: doc.id, ...doc.data() };
-      const stock = parseFloat(mat.stock || mat.available) || 0;
-      if (mat.code) materialStockMap.set(mat.code.toLowerCase(), { ...mat, stock });
-      if (mat.id) materialStockMap.set(mat.id.toLowerCase(), { ...mat, stock });
-      if (mat.name) materialStockMap.set(mat.name.toLowerCase(), { ...mat, stock });
-    });
-    
-    // Process general materials (fallback)
-    generalSnapshot.docs.forEach(doc => {
+    // Process materials
+    snapshot.docs.forEach(doc => {
       const mat = { id: doc.id, ...doc.data() };
       const stock = parseFloat(mat.stock || mat.available) || 0;
       const code = mat.code || mat.id;
-      const key = code.toLowerCase();
       
-      // Only add if not already in map (MES takes priority)
-      if (!materialStockMap.has(key)) {
-        materialStockMap.set(key, { ...mat, code, stock });
-        if (mat.name) materialStockMap.set(mat.name.toLowerCase(), { ...mat, code, stock });
-      }
+      // Add to map with multiple keys for flexible lookup
+      if (code) materialStockMap.set(code.toLowerCase(), { ...mat, code, stock });
+      if (mat.id) materialStockMap.set(mat.id.toLowerCase(), { ...mat, code, stock });
+      if (mat.name) materialStockMap.set(mat.name.toLowerCase(), { ...mat, code, stock });
     });
 
     // Check each required material
