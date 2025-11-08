@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>İşçi Portalı - Burkol MES</title>
+  <script type="module" src="/components/BurkolNavigation.js"></script>
+  <script type="module" src="/components/AuthGuard.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link rel="stylesheet" href="/production/styles/production.css">
+  <link rel="stylesheet" href="/domains/workerPortal/workerPortal.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Mobile Navigation Toggle -->
+    <button class="mobile-nav-toggle" onclick="toggleMobileNav()">☰</button>
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" onclick="closeMobileNav()"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <div style="padding: 24px 0;">
+        <!-- Logo Area -->
+        <div style="padding: 0 16px 16px; border-bottom: 1px solid var(--border);">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #2563eb, #1d4ed8); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🏭</div>
+            <div>
+              <h2 style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 2px;">MES System</h2>
+              <p style="font-size: 12px; color: var(--muted-foreground);">Manufacturing Execution</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navigation Groups -->
+        <div class="nav-group">
+          <div class="nav-group-header">İşçi Paneli</div>
+          <div class="nav-group-content">
+            <button class="nav-item active" onclick="window.location.href='/pages/worker-portal.html'">
+              <div class="nav-item-icon">👷</div>
+              <span>Görevlerim</span>
+            </button>
+            <button class="nav-item" onclick="window.location.href='/pages/production.html'">
+              <div class="nav-item-icon">🏭</div>
+              <span>Üretim Paneli</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-group-header">Yönetim</div>
+          <div class="nav-group-content">
+            <button class="nav-item" onclick="window.location.href='/pages/production.html'">
+              <div class="nav-item-icon">📊</div>
+              <span>Ana Panel</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="content-header">
+        <div>
+          <h1 class="content-title">👷 İşçi Portalı</h1>
+          <p class="content-subtitle">Görevlerinizi görüntüleyin ve yönetin</p>
+        </div>
+        <button id="refreshBtn" class="btn-primary" onclick="window.workerPortalApp?.loadWorkerTasks()">
+          <span>🔄</span>
+          <span>Yenile</span>
+        </button>
+      </div>
+
+      <div id="workerPortalContent"></div>
+    </div>
+  </div>
+
+  <!-- Mobile Nav Toggle Script -->
+  <script>
+    function toggleMobileNav() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.querySelector('.mobile-overlay');
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('open');
+    }
+    
+    function closeMobileNav() {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.querySelector('.mobile-overlay');
+      sidebar.classList.remove('open');
+      overlay.classList.remove('open');
+    }
+  </script>
+
+  <!-- Worker Portal Module -->
+  <script type="module" src="/domains/workerPortal/workerPortal.js"></script>
+</body>
+</html>

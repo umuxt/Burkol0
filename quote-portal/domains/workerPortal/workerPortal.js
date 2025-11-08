@@ -1,0 +1,593 @@
+// Worker Portal Domain Module
+// Handles worker task management, status updates, and scrap reporting
+
+import { getWorkerPortalTasks, updateWorkerPortalTask } from '../../production/js/mesApi.js';
+
+// ============================================================================
+// STATE MANAGEMENT
+// ============================================================================
+
+const state = {
+  tasks: [],
+  loading: false,
+  error: null,
+  currentWorker: null,
+  nextTaskId: null
+};
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+async function init() {
+  console.log('Initializing Worker Portal...');
+  
+  // Make app globally accessible for refresh button
+  window.workerPortalApp = { loadWorkerTasks };
+  
+  // Load initial data
+  await loadWorkerTasks();
+  
+  // Listen for assignment updates from other parts of the app
+  window.addEventListener('assignments:updated', () => {
+    console.log('Assignments updated, reloading tasks...');
+    loadWorkerTasks();
+  });
+}
+
+// ============================================================================
+// DATA LOADING
+// ============================================================================
+
+async function loadWorkerTasks() {
+  state.loading = true;
+  state.error = null;
+  render();
+  
+  try {
+    const result = await getWorkerPortalTasks();
+    state.tasks = result.tasks || [];
+    state.nextTaskId = result.nextTaskId || null;
+    
+    // Extract worker info from first task
+    if (state.tasks.length > 0) {
+      state.currentWorker = {
+        id: state.tasks[0].workerId,
+        name: state.tasks[0].workerName
+      };
+    }
+    
+    state.loading = false;
+    render();
+  } catch (err) {
+    console.error('Failed to load worker tasks:', err);
+    state.error = err.message;
+    state.loading = false;
+    render();
+  }
+}
+
+// ============================================================================
+// TASK ACTIONS
+// ============================================================================
+
+async function startTask(assignmentId) {
+  try {
+    await updateWorkerPortalTask(assignmentId, { action: 'start' });
+    await loadWorkerTasks();
+    
+    // Notify other components
+    window.dispatchEvent(new CustomEvent('assignments:updated'));
+    
+    showNotification('Görev başlatıldı', 'success');
+  } catch (err) {
+    console.error('Failed to start task:', err);
+    showNotification('Görev başlatılamadı: ' + err.message, 'error');
+  }
+}
+
+async function pauseTask(assignmentId) {
+  try {
+    await updateWorkerPortalTask(assignmentId, { action: 'pause' });
+    await loadWorkerTasks();
+    
+    window.dispatchEvent(new CustomEvent('assignments:updated'));
+    
+    showNotification('Görev duraklatıldı', 'info');
+  } catch (err) {
+    console.error('Failed to pause task:', err);
+    showNotification('Görev duraksatılamadı: ' + err.message, 'error');
+  }
+}
+
+async function reportStationError(assignmentId) {
+  const note = await showStationErrorModal();
+  if (!note) return; // User cancelled
+  
+  try {
+    await updateWorkerPortalTask(assignmentId, { 
+      action: 'station_error',
+      stationNote: note
+    });
+    await loadWorkerTasks();
+    
+    window.dispatchEvent(new CustomEvent('assignments:updated'));
+    
+    showNotification('İstasyon hatası bildirildi', 'warning');
+  } catch (err) {
+    console.error('Failed to report station error:', err);
+    showNotification('Hata bildirimi gönderilemedi: ' + err.message, 'error');
+  }
+}
+
+async function completeTask(assignmentId) {
+  const scrapQty = await showScrapModal();
+  if (scrapQty === null) return; // User cancelled
+  
+  try {
+    await updateWorkerPortalTask(assignmentId, { 
+      action: 'complete',
+      scrapQty: parseFloat(scrapQty) || 0
+    });
+    await loadWorkerTasks();
+    
+    window.dispatchEvent(new CustomEvent('assignments:updated'));
+    
+    const message = scrapQty > 0 
+      ? `Görev tamamlandı (Fire: ${scrapQty})`
+      : 'Görev tamamlandı';
+    showNotification(message, 'success');
+  } catch (err) {
+    console.error('Failed to complete task:', err);
+    showNotification('Görev tamamlanamadı: ' + err.message, 'error');
+  }
+}
+
+// ============================================================================
+// MODALS
+// ============================================================================
+
+function showStationErrorModal() {
+  return new Promise((resolve) => {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+          <h2 class="modal-title">⚠️ İstasyon Hatası Bildirimi</h2>
+          <button class="modal-close" onclick="this.closest('.modal-overlay').remove(); arguments[0].stopPropagation();">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Hata Açıklaması</label>
+            <textarea 
+              id="stationErrorNote" 
+              class="form-input" 
+              rows="4" 
+              placeholder="İstasyon ile ilgili sorunu açıklayın..."
+              required
+            ></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove();">İptal</button>
+          <button class="btn-primary" id="confirmErrorBtn">Hata Bildir</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    const noteInput = modal.querySelector('#stationErrorNote');
+    const confirmBtn = modal.querySelector('#confirmErrorBtn');
+    
+    noteInput.focus();
+    
+    confirmBtn.onclick = () => {
+      const note = noteInput.value.trim();
+      if (!note) {
+        showNotification('Lütfen hata açıklaması girin', 'warning');
+        return;
+      }
+      modal.remove();
+      resolve(note);
+    };
+    
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        modal.remove();
+        resolve(null);
+      }
+    };
+  });
+}
+
+function showScrapModal() {
+  return new Promise((resolve) => {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+          <h2 class="modal-title">✅ Görev Tamamlama</h2>
+          <button class="modal-close" onclick="this.closest('.modal-overlay').remove(); arguments[0].stopPropagation();">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Fire Miktarı (varsa)</label>
+            <input 
+              type="number" 
+              id="scrapQtyInput" 
+              class="form-input" 
+              min="0" 
+              step="0.01" 
+              value="0"
+              placeholder="0.00"
+            />
+            <p class="form-help">Fire yoksa 0 bırakın ve tamamlayın</p>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove();">İptal</button>
+          <button class="btn-primary" id="confirmCompleteBtn">Tamamla</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    const scrapInput = modal.querySelector('#scrapQtyInput');
+    const confirmBtn = modal.querySelector('#confirmCompleteBtn');
+    
+    scrapInput.focus();
+    scrapInput.select();
+    
+    confirmBtn.onclick = () => {
+      const scrapQty = parseFloat(scrapInput.value) || 0;
+      modal.remove();
+      resolve(scrapQty);
+    };
+    
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        modal.remove();
+        resolve(null);
+      }
+    };
+    
+    // Allow Enter key to submit
+    scrapInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        confirmBtn.click();
+      }
+    });
+  });
+}
+
+// ============================================================================
+// RENDERING
+// ============================================================================
+
+function render() {
+  const container = document.getElementById('workerPortalContent');
+  if (!container) return;
+  
+  if (state.loading) {
+    container.innerHTML = renderLoading();
+    return;
+  }
+  
+  if (state.error) {
+    container.innerHTML = renderError(state.error);
+    return;
+  }
+  
+  container.innerHTML = `
+    ${renderWorkerSummary()}
+    ${renderTaskList()}
+  `;
+  
+  // Attach event listeners
+  attachEventListeners();
+}
+
+function renderLoading() {
+  return `
+    <div class="loading-container">
+      <div class="spinner"></div>
+      <p>Görevler yükleniyor...</p>
+    </div>
+  `;
+}
+
+function renderError(error) {
+  return `
+    <div class="error-container">
+      <div class="error-icon">⚠️</div>
+      <h3>Görevler Yüklenemedi</h3>
+      <p>${error}</p>
+      <button class="btn-primary" onclick="window.workerPortalApp.loadWorkerTasks()">Tekrar Dene</button>
+    </div>
+  `;
+}
+
+function renderWorkerSummary() {
+  if (!state.currentWorker) {
+    return `
+      <div class="worker-card">
+        <div class="worker-card-header">
+          <div class="worker-avatar">👷</div>
+          <div>
+            <h3 class="worker-name">Henüz görev atanmadı</h3>
+            <p class="worker-subtitle">Yöneticinizle iletişime geçin</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  const activeTasks = state.tasks.filter(t => t.status === 'in_progress').length;
+  const readyTasks = state.tasks.filter(t => t.status === 'ready').length;
+  const pendingTasks = state.tasks.filter(t => t.status === 'pending').length;
+  
+  return `
+    <div class="worker-card">
+      <div class="worker-card-header">
+        <div class="worker-avatar">👷</div>
+        <div style="flex: 1;">
+          <h3 class="worker-name">${state.currentWorker.name || 'İsimsiz İşçi'}</h3>
+          <p class="worker-subtitle">ID: ${state.currentWorker.id}</p>
+        </div>
+        <div class="worker-stats">
+          <div class="stat-item">
+            <div class="stat-value">${activeTasks}</div>
+            <div class="stat-label">Devam Eden</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${readyTasks}</div>
+            <div class="stat-label">Hazır</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${pendingTasks}</div>
+            <div class="stat-label">Bekleyen</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderTaskList() {
+  if (state.tasks.length === 0) {
+    return `
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <h3>Görev Bulunamadı</h3>
+        <p>Henüz size atanmış aktif görev bulunmuyor</p>
+      </div>
+    `;
+  }
+  
+  // Sort by priorityIndex
+  const sortedTasks = [...state.tasks].sort((a, b) => a.priorityIndex - b.priorityIndex);
+  
+  // Find first ready/pending task
+  const nextTask = sortedTasks.find(t => t.status === 'ready' || t.status === 'pending');
+  
+  const rows = sortedTasks.map(task => {
+    const isNextTask = nextTask && task.assignmentId === nextTask.assignmentId;
+    return renderTaskRow(task, isNextTask);
+  }).join('');
+  
+  return `
+    <div class="task-list-container">
+      <div class="task-list-header">
+        <h2 class="section-title">Görevler</h2>
+        <p class="section-subtitle">Öncelik sırasına göre görevleriniz</p>
+      </div>
+      
+      <div class="table-container">
+        <table class="task-table">
+          <thead>
+            <tr>
+              <th style="width: 50px;">#</th>
+              <th style="width: 150px;">Durum</th>
+              <th>Görev</th>
+              <th style="width: 120px;">İstasyon</th>
+              <th style="width: 100px;">Süre (dk)</th>
+              <th style="width: 200px;">İşlemler</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderTaskRow(task, isNextTask) {
+  const statusInfo = getStatusInfo(task.status);
+  const priorityBadge = isNextTask ? '<span class="priority-badge">Öncelikli</span>' : '';
+  
+  return `
+    <tr class="task-row" data-assignment-id="${task.assignmentId}">
+      <td>
+        <div class="priority-index">${task.priorityIndex}</div>
+      </td>
+      <td>
+        <span class="status-badge status-${task.status}">${statusInfo.icon} ${statusInfo.label}</span>
+        ${priorityBadge}
+      </td>
+      <td>
+        <div class="task-info">
+          <div class="task-name">${task.name || task.operationName || 'İsimsiz Görev'}</div>
+          <div class="task-details">
+            Plan: ${task.planId} | Node: ${task.nodeId}
+          </div>
+          ${renderPrerequisites(task.prerequisites)}
+        </div>
+      </td>
+      <td>
+        <div class="station-info">${task.stationName || 'Belirsiz'}</div>
+      </td>
+      <td>
+        <div class="duration-info">${formatDuration(task.estimatedEffectiveTime)}</div>
+      </td>
+      <td>
+        ${renderTaskActions(task)}
+      </td>
+    </tr>
+  `;
+}
+
+function renderPrerequisites(prerequisites) {
+  if (!prerequisites) return '';
+  
+  const items = [];
+  if (!prerequisites.predecessorsDone) items.push('⏳ Önceki görevler');
+  if (!prerequisites.workerAvailable) items.push('👷 İşçi meşgul');
+  if (!prerequisites.stationAvailable) items.push('🏭 İstasyon meşgul');
+  if (!prerequisites.materialsReady) items.push('📦 Malzeme eksik');
+  
+  if (items.length === 0) return '';
+  
+  return `<div class="task-blockers">${items.join(' • ')}</div>`;
+}
+
+function renderTaskActions(task) {
+  const actions = [];
+  
+  // Start button - only if ready
+  if (task.status === 'ready') {
+    actions.push(`
+      <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}">
+        ▶️ Başla
+      </button>
+    `);
+  }
+  
+  // Pause button - only if in progress
+  if (task.status === 'in_progress') {
+    actions.push(`
+      <button class="action-btn action-pause" data-action="pause" data-id="${task.assignmentId}">
+        ⏸️ Duraklat
+      </button>
+    `);
+  }
+  
+  // Complete button - only if in progress
+  if (task.status === 'in_progress') {
+    actions.push(`
+      <button class="action-btn action-complete" data-action="complete" data-id="${task.assignmentId}">
+        ✅ Tamamla
+      </button>
+    `);
+  }
+  
+  // Station error - always available (except completed)
+  if (task.status !== 'completed') {
+    actions.push(`
+      <button class="action-btn action-error" data-action="error" data-id="${task.assignmentId}">
+        ⚠️ Hata
+      </button>
+    `);
+  }
+  
+  if (actions.length === 0) {
+    return '<span class="text-muted">-</span>';
+  }
+  
+  return `<div class="action-buttons">${actions.join('')}</div>`;
+}
+
+// ============================================================================
+// EVENT HANDLERS
+// ============================================================================
+
+function attachEventListeners() {
+  // Action buttons
+  document.querySelectorAll('.action-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const action = e.target.dataset.action;
+      const assignmentId = e.target.dataset.id;
+      
+      if (!assignmentId) return;
+      
+      switch (action) {
+        case 'start':
+          await startTask(assignmentId);
+          break;
+        case 'pause':
+          await pauseTask(assignmentId);
+          break;
+        case 'complete':
+          await completeTask(assignmentId);
+          break;
+        case 'error':
+          await reportStationError(assignmentId);
+          break;
+      }
+    });
+  });
+}
+
+// ============================================================================
+// UTILITIES
+// ============================================================================
+
+function getStatusInfo(status) {
+  const statusMap = {
+    'pending': { label: 'Bekliyor', icon: '⏳', color: 'gray' },
+    'ready': { label: 'Hazır', icon: '✅', color: 'green' },
+    'blocked': { label: 'Bloke', icon: '🚫', color: 'red' },
+    'in_progress': { label: 'Devam Ediyor', icon: '▶️', color: 'blue' },
+    'paused': { label: 'Duraklatıldı', icon: '⏸️', color: 'orange' },
+    'completed': { label: 'Tamamlandı', icon: '✓', color: 'success' }
+  };
+  
+  return statusMap[status] || { label: status, icon: '❓', color: 'gray' };
+}
+
+function formatDuration(minutes) {
+  if (!minutes) return '-';
+  
+  const mins = Math.round(minutes);
+  if (mins < 60) return `${mins}dk`;
+  
+  const hours = Math.floor(mins / 60);
+  const remainingMins = mins % 60;
+  return `${hours}s ${remainingMins}dk`;
+}
+
+function showNotification(message, type = 'info') {
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+  notification.textContent = message;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.classList.add('show');
+  }, 10);
+  
+  setTimeout(() => {
+    notification.classList.remove('show');
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
+}
+
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+// Auto-initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+// Export for debugging
+export { loadWorkerTasks, state };
