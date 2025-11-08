@@ -198,6 +198,54 @@ export async function getMaterials(force = false) {
   return _materialsCache
 }
 
+// Get general materials list (alias for getMaterials for consistency)
+export async function getGeneralMaterials(force = false) {
+  return getMaterials(force);
+}
+
+// Check material availability via MES API
+export async function checkMesMaterialAvailability(requiredMaterials) {
+  try {
+    // requiredMaterials format: [{code, name, required, unit}]
+    const res = await fetch(`${API_BASE}/api/mes/materials/check-availability`, {
+      method: 'POST',
+      headers: withAuth({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ materials: requiredMaterials })
+    });
+    
+    if (!res.ok) {
+      console.warn('Material availability check failed:', res.status);
+      return {
+        allAvailable: false,
+        materials: [],
+        shortages: requiredMaterials.map(m => ({
+          ...m,
+          available: 0,
+          shortage: m.required,
+          status: 'unavailable'
+        })),
+        error: `API returned ${res.status}`
+      };
+    }
+    
+    const data = await res.json();
+    return data;
+  } catch (error) {
+    console.error('Material availability check error:', error);
+    return {
+      allAvailable: false,
+      materials: [],
+      shortages: requiredMaterials.map(m => ({
+        ...m,
+        available: 0,
+        shortage: m.required,
+        status: 'error'
+      })),
+      error: error.message
+    };
+  }
+}
+
 // Production Plans API
 export async function createProductionPlan(plan) {
   const res = await fetch(`${API_BASE}/api/mes/production-plans`, {

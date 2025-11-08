@@ -1119,46 +1119,91 @@ router.post('/materials', withAuth, async (req, res) => {
 // POST /api/mes/materials/check-availability - Check material availability for production plan
 router.post('/materials/check-availability', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
-    const { planId, requiredMaterials } = req.body;
+    const { materials: requiredMaterials } = req.body;
     
     if (!Array.isArray(requiredMaterials)) {
       throw new Error('Required materials must be an array');
     }
 
     const db = getFirestore();
-    const materialsSnapshot = await db.collection('mes-materials').get();
-    const availableMaterials = {};
     
-    materialsSnapshot.docs.forEach(doc => {
-      const material = doc.data();
-      availableMaterials[material.name] = material;
+    // Fetch materials from both MES and general materials collections
+    const [mesSnapshot, generalSnapshot] = await Promise.all([
+      db.collection('mes-materials').get(),
+      db.collection('materials').get()
+    ]);
+    
+    // Build lookup maps by code, id, and name
+    const materialStockMap = new Map();
+    
+    // Process MES materials
+    mesSnapshot.docs.forEach(doc => {
+      const mat = { id: doc.id, ...doc.data() };
+      const stock = parseFloat(mat.stock || mat.available) || 0;
+      if (mat.code) materialStockMap.set(mat.code.toLowerCase(), { ...mat, stock });
+      if (mat.id) materialStockMap.set(mat.id.toLowerCase(), { ...mat, stock });
+      if (mat.name) materialStockMap.set(mat.name.toLowerCase(), { ...mat, stock });
+    });
+    
+    // Process general materials (fallback)
+    generalSnapshot.docs.forEach(doc => {
+      const mat = { id: doc.id, ...doc.data() };
+      const stock = parseFloat(mat.stock || mat.available) || 0;
+      const code = mat.code || mat.id;
+      const key = code.toLowerCase();
+      
+      // Only add if not already in map (MES takes priority)
+      if (!materialStockMap.has(key)) {
+        materialStockMap.set(key, { ...mat, code, stock });
+        if (mat.name) materialStockMap.set(mat.name.toLowerCase(), { ...mat, code, stock });
+      }
     });
 
+    // Check each required material
     const materialChecks = requiredMaterials.map(required => {
-      const available = availableMaterials[required.name];
-      const isAvailable = available && available.available >= required.required;
-      const shortage = available ? Math.max(0, required.required - available.available) : required.required;
+      const requiredQty = parseFloat(required.required) || 0;
+      
+      // Try to find material by code, then id, then name
+      let material = null;
+      const searchKeys = [
+        required.code?.toLowerCase(),
+        required.id?.toLowerCase(),
+        required.name?.toLowerCase()
+      ].filter(Boolean);
+      
+      for (const key of searchKeys) {
+        if (materialStockMap.has(key)) {
+          material = materialStockMap.get(key);
+          break;
+        }
+      }
+      
+      const availableQty = material ? material.stock : 0;
+      const shortage = Math.max(0, requiredQty - availableQty);
+      const isAvailable = shortage === 0;
       
       return {
-        name: required.name,
-        required: required.required,
-        available: available?.available || 0,
-        unit: required.unit || available?.unit || 'pcs',
+        code: required.code || material?.code || required.id || '',
+        name: required.name || material?.name || '',
+        id: required.id || material?.id || '',
+        required: requiredQty,
+        available: availableQty,
+        unit: required.unit || material?.unit || 'pcs',
         isAvailable,
         shortage,
-        shortagePercentage: available ? Math.round((shortage / required.required) * 100) : 100
+        status: isAvailable ? 'ok' : 'shortage'
       };
     });
 
     const allAvailable = materialChecks.every(check => check.isAvailable);
-    const totalShortageItems = materialChecks.filter(check => !check.isAvailable).length;
+    const shortages = materialChecks.filter(check => !check.isAvailable);
 
     return {
-      planId,
       allAvailable,
-      totalShortageItems,
       materials: materialChecks,
-      checkedAt: new Date()
+      shortages,
+      totalShortageItems: shortages.length,
+      checkedAt: new Date().toISOString()
     };
   }, res);
 });

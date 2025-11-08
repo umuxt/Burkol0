@@ -1,7 +1,7 @@
 // Plan Designer logic and state
 import { showToast } from './ui.js';
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js';
-import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments } from './mesApi.js';
+import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments, getMaterials, checkMesMaterialAvailability, getGeneralMaterials } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
 import { API_BASE, withAuth } from '../../shared/lib/api.js';
@@ -18,6 +18,8 @@ export const planDesignerState = {
   availableOperations: [],
   availableWorkers: [], // Cache for migration lookup
   availableStations: [], // Cache for migration lookup
+  availableMaterials: [], // Cache for material availability checks
+  materialCheckResult: null, // Last material availability check result
   // Global drag state
   isDragging: false,
   draggedNode: null,
@@ -444,26 +446,87 @@ export async function checkMaterialAvailability(nodes, planQuantity = 1) {
       };
     }
     
-    // Import getMaterials from mesApi
-    const { getMaterials } = await import('./mesApi.js');
-    const allMaterials = await getMaterials(true);
+    // Prepare required materials for API check
+    const requiredMaterials = aggregated.map(item => ({
+      code: item.code,
+      name: item.name,
+      required: item.required,
+      unit: item.unit
+    }));
     
-    // Map materials by ID for lookup
-    const materialStockMap = new Map(
-      allMaterials.map(m => [m.id, parseFloat(m.stock) || 0])
-    );
+    // First, try to check via MES API
+    let apiResult = null;
+    try {
+      apiResult = await checkMesMaterialAvailability(requiredMaterials);
+      console.log('📦 MES API material check result:', apiResult);
+    } catch (error) {
+      console.warn('MES API check failed, will use fallback:', error);
+    }
     
-    // Update stock values and check for shortages
+    // Fallback: Fetch general materials list and compare
+    let generalMaterials = [];
+    try {
+      generalMaterials = await getGeneralMaterials(true);
+      planDesignerState.availableMaterials = generalMaterials;
+    } catch (error) {
+      console.warn('Failed to fetch general materials:', error);
+    }
+    
+    // Map materials by code/ID for lookup
+    const materialStockMap = new Map();
+    generalMaterials.forEach(m => {
+      const stock = parseFloat(m.stock || m.available) || 0;
+      if (m.code) materialStockMap.set(m.code, stock);
+      if (m.id && m.id !== m.code) materialStockMap.set(m.id, stock);
+    });
+    
+    // Update aggregated items with availability info
     let hasShortages = false;
+    const shortageDetails = [];
+    
     aggregated.forEach(item => {
-      item.stock = materialStockMap.get(item.id) || 0;
+      // Try to get stock from API result first, then fallback to general materials
+      let available = 0;
+      
+      if (apiResult && apiResult.materials && Array.isArray(apiResult.materials)) {
+        const apiMat = apiResult.materials.find(m => 
+          m.code === item.code || m.id === item.id || m.name === item.name
+        );
+        if (apiMat) {
+          available = parseFloat(apiMat.available || apiMat.stock) || 0;
+        }
+      }
+      
+      // Fallback to general materials map
+      if (available === 0) {
+        available = materialStockMap.get(item.code) || materialStockMap.get(item.id) || 0;
+      }
+      
+      item.stock = available;
       item.shortage = Math.max(0, item.required - item.stock);
       item.isOk = item.shortage === 0;
       
       if (!item.isOk) {
         hasShortages = true;
+        shortageDetails.push({
+          code: item.code,
+          name: item.name,
+          required: item.required,
+          available: item.stock,
+          shortage: item.shortage,
+          unit: item.unit
+        });
       }
     });
+    
+    // Store result in state for UI access
+    planDesignerState.materialCheckResult = {
+      items: aggregated,
+      hasShortages,
+      shortageDetails,
+      allAvailable: !hasShortages,
+      checkedAt: new Date().toISOString()
+    };
     
     // Mark nodes with material shortages
     if (hasShortages) {
@@ -495,8 +558,10 @@ export async function checkMaterialAvailability(nodes, planQuantity = 1) {
     return {
       items: aggregated,
       hasShortages,
+      shortageDetails,
+      allAvailable: !hasShortages,
       message: hasShortages 
-        ? `${aggregated.filter(i => !i.isOk).length} material(s) with shortages`
+        ? `${shortageDetails.length} material(s) with shortages`
         : 'All materials available'
     };
   } catch (error) {
@@ -2132,7 +2197,7 @@ export function closeMaterialCheckModal() {
 window.showMaterialCheckModal = showMaterialCheckModal;
 window.closeMaterialCheckModal = closeMaterialCheckModal;
 
-export function savePlanDraft() {
+export async function savePlanDraft() {
   if (planDesignerState.nodes.length === 0) { showToast('Cannot save empty plan', 'error'); return; }
   const planName = document.getElementById('plan-name')?.value || 'Untitled';
   const planDesc = document.getElementById('plan-description')?.value || '';
@@ -2149,18 +2214,41 @@ export function savePlanDraft() {
   const quantityInput = document.getElementById('modal-plan-quantity');
   const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
   
-  // Aggregate and check materials before saving
-  const materialSummary = aggregatePlanMaterials(planDesignerState.nodes, planQuantity);
-  console.log('📦 Material summary for plan:', materialSummary);
+  // Check material availability before saving
+  showToast('Checking material availability...', 'info');
+  const materialCheck = await checkMaterialAvailability(planDesignerState.nodes, planQuantity);
+  
+  if (materialCheck.error) {
+    console.warn('Material check had errors, but proceeding with save:', materialCheck.error);
+  }
+  
+  if (!materialCheck.allAvailable && materialCheck.hasShortages) {
+    // Show material shortage details and prevent save
+    const shortageList = materialCheck.shortageDetails
+      .map(s => `• ${s.code} - ${s.name}: Need ${s.required.toFixed(2)} ${s.unit}, Available ${s.available.toFixed(2)} ${s.unit}`)
+      .join('\n');
+    
+    const proceed = confirm(
+      `⚠️ MATERIAL SHORTAGES DETECTED\n\n${materialCheck.shortageDetails.length} material(s) are insufficient:\n\n${shortageList}\n\nDo you want to view details or continue saving anyway?`
+    );
+    
+    if (!proceed) {
+      showToast('Save cancelled - material shortages detected', 'warning');
+      // Open material check modal to show details
+      await showMaterialCheckModal();
+      return;
+    } else {
+      showToast('Saving plan despite material shortages...', 'warning');
+    }
+  } else {
+    console.log('✓ All materials available');
+  }
   
   const meta = planDesignerState.currentPlanMeta || {};
   const isFromTemplate = (meta.status === 'template' && meta.sourceTemplateId);
   if (isFromTemplate) {
     const id = meta.sourceTemplateId;
     const assignments = generateAssignmentsPayload(planDesignerState.nodes);
-    // Aggregate materials for logging
-    const materialSummary = aggregatePlanMaterials(planDesignerState.nodes, planQuantity);
-    console.log('📦 Material summary for template->production:', materialSummary);
     
     const updates = {
       name: planName,
