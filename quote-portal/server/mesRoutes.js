@@ -2007,6 +2007,301 @@ router.get('/workers/:id/assignments', withAuth, async (req, res) => {
 });
 
 // ============================================================================
+// WORKER PORTAL ROUTES
+// ============================================================================
+
+// GET /api/mes/worker-portal/tasks - Get active tasks for worker
+router.get('/worker-portal/tasks', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const db = getFirestore();
+    
+    // Get workerId from user profile or query param
+    let workerId = req.user?.workerId;
+    if (!workerId && req.query.workerId) {
+      workerId = req.query.workerId;
+    }
+    
+    if (!workerId) {
+      const e = new Error('worker_id_required');
+      e.status = 400;
+      throw e;
+    }
+    
+    // Verify worker exists
+    const workerDoc = await db.collection('mes-workers').doc(workerId).get();
+    if (!workerDoc.exists) {
+      const e = new Error('worker_not_found');
+      e.status = 404;
+      throw e;
+    }
+    
+    // Get all assignments for this worker
+    const assignmentsSnapshot = await db.collection('mes-worker-assignments')
+      .where('workerId', '==', workerId)
+      .get();
+    
+    if (assignmentsSnapshot.empty) {
+      return { tasks: [], nextTaskId: null };
+    }
+    
+    // Get unique plan IDs
+    const planIds = [...new Set(assignmentsSnapshot.docs.map(doc => doc.data().planId))];
+    
+    // Get execution state for each plan and merge
+    const allTasks = [];
+    
+    for (const planId of planIds) {
+      try {
+        const tasks = await getPlanExecutionState(planId);
+        // Filter: only this worker and active statuses
+        const workerTasks = tasks.filter(task => 
+          task.workerId === workerId &&
+          ['pending', 'ready', 'in_progress', 'paused'].includes(task.status)
+        );
+        allTasks.push(...workerTasks);
+      } catch (err) {
+        console.error(`Failed to get execution state for plan ${planId}:`, err);
+        // Continue with other plans
+      }
+    }
+    
+    // Sort by priorityIndex
+    allTasks.sort((a, b) => a.priorityIndex - b.priorityIndex);
+    
+    // Find next task (first ready or pending task)
+    const nextTask = allTasks.find(task => task.status === 'ready' || task.status === 'pending');
+    const nextTaskId = nextTask?.assignmentId || null;
+    
+    return { tasks: allTasks, nextTaskId };
+  }, res);
+});
+
+// PATCH /api/mes/worker-portal/tasks/:assignmentId - Update task status
+router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { assignmentId } = req.params;
+    const { action, scrapQty, stationNote } = req.body;
+    
+    if (!assignmentId) {
+      const e = new Error('assignment_id_required');
+      e.status = 400;
+      throw e;
+    }
+    
+    if (!action) {
+      const e = new Error('action_required');
+      e.status = 400;
+      throw e;
+    }
+    
+    const validActions = ['start', 'pause', 'station_error', 'complete'];
+    if (!validActions.includes(action)) {
+      const e = new Error('invalid_action');
+      e.status = 400;
+      throw e;
+    }
+    
+    const db = getFirestore();
+    const now = new Date();
+    const actorEmail = req.user?.email || 'system';
+    const actorName = req.user?.name || req.user?.userName || null;
+    
+    // Get assignment
+    const assignmentDoc = await db.collection('mes-worker-assignments').doc(assignmentId).get();
+    if (!assignmentDoc.exists) {
+      const e = new Error('assignment_not_found');
+      e.status = 404;
+      throw e;
+    }
+    
+    const assignment = assignmentDoc.data();
+    const { planId, nodeId, workerId, stationId } = assignment;
+    
+    // Execute action
+    const result = await db.runTransaction(async (transaction) => {
+      const assignmentRef = db.collection('mes-worker-assignments').doc(assignmentId);
+      const workerRef = workerId ? db.collection('mes-workers').doc(workerId) : null;
+      const stationRef = stationId ? db.collection('mes-stations').doc(stationId) : null;
+      
+      let updateData = { updatedAt: now };
+      let workerUpdate = null;
+      let stationUpdate = null;
+      let alertCreated = false;
+      let scrapAdjustment = null;
+      
+      switch (action) {
+        case 'start':
+          updateData.status = 'in_progress';
+          updateData.actualStart = now;
+          
+          // Set worker currentTask
+          if (workerRef) {
+            workerUpdate = {
+              currentTask: {
+                planId,
+                nodeId,
+                assignmentId,
+                status: 'in_progress',
+                startedAt: now
+              },
+              updatedAt: now
+            };
+          }
+          
+          // Set station currentOperation
+          if (stationRef) {
+            stationUpdate = {
+              currentOperation: nodeId,
+              updatedAt: now
+            };
+          }
+          break;
+          
+        case 'pause':
+          updateData.status = 'paused';
+          
+          // Update worker currentTask status
+          if (workerRef) {
+            workerUpdate = {
+              'currentTask.status': 'paused',
+              updatedAt: now
+            };
+          }
+          break;
+          
+        case 'station_error':
+          updateData.status = 'paused';
+          
+          // Update worker currentTask status
+          if (workerRef) {
+            workerUpdate = {
+              'currentTask.status': 'paused',
+              updatedAt: now
+            };
+          }
+          
+          // Create alert in mes-alerts collection
+          const alertRef = db.collection('mes-alerts').doc();
+          transaction.set(alertRef, {
+            id: alertRef.id,
+            type: 'station_error',
+            planId,
+            nodeId,
+            stationId,
+            workerId,
+            assignmentId,
+            note: stationNote || 'İstasyon hatası',
+            status: 'open',
+            createdAt: now,
+            createdBy: actorEmail,
+            createdByName: actorName
+          });
+          alertCreated = true;
+          break;
+          
+        case 'complete':
+          updateData.status = 'completed';
+          updateData.actualFinish = now;
+          
+          // Handle scrap material adjustment
+          if (scrapQty && scrapQty > 0) {
+            // Get plan to find material info
+            const planDoc = await transaction.get(db.collection('mes-production-plans').doc(planId));
+            if (planDoc.exists) {
+              const planData = planDoc.data();
+              const executionGraph = planData.executionGraph || [];
+              const node = executionGraph.find(n => n.nodeId === nodeId);
+              
+              if (node && node.materialInputs && node.materialInputs.length > 0) {
+                // Apply scrap adjustment to first raw material (or all proportionally)
+                const materialCode = node.materialInputs[0].code;
+                
+                try {
+                  // Consume additional material for scrap
+                  const scrapResult = await adjustMaterialStock(materialCode, -scrapQty, {
+                    reason: 'production_plan_runtime',
+                    reference: `Scrap adjustment for ${planId}/${nodeId}`,
+                    planId,
+                    nodeId,
+                    workerId,
+                    transactionType: 'scrap_adjustment'
+                  });
+                  
+                  scrapAdjustment = {
+                    materialCode,
+                    scrapQty,
+                    timestamp: now,
+                    nodeId,
+                    workerId,
+                    result: scrapResult
+                  };
+                  
+                  // Log scrap adjustment in plan document
+                  const planRef = db.collection('mes-production-plans').doc(planId);
+                  transaction.update(planRef, {
+                    'stockMovements.scrapAdjustments': admin.firestore.FieldValue.arrayUnion({
+                      materialCode,
+                      scrapQty,
+                      nodeId,
+                      workerId,
+                      timestamp: now,
+                      assignmentId
+                    }),
+                    updatedAt: now
+                  });
+                } catch (err) {
+                  console.error('Failed to adjust scrap material:', err);
+                  // Continue with completion even if scrap adjustment fails
+                }
+              }
+            }
+          }
+          
+          // Clear worker currentTask
+          if (workerRef) {
+            workerUpdate = {
+              currentTask: null,
+              updatedAt: now
+            };
+          }
+          
+          // Clear station currentOperation
+          if (stationRef) {
+            stationUpdate = {
+              currentOperation: null,
+              updatedAt: now
+            };
+          }
+          break;
+      }
+      
+      // Apply updates
+      transaction.update(assignmentRef, updateData);
+      
+      if (workerRef && workerUpdate) {
+        transaction.update(workerRef, workerUpdate);
+      }
+      
+      if (stationRef && stationUpdate) {
+        transaction.update(stationRef, stationUpdate);
+      }
+      
+      return {
+        success: true,
+        assignmentId,
+        action,
+        status: updateData.status,
+        alertCreated,
+        scrapAdjustment,
+        updatedAt: now.toISOString()
+      };
+    });
+    
+    return result;
+  }, res);
+});
+
+// ============================================================================
 // SUB-STATIONS ROUTES
 // ============================================================================
 

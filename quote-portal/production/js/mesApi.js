@@ -644,3 +644,46 @@ export async function updateProductionState(workOrderCode, productionState) {
   if (!res.ok) throw new Error(`production_state_update_failed ${res.status}`)
   return await res.json()
 }
+
+// ============================================================================
+// WORKER PORTAL API
+// ============================================================================
+
+/**
+ * Get active tasks for worker portal
+ * @param {string} workerId - Optional worker ID (uses authenticated user's workerId if not provided)
+ * @returns {Promise<{tasks: Array, nextTaskId: string|null}>}
+ */
+export async function getWorkerPortalTasks(workerId = null) {
+  const url = workerId 
+    ? `${API_BASE}/api/mes/worker-portal/tasks?workerId=${encodeURIComponent(workerId)}`
+    : `${API_BASE}/api/mes/worker-portal/tasks`;
+    
+  const res = await fetch(url, { headers: withAuth() });
+  if (!res.ok) throw new Error(`worker_portal_tasks_load_failed ${res.status}`);
+  return await res.json();
+}
+
+/**
+ * Update worker portal task status
+ * @param {string} assignmentId - Assignment ID
+ * @param {Object} payload - Action payload
+ * @param {string} payload.action - Action: 'start', 'pause', 'station_error', 'complete'
+ * @param {number} [payload.scrapQty] - Scrap quantity (for complete action)
+ * @param {string} [payload.stationNote] - Station error note (for station_error action)
+ * @returns {Promise<Object>}
+ */
+export async function updateWorkerPortalTask(assignmentId, payload) {
+  if (!assignmentId) throw new Error('assignment_id_required');
+  if (!payload || !payload.action) throw new Error('action_required');
+  
+  const res = await fetch(`${API_BASE}/api/mes/worker-portal/tasks/${encodeURIComponent(assignmentId)}`, {
+    method: 'PATCH',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload)
+  });
+  
+  if (!res.ok) throw new Error(`worker_portal_task_update_failed ${res.status}`);
+  return await res.json();
+}
+
