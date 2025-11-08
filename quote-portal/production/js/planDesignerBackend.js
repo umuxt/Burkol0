@@ -316,11 +316,50 @@ export async function editNodeBackend(nodeId) {
   if (!node) return
   planDesignerState.selectedNode = node
   
-  // Legacy migration: convert assignedStation to assignedStations array
+  // Legacy migration: convert assignedStation to assignedStations array with ID lookup
   if (node.assignedStation && !Array.isArray(node.assignedStations)) {
-    node.assignedStations = [{ name: node.assignedStation, priority: 1 }]
+    // Try to find station by name or ID
+    let stationData = null;
+    try {
+      const allStations = await getStations(true);
+      stationData = allStations.find(s => s.name === node.assignedStation || s.id === node.assignedStation);
+    } catch (e) {
+      console.warn('Could not load stations for migration:', e);
+    }
+    
+    if (stationData) {
+      node.assignedStations = [{ id: stationData.id, name: stationData.name, priority: 1 }];
+    } else {
+      // Fallback: assume it's a name and create entry without ID
+      node.assignedStations = [{ id: null, name: node.assignedStation, priority: 1 }];
+    }
   } else if (!Array.isArray(node.assignedStations)) {
-    node.assignedStations = []
+    node.assignedStations = [];
+  }
+  
+  // Ensure all stations in assignedStations have both id and name
+  if (Array.isArray(node.assignedStations)) {
+    try {
+      const allStations = await getStations(true);
+      node.assignedStations = node.assignedStations.map(station => {
+        if (!station.id && station.name) {
+          // Try to find ID by name
+          const found = allStations.find(s => s.name === station.name);
+          if (found) {
+            return { ...station, id: found.id, name: found.name };
+          }
+        } else if (station.id && !station.name) {
+          // Try to find name by ID
+          const found = allStations.find(s => s.id === station.id);
+          if (found) {
+            return { ...station, id: found.id, name: found.name };
+          }
+        }
+        return station;
+      });
+    } catch (e) {
+      console.warn('Could not complete station migration:', e);
+    }
   }
   
   let workers = []
@@ -538,7 +577,17 @@ export function saveNodeEditBackend() {
   const primaryStation = node.assignedStations.length > 0 
     ? node.assignedStations.sort((a, b) => (a.priority || 0) - (b.priority || 0))[0]
     : null
-  node.assignedStation = primaryStation ? primaryStation.name : null
+  
+  // Update both legacy and new station fields
+  if (primaryStation) {
+    node.assignedStationId = primaryStation.id;
+    node.assignedStationName = primaryStation.name;
+    node.assignedStation = primaryStation.id; // Legacy field now stores ID
+  } else {
+    node.assignedStationId = null;
+    node.assignedStationName = null;
+    node.assignedStation = null; // Legacy field
+  }
   
   node.assignmentMode = primaryStation ? (assignMode || 'auto') : null
   const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal)
@@ -577,9 +626,23 @@ export function saveNodeEditBackend() {
           for (const rs of required) { if (!sset.has(rs)) return false }
           return true
         })
-        node.assignedWorker = eligible.length > 0 ? (eligible[0].name || eligible[0].id) : null
+        if (eligible.length > 0) {
+          const worker = eligible[0];
+          node.assignedWorkerId = worker.id;
+          node.assignedWorkerName = worker.name;
+          node.assignedWorker = worker.id; // Legacy field
+        } else {
+          node.assignedWorkerId = null;
+          node.assignedWorkerName = null;
+          node.assignedWorker = null; // Legacy field
+        }
         applyMaterial()
-      }).catch(() => { node.assignedWorker = null; applyMaterial() })
+      }).catch(() => { 
+        node.assignedWorkerId = null;
+        node.assignedWorkerName = null;
+        node.assignedWorker = null; // Legacy field
+        applyMaterial() 
+      })
     });
   } else if (primaryStation && node.assignmentMode === 'manual' && manualWorker) {
     // Manual assignment with validation
@@ -592,29 +655,92 @@ export function saveNodeEditBackend() {
       
       validateManualAssignment(node, manualWorker, startTime, endTime, true)
         .then(warnings => {
-          node.assignedWorker = manualWorker;
-          node.startTime = startTime;
-          node.endTime = endTime;
-          node.assignmentMode = 'manual';
-          node.assignmentWarnings = warnings;
-          node.requiresAttention = warnings.length > 0;
-          applyMaterial();
+          // Look up worker name for the ID
+          getWorkers().then(workers => {
+            const worker = workers.find(w => w.id === manualWorker);
+            node.assignedWorkerId = manualWorker;
+            node.assignedWorkerName = worker ? worker.name : manualWorker;
+            node.assignedWorker = manualWorker; // Legacy field
+            node.startTime = startTime;
+            node.endTime = endTime;
+            node.assignmentMode = 'manual';
+            node.assignmentWarnings = warnings;
+            node.requiresAttention = warnings.length > 0;
+            applyMaterial();
+          }).catch(() => {
+            // Fallback if can't get worker name
+            node.assignedWorkerId = manualWorker;
+            node.assignedWorkerName = manualWorker; // Use ID as name fallback
+            node.assignedWorker = manualWorker; // Legacy field
+            node.startTime = startTime;
+            node.endTime = endTime;
+            node.assignmentMode = 'manual';
+            node.assignmentWarnings = warnings;
+            node.requiresAttention = warnings.length > 0;
+            applyMaterial();
+          });
         })
         .catch(err => {
           console.error('Manual assignment validation failed:', err);
-          node.assignedWorker = manualWorker;
-          node.assignmentWarnings = [`Validation failed: ${err.message}`];
-          node.requiresAttention = true;
-          applyMaterial();
+          getWorkers().then(workers => {
+            const worker = workers.find(w => w.id === manualWorker);
+            node.assignedWorkerId = manualWorker;
+            node.assignedWorkerName = worker ? worker.name : manualWorker;
+            node.assignedWorker = manualWorker; // Legacy field
+            node.assignmentWarnings = [`Validation failed: ${err.message}`];
+            node.requiresAttention = true;
+            applyMaterial();
+          }).catch(() => {
+            node.assignedWorkerId = manualWorker;
+            node.assignedWorkerName = manualWorker; // Use ID as name fallback
+            node.assignedWorker = manualWorker; // Legacy field
+            node.assignmentWarnings = [`Validation failed: ${err.message}`];
+            node.requiresAttention = true;
+            applyMaterial();
+          });
         });
     }).catch(() => {
       // Fallback if import fails
-      node.assignedWorker = manualWorker;
-      applyMaterial();
+      if (manualWorker) {
+        getWorkers().then(workers => {
+          const worker = workers.find(w => w.id === manualWorker);
+          node.assignedWorkerId = manualWorker;
+          node.assignedWorkerName = worker ? worker.name : manualWorker;
+          node.assignedWorker = manualWorker; // Legacy field
+          applyMaterial();
+        }).catch(() => {
+          node.assignedWorkerId = manualWorker;
+          node.assignedWorkerName = manualWorker; // Use ID as name fallback
+          node.assignedWorker = manualWorker; // Legacy field
+          applyMaterial();
+        });
+      } else {
+        node.assignedWorkerId = null;
+        node.assignedWorkerName = null;
+        node.assignedWorker = null; // Legacy field
+        applyMaterial();
+      }
     });
   } else {
-    node.assignedWorker = manualWorker || null;
-    applyMaterial();
+    if (manualWorker) {
+      getWorkers().then(workers => {
+        const worker = workers.find(w => w.id === manualWorker);
+        node.assignedWorkerId = manualWorker;
+        node.assignedWorkerName = worker ? worker.name : manualWorker;
+        node.assignedWorker = manualWorker; // Legacy field
+        applyMaterial();
+      }).catch(() => {
+        node.assignedWorkerId = manualWorker;
+        node.assignedWorkerName = manualWorker; // Use ID as name fallback
+        node.assignedWorker = manualWorker; // Legacy field
+        applyMaterial();
+      });
+    } else {
+      node.assignedWorkerId = null;
+      node.assignedWorkerName = null;
+      node.assignedWorker = null; // Legacy field
+      applyMaterial();
+    }
   }
 
   function applyMaterial() {
@@ -940,12 +1066,17 @@ function generateMultiStationSelector(node, compatibleStations) {
   if (Array.isArray(node.assignedStations)) {
     assignedStations = [...node.assignedStations]
   } else if (node.assignedStation) {
-    // Convert legacy single station to array format
-    assignedStations = [{ name: node.assignedStation, priority: 1 }]
+    // Convert legacy single station to array format - try to find ID
+    const stationDetails = compatibleStations.find(s => s.name === node.assignedStation || s.id === node.assignedStation)
+    if (stationDetails) {
+      assignedStations = [{ id: stationDetails.id, name: stationDetails.name, priority: 1 }]
+    } else {
+      assignedStations = [{ id: null, name: node.assignedStation, priority: 1 }]
+    }
   }
 
-  const selectedStationNames = new Set(assignedStations.map(s => s.name))
-  const availableStations = compatibleStations.filter(s => !selectedStationNames.has(s.name))
+  const selectedStationIds = new Set(assignedStations.map(s => s.id).filter(Boolean))
+  const availableStations = compatibleStations.filter(s => !selectedStationIds.has(s.id))
 
   return '<div style="margin-bottom: 16px;">' +
     '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Stations (Priority Order)</label>' +
@@ -968,12 +1099,12 @@ function generateMultiStationSelector(node, compatibleStations) {
     (availableStations.length === 0 ? 
       '<div style="padding: 12px; color: #6b7280; text-align: center; font-style: italic;">No available stations</div>' :
       availableStations.map(s => {
-        const displayName = s.id ? `${s.id} - ${s.name}` : s.name
-        return '<div class="station-dropdown-item" data-value="' + escapeHtml(s.name) + '" onclick="selectStationFromDropdown(\'' + escapeHtml(s.name) + '\')" ' +
+        const displayName = s.id ? `${s.id} – ${s.name}` : s.name
+        return '<div class="station-dropdown-item" data-station-id="' + escapeHtml(s.id || '') + '" data-station-name="' + escapeHtml(s.name || '') + '" onclick="selectStationFromDropdown(\'' + escapeHtml(s.id || '') + '\', \'' + escapeHtml(s.name || '') + '\')" ' +
         'style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">' +
         '<div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; flex-shrink: 0;"></div>' +
         '<span style="flex: 1; font-weight: 500;">' + escapeHtml(displayName) + '</span>' +
-        '<span style="font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 6px; border-radius: 10px;">' + escapeHtml(s.id || 'Station') + '</span>' +
+        '<span style="font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 6px; border-radius: 10px;">' + escapeHtml(s.type || 'Station') + '</span>' +
         '</div>'
       }).join('')
     ) +
@@ -993,16 +1124,16 @@ function generateSelectedStationsList(assignedStations) {
   return assignedStations
     .sort((a, b) => (a.priority || 0) - (b.priority || 0))
     .map((station, index) => {
-      // Find station details to get ID
-      const stationDetails = (_stationsCacheFull || []).find(s => s.name === station.name)
-      const stationId = stationDetails ? stationDetails.id : ''
-      const displayText = stationId ? `${stationId} - ${station.name}` : station.name
+      // Use ID and name from the station object
+      const stationId = station.id || '';
+      const stationName = station.name || '';
+      const displayText = stationId ? `${stationId} – ${stationName}` : stationName;
       
-      return '<div class="selected-station-item" data-station="' + escapeHtml(station.name) + '" draggable="true" ' +
+      return '<div class="selected-station-item" data-station-id="' + escapeHtml(stationId) + '" data-station-name="' + escapeHtml(stationName) + '" draggable="true" ' +
         'style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; padding: 6px 8px; ' +
         'background: white; border: 1px solid #e5e7eb; border-radius: 4px; cursor: move;">' +
         '<span style="flex: 1; font-weight: 500;">' + (index + 1) + '. ' + escapeHtml(displayText) + '</span>' +
-        '<button type="button" onclick="removeSelectedStation(\'' + escapeHtml(station.name) + '\')" ' +
+        '<button type="button" onclick="removeSelectedStationById(\'' + escapeHtml(stationId) + '\')" ' +
         'style="margin-left: 8px; padding: 2px 6px; background: #ef4444; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">×</button>' +
         '</div>'
     }).join('')
@@ -1018,8 +1149,8 @@ export function handleStationChangeInEdit() {
 
 // Station management functions for multi-select
 window.addSelectedStation = function() {
-  const selectedStationName = window.selectedStationValue || null
-  if (!selectedStationName) {
+  const selectedStation = window.selectedStationValue || null
+  if (!selectedStation || !selectedStation.id || !selectedStation.name) {
     showToast('Please select a station first', 'warning')
     return
   }
@@ -1032,8 +1163,8 @@ window.addSelectedStation = function() {
     node.assignedStations = []
   }
 
-  // Check if already selected
-  if (node.assignedStations.find(s => s.name === selectedStationName)) {
+  // Check if already selected (by ID)
+  if (node.assignedStations.find(s => s.id === selectedStation.id)) {
     showToast('Station already selected', 'warning')
     return
   }
@@ -1041,7 +1172,8 @@ window.addSelectedStation = function() {
   // Add with next priority
   const maxPriority = Math.max(0, ...node.assignedStations.map(s => s.priority || 0))
   node.assignedStations.push({
-    name: selectedStationName,
+    id: selectedStation.id,
+    name: selectedStation.name,
     priority: maxPriority + 1
   })
 
@@ -1090,14 +1222,11 @@ window.toggleStationDropdown = function() {
   }
 }
 
-window.selectStationFromDropdown = function(stationName) {
-  window.selectedStationValue = stationName
+window.selectStationFromDropdown = function(stationId, stationName) {
+  window.selectedStationValue = { id: stationId, name: stationName }
   const textEl = document.getElementById('station-selector-text')
   if (textEl) {
-    // Find station details to show ID + name
-    const stationDetails = (_stationsCacheFull || []).find(s => s.name === stationName)
-    const displayText = stationDetails && stationDetails.id ? `${stationDetails.id} - ${stationName}` : stationName
-    
+    const displayText = stationId ? `${stationId} – ${stationName}` : stationName
     textEl.textContent = displayText
     textEl.style.color = '#111827' // Darker color when selected
   }
@@ -1107,11 +1236,29 @@ window.selectStationFromDropdown = function(stationName) {
   if (dropdown) dropdown.style.display = 'none'
 }
 
+window.removeSelectedStationById = function(stationId) {
+  const node = planDesignerState.selectedNode
+  if (!node || !Array.isArray(node.assignedStations)) return
+
+  // Remove station by ID
+  node.assignedStations = node.assignedStations.filter(s => s.id !== stationId)
+
+  // Renumber priorities
+  node.assignedStations.forEach((station, index) => {
+    station.priority = index + 1
+  })
+
+  // Refresh UI
+  refreshStationSelector()
+  handleStationChangeInEdit()
+  showToast('Station removed', 'success')
+}
+
 window.removeSelectedStation = function(stationName) {
   const node = planDesignerState.selectedNode
   if (!node || !Array.isArray(node.assignedStations)) return
 
-  // Remove station
+  // Remove station by name (legacy support)
   node.assignedStations = node.assignedStations.filter(s => s.name !== stationName)
 
   // Renumber priorities

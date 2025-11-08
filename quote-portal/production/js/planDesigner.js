@@ -1,7 +1,7 @@
 // Plan Designer logic and state
 import { showToast } from './ui.js';
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js';
-import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkerAssignments, getSubstations, batchWorkerAssignments } from './mesApi.js';
+import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
 import { API_BASE, withAuth } from '../../shared/lib/api.js';
@@ -269,7 +269,8 @@ async function performAutoAssignment(node, workers, stations, forceRefresh = fal
     }
     
     // Find assigned station for this worker
-    const station = stations.find(s => s.id === node.assignedStation);
+    const stationId = node.assignedStationId || node.assignedStation; // Support both new and legacy
+    const station = stations.find(s => s.id === stationId);
     if (!station) {
       node.assignmentWarnings = ['No station assigned to this node'];
       node.requiresAttention = true;
@@ -285,13 +286,17 @@ async function performAutoAssignment(node, workers, stations, forceRefresh = fal
     );
     
     // Update node with assignments
-    node.assignedWorker = workerResult.worker.id;
+    node.assignedWorkerId = workerResult.worker.id;
+    node.assignedWorkerName = workerResult.worker.name;
     node.startTime = workerResult.nextSlot.start.toISOString();
     node.endTime = workerResult.nextSlot.end.toISOString();
     node.assignedSubStation = substation ? substation.id : null;
     node.assignmentMode = 'auto';
     node.requiresAttention = false;
     node.assignmentWarnings = [];
+    
+    // Legacy compatibility: also set assignedWorker for backward compatibility
+    node.assignedWorker = workerResult.worker.id;
     
     if (!substation) {
       node.assignmentWarnings.push('No substations available for assigned station');
@@ -370,11 +375,13 @@ async function validateManualAssignment(node, workerId, startTime, endTime, forc
 // Generate assignments payload for production plan saving
 export function generateAssignmentsPayload(nodes) {
   return nodes
-    .filter(node => node.assignedWorker && node.startTime && node.endTime)
+    .filter(node => (node.assignedWorkerId || node.assignedWorker) && node.startTime && node.endTime)
     .map(node => ({
       nodeId: node.id,
-      workerId: node.assignedWorker,
-      stationId: node.assignedStation,
+      workerId: node.assignedWorkerId || node.assignedWorker, // Use new ID field, fallback to legacy
+      workerName: node.assignedWorkerName, // Include name for UI use
+      stationId: node.assignedStationId || node.assignedStation, // Use new ID field, fallback to legacy
+      stationName: node.assignedStationName, // Include name for UI use
       subStationCode: node.assignedSubStation,
       start: node.startTime,
       end: node.endTime,
@@ -975,8 +982,12 @@ export function handleCanvasDrop(event) {
     x: Math.max(0, x),
     y: Math.max(0, y),
     connections: [],
-    assignedWorker: null,
-    assignedStation: null,
+    assignedWorker: null, // Legacy field for backward compatibility
+    assignedWorkerId: null, // New ID field
+    assignedWorkerName: null, // New name field
+    assignedStation: null, // Legacy field for backward compatibility
+    assignedStationId: null, // New ID field
+    assignedStationName: null, // New name field
     // Auto-assignment scheduling fields
     startTime: null,
     endTime: null,
@@ -1063,7 +1074,7 @@ export function renderNode(node, targetCanvas = null) {
     `<div style="font-size: 11px; color: #6b7280; margin-bottom: 2px;">Type: ${node.type}</div>`,
     `<div style=\"font-size: 11px; color: #6b7280; margin-bottom: 2px;\">⏱️ ${node.time} min</div>`,
     scheduleInfo,
-    `<div style=\"font-size: 10px; color: #9ca3af;\">Worker: ${node.assignedWorker || 'Not assigned'}<br>Station: ${node.assignedStation || 'Not assigned'}<br>Materials: ${matSummary}</div>`
+    `<div style=\"font-size: 10px; color: #9ca3af;\">Worker: ${node.assignedWorkerName || node.assignedWorker || 'Not assigned'}<br>Station: ${node.assignedStationName || node.assignedStation || 'Not assigned'}<br>Materials: ${matSummary}</div>`
   ].join('');
 
   // Use global drag state instead of local variables
@@ -1406,10 +1417,10 @@ export function editNode(nodeId) {
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + node.name + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + node.time + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Worker</label><select id="edit-worker" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;"><option value="">Not assigned</option>' +
-    compatibleWorkers.map(w => '<option value="' + w.name + '" ' + (node.assignedWorker === w.name ? 'selected' : '') + '>' + w.name + '</option>').join('') +
+    compatibleWorkers.map(w => '<option value="' + w.id + '" ' + ((node.assignedWorkerId || node.assignedWorker) === w.id ? 'selected' : '') + '>' + w.name + '</option>').join('') +
     '</select></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Station</label><select id="edit-station" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;"><option value="">Not assigned</option>' +
-    compatibleStations.map(s => '<option value="' + s.name + '" ' + (node.assignedStation === s.name ? 'selected' : '') + '>' + s.name + '</option>').join('') +
+    compatibleStations.map(s => '<option value="' + s.id + '" ' + ((node.assignedStationId || node.assignedStation) === s.id ? 'selected' : '') + '>' + s.id + ' – ' + s.name + '</option>').join('') +
     '</select></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div style="font-size: 12px; color: var(--muted-foreground);">' + node.skills.join(', ') + '</div></div>';
   document.getElementById('node-edit-form').innerHTML = formContent;
@@ -1498,15 +1509,52 @@ export function saveNodeEdit() {
   if (!planDesignerState.selectedNode) return;
   const name = document.getElementById('edit-name').value;
   const time = parseInt(document.getElementById('edit-time').value);
-  const worker = document.getElementById('edit-worker').value;
-  const station = document.getElementById('edit-station').value;
+  const workerId = document.getElementById('edit-worker').value;
+  const stationId = document.getElementById('edit-station').value;
   const outQtyVal = document.getElementById('edit-output-qty')?.value;
   const outUnit = document.getElementById('edit-output-unit')?.value || '';
   if (!name || !time || time < 1) { showToast('Please fill all required fields', 'error'); return; }
+  
+  // Hardcoded data for now - should be replaced with real API data
+  const workers = [
+    { id: 'w1', name: 'Ali Yılmaz', skills: ['CNC Programming', 'CAM Software'] },
+    { id: 'w2', name: 'Ahmet Can', skills: ['MIG Welding', 'Blueprint Reading'] },
+    { id: 'w3', name: 'Fatma Öz', skills: ['Quality Inspection', 'Measurement'] },
+    { id: 'w4', name: 'Mehmet Acar', skills: ['Assembly', 'Hand Tools'] }
+  ];
+  const stations = [
+    { id: 's1', name: 'CNC Mill 01', type: 'Machining' },
+    { id: 's2', name: 'Welding Station 01', type: 'Welding' },
+    { id: 's3', name: 'QC Station 01', type: 'Quality' },
+    { id: 's4', name: 'Assembly Line 01', type: 'Assembly' }
+  ];
+  
   planDesignerState.selectedNode.name = name;
   planDesignerState.selectedNode.time = time;
-  planDesignerState.selectedNode.assignedWorker = worker || null;
-  planDesignerState.selectedNode.assignedStation = station || null;
+  
+  // Set worker fields
+  if (workerId) {
+    const worker = workers.find(w => w.id === workerId);
+    planDesignerState.selectedNode.assignedWorkerId = workerId;
+    planDesignerState.selectedNode.assignedWorkerName = worker ? worker.name : workerId;
+    planDesignerState.selectedNode.assignedWorker = workerId; // Legacy field
+  } else {
+    planDesignerState.selectedNode.assignedWorkerId = null;
+    planDesignerState.selectedNode.assignedWorkerName = null;
+    planDesignerState.selectedNode.assignedWorker = null; // Legacy field
+  }
+  
+  // Set station fields
+  if (stationId) {
+    const station = stations.find(s => s.id === stationId);
+    planDesignerState.selectedNode.assignedStationId = stationId;
+    planDesignerState.selectedNode.assignedStationName = station ? station.name : stationId;
+    planDesignerState.selectedNode.assignedStation = stationId; // Legacy field
+  } else {
+    planDesignerState.selectedNode.assignedStationId = null;
+    planDesignerState.selectedNode.assignedStationName = null;
+    planDesignerState.selectedNode.assignedStation = null; // Legacy field
+  }
   const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal);
   planDesignerState.selectedNode.outputQty = Number.isFinite(outQtyNum) ? outQtyNum : null;
   planDesignerState.selectedNode.outputUnit = (outUnit || '').trim();
@@ -2436,6 +2484,59 @@ function extractNumericSuffix(id) {
   return match ? parseInt(match[1], 10) || 0 : 0;
 }
 
+// Migration function to convert legacy node assignments to new ID + name format
+function migrateLegacyAssignments(node) {
+  // Hardcoded data for migration - should ideally use cached API data
+  const workers = [
+    { id: 'w1', name: 'Ali Yılmaz', skills: ['CNC Programming', 'CAM Software'] },
+    { id: 'w2', name: 'Ahmet Can', skills: ['MIG Welding', 'Blueprint Reading'] },
+    { id: 'w3', name: 'Fatma Öz', skills: ['Quality Inspection', 'Measurement'] },
+    { id: 'w4', name: 'Mehmet Acar', skills: ['Assembly', 'Hand Tools'] }
+  ];
+  const stations = [
+    { id: 's1', name: 'CNC Mill 01', type: 'Machining' },
+    { id: 's2', name: 'Welding Station 01', type: 'Welding' },
+    { id: 's3', name: 'QC Station 01', type: 'Quality' },
+    { id: 's4', name: 'Assembly Line 01', type: 'Assembly' }
+  ];
+
+  // Migrate worker assignments
+  if (node.assignedWorker && !node.assignedWorkerId && !node.assignedWorkerName) {
+    // Check if assignedWorker is a name (legacy) or already an ID
+    const workerByName = workers.find(w => w.name === node.assignedWorker);
+    const workerById = workers.find(w => w.id === node.assignedWorker);
+    
+    if (workerByName) {
+      // Legacy: assignedWorker contains a name, convert to ID + name
+      node.assignedWorkerId = workerByName.id;
+      node.assignedWorkerName = workerByName.name;
+      node.assignedWorker = workerByName.id; // Update legacy field to ID
+    } else if (workerById) {
+      // assignedWorker already contains ID, just add name
+      node.assignedWorkerId = workerById.id;
+      node.assignedWorkerName = workerById.name;
+    }
+  }
+
+  // Migrate station assignments
+  if (node.assignedStation && !node.assignedStationId && !node.assignedStationName) {
+    // Check if assignedStation is a name (legacy) or already an ID
+    const stationByName = stations.find(s => s.name === node.assignedStation);
+    const stationById = stations.find(s => s.id === node.assignedStation);
+    
+    if (stationByName) {
+      // Legacy: assignedStation contains a name, convert to ID + name
+      node.assignedStationId = stationByName.id;
+      node.assignedStationName = stationByName.name;
+      node.assignedStation = stationByName.id; // Update legacy field to ID
+    } else if (stationById) {
+      // assignedStation already contains ID, just add name
+      node.assignedStationId = stationById.id;
+      node.assignedStationName = stationById.name;
+    }
+  }
+}
+
 function normalizeIncomingNodes(rawNodes = []) {
   const source = Array.isArray(rawNodes) ? rawNodes : [];
   const cloned = JSON.parse(JSON.stringify(source));
@@ -2505,6 +2606,9 @@ function normalizeIncomingNodes(rawNodes = []) {
     if (!Number.isFinite(node?.y)) {
       node.y = 80 + Math.floor(index / 6) * 140;
     }
+
+    // Migration logic: convert legacy string assignments to ID + name fields
+    migrateLegacyAssignments(node);
   });
 
   if (duplicateAlerts.length) {
