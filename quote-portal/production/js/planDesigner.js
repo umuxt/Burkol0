@@ -1887,6 +1887,12 @@ export function savePlanDraft() {
   const orderCode = document.getElementById('order-select')?.value || '';
   const scheduleType = document.getElementById('schedule-type')?.value || 'one-time';
   
+  // Ensure an order is selected before saving production plan
+  if (!orderCode) {
+    showToast('Select a work order before saving this plan', 'warning');
+    return;
+  }
+  
   // Get quantity from modal input if available, fallback to state
   const quantityInput = document.getElementById('modal-plan-quantity');
   const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
@@ -1910,6 +1916,10 @@ export function savePlanDraft() {
     updateProductionPlan(id, updates)
       .then(() => {
         showToast(`Plan converted to production: ${planName}`, 'success');
+        // Dispatch event to refresh workers view if there are assignments
+        if (assignments.length > 0) {
+          window.dispatchEvent(new CustomEvent('assignments:updated'));
+        }
         planDesignerState.nodes = [];
         renderCanvas();
         cancelPlanCreation();
@@ -1949,9 +1959,7 @@ export function savePlanDraft() {
     assignmentsCount: assignments.length,
     fullPlan: plan
   });
-  getNextProductionPlan
-
-Id()
+  getNextProductionPlanId()
     .then((newId) => { plan.id = newId || genId('plan-'); return createProductionPlan(plan) })
     .catch(() => {
       plan.id = plan.id || genId('plan-');
@@ -1959,6 +1967,10 @@ Id()
     })
     .then(() => {
       showToast(`Plan saved: ${plan.name}`, 'success');
+      // Dispatch event to refresh workers view if there are assignments
+      if (assignments.length > 0) {
+        window.dispatchEvent(new CustomEvent('assignments:updated'));
+      }
       planDesignerState.nodes = [];
       renderCanvas();
       cancelPlanCreation();
