@@ -3,6 +3,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import admin from 'firebase-admin';
 import { getSession } from './auth.js'
 import jsondb from '../src/lib/jsondb.js'
+import { adjustMaterialStock, consumeMaterials } from './materialsRoutes.js'
 
 const router = express.Router();
 
@@ -981,6 +982,149 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
         ).catch(err => {
           console.error('Failed to update approved quote state on plan release:', err);
         });
+      }
+      
+      // If status is transitioning to 'released', process material consumption and WIP production
+      if (updates.status === 'released') {
+        try {
+          // Get the full plan data to access materialSummary
+          const planRef = db.collection('mes-production-plans').doc(id);
+          const planSnap = await planRef.get();
+          const planData = planSnap.exists ? planSnap.data() : null;
+          
+          if (planData && planData.materialSummary) {
+            console.log(`🏭 Processing material movements for plan ${id}...`);
+            
+            const materialSummary = planData.materialSummary;
+            const stockResults = { rawMaterials: null, wipOutputs: null };
+            
+            // 1. Consume raw materials (negative delta)
+            if (Array.isArray(materialSummary.rawMaterials) && materialSummary.rawMaterials.length > 0) {
+              const consumptionList = materialSummary.rawMaterials.map(mat => ({
+                code: mat.code || mat.id,
+                qty: mat.required || 0,
+                reason: `production_plan_${id}`
+              }));
+              
+              stockResults.rawMaterials = await consumeMaterials(consumptionList, {
+                userId: updatedByEmail || 'system',
+                orderId: planData.orderCode || id,
+                continueOnError: true // Continue even if some materials fail
+              });
+              
+              console.log(
+                `✓ Raw materials: ${stockResults.rawMaterials.consumed.length} consumed, ` +
+                `${stockResults.rawMaterials.failed.length} failed`
+              );
+            }
+            
+            // 2. Produce WIP outputs (positive delta)
+            if (Array.isArray(materialSummary.wipOutputs) && materialSummary.wipOutputs.length > 0) {
+              const wipResults = { produced: [], failed: [] };
+              
+              for (const wip of materialSummary.wipOutputs) {
+                const wipCode = wip.code || wip.id;
+                const wipQty = parseFloat(wip.quantity || 0);
+                
+                if (!wipCode || wipQty <= 0) continue;
+                
+                try {
+                  // Try to produce the WIP material
+                  const result = await adjustMaterialStock(wipCode, wipQty, {
+                    reason: `wip_production_plan_${id}`,
+                    userId: updatedByEmail || 'system',
+                    orderId: planData.orderCode || id
+                  });
+                  
+                  wipResults.produced.push({
+                    material: result.materialCode,
+                    name: result.materialName,
+                    qty: wipQty,
+                    previousStock: result.previousStock,
+                    newStock: result.newStock
+                  });
+                  
+                } catch (error) {
+                  // If WIP doesn't exist, create it
+                  if (error.message.includes('not found')) {
+                    try {
+                      console.log(`📦 Creating new WIP material: ${wipCode}`);
+                      
+                      const newWipRef = db.collection('materials').doc(wipCode);
+                      await newWipRef.set({
+                        code: wipCode,
+                        name: wip.name || wipCode,
+                        category: 'WIP',
+                        stock: wipQty,
+                        unit: wip.unit || 'pcs',
+                        status: 'Aktif',
+                        createdAt: now,
+                        updatedAt: now,
+                        createdBy: updatedByEmail || 'system',
+                        source: 'production_plan',
+                        sourcePlanId: id
+                      });
+                      
+                      wipResults.produced.push({
+                        material: wipCode,
+                        name: wip.name || wipCode,
+                        qty: wipQty,
+                        previousStock: 0,
+                        newStock: wipQty,
+                        created: true
+                      });
+                      
+                    } catch (createError) {
+                      console.error(`Failed to create WIP ${wipCode}:`, createError.message);
+                      wipResults.failed.push({
+                        material: wipCode,
+                        qty: wipQty,
+                        error: createError.message
+                      });
+                    }
+                  } else {
+                    wipResults.failed.push({
+                      material: wipCode,
+                      qty: wipQty,
+                      error: error.message
+                    });
+                  }
+                }
+              }
+              
+              stockResults.wipOutputs = wipResults;
+              console.log(
+                `✓ WIP outputs: ${wipResults.produced.length} produced, ` +
+                `${wipResults.failed.length} failed`
+              );
+            }
+            
+            // Log summary
+            if (stockResults.rawMaterials || stockResults.wipOutputs) {
+              console.log(`✅ Material movements completed for plan ${id}`);
+              
+              // Optionally store the stock movement results in the plan document for audit
+              await planRef.update({
+                stockMovements: {
+                  timestamp: now,
+                  rawMaterials: stockResults.rawMaterials,
+                  wipOutputs: stockResults.wipOutputs
+                }
+              });
+            }
+          }
+        } catch (stockError) {
+          // Log error but don't fail the plan release
+          console.error(`⚠️ Material movements failed for plan ${id}:`, stockError.message);
+          
+          // Store the error in the plan document
+          await db.collection('mes-production-plans').doc(id).update({
+            stockMovementError: {
+              timestamp: now,
+              error: stockError.message
+            }
+          });
+        }
       }
 
       return { success: true, id };

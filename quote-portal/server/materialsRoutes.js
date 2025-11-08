@@ -173,6 +173,179 @@ async function propagateMaterialNameToOrders(materialCode, newName) {
   }
 }
 
+// ============================================================================
+// STOCK ADJUSTMENT HELPERS (for MES integration)
+// ============================================================================
+
+/**
+ * Adjust material stock with Firestore transaction
+ * @param {string} materialIdOrCode - Material ID or code
+ * @param {number} delta - Stock adjustment (positive = add, negative = consume)
+ * @param {object} options - Additional options: { reason, userId, orderId }
+ * @returns {Promise<{success: boolean, materialCode: string, previousStock: number, newStock: number}>}
+ */
+export async function adjustMaterialStock(materialIdOrCode, delta, options = {}) {
+  const db = getDb();
+  
+  try {
+    // Find material by code or ID
+    const materialsSnapshot = await db.collection('materials').get();
+    let materialDoc = null;
+    
+    materialsSnapshot.forEach(doc => {
+      const data = doc.data();
+      if (doc.id === materialIdOrCode || data.code === materialIdOrCode) {
+        materialDoc = { ref: doc.ref, id: doc.id, data };
+      }
+    });
+    
+    if (!materialDoc) {
+      throw new Error(`Material not found: ${materialIdOrCode}`);
+    }
+    
+    // Use transaction to ensure atomic update
+    const result = await db.runTransaction(async (transaction) => {
+      const freshDoc = await transaction.get(materialDoc.ref);
+      
+      if (!freshDoc.exists) {
+        throw new Error(`Material document disappeared: ${materialIdOrCode}`);
+      }
+      
+      const currentData = freshDoc.data();
+      const currentStock = parseFloat(currentData.stock || 0);
+      const newStock = currentStock + delta;
+      
+      // Check for negative stock (consumption validation)
+      if (newStock < 0 && delta < 0) {
+        throw new Error(
+          `Insufficient stock for ${currentData.code || materialIdOrCode}: ` +
+          `Required ${Math.abs(delta)}, Available ${currentStock}`
+        );
+      }
+      
+      // Update stock
+      transaction.update(materialDoc.ref, {
+        stock: newStock,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastStockAdjustment: {
+          delta,
+          previousStock: currentStock,
+          newStock,
+          timestamp: new Date().toISOString(),
+          reason: options.reason || (delta < 0 ? 'production_consumption' : 'production_output'),
+          userId: options.userId || 'system',
+          orderId: options.orderId || null
+        }
+      });
+      
+      return {
+        success: true,
+        materialCode: currentData.code || materialDoc.id,
+        materialName: currentData.name || '',
+        previousStock: currentStock,
+        newStock,
+        delta
+      };
+    });
+    
+    // Invalidate cache after stock change
+    cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 };
+    cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 };
+    
+    console.log(
+      `✅ Stock adjusted: ${result.materialCode} ` +
+      `(${result.previousStock} → ${result.newStock}, Δ${delta})`
+    );
+    
+    return result;
+    
+  } catch (error) {
+    console.error(`❌ Stock adjustment failed for ${materialIdOrCode}:`, error.message);
+    throw error;
+  }
+}
+
+/**
+ * Consume multiple materials in batch (for production plan release)
+ * @param {Array} consumptionList - Array of {code/id, qty, reason}
+ * @param {object} options - Additional options: { userId, orderId, skipValidation }
+ * @returns {Promise<{success: boolean, consumed: Array, failed: Array}>}
+ */
+export async function consumeMaterials(consumptionList, options = {}) {
+  if (!Array.isArray(consumptionList) || consumptionList.length === 0) {
+    return { success: true, consumed: [], failed: [] };
+  }
+  
+  const consumed = [];
+  const failed = [];
+  
+  console.log(`🔄 Consuming ${consumptionList.length} materials...`);
+  
+  for (const item of consumptionList) {
+    const materialId = item.code || item.id;
+    const qty = parseFloat(item.qty || 0);
+    
+    if (!materialId || qty <= 0) {
+      failed.push({
+        material: materialId || 'unknown',
+        qty,
+        error: 'Invalid material or quantity'
+      });
+      continue;
+    }
+    
+    try {
+      const result = await adjustMaterialStock(materialId, -qty, {
+        reason: item.reason || options.reason || 'production_consumption',
+        userId: options.userId,
+        orderId: options.orderId
+      });
+      
+      consumed.push({
+        material: result.materialCode,
+        name: result.materialName,
+        qty,
+        previousStock: result.previousStock,
+        newStock: result.newStock
+      });
+      
+    } catch (error) {
+      const errorMessage = error.message || 'Unknown error';
+      
+      if (options.skipValidation && errorMessage.includes('Insufficient stock')) {
+        // Log warning but continue
+        console.warn(`⚠️ Stock shortage (continuing): ${materialId} - ${errorMessage}`);
+        consumed.push({
+          material: materialId,
+          qty,
+          warning: 'Consumed despite insufficient stock',
+          error: errorMessage
+        });
+      } else {
+        failed.push({
+          material: materialId,
+          qty,
+          error: errorMessage
+        });
+        
+        if (!options.continueOnError) {
+          // Stop on first error unless continueOnError is true
+          break;
+        }
+      }
+    }
+  }
+  
+  const success = failed.length === 0;
+  
+  console.log(
+    `✅ Material consumption complete: ` +
+    `${consumed.length} consumed, ${failed.length} failed`
+  );
+  
+  return { success, consumed, failed };
+}
+
 export function setupMaterialsRoutes(app) {
   
   // GET /api/materials - Tüm malzemeleri listele (kaldırılanlar hariç)

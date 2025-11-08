@@ -357,20 +357,32 @@ export async function createOrUpdateMaterial(material) {
 }
 
 // Upsert a produced WIP material from a plan node
+// NOTE: This creates/updates the WIP material definition. Actual stock movements
+// happen during plan release via the stock adjustment system.
 export async function upsertProducedWipFromNode(node, ops = [], stations = []) {
   if (!node || !node.semiCode) return null
   const station = Array.isArray(stations)
     ? stations.find(s => (s.id && s.id === node.assignedStation) || (s.name && s.name === node.assignedStation))
     : null
   const operation = Array.isArray(ops) ? ops.find(o => o.id === node.operationId) : null
-  const inputs = Array.isArray(node.rawMaterials) ? node.rawMaterials.map(m => ({ id: m.id, qty: m.qty ?? null, unit: m.unit || '' })) : []
+  
+  // Build input materials list with quantities for consumption tracking
+  const inputs = Array.isArray(node.rawMaterials) 
+    ? node.rawMaterials.map(m => ({ 
+        id: m.id, 
+        code: m.code || m.id,
+        qty: m.qty ?? null, 
+        unit: m.unit || '' 
+      })) 
+    : []
+  
   const body = {
     code: node.semiCode,
     name: node.semiCode,
     type: 'wip_produced',
     unit: node.outputUnit || '',
-    stock: 0,
-    category: '',
+    stock: 0, // Initial stock is 0; updated during production
+    category: 'WIP',
     description: `Produced via Plan Canvas${station ? ` @ ${station.name || station.id}` : ''}`,
     status: 'Aktif',
     produced: true,
@@ -382,7 +394,9 @@ export async function upsertProducedWipFromNode(node, ops = [], stations = []) {
       stationName: station?.name || (typeof node.assignedStation === 'string' ? node.assignedStation : ''),
       outputQty: node.outputQty ?? null,
       outputUnit: node.outputUnit || '',
-      inputs
+      inputs, // Raw materials consumed to produce this WIP
+      producedQty: node.outputQty ?? 1, // Quantity produced per operation
+      consumeInputs: true // Flag indicating inputs should be consumed during production
     }
   }
   return await createOrUpdateMaterial(body)
