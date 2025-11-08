@@ -58,6 +58,167 @@ async function handleFirestoreOperation(operation, res) {
 }
 
 // ============================================================================
+// EXECUTION STATE HELPERS
+// ============================================================================
+
+/**
+ * Get execution state for all tasks in a production plan
+ * Calculates prerequisites and determines task status (ready, blocked, in_progress, etc.)
+ * @param {string} planId - Production plan ID
+ * @returns {Promise<Array>} Array of task execution states
+ */
+async function getPlanExecutionState(planId) {
+  const db = getFirestore();
+  
+  // Fetch plan document
+  const planDoc = await db.collection('mes-production-plans').doc(planId).get();
+  if (!planDoc.exists) {
+    throw new Error(`Plan not found: ${planId}`);
+  }
+  
+  const planData = planDoc.data();
+  const executionGraph = planData.executionGraph || [];
+  const materialSummary = planData.materialSummary || {};
+  
+  // Fetch all assignments for this plan
+  const assignmentsSnapshot = await db.collection('mes-worker-assignments')
+    .where('planId', '==', planId)
+    .get();
+  
+  const assignments = new Map();
+  assignmentsSnapshot.docs.forEach(doc => {
+    const data = doc.data();
+    if (data.nodeId) {
+      assignments.set(data.nodeId, { id: doc.id, ...data });
+    }
+  });
+  
+  // Fetch workers and stations for availability check
+  const [workersSnapshot, stationsSnapshot] = await Promise.all([
+    db.collection('mes-workers').get(),
+    db.collection('mes-stations').get()
+  ]);
+  
+  const workers = new Map();
+  workersSnapshot.docs.forEach(doc => {
+    workers.set(doc.id, { id: doc.id, ...doc.data() });
+  });
+  
+  const stations = new Map();
+  stationsSnapshot.docs.forEach(doc => {
+    stations.set(doc.id, { id: doc.id, ...doc.data() });
+  });
+  
+  // Build completion status map for predecessor checks
+  const completedNodes = new Set();
+  assignments.forEach((assignment, nodeId) => {
+    if (assignment.status === 'completed') {
+      completedNodes.add(nodeId);
+    }
+  });
+  
+  // Process each node in execution graph
+  const tasks = executionGraph.map(node => {
+    const assignment = assignments.get(node.nodeId);
+    const workerId = node.assignedWorkerId || assignment?.workerId;
+    const stationId = node.assignedStationId || assignment?.stationId;
+    
+    // Check prerequisites
+    const predecessorsDone = Array.isArray(node.predecessors)
+      ? node.predecessors.every(predId => completedNodes.has(predId))
+      : true;
+    
+    const worker = workerId ? workers.get(workerId) : null;
+    const workerAvailable = !workerId || !worker 
+      ? true // No worker assigned yet, or worker doesn't exist
+      : !worker.currentTask || worker.currentTask.planId === planId && worker.currentTask.nodeId === node.nodeId;
+    
+    const station = stationId ? stations.get(stationId) : null;
+    const stationAvailable = !stationId || !station
+      ? true // No station assigned yet, or station doesn't exist
+      : !station.currentOperation || station.currentOperation === node.nodeId;
+    
+    // Global material check (per plan, not per node yet)
+    const materialsReady = !materialSummary.hasShortages;
+    
+    // Determine task status
+    let status = 'pending';
+    
+    if (assignment) {
+      // Status from assignment takes precedence
+      if (assignment.status === 'completed') {
+        status = 'completed';
+      } else if (assignment.status === 'in_progress') {
+        status = 'in_progress';
+      } else if (assignment.status === 'paused') {
+        status = 'paused';
+      } else if (assignment.status === 'pending') {
+        // Check if ready or blocked
+        if (predecessorsDone && workerAvailable && stationAvailable && materialsReady) {
+          status = 'ready';
+        } else {
+          status = 'blocked';
+        }
+      }
+    } else {
+      // No assignment yet - check if can be started
+      if (predecessorsDone && workerAvailable && stationAvailable && materialsReady) {
+        status = 'ready';
+      } else {
+        status = 'blocked';
+      }
+    }
+    
+    return {
+      planId,
+      nodeId: node.nodeId,
+      name: node.name,
+      operationId: node.operationId,
+      operationName: node.operationName,
+      
+      // Resource assignments
+      workerId,
+      workerName: node.workerName,
+      stationId,
+      stationName: node.stationName,
+      
+      // Status and prerequisites
+      status,
+      prerequisites: {
+        predecessorsDone,
+        workerAvailable,
+        stationAvailable,
+        materialsReady
+      },
+      
+      // Timing
+      priorityIndex: node.priorityIndex,
+      estimatedNominalTime: node.estimatedNominalTime,
+      estimatedEffectiveTime: node.estimatedEffectiveTime,
+      
+      // Assignment details (if exists)
+      assignmentId: assignment?.id || null,
+      assignedAt: assignment?.createdAt || null,
+      actualStart: assignment?.actualStart || null,
+      actualFinish: assignment?.actualFinish || null,
+      
+      // Predecessor info for UI
+      predecessors: node.predecessors || [],
+      
+      // Material output info
+      hasOutputs: node.hasOutputs,
+      outputCode: node.outputCode,
+      outputQty: node.outputQty
+    };
+  });
+  
+  // Sort by priority index
+  tasks.sort((a, b) => a.priorityIndex - b.priorityIndex);
+  
+  return tasks;
+}
+
+// ============================================================================
 // OPERATIONS ROUTES
 // ============================================================================
 
@@ -1204,6 +1365,22 @@ router.delete('/production-plans/:id', withAuth, async (req, res) => {
     }
     
     return { success: true, id };
+  }, res);
+});
+
+// GET /api/mes/production-plans/:id/tasks - Get task execution states with prerequisites
+router.get('/production-plans/:id/tasks', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id } = req.params;
+    
+    if (!id) {
+      const e = new Error('plan_id_required');
+      e.status = 400;
+      throw e;
+    }
+    
+    const tasks = await getPlanExecutionState(id);
+    return { tasks };
   }, res);
 });
 

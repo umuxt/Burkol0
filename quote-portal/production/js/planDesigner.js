@@ -2543,6 +2543,9 @@ export async function savePlanDraft() {
     // Prepare timing summary for the plan document
     const timingSummary = planDesignerState.timingSummary || summarizePlanTiming(planDesignerState.nodes, planQuantity);
     
+    // Prepare execution graph for task management and prerequisite tracking
+    const executionGraph = buildExecutionGraph(planDesignerState.nodes);
+    
     const updates = {
       name: planName,
       description: planDesc,
@@ -2554,6 +2557,7 @@ export async function savePlanDraft() {
       autoAssign: true,
       materialSummary, // Add material summary for reporting
       timingSummary, // Add timing summary for reporting
+      executionGraph, // Add execution graph for task prerequisite tracking
       ...(assignments.length > 0 ? { assignments } : {})
     };
     updateProductionPlan(id, updates)
@@ -2616,6 +2620,9 @@ export async function savePlanDraft() {
   
   // Prepare timing summary for the plan document
   const timingSummary = planDesignerState.timingSummary || summarizePlanTiming(planDesignerState.nodes, planQuantity);
+  
+  // Prepare execution graph for task management and prerequisite tracking
+  const executionGraph = buildExecutionGraph(planDesignerState.nodes);
 
   const plan = {
     id: undefined,
@@ -2629,7 +2636,8 @@ export async function savePlanDraft() {
     status: 'production',
     autoAssign: true, // Enable auto-assignment for production plans
     materialSummary, // Add material summary for reporting
-    timingSummary // Add timing summary for reporting
+    timingSummary, // Add timing summary for reporting
+    executionGraph // Add execution graph for task prerequisite tracking
   };
   
   // Generate assignments payload for production status
@@ -3553,6 +3561,88 @@ export function getExecutionOrder() {
     console.warn('Cycle detected in plan graph. Remaining nodes:', Array.from(remaining));
   }
   return order;
+}
+
+/**
+ * Build execution graph metadata for production plan
+ * Calculates execution order, priority indices, and prerequisite relationships
+ * @param {Array} nodes - Plan nodes with assignments and predecessors
+ * @returns {Array} Execution graph with metadata for each node
+ */
+export function buildExecutionGraph(nodes) {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return [];
+  }
+  
+  // Get topological execution order
+  const executionOrder = getExecutionOrder();
+  
+  // Create priority index map (execution order position)
+  const priorityMap = new Map();
+  executionOrder.forEach((nodeId, index) => {
+    priorityMap.set(nodeId, index);
+  });
+  
+  // Build execution graph with full metadata
+  const executionGraph = nodes.map((node, originalIndex) => {
+    const priorityIndex = priorityMap.has(node.id) 
+      ? priorityMap.get(node.id) 
+      : executionOrder.length + originalIndex; // Fallback for unreachable nodes
+    
+    // Calculate effective duration with efficiency multipliers
+    const effectiveDuration = computeNodeEffectiveDuration(node);
+    
+    // Get worker and station names from current state caches
+    let workerName = '';
+    let stationName = '';
+    
+    if (node.assignedWorker) {
+      const worker = (planDesignerState.workers || []).find(w => 
+        w.id === node.assignedWorker || w.name === node.assignedWorker
+      );
+      workerName = worker ? worker.name : node.assignedWorker;
+    }
+    
+    if (node.assignedStation) {
+      const station = (planDesignerState.stations || []).find(s => 
+        s.id === node.assignedStation || s.name === node.assignedStation
+      );
+      stationName = station ? station.name : node.assignedStation;
+    }
+    
+    return {
+      nodeId: node.id,
+      name: node.name || node.id,
+      operationId: node.operationId || null,
+      operationName: node.operationName || '',
+      
+      // Prerequisite relationships
+      predecessors: Array.isArray(node.predecessors) ? [...node.predecessors] : [],
+      
+      // Resource assignments
+      assignedWorkerId: node.assignedWorker || null,
+      workerName,
+      assignedStationId: node.assignedStation || null,
+      stationName,
+      
+      // Timing information
+      estimatedNominalTime: node.estimatedTime || 0,
+      estimatedEffectiveTime: effectiveDuration,
+      
+      // Execution priority
+      priorityIndex,
+      
+      // Material information
+      hasOutputs: !!(node.semiCode || node.outputQty),
+      outputCode: node.semiCode || null,
+      outputQty: node.outputQty || null,
+      
+      // Original node index for reference
+      nodeIndex: originalIndex
+    };
+  });
+  
+  return executionGraph;
 }
 
 // Load approved quotes with WO codes into the order select dropdown

@@ -773,6 +773,12 @@ export function saveNodeEditBackend() {
           .catch(e => console.warn('Produced WIP upsert failed:', e?.message))
       }
     } catch {}
+    
+    // Invalidate timing summary and execution graph cache when node changes
+    // (predecessors, assignments, or timing changes affect execution order and prerequisites)
+    planDesignerState.timingSummary = null;
+    planDesignerState.executionGraph = null;
+    
     renderCanvas()
     const modal = document.getElementById('node-edit-modal')
     if (modal) {
