@@ -1333,15 +1333,12 @@ router.get('/workers/:id/assignments', withAuth, async (req, res) => {
       throw new Error('Worker not found');
     }
 
-    // Build query
+    // Build query with equality filters only
     let query = db.collection('mes-worker-assignments').where('workerId', '==', id);
     
     if (status) {
       query = query.where('status', '==', status);
     }
-    
-    // Order by start time
-    query = query.orderBy('start', 'asc');
     
     const snapshot = await query.get();
     const assignments = snapshot.docs.map(doc => ({
@@ -1353,6 +1350,14 @@ router.get('/workers/:id/assignments', withAuth, async (req, res) => {
       createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt,
       updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || doc.data().updatedAt
     }));
+
+    // Sort by start time in JavaScript (nulls last)
+    assignments.sort((a, b) => {
+      if (!a.start && !b.start) return 0;
+      if (!a.start) return 1;
+      if (!b.start) return -1;
+      return new Date(a.start).getTime() - new Date(b.start).getTime();
+    });
 
     return { assignments };
   }, res);
