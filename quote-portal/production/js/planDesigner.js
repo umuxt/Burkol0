@@ -40,6 +40,8 @@ export const planDesignerState = {
   readOnly: false,
   // Metadata about the currently opened plan/template (e.g., status, name)
   currentPlanMeta: null,
+  // Plan quantity - how many times the production flow should repeat
+  planQuantity: 1,
   // Dropdown debounce timestamps
   _orderPanelLastToggle: 0,
   _typePanelLastToggle: 0
@@ -1403,6 +1405,10 @@ export function savePlanAsTemplate() {
   let orderCode = orderSelect ? orderSelect.value : '';
   const scheduleType = scheduleTypeSelect ? scheduleTypeSelect.value : 'one-time';
   
+  // Get quantity from modal input if available, fallback to state
+  const quantityInput = document.getElementById('modal-plan-quantity');
+  const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
+  
   if (planDesignerState.readOnly) {
     const base = (planDesignerState.currentPlanMeta?.name) || planName || 'Untitled';
     planName = `${base} - kopyası`;
@@ -1419,6 +1425,7 @@ export function savePlanAsTemplate() {
     description: planDesc,
     orderCode: orderCode,
     scheduleType: scheduleType,
+    quantity: planQuantity,
     steps: JSON.parse(JSON.stringify(planDesignerState.nodes)),
     createdAt: new Date().toISOString(),
     status: 'template'
@@ -1428,6 +1435,10 @@ export function savePlanAsTemplate() {
   console.log('🔍 TEMPLATE BEING SAVED:', {
     orderCode: template.orderCode,
     scheduleType: template.scheduleType,
+    quantity: template.quantity,
+    planQuantity: planQuantity,
+    stateQuantity: planDesignerState.planQuantity,
+    metaQuantity: planDesignerState.currentPlanMeta?.quantity,
     name: template.name,
     description: template.description,
     status: template.status,
@@ -1472,6 +1483,11 @@ export function savePlanDraft() {
   const planDesc = document.getElementById('plan-description')?.value || '';
   const orderCode = document.getElementById('order-select')?.value || '';
   const scheduleType = document.getElementById('schedule-type')?.value || 'one-time';
+  
+  // Get quantity from modal input if available, fallback to state
+  const quantityInput = document.getElementById('modal-plan-quantity');
+  const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
+  
   const meta = planDesignerState.currentPlanMeta || {};
   const isFromTemplate = (meta.status === 'template' && meta.sourceTemplateId);
   if (isFromTemplate) {
@@ -1481,6 +1497,7 @@ export function savePlanDraft() {
       description: planDesc,
       orderCode,
       scheduleType,
+      quantity: planQuantity,
       nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
       status: 'production'
     };
@@ -1506,10 +1523,18 @@ export function savePlanDraft() {
     description: planDesc,
     orderCode,
     scheduleType,
+    quantity: planQuantity,
     nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
     createdAt: new Date().toISOString(),
     status: 'production'
   };
+  
+  console.log('🔍 SAVING PLAN WITH QUANTITY:', {
+    planQuantity,
+    stateQuantity: planDesignerState.planQuantity,
+    metaQuantity: planDesignerState.currentPlanMeta?.quantity,
+    fullPlan: plan
+  });
   getNextProductionPlanId()
     .then((newId) => { plan.id = newId || genId('plan-'); return createProductionPlan(plan) })
     .catch(() => {
@@ -1807,6 +1832,16 @@ export function selectPlanType(value, labelText) {
   // Update state
   if (planDesignerState.currentPlanMeta) {
     planDesignerState.currentPlanMeta.scheduleType = value;
+  }
+  
+  // Also update quantity from modal if available
+  const quantityInput = document.getElementById('modal-plan-quantity');
+  if (quantityInput) {
+    const quantity = parseInt(quantityInput.value) || 1;
+    planDesignerState.planQuantity = quantity;
+    if (planDesignerState.currentPlanMeta) {
+      planDesignerState.currentPlanMeta.quantity = quantity;
+    }
   }
   
   // Sync modal radio buttons
@@ -2164,7 +2199,7 @@ export function setReadOnly(flag) {
   } catch {}
 }
 
-// Set metadata (name, description, order, schedule type) into Plan Configuration UI
+// Set metadata (name, description, order, schedule type, quantity) into Plan Configuration UI
 export function setPlanMeta(meta = {}) {
   try {
     // Persist meta for contextual UI decisions (e.g., button labels)
@@ -2179,6 +2214,14 @@ export function setPlanMeta(meta = {}) {
     if (nameEl) nameEl.value = meta.name || '';
     if (descEl) descEl.value = meta.description || '';
     if (orderSel) orderSel.value = meta.orderCode || '';
+    
+    // Set plan quantity
+    planDesignerState.planQuantity = meta.quantity || 1;
+    const quantityInput = document.getElementById('modal-plan-quantity');
+    if (quantityInput) {
+      quantityInput.value = planDesignerState.planQuantity;
+      console.log('🔍 setPlanMeta - Set quantity input to:', quantityInput.value, 'from meta.quantity:', meta.quantity);
+    }
     
     // Update order label - try to find matching option text
     if (orderLabel) {
@@ -2210,7 +2253,11 @@ function setPlanConfigReadOnly(flag) {
     if (nameEl) nameEl.disabled = flag;
     if (descEl) descEl.disabled = flag;
     if (orderBtn) { orderBtn.style.pointerEvents = flag ? 'none' : ''; orderBtn.style.opacity = flag ? '0.6' : ''; }
-    if (typeBtn) { typeBtn.style.pointerEvents = flag ? 'none' : ''; typeBtn.style.opacity = flag ? '0.6' : ''; }
+    // Plan type button should still be clickable in read-only mode to view details
+    if (typeBtn) { 
+      typeBtn.style.opacity = flag ? '0.8' : '1';
+      // Remove pointer-events restriction so modal can open in read-only mode
+    }
   } catch {}
 }
 
@@ -2418,9 +2465,17 @@ window.clearPlanType = function() {
     recurringOptions.style.display = 'none';
   }
   
+  // Reset plan quantity to 1
+  const quantityInput = document.getElementById('modal-plan-quantity');
+  if (quantityInput) {
+    quantityInput.value = 1;
+  }
+  planDesignerState.planQuantity = 1;
+  
   // Reset plan type in state
   if (planDesignerState.currentPlanMeta) {
     planDesignerState.currentPlanMeta.scheduleType = null;
+    planDesignerState.currentPlanMeta.quantity = 1;
   }
   
   // Update button text
@@ -2450,6 +2505,17 @@ window.applyPlanTypeModal = function() {
   
   const planType = selectedRadio.value;
   console.log('Selected plan type:', planType);
+  
+  // Get and save plan quantity
+  const quantityInput = document.getElementById('modal-plan-quantity');
+  if (quantityInput) {
+    const quantity = parseInt(quantityInput.value) || 1;
+    planDesignerState.planQuantity = quantity;
+    if (planDesignerState.currentPlanMeta) {
+      planDesignerState.currentPlanMeta.quantity = quantity;
+    }
+    console.log('Applied plan quantity:', quantity);
+  }
   
   // Get recurring options if applicable
   if (planType === 'recurring') {
@@ -2540,4 +2606,111 @@ function initializePlanTypeModal() {
     // Show/hide custom frequency based on periodic frequency
     window.handleModalPeriodicFrequencyChange();
   }
+  
+  // Initialize plan quantity - use meta first, then state, then default
+  const quantityInput = document.getElementById('modal-plan-quantity');
+  if (quantityInput) {
+    const currentQuantity = planDesignerState.currentPlanMeta?.quantity || planDesignerState.planQuantity || 1;
+    quantityInput.value = currentQuantity;
+    planDesignerState.planQuantity = currentQuantity; // Sync state
+    console.log('Set plan quantity to:', quantityInput.value, 'from meta:', planDesignerState.currentPlanMeta?.quantity);
+  }
+  
+  // Set modal elements to read-only if in view mode
+  const isReadOnly = planDesignerState.readOnly;
+  if (isReadOnly) {
+    setPlanTypeModalReadOnly(true);
+    
+    // Update modal title for view mode
+    const modalTitle = document.getElementById('plan-type-modal-title');
+    if (modalTitle) {
+      modalTitle.textContent = 'Plan Türü Detayları (Görüntüleme)';
+    }
+  } else {
+    // Update modal title for edit mode
+    const modalTitle = document.getElementById('plan-type-modal-title');
+    if (modalTitle) {
+      modalTitle.textContent = 'Plan Türü Ayarları';
+    }
+  }
 }
+
+// Set plan type modal elements to read-only state
+function setPlanTypeModalReadOnly(flag) {
+  try {
+    // Disable radio buttons
+    const radioButtons = document.querySelectorAll('input[name="plan-type-radio"]');
+    radioButtons.forEach(radio => {
+      radio.disabled = flag;
+      if (flag) radio.style.pointerEvents = 'none';
+    });
+    
+    // Disable quantity input
+    const quantityInput = document.getElementById('modal-plan-quantity');
+    if (quantityInput) {
+      quantityInput.readOnly = flag;
+      if (flag) {
+        quantityInput.style.backgroundColor = '#f9fafb';
+        quantityInput.style.cursor = 'not-allowed';
+      }
+    }
+    
+    // Disable recurring selects
+    const recurringType = document.getElementById('modal-recurring-type');
+    if (recurringType) {
+      recurringType.disabled = flag;
+      if (flag) recurringType.style.backgroundColor = '#f9fafb';
+    }
+    
+    const periodicFreq = document.getElementById('modal-periodic-frequency');
+    if (periodicFreq) {
+      periodicFreq.disabled = flag;
+      if (flag) periodicFreq.style.backgroundColor = '#f9fafb';
+    }
+    
+    const customFreq = document.getElementById('modal-custom-frequency');
+    if (customFreq) {
+      customFreq.readOnly = flag;
+      if (flag) {
+        customFreq.style.backgroundColor = '#f9fafb';
+        customFreq.style.cursor = 'not-allowed';
+      }
+    }
+    
+    // Hide action buttons in read-only mode
+    const clearBtn = document.getElementById('plan-type-clear');
+    const applyBtn = document.getElementById('modal-apply-btn');
+    if (flag) {
+      if (clearBtn) clearBtn.style.display = 'none';
+      if (applyBtn) applyBtn.style.display = 'none';
+    } else {
+      if (clearBtn) clearBtn.style.display = '';
+      if (applyBtn) applyBtn.style.display = '';
+    }
+  } catch (e) {
+    console.warn('Error setting plan type modal read-only state:', e);
+  }
+}
+
+// Handle plan quantity change
+window.handlePlanQuantityChange = function() {
+  const quantityInput = document.getElementById('modal-plan-quantity');
+  if (!quantityInput) return;
+  
+  const newQuantity = parseInt(quantityInput.value) || 1;
+  
+  // Ensure minimum value is 1
+  if (newQuantity < 1) {
+    quantityInput.value = 1;
+    planDesignerState.planQuantity = 1;
+  } else {
+    planDesignerState.planQuantity = newQuantity;
+  }
+  
+  // Save to current plan meta if exists
+  if (planDesignerState.currentPlanMeta) {
+    planDesignerState.currentPlanMeta.quantity = planDesignerState.planQuantity;
+  }
+  
+  console.log('Plan quantity changed to:', planDesignerState.planQuantity);
+};

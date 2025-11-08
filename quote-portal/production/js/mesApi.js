@@ -226,6 +226,16 @@ export async function updateProductionPlan(id, updates) {
   return await res.json()
 }
 
+// Delete a production plan (or template) by id
+export async function deleteProductionPlan(id) {
+  const res = await fetch(`${API_BASE}/api/mes/production-plans/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: withAuth()
+  })
+  if (!res.ok) throw new Error(`production_plan_delete_failed ${res.status}`)
+  return await res.json()
+}
+
 // Fetch production plans
 export async function getProductionPlans() {
   const res = await fetch(`${API_BASE}/api/mes/production-plans`, { headers: withAuth() })
@@ -459,6 +469,42 @@ export async function getApprovedQuotes() {
   if (!res.ok) throw new Error(`approved_quotes_load_failed ${res.status}`)
   const payload = await res.json().catch(() => ({}))
   return Array.isArray(payload?.approvedQuotes) ? payload.approvedQuotes : []
+}
+
+// Clear template reference from approved quotes
+export async function clearTemplateFromApprovedQuotes(templateId) {
+  if (!templateId) return;
+  
+  try {
+    // Get all approved quotes
+    const quotes = await getApprovedQuotes();
+    
+    // Find quotes that reference this template
+    const affectedQuotes = quotes.filter(quote => quote.productionPlanId === templateId);
+    
+    console.log(`Found ${affectedQuotes.length} quotes linked to template ${templateId}`);
+    
+    // Update each affected quote to clear the production plan reference
+    for (const quote of affectedQuotes) {
+      await updateApprovedQuoteProductionPlan(quote.code || quote.id, null);
+      console.log(`Cleared production plan reference from quote: ${quote.code || quote.id}`);
+    }
+    
+  } catch (error) {
+    console.error('Error clearing template from approved quotes:', error);
+    throw error;
+  }
+}
+
+// Update production plan reference for approved quote
+export async function updateApprovedQuoteProductionPlan(quoteCode, productionPlanId) {
+  const res = await fetch(`${API_BASE}/api/mes/approved-quotes/${encodeURIComponent(quoteCode)}/production-plan`, {
+    method: 'PATCH',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ productionPlanId })
+  })
+  if (!res.ok) throw new Error(`approved_quote_production_plan_update_failed ${res.status}`)
+  return await res.json()
 }
 
 // Update production state for work order

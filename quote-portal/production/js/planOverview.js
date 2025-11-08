@@ -1,6 +1,6 @@
 // Plan Overview UI: tabs, filter, and create action
 
-import { getProductionPlans, getPlanTemplates } from './mesApi.js'
+import { getProductionPlans, getPlanTemplates, deleteProductionPlan, clearTemplateFromApprovedQuotes } from './mesApi.js'
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
 import { loadPlanNodes, setReadOnly, setPlanMeta, resetPlanDesignerState } from './planDesigner.js'
 import { loadApprovedOrdersToSelect } from './planDesignerBackend.js'
@@ -98,7 +98,8 @@ function renderTemplatesList(templates) {
         <td class="metadata-column hidden" style="padding: 10px 12px;">${updated}</td>
         <td class="metadata-column hidden" style="padding: 10px 12px;">${updatedBy}</td>
         <td style="padding: 10px 12px; text-align:right;">
-          <button onclick="editTemplateById('${t.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;">Edit</button>
+          <button onclick="editTemplateById('${t.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px; margin-right:4px;">Edit</button>
+          <button onclick="deleteTemplateById('${t.id || ''}')" style="padding:4px 8px; border:1px solid #dc2626; background:white; color:#dc2626; border-radius:4px; cursor:pointer; font-size:12px;">Delete</button>
         </td>
       </tr>`
     }).join('')
@@ -167,7 +168,7 @@ export async function viewProductionPlan(id) {
       }
     } catch {}
     setReadOnly(true)
-    setPlanMeta({ name: p.name, description: p.description, orderCode: p.orderCode, scheduleType: p.scheduleType })
+    setPlanMeta({ name: p.name, description: p.description, orderCode: p.orderCode, scheduleType: p.scheduleType, quantity: p.quantity || 1 })
     // Ensure the order dropdown reflects this plan's order even if it's taken
     try { await loadApprovedOrdersToSelect(); } catch {}
     const nodes = Array.isArray(p.nodes) ? p.nodes : (Array.isArray(p.steps) ? p.steps : (p.graph && Array.isArray(p.graph.nodes) ? p.graph.nodes : []))
@@ -208,7 +209,8 @@ export function editTemplateById(id) {
         name: tpl.name, 
         description: tpl.description || '', 
         orderCode: tpl.orderCode || '', 
-        scheduleType: tpl.scheduleType || 'one-time', 
+        scheduleType: tpl.scheduleType || 'one-time',
+        quantity: tpl.quantity || 1,
         status: 'template', 
         sourceTemplateId: tpl.id 
       });
@@ -223,6 +225,46 @@ export function editTemplateById(id) {
       .then(list => { _templatesCache = list || []; openTpl((_templatesCache || []).find(x => x.id === id)) })
       .catch(e => console.warn('editTemplateById reload failed', e?.message))
   } catch (e) { console.warn('editTemplateById failed', e?.message) }
+}
+
+export async function deleteTemplateById(id) {
+  if (!id) {
+    console.warn('No template ID provided for deletion');
+    return;
+  }
+  
+  // Confirm deletion
+  const confirmed = confirm('Bu template\'i silmek istediğinizden emin misiniz? Bu işlem geri alınamaz ve bu template ile bağlantılı tüm approved quotes\'ların plan bağlantıları kaldırılacaktır.');
+  if (!confirmed) return;
+  
+  try {
+    console.log('Deleting template:', id);
+    
+    // 1. First, clear production plan references from approved quotes
+    await clearTemplateFromApprovedQuotes(id);
+    
+    // 2. Then delete the template from Firebase
+    await deleteProductionPlan(id);
+    
+    // 3. Update local cache
+    _templatesCache = _templatesCache.filter(t => t.id !== id);
+    
+    // 4. Refresh the templates table
+    if (typeof window.loadAndRenderPlans === 'function') {
+      await window.loadAndRenderPlans();
+    }
+    
+    console.log('Template deleted successfully:', id);
+    if (typeof window.showToast === 'function') {
+      window.showToast('Template başarıyla silindi', 'success');
+    }
+    
+  } catch (error) {
+    console.error('Error deleting template:', error);
+    if (typeof window.showToast === 'function') {
+      window.showToast('Template silinirken hata oluştu: ' + error.message, 'error');
+    }
+  }
 }
 
 export function setActivePlanTab(tabId) {

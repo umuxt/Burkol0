@@ -1065,9 +1065,12 @@ export function generatePlanDesigner() {
                 </button>
                 <div id="plan-type-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; min-height: fit-content; max-height: 80vh; overflow: hidden; z-index: 9999;">
                   <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-                    <button id="plan-type-clear" type="button" class="plan-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearPlanType()">Clear</button>
-                    <button id="modal-apply-btn" type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid black; background:black; color:white; border-radius:6px; cursor:pointer;" onclick="applyPlanTypeModal()">Apply</button>
-                    <button id="plan-type-close" type="button" title="Close" class="plan-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer; margin-left:auto;" onclick="hidePlanTypePanel()">×</button>
+                    <span id="plan-type-modal-title" style="font-weight: 500; font-size: 13px; color: var(--foreground);">Plan Türü Ayarları</span>
+                    <div style="margin-left: auto; display: flex; gap: 6px;">
+                      <button id="plan-type-clear" type="button" class="plan-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearPlanType()">Clear</button>
+                      <button id="modal-apply-btn" type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid black; background:black; color:white; border-radius:6px; cursor:pointer;" onclick="applyPlanTypeModal()">Apply</button>
+                      <button id="plan-type-close" type="button" title="Close" class="plan-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="hidePlanTypePanel()">×</button>
+                    </div>
                   </div>
                   <div style="max-height: 70vh; overflow-y: auto; padding: 8px; box-sizing: border-box;">
                     <!-- Plan Type Selection -->
@@ -1080,6 +1083,12 @@ export function generatePlanDesigner() {
                         <input type="radio" name="plan-type-radio" value="recurring" onchange="if(this.checked) { selectPlanType('recurring', 'Devirli'); handlePlanTypeModalChange('recurring'); }">
                         <span style="font-size:12px;">Devirli</span>
                       </label>
+                    </div>
+                    
+                    <!-- Quantity Section -->
+                    <div style="border-top: 1px solid var(--border); padding-top: 12px; margin-bottom: 12px;">
+                      <label style="font-weight:500; font-size:12px; margin:0 0 4px 0; display:block;">Miktar</label>
+                      <input type="number" id="modal-plan-quantity" min="1" value="1" style="width:100%; height:32px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px;" onchange="handlePlanQuantityChange()" placeholder="1">
                     </div>
                     
                     <!-- Recurring Options (shown when recurring is selected) -->
