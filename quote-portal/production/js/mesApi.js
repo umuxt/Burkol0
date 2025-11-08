@@ -325,6 +325,42 @@ export async function upsertProducedWipFromNode(node, ops = [], stations = []) {
 
 export function genId(prefix = '') { return `${prefix}${Math.random().toString(36).slice(2, 9)}` }
 
+// Worker assignments API
+export async function getWorkerAssignments(workerId, status = 'active') {
+  const params = new URLSearchParams();
+  if (status) params.append('status', status);
+  
+  const response = await withAuth(fetch)(`${API_BASE}/api/mes/workers/${workerId}/assignments?${params}`);
+  if (!response.ok) throw new Error(`Failed to fetch worker assignments: ${response.statusText}`);
+  
+  const data = await response.json();
+  return data.assignments || [];
+}
+
+// Substations API
+export async function getSubstations(stationId = null) {
+  const params = new URLSearchParams();
+  if (stationId) params.append('stationId', stationId);
+  
+  const response = await withAuth(fetch)(`${API_BASE}/api/mes/substations?${params}`);
+  if (!response.ok) throw new Error(`Failed to fetch substations: ${response.statusText}`);
+  
+  const data = await response.json();
+  return data.substations || [];
+}
+
+// Batch worker assignments API
+export async function batchWorkerAssignments(planId, assignments) {
+  const response = await withAuth(fetch)(`${API_BASE}/api/mes/worker-assignments/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ planId, assignments })
+  });
+  
+  if (!response.ok) throw new Error(`Failed to batch assignments: ${response.statusText}`);
+  return await response.json();
+}
+
 // Master Data (skills, operation types)
 let _masterDataCache = null
 const MD_CHANGED_EVENT = 'master-data:changed'

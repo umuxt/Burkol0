@@ -1,7 +1,7 @@
 // Plan Designer logic and state
 import { showToast } from './ui.js';
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js';
-import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations } from './mesApi.js';
+import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkerAssignments, getSubstations, batchWorkerAssignments } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
 import { API_BASE, withAuth } from '../../shared/lib/api.js';
@@ -28,6 +28,11 @@ export const planDesignerState = {
   connectionSource: null,
   hoveredNode: null,
   connectionTarget: null,
+  // Auto-assignment caching
+  workerAssignmentsCache: new Map(), // workerId -> assignments[]
+  substationsCache: new Map(), // stationId -> substations[]
+  cacheTimestamp: null,
+  cacheExpirationMs: 5 * 60 * 1000, // 5 minutes
   // Fullscreen zoom state
   fullscreenZoom: 100,
   // Canvas pan state
@@ -55,6 +60,330 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+// ============================================================================
+// AUTO-ASSIGNMENT UTILITIES
+// ============================================================================
+
+// Check if cache is expired
+function isCacheExpired() {
+  if (!planDesignerState.cacheTimestamp) return true;
+  return (Date.now() - planDesignerState.cacheTimestamp) > planDesignerState.cacheExpirationMs;
+}
+
+// Fetch worker assignments with caching
+async function fetchWorkerAssignments(workerId, force = false) {
+  if (!force && !isCacheExpired() && planDesignerState.workerAssignmentsCache.has(workerId)) {
+    return planDesignerState.workerAssignmentsCache.get(workerId);
+  }
+  
+  try {
+    const assignments = await getWorkerAssignments(workerId, 'active');
+    planDesignerState.workerAssignmentsCache.set(workerId, assignments);
+    planDesignerState.cacheTimestamp = Date.now();
+    return assignments;
+  } catch (error) {
+    console.error('Failed to fetch worker assignments:', error);
+    return [];
+  }
+}
+
+// Fetch substations with caching
+async function fetchSubstations(stationId, force = false) {
+  const cacheKey = stationId || 'all';
+  if (!force && !isCacheExpired() && planDesignerState.substationsCache.has(cacheKey)) {
+    return planDesignerState.substationsCache.get(cacheKey);
+  }
+  
+  try {
+    const substations = await getSubstations(stationId);
+    planDesignerState.substationsCache.set(cacheKey, substations);
+    planDesignerState.cacheTimestamp = Date.now();
+    return substations;
+  } catch (error) {
+    console.error('Failed to fetch substations:', error);
+    return [];
+  }
+}
+
+// Get timezone from master data (with fallback)
+function getTimezone() {
+  // TODO: Fetch from master data when available
+  // For now, use browser timezone
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+// Compute next available time slot for a worker
+function computeNextAvailableSlot(worker, assignments, startAfter = new Date(), durationMinutes = 60) {
+  const schedule = worker.personalSchedule;
+  if (!schedule || !schedule.blocks) {
+    // No schedule defined, assume immediate availability
+    return {
+      start: new Date(startAfter),
+      end: new Date(startAfter.getTime() + durationMinutes * 60000)
+    };
+  }
+
+  const timezone = getTimezone();
+  const current = new Date(Math.max(startAfter.getTime(), Date.now()));
+  
+  // Convert assignments to sorted time slots
+  const busySlots = assignments
+    .map(a => ({
+      start: new Date(a.start),
+      end: new Date(a.end)
+    }))
+    .filter(slot => slot.end > current)
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+  // Find next available slot within schedule blocks
+  let candidate = new Date(current);
+  const maxDays = 14; // Look ahead 2 weeks maximum
+  
+  for (let dayOffset = 0; dayOffset < maxDays; dayOffset++) {
+    const checkDate = new Date(candidate);
+    checkDate.setDate(checkDate.getDate() + dayOffset);
+    
+    const dayName = checkDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const dayBlocks = schedule.blocks[dayName] || [];
+    
+    for (const block of dayBlocks) {
+      if (!block.start || !block.end) continue;
+      
+      // Parse block times (assume HH:MM format)
+      const [startHour, startMin] = block.start.split(':').map(Number);
+      const [endHour, endMin] = block.end.split(':').map(Number);
+      
+      const blockStart = new Date(checkDate);
+      blockStart.setHours(startHour, startMin, 0, 0);
+      
+      const blockEnd = new Date(checkDate);
+      blockEnd.setHours(endHour, endMin, 0, 0);
+      
+      // Skip if block is in the past
+      if (blockEnd <= current) continue;
+      
+      // Adjust start time if it's in the past
+      const slotStart = new Date(Math.max(blockStart.getTime(), current.getTime()));
+      const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
+      
+      // Check if slot fits within block
+      if (slotEnd <= blockEnd) {
+        // Check for conflicts with busy slots
+        const hasConflict = busySlots.some(busy => 
+          (slotStart < busy.end && slotEnd > busy.start)
+        );
+        
+        if (!hasConflict) {
+          return { start: slotStart, end: slotEnd };
+        }
+      }
+    }
+  }
+  
+  // Fallback: schedule after last assignment
+  if (busySlots.length > 0) {
+    const lastEnd = busySlots[busySlots.length - 1].end;
+    return {
+      start: new Date(lastEnd),
+      end: new Date(lastEnd.getTime() + durationMinutes * 60000)
+    };
+  }
+  
+  // Ultimate fallback
+  return {
+    start: new Date(current),
+    end: new Date(current.getTime() + durationMinutes * 60000)
+  };
+}
+
+// Find best worker for a node using auto-assignment rules
+async function findBestWorker(node, workers, forceRefresh = false) {
+  if (!node.skills || !Array.isArray(node.skills) || node.skills.length === 0) {
+    return null; // No skills required
+  }
+  
+  // Filter workers by matching skills
+  const candidates = workers.filter(worker => {
+    if (!worker.skills || !Array.isArray(worker.skills)) return false;
+    return node.skills.every(skill => worker.skills.includes(skill));
+  });
+  
+  if (candidates.length === 0) return null;
+  
+  // Fetch assignments for all candidates
+  const candidateData = await Promise.all(
+    candidates.map(async worker => {
+      const assignments = await fetchWorkerAssignments(worker.id, forceRefresh);
+      const nextSlot = computeNextAvailableSlot(worker, assignments, new Date(), node.time || 60);
+      
+      return {
+        worker,
+        assignments,
+        nextSlot,
+        workload: assignments.length,
+        expectedFinish: nextSlot.end
+      };
+    })
+  );
+  
+  // Sort by auto-assignment rules:
+  // 1. Earliest expected finish time
+  // 2. If tie, count of planned tasks (lower is better)
+  // 3. Deterministic order by worker name
+  candidateData.sort((a, b) => {
+    const timeDiff = a.expectedFinish.getTime() - b.expectedFinish.getTime();
+    if (Math.abs(timeDiff) > 60000) return timeDiff; // 1-minute tolerance
+    
+    const workloadDiff = a.workload - b.workload;
+    if (workloadDiff !== 0) return workloadDiff;
+    
+    return a.worker.name.localeCompare(b.worker.name);
+  });
+  
+  return candidateData[0] || null;
+}
+
+// Find best substation for a node
+async function findBestSubstation(stationId, startTime, endTime, forceRefresh = false) {
+  if (!stationId) return null;
+  
+  const substations = await fetchSubstations(stationId, forceRefresh);
+  const activeSubstations = substations.filter(sub => sub.status === 'active');
+  
+  if (activeSubstations.length === 0) return null;
+  
+  // For now, return first available (can be enhanced with assignment checking)
+  return activeSubstations[0];
+}
+
+// Perform auto-assignment for a node
+async function performAutoAssignment(node, workers, stations, forceRefresh = false) {
+  try {
+    // Find best worker
+    const workerResult = await findBestWorker(node, workers, forceRefresh);
+    if (!workerResult) {
+      node.assignmentWarnings = ['No workers available with required skills'];
+      node.requiresAttention = true;
+      return false;
+    }
+    
+    // Find assigned station for this worker
+    const station = stations.find(s => s.id === node.assignedStation);
+    if (!station) {
+      node.assignmentWarnings = ['No station assigned to this node'];
+      node.requiresAttention = true;
+      return false;
+    }
+    
+    // Find best substation
+    const substation = await findBestSubstation(
+      station.id, 
+      workerResult.nextSlot.start, 
+      workerResult.nextSlot.end, 
+      forceRefresh
+    );
+    
+    // Update node with assignments
+    node.assignedWorker = workerResult.worker.id;
+    node.startTime = workerResult.nextSlot.start.toISOString();
+    node.endTime = workerResult.nextSlot.end.toISOString();
+    node.assignedSubStation = substation ? substation.id : null;
+    node.assignmentMode = 'auto';
+    node.requiresAttention = false;
+    node.assignmentWarnings = [];
+    
+    if (!substation) {
+      node.assignmentWarnings.push('No substations available for assigned station');
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Auto-assignment failed:', error);
+    node.assignmentWarnings = [`Auto-assignment failed: ${error.message}`];
+    node.requiresAttention = true;
+    return false;
+  }
+}
+
+// Validate manual assignment and show warnings
+async function validateManualAssignment(node, workerId, startTime, endTime, forceRefresh = false) {
+  const warnings = [];
+  
+  try {
+    if (workerId) {
+      const assignments = await fetchWorkerAssignments(workerId, forceRefresh);
+      
+      // Check for overlaps with existing assignments
+      const nodeStart = new Date(startTime);
+      const nodeEnd = new Date(endTime);
+      
+      const conflicts = assignments.filter(assignment => {
+        const assignStart = new Date(assignment.start);
+        const assignEnd = new Date(assignment.end);
+        return (nodeStart < assignEnd && nodeEnd > assignStart);
+      });
+      
+      if (conflicts.length > 0) {
+        warnings.push(`Worker has ${conflicts.length} conflicting assignment(s)`);
+      }
+      
+      // Check worker schedule availability
+      const workers = await getWorkers();
+      const worker = workers.find(w => w.id === workerId);
+      if (worker && worker.personalSchedule && worker.personalSchedule.blocks) {
+        const dayName = nodeStart.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+        const dayBlocks = worker.personalSchedule.blocks[dayName] || [];
+        
+        const nodeHour = nodeStart.getHours();
+        const nodeMinute = nodeStart.getMinutes();
+        const nodeTimeMinutes = nodeHour * 60 + nodeMinute;
+        
+        const endHour = nodeEnd.getHours();
+        const endMinute = nodeEnd.getMinutes();
+        const endTimeMinutes = endHour * 60 + endMinute;
+        
+        const withinSchedule = dayBlocks.some(block => {
+          if (!block.start || !block.end) return false;
+          
+          const [blockStartHour, blockStartMin] = block.start.split(':').map(Number);
+          const [blockEndHour, blockEndMin] = block.end.split(':').map(Number);
+          const blockStartMinutes = blockStartHour * 60 + blockStartMin;
+          const blockEndMinutes = blockEndHour * 60 + blockEndMin;
+          
+          return nodeTimeMinutes >= blockStartMinutes && endTimeMinutes <= blockEndMinutes;
+        });
+        
+        if (!withinSchedule && dayBlocks.length > 0) {
+          warnings.push('Assignment is outside worker\'s scheduled hours');
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Manual assignment validation failed:', error);
+    warnings.push(`Validation failed: ${error.message}`);
+  }
+  
+  return warnings;
+}
+
+// Generate assignments payload for production plan saving
+export function generateAssignmentsPayload(nodes) {
+  return nodes
+    .filter(node => node.assignedWorker && node.startTime && node.endTime)
+    .map(node => ({
+      nodeId: node.id,
+      workerId: node.assignedWorker,
+      stationId: node.assignedStation,
+      subStationCode: node.assignedSubStation,
+      start: node.startTime,
+      end: node.endTime,
+      status: 'pending'
+    }));
+}
+
+// Export auto-assignment functions for use in planDesignerBackend.js
+export { performAutoAssignment, validateManualAssignment, fetchWorkerAssignments, fetchSubstations };
 
 export async function loadOperationsToolbox() {
   const listContainer = document.getElementById('operations-list');
@@ -647,7 +976,14 @@ export function handleCanvasDrop(event) {
     y: Math.max(0, y),
     connections: [],
     assignedWorker: null,
-    assignedStation: null
+    assignedStation: null,
+    // Auto-assignment scheduling fields
+    startTime: null,
+    endTime: null,
+    assignedSubStation: null,
+    assignmentMode: 'auto', // 'auto' or 'manual'
+    requiresAttention: false,
+    assignmentWarnings: []
   };
   
   // Quiet
@@ -708,19 +1044,25 @@ export function renderNode(node, targetCanvas = null) {
     const extra = rms.length > 2 ? ` +${rms.length-2} more` : ''
     return parts.join(', ') + extra
   })()
+  const warningBadge = node.requiresAttention ? 
+    '<span style="background: #dc2626; color: white; font-size: 10px; padding: 1px 4px; border-radius: 8px; margin-left: 4px;">!</span>' : '';
   const actionsHtml = planDesignerState.readOnly ? '' : [
     '<div style="display: flex; gap: 2px;">',
     `<button onclick="event.stopPropagation(); editNode('${node.id}')" style="width: 20px; height: 20px; border: none; background: #f3f4f6; border-radius: 3px; cursor: pointer; font-size: 10px;">✏️</button>`,
     `<button onclick="event.stopPropagation(); deleteNode('${node.id}')" style="width: 20px; height: 20px; border: none; background: #fee2e2; border-radius: 3px; cursor: pointer; font-size: 10px;">🗑️</button>`,
     '</div>'
   ].join('');
+  const scheduleInfo = node.startTime && node.endTime ? 
+    `<div style="font-size: 10px; color: #059669; margin-bottom: 2px;">⏰ ${new Date(node.startTime).toLocaleString('tr-TR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} - ${new Date(node.endTime).toLocaleString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</div>` : '';
+  
   nodeElement.innerHTML = [
     '<div style="display: flex; justify-content: between; align-items: flex-start; margin-bottom: 4px;">',
-    `<div class="drag-handle" style="font-weight: 600; font-size: 14px; color: ${colors[node.type] || '#6b7280'}; flex: 1; cursor: ${planDesignerState.readOnly ? 'default' : 'move'}; padding: 2px;">🔸 ${node.name}</div>`,
+    `<div class="drag-handle" style="font-weight: 600; font-size: 14px; color: ${colors[node.type] || '#6b7280'}; flex: 1; cursor: ${planDesignerState.readOnly ? 'default' : 'move'}; padding: 2px;">🔸 ${node.name}${warningBadge}</div>`,
     actionsHtml,
     '</div>',
     `<div style="font-size: 11px; color: #6b7280; margin-bottom: 2px;">Type: ${node.type}</div>`,
     `<div style=\"font-size: 11px; color: #6b7280; margin-bottom: 2px;\">⏱️ ${node.time} min</div>`,
+    scheduleInfo,
     `<div style=\"font-size: 10px; color: #9ca3af;\">Worker: ${node.assignedWorker || 'Not assigned'}<br>Station: ${node.assignedStation || 'Not assigned'}<br>Materials: ${matSummary}</div>`
   ].join('');
 
@@ -1505,6 +1847,7 @@ export function savePlanDraft() {
   const isFromTemplate = (meta.status === 'template' && meta.sourceTemplateId);
   if (isFromTemplate) {
     const id = meta.sourceTemplateId;
+    const assignments = generateAssignmentsPayload(planDesignerState.nodes);
     const updates = {
       name: planName,
       description: planDesc,
@@ -1512,7 +1855,9 @@ export function savePlanDraft() {
       scheduleType,
       quantity: planQuantity,
       nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
-      status: 'production'
+      status: 'production',
+      autoAssign: true,
+      ...(assignments.length > 0 ? { assignments } : {})
     };
     updateProductionPlan(id, updates)
       .then(() => {
@@ -1539,16 +1884,26 @@ export function savePlanDraft() {
     quantity: planQuantity,
     nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
     createdAt: new Date().toISOString(),
-    status: 'production'
+    status: 'production',
+    autoAssign: true // Enable auto-assignment for production plans
   };
   
-  console.log('🔍 SAVING PLAN WITH QUANTITY:', {
+  // Generate assignments payload for production status
+  const assignments = generateAssignmentsPayload(planDesignerState.nodes);
+  if (assignments.length > 0) {
+    plan.assignments = assignments;
+  }
+  
+  console.log('🔍 SAVING PLAN WITH QUANTITY AND ASSIGNMENTS:', {
     planQuantity,
     stateQuantity: planDesignerState.planQuantity,
     metaQuantity: planDesignerState.currentPlanMeta?.quantity,
+    assignmentsCount: assignments.length,
     fullPlan: plan
   });
-  getNextProductionPlanId()
+  getNextProductionPlan
+
+Id()
     .then((newId) => { plan.id = newId || genId('plan-'); return createProductionPlan(plan) })
     .catch(() => {
       plan.id = plan.id || genId('plan-');

@@ -91,6 +91,28 @@ let modalEscapeHandler = null;
 // Listener for live-sync of materials when graph changes while modal is open
 let materialChangeHandler = null;
 
+// Generate assignment warnings UI
+function generateAssignmentWarningsUI(node) {
+  if (!node.assignmentWarnings || node.assignmentWarnings.length === 0) {
+    return '';
+  }
+  
+  const warningStyle = node.requiresAttention ? 
+    'background: #fef2f2; border: 1px solid #fecaca; color: #dc2626;' :
+    'background: #fffbeb; border: 1px solid #fde68a; color: #d97706;';
+    
+  const warningsHtml = node.assignmentWarnings
+    .map(warning => `<div style="font-size: 12px; margin-bottom: 4px;">⚠️ ${escapeHtml(warning)}</div>`)
+    .join('');
+    
+  return `<div style="margin-bottom: 16px; padding: 8px; border-radius: 4px; ${warningStyle}">
+    <div style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">
+      ${node.requiresAttention ? 'Requires Attention' : 'Assignment Warnings'}
+    </div>
+    ${warningsHtml}
+  </div>`;
+}
+
 export async function loadOperationsToolboxBackend() {
   const listContainer = document.getElementById('operations-list')
   const fullscreenListContainer = document.getElementById('fullscreen-operations-list')
@@ -338,6 +360,7 @@ export async function editNodeBackend(nodeId) {
     `<div id="manual-worker-select" style="margin-bottom: 16px; ${selectedAssignMode==='manual'&&manualEnabled?'':'display:none;'}"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Worker</label><select id="edit-worker" ${manualEnabled?'':'disabled'} style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;"><option value="">Not assigned</option>` +
     compatibleWorkers.map(w => '<option value="' + escapeHtml(w.name) + '" ' + (node.assignedWorker === w.name ? 'selected' : '') + '>' + escapeHtml(w.name) + '</option>').join('') +
     '</select></div>' +
+    generateAssignmentWarningsUI(node) +
     (function(){
       const rows = Array.isArray(node.rawMaterials) ? node.rawMaterials : (node.rawMaterial ? [node.rawMaterial] : [])
       const buildRow = (rm, idx) => {
@@ -522,38 +545,76 @@ export function saveNodeEditBackend() {
   node.outputQty = Number.isFinite(outQtyNum) ? outQtyNum : null
   node.outputUnit = (outUnit || '').trim()
 
-  // Auto-assign worker by best skill overlap
+  // Auto-assign worker using new logic with scheduling
   if (primaryStation && node.assignmentMode === 'auto') {
-    // We don't have workers list here; reuse last loaded compatible workers by reopening quick filter
-    getWorkers(true).then(ws => {
-      const st = (_stationsCacheFull||[]).find(s => s.name === primaryStation.name)
-      const stSkills = st ? computeStationEffectiveSkills(st) : []
-      const requiredList = Array.from(new Set([...(node.skills||[]), ...stSkills]))
-      const required = new Set(requiredList)
-      const eligible = ws.filter(w => {
-        const sset = new Set((w.skills||[]))
-        for (const rs of required) { if (!sset.has(rs)) return false }
-        return true
-      })
-      if (eligible.length > 0) {
-        // choose the one with highest seniority or random; fallback to first
-        node.assignedWorker = eligible[0].name || eligible[0].id
-      } else {
-        // fallback: best overlap
-        let best = null; let bestScore = -1
-        for (const w of ws) {
-          const skills = new Set((w.skills||[]))
-          let score = 0
-          required.forEach(s => { if (skills.has(s)) score++ })
-          if (score > bestScore) { best = w; bestScore = score }
-        }
-        node.assignedWorker = best ? (best.name || best.id) : null
-      }
-      applyMaterial()
-    }).catch(() => { node.assignedWorker = null; applyMaterial() })
+    // Import auto-assignment functions from planDesigner.js
+    import('./planDesigner.js').then(module => {
+      const { performAutoAssignment } = module;
+      getWorkers(true).then(ws => {
+        performAutoAssignment(node, ws, _stationsCacheFull, true)
+          .then(() => applyMaterial())
+          .catch(err => {
+            console.error('Auto-assignment failed:', err);
+            node.requiresAttention = true;
+            node.assignmentWarnings = [`Auto-assignment failed: ${err.message}`];
+            applyMaterial();
+          });
+      }).catch(() => { 
+        node.assignedWorker = null; 
+        node.requiresAttention = true;
+        node.assignmentWarnings = ['Failed to load workers data'];
+        applyMaterial(); 
+      });
+    }).catch(() => {
+      // Fallback to legacy logic if import fails
+      getWorkers(true).then(ws => {
+        const st = (_stationsCacheFull||[]).find(s => s.name === primaryStation.name)
+        const stSkills = st ? computeStationEffectiveSkills(st) : []
+        const requiredList = Array.from(new Set([...(node.skills||[]), ...stSkills]))
+        const required = new Set(requiredList)
+        const eligible = ws.filter(w => {
+          const sset = new Set((w.skills||[]))
+          for (const rs of required) { if (!sset.has(rs)) return false }
+          return true
+        })
+        node.assignedWorker = eligible.length > 0 ? (eligible[0].name || eligible[0].id) : null
+        applyMaterial()
+      }).catch(() => { node.assignedWorker = null; applyMaterial() })
+    });
+  } else if (primaryStation && node.assignmentMode === 'manual' && manualWorker) {
+    // Manual assignment with validation
+    import('./planDesigner.js').then(module => {
+      const { validateManualAssignment } = module;
+      const now = new Date();
+      const duration = node.time || 60;
+      const startTime = now.toISOString();
+      const endTime = new Date(now.getTime() + duration * 60000).toISOString();
+      
+      validateManualAssignment(node, manualWorker, startTime, endTime, true)
+        .then(warnings => {
+          node.assignedWorker = manualWorker;
+          node.startTime = startTime;
+          node.endTime = endTime;
+          node.assignmentMode = 'manual';
+          node.assignmentWarnings = warnings;
+          node.requiresAttention = warnings.length > 0;
+          applyMaterial();
+        })
+        .catch(err => {
+          console.error('Manual assignment validation failed:', err);
+          node.assignedWorker = manualWorker;
+          node.assignmentWarnings = [`Validation failed: ${err.message}`];
+          node.requiresAttention = true;
+          applyMaterial();
+        });
+    }).catch(() => {
+      // Fallback if import fails
+      node.assignedWorker = manualWorker;
+      applyMaterial();
+    });
   } else {
-    node.assignedWorker = manualWorker || null
-    applyMaterial()
+    node.assignedWorker = manualWorker || null;
+    applyMaterial();
   }
 
   function applyMaterial() {
