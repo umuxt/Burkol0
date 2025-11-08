@@ -16,6 +16,8 @@ export const planDesignerState = {
   nodeIdCounter: 1,
   isFullscreen: false,
   availableOperations: [],
+  availableWorkers: [], // Cache for migration lookup
+  availableStations: [], // Cache for migration lookup
   // Global drag state
   isDragging: false,
   draggedNode: null,
@@ -409,6 +411,20 @@ export async function loadOperationsToolbox() {
     
     // Store in planDesignerState for drag & drop
     planDesignerState.availableOperations = operations;
+
+    // Load workers and stations for migration lookup (silent load)
+    try {
+      const [workers, stations] = await Promise.all([
+        getWorkers(true).catch(() => []),
+        getStations().catch(() => [])
+      ]);
+      planDesignerState.availableWorkers = workers;
+      planDesignerState.availableStations = stations;
+    } catch (e) {
+      console.warn('Could not load workers/stations for migration:', e);
+      planDesignerState.availableWorkers = [];
+      planDesignerState.availableStations = [];
+    }
 
     // Normal operations list
     if (listContainer) {
@@ -2498,19 +2514,9 @@ function extractNumericSuffix(id) {
 
 // Migration function to convert legacy node assignments to new ID + name format
 function migrateLegacyAssignments(node) {
-  // Hardcoded data for migration - should ideally use cached API data
-  const workers = [
-    { id: 'w1', name: 'Ali Yılmaz', skills: ['CNC Programming', 'CAM Software'] },
-    { id: 'w2', name: 'Ahmet Can', skills: ['MIG Welding', 'Blueprint Reading'] },
-    { id: 'w3', name: 'Fatma Öz', skills: ['Quality Inspection', 'Measurement'] },
-    { id: 'w4', name: 'Mehmet Acar', skills: ['Assembly', 'Hand Tools'] }
-  ];
-  const stations = [
-    { id: 's1', name: 'CNC Mill 01', type: 'Machining' },
-    { id: 's2', name: 'Welding Station 01', type: 'Welding' },
-    { id: 's3', name: 'QC Station 01', type: 'Quality' },
-    { id: 's4', name: 'Assembly Line 01', type: 'Assembly' }
-  ];
+  // Use cached workers and stations from planDesignerState
+  const workers = planDesignerState.availableWorkers || [];
+  const stations = planDesignerState.availableStations || [];
 
   // Migrate worker assignments
   if (node.assignedWorker && !node.assignedWorkerId && !node.assignedWorkerName) {
@@ -2528,6 +2534,7 @@ function migrateLegacyAssignments(node) {
       node.assignedWorkerId = workerById.id;
       node.assignedWorkerName = workerById.name;
     }
+    // If no match found, keep legacy value as-is (graceful fallback)
   }
 
   // Migrate station assignments
@@ -2546,6 +2553,7 @@ function migrateLegacyAssignments(node) {
       node.assignedStationId = stationById.id;
       node.assignedStationName = stationById.name;
     }
+    // If no match found, keep legacy value as-is (graceful fallback)
   }
 }
 

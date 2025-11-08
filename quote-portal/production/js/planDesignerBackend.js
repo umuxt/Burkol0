@@ -397,7 +397,7 @@ export async function editNodeBackend(nodeId) {
       `<label style="font-size:13px; opacity:${manualEnabled?1:0.5}"><input type="radio" name="edit-assign-mode" value="manual" ${selectedAssignMode==='manual'?'checked':''} ${manualEnabled?'':'disabled'} onchange="handleAssignModeChangeBackend()"> Manual-assign</label>` +
     '</div>' +
     `<div id="manual-worker-select" style="margin-bottom: 16px; ${selectedAssignMode==='manual'&&manualEnabled?'':'display:none;'}"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Worker</label><select id="edit-worker" ${manualEnabled?'':'disabled'} style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;"><option value="">Not assigned</option>` +
-    compatibleWorkers.map(w => '<option value="' + escapeHtml(w.name) + '" ' + (node.assignedWorker === w.name ? 'selected' : '') + '>' + escapeHtml(w.name) + '</option>').join('') +
+    compatibleWorkers.map(w => '<option value="' + escapeHtml(w.id) + '" ' + (node.assignedWorkerId === w.id ? 'selected' : '') + '>' + escapeHtml(w.name) + '</option>').join('') +
     '</select></div>' +
     generateAssignmentWarningsUI(node) +
     (function(){
@@ -510,12 +510,13 @@ export async function editNodeBackend(nodeId) {
 
 export function handleAssignModeChangeBackend() {
   try {
-    const stName = document.getElementById('edit-station')?.value || ''
+    const node = planDesignerState.selectedNode
+    const hasStations = node && Array.isArray(node.assignedStations) && node.assignedStations.length > 0
     const manual = document.querySelector('input[name="edit-assign-mode"][value="manual"]')?.checked
     const box = document.getElementById('manual-worker-select')
-    if (box) box.style.display = (manual && !!stName) ? '' : 'none'
+    if (box) box.style.display = (manual && hasStations) ? '' : 'none'
     const select = document.getElementById('edit-worker')
-    if (select) select.disabled = !stName
+    if (select) select.disabled = !hasStations
   } catch {}
 }
 
@@ -1433,7 +1434,7 @@ function updateWorkerAssignmentFromStations() {
     const opts = ['<option value="">Not assigned</option>']
     const compatible = getWorkersMatchingAllSkills(req)
     for (const w of compatible) {
-      opts.push(`<option value="${escapeHtml(w.name)}">${escapeHtml(w.name)}</option>`)
+      opts.push(`<option value="${escapeHtml(w.id)}">${escapeHtml(w.name)}</option>`)
     }
     select.innerHTML = opts.join('')
   }
