@@ -1,25 +1,8 @@
 // Workers management backed by backend API (no direct Firebase client)
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
-import { getMasterData, getWorkerStations } from './mesApi.js'
+import { getMasterData, getWorkerStations, getWorkerAssignments } from './mesApi.js'
 import { showToast } from './ui.js'
 import { generateWeeklyTimeline } from './views.js'
-
-// Fetch worker assignments from new API
-async function fetchWorkerAssignments(workerId, status = 'active') {
-  try {
-    const params = new URLSearchParams();
-    if (status) params.append('status', status);
-    
-    const response = await withAuth(fetch)(`${API_BASE}/api/mes/workers/${workerId}/assignments?${params}`);
-    if (!response.ok) throw new Error(`Failed to fetch assignments: ${response.statusText}`);
-    
-    const data = await response.json();
-    return data.assignments || [];
-  } catch (error) {
-    console.error('Failed to fetch worker assignments:', error);
-    return [];
-  }
-}
 
 let workersState = []
 let editingWorkerId = null
@@ -114,7 +97,7 @@ export async function showWorkerDetail(id) {
     // Load compatible stations and worker assignments
     const [workerStationsData, assignments] = await Promise.all([
       getWorkerStations(id),
-      fetchWorkerAssignments(id)
+      getWorkerAssignments(id)
     ])
     
     // Populate detail content
@@ -1005,7 +988,7 @@ async function refreshWorkerAssignments(workerId) {
   if (!workerId) return;
   
   try {
-    const assignments = await fetchWorkerAssignments(workerId);
+    const assignments = await getWorkerAssignments(workerId);
     
     // Find the assignments timeline container and update it
     const timelineContainer = document.querySelector('.assignments-timeline');
@@ -1132,7 +1115,7 @@ async function checkWorkerHasConflicts(workerId) {
   }
   
   try {
-    const assignments = await fetchWorkerAssignments(workerId, 'active');
+    const assignments = await getWorkerAssignments(workerId, 'active');
     
     // Check for overlapping assignments
     let hasConflict = false;

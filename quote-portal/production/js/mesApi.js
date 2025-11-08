@@ -2,6 +2,12 @@
 // Uses backend endpoints implemented in server/mesRoutes.js
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
 
+// Centralized authorized fetch helper
+async function authorizedFetch(url, options = {}) {
+  const headers = withAuth(options.headers || {});
+  return fetch(url, { ...options, headers });
+}
+
 // Simple persistent cache helpers (sessionStorage)
 function readCache(key) {
   try { const raw = sessionStorage.getItem(key); return raw ? JSON.parse(raw) : null } catch { return null }
@@ -330,7 +336,7 @@ export async function getWorkerAssignments(workerId, status = 'active') {
   const params = new URLSearchParams();
   if (status) params.append('status', status);
   
-  const response = await withAuth(fetch)(`${API_BASE}/api/mes/workers/${workerId}/assignments?${params}`);
+  const response = await authorizedFetch(`${API_BASE}/api/mes/workers/${workerId}/assignments?${params}`);
   if (!response.ok) throw new Error(`Failed to fetch worker assignments: ${response.statusText}`);
   
   const data = await response.json();
@@ -342,7 +348,7 @@ export async function getSubstations(stationId = null) {
   const params = new URLSearchParams();
   if (stationId) params.append('stationId', stationId);
   
-  const response = await withAuth(fetch)(`${API_BASE}/api/mes/substations?${params}`);
+  const response = await authorizedFetch(`${API_BASE}/api/mes/substations?${params}`);
   if (!response.ok) throw new Error(`Failed to fetch substations: ${response.statusText}`);
   
   const data = await response.json();
@@ -351,7 +357,7 @@ export async function getSubstations(stationId = null) {
 
 // Batch worker assignments API
 export async function batchWorkerAssignments(planId, assignments) {
-  const response = await withAuth(fetch)(`${API_BASE}/api/mes/worker-assignments/batch`, {
+  const response = await authorizedFetch(`${API_BASE}/api/mes/worker-assignments/batch`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ planId, assignments })
