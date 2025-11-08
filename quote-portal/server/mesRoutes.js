@@ -1507,6 +1507,104 @@ router.post('/worker-assignments/batch', withAuth, async (req, res) => {
   }, res);
 });
 
+// POST /api/mes/worker-assignments/activate - Activate assignments for a released plan
+router.post('/worker-assignments/activate', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { planId, status } = req.body;
+    
+    if (!planId) {
+      throw new Error('planId is required');
+    }
+    
+    const assignmentStatus = status || 'active'; // Default to 'active' if not provided
+    
+    const db = getFirestore();
+    
+    // Fetch all assignments for this plan
+    const assignmentsSnapshot = await db.collection('mes-worker-assignments')
+      .where('planId', '==', planId)
+      .get();
+    
+    if (assignmentsSnapshot.empty) {
+      console.log(`No assignments found for plan ${planId}`);
+      return { success: true, planId, activatedCount: 0, message: 'No assignments to activate' };
+    }
+    
+    const assignments = assignmentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    console.log(`Activating ${assignments.length} assignments for plan ${planId}`);
+    
+    // Use transaction to ensure consistency across workers and stations
+    const result = await db.runTransaction(async (transaction) => {
+      const updates = {
+        workersUpdated: 0,
+        stationsUpdated: 0,
+        workersMissing: [],
+        stationsMissing: []
+      };
+      
+      // Process each assignment
+      for (const assignment of assignments) {
+        const { workerId, stationId, nodeId, start } = assignment;
+        
+        // Update worker's currentTask
+        if (workerId) {
+          const workerRef = db.collection('mes-workers').doc(workerId);
+          const workerDoc = await transaction.get(workerRef);
+          
+          if (workerDoc.exists) {
+            transaction.update(workerRef, {
+              currentTask: {
+                planId,
+                nodeId: nodeId || null,
+                stationId: stationId || null,
+                start: start || null,
+                status: assignmentStatus
+              },
+              updatedAt: new Date()
+            });
+            updates.workersUpdated++;
+          } else {
+            console.warn(`Worker ${workerId} not found for assignment ${assignment.id}`);
+            updates.workersMissing.push(workerId);
+          }
+        }
+        
+        // Update station's currentOperation and currentWorker
+        if (stationId) {
+          const stationRef = db.collection('mes-stations').doc(stationId);
+          const stationDoc = await transaction.get(stationRef);
+          
+          if (stationDoc.exists) {
+            transaction.update(stationRef, {
+              currentOperation: nodeId || null,
+              currentWorker: workerId || null,
+              updatedAt: new Date()
+            });
+            updates.stationsUpdated++;
+          } else {
+            console.warn(`Station ${stationId} not found for assignment ${assignment.id}`);
+            updates.stationsMissing.push(stationId);
+          }
+        }
+      }
+      
+      return {
+        success: true,
+        planId,
+        activatedCount: assignments.length,
+        workersUpdated: updates.workersUpdated,
+        stationsUpdated: updates.stationsUpdated,
+        ...(updates.workersMissing.length > 0 && { workersMissing: updates.workersMissing }),
+        ...(updates.stationsMissing.length > 0 && { stationsMissing: updates.stationsMissing })
+      };
+    });
+    
+    console.log(`✓ Activated assignments for plan ${planId}:`, result);
+    return result;
+  }, res);
+});
+
 // GET /api/mes/workers/:id/assignments - Get worker assignments
 router.get('/workers/:id/assignments', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {

@@ -419,6 +419,18 @@ export async function batchWorkerAssignments(planId, assignments) {
   return await response.json();
 }
 
+// Activate worker assignments (set currentTask on workers, currentOperation on stations)
+export async function activateWorkerAssignments(planId, status = 'active') {
+  const response = await authorizedFetch(`${API_BASE}/api/mes/worker-assignments/activate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ planId, status })
+  });
+  
+  if (!response.ok) throw new Error(`Failed to activate assignments: ${response.statusText}`);
+  return await response.json();
+}
+
 // Master Data (skills, operation types)
 let _masterDataCache = null
 const MD_CHANGED_EVENT = 'master-data:changed'
