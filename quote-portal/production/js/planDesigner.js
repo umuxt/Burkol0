@@ -391,6 +391,124 @@ export function generateAssignmentsPayload(nodes) {
     }));
 }
 
+// Aggregate material requirements across all nodes
+export function aggregatePlanMaterials(nodes, planQuantity = 1) {
+  const materialMap = new Map();
+  
+  // Collect all materials from all nodes
+  nodes.forEach(node => {
+    const materials = Array.isArray(node.rawMaterials) 
+      ? node.rawMaterials 
+      : (node.rawMaterial ? [node.rawMaterial] : []);
+    
+    materials.forEach(mat => {
+      if (!mat || !mat.id) return;
+      
+      const qty = parseFloat(mat.qty);
+      // Skip items without quantity
+      if (!Number.isFinite(qty) || qty <= 0) return;
+      
+      const key = mat.id;
+      const required = qty * planQuantity;
+      
+      if (materialMap.has(key)) {
+        const existing = materialMap.get(key);
+        existing.required += required;
+      } else {
+        materialMap.set(key, {
+          id: mat.id,
+          code: mat.code || mat.id,
+          name: mat.name || mat.id,
+          unit: mat.unit || '',
+          required: required,
+          stock: 0, // Will be populated from API
+          isDerived: !!mat.derivedFrom
+        });
+      }
+    });
+  });
+  
+  return Array.from(materialMap.values());
+}
+
+// Check material availability and mark nodes with shortages
+export async function checkMaterialAvailability(nodes, planQuantity = 1) {
+  try {
+    const aggregated = aggregatePlanMaterials(nodes, planQuantity);
+    
+    if (aggregated.length === 0) {
+      return {
+        items: [],
+        hasShortages: false,
+        message: 'No materials to check'
+      };
+    }
+    
+    // Import getMaterials from mesApi
+    const { getMaterials } = await import('./mesApi.js');
+    const allMaterials = await getMaterials(true);
+    
+    // Map materials by ID for lookup
+    const materialStockMap = new Map(
+      allMaterials.map(m => [m.id, parseFloat(m.stock) || 0])
+    );
+    
+    // Update stock values and check for shortages
+    let hasShortages = false;
+    aggregated.forEach(item => {
+      item.stock = materialStockMap.get(item.id) || 0;
+      item.shortage = Math.max(0, item.required - item.stock);
+      item.isOk = item.shortage === 0;
+      
+      if (!item.isOk) {
+        hasShortages = true;
+      }
+    });
+    
+    // Mark nodes with material shortages
+    if (hasShortages) {
+      const shortageIds = new Set(
+        aggregated.filter(item => !item.isOk).map(item => item.id)
+      );
+      
+      nodes.forEach(node => {
+        const materials = Array.isArray(node.rawMaterials) 
+          ? node.rawMaterials 
+          : (node.rawMaterial ? [node.rawMaterial] : []);
+        
+        const hasShortage = materials.some(mat => 
+          mat && mat.id && shortageIds.has(mat.id)
+        );
+        
+        if (hasShortage) {
+          node.requiresAttention = true;
+          const warnings = node.assignmentWarnings || [];
+          const materialWarning = 'Material shortage detected';
+          if (!warnings.includes(materialWarning)) {
+            warnings.push(materialWarning);
+          }
+          node.assignmentWarnings = warnings;
+        }
+      });
+    }
+    
+    return {
+      items: aggregated,
+      hasShortages,
+      message: hasShortages 
+        ? `${aggregated.filter(i => !i.isOk).length} material(s) with shortages`
+        : 'All materials available'
+    };
+  } catch (error) {
+    console.error('Material availability check failed:', error);
+    return {
+      items: [],
+      hasShortages: false,
+      error: error.message
+    };
+  }
+}
+
 // Export auto-assignment functions for use in planDesignerBackend.js
 export { performAutoAssignment, validateManualAssignment, fetchWorkerAssignments, fetchSubstations };
 
@@ -1896,6 +2014,124 @@ export function savePlanAsTemplate() {
     });
 }
 
+// Show material availability check modal
+export async function showMaterialCheckModal() {
+  if (planDesignerState.nodes.length === 0) {
+    showToast('No operations to check materials for', 'info');
+    return;
+  }
+  
+  const quantityInput = document.getElementById('modal-plan-quantity');
+  const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
+  
+  // Show loading state
+  showToast('Checking material availability...', 'info');
+  
+  try {
+    const result = await checkMaterialAvailability(planDesignerState.nodes, planQuantity);
+    
+    if (result.error) {
+      showToast(`Material check failed: ${result.error}`, 'error');
+      return;
+    }
+    
+    if (result.items.length === 0) {
+      showToast('No materials found in this plan', 'info');
+      return;
+    }
+    
+    // Create modal HTML
+    const modalHtml = `
+      <div id="material-check-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;" onclick="if(event.target.id==='material-check-modal') closeMaterialCheckModal()">
+        <div style="background: white; border-radius: 8px; max-width: 800px; width: 90%; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
+          <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; font-size: 18px; font-weight: 600;">Material Availability Check</h2>
+            <button onclick="closeMaterialCheckModal()" style="border: none; background: none; font-size: 24px; cursor: pointer; color: #6b7280; line-height: 1;">&times;</button>
+          </div>
+          
+          <div style="padding: 20px; overflow-y: auto;">
+            <div style="margin-bottom: 16px; padding: 12px; background: ${result.hasShortages ? '#fee2e2' : '#d1fae5'}; border-radius: 6px; border: 1px solid ${result.hasShortages ? '#fecaca' : '#86efac'};">
+              <div style="font-weight: 600; color: ${result.hasShortages ? '#991b1b' : '#065f46'}; margin-bottom: 4px;">
+                ${result.hasShortages ? '⚠️ Material Shortages Detected' : '✓ All Materials Available'}
+              </div>
+              <div style="font-size: 14px; color: ${result.hasShortages ? '#7f1d1d' : '#064e3b'};">
+                ${result.message}
+              </div>
+            </div>
+            
+            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+              <thead>
+                <tr style="background: #f9fafb; border-bottom: 2px solid var(--border);">
+                  <th style="padding: 12px 8px; text-align: left; font-weight: 600;">Code / Name</th>
+                  <th style="padding: 12px 8px; text-align: right; font-weight: 600;">Required</th>
+                  <th style="padding: 12px 8px; text-align: right; font-weight: 600;">Stock</th>
+                  <th style="padding: 12px 8px; text-align: right; font-weight: 600;">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${result.items.map((item, idx) => `
+                  <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #fafafa;' : ''}">
+                    <td style="padding: 10px 8px;">
+                      <div style="font-weight: 500;">${escapeHtml(item.code)}</div>
+                      <div style="font-size: 12px; color: #6b7280;">${escapeHtml(item.name)}</div>
+                      ${item.isDerived ? '<span style="font-size: 10px; color: #2563eb; background: #eff6ff; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">auto</span>' : ''}
+                    </td>
+                    <td style="padding: 10px 8px; text-align: right; font-weight: 500;">
+                      ${item.required.toFixed(2)} ${escapeHtml(item.unit)}
+                    </td>
+                    <td style="padding: 10px 8px; text-align: right; font-weight: 500; color: ${item.isOk ? '#059669' : '#dc2626'};">
+                      ${item.stock.toFixed(2)} ${escapeHtml(item.unit)}
+                    </td>
+                    <td style="padding: 10px 8px; text-align: right;">
+                      ${item.isOk 
+                        ? '<span style="color: #059669; font-weight: 500;">✓ OK</span>' 
+                        : `<span style="color: #dc2626; font-weight: 500;">⚠️ Short ${item.shortage.toFixed(2)}</span>`
+                      }
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          
+          <div style="padding: 16px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px;">
+            <button onclick="closeMaterialCheckModal()" style="padding: 8px 16px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; font-weight: 500;">Close</button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    // Remove existing modal if any
+    const existing = document.getElementById('material-check-modal');
+    if (existing) existing.remove();
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Update canvas to show material warnings
+    renderCanvas();
+    
+    if (result.hasShortages) {
+      showToast('Material shortages detected - check the details', 'warning');
+    } else {
+      showToast('All materials available', 'success');
+    }
+  } catch (error) {
+    console.error('Material check error:', error);
+    showToast('Failed to check material availability', 'error');
+  }
+}
+
+// Close material check modal
+export function closeMaterialCheckModal() {
+  const modal = document.getElementById('material-check-modal');
+  if (modal) modal.remove();
+}
+
+// Make functions globally available
+window.showMaterialCheckModal = showMaterialCheckModal;
+window.closeMaterialCheckModal = closeMaterialCheckModal;
+
 export function savePlanDraft() {
   if (planDesignerState.nodes.length === 0) { showToast('Cannot save empty plan', 'error'); return; }
   const planName = document.getElementById('plan-name')?.value || 'Untitled';
@@ -1913,11 +2149,19 @@ export function savePlanDraft() {
   const quantityInput = document.getElementById('modal-plan-quantity');
   const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
   
+  // Aggregate and check materials before saving
+  const materialSummary = aggregatePlanMaterials(planDesignerState.nodes, planQuantity);
+  console.log('📦 Material summary for plan:', materialSummary);
+  
   const meta = planDesignerState.currentPlanMeta || {};
   const isFromTemplate = (meta.status === 'template' && meta.sourceTemplateId);
   if (isFromTemplate) {
     const id = meta.sourceTemplateId;
     const assignments = generateAssignmentsPayload(planDesignerState.nodes);
+    // Aggregate materials for logging
+    const materialSummary = aggregatePlanMaterials(planDesignerState.nodes, planQuantity);
+    console.log('📦 Material summary for template->production:', materialSummary);
+    
     const updates = {
       name: planName,
       description: planDesc,

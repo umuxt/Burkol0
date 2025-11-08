@@ -1,7 +1,7 @@
 // Backend-powered overrides for Plan Designer
 import { showToast } from './ui.js'
 import { getOperations, getWorkers, getStations, getApprovedQuotes, getMaterials, upsertProducedWipFromNode, getProductionPlans } from './mesApi.js'
-import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate } from './planDesigner.js'
+import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate, aggregatePlanMaterials, checkMaterialAvailability } from './planDesigner.js'
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
 

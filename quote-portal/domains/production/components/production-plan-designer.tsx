@@ -880,19 +880,34 @@ export function ProductionPlanDesigner() {
             </Card>
 
             {/* Action Buttons */}
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={handleSavePlan}>
-                <Save className="mr-2 h-4 w-4" />
-                Save Plan
-              </Button>
-              <Button variant="outline" onClick={handleSaveTemplate}>
+            <div className="space-y-2">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => {
+                  if (typeof (window as any).showMaterialCheckModal === 'function') {
+                    (window as any).showMaterialCheckModal();
+                  }
+                }}
+              >
                 <FileText className="mr-2 h-4 w-4" />
-                Save Template
+                Check Materials
               </Button>
-              <Button onClick={handlePublishPlan}>
-                <Send className="mr-2 h-4 w-4" />
-                Publish Plan
-              </Button>
+              
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleSavePlan}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Plan
+                </Button>
+                <Button variant="outline" onClick={handleSaveTemplate}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Save Template
+                </Button>
+                <Button onClick={handlePublishPlan}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Publish Plan
+                </Button>
+              </div>
             </div>
           </div>
         </div>
