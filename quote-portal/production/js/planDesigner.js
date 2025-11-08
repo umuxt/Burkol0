@@ -51,6 +51,8 @@ export const planDesignerState = {
   currentPlanMeta: null,
   // Plan quantity - how many times the production flow should repeat
   planQuantity: 1,
+  // Timing summary cache (invalidated on node changes)
+  timingSummary: null,
   // Dropdown debounce timestamps
   _orderPanelLastToggle: 0,
   _typePanelLastToggle: 0
@@ -606,6 +608,84 @@ export async function checkMaterialAvailability(nodes, planQuantity = 1) {
       error: error.message
     };
   }
+}
+
+// Summarize plan timing and capacity
+export function summarizePlanTiming(nodes, planQuantity = 1) {
+  let totalNominalTime = 0;
+  let totalEffectiveTime = 0;
+  const stationLoadMap = new Map(); // stationId -> cumulative effective time
+  
+  nodes.forEach(node => {
+    const nominalTime = parseFloat(node.time) || 0;
+    const effectiveTime = typeof node.effectiveTime === 'number' ? node.effectiveTime : nominalTime;
+    
+    totalNominalTime += nominalTime;
+    totalEffectiveTime += effectiveTime;
+    
+    // Track station load
+    if (node.assignedStationId) {
+      const stationId = node.assignedStationId;
+      const currentLoad = stationLoadMap.get(stationId) || 0;
+      stationLoadMap.set(stationId, currentLoad + effectiveTime);
+    }
+  });
+  
+  // Find bottleneck station (highest load)
+  let bottleneckStation = null;
+  let bottleneckLoad = 0;
+  
+  stationLoadMap.forEach((load, stationId) => {
+    if (load > bottleneckLoad) {
+      bottleneckLoad = load;
+      bottleneckStation = stationId;
+    }
+  });
+  
+  // Get bottleneck station name
+  let bottleneckName = null;
+  if (bottleneckStation && planDesignerState.stationsCache) {
+    const station = planDesignerState.stationsCache.find(s => s.id === bottleneckStation);
+    if (station) bottleneckName = station.name;
+  }
+  
+  // Calculate daily capacity and estimated completion days
+  // Daily shift minutes: try to get from master data, default to 480 (8 hours)
+  let dailyShiftMinutes = 480;
+  try {
+    const masterData = planDesignerState.masterDataCache;
+    if (masterData && masterData.timeSettings && masterData.timeSettings.dailyShiftMinutes) {
+      dailyShiftMinutes = parseFloat(masterData.timeSettings.dailyShiftMinutes) || 480;
+    }
+  } catch {}
+  
+  // Estimated completion days based on bottleneck (critical path)
+  let estimatedDays = 0;
+  if (bottleneckLoad > 0 && planQuantity > 0 && dailyShiftMinutes > 0) {
+    const totalBottleneckTime = bottleneckLoad * planQuantity;
+    estimatedDays = Math.ceil(totalBottleneckTime / dailyShiftMinutes);
+  }
+  
+  return {
+    totalNominalTime,
+    totalEffectiveTime,
+    stationLoads: Array.from(stationLoadMap.entries()).map(([stationId, load]) => {
+      const station = planDesignerState.stationsCache?.find(s => s.id === stationId);
+      return {
+        stationId,
+        stationName: station?.name || stationId,
+        load
+      };
+    }).sort((a, b) => b.load - a.load),
+    bottleneck: bottleneckStation ? {
+      stationId: bottleneckStation,
+      stationName: bottleneckName || bottleneckStation,
+      load: bottleneckLoad
+    } : null,
+    dailyShiftMinutes,
+    planQuantity,
+    estimatedDays
+  };
 }
 
 // Export auto-assignment functions for use in planDesignerBackend.js
@@ -1260,8 +1340,131 @@ export function renderCanvas() {
   });
   planDesignerState.nodes.forEach(node => renderNode(node));
 
+  // Recalculate timing summary cache
+  planDesignerState.timingSummary = summarizePlanTiming(
+    planDesignerState.nodes, 
+    planDesignerState.planQuantity || 1
+  );
+
   // Also render material flow view under the canvas
   try { renderMaterialFlow(); } catch (e) { console.warn('renderMaterialFlow failed', e); }
+  
+  // Render timing/capacity summary
+  try { renderTimingSummary(); } catch (e) { console.warn('renderTimingSummary failed', e); }
+}
+
+// Render timing and capacity summary card
+export function renderTimingSummary() {
+  let container = document.getElementById('timing-summary-container');
+  
+  // Create container if it doesn't exist
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'timing-summary-container';
+    container.style.cssText = [
+      'position: fixed;',
+      'top: 80px;',
+      'right: 20px;',
+      'width: 320px;',
+      'background: white;',
+      'border: 1px solid #e5e7eb;',
+      'border-radius: 8px;',
+      'box-shadow: 0 4px 6px rgba(0,0,0,0.1);',
+      'padding: 16px;',
+      'z-index: 1000;',
+      'max-height: calc(100vh - 100px);',
+      'overflow-y: auto;'
+    ].join('');
+    document.body.appendChild(container);
+  }
+  
+  const summary = planDesignerState.timingSummary;
+  
+  // If no summary data, show minimal message
+  if (!summary || planDesignerState.nodes.length === 0) {
+    container.innerHTML = `
+      <div style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1f2937; display: flex; align-items: center;">
+        <span style="margin-right: 8px;">⏱️</span> Timing / Capacity
+      </div>
+      <div style="color: #6b7280; font-size: 14px;">No operations in plan</div>
+    `;
+    return;
+  }
+  
+  const efficiencyGain = summary.totalNominalTime > 0 
+    ? ((summary.totalNominalTime - summary.totalEffectiveTime) / summary.totalNominalTime * 100)
+    : 0;
+  
+  const efficiencyBadge = Math.abs(efficiencyGain) > 0.5
+    ? `<span style="color: ${efficiencyGain > 0 ? '#059669' : '#dc2626'}; font-size: 12px; font-weight: 500;">
+        (${efficiencyGain > 0 ? '↓' : '↑'} ${Math.abs(efficiencyGain).toFixed(1)}%)
+       </span>`
+    : '';
+  
+  const bottleneckInfo = summary.bottleneck
+    ? `
+      <div style="background: #fef3c7; border: 1px solid #fbbf24; border-radius: 6px; padding: 10px; margin-top: 12px;">
+        <div style="font-size: 13px; font-weight: 600; color: #92400e; margin-bottom: 4px;">
+          🔴 Bottleneck Station
+        </div>
+        <div style="font-size: 12px; color: #78350f;">
+          <strong>${summary.bottleneck.stationName}</strong><br>
+          Load: ${summary.bottleneck.load.toFixed(1)} min
+        </div>
+      </div>
+    `
+    : '';
+  
+  const stationsList = summary.stationLoads.length > 0
+    ? `
+      <div style="margin-top: 12px;">
+        <div style="font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px;">
+          Station Loads
+        </div>
+        ${summary.stationLoads.slice(0, 5).map(st => `
+          <div style="display: flex; justify-content: space-between; font-size: 12px; color: #6b7280; margin-bottom: 4px;">
+            <span>${st.stationName}</span>
+            <span style="font-weight: 500;">${st.load.toFixed(1)} min</span>
+          </div>
+        `).join('')}
+        ${summary.stationLoads.length > 5 ? `<div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">+${summary.stationLoads.length - 5} more stations</div>` : ''}
+      </div>
+    `
+    : '';
+  
+  container.innerHTML = `
+    <div style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1f2937; display: flex; align-items: center;">
+      <span style="margin-right: 8px;">⏱️</span> Timing / Capacity
+    </div>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+      <div style="background: #f3f4f6; border-radius: 6px; padding: 10px;">
+        <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Nominal Time</div>
+        <div style="font-size: 18px; font-weight: 600; color: #1f2937;">${summary.totalNominalTime.toFixed(1)} min</div>
+      </div>
+      <div style="background: #f3f4f6; border-radius: 6px; padding: 10px;">
+        <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Effective Time</div>
+        <div style="font-size: 18px; font-weight: 600; color: #1f2937;">${summary.totalEffectiveTime.toFixed(1)} min</div>
+      </div>
+    </div>
+    
+    ${efficiencyBadge ? `<div style="text-align: center; margin-bottom: 12px;">${efficiencyBadge}</div>` : ''}
+    
+    <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 6px; padding: 10px;">
+      <div style="font-size: 13px; font-weight: 600; color: #1e40af; margin-bottom: 6px;">
+        📅 Estimated Completion
+      </div>
+      <div style="font-size: 20px; font-weight: 700; color: #1e40af;">
+        ${summary.estimatedDays} ${summary.estimatedDays === 1 ? 'day' : 'days'}
+      </div>
+      <div style="font-size: 11px; color: #3b82f6; margin-top: 4px;">
+        Plan Qty: ${summary.planQuantity} × ${summary.dailyShiftMinutes} min/day
+      </div>
+    </div>
+    
+    ${bottleneckInfo}
+    ${stationsList}
+  `;
 }
 
 export function renderNode(node, targetCanvas = null) {

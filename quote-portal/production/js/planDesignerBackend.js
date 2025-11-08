@@ -1,7 +1,7 @@
 // Backend-powered overrides for Plan Designer
 import { showToast } from './ui.js'
 import { getOperations, getWorkers, getStations, getApprovedQuotes, getMaterials, upsertProducedWipFromNode, getProductionPlans } from './mesApi.js'
-import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate, aggregatePlanMaterials, checkMaterialAvailability } from './planDesigner.js'
+import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate, aggregatePlanMaterials, checkMaterialAvailability, computeNodeEffectiveDuration } from './planDesigner.js'
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
 
@@ -388,9 +388,20 @@ export async function editNodeBackend(nodeId) {
   const compatibleStations = _stationsCacheFull.filter(s => Array.isArray(s.operationIds) && s.operationIds.includes(node.operationId))
   const selectedAssignMode = node.assignmentMode === 'manual' ? 'manual' : 'auto'
 
+  // Calculate effective time for display
+  const nominalTime = parseFloat(node.time) || 0;
+  const effectiveTime = typeof node.effectiveTime === 'number' ? node.effectiveTime : nominalTime;
+  const showEffectiveTime = Math.abs(effectiveTime - nominalTime) > 0.01 && (node.assignedWorkerId || node.assignedStationId);
+  const effectiveTimeDisplay = showEffectiveTime
+    ? `<div style="font-size: 12px; color: ${effectiveTime < nominalTime ? '#059669' : '#dc2626'}; margin-top: 4px;">
+        Effective time: ${effectiveTime.toFixed(1)} min 
+        <span style="font-weight: 500;">(${effectiveTime < nominalTime ? '↓' : '↑'} ${Math.abs(((nominalTime - effectiveTime) / nominalTime * 100)).toFixed(1)}%)</span>
+       </div>`
+    : '';
+
   const formContent =
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + Number(node.time || 0) + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + Number(node.time || 0) + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" />' + effectiveTimeDisplay + '</div>' +
     generateMultiStationSelector(node, compatibleStations) +
     '<div style="margin-bottom: 8px;"><label style="display:block; margin-bottom: 6px; font-weight: 500;">Worker Assignment</label>' +
       `<label style="margin-right:12px; font-size:13px; opacity:${manualEnabled?1:0.5}"><input type="radio" name="edit-assign-mode" value="auto" ${selectedAssignMode==='auto'?'checked':''} ${manualEnabled?'':'disabled'} onchange="handleAssignModeChangeBackend()"> Auto-assign</label>` +
