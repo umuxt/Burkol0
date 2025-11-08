@@ -2250,6 +2250,16 @@ export async function savePlanDraft() {
     const id = meta.sourceTemplateId;
     const assignments = generateAssignmentsPayload(planDesignerState.nodes);
     
+    // Prepare material summary for the plan document
+    const materialSummary = {
+      checkedAt: materialCheck.checkedAt || new Date().toISOString(),
+      totalItems: materialCheck.items?.length || 0,
+      allAvailable: materialCheck.allAvailable,
+      hasShortages: materialCheck.hasShortages,
+      items: materialCheck.items || [],
+      shortages: materialCheck.shortageDetails || []
+    };
+    
     const updates = {
       name: planName,
       description: planDesc,
@@ -2259,6 +2269,7 @@ export async function savePlanDraft() {
       nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
       status: 'production',
       autoAssign: true,
+      materialSummary, // Add material summary for reporting
       ...(assignments.length > 0 ? { assignments } : {})
     };
     updateProductionPlan(id, updates)
@@ -2281,6 +2292,16 @@ export async function savePlanDraft() {
     return;
   }
 
+  // Prepare material summary for the plan document
+  const materialSummary = {
+    checkedAt: materialCheck.checkedAt || new Date().toISOString(),
+    totalItems: materialCheck.items?.length || 0,
+    allAvailable: materialCheck.allAvailable,
+    hasShortages: materialCheck.hasShortages,
+    items: materialCheck.items || [],
+    shortages: materialCheck.shortageDetails || []
+  };
+
   const plan = {
     id: undefined,
     name: planName,
@@ -2291,7 +2312,8 @@ export async function savePlanDraft() {
     nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
     createdAt: new Date().toISOString(),
     status: 'production',
-    autoAssign: true // Enable auto-assignment for production plans
+    autoAssign: true, // Enable auto-assignment for production plans
+    materialSummary // Add material summary for reporting
   };
   
   // Generate assignments payload for production status

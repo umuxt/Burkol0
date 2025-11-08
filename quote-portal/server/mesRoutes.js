@@ -1182,6 +1182,10 @@ router.post('/materials/check-availability', withAuth, async (req, res) => {
       const shortage = Math.max(0, requiredQty - availableQty);
       const isAvailable = shortage === 0;
       
+      // Placeholder for future reservation system
+      // Currently always true if material exists and is available
+      const canReserve = material && isAvailable;
+      
       return {
         code: required.code || material?.code || required.id || '',
         name: required.name || material?.name || '',
@@ -1191,15 +1195,18 @@ router.post('/materials/check-availability', withAuth, async (req, res) => {
         unit: required.unit || material?.unit || 'pcs',
         isAvailable,
         shortage,
-        status: isAvailable ? 'ok' : 'shortage'
+        status: isAvailable ? 'ok' : 'shortage',
+        canReserve // Placeholder for future reservation feature
       };
     });
 
     const allAvailable = materialChecks.every(check => check.isAvailable);
     const shortages = materialChecks.filter(check => !check.isAvailable);
+    const canReserveAll = materialChecks.every(check => check.canReserve);
 
     return {
       allAvailable,
+      canReserveAll, // Placeholder: true if all materials can be reserved
       materials: materialChecks,
       shortages,
       totalShortageItems: shortages.length,
