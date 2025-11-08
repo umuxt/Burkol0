@@ -5,6 +5,7 @@ import { upsertProducedWipFromNode, getStations, createProductionPlan, createTem
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
 import { API_BASE, withAuth } from '../../shared/lib/api.js';
+import { renderMaterialFlow } from '../../domains/production/components/materialFlowView.js';
 
 export const planDesignerState = {
   nodes: [],
@@ -1291,133 +1292,8 @@ function derivedLabel(mat) {
   return ''
 }
 
-export function renderMaterialFlow() {
-  const container = document.getElementById('material-flow-container')
-  if (!container) return
 
-  const nodes = Array.isArray(planDesignerState.nodes) ? planDesignerState.nodes : []
-  if (!nodes.length) { container.innerHTML = ''; return }
 
-  // Build edges (from -> to) and predecessor mapping
-  const edges = []
-  const preds = new Map() // toId -> Set(fromId)
-  nodes.forEach(from => {
-    const outs = Array.isArray(from.connections) ? from.connections : []
-    outs.forEach(t => {
-      const toId = asIdString(t)
-      edges.push([asIdString(from.id), toId])
-      if (!preds.has(toId)) preds.set(toId, new Set())
-      preds.get(toId).add(asIdString(from.id))
-    })
-  })
-
-  // If there is no from-to structure, render nothing
-  if (!edges.length) { container.innerHTML = ''; return }
-
-  const order = topoSortNodes(nodes)
-  const connectedIds = new Set(edges.flat().map(x => asIdString(x)))
-
-  let columns = []
-  order.forEach(n => {
-    const nid = asIdString(n.id)
-    if (!connectedIds.has(nid)) return // skip isolated nodes
-
-    const mats = Array.isArray(n.rawMaterials) ? n.rawMaterials : (n.rawMaterial ? [n.rawMaterial] : [])
-    // Start with raw materials actually defined on this node (non-derived)
-    const raw = mats.filter(m => !m?.derivedFrom)
-
-    // Build derived list from predecessors' outputs (via connections), regardless of rawMaterials content
-    const derivedFromEdges = []
-    const pset = preds.get(nid)
-    if (pset && pset.size) {
-      pset.forEach(pid => {
-        const p = findNodeByIdAny(pid)
-        if (!p) return
-        // Only show if semiCode exists; otherwise hide (no operation names)
-        if (!p.semiCode) return
-        const label = p.semiCode
-        const warnings = []
-        if (p.outputQty == null || p.outputQty === '') warnings.push('Çıkış miktarı tanımlı değil')
-        if (!p.outputUnit) warnings.push('Çıkış birimi tanımlı değil')
-        derivedFromEdges.push({ code: label, name: label, _edge: true, _warnMsg: warnings.join('; ') })
-      })
-    }
-
-    // Also include any derived rawMaterials that already exist on node
-    const derivedExisting = mats.filter(m => !!m?.derivedFrom)
-
-    // Merge and unique by label
-    const allDerived = uniqueByKey([...derivedFromEdges, ...derivedExisting], m => (m.name || m.code || m.id || JSON.stringify(m)))
-
-    columns.push({ node: n, derived: allDerived, raw })
-  })
-
-  // Render columns
-  const colBoxStyle = [
-    'min-width: 120px', 'max-width: 180px', 'padding: 4px', 'border-radius: 6px',
-    'outline: 1px solid rgba(0,0,0,0.8)', 'outline-offset: -1px',
-    'display: inline-flex', 'flex-direction: column', 'gap: 4px'
-  ].join('; ')
-  const badgeBaseStyle = [
-    'display:inline-flex', 'align-items:center', 'justify-content:center', 'gap:6px',
-    'padding: 2px 6px', 'border-radius: 4px'
-  ].join('; ')
-  const textStyle = 'color: black; font-size: 12px; font-family: Inter, system-ui, sans-serif; font-weight: 400; word-wrap: break-word'
-
-  // Build indegree map to detect starting nodes
-  const indegMap2 = new Map(nodes.map(n => [asIdString(n.id), 0]))
-  nodes.forEach(n => (Array.isArray(n.connections) ? n.connections : []).forEach(t => {
-    const to = asIdString(t); if (indegMap2.has(to)) indegMap2.set(to, (indegMap2.get(to)||0)+1)
-  }))
-
-  // Attach indegree info to columns
-  columns = columns.map(c => ({ ...c, indegree: (indegMap2.get(asIdString(c.node?.id)) || 0) }))
-
-  // Build per-target groups: for each to-node, show predecessors' raw materials stacked on the left,
-  // and the to-node's derived capsules on the right.
-  const groupsHtml = columns.filter(c => (c.indegree|0) > 0).map(col => {
-    const nid = asIdString(col.node?.id)
-    const pset = preds.get(nid) || new Set()
-    // Collect upstream raw materials from direct predecessors
-    const upstreamRaw = []
-    pset.forEach(pid => {
-      const p = findNodeByIdAny(pid)
-      if (!p) return
-      const pMats = Array.isArray(p.rawMaterials) ? p.rawMaterials : (p.rawMaterial ? [p.rawMaterial] : [])
-      pMats.filter(m => !m?.derivedFrom).forEach(m => upstreamRaw.push(m))
-    })
-    const uniqueUpstreamRaw = uniqueByKey(upstreamRaw, m => (m.code || m.id || m.name || JSON.stringify(m)))
-    const leftStack = uniqueUpstreamRaw.length
-      ? `<div style="display:flex; flex-direction:column; gap:8px;">${uniqueUpstreamRaw.map(m => 
-          `<div style="${colBoxStyle}"><div style="${textStyle}">${escapeHtml(materialLabel(m))}</div></div>`
-        ).join('')}</div>`
-      : ''
-
-    // To-node derived capsules (semi codes from preds)
-    const derivedItems = col.derived.map(m => {
-      const disp = m._edge ? (m.name || m.code || '') : derivedLabel(m)
-      return { disp, warn: m._warnMsg }
-    }).filter(x => x.disp && String(x.disp).trim() !== '')
-    const derivedHtml = derivedItems.map(it => {
-      const style = `${badgeBaseStyle}; background:#BCB7B7;`
-      const title = it.warn ? ` title="${escapeHtml(it.warn)}"` : ''
-      return `<div style="${style}"${title}><div style="${textStyle}">${escapeHtml(it.disp)}</div></div>`
-    }).join('')
-    const rawHtml = col.raw.map(m => `<div style="${textStyle}">${escapeHtml(materialLabel(m))}</div>`).join('')
-    const rightCol = `<div style="${colBoxStyle}">${derivedHtml}${rawHtml}</div>`
-    return `<div style="display:flex; gap: 12px; align-items:flex-start;">${leftStack}${rightCol}</div>`
-  }).join('')
-
-  const html = [
-    '<div style="width:100%; overflow-x:auto;">',
-    '<div style="display:flex; gap: 16px; align-items:flex-start;">',
-    groupsHtml || '<div style="color:#6b7280; font-size:12px;">Akış bulunamadı</div>',
-    '</div>',
-    '</div>'
-  ].join('')
-
-  container.innerHTML = html
-}
 
 export function deleteNode(nodeId) {
   if (confirm('Are you sure you want to delete this Production Step?')) {
