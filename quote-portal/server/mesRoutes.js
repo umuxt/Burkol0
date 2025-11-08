@@ -761,32 +761,88 @@ router.get('/production-plans', withAuth, async (req, res) => {
 router.post('/production-plans', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const productionPlan = req.body;
+    const { assignments } = productionPlan; // Extract assignments from plan data
+    
     if (!productionPlan.id) {
       throw new Error('Production plan ID is required');
     }
 
     const db = getFirestore();
-    const now = new Date()
-    const parts = formatDateParts(now)
-    const actorEmail = (req.user && req.user.email) || null
-    const actorName = (req.user && (req.user.name || req.user.userName)) || null
-    const createdBy = actorEmail || actorName || null
-    await db.collection('mes-production-plans').doc(productionPlan.id).set({
-      ...productionPlan,
-      createdAt: now,
-      updatedAt: now,
-      // explicit date/time parts for analytics and UI
-      createdDate: productionPlan.createdDate || parts.date,
-      createdTime: productionPlan.createdTime || parts.time,
-      updatedDate: parts.date,
-      updatedTime: parts.time,
-      createdBy: actorEmail || createdBy,
-      createdByName: actorName || createdBy || null,
-      updatedBy: actorEmail || createdBy,
-      updatedByName: actorName || createdBy || null
-    }, { merge: true });
+    const now = new Date();
+    const parts = formatDateParts(now);
+    const actorEmail = (req.user && req.user.email) || null;
+    const actorName = (req.user && (req.user.name || req.user.userName)) || null;
+    const createdBy = actorEmail || actorName || null;
 
-    return { success: true, id: productionPlan.id };
+    // Remove assignments from plan data to avoid storing in plan document
+    const planData = { ...productionPlan };
+    delete planData.assignments;
+
+    // Check if status is 'production' and autoAssign is true
+    const shouldAutoAssign = productionPlan.status === 'production' && productionPlan.autoAssign === true && assignments && Array.isArray(assignments);
+
+    if (shouldAutoAssign) {
+      // Use transaction for consistency
+      const result = await db.runTransaction(async (transaction) => {
+        // Create the plan
+        const planRef = db.collection('mes-production-plans').doc(productionPlan.id);
+        transaction.set(planRef, {
+          ...planData,
+          createdAt: now,
+          updatedAt: now,
+          createdDate: productionPlan.createdDate || parts.date,
+          createdTime: productionPlan.createdTime || parts.time,
+          updatedDate: parts.date,
+          updatedTime: parts.time,
+          createdBy: actorEmail || createdBy,
+          createdByName: actorName || createdBy || null,
+          updatedBy: actorEmail || createdBy,
+          updatedByName: actorName || createdBy || null
+        }, { merge: true });
+
+        // Create assignments
+        assignments.forEach(assignment => {
+          const assignmentId = `${productionPlan.id}-${assignment.nodeId || assignment.workerId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+          const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
+          
+          transaction.set(docRef, {
+            id: assignmentId,
+            planId: productionPlan.id,
+            nodeId: assignment.nodeId || null,
+            workerId: assignment.workerId || null,
+            stationId: assignment.stationId || null,
+            subStationCode: assignment.subStationCode || null,
+            start: assignment.start ? new Date(assignment.start) : null,
+            end: assignment.end ? new Date(assignment.end) : null,
+            status: assignment.status || 'pending',
+            createdAt: now,
+            updatedAt: now,
+            createdBy: actorEmail || 'system'
+          });
+        });
+
+        return { success: true, id: productionPlan.id, assignmentsCreated: assignments.length };
+      });
+
+      return result;
+    } else {
+      // Normal creation without assignments
+      await db.collection('mes-production-plans').doc(productionPlan.id).set({
+        ...planData,
+        createdAt: now,
+        updatedAt: now,
+        createdDate: productionPlan.createdDate || parts.date,
+        createdTime: productionPlan.createdTime || parts.time,
+        updatedDate: parts.date,
+        updatedTime: parts.time,
+        createdBy: actorEmail || createdBy,
+        createdByName: actorName || createdBy || null,
+        updatedBy: actorEmail || createdBy,
+        updatedByName: actorName || createdBy || null
+      }, { merge: true });
+
+      return { success: true, id: productionPlan.id };
+    }
   }, res);
 });
 
@@ -795,22 +851,81 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const { id } = req.params;
     const updates = req.body;
+    const { assignments } = updates; // Extract assignments from updates to avoid storing in plan doc
 
     const db = getFirestore();
-    const updatedByEmail = (req.user && req.user.email) || null
-    const updatedByName = (req.user && (req.user.name || req.user.userName)) || null
-    const now = new Date()
-    const parts = formatDateParts(now)
-    await db.collection('mes-production-plans').doc(id).set({
-      ...updates,
-      updatedAt: now,
-      updatedDate: parts.date,
-      updatedTime: parts.time,
-      ...(updatedByEmail ? { updatedBy: updatedByEmail } : {}),
-      ...(updatedByName ? { updatedByName } : {})
-    }, { merge: true });
+    const updatedByEmail = (req.user && req.user.email) || null;
+    const updatedByName = (req.user && (req.user.name || req.user.userName)) || null;
+    const now = new Date();
+    const parts = formatDateParts(now);
 
-    return { success: true, id };
+    // Remove assignments from updates to avoid storing in plan document
+    const planUpdates = { ...updates };
+    delete planUpdates.assignments;
+
+    // Check if status is changing to 'production' and autoAssign is true
+    const shouldAutoAssign = updates.status === 'production' && updates.autoAssign === true && assignments && Array.isArray(assignments);
+
+    if (shouldAutoAssign) {
+      // Use transaction to ensure consistency between plan update and assignments
+      const result = await db.runTransaction(async (transaction) => {
+        // Update the plan
+        const planRef = db.collection('mes-production-plans').doc(id);
+        transaction.set(planRef, {
+          ...planUpdates,
+          updatedAt: now,
+          updatedDate: parts.date,
+          updatedTime: parts.time,
+          ...(updatedByEmail ? { updatedBy: updatedByEmail } : {}),
+          ...(updatedByName ? { updatedByName } : {})
+        }, { merge: true });
+
+        // Delete existing assignments for this plan
+        const existingQuery = db.collection('mes-worker-assignments').where('planId', '==', id);
+        const existingSnapshot = await transaction.get(existingQuery);
+        
+        existingSnapshot.docs.forEach(doc => {
+          transaction.delete(doc.ref);
+        });
+
+        // Create new assignments
+        assignments.forEach(assignment => {
+          const assignmentId = `${id}-${assignment.nodeId || assignment.workerId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+          const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
+          
+          transaction.set(docRef, {
+            id: assignmentId,
+            planId: id,
+            nodeId: assignment.nodeId || null,
+            workerId: assignment.workerId || null,
+            stationId: assignment.stationId || null,
+            subStationCode: assignment.subStationCode || null,
+            start: assignment.start ? new Date(assignment.start) : null,
+            end: assignment.end ? new Date(assignment.end) : null,
+            status: assignment.status || 'pending',
+            createdAt: now,
+            updatedAt: now,
+            createdBy: updatedByEmail || 'system'
+          });
+        });
+
+        return { success: true, id, assignmentsCreated: assignments.length };
+      });
+
+      return result;
+    } else {
+      // Normal update without assignments
+      await db.collection('mes-production-plans').doc(id).set({
+        ...planUpdates,
+        updatedAt: now,
+        updatedDate: parts.date,
+        updatedTime: parts.time,
+        ...(updatedByEmail ? { updatedBy: updatedByEmail } : {}),
+        ...(updatedByName ? { updatedByName } : {})
+      }, { merge: true });
+
+      return { success: true, id };
+    }
   }, res);
 });
 
@@ -1119,6 +1234,180 @@ router.patch('/approved-quotes/:workOrderCode/production-state', withAuth, async
       productionState,
       updatedAt: new Date().toISOString()
     };
+  }, res);
+});
+
+// ============================================================================
+// WORKER ASSIGNMENTS ROUTES
+// ============================================================================
+
+// POST /api/mes/worker-assignments/batch - Replace all assignments for a plan
+router.post('/worker-assignments/batch', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { planId, assignments } = req.body;
+    
+    if (!planId) {
+      throw new Error('planId is required');
+    }
+    
+    if (!Array.isArray(assignments)) {
+      throw new Error('assignments must be an array');
+    }
+
+    const db = getFirestore();
+    
+    // Validate worker and station IDs exist
+    const workerIds = [...new Set(assignments.map(a => a.workerId).filter(Boolean))];
+    const stationIds = [...new Set(assignments.map(a => a.stationId).filter(Boolean))];
+    
+    if (workerIds.length > 0) {
+      const workersSnapshot = await db.collection('mes-workers').where('__name__', 'in', workerIds).get();
+      const existingWorkerIds = new Set(workersSnapshot.docs.map(doc => doc.id));
+      const invalidWorkerIds = workerIds.filter(id => !existingWorkerIds.has(id));
+      if (invalidWorkerIds.length > 0) {
+        throw new Error(`Invalid worker IDs: ${invalidWorkerIds.join(', ')}`);
+      }
+    }
+    
+    if (stationIds.length > 0) {
+      const stationsSnapshot = await db.collection('mes-stations').where('__name__', 'in', stationIds).get();
+      const existingStationIds = new Set(stationsSnapshot.docs.map(doc => doc.id));
+      const invalidStationIds = stationIds.filter(id => !existingStationIds.has(id));
+      if (invalidStationIds.length > 0) {
+        throw new Error(`Invalid station IDs: ${invalidStationIds.join(', ')}`);
+      }
+    }
+
+    // Use transaction to ensure consistency
+    const result = await db.runTransaction(async (transaction) => {
+      // Delete existing assignments for this plan
+      const existingQuery = db.collection('mes-worker-assignments').where('planId', '==', planId);
+      const existingSnapshot = await transaction.get(existingQuery);
+      
+      existingSnapshot.docs.forEach(doc => {
+        transaction.delete(doc.ref);
+      });
+
+      // Create new assignments
+      const now = new Date();
+      const createdBy = req.user?.email || 'system';
+      
+      assignments.forEach(assignment => {
+        const assignmentId = `${planId}-${assignment.nodeId || assignment.workerId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+        const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
+        
+        transaction.set(docRef, {
+          id: assignmentId,
+          planId,
+          nodeId: assignment.nodeId || null,
+          workerId: assignment.workerId || null,
+          stationId: assignment.stationId || null,
+          subStationCode: assignment.subStationCode || null,
+          start: assignment.start ? new Date(assignment.start) : null,
+          end: assignment.end ? new Date(assignment.end) : null,
+          status: assignment.status || 'pending',
+          createdAt: now,
+          updatedAt: now,
+          createdBy
+        });
+      });
+
+      return { success: true, planId, assignmentCount: assignments.length };
+    });
+
+    return result;
+  }, res);
+});
+
+// GET /api/mes/workers/:id/assignments - Get worker assignments
+router.get('/workers/:id/assignments', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id } = req.params;
+    const { status } = req.query;
+    
+    const db = getFirestore();
+    
+    // Verify worker exists
+    const workerDoc = await db.collection('mes-workers').doc(id).get();
+    if (!workerDoc.exists) {
+      throw new Error('Worker not found');
+    }
+
+    // Build query
+    let query = db.collection('mes-worker-assignments').where('workerId', '==', id);
+    
+    if (status) {
+      query = query.where('status', '==', status);
+    }
+    
+    // Order by start time
+    query = query.orderBy('start', 'asc');
+    
+    const snapshot = await query.get();
+    const assignments = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      // Convert Firestore timestamps to ISO strings
+      start: doc.data().start?.toDate?.()?.toISOString() || doc.data().start,
+      end: doc.data().end?.toDate?.()?.toISOString() || doc.data().end,
+      createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt,
+      updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || doc.data().updatedAt
+    }));
+
+    return { assignments };
+  }, res);
+});
+
+// ============================================================================
+// SUB-STATIONS ROUTES
+// ============================================================================
+
+// GET /api/mes/substations - Get substations with optional filtering
+router.get('/substations', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { stationId } = req.query;
+    
+    const db = getFirestore();
+    let query = db.collection('mes-substations');
+    
+    if (stationId) {
+      query = query.where('stationId', '==', stationId);
+    }
+    
+    const snapshot = await query.orderBy('code').get();
+    const substations = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    return { substations };
+  }, res);
+});
+
+// PATCH /api/mes/substations/:id - Update substation status
+router.patch('/substations/:id', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id } = req.params;
+    const updates = req.body;
+    
+    const db = getFirestore();
+    
+    // Verify substation exists
+    const substationDoc = await db.collection('mes-substations').doc(id).get();
+    if (!substationDoc.exists) {
+      throw new Error('Substation not found');
+    }
+
+    const now = new Date();
+    const updatedBy = req.user?.email || 'system';
+    
+    await db.collection('mes-substations').doc(id).update({
+      ...updates,
+      updatedAt: now,
+      updatedBy
+    });
+
+    return { success: true, id, updatedAt: now.toISOString() };
   }, res);
 });
 
