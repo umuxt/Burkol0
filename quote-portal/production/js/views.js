@@ -400,6 +400,12 @@ export function generateWorkers() {
             <div id="worker-filter-status-list" style="max-height: 200px; overflow: auto; padding: 8px; display: grid; gap: 6px;"></div>
           </div>
         </div>
+
+        <!-- Conflict Filter -->
+        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); background: white; border-radius: 6px; min-width: 140px;">
+          <input id="worker-filter-conflict" type="checkbox" style="margin: 0;">
+          <label for="worker-filter-conflict" style="font-size: 14px; cursor: pointer; user-select: none;">Has conflict</label>
+        </div>
         
         <button id="worker-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="worker-filter-button"
           style="display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;">

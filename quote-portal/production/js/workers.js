@@ -4,10 +4,27 @@ import { getMasterData, getWorkerStations } from './mesApi.js'
 import { showToast } from './ui.js'
 import { generateWeeklyTimeline } from './views.js'
 
+// Fetch worker assignments from new API
+async function fetchWorkerAssignments(workerId, status = 'active') {
+  try {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    
+    const response = await withAuth(fetch)(`${API_BASE}/api/mes/workers/${workerId}/assignments?${params}`);
+    if (!response.ok) throw new Error(`Failed to fetch assignments: ${response.statusText}`);
+    
+    const data = await response.json();
+    return data.assignments || [];
+  } catch (error) {
+    console.error('Failed to fetch worker assignments:', error);
+    return [];
+  }
+}
+
 let workersState = []
 let editingWorkerId = null
 let selectedWorkerId = null
-let workerFilters = { query: '', skills: [], statuses: [] }
+let workerFilters = { query: '', skills: [], statuses: [], hasConflict: false }
 
 export async function initializeWorkersUI() {
   initWorkerFilters()
@@ -15,6 +32,9 @@ export async function initializeWorkersUI() {
   
   // Listen for master data changes to auto-update company settings users
   window.addEventListener('master-data:changed', handleMasterDataChanged)
+  
+  // Listen for assignment updates to refresh worker detail panels
+  window.addEventListener('assignments:updated', handleAssignmentsUpdated)
 }
 
 // Auto-update workers using company settings when company time settings change
@@ -91,15 +111,18 @@ export async function showWorkerDetail(id) {
   `
   
   try {
-    // Load compatible stations
-    const workerStationsData = await getWorkerStations(id)
+    // Load compatible stations and worker assignments
+    const [workerStationsData, assignments] = await Promise.all([
+      getWorkerStations(id),
+      fetchWorkerAssignments(id)
+    ])
     
     // Populate detail content
-    detailContent.innerHTML = generateWorkerDetailContentWithStations(worker, workerStationsData)
+    detailContent.innerHTML = generateWorkerDetailContentWithStations(worker, workerStationsData, assignments)
   } catch (error) {
-    console.error('Error loading worker stations:', error)
+    console.error('Error loading worker data:', error)
     
-    // Fallback to original view if stations loading fails
+    // Fallback to original view if loading fails
     detailContent.innerHTML = generateWorkerDetailContent(worker)
   }
 }
@@ -697,7 +720,7 @@ function generateWorkerDetailContent(worker) {
   `
 }
 
-function generateWorkerDetailContentWithStations(worker, workerStationsData) {
+function generateWorkerDetailContentWithStations(worker, workerStationsData, assignments = []) {
   const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   
   return `
@@ -815,6 +838,15 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData) {
         `}
       </div>
 
+      <!-- Yaklaşan Görevler -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Yaklaşan Görevler (${assignments.length})</h3>
+          <button type="button" onclick="refreshWorkerAssignments('${worker.id}')" style="padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px;">🔄 Yenile</button>
+        </div>
+        <div class="assignments-timeline">${generateAssignmentsTimeline(assignments)}</div>
+      </div>
+
       <!-- Performans Bilgileri -->
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
         <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Performans Özeti</h3>
@@ -865,6 +897,150 @@ function showStatusColumn() {
   })
 }
 
+// Generate assignments timeline for worker detail panel
+function generateAssignmentsTimeline(assignments) {
+  if (!assignments || assignments.length === 0) {
+    return `
+      <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+        Yaklaşan görev bulunmuyor
+      </div>
+    `;
+  }
+
+  // Sort assignments by start time
+  const sortedAssignments = assignments.sort((a, b) => 
+    new Date(a.start).getTime() - new Date(b.start).getTime()
+  );
+
+  // Check for conflicts (overlapping assignments)
+  const conflictMap = new Map();
+  for (let i = 0; i < sortedAssignments.length; i++) {
+    const current = sortedAssignments[i];
+    const currentStart = new Date(current.start);
+    const currentEnd = new Date(current.end);
+    
+    for (let j = i + 1; j < sortedAssignments.length; j++) {
+      const next = sortedAssignments[j];
+      const nextStart = new Date(next.start);
+      const nextEnd = new Date(next.end);
+      
+      // Check for overlap
+      if (currentStart < nextEnd && currentEnd > nextStart) {
+        conflictMap.set(current.id, true);
+        conflictMap.set(next.id, true);
+      }
+    }
+  }
+
+  return `
+    <div style="max-height: 300px; overflow-y: auto;">
+      ${sortedAssignments.map(assignment => {
+        const start = new Date(assignment.start);
+        const end = new Date(assignment.end);
+        const hasConflict = conflictMap.has(assignment.id);
+        const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60)); // minutes
+        
+        return `
+          <div style="padding: 8px; margin-bottom: 6px; border-radius: 4px; border: 1px solid ${hasConflict ? '#fecaca' : '#e5e7eb'}; background: ${hasConflict ? '#fef2f2' : '#f9fafb'};">
+            ${hasConflict ? '<div style="font-size: 10px; color: #dc2626; margin-bottom: 4px; font-weight: 600;">⚠️ ÇAKIŞMA</div>' : ''}
+            
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+              <div style="font-weight: 600; font-size: 12px; color: rgb(17, 24, 39);">
+                ${assignment.planName || 'Plan #' + (assignment.planId || '').slice(-6)}
+              </div>
+              <span style="font-size: 10px; color: rgb(107, 114, 128); background: rgb(243, 244, 246); padding: 1px 4px; border-radius: 3px;">
+                ${duration}dk
+              </span>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 11px; color: rgb(55, 65, 81);">
+              <span>🕒 ${start.toLocaleString('tr-TR', { 
+                month: 'short', 
+                day: 'numeric', 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })} - ${end.toLocaleString('tr-TR', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              })}</span>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 10px; color: rgb(107, 114, 128);">
+              ${assignment.stationId ? `<span>🏭 ${assignment.stationId}</span>` : ''}
+              ${assignment.subStationCode ? `<span>📍 ${assignment.subStationCode}</span>` : ''}
+              <span style="margin-left: auto; background: ${getStatusColor(assignment.status)}; color: white; padding: 1px 4px; border-radius: 3px;">
+                ${getStatusLabel(assignment.status)}
+              </span>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// Helper functions for assignment status
+function getStatusColor(status) {
+  switch (status) {
+    case 'pending': return '#f59e0b';
+    case 'in-progress': return '#3b82f6';
+    case 'completed': return '#10b981';
+    case 'cancelled': return '#ef4444';
+    default: return '#6b7280';
+  }
+}
+
+function getStatusLabel(status) {
+  switch (status) {
+    case 'pending': return 'Bekliyor';
+    case 'in-progress': return 'Devam Eden';
+    case 'completed': return 'Tamamlandı';
+    case 'cancelled': return 'İptal';
+    default: return status || 'Bilinmiyor';
+  }
+}
+
+// Refresh worker assignments
+async function refreshWorkerAssignments(workerId) {
+  if (!workerId) return;
+  
+  try {
+    const assignments = await fetchWorkerAssignments(workerId);
+    
+    // Find the assignments timeline container and update it
+    const timelineContainer = document.querySelector('.assignments-timeline');
+    if (timelineContainer) {
+      timelineContainer.innerHTML = generateAssignmentsTimeline(assignments);
+    } else {
+      // If no timeline container, refresh the entire detail panel
+      await showWorkerDetail(workerId);
+    }
+    
+    showToast('Görevler güncellendi', 'success');
+  } catch (error) {
+    console.error('Failed to refresh assignments:', error);
+    showToast('Görevler güncellenirken hata oluştu', 'error');
+  }
+}
+
+// Make refreshWorkerAssignments globally available
+window.refreshWorkerAssignments = refreshWorkerAssignments;
+
+// Handle assignment updates event
+async function handleAssignmentsUpdated(event) {
+  // If a worker detail panel is currently open, refresh it
+  if (selectedWorkerId) {
+    try {
+      await refreshWorkerAssignments(selectedWorkerId);
+    } catch (error) {
+      console.error('Failed to refresh assignments on update:', error);
+    }
+  }
+  
+  // Refresh the workers table to update any conflict indicators
+  await loadWorkersAndRender();
+}
+
 async function loadWorkersAndRender() {
   const tbody = document.getElementById('workers-table-body')
   if (tbody) tbody.innerHTML = `<tr><td colspan="4"><em>Loading workers...</em></td></tr>`
@@ -873,7 +1049,7 @@ async function loadWorkersAndRender() {
     if (!res.ok) throw new Error(`Load failed: ${res.status}`)
     const data = await res.json()
     workersState = Array.isArray(data?.workers) ? data.workers : []
-    renderWorkersTable()
+    await renderWorkersTable()
   } catch (e) {
     console.error('Workers load error:', e)
     if (tbody) tbody.innerHTML = `<tr><td colspan="4"><span style="color:#ef4444">Workers yüklenemedi.</span></td></tr>`
@@ -881,11 +1057,16 @@ async function loadWorkersAndRender() {
   }
 }
 
-function renderWorkersTable() {
+async function renderWorkersTable() {
   const tbody = document.getElementById('workers-table-body')
   if (!tbody) return
 
-  const filtered = applyWorkersFilter(workersState)
+  // Show loading state if conflict filter is active
+  if (workerFilters.hasConflict) {
+    tbody.innerHTML = `<tr><td colspan=\"3\"><em>Checking for conflicts...</em></td></tr>`
+  }
+
+  const filtered = await applyWorkersFilter(workersState)
 
   if (workersState.length === 0) {
     tbody.innerHTML = `<tr><td colspan=\"3\"><em>Hiç worker yok. Yeni ekleyin.</em></td></tr>`
@@ -938,12 +1119,60 @@ function normalizeSkills(skills) {
     : (typeof skills === 'string' ? skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
 }
 
-function applyWorkersFilter(list) {
+// Cache for worker conflicts to avoid repeated API calls
+let workerConflictsCache = new Map();
+let conflictsCacheTimestamp = 0;
+const CONFLICTS_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes
+
+async function checkWorkerHasConflicts(workerId) {
+  // Check cache first
+  if (workerConflictsCache.has(workerId) && 
+      (Date.now() - conflictsCacheTimestamp) < CONFLICTS_CACHE_DURATION) {
+    return workerConflictsCache.get(workerId);
+  }
+  
+  try {
+    const assignments = await fetchWorkerAssignments(workerId, 'active');
+    
+    // Check for overlapping assignments
+    let hasConflict = false;
+    for (let i = 0; i < assignments.length && !hasConflict; i++) {
+      const current = assignments[i];
+      const currentStart = new Date(current.start);
+      const currentEnd = new Date(current.end);
+      
+      for (let j = i + 1; j < assignments.length; j++) {
+        const next = assignments[j];
+        const nextStart = new Date(next.start);
+        const nextEnd = new Date(next.end);
+        
+        // Check for overlap
+        if (currentStart < nextEnd && currentEnd > nextStart) {
+          hasConflict = true;
+          break;
+        }
+      }
+    }
+    
+    // Cache the result
+    workerConflictsCache.set(workerId, hasConflict);
+    conflictsCacheTimestamp = Date.now();
+    
+    return hasConflict;
+  } catch (error) {
+    console.error('Error checking worker conflicts:', error);
+    return false; // Assume no conflicts on error
+  }
+}
+
+async function applyWorkersFilter(list) {
   const q = String(workerFilters.query || '').toLowerCase()
   const selSkills = Array.isArray(workerFilters.skills) ? workerFilters.skills : []
   const statuses = Array.isArray(workerFilters.statuses) ? workerFilters.statuses : []
+  const needsConflictFilter = workerFilters.hasConflict
 
-  return (list || []).filter(w => {
+  // First apply non-async filters
+  let filtered = (list || []).filter(w => {
     // status
     const wStatus = String(w.status || 'available').toLowerCase()
     if (statuses.length > 0 && !statuses.includes(wStatus)) return false
@@ -964,6 +1193,16 @@ function applyWorkersFilter(list) {
     }
     return true
   })
+
+  // Apply conflict filter if needed (async)
+  if (needsConflictFilter) {
+    const conflictResults = await Promise.all(
+      filtered.map(w => checkWorkerHasConflicts(w.id))
+    );
+    filtered = filtered.filter((w, index) => conflictResults[index]);
+  }
+
+  return filtered;
 }
 
 function initWorkerFilters() {
@@ -971,10 +1210,10 @@ function initWorkerFilters() {
   const search = document.getElementById('worker-filter-search')
   if (search) {
     search.value = workerFilters.query
-    search.addEventListener('input', (e) => {
+    search.addEventListener('input', async (e) => {
       workerFilters.query = e.target.value || ''
       updateClearAllButton()
-      renderWorkersTable()
+      await renderWorkersTable()
     })
   }
 
@@ -982,12 +1221,14 @@ function initWorkerFilters() {
   setupSkillsFilter()
   // Status dropdown
   setupStatusFilter()
+  // Conflict filter
+  setupConflictFilter()
 
   // Clear All button
   const clearAllBtn = document.getElementById('worker-filter-clear-all')
   if (clearAllBtn) {
-    clearAllBtn.addEventListener('click', () => {
-      clearAllFilters()
+    clearAllBtn.addEventListener('click', async () => {
+      await clearAllFilters()
     })
   }
 
@@ -1038,7 +1279,7 @@ async function setupSkillsFilter() {
 
     // attach events
     list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      cb.addEventListener('change', (e) => {
+      cb.addEventListener('change', async (e) => {
         const val = e.target.value
         if (e.target.checked) {
           if (!workerFilters.skills.includes(val)) workerFilters.skills.push(val)
@@ -1046,7 +1287,7 @@ async function setupSkillsFilter() {
           workerFilters.skills = workerFilters.skills.filter(x => x !== val)
         }
         updateCount()
-        renderWorkersTable()
+        await renderWorkersTable()
       })
     })
   }
@@ -1077,11 +1318,11 @@ async function setupSkillsFilter() {
   }
   btn.addEventListener('click', toggle)
   if (search) search.addEventListener('input', (e) => renderSkillsList(e.target.value))
-  if (clearBtn) clearBtn.addEventListener('click', () => {
+  if (clearBtn) clearBtn.addEventListener('click', async () => {
     workerFilters.skills = []
     updateCount()
     renderSkillsList()
-    renderWorkersTable()
+    await renderWorkersTable()
   })
   if (hideBtn) hideBtn.addEventListener('click', () => { panel.style.display = 'none' })
 }
@@ -1119,7 +1360,7 @@ function setupStatusFilter() {
     }).join('')
 
     list.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      cb.addEventListener('change', (e) => {
+      cb.addEventListener('change', async (e) => {
         const val = e.target.value
         if (e.target.checked) {
           if (!workerFilters.statuses.includes(val)) workerFilters.statuses.push(val)
@@ -1127,7 +1368,7 @@ function setupStatusFilter() {
           workerFilters.statuses = workerFilters.statuses.filter(x => x !== val)
         }
         updateCount()
-        renderWorkersTable()
+        await renderWorkersTable()
       })
     })
   }
@@ -1152,13 +1393,25 @@ function setupStatusFilter() {
   // Prevent outside click handler from closing when interacting inside
   panel.addEventListener('click', (e) => e.stopPropagation())
   panel.addEventListener('pointerdown', (e) => e.stopPropagation())
-  if (clearBtn) clearBtn.addEventListener('click', () => {
+  if (clearBtn) clearBtn.addEventListener('click', async () => {
     workerFilters.statuses = []
     updateCount()
     renderStatusList()
-    renderWorkersTable()
+    await renderWorkersTable()
   })
   if (hideBtn) hideBtn.addEventListener('click', () => { panel.style.display = 'none' })
+}
+
+function setupConflictFilter() {
+  const conflictCheckbox = document.getElementById('worker-filter-conflict');
+  if (conflictCheckbox) {
+    conflictCheckbox.checked = workerFilters.hasConflict;
+    conflictCheckbox.addEventListener('change', async (e) => {
+      workerFilters.hasConflict = e.target.checked;
+      updateClearAllButton();
+      await renderWorkersTable();
+    });
+  }
 }
 
 export function openAddWorkerModal() {
@@ -1247,7 +1500,7 @@ export async function saveWorker() {
   try {
     await persistWorkers()
     closeWorkerModal(true)
-    renderWorkersTable()
+    await renderWorkersTable()
     // If a detail panel is open for this worker, refresh it
     try {
       if (selectedWorkerId && selectedWorkerId === payload.id) {
@@ -1267,7 +1520,7 @@ export async function deleteWorker(id) {
   try {
     await persistWorkers()
     closeWorkerModal(true)
-    renderWorkersTable()
+    await renderWorkersTable()
     showToast('Worker silindi', 'success')
   } catch (e) {
     console.error('Worker delete error:', e)
@@ -1608,7 +1861,7 @@ function capitalize(s) { s = String(s||''); return s.charAt(0).toUpperCase() + s
 function genId() { return 'w-' + Math.random().toString(36).slice(2, 9) }
 
 // Clear All Filters functionality
-function clearAllFilters() {
+async function clearAllFilters() {
   // Clear search
   workerFilters.query = ''
   const searchInput = document.getElementById('worker-filter-search')
@@ -1630,10 +1883,17 @@ function clearAllFilters() {
     checkbox.checked = false
   })
 
+  // Clear conflict filter
+  workerFilters.hasConflict = false
+  const conflictCheckbox = document.getElementById('worker-filter-conflict')
+  if (conflictCheckbox) {
+    conflictCheckbox.checked = false
+  }
+
   // Update UI
   updateFilterCounts()
   updateClearAllButton()
-  renderWorkersTable()
+  await renderWorkersTable()
 }
 
 function updateClearAllButton() {
@@ -1643,7 +1903,8 @@ function updateClearAllButton() {
   // Show button if any filter is active
   const hasActiveFilters = workerFilters.query.trim() !== '' || 
                           workerFilters.skills.length > 0 || 
-                          workerFilters.statuses.length > 0
+                          workerFilters.statuses.length > 0 ||
+                          workerFilters.hasConflict
 
   clearAllBtn.style.display = hasActiveFilters ? 'block' : 'none'
 }
