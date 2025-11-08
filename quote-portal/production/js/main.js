@@ -22,12 +22,12 @@ function renderView(viewId) {
     case 'worker-panel': content = generateWorkerPanel(); break;
     case 'plan-designer':
       content = generatePlanDesigner();
-      setTimeout(() => {
+      setTimeout(async () => {
         initPlanOverviewUI();
         // Initialize designer backend (designer UI is initially hidden but present in DOM)
-        initializePlanDesigner();
-        loadOperationsToolboxBackend();
-        loadApprovedOrdersToSelect();
+        await initializePlanDesigner();
+        await loadOperationsToolboxBackend();
+        await loadApprovedOrdersToSelect();
         // Inject metadata toggle styles
         injectMetadataToggleStyles();
         

@@ -1,7 +1,7 @@
 // Plan Designer logic and state
 import { showToast } from './ui.js';
 import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js';
-import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans } from './mesApi.js';
+import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
 import { API_BASE, withAuth } from '../../shared/lib/api.js';
@@ -56,44 +56,57 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-export function loadOperationsToolbox() {
-  // Gerçek operations verilerini kullan (şimdilik hardcoded, Firebase'den gelecek)
-  const operations = [
-    { id: 'op-225d1xh', name: 'Boyama', type: 'painting', time: 30, skills: ['painter'] },
-    { id: 'op-25m0lvw', name: 'Montaj', type: 'assembly', time: 45, skills: ['assembly'] },
-    { id: 'op-me5qd1y', name: 'Press Kalıp Şekillendirme', type: 'forming', time: 60, skills: ['operator'] },
-    { id: 'op-rqjlcwf', name: 'Torna', type: 'machining', time: 40, skills: ['machinist'] }
-  ];
-
-  // Normal operations list
+export async function loadOperationsToolbox() {
   const listContainer = document.getElementById('operations-list');
-  if (listContainer) {
-    if (operations.length === 0) {
-      listContainer.innerHTML = '<div style="padding: 8px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
-    } else {
-      listContainer.innerHTML = operations.map(op =>
-        `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: grab; background: white; margin-bottom: 4px; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${op.name}</div>`
-      ).join('');
-    }
-  }
-  
-  // Fullscreen operations list
   const fullscreenListContainer = document.getElementById('fullscreen-operations-list');
+  
+  if (listContainer) {
+    listContainer.innerHTML = '<div style="padding:6px;color:#888;">Loading operations...</div>';
+  }
   if (fullscreenListContainer) {
-    if (operations.length === 0) {
-      fullscreenListContainer.innerHTML = '<div style="padding: 12px; color: var(--muted-foreground); font-size: 14px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
-    } else {
-      fullscreenListContainer.innerHTML = operations.map(op =>
-        `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${op.name}</div>`
-      ).join('');
-    }
+    fullscreenListContainer.innerHTML = '<div style="padding:12px;color:#888;">Loading operations...</div>';
   }
   
-  // Store in planDesignerState for drag & drop
-  planDesignerState.availableOperations = operations
+  try {
+    // Backend'den gerçek operations verilerini getir
+    const operations = await getOperations(true);
+    
+    // Store in planDesignerState for drag & drop
+    planDesignerState.availableOperations = operations;
+
+    // Normal operations list
+    if (listContainer) {
+      if (operations.length === 0) {
+        listContainer.innerHTML = '<div style="padding: 8px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
+      } else {
+        listContainer.innerHTML = operations.map(op =>
+          `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: grab; background: white; margin-bottom: 4px; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${escapeHtml(op.name)}</div>`
+        ).join('');
+      }
+    }
   
-  // Initialize global event handlers if not already done
-  initializeGlobalEventHandlers()
+    // Fullscreen operations list
+    if (fullscreenListContainer) {
+      if (operations.length === 0) {
+        fullscreenListContainer.innerHTML = '<div style="padding: 12px; color: var(--muted-foreground); font-size: 14px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
+      } else {
+        fullscreenListContainer.innerHTML = operations.map(op =>
+          `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${escapeHtml(op.name)}</div>`
+        ).join('');
+      }
+    }
+    
+    // Initialize global event handlers if not already done
+    initializeGlobalEventHandlers();
+  } catch (e) {
+    console.error('loadOperationsToolbox error', e);
+    if (listContainer) {
+      listContainer.innerHTML = '<div style="padding:6px;color:#ef4444;">Failed to load operations</div>';
+    }
+    if (fullscreenListContainer) {
+      fullscreenListContainer.innerHTML = '<div style="padding:12px;color:#ef4444;">Failed to load operations</div>';
+    }
+  }
 }
 
 // Global event handlers for drag functionality
@@ -1584,13 +1597,13 @@ export function handleCanvasClick(event) {
   }
 }
 
-export function initializePlanDesigner() {
-  setTimeout(() => {
-    loadOperationsToolbox();
+export async function initializePlanDesigner() {
+  setTimeout(async () => {
+    await loadOperationsToolbox();
     renderCanvas();
     
     // Load orders into the dropdown
-    loadOrdersIntoSelect();
+    await loadOrdersIntoSelect();
     
     handleScheduleTypeChange();
 
@@ -1860,7 +1873,7 @@ export function selectPlanType(value, labelText) {
 }
 
 // Fullscreen Canvas Functions
-export function toggleCanvasFullscreen() {
+export async function toggleCanvasFullscreen() {
   const modal = document.getElementById('canvas-fullscreen-modal');
   const sidebar = document.getElementById('sidebar');
   const mainContent = document.querySelector('.main-content');
@@ -1878,11 +1891,11 @@ export function toggleCanvasFullscreen() {
     // Enter fullscreen  
     modal.style.display = 'block';
     if (sidebar) sidebar.style.display = 'none';
-    syncCanvasToFullscreen();
+    await syncCanvasToFullscreen();
   }
 }
 
-function syncCanvasToFullscreen() {
+async function syncCanvasToFullscreen() {
   // Set fullscreen mode
   planDesignerState.isFullscreen = true;
   
@@ -1895,7 +1908,7 @@ function syncCanvasToFullscreen() {
   updateCanvasCursor();
   
   // Load operations in fullscreen list
-  loadOperationsToolbox();
+  await loadOperationsToolbox();
   
   // Render existing nodes in fullscreen canvas
   const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
@@ -1934,8 +1947,10 @@ export function renderCanvasContent(canvasElement) {
   planDesignerState.nodes.forEach(node => renderNode(node, canvasElement));
 }
 
-// Make functions globally available
-window.toggleCanvasFullscreen = toggleCanvasFullscreen;
+// Make functions globally available - wrapper for async function
+window.toggleCanvasFullscreen = () => {
+  toggleCanvasFullscreen().catch(console.error);
+};
 
 // Fullscreen Zoom Functions
 export function adjustCanvasZoom(delta) {
