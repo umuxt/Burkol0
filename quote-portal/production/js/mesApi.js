@@ -91,7 +91,10 @@ export async function getStations(force = false) {
   const res = await fetch(`${API_BASE}/api/mes/stations`, { headers: withAuth() })
   if (!res.ok) throw new Error(`stations_load_failed ${res.status}`)
   const data = await res.json()
-  _stationsCache = Array.isArray(data?.stations) ? data.stations : []
+  _stationsCache = Array.isArray(data?.stations) ? data.stations.map(s => ({
+    ...s,
+    efficiency: typeof s.efficiency === 'number' ? s.efficiency : 1.0
+  })) : []
   writeCache('mes_stations_cache', _stationsCache)
   if (isReload()) _reloadForcedStations = true
   return _stationsCache
@@ -162,10 +165,11 @@ export async function getWorkers(force = false) {
   if (!res.ok) throw new Error(`workers_load_failed ${res.status}`)
   const data = await res.json()
   _workersCache = Array.isArray(data?.workers) ? data.workers : []
-  // normalize skills
+  // normalize skills and efficiency
   _workersCache = _workersCache.map(w => ({
     ...w,
-    skills: Array.isArray(w.skills) ? w.skills : (typeof w.skills === 'string' ? w.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
+    skills: Array.isArray(w.skills) ? w.skills : (typeof w.skills === 'string' ? w.skills.split(',').map(s=>s.trim()).filter(Boolean) : []),
+    efficiency: typeof w.efficiency === 'number' ? w.efficiency : 1.0
   }))
   return _workersCache
 }

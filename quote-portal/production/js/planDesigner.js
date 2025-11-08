@@ -299,6 +299,9 @@ async function performAutoAssignment(node, workers, stations, forceRefresh = fal
     node.requiresAttention = false;
     node.assignmentWarnings = [];
     
+    // Compute effective time based on efficiency
+    node.effectiveTime = computeNodeEffectiveDuration(node);
+    
     // Legacy compatibility: also set assignedWorker for backward compatibility
     node.assignedWorker = workerResult.worker.id;
     
@@ -391,6 +394,37 @@ export function generateAssignmentsPayload(nodes) {
       end: node.endTime,
       status: 'pending'
     }));
+}
+
+// Compute effective duration based on station and worker efficiency
+export function computeNodeEffectiveDuration(node) {
+  const nominalTime = parseFloat(node.time) || 0;
+  if (nominalTime <= 0) return 0;
+  
+  // Get efficiency values from assigned station and worker
+  let stationEff = 1.0;
+  let workerEff = 1.0;
+  
+  if (node.assignedStationId && planDesignerState.stationsCache) {
+    const station = planDesignerState.stationsCache.find(s => s.id === node.assignedStationId);
+    if (station && typeof station.efficiency === 'number') {
+      stationEff = station.efficiency;
+    }
+  }
+  
+  if (node.assignedWorkerId && planDesignerState.workersCache) {
+    const worker = planDesignerState.workersCache.find(w => w.id === node.assignedWorkerId);
+    if (worker && typeof worker.efficiency === 'number') {
+      workerEff = worker.efficiency;
+    }
+  }
+  
+  // Formula: effectiveTime = nominalTime / (stationEff * workerEff)
+  // Higher efficiency reduces time, lower efficiency increases time
+  const combinedEff = stationEff * workerEff;
+  if (combinedEff <= 0) return nominalTime; // Prevent division by zero
+  
+  return nominalTime / combinedEff;
 }
 
 // Aggregate material requirements across all nodes
@@ -1265,13 +1299,25 @@ export function renderNode(node, targetCanvas = null) {
   const scheduleInfo = node.startTime && node.endTime ? 
     `<div style="font-size: 10px; color: #059669; margin-bottom: 2px;">⏰ ${new Date(node.startTime).toLocaleString('tr-TR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} - ${new Date(node.endTime).toLocaleString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</div>` : '';
   
+  // Time display with efficiency
+  const timeDisplay = (() => {
+    const nominalTime = parseFloat(node.time) || 0;
+    const effectiveTime = typeof node.effectiveTime === 'number' ? node.effectiveTime : nominalTime;
+    
+    // If effective time differs from nominal, show both
+    if (Math.abs(effectiveTime - nominalTime) > 0.01 && (node.assignedWorkerId || node.assignedStationId)) {
+      return `⏱️ ${nominalTime} min → ${effectiveTime.toFixed(1)} min effective`;
+    }
+    return `⏱️ ${nominalTime} min`;
+  })();
+  
   nodeElement.innerHTML = [
     '<div style="display: flex; justify-content: between; align-items: flex-start; margin-bottom: 4px;">',
     `<div class="drag-handle" style="font-weight: 600; font-size: 14px; color: ${colors[node.type] || '#6b7280'}; flex: 1; cursor: ${planDesignerState.readOnly ? 'default' : 'move'}; padding: 2px;">🔸 ${node.name}${warningBadge}</div>`,
     actionsHtml,
     '</div>',
     `<div style="font-size: 11px; color: #6b7280; margin-bottom: 2px;">Type: ${node.type}</div>`,
-    `<div style=\"font-size: 11px; color: #6b7280; margin-bottom: 2px;\">⏱️ ${node.time} min</div>`,
+    `<div style=\"font-size: 11px; color: #6b7280; margin-bottom: 2px;\">${timeDisplay}</div>`,
     scheduleInfo,
     `<div style=\"font-size: 10px; color: #9ca3af;\">Worker: ${node.assignedWorkerName || node.assignedWorker || 'Not assigned'}<br>Station: ${node.assignedStationName || node.assignedStation || 'Not assigned'}<br>Materials: ${matSummary}</div>`
   ].join('');
@@ -1754,6 +1800,10 @@ export function saveNodeEdit() {
     planDesignerState.selectedNode.assignedStationName = null;
     planDesignerState.selectedNode.assignedStation = null; // Legacy field
   }
+  
+  // Compute effective time based on worker and station efficiency
+  planDesignerState.selectedNode.effectiveTime = computeNodeEffectiveDuration(planDesignerState.selectedNode);
+  
   const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal);
   planDesignerState.selectedNode.outputQty = Number.isFinite(outQtyNum) ? outQtyNum : null;
   planDesignerState.selectedNode.outputUnit = (outUnit || '').trim();
@@ -2908,6 +2958,11 @@ function migrateLegacyAssignments(node) {
       node.assignedStationName = stationById.name;
     }
     // If no match found, keep legacy value as-is (graceful fallback)
+  }
+  
+  // Compute effective time after migration
+  if ((node.assignedWorkerId || node.assignedStationId) && node.time) {
+    node.effectiveTime = computeNodeEffectiveDuration(node);
   }
 }
 

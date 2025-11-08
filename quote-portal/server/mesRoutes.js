@@ -670,6 +670,8 @@ router.get('/master-data', withAuth, async (req, res) => {
       return {
         availableSkills: ['Kaynak', 'Tornalama', 'Freze', 'Montaj'],
         availableOperationTypes: ['İmalat', 'Kontrol', 'Montaj', 'Paketleme'],
+        stationEfficiency: 1.0,  // Default station efficiency multiplier
+        workerEfficiency: 1.0,   // Default worker efficiency multiplier
         // default empty time settings for company schedule
         timeSettings: {
           workType: 'fixed',
@@ -688,6 +690,9 @@ router.get('/master-data', withAuth, async (req, res) => {
     if (!data.availableOperationTypes && Array.isArray(data.operationTypes)) {
       data.availableOperationTypes = data.operationTypes
     }
+    // Ensure efficiency defaults
+    data.stationEfficiency = data.stationEfficiency ?? 1.0;
+    data.workerEfficiency = data.workerEfficiency ?? 1.0;
     // Ensure timeSettings exists with safe defaults
     data.timeSettings = data.timeSettings || { workType: 'fixed', laneCount: 1, fixedBlocks: {}, shiftBlocks: {} }
     return data;
@@ -697,15 +702,23 @@ router.get('/master-data', withAuth, async (req, res) => {
 // POST /api/mes/master-data - Update master data
 router.post('/master-data', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
-    const { availableSkills, availableOperationTypes, timeSettings } = req.body || {};
+    const { availableSkills, availableOperationTypes, timeSettings, stationEfficiency, workerEfficiency } = req.body || {};
     
-    console.log('POST /api/mes/master-data - Received:', { availableSkills, availableOperationTypes, timeSettings });
+    console.log('POST /api/mes/master-data - Received:', { 
+      availableSkills, 
+      availableOperationTypes, 
+      timeSettings,
+      stationEfficiency,
+      workerEfficiency
+    });
     
     const db = getFirestore();
     const payload = {
       ...(availableSkills ? { availableSkills } : {}),
       ...(availableOperationTypes ? { availableOperationTypes } : {}),
       ...(timeSettings ? { timeSettings } : {}),
+      ...(stationEfficiency !== undefined ? { stationEfficiency: parseFloat(stationEfficiency) || 1.0 } : {}),
+      ...(workerEfficiency !== undefined ? { workerEfficiency: parseFloat(workerEfficiency) || 1.0 } : {}),
       updatedAt: new Date()
     }
     
