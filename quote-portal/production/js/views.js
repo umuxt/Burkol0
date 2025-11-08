@@ -974,6 +974,8 @@ export function generatePlanDesigner() {
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Plan Adı</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Order</th>
                 <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Steps</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Throughput</th>
+                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Bottleneck</th>
                 <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created At</th>
                 <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
                 <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated At</th>
@@ -985,7 +987,7 @@ export function generatePlanDesigner() {
             </thead>
             <tbody id="production-table-body">
               <tr>
-                <td colspan="9" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td>
+                <td colspan="11" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td>
               </tr>
             </tbody>
           </table>

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Üretim Paneli - Burkol MES</title>
+  <script type="module" src="../components/BurkolNavigation.js"></script>
+  <script type="module" src="../components/AuthGuard.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link rel="stylesheet" href="./styles/production.css">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Mobile Navigation Toggle -->
+    <button class="mobile-nav-toggle" onclick="toggleMobileNav()">☰</button>
+    <!-- Mobile Overlay -->
+    <div class="mobile-overlay" onclick="closeMobileNav()"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <div style="padding: 24px 0;">
+        <!-- Logo Area -->
+        <div style="padding: 0 16px 16px; border-bottom: 1px solid var(--border);">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #2563eb, #1d4ed8); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🏭</div>
+            <div>
+              <h2 style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 2px;">MES System</h2>
+              <p style="font-size: 12px; color: var(--muted-foreground);">Manufacturing Execution</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Navigation Groups -->
+        <div class="nav-group">
+          <div class="nav-group-header">Monitoring & Tracking</div>
+          <div class="nav-group-content">
+            <button class="nav-item" onclick="navigateToView('dashboard')"><div class="nav-item-icon">📊</div><span>Dashboard</span></button>
+            <button class="nav-item" onclick="navigateToView('approved-quotes')"><div class="nav-item-icon">✅</div><span>Approved Quotes</span></button>
+            <button class="nav-item" onclick="navigateToView('worker-panel')"><div class="nav-item-icon">👷</div><span>Worker Panel</span></button>
+          </div>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-group-header">Production Planning</div>
+          <div class="nav-group-content">
+            <button class="nav-item" onclick="navigateToView('plan-designer')"><div class="nav-item-icon">🎨</div><span>Plan Designer</span></button>
+          </div>
+        </div>
+
+        <div class="nav-group">
+          <div class="nav-group-header">Setup & Configuration</div>
+          <div class="nav-group-content">
+            <button class="nav-item" onclick="navigateToView('settings')"><div class="nav-item-icon">⚡</div><span>Master Data</span><span class="nav-item-badge">Start here</span></button>
+            <button class="nav-item" onclick="navigateToView('stations')"><div class="nav-item-icon">🏭</div><span>Stations</span></button>
+            <button class="nav-item" onclick="navigateToView('operations')"><div class="nav-item-icon">⚙️</div><span>Operations</span></button>
+            <button class="nav-item" onclick="navigateToView('workers')"><div class="nav-item-icon">👥</div><span>Workers</span></button>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="padding: 16px; border-top: 1px solid var(--border); margin-top: auto;">
+          <div style="font-size: 11px; color: var(--muted-foreground);">
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+              <div style="width: 6px; height: 6px; background: #10b981; border-radius: 50%; animation: pulse 2s infinite;"></div>
+              <span>System Online</span>
+            </div>
+            <p>Version 1.0.0</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <div id="content-area"></div>
+    </div>
+  </div>
+
+  <!-- Help System -->
+  <button class="help-button" onclick="openHelp()" title="Help & Guide">?</button>
+  <div class="help-overlay" id="help-overlay" onclick="closeHelp()"></div>
+  <div class="help-panel" id="help-panel">
+    <div class="help-header">
+      <div>
+        <h2 class="help-title">🏭 MES Sistemi Kullanım Rehberi</h2>
+        <p class="help-subtitle">Üretim Yönetim Sistemi tam kullanım kılavuzu</p>
+      </div>
+      <button class="help-close" onclick="closeHelp()">×</button>
+    </div>
+    <div class="help-content">
+      <div class="help-tabs">
+        <button class="help-tab active" onclick="switchHelpTab('setup')">🚀 Kurulum</button>
+        <button class="help-tab" onclick="switchHelpTab('usage')">📊 Kullanım</button>
+        <button class="help-tab" onclick="switchHelpTab('features')">⚡ Özellikler</button>
+        <button class="help-tab" onclick="switchHelpTab('faq')">❓ S.S.S</button>
+      </div>
+      <div class="help-section active" id="help-setup">
+        <div class="help-step"><div class="help-step-header"><div class="help-step-number">1</div><h3 class="help-step-title">Master Data Tanımlama</h3></div><p class="help-step-description">Sistemdeki temel veri yapılarını oluşturun. Bu adım tüm sistem için kritiktir.</p><div class="help-step-details"><ul><li><strong>Skills (Yetenekler):</strong> CNC Programming, Welding, Assembly, Quality Control</li><li><strong>Operation Types:</strong> Machining, Welding, Painting, Assembly, Quality</li><li><strong>Material Types:</strong> Steel, Aluminum, Plastic vb.</li><li>Bu veriler tüm sistemde kullanılacak - önce bunları tanımlayın!</li></ul></div><button class="help-action-button" onclick="navigateToView('settings'); closeHelp();">Master Data'ya Git</button></div>
+        <div class="help-step"><div class="help-step-header"><div class="help-step-number">2</div><h3 class="help-step-title">İstasyonları Oluşturun</h3></div><p class="help-step-description">Üretim istasyonlarını ve iş merkezlerini tanımlayın.</p><div class="help-step-details"><ul><li>Fabrikadaki her istasyonu ekleyin (CNC Mill 01, Welding Station A, vb.)</li><li>Her istasyon için: İsim, Tip, Kapasite, Durum belirleyin</li><li>Örnek: 'CNC Mill 01' - Tip: 'CNC Milling Machine' - Kapasite: 1 worker</li><li>Station status: Active, Maintenance, Offline</li></ul></div><button class="help-action-button" onclick="navigateToView('stations'); closeHelp();">İstasyonlara Git</button></div>
+        <div class="help-step"><div class="help-step-header"><div class="help-step-number">3</div><h3 class="help-step-title">Operasyonları Tanımlayın</h3></div><p class="help-step-description">Üretim operasyonlarını yapılandırın.</p><div class="help-step-details"><ul><li>Her üretim operasyonunu ekleyin (CNC Milling, Welding, Quality Control, vb.)</li><li><strong>Operation Type:</strong> Önceki adımda tanımladığınız tiplerden seçin</li><li><strong>Required Skills:</strong> Hangi yetenekler gerekli</li><li><strong>Required Station:</strong> Hangi istasyonda yapılacak</li><li><strong>Estimated Time:</strong> Tahmini süre (dakika)</li></ul></div><button class="help-action-button" onclick="navigateToView('operations'); closeHelp();">Operasyonlara Git</button></div>
+        <div class="help-step"><div class="help-step-header"><div class="help-step-number">4</div><h3 class="help-step-title">İşçileri Sisteme Ekleyin</h3></div><p class="help-step-description">İşçileri ve yeteneklerini tanımlayın.</p><div class="help-step-details"><ul><li><strong>Name & Email:</strong> Temel bilgiler</li><li><strong>Skills:</strong> Hangi yeteneklere sahip (master data'dan seçin)</li><li><strong>Assigned Operations:</strong> Hangi operasyonları yapabilir</li><li><strong>Assigned Stations:</strong> Hangi istasyonlarda çalışabilir</li><li><strong>Shift:</strong> Day/Night vardiya</li></ul></div><button class="help-action-button" onclick="navigateToView('workers'); closeHelp();">İşçilere Git</button></div>
+      </div>
+      <div class="help-section" id="help-usage">
+        <div class="help-step"><div class="help-step-header"><div class="help-step-number">📊</div><h3 class="help-step-title">Dashboard</h3></div><p class="help-step-description">Anlık üretim takibi ve önemli metrikler.</p><div class="help-step-details"><ul><li><strong>KPI Kartları:</strong> Active Orders, Completed Today, Active Workers, On-Time Delivery</li><li><strong>Work Orders:</strong> Güncel iş emirleri tablosu</li><li><strong>Health Indicators:</strong> Sistem durum göstergeleri</li></ul></div><button class="help-action-button" onclick="navigateToView('dashboard'); closeHelp();">Dashboard'a Git</button></div>
+        <div class="help-step"><div class="help-step-header"><div class="help-step-number">👷</div><h3 class="help-step-title">Worker Panel</h3></div><p class="help-step-description">İşçi yönetimi ve görev takibi.</p><div class="help-step-details"><ul><li><strong>Aktif İşçiler:</strong> Şu anda çalışan personel listesi</li><li><strong>Görev Atamaları:</strong> Her işçinin mevcut görevi</li><li><strong>Beceri Matrisi:</strong> İşçilerin yetenekleri</li><li><strong>Vardiya Yönetimi:</strong> Day/Night shift planlama</li><li><strong>Performance Tracking:</strong> İşçi performans takibi</li></ul></div><button class="help-action-button" onclick="navigateToView('worker-panel'); closeHelp();">Worker Panel'e Git</button></div>
+      </div>
+      <div class="help-section" id="help-features">
+        <div class="help-step"><div class="help-step-header"><div class="help-step-number">⚡</div><h3 class="help-step-title">Temel Özellikler</h3></div><div class="help-step-details"><ul><li><strong>Real-time Dashboard:</strong> Anlık üretim takibi</li><li><strong>Work Order Management:</strong> İş emri yönetimi</li><li><strong>Resource Planning:</strong> Kaynak planlama</li><li><strong>Quality Control:</strong> Kalite kontrol entegrasyonu</li><li><strong>Reporting:</strong> Detaylı raporlama sistemi</li><li><strong>Mobile Support:</strong> Mobil cihaz desteği</li></ul></div></div>
+        <div class="help-step"><div class="help-step-header"><div class="help-step-number">🎨</div><h3 class="help-step-title">Plan Designer</h3></div><p class="help-step-description">Üretim planları oluşturun ve optimize edin.</p><div class="help-step-details"><ul><li><strong>Drag & Drop:</strong> Kolay planlama arayüzü</li><li><strong>Resource Optimization:</strong> Kaynak optimizasyonu</li><li><strong>Timeline View:</strong> Zaman çizelgesi görünümü</li><li><strong>Conflict Detection:</strong> Çakışma tespiti</li><li><strong>Template Support:</strong> Şablon desteği</li></ul></div><button class="help-action-button" onclick="navigateToView('plan-designer'); closeHelp();">Plan Designer'a Git</button></div>
+      </div>
+      <div class="help-section" id="help-faq">
+        <div class="help-faq-item"><button class="help-faq-question" onclick="toggleFAQ(this)"><span>Sisteme nasıl başlarım?</span><span>▼</span></button><div class="help-faq-answer"><p>1. Master Data'yı tanımlayın (Skills, Operation Types)<br>2. İstasyonları oluşturun<br>3. Operasyonları tanımlayın<br>4. İşçileri sisteme ekleyin<br>5. İlk Work Order'ınızı oluşturun</p></div></div>
+        <div class="help-faq-item"><button class="help-faq-question" onclick="toggleFAQ(this)"><span>Veriler nerede saklanıyor?</span><span>▼</span></button><div class="help-faq-answer"><p>Veriler tarayıcınızın Local Storage'ında saklanır. Gerçek ortamda Firebase/Database kullanılacaktır.</p></div></div>
+        <div class="help-faq-item"><button class="help-faq-question" onclick="toggleFAQ(this)"><span>Mobile cihazlarda nasıl kullanırım?</span><span>▼</span></button><div class="help-faq-answer"><p>Sistem tamamen responsive tasarlanmıştır. Tablette ve telefonda sidebar menü ile tüm özellikler kullanılabilir.</p></div></div>
+        <div class="help-faq-item"><button class="help-faq-question" onclick="toggleFAQ(this)"><span>Sistem nasıl güncellenecek?</span><span>▼</span></button><div class="help-faq-answer"><p>Sistem real-time güncellemeler alır. Dashboard verileri otomatik yenilenir. Manuel yenileme için sayfayı yenileyin.</p></div></div>
+        <div class="help-faq-item"><button class="help-faq-question" onclick="toggleFAQ(this)"><span>Hangi tarayıcılar desteklenir?</span><span>▼</span></button><div class="help-faq-answer"><p>Modern tarayıcılar: Chrome 90+, Firefox 88+, Safari 14+, Edge 90+. Internet Explorer desteklenmez.</p></div></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

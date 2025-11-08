@@ -2513,6 +2513,9 @@ export async function savePlanDraft() {
       shortages: materialCheck.shortageDetails || []
     };
     
+    // Prepare timing summary for the plan document
+    const timingSummary = planDesignerState.timingSummary || summarizePlanTiming(planDesignerState.nodes, planQuantity);
+    
     const updates = {
       name: planName,
       description: planDesc,
@@ -2523,6 +2526,7 @@ export async function savePlanDraft() {
       status: 'production',
       autoAssign: true,
       materialSummary, // Add material summary for reporting
+      timingSummary, // Add timing summary for reporting
       ...(assignments.length > 0 ? { assignments } : {})
     };
     updateProductionPlan(id, updates)
@@ -2554,6 +2558,9 @@ export async function savePlanDraft() {
     items: materialCheck.items || [],
     shortages: materialCheck.shortageDetails || []
   };
+  
+  // Prepare timing summary for the plan document
+  const timingSummary = planDesignerState.timingSummary || summarizePlanTiming(planDesignerState.nodes, planQuantity);
 
   const plan = {
     id: undefined,
@@ -2566,7 +2573,8 @@ export async function savePlanDraft() {
     createdAt: new Date().toISOString(),
     status: 'production',
     autoAssign: true, // Enable auto-assignment for production plans
-    materialSummary // Add material summary for reporting
+    materialSummary, // Add material summary for reporting
+    timingSummary // Add timing summary for reporting
   };
   
   // Generate assignments payload for production status

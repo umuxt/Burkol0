@@ -40,7 +40,7 @@ function renderProductionPlans(plans) {
   const count = document.getElementById('production-count')
   if (!body) return
   if (!plans || plans.length === 0) {
-    body.innerHTML = '<tr><td colspan="9" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td></tr>'
+    body.innerHTML = '<tr><td colspan="11" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td></tr>'
   } else {
     body.innerHTML = plans.map(p => {
       const fullPlanId = (p.id || '—').toString()
@@ -53,11 +53,37 @@ function renderProductionPlans(plans) {
       const createdBy = p.createdByName || p.createdBy || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
       const updated = (p.updatedDate && p.updatedTime) ? `${p.updatedDate} ${p.updatedTime}` : fmtDate(p.updatedAt || p.lastModifiedAt || p.createdAt)
       const updatedBy = p.updatedByName || p.lastModifiedByName || p.updatedBy || p.lastModifiedBy || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
+      
+      // Format timing summary data
+      const timingSummary = p.timingSummary;
+      let throughputDisplay = '—';
+      let bottleneckDisplay = '—';
+      let tooltipText = '';
+      
+      if (timingSummary) {
+        // Convert minutes to hours for display
+        const nominalHrs = (timingSummary.totalNominalTime / 60).toFixed(1);
+        const effectiveHrs = (timingSummary.totalEffectiveTime / 60).toFixed(1);
+        throughputDisplay = `${nominalHrs} / ${effectiveHrs} hrs`;
+        
+        if (timingSummary.bottleneck) {
+          const loadMin = timingSummary.bottleneck.load.toFixed(0);
+          bottleneckDisplay = `${timingSummary.bottleneck.stationName} (${loadMin} min)`;
+        }
+        
+        const days = timingSummary.estimatedDays || 0;
+        const shiftMin = timingSummary.dailyShiftMinutes || 480;
+        const shiftHrs = (shiftMin / 60).toFixed(1);
+        tooltipText = `Est. completion: ${days} day${days !== 1 ? 's' : ''} @ ${shiftHrs}h shifts`;
+      }
+      
       return `<tr data-status="${status}">
         <td style="padding: 10px 12px;">${planId}</td>
         <td style="padding: 10px 12px;">${name}</td>
         <td style="padding: 10px 12px;">${order}</td>
         <td style="padding: 10px 12px;">${steps}</td>
+        <td style="padding: 10px 12px; font-size: 12px;" title="${tooltipText}">${throughputDisplay}</td>
+        <td style="padding: 10px 12px; font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${tooltipText}">${bottleneckDisplay}</td>
         <td class="metadata-column hidden" style="padding: 10px 12px;">${created}</td>
         <td class="metadata-column hidden" style="padding: 10px 12px;">${createdBy}</td>
         <td class="metadata-column hidden" style="padding: 10px 12px;">${updated}</td>

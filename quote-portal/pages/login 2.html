@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Burkol | Admin Girişi</title>
+    <link rel="manifest" href="/config/manifest.json">
+    <script src="/components/BurkolNavigation.js" defer></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(135deg, #0f1419 0%, #1a2332 100%);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .login-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+      }
+
+      .login-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        padding: 3rem;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+        text-align: center;
+      }
+
+      .login-header {
+        margin-bottom: 2rem;
+      }
+
+      .login-dot {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #d4af37 0%, #f4d03f 100%);
+        box-shadow: 0 0 20px rgba(212, 175, 55, 0.6);
+        margin: 0 auto 1rem;
+        animation: pulse 2s infinite;
+      }
+
+      @keyframes pulse {
+        0% { box-shadow: 0 0 20px rgba(212, 175, 55, 0.6); }
+        50% { box-shadow: 0 0 30px rgba(212, 175, 55, 0.8), 0 0 40px rgba(212, 175, 55, 0.4); }
+        100% { box-shadow: 0 0 20px rgba(212, 175, 55, 0.6); }
+      }
+
+      .login-title {
+        color: #ffffff;
+        font-size: 2rem;
+        font-weight: 700;
+        margin: 0 0 0.5rem 0;
+        background: linear-gradient(135deg, #ffffff 0%, #d4af37 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .login-subtitle {
+        color: rgba(255, 255, 255, 0.8);
+        margin: 0;
+        font-size: 1rem;
+      }
+
+      .login-form {
+        text-align: left;
+      }
+
+      .error-message {
+        display: none;
+        background: rgba(220, 53, 69, 0.2);
+        border: 1px solid rgba(220, 53, 69, 0.3);
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        color: #ff6b6b;
+        font-size: 0.9rem;
+        text-align: center;
+      }
+
+      .form-group {
+        margin-bottom: 1.5rem;
+      }
+
+      .form-label {
+        display: block;
+        color: #ffffff;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        font-size: 0.9rem;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 1rem;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+        color: #ffffff;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+        box-sizing: border-box;
+      }
+
+      .form-input:focus {
+        outline: none;
+        border-color: #d4af37;
+        background: rgba(255, 255, 255, 0.15);
+        box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.2);
+      }
+
+      .form-input::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+      }
+
+      .form-checkbox-group {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+      }
+
+      .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 14px;
+        cursor: pointer;
+      }
+
+      .login-btn {
+        width: 100%;
+        padding: 1rem;
+        background: linear-gradient(135deg, #d4af37 0%, #b8941f 100%);
+        color: #ffffff;
+        border: none;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(212, 175, 55, 0.4);
+      }
+
+      .login-btn:hover:not(:disabled) {
+        background: linear-gradient(135deg, #e6c547 0%, #d4af37 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(212, 175, 55, 0.5);
+      }
+
+      .login-btn:disabled {
+        background: rgba(212, 175, 55, 0.5);
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .loading-spinner {
+        display: none;
+        width: 20px;
+        height: 20px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top: 2px solid #ffffff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin: 0 auto;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* Toast notification */
+      .toast {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 12px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        font-size: 14px;
+        font-weight: 500;
+        max-width: 400px;
+        text-align: center;
+        animation: slideInDown 0.3s ease-out;
+        display: none;
+      }
+
+      .toast.success {
+        background-color: #4caf50;
+        color: white;
+      }
+
+      .toast.error {
+        background-color: #f44336;
+        color: white;
+      }
+
+      @keyframes slideInDown {
+        from {
+          opacity: 0;
+          transform: translateX(-50%) translateY(-20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(-50%) translateY(0);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toast" id="toast"></div>
+    
+    <div class="login-container">
+      <div class="login-card">
+        <div class="login-header">
+          <div class="login-dot"></div>
+          <h2 class="login-title">Admin Girişi</h2>
+          <p class="login-subtitle">Burkol Yönetim Paneli</p>
+        </div>
+
+        <form class="login-form" id="loginForm">
+          <div class="error-message" id="errorMessage"></div>
+
+          <div class="form-group">
+            <label class="form-label" for="email">E-posta</label>
+            <input
+              type="email"
+              id="email"
+              class="form-input"
+              placeholder="admin@burkol.com"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="password">Şifre</label>
+            <input
+              type="password"
+              id="password"
+              class="form-input"
+              placeholder="••••••••"
+              required
+            />
+          </div>
+
+          <div class="form-checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="remember" checked />
+              Beni hatırla
+            </label>
+          </div>
+
+          <button type="submit" class="login-btn" id="loginBtn">
+            <span id="btnText">Giriş Yap</span>
+            <div class="loading-spinner" id="loadingSpinner"></div>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      class LoginManager {
+        constructor() {
+          this.form = document.getElementById('loginForm');
+          this.emailInput = document.getElementById('email');
+          this.passwordInput = document.getElementById('password');
+          this.rememberInput = document.getElementById('remember');
+          this.errorDiv = document.getElementById('errorMessage');
+          this.loginBtn = document.getElementById('loginBtn');
+          this.btnText = document.getElementById('btnText');
+          this.loadingSpinner = document.getElementById('loadingSpinner');
+          this.toast = document.getElementById('toast');
+
+          this.init();
+        }
+
+        init() {
+          // Check if already logged in
+          if (this.isLoggedIn()) {
+            this.redirectToAdmin();
+            return;
+          }
+
+          this.addEventListeners();
+        }
+
+        isLoggedIn() {
+          const token = localStorage.getItem('bk_admin_token');
+          return token && token.length > 0;
+        }
+
+        addEventListeners() {
+          this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+        }
+
+        async handleSubmit(e) {
+          e.preventDefault();
+          
+          const email = this.emailInput.value.trim();
+          const password = this.passwordInput.value.trim();
+          const remember = this.rememberInput.checked;
+
+          if (!email || !password) {
+            this.showError('E-posta ve şifre gerekli');
+            return;
+          }
+
+          this.setLoading(true);
+          this.hideError();
+
+          try {
+            const response = await fetch('/api/auth/login', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ email, password, remember }),
+            });
+
+            let data;
+            try {
+              data = await response.json();
+            } catch (parseError) {
+              console.error('JSON parse error:', parseError);
+              this.showError('Sunucu yanıtı okunamadı. Lütfen tekrar deneyin.');
+              this.setLoading(false);
+              return;
+            }
+
+            if (response.ok && data.token) {
+              localStorage.setItem('bk_admin_token', data.token);
+              if (data.user) {
+                localStorage.setItem('burkol_user_data', JSON.stringify(data.user));
+              }
+              
+              this.showToast('Giriş başarılı! Yönlendiriliyor...', 'success');
+              
+              // Admin dashboard'a yönlendir
+              setTimeout(() => {
+                this.redirectToAdmin();
+              }, 1000);
+            } else {
+              this.showError(data.message || 'Giriş başarısız. Lütfen tekrar deneyin.');
+              this.setLoading(false);
+            }
+          } catch (error) {
+            console.error('Login error:', error);
+            this.showError('Giriş başarısız. Sunucu hatası.');
+            this.setLoading(false);
+          }
+        }
+
+        redirectToAdmin() {
+          window.location.href = './admin-dashboard.html';
+        }
+
+        showError(message) {
+          this.errorDiv.textContent = message;
+          this.errorDiv.style.display = 'block';
+        }
+
+        hideError() {
+          this.errorDiv.style.display = 'none';
+        }
+
+        setLoading(loading) {
+          this.loginBtn.disabled = loading;
+          this.emailInput.disabled = loading;
+          this.passwordInput.disabled = loading;
+          this.rememberInput.disabled = loading;
+          
+          if (loading) {
+            this.btnText.style.display = 'none';
+            this.loadingSpinner.style.display = 'block';
+          } else {
+            this.btnText.style.display = 'block';
+            this.loadingSpinner.style.display = 'none';
+          }
+        }
+
+        showToast(message, type = 'success') {
+          this.toast.textContent = message;
+          this.toast.className = `toast ${type}`;
+          this.toast.style.display = 'block';
+          
+          setTimeout(() => {
+            this.toast.style.display = 'none';
+          }, 3000);
+        }
+      }
+
+      // Initialize when DOM is loaded
+      document.addEventListener('DOMContentLoaded', () => {
+        new LoginManager();
+      });
+    </script>
+  </body>
+</html>
