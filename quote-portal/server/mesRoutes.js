@@ -790,6 +790,13 @@ router.post('/production-plans', withAuth, async (req, res) => {
     // Remove assignments from plan data to avoid storing in plan document
     const planData = { ...productionPlan };
     delete planData.assignments;
+    
+    // Handle 'released' status - add release metadata
+    if (productionPlan.status === 'released') {
+      planData.releasedAt = now;
+      planData.releasedBy = actorEmail || createdBy;
+      planData.releasedByName = actorName || createdBy || null;
+    }
 
     // Check if status is 'production' and autoAssign is true
     const shouldAutoAssign = productionPlan.status === 'production' && productionPlan.autoAssign === true && assignments && Array.isArray(assignments);
@@ -853,6 +860,18 @@ router.post('/production-plans', withAuth, async (req, res) => {
         updatedBy: actorEmail || createdBy,
         updatedByName: actorName || createdBy || null
       }, { merge: true });
+      
+      // If status is 'released' and orderCode exists, update approved quote production state
+      if (productionPlan.status === 'released' && productionPlan.orderCode) {
+        // Async update - don't block response
+        updateApprovedQuoteProductionState(
+          productionPlan.orderCode, 
+          'Üretiliyor',
+          actorEmail || 'system'
+        ).catch(err => {
+          console.error('Failed to update approved quote state on plan release:', err);
+        });
+      }
 
       return { success: true, id: productionPlan.id };
     }
@@ -875,6 +894,21 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     // Remove assignments from updates to avoid storing in plan document
     const planUpdates = { ...updates };
     delete planUpdates.assignments;
+    
+    // Check if status is transitioning to 'released' - add release metadata
+    if (updates.status === 'released') {
+      // Get current plan to check if it wasn't already released
+      const currentPlanRef = db.collection('mes-production-plans').doc(id);
+      const currentPlanSnap = await currentPlanRef.get();
+      const currentPlan = currentPlanSnap.exists ? currentPlanSnap.data() : null;
+      
+      // Only set releasedAt/releasedBy if not already set (first release)
+      if (!currentPlan || !currentPlan.releasedAt) {
+        planUpdates.releasedAt = now;
+        planUpdates.releasedBy = updatedByEmail || 'system';
+        planUpdates.releasedByName = updatedByName || null;
+      }
+    }
 
     // Check if status is changing to 'production' and autoAssign is true
     const shouldAutoAssign = updates.status === 'production' && updates.autoAssign === true && assignments && Array.isArray(assignments);
@@ -936,6 +970,18 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
         ...(updatedByEmail ? { updatedBy: updatedByEmail } : {}),
         ...(updatedByName ? { updatedByName } : {})
       }, { merge: true });
+      
+      // If status is transitioning to 'released' and orderCode exists, update approved quote
+      if (updates.status === 'released' && updates.orderCode) {
+        // Async update - don't block response
+        updateApprovedQuoteProductionState(
+          updates.orderCode, 
+          'Üretiliyor',
+          updatedByEmail || 'system'
+        ).catch(err => {
+          console.error('Failed to update approved quote state on plan release:', err);
+        });
+      }
 
       return { success: true, id };
     }
@@ -947,7 +993,27 @@ router.delete('/production-plans/:id', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const { id } = req.params;
     const db = getFirestore();
-    await db.collection('mes-production-plans').doc(id).delete();
+    const planRef = db.collection('mes-production-plans').doc(id);
+    
+    // Get plan data before deletion to check orderCode and status
+    const planSnap = await planRef.get();
+    const planData = planSnap.exists ? planSnap.data() : null;
+    
+    // Delete the plan
+    await planRef.delete();
+    
+    // Optional: Rollback approved quote state if plan was released
+    if (planData && planData.status === 'released' && planData.orderCode) {
+      // Async rollback - don't block response
+      updateApprovedQuoteProductionState(
+        planData.orderCode,
+        'Üretim Onayı Bekliyor',
+        req.user?.email || 'system'
+      ).catch(err => {
+        console.error('Failed to rollback approved quote state on plan deletion:', err);
+      });
+    }
+    
     return { success: true, id };
   }, res);
 });
@@ -1242,6 +1308,63 @@ router.get('/orders', withAuth, async (req, res) => {
     return { orders };
   }, res);
 });
+
+// ============================================================================
+// HELPER: Update approved quote production state (internal use)
+// ============================================================================
+async function updateApprovedQuoteProductionState(orderCode, productionState, updatedBy = 'system') {
+  if (!orderCode || !productionState) {
+    console.warn('updateApprovedQuoteProductionState: orderCode or productionState missing');
+    return { success: false, reason: 'missing_parameters' };
+  }
+  
+  // Validate production state
+  const validStates = [
+    'Üretim Onayı Bekliyor',
+    'Üretiliyor',
+    'Üretim Durduruldu', 
+    'Üretim Tamamlandı',
+    'İptal Edildi'
+  ];
+  
+  if (!validStates.includes(productionState)) {
+    console.warn(`updateApprovedQuoteProductionState: invalid state '${productionState}'`);
+    return { success: false, reason: 'invalid_state' };
+  }
+  
+  try {
+    const db = getFirestore();
+    const col = db.collection('mes-approved-quotes');
+    
+    // Find document by orderCode (workOrderCode field)
+    const snapshot = await col.where('workOrderCode', '==', orderCode).limit(1).get();
+    
+    if (snapshot.empty) {
+      console.log(`updateApprovedQuoteProductionState: order '${orderCode}' not found in approved quotes`);
+      return { success: false, reason: 'not_found' };
+    }
+    
+    const doc = snapshot.docs[0];
+    const now = new Date().toISOString();
+    
+    // Update production state with history
+    await doc.ref.update({
+      productionState,
+      updatedAt: now,
+      productionStateHistory: admin.firestore.FieldValue.arrayUnion({
+        state: productionState,
+        timestamp: now,
+        updatedBy
+      })
+    });
+    
+    console.log(`✓ Updated approved quote '${orderCode}' to state '${productionState}'`);
+    return { success: true, orderCode, productionState };
+  } catch (error) {
+    console.error(`updateApprovedQuoteProductionState error for '${orderCode}':`, error);
+    return { success: false, reason: 'firestore_error', error: error.message };
+  }
+}
 
 // PATCH /api/mes/approved-quotes/:workOrderCode/production-state - Update production state
 router.patch('/approved-quotes/:workOrderCode/production-state', withAuth, async (req, res) => {
