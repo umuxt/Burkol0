@@ -3707,7 +3707,8 @@ export function buildExecutionGraph(nodes) {
           materialInputs.push({
             code: mat.code,
             qty: mat.qty || 0,
-            unit: mat.unit || ''
+            unit: mat.unit || '',
+            isDerived: !!mat.derivedFrom // Flag for WIP materials
           });
         }
       });

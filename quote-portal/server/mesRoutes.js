@@ -2269,18 +2269,33 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
               const executionGraph = planData.executionGraph || [];
               const node = executionGraph.find(n => n.nodeId === nodeId);
               
+              let materialsToAdjust = [];
+              
+              // Try to get materials from node.materialInputs first
               if (node && node.materialInputs && node.materialInputs.length > 0) {
-                // FIXED: Apply scrap adjustment to ALL input materials proportionally
+                materialsToAdjust = node.materialInputs;
+              } 
+              // Fallback: Get materials from plan.materialSummary.rawMaterials
+              else if (planData.materialSummary && planData.materialSummary.rawMaterials) {
+                console.warn(`Node ${nodeId} missing materialInputs, falling back to plan.materialSummary`);
+                // Filter materials that belong to this node (if nodeId tracking exists)
+                materialsToAdjust = planData.materialSummary.rawMaterials.filter(m => 
+                  !m.nodeId || m.nodeId === nodeId
+                );
+              }
+              
+              if (materialsToAdjust.length > 0) {
+                // Apply scrap adjustment to ALL input materials
                 const scrapResults = [];
                 
-                for (const materialInput of node.materialInputs) {
+                for (const materialInput of materialsToAdjust) {
                   const materialCode = materialInput.code;
-                  const baseQty = materialInput.qty || 0;
+                  const baseQty = materialInput.qty || materialInput.required || 0;
                   
                   if (!materialCode || baseQty <= 0) continue;
                   
                   try {
-                    // Consume additional material for scrap (proportional to original quantity)
+                    // Consume additional material for scrap
                     const scrapResult = await adjustMaterialStock(materialCode, -scrapQty, {
                       reason: 'production_plan_runtime',
                       reference: `Scrap adjustment for ${planId}/${nodeId}`,
@@ -2290,9 +2305,12 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
                       transactionType: 'scrap_adjustment'
                     });
                     
+                    console.log(`✅ Scrap adjustment applied: ${materialCode} -${scrapQty} (baseQty: ${baseQty})`);
+                    
                     scrapResults.push({
                       materialCode,
                       scrapQty,
+                      baseQty,
                       timestamp: now,
                       nodeId,
                       workerId,
@@ -2305,21 +2323,29 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
                       'stockMovements.scrapAdjustments': admin.firestore.FieldValue.arrayUnion({
                         materialCode,
                         scrapQty,
+                        baseQty,
                         nodeId,
                         workerId,
                         timestamp: now,
-                        assignmentId
+                        assignmentId,
+                        source: materialInput.isDerived ? 'derived' : 'raw'
                       }),
                       updatedAt: now
                     });
                   } catch (err) {
-                    console.error(`Failed to adjust scrap for material ${materialCode}:`, err);
+                    console.error(`❌ Failed to adjust scrap for material ${materialCode}:`, err);
                     // Continue with other materials even if one fails
                   }
                 }
                 
                 // Store all scrap adjustments
                 scrapAdjustment = scrapResults.length > 0 ? scrapResults : null;
+                
+                if (scrapResults.length > 0) {
+                  console.log(`📊 Scrap adjustments completed: ${scrapResults.length} material(s) adjusted`);
+                }
+              } else {
+                console.warn(`⚠️ No materials found for scrap adjustment on node ${nodeId}`);
               }
             }
           }
