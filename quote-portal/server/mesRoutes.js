@@ -2017,13 +2017,23 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
     
     // Get workerId from user profile or query param
     let workerId = req.user?.workerId;
+    
+    // Allow admin to override workerId via query param
     if (!workerId && req.query.workerId) {
+      // Only admins can specify workerId via query param
+      if (req.user?.role !== 'admin') {
+        const e = new Error('Forbidden: Only admins can query tasks for other workers');
+        e.status = 403;
+        e.code = 'forbidden';
+        throw e;
+      }
       workerId = req.query.workerId;
     }
     
     if (!workerId) {
-      const e = new Error('worker_id_required');
+      const e = new Error('Worker ID is required. Workers must authenticate with a worker account, admins must provide ?workerId=');
       e.status = 400;
+      e.code = 'worker_id_required';
       throw e;
     }
     
@@ -2032,6 +2042,7 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
     if (!workerDoc.exists) {
       const e = new Error('worker_not_found');
       e.status = 404;
+      e.code = 'worker_not_found';
       throw e;
     }
     
@@ -2061,7 +2072,8 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         allTasks.push(...workerTasks);
       } catch (err) {
         console.error(`Failed to get execution state for plan ${planId}:`, err);
-        // Continue with other plans
+        // Skip this plan and continue with others
+        continue;
       }
     }
     
@@ -2362,10 +2374,12 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
 
 // GET /api/mes/alerts - Get alerts with optional filtering
 router.get('/alerts', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
+  try {
     const { type, status, limit } = req.query;
     
     const db = getFirestore();
+    
+    // Check if collection exists by attempting a simple query
     let query = db.collection('mes-alerts');
     
     // Apply filters
@@ -2378,7 +2392,12 @@ router.get('/alerts', withAuth, async (req, res) => {
     }
     
     // Order by most recent
-    query = query.orderBy('createdAt', 'desc');
+    try {
+      query = query.orderBy('createdAt', 'desc');
+    } catch (err) {
+      // If orderBy fails (e.g., missing index), skip ordering
+      console.warn('Alert ordering failed, returning unordered results:', err.message);
+    }
     
     // Apply limit
     if (limit) {
@@ -2388,15 +2407,39 @@ router.get('/alerts', withAuth, async (req, res) => {
       }
     }
     
-    const snapshot = await query.get();
+    // Execute query with error handling
+    let snapshot;
+    try {
+      snapshot = await query.get();
+    } catch (err) {
+      console.error('Failed to query alerts collection:', err);
+      return res.status(500).json({ 
+        code: 'alerts_load_failed', 
+        message: `Failed to load alerts: ${err.message}`,
+        alerts: [] // Return empty array as fallback
+      });
+    }
+    
+    // Handle empty collection
+    if (snapshot.empty) {
+      return res.status(200).json({ alerts: [] });
+    }
+    
     const alerts = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
       createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt
     }));
     
-    return { alerts };
-  }, res);
+    return res.status(200).json({ alerts });
+  } catch (err) {
+    console.error('Unexpected error in alerts endpoint:', err);
+    return res.status(500).json({ 
+      code: 'alerts_load_failed', 
+      message: `Unexpected error: ${err.message}`,
+      alerts: []
+    });
+  }
 });
 
 // ============================================================================
