@@ -6,63 +6,11 @@ export const tableState = {
   showMetadataColumns: false
 };
 
-export function updateKPIs() {
-  const activeOrders = MESData.workOrders.filter(wo => wo.status !== 'completed').length;
-  const completedToday = MESData.workOrders.filter(wo => wo.status === 'completed').length;
-  const activeWorkers = MESData.workers.filter(w => w.status === 'active').length;
-  const totalWorkers = MESData.workers.length;
-  return {
-    activeOrders,
-    completedToday,
-    efficiency: Math.round((completedToday / MESData.workOrders.length) * 100),
-    onTimeDelivery: 96,
-    activeWorkers,
-    totalWorkers
-  };
-}
-
 export function generateModernDashboard() {
-  const kpis = updateKPIs();
   return `
     <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Dashboard</h1>
-      <p style="color: var(--muted-foreground);">Üretim takibi ve KPI izleme - Last updated: ${new Date().toLocaleTimeString()}</p>
-    </div>
-
-    <!-- KPI Cards -->
-    <div class="grid grid-cols-4" style="margin-bottom: 32px;">
-      <div class="card kpi-card kpi-card-info">
-        <div class="kpi-icon">📋</div>
-        <div class="card-content">
-          <div class="card-title">Active Orders</div>
-          <div class="kpi-value">${kpis.activeOrders}</div>
-          <div class="kpi-change"><span>↗</span> +2 new today</div>
-        </div>
-      </div>
-      <div class="card kpi-card kpi-card-danger">
-        <div class="kpi-icon">✅</div>
-        <div class="card-content">
-          <div class="card-title">Completed Today</div>
-          <div class="kpi-value">${kpis.completedToday}</div>
-          <div class="kpi-change"><span>↗</span> +5% vs yesterday</div>
-        </div>
-      </div>
-      <div class="card kpi-card kpi-card-warning">
-        <div class="kpi-icon">⚡</div>
-        <div class="card-content">
-          <div class="card-title">Active Workers</div>
-          <div class="kpi-value">${kpis.activeWorkers}/${kpis.totalWorkers}</div>
-          <div class="kpi-change"><span>•</span> realtime</div>
-        </div>
-      </div>
-      <div class="card kpi-card kpi-card-success">
-        <div class="kpi-icon">🎯</div>
-        <div class="card-content">
-          <div class="card-title">On-Time Delivery</div>
-          <div class="kpi-value">${kpis.onTimeDelivery}%</div>
-          <div class="kpi-change"><span>•</span> SLA</div>
-        </div>
-      </div>
+      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">MES Dashboard</h1>
+      <p style="color: var(--muted-foreground);">Production Planning & Execution System - Last updated: ${new Date().toLocaleTimeString()}</p>
     </div>
 
     <!-- Quick Actions -->
@@ -92,36 +40,37 @@ export function generateModernDashboard() {
         </div>
         <div class="card" style="cursor: pointer; transition: all 0.2s;" onclick="navigateToView('settings')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
           <div class="card-content" style="text-align: center; padding: 24px;">
-            <div style="font-size: 48px; margin-bottom: 12px;">⚡</div>
+            <div style="font-size: 48px; margin-bottom: 12px;">⚙️</div>
             <div style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 4px;">Master Data</div>
-            <div style="font-size: 13px; color: var(--muted-foreground);">Ayarlar ve yapılandırma</div>
+            <div style="font-size: 13px; color: var(--muted-foreground);">Operasyonlar, istasyonlar, işçiler</div>
           </div>
         </div>
       </div>
     </div>
 
+    <!-- System Status Bar -->
     <div class="card" style="margin-bottom: 24px;">
       <div class="card-content" style="padding: 16px 24px;">
-        <div style="display: flex; align-items: center; gap: 16px;">
-          <div class="status-indicator"><div class="status-dot status-online"></div><span>System Healthy</span></div>
-          <div class="status-indicator"><div class="status-dot status-busy"></div><span>Network OK</span></div>
-          <div class="status-indicator"><div class="status-dot status-online"></div><span>Stations: ${MESData.stations.filter(s => s.status === 'active').length}/${MESData.stations.length} Active</span></div>
-          <div class="status-indicator"><div class="status-dot status-online"></div><span>Workers: ${kpis.activeWorkers}/${kpis.totalWorkers} Available</span></div>
-          <div class="status-indicator"><div class="status-dot status-online"></div><span>Quality: All Systems OK</span></div>
+        <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+          <div class="status-indicator"><div class="status-dot status-online"></div><span>System Online</span></div>
+          <div class="status-indicator" id="status-operations"><div class="status-dot status-busy"></div><span>Operations: Loading...</span></div>
+          <div class="status-indicator" id="status-stations"><div class="status-dot status-busy"></div><span>Stations: Loading...</span></div>
+          <div class="status-indicator" id="status-workers"><div class="status-dot status-busy"></div><span>Workers: Loading...</span></div>
+          <div class="status-indicator" id="status-plans"><div class="status-dot status-busy"></div><span>Plans: Loading...</span></div>
         </div>
       </div>
     </div>
 
-    <!-- Active Tasks & Station Alerts Grid -->
+    <!-- Main Dashboard Widgets Grid -->
     <div class="grid grid-cols-2" style="gap: 16px; margin-bottom: 24px;">
-      <!-- Active Tasks Widget -->
+      <!-- Production Plans Widget -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">📋 Aktif Görevler</div>
-          <div class="card-description">Görev durumlarına göre dağılım</div>
+          <div class="card-title">📋 Üretim Planları</div>
+          <div class="card-description">Aktif ve taslak planlar</div>
         </div>
         <div class="card-content">
-          <div id="active-tasks-widget" style="padding: 16px;">
+          <div id="production-plans-widget" style="padding: 16px;">
             <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
           </div>
         </div>
@@ -141,51 +90,55 @@ export function generateModernDashboard() {
       </div>
     </div>
 
+    <!-- Master Data Overview Grid -->
+    <div class="grid grid-cols-3" style="gap: 16px; margin-bottom: 24px;">
+      <!-- Operations Overview -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔧 Operasyonlar</div>
+        </div>
+        <div class="card-content">
+          <div id="operations-overview-widget" style="padding: 16px;">
+            <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Stations Overview -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🏭 İstasyonlar</div>
+        </div>
+        <div class="card-content">
+          <div id="stations-overview-widget" style="padding: 16px;">
+            <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Workers Overview -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">👷 İşçiler</div>
+        </div>
+        <div class="card-content">
+          <div id="workers-overview-widget" style="padding: 16px;">
+            <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Tasks Widget (Full Width) -->
     <div class="card">
       <div class="card-header">
-        <div class="card-title">Active Work Orders</div>
-        <div class="card-description">Current production orders in the system</div>
+        <div class="card-title">📋 Aktif Görevler</div>
+        <div class="card-description">Tüm işçilerin görev durumları</div>
       </div>
       <div class="card-content">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Order ID</th>
-              <th>Product</th>
-              <th>Quantity</th>
-              <th>Progress</th>
-              <th>Status</th>
-              <th>Due Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${MESData.workOrders.map(order => `
-              <tr>
-                <td><strong>${order.id}</strong></td>
-                <td>${order.product}</td>
-                <td>${order.quantity} pcs</td>
-                <td>
-                  <div style="display: flex; align-items: center; gap: 8px;">
-                    <div class="progress-enhanced" style="width: 120px;">
-                      <div class="progress-indicator" style="width: ${order.progress}%; background: ${
-                        order.progress === 100 ? 'linear-gradient(90deg, #10b981, #34d399)' :
-                        order.progress >= 50 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' :
-                        'linear-gradient(90deg, #6b7280, #9ca3af)'
-                      };"></div>
-                    </div>
-                    <span style="font-size: 12px; color: var(--muted-foreground); font-weight: 500;">${order.progress}%</span>
-                  </div>
-                </td>
-                <td><span class="badge badge-${
-                  order.status === 'completed' ? 'success' :
-                  order.status === 'in-progress' ? 'secondary' :
-                  order.status === 'on-hold' ? 'warning' : 'default'
-                }">${order.status.replace('-', ' ')}</span></td>
-                <td>${new Date(order.dueDate).toLocaleDateString()}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+        <div id="active-tasks-widget" style="padding: 16px;">
+          <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+        </div>
       </div>
     </div>
   `;
@@ -1588,11 +1541,23 @@ export async function initActiveTasksWidget() {
   if (!container) return;
   
   try {
-    // Import API function dynamically
-    const { getWorkerPortalTasks } = await import('./mesApi.js');
+    // Import API functions dynamically
+    const { getWorkerPortalTasks, getWorkers } = await import('./mesApi.js');
     
-    // Get all workers
-    const workers = MESData.workers || [];
+    // Get real workers from Firestore (not hardcoded state.js mock data)
+    const workers = await getWorkers();
+    
+    // If no workers exist yet, show empty state
+    if (!workers || workers.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 24px; color: var(--muted-foreground);">
+          <div style="font-size: 32px; margin-bottom: 8px;">👷</div>
+          <div style="font-size: 14px;">Henüz işçi kaydı yok</div>
+          <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">Workers sekmesinden işçi ekleyebilirsiniz</div>
+        </div>
+      `;
+      return;
+    }
     
     // Aggregate task counts across all workers
     let totalReady = 0;
@@ -1774,10 +1739,243 @@ function getTimeAgo(date) {
 }
 
 /**
+ * Initialize Production Plans widget on dashboard
+ * Loads recent/active production plans
+ */
+export async function initProductionPlansWidget() {
+  const container = document.getElementById('production-plans-widget');
+  if (!container) return;
+
+  try {
+    const { getProductionPlans } = await import('./mesApi.js');
+    const plans = await getProductionPlans();
+
+    if (!plans || plans.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 24px; color: var(--muted-foreground);">
+          <div style="font-size: 32px; margin-bottom: 8px;">📋</div>
+          <div style="font-size: 14px;">Henüz üretim planı oluşturulmamış</div>
+          <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">Plan Designer'dan yeni plan oluşturabilirsiniz</div>
+        </div>
+      `;
+      return;
+    }
+
+    // Show most recent 5 plans
+    const recentPlans = plans.slice(0, 5);
+    
+    const plansHtml = recentPlans.map(plan => {
+      const createdAt = new Date(plan.createdAt);
+      const statusColors = {
+        draft: '#9ca3af',
+        active: '#10b981',
+        completed: '#3b82f6',
+        cancelled: '#ef4444'
+      };
+      const statusColor = statusColors[plan.status] || '#6b7280';
+
+      return `
+        <div style="padding: 12px; border-left: 3px solid ${statusColor}; background: #f9fafb; border-radius: 4px; margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 4px;">
+            <div style="font-size: 13px; font-weight: 600; color: #111827;">
+              ${plan.planId || plan.id}
+            </div>
+            <div style="font-size: 11px; color: #6b7280;">${createdAt.toLocaleDateString('tr-TR')}</div>
+          </div>
+          <div style="font-size: 12px; color: #4b5563; margin-bottom: 4px;">
+            ${plan.name || 'İsimsiz Plan'}
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <span style="font-size: 11px; padding: 2px 6px; background: ${statusColor}22; color: ${statusColor}; border-radius: 4px; font-weight: 500;">
+              ${plan.status || 'draft'}
+            </span>
+            <span style="font-size: 11px; color: #9ca3af;">
+              ${plan.blocks?.length || 0} blok
+            </span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    container.innerHTML = plansHtml;
+
+    // Update status bar
+    const statusDiv = document.getElementById('status-plans');
+    if (statusDiv) {
+      statusDiv.innerHTML = `<strong>${plans.length}</strong> plan`;
+    }
+  } catch (err) {
+    console.error('Failed to load production plans widget:', err);
+    container.innerHTML = `
+      <div style="text-align: center; padding: 16px; color: #9ca3af;">
+        <div style="font-size: 32px; margin-bottom: 8px;">📭</div>
+        <div style="font-size: 13px;">Planlar yüklenemedi</div>
+        <div style="font-size: 11px; margin-top: 4px; color: #ef4444;">${err.message}</div>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Initialize Operations Overview widget on dashboard
+ */
+export async function initOperationsOverviewWidget() {
+  const container = document.getElementById('operations-overview-widget');
+  if (!container) return;
+
+  try {
+    const { getOperations } = await import('./mesApi.js');
+    const operations = await getOperations();
+
+    const totalOps = operations.length;
+    const withSkills = operations.filter(op => op.requiredSkills?.length > 0).length;
+    const avgDuration = operations.length > 0
+      ? Math.round(operations.reduce((sum, op) => sum + (op.standardTime || 0), 0) / operations.length)
+      : 0;
+
+    container.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: #6b7280;">Toplam Operasyon</span>
+          <span style="font-size: 20px; font-weight: 700; color: #111827;">${totalOps}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: #6b7280;">Beceri Gerektiren</span>
+          <span style="font-size: 20px; font-weight: 700; color: #3b82f6;">${withSkills}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: #6b7280;">Ort. Süre</span>
+          <span style="font-size: 20px; font-weight: 700; color: #10b981;">${avgDuration} dk</span>
+        </div>
+      </div>
+    `;
+
+    // Update status bar
+    const statusDiv = document.getElementById('status-operations');
+    if (statusDiv) {
+      statusDiv.innerHTML = `<strong>${totalOps}</strong> operasyon`;
+    }
+  } catch (err) {
+    console.error('Failed to load operations overview:', err);
+    container.innerHTML = `
+      <div style="text-align: center; padding: 16px; color: #ef4444;">
+        <div style="font-size: 11px;">Yüklenemedi</div>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Initialize Stations Overview widget on dashboard
+ */
+export async function initStationsOverviewWidget() {
+  const container = document.getElementById('stations-overview-widget');
+  if (!container) return;
+
+  try {
+    const { getStations } = await import('./mesApi.js');
+    const stations = await getStations();
+
+    const totalStations = stations.length;
+    const multiOp = stations.filter(s => s.operationIds?.length > 1).length;
+    const withSchedule = stations.filter(s => s.productionSchedule?.enabled).length;
+
+    container.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: #6b7280;">Toplam İstasyon</span>
+          <span style="font-size: 20px; font-weight: 700; color: #111827;">${totalStations}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: #6b7280;">Çok Operasyonlu</span>
+          <span style="font-size: 20px; font-weight: 700; color: #f59e0b;">${multiOp}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: #6b7280;">Zaman Planlı</span>
+          <span style="font-size: 20px; font-weight: 700; color: #8b5cf6;">${withSchedule}</span>
+        </div>
+      </div>
+    `;
+
+    // Update status bar
+    const statusDiv = document.getElementById('status-stations');
+    if (statusDiv) {
+      statusDiv.innerHTML = `<strong>${totalStations}</strong> istasyon`;
+    }
+  } catch (err) {
+    console.error('Failed to load stations overview:', err);
+    container.innerHTML = `
+      <div style="text-align: center; padding: 16px; color: #ef4444;">
+        <div style="font-size: 11px;">Yüklenemedi</div>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Initialize Workers Overview widget on dashboard
+ */
+export async function initWorkersOverviewWidget() {
+  const container = document.getElementById('workers-overview-widget');
+  if (!container) return;
+
+  try {
+    const { getWorkers } = await import('./mesApi.js');
+    const workers = await getWorkers();
+
+    const totalWorkers = workers.length;
+    const withSkills = workers.filter(w => w.skills?.length > 0).length;
+    const avgSkillLevel = workers.length > 0
+      ? (workers.reduce((sum, w) => {
+          const skillLevels = w.skills?.map(s => s.level || 0) || [];
+          const avgLevel = skillLevels.length > 0
+            ? skillLevels.reduce((a, b) => a + b, 0) / skillLevels.length
+            : 0;
+          return sum + avgLevel;
+        }, 0) / workers.length).toFixed(1)
+      : 0;
+
+    container.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: #6b7280;">Toplam İşçi</span>
+          <span style="font-size: 20px; font-weight: 700; color: #111827;">${totalWorkers}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: #6b7280;">Yetenekli</span>
+          <span style="font-size: 20px; font-weight: 700; color: #ec4899;">${withSkills}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 13px; color: #6b7280;">Ort. Beceri</span>
+          <span style="font-size: 20px; font-weight: 700; color: #14b8a6;">${avgSkillLevel}/5</span>
+        </div>
+      </div>
+    `;
+
+    // Update status bar
+    const statusDiv = document.getElementById('status-workers');
+    if (statusDiv) {
+      statusDiv.innerHTML = `<strong>${totalWorkers}</strong> işçi`;
+    }
+  } catch (err) {
+    console.error('Failed to load workers overview:', err);
+    container.innerHTML = `
+      <div style="text-align: center; padding: 16px; color: #ef4444;">
+        <div style="font-size: 11px;">Yüklenemedi</div>
+      </div>
+    `;
+  }
+}
+
+/**
  * Initialize all dashboard widgets
  */
 export async function initDashboardWidgets() {
   await Promise.all([
+    initProductionPlansWidget(),
+    initOperationsOverviewWidget(),
+    initStationsOverviewWidget(),
+    initWorkersOverviewWidget(),
     initActiveTasksWidget(),
     initStationAlertsWidget()
   ]);
