@@ -33,6 +33,19 @@ async function init() {
     console.log('Assignments updated, reloading tasks...');
     loadWorkerTasks();
   });
+  
+  // Listen for BroadcastChannel messages (from launch/pause/resume/cancel)
+  try {
+    const assignmentsChannel = new BroadcastChannel('mes-assignments');
+    assignmentsChannel.onmessage = (e) => {
+      if (e.data && e.data.type === 'assignments:updated') {
+        console.log('BroadcastChannel: Assignments updated, reloading tasks...');
+        loadWorkerTasks();
+      }
+    };
+  } catch (err) {
+    console.warn('BroadcastChannel not available:', err);
+  }
 }
 
 // ============================================================================
@@ -407,6 +420,20 @@ function renderTaskList() {
         <div class="empty-icon">📋</div>
         <h3>Görev Bulunamadı</h3>
         <p>Henüz size atanmış aktif görev bulunmuyor</p>
+        <div style="margin-top: 16px; padding: 12px; background: var(--muted); border-radius: 8px; text-align: left;">
+          <div style="font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--foreground);">Görev almak için:</div>
+          <ul style="font-size: 12px; color: var(--muted-foreground); margin: 0; padding-left: 20px;">
+            <li>Admin bir üretim planını başlatmalı (Onaylı Siparişler → 🏁 Başlat)</li>
+            <li>Görevler otomatik olarak size atanacaktır</li>
+            <li>Sayfa yeni görevler geldiğinde otomatik yenilenecektir</li>
+          </ul>
+        </div>
+        <button 
+          onclick="window.workerPortalApp.loadWorkerTasks()" 
+          style="margin-top: 16px; padding: 10px 20px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 500;"
+        >
+          🔄 Görevleri Yenile
+        </button>
       </div>
     `;
   }
@@ -454,6 +481,18 @@ function renderTaskRow(task, isNextTask) {
   const statusInfo = getStatusInfo(task.status);
   const priorityBadge = isNextTask ? '<span class="priority-badge">Öncelikli</span>' : '';
   
+  // Show paused banner if admin paused this task
+  const pausedBannerHtml = task.status === 'paused'
+    ? `<div style="margin-top: 8px; padding: 10px; background: #fee2e2; border-left: 3px solid #ef4444; border-radius: 4px;">
+         <div style="font-size: 12px; color: #991b1b; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+           ⏸️ Bu görev admin tarafından durduruldu
+         </div>
+         <div style="font-size: 11px; color: #7f1d1d; margin-top: 4px;">
+           Görevi başlatmak için admin tarafından devam ettirilmesini bekleyin
+         </div>
+       </div>`
+    : '';
+  
   // Render inline block reasons if task failed to start
   const blockReasonsHtml = task.blockReasons && task.blockReasons.length > 0 
     ? `<div style="margin-top: 8px; padding: 8px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
@@ -462,8 +501,11 @@ function renderTaskRow(task, isNextTask) {
        </div>`
     : '';
   
+  // Material status badge
+  const materialStatusBadge = renderMaterialStatus(task.prerequisites);
+  
   return `
-    <tr class="task-row" data-assignment-id="${task.assignmentId}">
+    <tr class="task-row ${task.status === 'paused' ? 'task-paused' : ''}" data-assignment-id="${task.assignmentId}">
       <td>
         <div class="priority-index">${task.priorityIndex}</div>
       </td>
@@ -473,11 +515,15 @@ function renderTaskRow(task, isNextTask) {
       </td>
       <td>
         <div class="task-info">
-          <div class="task-name">${task.name || task.operationName || 'İsimsiz Görev'}</div>
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <div class="task-name">${task.name || task.operationName || 'İsimsiz Görev'}</div>
+            ${materialStatusBadge}
+          </div>
           <div class="task-details">
             Plan: ${task.planId} | Node: ${task.nodeId}
           </div>
           ${renderPrerequisites(task.prerequisites)}
+          ${pausedBannerHtml}
           ${blockReasonsHtml}
         </div>
       </td>
@@ -492,6 +538,20 @@ function renderTaskRow(task, isNextTask) {
       </td>
     </tr>
   `;
+}
+
+function renderMaterialStatus(prerequisites) {
+  if (!prerequisites) {
+    return '<span style="font-size: 14px; color: #9ca3af;" title="Malzeme durumu bilinmiyor">?</span>';
+  }
+  
+  if (prerequisites.materialsReady === true) {
+    return '<span style="font-size: 14px; color: #10b981;" title="Malzemeler hazır">✓</span>';
+  } else if (prerequisites.materialsReady === false) {
+    return '<span style="font-size: 14px; color: #ef4444;" title="Malzeme eksikliği">⚠️</span>';
+  }
+  
+  return '<span style="font-size: 14px; color: #9ca3af;" title="Malzeme durumu bilinmiyor">?</span>';
 }
 
 function renderPrerequisites(prerequisites) {
@@ -511,6 +571,9 @@ function renderPrerequisites(prerequisites) {
 function renderTaskActions(task) {
   const actions = [];
   
+  // Check if task is paused by admin
+  const isPaused = task.status === 'paused';
+  
   // Check if task is blocked by prerequisites
   const isBlocked = task.prerequisites && (
     !task.prerequisites.predecessorsDone ||
@@ -521,7 +584,9 @@ function renderTaskActions(task) {
   
   // Build tooltip for blocked reasons
   let blockTooltip = '';
-  if (isBlocked) {
+  if (isPaused) {
+    blockTooltip = `title="Admin tarafından durduruldu"`;
+  } else if (isBlocked) {
     const reasons = [];
     if (!task.prerequisites.predecessorsDone) reasons.push('Önceki görevler tamamlanmadı');
     if (!task.prerequisites.workerAvailable) reasons.push('İşçi meşgul');
@@ -530,9 +595,9 @@ function renderTaskActions(task) {
     blockTooltip = `title="${reasons.join(', ')}"`;
   }
   
-  // Start button - only if ready
+  // Start button - only if ready (and not paused or blocked)
   if (task.status === 'ready') {
-    const disabled = isBlocked ? 'disabled' : '';
+    const disabled = (isBlocked || isPaused) ? 'disabled' : '';
     actions.push(`
       <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}" ${disabled} ${blockTooltip}>
         ▶️ Başla

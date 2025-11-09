@@ -3633,5 +3633,260 @@ router.post('/production-plans/:planId/cancel', withAuth, async (req, res) => {
   }
 });
 
+// ============================================================================
+// WORK PACKAGES ENDPOINT (GLOBAL TASK AGGREGATION)
+// ============================================================================
+
+/**
+ * GET /api/mes/work-packages
+ * Returns all active assignments across all launched production plans
+ * Joins with plans, quotes, workers, stations for dashboard display
+ * 
+ * Query params:
+ * - status: filter by assignment status (pending, in-progress, paused, etc.)
+ * - workerId: filter by specific worker
+ * - stationId: filter by specific station
+ * - limit: max results (default 100, max 500)
+ */
+router.get('/work-packages', withAuth, async (req, res) => {
+  try {
+    const db = getFirestore();
+    const { status, workerId, stationId, limit } = req.query;
+    const maxResults = Math.min(parseInt(limit) || 100, 500);
+    
+    // Fetch all assignments for launched plans
+    // Active statuses: pending, ready, in-progress, paused
+    const activeStatuses = ['pending', 'ready', 'in-progress', 'paused'];
+    
+    let assignmentsQuery = db.collection('mes-worker-assignments');
+    
+    // Apply filters
+    if (status && activeStatuses.includes(status)) {
+      assignmentsQuery = assignmentsQuery.where('status', '==', status);
+    } else {
+      // Default: only active assignments (not completed/cancelled)
+      assignmentsQuery = assignmentsQuery.where('status', 'in', activeStatuses);
+    }
+    
+    if (workerId) {
+      assignmentsQuery = assignmentsQuery.where('workerId', '==', workerId);
+    }
+    
+    if (stationId) {
+      assignmentsQuery = assignmentsQuery.where('stationId', '==', stationId);
+    }
+    
+    assignmentsQuery = assignmentsQuery.limit(maxResults);
+    
+    const assignmentsSnapshot = await assignmentsQuery.get();
+    
+    if (assignmentsSnapshot.empty) {
+      return res.status(200).json({
+        workPackages: [],
+        total: 0,
+        message: 'No active work packages found'
+      });
+    }
+    
+    // Collect unique IDs for batch fetching
+    const planIds = new Set();
+    const workerIds = new Set();
+    const stationIds = new Set();
+    const workOrderCodes = new Set();
+    
+    const assignments = assignmentsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      if (data.planId) planIds.add(data.planId);
+      if (data.workerId) workerIds.add(data.workerId);
+      if (data.stationId) stationIds.add(data.stationId);
+      if (data.workOrderCode) workOrderCodes.add(data.workOrderCode);
+      return { id: doc.id, ...data };
+    });
+    
+    // Batch fetch related data
+    const [plansMap, workersMap, stationsMap, quotesMap] = await Promise.all([
+      fetchPlansMap(db, Array.from(planIds)),
+      fetchWorkersMap(db, Array.from(workerIds)),
+      fetchStationsMap(db, Array.from(stationIds)),
+      fetchQuotesMap(db, Array.from(workOrderCodes))
+    ]);
+    
+    // Enrich assignments with related data
+    const workPackages = assignments.map(assignment => {
+      const plan = plansMap.get(assignment.planId) || {};
+      const worker = workersMap.get(assignment.workerId) || {};
+      const station = stationsMap.get(assignment.stationId) || {};
+      const quote = quotesMap.get(assignment.workOrderCode) || {};
+      
+      // Determine material status (simplified for now)
+      let materialStatus = 'unknown';
+      if (plan.materialSummary) {
+        const hasShortages = plan.materialCheckResult && plan.materialCheckResult.hasShortages;
+        materialStatus = hasShortages ? 'short' : 'ok';
+      }
+      
+      return {
+        // Assignment core data
+        id: assignment.id,
+        nodeId: assignment.nodeId,
+        nodeName: assignment.nodeName,
+        operationId: assignment.operationId,
+        status: assignment.status,
+        priority: assignment.priority || 0,
+        
+        // Work order data
+        workOrderCode: assignment.workOrderCode,
+        customer: quote.customer || quote.name || '',
+        company: quote.company || '',
+        
+        // Plan data
+        planId: assignment.planId,
+        planName: plan.name || '',
+        planStatus: plan.status || '',
+        launchStatus: plan.launchStatus || '',
+        
+        // Worker data
+        workerId: assignment.workerId,
+        workerName: assignment.workerName || worker.name || '',
+        workerSkills: worker.skills || [],
+        
+        // Station data
+        stationId: assignment.stationId,
+        stationName: assignment.stationName || station.name || '',
+        subStationCode: assignment.subStationCode || null,
+        
+        // Timing data
+        plannedStart: assignment.plannedStart,
+        plannedEnd: assignment.plannedEnd,
+        actualStart: assignment.actualStart || null,
+        actualEnd: assignment.actualEnd || null,
+        nominalTime: assignment.nominalTime || 0,
+        effectiveTime: assignment.effectiveTime || 0,
+        
+        // Status flags
+        materialStatus,
+        isPaused: assignment.status === 'paused',
+        isBlocked: assignment.preconditions && assignment.preconditions.some(p => !p.met),
+        
+        // Metadata
+        createdAt: assignment.createdAt,
+        updatedAt: assignment.updatedAt
+      };
+    });
+    
+    // Sort by priority (execution order) and then by planned start
+    workPackages.sort((a, b) => {
+      if (a.priority !== b.priority) return a.priority - b.priority;
+      if (a.plannedStart && b.plannedStart) {
+        return new Date(a.plannedStart) - new Date(b.plannedStart);
+      }
+      return 0;
+    });
+    
+    return res.status(200).json({
+      workPackages,
+      total: workPackages.length,
+      filters: { status, workerId, stationId },
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Work packages fetch error:', error);
+    return res.status(500).json({
+      error: 'internal_error',
+      message: 'Failed to fetch work packages',
+      details: error.message
+    });
+  }
+});
+
+// Helper functions for batch fetching
+async function fetchPlansMap(db, planIds) {
+  if (planIds.length === 0) return new Map();
+  
+  const plansMap = new Map();
+  const chunks = chunkArray(planIds, 10); // Firestore 'in' limit is 10
+  
+  for (const chunk of chunks) {
+    const snapshot = await db.collection('mes-production-plans')
+      .where(admin.firestore.FieldPath.documentId(), 'in', chunk)
+      .get();
+    
+    snapshot.docs.forEach(doc => {
+      plansMap.set(doc.id, { id: doc.id, ...doc.data() });
+    });
+  }
+  
+  return plansMap;
+}
+
+async function fetchWorkersMap(db, workerIds) {
+  if (workerIds.length === 0) return new Map();
+  
+  const workersMap = new Map();
+  const chunks = chunkArray(workerIds, 10);
+  
+  for (const chunk of chunks) {
+    const snapshot = await db.collection('mes-workers')
+      .where(admin.firestore.FieldPath.documentId(), 'in', chunk)
+      .get();
+    
+    snapshot.docs.forEach(doc => {
+      workersMap.set(doc.id, { id: doc.id, ...doc.data() });
+    });
+  }
+  
+  return workersMap;
+}
+
+async function fetchStationsMap(db, stationIds) {
+  if (stationIds.length === 0) return new Map();
+  
+  const stationsMap = new Map();
+  const chunks = chunkArray(stationIds, 10);
+  
+  for (const chunk of chunks) {
+    const snapshot = await db.collection('mes-stations')
+      .where(admin.firestore.FieldPath.documentId(), 'in', chunk)
+      .get();
+    
+    snapshot.docs.forEach(doc => {
+      stationsMap.set(doc.id, { id: doc.id, ...doc.data() });
+    });
+  }
+  
+  return stationsMap;
+}
+
+async function fetchQuotesMap(db, workOrderCodes) {
+  if (workOrderCodes.length === 0) return new Map();
+  
+  const quotesMap = new Map();
+  const chunks = chunkArray(workOrderCodes, 10);
+  
+  for (const chunk of chunks) {
+    const snapshot = await db.collection('approved-quotes')
+      .where('workOrderCode', 'in', chunk)
+      .get();
+    
+    snapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.workOrderCode) {
+        quotesMap.set(data.workOrderCode, { id: doc.id, ...data });
+      }
+    });
+  }
+  
+  return quotesMap;
+}
+
+function chunkArray(array, size) {
+  const chunks = [];
+  for (let i = 0; i < array.length; i += size) {
+    chunks.push(array.slice(i, i + size));
+  }
+  return chunks;
+}
+
 export default router;
 

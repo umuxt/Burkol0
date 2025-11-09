@@ -855,3 +855,78 @@ export async function cancelProductionPlan(planId) {
   return await res.json();
 }
 
+/**
+ * Fetch all active work packages (assignments) across all launched plans
+ * GET /api/mes/work-packages
+ * 
+ * @param {Object} filters - Optional filters: status, workerId, stationId, limit
+ * @returns {Promise<Object>} Work packages with related data (plans, quotes, workers, stations)
+ * @throws {Error} With status, code, and message properties on failure
+ */
+let _workPackagesCache = null;
+let _workPackagesCacheTime = 0;
+const WORK_PACKAGES_CACHE_TTL = 30000; // 30 seconds
+
+export async function getWorkPackages(filters = {}, force = false) {
+  const now = Date.now();
+  
+  // Return cached data if recent and not forced
+  if (!force && _workPackagesCache && (now - _workPackagesCacheTime < WORK_PACKAGES_CACHE_TTL)) {
+    return _workPackagesCache;
+  }
+  
+  const queryParams = new URLSearchParams();
+  if (filters.status) queryParams.append('status', filters.status);
+  if (filters.workerId) queryParams.append('workerId', filters.workerId);
+  if (filters.stationId) queryParams.append('stationId', filters.stationId);
+  if (filters.limit) queryParams.append('limit', filters.limit);
+  
+  const url = `${API_BASE}/api/mes/work-packages${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+  
+  const res = await fetch(url, {
+    headers: withAuth()
+  });
+  
+  if (!res.ok) {
+    let errorData;
+    try {
+      errorData = await res.json();
+    } catch {
+      errorData = { error: 'unknown_error', message: `HTTP ${res.status}` };
+    }
+    
+    const error = new Error(errorData.message || `work_packages_fetch_failed ${res.status}`);
+    error.code = errorData.error || 'unknown_error';
+    error.status = res.status;
+    error.details = errorData.details || null;
+    throw error;
+  }
+  
+  const data = await res.json();
+  
+  // Cache the result
+  _workPackagesCache = data;
+  _workPackagesCacheTime = now;
+  
+  return data;
+}
+
+/**
+ * Clear work packages cache (call after assignments are updated)
+ */
+export function clearWorkPackagesCache() {
+  _workPackagesCache = null;
+  _workPackagesCacheTime = 0;
+}
+
+// Listen for assignments:updated events to clear cache
+if (typeof window !== 'undefined') {
+  try {
+    const assignmentsChannel = new BroadcastChannel('mes-assignments');
+    assignmentsChannel.onmessage = (e) => {
+      if (e.data && e.data.type === 'assignments:updated') {
+        clearWorkPackagesCache();
+      }
+    };
+  } catch {}
+}

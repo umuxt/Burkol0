@@ -141,6 +141,53 @@ export function generateModernDashboard() {
         </div>
       </div>
     </div>
+
+    <!-- Work Packages Widget (Full Width) -->
+    <div class="card" style="margin-top: 24px;">
+      <div class="card-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div class="card-title">📦 Work Packages</div>
+            <div class="card-description">Global task overview across all work orders</div>
+          </div>
+          <button id="work-packages-refresh-btn" style="background: var(--primary); color: var(--primary-foreground); padding: 6px 12px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+            <span>🔄</span> Refresh
+          </button>
+        </div>
+      </div>
+      <div class="card-content">
+        <!-- Filters -->
+        <div id="work-packages-filters" style="padding: 12px 16px; background: var(--muted); border-radius: 8px; margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+          <input 
+            type="text" 
+            id="wp-search-input" 
+            placeholder="Search WO, customer, plan..." 
+            style="flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;"
+          />
+          <select id="wp-status-filter" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; min-width: 140px;">
+            <option value="">All Statuses</option>
+            <option value="pending">Pending</option>
+            <option value="ready">Ready</option>
+            <option value="in-progress">In Progress</option>
+            <option value="paused">Paused</option>
+          </select>
+          <select id="wp-worker-filter" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; min-width: 140px;">
+            <option value="">All Workers</option>
+          </select>
+          <select id="wp-station-filter" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; min-width: 140px;">
+            <option value="">All Stations</option>
+          </select>
+          <button id="wp-clear-filters-btn" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; background: var(--background);">
+            Clear Filters
+          </button>
+        </div>
+        
+        <!-- Table -->
+        <div id="work-packages-widget" style="padding: 0 16px 16px;">
+          <div style="text-align: center; color: var(--muted-foreground); padding: 32px;">Yükleniyor...</div>
+        </div>
+      </div>
+    </div>
   `;
 }
 
@@ -1645,6 +1692,333 @@ export async function initActiveTasksWidget() {
 }
 
 /**
+ * Initialize Work Packages widget on dashboard
+ * Loads all active assignments across all launched plans
+ */
+let workPackagesState = {
+  allPackages: [],
+  filteredPackages: [],
+  workers: [],
+  stations: [],
+  searchTerm: '',
+  statusFilter: '',
+  workerFilter: '',
+  stationFilter: ''
+};
+
+export async function initWorkPackagesWidget() {
+  const container = document.getElementById('work-packages-widget');
+  if (!container) return;
+  
+  try {
+    // Import API functions
+    const { getWorkPackages, getWorkers, getStations } = await import('./mesApi.js');
+    
+    // Load data in parallel
+    const [packagesData, workers, stations] = await Promise.all([
+      getWorkPackages({ limit: 200 }),
+      getWorkers(),
+      getStations()
+    ]);
+    
+    workPackagesState.allPackages = packagesData.workPackages || [];
+    workPackagesState.workers = workers || [];
+    workPackagesState.stations = stations || [];
+    workPackagesState.filteredPackages = workPackagesState.allPackages;
+    
+    // Populate filter dropdowns
+    populateWorkPackagesFilters();
+    
+    // Bind event listeners
+    bindWorkPackagesEvents();
+    
+    // Render table
+    renderWorkPackagesTable();
+    
+  } catch (err) {
+    console.error('Failed to load work packages widget:', err);
+    const errorMessage = err.message || 'Bilinmeyen hata';
+    container.innerHTML = `
+      <div style="padding: 32px; text-align: center; color: #ef4444; background: #fee; border-radius: 8px;">
+        <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Work packages yüklenemedi</div>
+        <div style="font-size: 12px; color: #991b1b;">${errorMessage}</div>
+      </div>
+    `;
+  }
+}
+
+function populateWorkPackagesFilters() {
+  // Populate worker filter
+  const workerSelect = document.getElementById('wp-worker-filter');
+  if (workerSelect && workPackagesState.workers.length > 0) {
+    const workerOptions = workPackagesState.workers
+      .map(w => `<option value="${w.id}">${w.name}</option>`)
+      .join('');
+    workerSelect.innerHTML = '<option value="">All Workers</option>' + workerOptions;
+  }
+  
+  // Populate station filter
+  const stationSelect = document.getElementById('wp-station-filter');
+  if (stationSelect && workPackagesState.stations.length > 0) {
+    const stationOptions = workPackagesState.stations
+      .map(s => `<option value="${s.id}">${s.name}</option>`)
+      .join('');
+    stationSelect.innerHTML = '<option value="">All Stations</option>' + stationOptions;
+  }
+}
+
+function bindWorkPackagesEvents() {
+  // Refresh button
+  const refreshBtn = document.getElementById('work-packages-refresh-btn');
+  if (refreshBtn) {
+    refreshBtn.onclick = async () => {
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = '<span>⏳</span> Loading...';
+      try {
+        const { getWorkPackages, clearWorkPackagesCache } = await import('./mesApi.js');
+        clearWorkPackagesCache();
+        const packagesData = await getWorkPackages({ limit: 200 }, true);
+        workPackagesState.allPackages = packagesData.workPackages || [];
+        applyWorkPackagesFilters();
+        renderWorkPackagesTable();
+      } catch (err) {
+        console.error('Refresh failed:', err);
+        alert('Refresh failed: ' + err.message);
+      } finally {
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<span>🔄</span> Refresh';
+      }
+    };
+  }
+  
+  // Search input
+  const searchInput = document.getElementById('wp-search-input');
+  if (searchInput) {
+    searchInput.oninput = (e) => {
+      workPackagesState.searchTerm = e.target.value.toLowerCase();
+      applyWorkPackagesFilters();
+      renderWorkPackagesTable();
+    };
+  }
+  
+  // Status filter
+  const statusFilter = document.getElementById('wp-status-filter');
+  if (statusFilter) {
+    statusFilter.onchange = (e) => {
+      workPackagesState.statusFilter = e.target.value;
+      applyWorkPackagesFilters();
+      renderWorkPackagesTable();
+    };
+  }
+  
+  // Worker filter
+  const workerFilter = document.getElementById('wp-worker-filter');
+  if (workerFilter) {
+    workerFilter.onchange = (e) => {
+      workPackagesState.workerFilter = e.target.value;
+      applyWorkPackagesFilters();
+      renderWorkPackagesTable();
+    };
+  }
+  
+  // Station filter
+  const stationFilter = document.getElementById('wp-station-filter');
+  if (stationFilter) {
+    stationFilter.onchange = (e) => {
+      workPackagesState.stationFilter = e.target.value;
+      applyWorkPackagesFilters();
+      renderWorkPackagesTable();
+    };
+  }
+  
+  // Clear filters button
+  const clearBtn = document.getElementById('wp-clear-filters-btn');
+  if (clearBtn) {
+    clearBtn.onclick = () => {
+      workPackagesState.searchTerm = '';
+      workPackagesState.statusFilter = '';
+      workPackagesState.workerFilter = '';
+      workPackagesState.stationFilter = '';
+      
+      if (searchInput) searchInput.value = '';
+      if (statusFilter) statusFilter.value = '';
+      if (workerFilter) workerFilter.value = '';
+      if (stationFilter) stationFilter.value = '';
+      
+      applyWorkPackagesFilters();
+      renderWorkPackagesTable();
+    };
+  }
+}
+
+function applyWorkPackagesFilters() {
+  let filtered = workPackagesState.allPackages;
+  
+  // Search filter
+  if (workPackagesState.searchTerm) {
+    const term = workPackagesState.searchTerm;
+    filtered = filtered.filter(pkg => {
+      const searchFields = [
+        pkg.workOrderCode,
+        pkg.customer,
+        pkg.company,
+        pkg.planName,
+        pkg.nodeName,
+        pkg.workerName,
+        pkg.stationName
+      ].join(' ').toLowerCase();
+      return searchFields.includes(term);
+    });
+  }
+  
+  // Status filter
+  if (workPackagesState.statusFilter) {
+    filtered = filtered.filter(pkg => pkg.status === workPackagesState.statusFilter);
+  }
+  
+  // Worker filter
+  if (workPackagesState.workerFilter) {
+    filtered = filtered.filter(pkg => pkg.workerId === workPackagesState.workerFilter);
+  }
+  
+  // Station filter
+  if (workPackagesState.stationFilter) {
+    filtered = filtered.filter(pkg => pkg.stationId === workPackagesState.stationFilter);
+  }
+  
+  workPackagesState.filteredPackages = filtered;
+}
+
+function renderWorkPackagesTable() {
+  const container = document.getElementById('work-packages-widget');
+  if (!container) return;
+  
+  const packages = workPackagesState.filteredPackages;
+  
+  if (packages.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 48px; color: var(--muted-foreground);">
+        <div style="font-size: 48px; margin-bottom: 12px;">📦</div>
+        <div style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">No work packages found</div>
+        <div style="font-size: 13px;">Launch a production plan to create assignments</div>
+      </div>
+    `;
+    return;
+  }
+  
+  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+  
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      'pending': { color: '#6b7280', bg: '#f3f4f6', label: 'Pending' },
+      'ready': { color: '#f59e0b', bg: '#fef3c7', label: 'Ready' },
+      'in-progress': { color: '#10b981', bg: '#d1fae5', label: 'In Progress' },
+      'paused': { color: '#ef4444', bg: '#fee2e2', label: 'Paused' }
+    };
+    const s = statusMap[status] || { color: '#6b7280', bg: '#f3f4f6', label: status };
+    return `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: ${s.color}; background: ${s.bg};">${s.label}</span>`;
+  };
+  
+  const getMaterialBadge = (status) => {
+    if (status === 'ok') return '<span style="color: #10b981; font-size: 14px;" title="Materials OK">✓</span>';
+    if (status === 'short') return '<span style="color: #ef4444; font-size: 14px;" title="Material Shortage">⚠️</span>';
+    return '<span style="color: #9ca3af; font-size: 14px;" title="Unknown">?</span>';
+  };
+  
+  const formatTime = (iso) => {
+    if (!iso) return '—';
+    try {
+      const date = new Date(iso);
+      return date.toLocaleString('tr-TR', { 
+        month: 'short', 
+        day: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } catch {
+      return '—';
+    }
+  };
+  
+  const tableRows = packages.map(pkg => {
+    const quoteUrl = `/pages/production.html?view=approved-quotes&highlight=${encodeURIComponent(pkg.workOrderCode)}`;
+    const planUrl = `/pages/production.html?view=plan-designer&action=view&id=${encodeURIComponent(pkg.planId)}`;
+    
+    return `
+      <tr style="border-bottom: 1px solid var(--border);">
+        <td style="padding: 12px 8px;">
+          <div style="font-weight: 600; font-size: 12px; margin-bottom: 2px;">
+            <a href="${quoteUrl}" target="_blank" style="color: var(--primary); text-decoration: none;">${esc(pkg.workOrderCode)}</a>
+          </div>
+          <div style="font-size: 11px; color: var(--muted-foreground);">${esc(pkg.customer || pkg.company)}</div>
+        </td>
+        <td style="padding: 12px 8px;">
+          <div style="font-size: 12px; font-weight: 500;">${esc(pkg.planName)}</div>
+        </td>
+        <td style="padding: 12px 8px;">
+          <div style="font-size: 12px;">${esc(pkg.nodeName)}</div>
+        </td>
+        <td style="padding: 12px 8px;">
+          <div style="font-size: 12px;">${esc(pkg.workerName)}</div>
+        </td>
+        <td style="padding: 12px 8px;">
+          <div style="font-size: 12px;">${esc(pkg.stationName)}</div>
+          ${pkg.subStationCode ? `<div style="font-size: 10px; color: var(--muted-foreground);">${esc(pkg.subStationCode)}</div>` : ''}
+        </td>
+        <td style="padding: 12px 8px; text-align: center;">
+          ${getStatusBadge(pkg.status)}
+        </td>
+        <td style="padding: 12px 8px; text-align: center;">
+          <span style="font-size: 12px; font-weight: 600; color: var(--muted-foreground);">#${pkg.priority || 0}</span>
+        </td>
+        <td style="padding: 12px 8px; text-align: center;">
+          ${getMaterialBadge(pkg.materialStatus)}
+        </td>
+        <td style="padding: 12px 8px;">
+          <div style="font-size: 11px; color: var(--muted-foreground);">
+            <div>Start: ${formatTime(pkg.actualStart || pkg.plannedStart)}</div>
+            <div>End: ${formatTime(pkg.actualEnd || pkg.plannedEnd)}</div>
+          </div>
+        </td>
+        <td style="padding: 12px 8px;">
+          <div style="display: flex; gap: 4px;">
+            <a href="${planUrl}" target="_blank" style="font-size: 11px; padding: 4px 8px; border-radius: 4px; background: var(--muted); color: var(--foreground); text-decoration: none; white-space: nowrap;">View Plan</a>
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  
+  container.innerHTML = `
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+          <tr style="border-bottom: 2px solid var(--border); background: var(--muted);">
+            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Work Order</th>
+            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Plan</th>
+            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Operation</th>
+            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Worker</th>
+            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Station</th>
+            <th style="padding: 10px 8px; text-align: center; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Status</th>
+            <th style="padding: 10px 8px; text-align: center; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Priority</th>
+            <th style="padding: 10px 8px; text-align: center; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Materials</th>
+            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">ETA</th>
+            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top: 12px; padding: 8px; background: var(--muted); border-radius: 6px; font-size: 12px; color: var(--muted-foreground); text-align: center;">
+      Showing ${packages.length} work package(s) ${workPackagesState.allPackages.length !== packages.length ? `of ${workPackagesState.allPackages.length} total` : ''}
+    </div>
+  `;
+}
+
+/**
  * Initialize Station Alerts widget on dashboard
  * Loads last 5 station errors from mes-alerts collection
  */
@@ -1977,6 +2351,7 @@ export async function initDashboardWidgets() {
     initStationsOverviewWidget(),
     initWorkersOverviewWidget(),
     initActiveTasksWidget(),
-    initStationAlertsWidget()
+    initStationAlertsWidget(),
+    initWorkPackagesWidget()
   ]);
 }
