@@ -3124,7 +3124,9 @@ async function assignNodeResources(
   planData
 ) {
   const requiredSkills = node.requiredSkills || [];
-  const preferredStations = node.preferredStations || [];
+  const preferredStationIds = node.preferredStationIds || [];
+  const preferredStationTags = node.preferredStationTags || [];
+  const legacyPreferredStations = node.preferredStations || []; // For backward compatibility
   const allocationType = node.allocationType || 'auto';
   const workerHint = node.workerHint || null;
   const nominalTime = parseFloat(node.time) || 60; // minutes
@@ -3199,9 +3201,35 @@ async function assignNodeResources(
   
   let selectedStation = null;
   
-  if (preferredStations.length > 0) {
-    // Try to match preferred stations
-    for (const pref of preferredStations) {
+  // Priority 1: Try to match preferred station IDs (exact match)
+  if (preferredStationIds.length > 0) {
+    for (const stationId of preferredStationIds) {
+      const station = stations.find(s => s.id === stationId);
+      if (station) {
+        selectedStation = station;
+        console.log(`Matched station by ID: ${station.name} (${station.id})`);
+        break;
+      }
+    }
+  }
+  
+  // Priority 2: Try to match capability tags (tag-based matching)
+  if (!selectedStation && preferredStationTags.length > 0) {
+    for (const tag of preferredStationTags) {
+      const station = stations.find(s => 
+        s.tags && s.tags.some(t => t.toLowerCase() === tag.toLowerCase())
+      );
+      if (station) {
+        selectedStation = station;
+        console.log(`Matched station by tag "${tag}": ${station.name} (${station.id})`);
+        break;
+      }
+    }
+  }
+  
+  // Priority 3: Legacy fallback - try to match by ID, name, or tag from legacy field
+  if (!selectedStation && legacyPreferredStations.length > 0) {
+    for (const pref of legacyPreferredStations) {
       const station = stations.find(s => 
         s.id === pref || 
         s.name === pref || 
@@ -3209,18 +3237,22 @@ async function assignNodeResources(
       );
       if (station) {
         selectedStation = station;
+        console.log(`Matched station by legacy preference: ${station.name} (${station.id})`);
         break;
       }
     }
   }
   
+  // Priority 4: Try to match by operation type
   if (!selectedStation && node.type) {
-    // Try to match by operation type
     selectedStation = stations.find(s => s.type === node.type);
+    if (selectedStation) {
+      console.log(`Matched station by operation type "${node.type}": ${selectedStation.name}`);
+    }
   }
   
+  // Priority 5: Pick station with least load
   if (!selectedStation) {
-    // Pick station with least load
     const stationsWithLoad = stations.map(s => ({
       station: s,
       load: (stationSchedule.get(s.id) || []).length
@@ -3228,6 +3260,10 @@ async function assignNodeResources(
     
     stationsWithLoad.sort((a, b) => a.load - b.load);
     selectedStation = stationsWithLoad[0].station;
+    
+    if (selectedStation) {
+      console.log(`Matched station by least load: ${selectedStation.name} (${selectedStation.id})`);
+    }
   }
   
   if (!selectedStation) {

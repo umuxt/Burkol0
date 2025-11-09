@@ -1484,6 +1484,188 @@ export function clearCanvas() {
   }
 }
 
+/**
+ * Build station selector HTML with multi-select chips interface
+ * @param {Object} node - The node being edited
+ * @returns {Object} - { stationSelectHTML, missingStationsWarning }
+ */
+function buildStationSelector(node) {
+  const availableStations = planDesignerState.availableStations || [];
+  
+  // Handle legacy preferredStations (comma-separated strings) and migrate to IDs
+  const legacyPreferredStations = node.preferredStations || [];
+  const preferredStationIds = node.preferredStationIds || [];
+  
+  // Migration: if we have legacy data but no IDs, try to resolve them
+  let currentStationIds = [...preferredStationIds];
+  const missingStations = [];
+  
+  if (legacyPreferredStations.length > 0 && preferredStationIds.length === 0) {
+    // Try to resolve legacy station names/IDs to current station IDs
+    legacyPreferredStations.forEach(pref => {
+      const station = availableStations.find(s => 
+        s.id === pref || 
+        s.name === pref ||
+        (s.tags && s.tags.includes(pref))
+      );
+      if (station && !currentStationIds.includes(station.id)) {
+        currentStationIds.push(station.id);
+      } else if (!station) {
+        missingStations.push(pref);
+      }
+    });
+  }
+  
+  // Check if any currently selected stations are missing
+  currentStationIds.forEach(stationId => {
+    const station = availableStations.find(s => s.id === stationId);
+    if (!station) {
+      missingStations.push(stationId);
+    }
+  });
+  
+  // Build multi-select with chips
+  let stationSelectHTML = `
+    <div style="border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: white; min-height: 42px;">
+      <div id="station-chips-container" style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px;">
+        ${currentStationIds.map(stationId => {
+          const station = availableStations.find(s => s.id === stationId);
+          if (!station) {
+            return `<span class="station-chip" data-station-id="${escapeHtml(stationId)}" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e;">⚠️ ${escapeHtml(stationId)} (missing)<button type="button" onclick="removeStationChip('${escapeHtml(stationId)}')" style="border: none; background: none; cursor: pointer; padding: 0; margin-left: 4px; color: #92400e; font-weight: bold;">×</button></span>`;
+          }
+          const stationType = station.type || 'Unknown';
+          const stationLabel = `${station.name} (${stationType})`;
+          return `<span class="station-chip" data-station-id="${escapeHtml(station.id)}" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: #dbeafe; border: 1px solid #3b82f6; border-radius: 4px; font-size: 12px; color: #1e40af;">${escapeHtml(stationLabel)}<button type="button" onclick="removeStationChip('${escapeHtml(station.id)}')" style="border: none; background: none; cursor: pointer; padding: 0; margin-left: 4px; color: #1e40af; font-weight: bold;">×</button></span>`;
+        }).join('')}
+      </div>
+      <div style="position: relative;">
+        <input 
+          type="text" 
+          id="station-search-input" 
+          placeholder="Search and select stations..." 
+          autocomplete="off"
+          style="width: 100%; padding: 6px 8px; border: 1px solid #e5e7eb; border-radius: 4px; font-size: 13px;"
+        />
+        <div id="station-dropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #e5e7eb; border-radius: 4px; margin-top: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 1000;"></div>
+      </div>
+    </div>
+  `;
+  
+  // Build warning for missing stations
+  let missingStationsWarning = '';
+  if (missingStations.length > 0) {
+    const missingList = missingStations.map(s => escapeHtml(s)).join(', ');
+    missingStationsWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Some previously selected stations no longer exist: ${missingList}. Please remove them and select new stations.</div>`;
+  }
+  
+  return { stationSelectHTML, missingStationsWarning };
+}
+
+/**
+ * Remove a station chip from the selection
+ */
+window.removeStationChip = function(stationId) {
+  const chip = document.querySelector(`.station-chip[data-station-id="${stationId}"]`);
+  if (chip) {
+    chip.remove();
+  }
+};
+
+/**
+ * Setup station search and selection dropdown
+ * Called after the form is rendered
+ */
+function setupStationSearch() {
+  const searchInput = document.getElementById('station-search-input');
+  const dropdown = document.getElementById('station-dropdown');
+  if (!searchInput || !dropdown) return;
+  
+  const availableStations = planDesignerState.availableStations || [];
+  
+  // Show dropdown on focus
+  searchInput.addEventListener('focus', () => {
+    updateStationDropdown('');
+    dropdown.style.display = 'block';
+  });
+  
+  // Update dropdown on input
+  searchInput.addEventListener('input', (e) => {
+    updateStationDropdown(e.target.value.toLowerCase());
+    dropdown.style.display = 'block';
+  });
+  
+  // Hide dropdown on blur (with delay to allow click)
+  searchInput.addEventListener('blur', () => {
+    setTimeout(() => {
+      dropdown.style.display = 'none';
+      searchInput.value = '';
+    }, 200);
+  });
+  
+  function updateStationDropdown(searchTerm) {
+    const chipsContainer = document.getElementById('station-chips-container');
+    const selectedIds = Array.from(chipsContainer.querySelectorAll('.station-chip'))
+      .map(chip => chip.getAttribute('data-station-id'));
+    
+    const filtered = availableStations.filter(station => {
+      // Exclude already selected stations
+      if (selectedIds.includes(station.id)) return false;
+      
+      // Filter by search term
+      if (searchTerm) {
+        const name = (station.name || '').toLowerCase();
+        const type = (station.type || '').toLowerCase();
+        const tags = (station.tags || []).map(t => t.toLowerCase()).join(' ');
+        return name.includes(searchTerm) || type.includes(searchTerm) || tags.includes(searchTerm);
+      }
+      
+      return true;
+    });
+    
+    if (filtered.length === 0) {
+      dropdown.innerHTML = '<div style="padding: 8px; color: #6b7280; font-size: 12px;">No stations found</div>';
+      return;
+    }
+    
+    dropdown.innerHTML = filtered.map(station => {
+      const stationType = station.type || 'Unknown';
+      const stationTags = station.tags && station.tags.length > 0 ? ` [${station.tags.join(', ')}]` : '';
+      const label = `${station.name} (${stationType})${stationTags}`;
+      
+      return `<div class="station-option" data-station-id="${escapeHtml(station.id)}" style="padding: 8px; cursor: pointer; font-size: 13px; border-bottom: 1px solid #f3f4f6;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='white'" onclick="selectStation('${escapeHtml(station.id)}')">${escapeHtml(label)}</div>`;
+    }).join('');
+  }
+}
+
+/**
+ * Select a station and add it as a chip
+ */
+window.selectStation = function(stationId) {
+  const availableStations = planDesignerState.availableStations || [];
+  const station = availableStations.find(s => s.id === stationId);
+  if (!station) return;
+  
+  const chipsContainer = document.getElementById('station-chips-container');
+  const searchInput = document.getElementById('station-search-input');
+  
+  // Check if already selected
+  const existing = chipsContainer.querySelector(`.station-chip[data-station-id="${stationId}"]`);
+  if (existing) return;
+  
+  // Add chip
+  const stationType = station.type || 'Unknown';
+  const stationLabel = `${station.name} (${stationType})`;
+  const chipHTML = `<span class="station-chip" data-station-id="${escapeHtml(station.id)}" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: #dbeafe; border: 1px solid #3b82f6; border-radius: 4px; font-size: 12px; color: #1e40af;">${escapeHtml(stationLabel)}<button type="button" onclick="removeStationChip('${escapeHtml(station.id)}')" style="border: none; background: none; cursor: pointer; padding: 0; margin-left: 4px; color: #1e40af; font-weight: bold;">×</button></span>`;
+  
+  chipsContainer.insertAdjacentHTML('beforeend', chipHTML);
+  
+  // Clear search
+  if (searchInput) {
+    searchInput.value = '';
+    searchInput.focus();
+  }
+};
+
 // Global escape handler for modal
 let modalEscapeHandler = null;
 
@@ -1494,7 +1676,6 @@ export function editNode(nodeId) {
   
   // Build form content with rules-based fields only
   const requiredSkills = node.requiredSkills || [];
-  const preferredStations = node.preferredStations || [];
   const allocationType = node.allocationType || 'auto';
   const workerHint = node.workerHint || {};
   
@@ -1519,15 +1700,26 @@ export function editNode(nodeId) {
     workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Previously selected worker "${escapeHtml(savedName)}" no longer exists. Please select another worker.</div>`;
   }
   
+  // Build station selection UI
+  const { stationSelectHTML, missingStationsWarning } = buildStationSelector(node);
+  
+  // Build capability tags input
+  const preferredStationTags = node.preferredStationTags || [];
+  const tagsInputValue = preferredStationTags.join(', ');
+  
   const formContent =
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + node.time + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div style="font-size: 12px; color: var(--muted-foreground); padding: 8px; background: #f9fafb; border-radius: 4px;">' + (requiredSkills.length > 0 ? requiredSkills.join(', ') : 'None specified') + '</div><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Skills are inherited from the operation definition</div></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Preferred Stations <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="text" id="edit-preferred-stations" value="' + escapeHtml(preferredStations.join(', ')) + '" placeholder="e.g., CNC-01, Welding-A" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Hintalar: Bu adım için kaynak tiplerini seçin; gerçek atama üretim başladığında yapılacak.</div></div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Preferred Specific Stations <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span> <span style="cursor: help; color: #3b82f6;" title="Select specific stations by name. At launch, the system will prefer these exact stations.">ℹ️</span></label>' + stationSelectHTML + missingStationsWarning + '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Select specific stations for this operation. System will try to assign one of these first.</div></div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Capability Tags <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span> <span style="cursor: help; color: #3b82f6;" title="Enter generic capability tags like \'CNC\', \'Welding\', etc. System will match stations with these tags as fallback.">ℹ️</span></label><input type="text" id="edit-station-tags" value="' + escapeHtml(tagsInputValue) + '" placeholder="e.g., CNC, Welding, Laser" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Generic capabilities (comma-separated). Used if no specific station is available.</div></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Allocation Type</label><div style="display: flex; gap: 16px;"><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="allocation-type" value="auto" ' + (allocationType === 'auto' ? 'checked' : '') + ' style="cursor: pointer;" />Auto (System assigns at launch)</label><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="allocation-type" value="manual" ' + (allocationType === 'manual' ? 'checked' : '') + ' style="cursor: pointer;" />Manual (Assign specific worker)</label></div></div>' +
     '<div id="worker-hint-section" style="margin-bottom: 16px; display: ' + (allocationType === 'manual' ? 'block' : 'none') + ';"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Worker <span style="color: #ef4444;">*</span></label><select id="edit-worker-select" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: white;">' + workerOptions + '</select>' + workerNotFoundWarning + '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Backend will assign this worker at launch (if available).</div><label style="display: block; margin-top: 12px; margin-bottom: 4px; font-weight: 500;">Notes <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="text" id="edit-worker-notes" value="' + escapeHtml(workerHint.notes || '') + '" placeholder="e.g., Has experience with this product" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Optional notes for documentation purposes.</div></div>';
     
   document.getElementById('node-edit-form').innerHTML = formContent;
+  
+  // Setup station search dropdown
+  setupStationSearch();
   
   // Add event listener for allocation type radio buttons
   const radioButtons = document.querySelectorAll('input[name="allocation-type"]');
@@ -1626,7 +1818,7 @@ export function saveNodeEdit() {
   
   const name = document.getElementById('edit-name').value;
   const time = parseInt(document.getElementById('edit-time').value);
-  const preferredStationsInput = document.getElementById('edit-preferred-stations')?.value || '';
+  const stationTagsInput = document.getElementById('edit-station-tags')?.value || '';
   const allocationTypeRadio = document.querySelector('input[name="allocation-type"]:checked');
   const allocationType = allocationTypeRadio ? allocationTypeRadio.value : 'auto';
   const workerSelect = document.getElementById('edit-worker-select');
@@ -1657,12 +1849,25 @@ export function saveNodeEdit() {
   planDesignerState.selectedNode.name = name;
   planDesignerState.selectedNode.time = time;
   
-  // Update preferred stations (parse comma-separated list)
-  const preferredStations = preferredStationsInput
+  // Extract selected station IDs from chips
+  const chipsContainer = document.getElementById('station-chips-container');
+  const selectedStationIds = Array.from(chipsContainer.querySelectorAll('.station-chip'))
+    .map(chip => chip.getAttribute('data-station-id'))
+    .filter(id => id);
+  
+  planDesignerState.selectedNode.preferredStationIds = selectedStationIds;
+  
+  // Parse capability tags (comma-separated list)
+  const stationTags = stationTagsInput
     .split(',')
     .map(s => s.trim())
     .filter(s => s.length > 0);
-  planDesignerState.selectedNode.preferredStations = preferredStations;
+  planDesignerState.selectedNode.preferredStationTags = stationTags;
+  
+  // Keep legacy preferredStations for backward compatibility (will be ignored by new backend logic)
+  // Combine IDs and tags for legacy field
+  const legacyStations = [...selectedStationIds];
+  planDesignerState.selectedNode.preferredStations = legacyStations;
   
   // Update allocation type
   planDesignerState.selectedNode.allocationType = allocationType;
