@@ -655,12 +655,29 @@ export async function updateProductionState(workOrderCode, productionState) {
  * @returns {Promise<{tasks: Array, nextTaskId: string|null}>}
  */
 export async function getWorkerPortalTasks(workerId = null) {
+  // Build URL with workerId query param if provided (for admin requests)
   const url = workerId 
     ? `${API_BASE}/api/mes/worker-portal/tasks?workerId=${encodeURIComponent(workerId)}`
     : `${API_BASE}/api/mes/worker-portal/tasks`;
     
   const res = await fetch(url, { headers: withAuth() });
-  if (!res.ok) throw new Error(`worker_portal_tasks_load_failed ${res.status}`);
+  
+  if (!res.ok) {
+    // Parse error response to extract code and message
+    let errorData;
+    try {
+      errorData = await res.json();
+    } catch {
+      errorData = { code: 'unknown_error', message: `HTTP ${res.status}` };
+    }
+    
+    // Throw structured error with code and message
+    const error = new Error(errorData.message || `worker_portal_tasks_load_failed ${res.status}`);
+    error.code = errorData.code || 'unknown_error';
+    error.status = res.status;
+    throw error;
+  }
+  
   return await res.json();
 }
 
@@ -683,7 +700,23 @@ export async function updateWorkerPortalTask(assignmentId, payload) {
     body: JSON.stringify(payload)
   });
   
-  if (!res.ok) throw new Error(`worker_portal_task_update_failed ${res.status}`);
+  if (!res.ok) {
+    // Parse error response to extract code and message
+    let errorData;
+    try {
+      errorData = await res.json();
+    } catch {
+      errorData = { code: 'unknown_error', message: `HTTP ${res.status}` };
+    }
+    
+    // Throw structured error with code, message, and details
+    const error = new Error(errorData.message || `worker_portal_task_update_failed ${res.status}`);
+    error.code = errorData.code || 'unknown_error';
+    error.status = res.status;
+    error.details = errorData.details || null;
+    throw error;
+  }
+  
   return await res.json();
 }
 

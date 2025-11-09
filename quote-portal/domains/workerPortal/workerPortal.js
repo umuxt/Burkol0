@@ -100,15 +100,31 @@ async function startTask(assignmentId) {
   } catch (err) {
     console.error('Failed to start task:', err);
     
-    // Check if error message indicates precondition failure
-    const errorMsg = err.message || String(err);
-    if (errorMsg.includes('precondition') || errorMsg.includes('prerequisite')) {
-      showNotification('Görev başlatılamadı: Önkoşullar sağlanmadı', 'warning');
+    // Check if error has precondition_failed code
+    if (err.code === 'precondition_failed') {
+      // Display inline error with details
+      const task = state.tasks.find(t => t.assignmentId === assignmentId);
+      if (task) {
+        task.status = 'blocked';
+        task.blockReasons = err.details || [err.message];
+      }
+      
+      // Show notification with details
+      const reasons = err.details?.join(', ') || err.message;
+      showNotification(`Görev başlatılamadı: ${reasons}`, 'warning');
+      
+      // Re-render to show blocked status
+      render();
+      
+      // Reload tasks after short delay to get fresh status
+      setTimeout(() => loadWorkerTasks(), 2000);
+    } else {
+      // Generic error handling
+      const errorMsg = err.message || String(err);
+      showNotification('Görev başlatılamadı: ' + errorMsg, 'error');
       
       // Reload to refresh task status
       await loadWorkerTasks();
-    } else {
-      showNotification('Görev başlatılamadı: ' + errorMsg, 'error');
     }
   }
 }
@@ -438,6 +454,14 @@ function renderTaskRow(task, isNextTask) {
   const statusInfo = getStatusInfo(task.status);
   const priorityBadge = isNextTask ? '<span class="priority-badge">Öncelikli</span>' : '';
   
+  // Render inline block reasons if task failed to start
+  const blockReasonsHtml = task.blockReasons && task.blockReasons.length > 0 
+    ? `<div style="margin-top: 8px; padding: 8px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
+         <div style="font-size: 11px; color: #92400e; font-weight: 600; margin-bottom: 4px;">⚠️ Başlatma engellendi:</div>
+         <div style="font-size: 11px; color: #78350f;">${task.blockReasons.join('<br>')}</div>
+       </div>`
+    : '';
+  
   return `
     <tr class="task-row" data-assignment-id="${task.assignmentId}">
       <td>
@@ -454,6 +478,7 @@ function renderTaskRow(task, isNextTask) {
             Plan: ${task.planId} | Node: ${task.nodeId}
           </div>
           ${renderPrerequisites(task.prerequisites)}
+          ${blockReasonsHtml}
         </div>
       </td>
       <td>

@@ -1588,9 +1588,11 @@ export async function initActiveTasksWidget() {
     let totalInProgress = 0;
     let totalPaused = 0;
     let totalPending = 0;
+    let failedWorkers = [];
     
     for (const worker of workers) {
       try {
+        // Pass workerId explicitly so admin requests use query param
         const result = await getWorkerPortalTasks(worker.id);
         const tasks = result.tasks || [];
         
@@ -1600,8 +1602,21 @@ export async function initActiveTasksWidget() {
         totalPending += tasks.filter(t => t.status === 'pending').length;
       } catch (err) {
         console.warn(`Failed to load tasks for worker ${worker.id}:`, err);
+        failedWorkers.push({ id: worker.id, name: worker.name, error: err.message });
       }
     }
+    
+    // Show warning if some workers failed
+    const warningHtml = failedWorkers.length > 0 ? `
+      <div style="margin-top: 12px; padding: 10px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
+        <div style="font-size: 12px; color: #92400e; font-weight: 600; margin-bottom: 4px;">
+          ⚠️ ${failedWorkers.length} işçi için görevler yüklenemedi
+        </div>
+        <div style="font-size: 11px; color: #78350f;">
+          ${failedWorkers.map(w => `${w.name || w.id}: ${w.error}`).join('<br>')}
+        </div>
+      </div>
+    ` : '';
     
     // Render widget content
     container.innerHTML = `
@@ -1637,14 +1652,17 @@ export async function initActiveTasksWidget() {
           </div>
           <div style="font-size: 32px;">⏳</div>
         </div>
+        ${warningHtml}
       </div>
     `;
   } catch (err) {
     console.error('Failed to load active tasks widget:', err);
+    const errorMessage = err.message || 'Bilinmeyen hata';
     container.innerHTML = `
-      <div style="text-align: center; color: #ef4444;">
+      <div style="padding: 16px; text-align: center; color: #ef4444; background: #fee; border-radius: 8px;">
         <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
-        <div style="font-size: 14px;">Görevler yüklenemedi</div>
+        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Görevler yüklenemedi</div>
+        <div style="font-size: 12px; color: #991b1b;">${errorMessage}</div>
       </div>
     `;
   }
