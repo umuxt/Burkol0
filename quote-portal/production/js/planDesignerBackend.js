@@ -1,6 +1,6 @@
 // Backend-powered overrides for Plan Designer
 import { showToast } from './ui.js'
-import { getOperations, getWorkers, getStations, getApprovedQuotes, getMaterials, upsertProducedWipFromNode, getProductionPlans } from './mesApi.js'
+import { getOperations, getStations, getApprovedQuotes, getMaterials, upsertProducedWipFromNode, getProductionPlans } from './mesApi.js'
 import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate, aggregatePlanMaterials, checkMaterialAvailability, computeNodeEffectiveDuration } from './planDesigner.js'
 import { computeAndAssignSemiCode, getSemiCodePreviewForNode, getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
@@ -82,36 +82,11 @@ function rebuildMaterialRowsFromNode(node) {
 let _opsCache = []
 let _approvedOrders = []
 let _ordersByCode = new Map()
-let _workersCacheFull = []
 let _stationsCacheFull = []
 let _materialsCacheFull = []
 
-// Global escape handler for modal
-let modalEscapeHandler = null;
 // Listener for live-sync of materials when graph changes while modal is open
 let materialChangeHandler = null;
-
-// Generate assignment warnings UI
-function generateAssignmentWarningsUI(node) {
-  if (!node.assignmentWarnings || node.assignmentWarnings.length === 0) {
-    return '';
-  }
-  
-  const warningStyle = node.requiresAttention ? 
-    'background: #fef2f2; border: 1px solid #fecaca; color: #dc2626;' :
-    'background: #fffbeb; border: 1px solid #fde68a; color: #d97706;';
-    
-  const warningsHtml = node.assignmentWarnings
-    .map(warning => `<div style="font-size: 12px; margin-bottom: 4px;">⚠️ ${escapeHtml(warning)}</div>`)
-    .join('');
-    
-  return `<div style="margin-bottom: 16px; padding: 8px; border-radius: 4px; ${warningStyle}">
-    <div style="font-weight: 500; margin-bottom: 4px; font-size: 13px;">
-      ${node.requiresAttention ? 'Requires Attention' : 'Assignment Warnings'}
-    </div>
-    ${warningsHtml}
-  </div>`;
-}
 
 export async function loadOperationsToolboxBackend() {
   const listContainer = document.getElementById('operations-list')
@@ -362,23 +337,19 @@ export async function editNodeBackend(nodeId) {
     }
   }
   
-  let workers = []
   let stations = []
   let materials = []
   try {
-    workers = await getWorkers(true)
     stations = await getStations(true)
     materials = await getMaterials()
-    console.log(`Loaded data: ${workers.length} workers, ${stations.length} stations, ${materials.length} materials`)
+    console.log(`Loaded data: ${stations.length} stations, ${materials.length} materials`)
     
     // Update planDesignerState caches for efficiency calculations
-    planDesignerState.workersCache = workers;
     planDesignerState.stationsCache = stations;
   } catch (e) {
     console.error('editNodeBackend data load failed', e)
     // Continue with empty arrays to prevent UI breaking
   }
-  _workersCacheFull = workers || []
   _stationsCacheFull = stations || []
   _materialsCacheFull = (materials || []).filter(isRawMaterial)
   console.log(`Filtered to ${_materialsCacheFull.length} active raw materials (Ham madde)`)
@@ -388,7 +359,6 @@ export async function editNodeBackend(nodeId) {
   const stationSkills = selectedStation ? computeStationEffectiveSkills(selectedStation) : []
   const requiredSkills = Array.from(new Set([ ...((node.skills)||[]), ...stationSkills ]))
   const manualEnabled = !!selectedStation
-  const compatibleWorkers = getWorkersMatchingAllSkills(requiredSkills)
   const compatibleStations = _stationsCacheFull.filter(s => Array.isArray(s.operationIds) && s.operationIds.includes(node.operationId))
   const selectedAssignMode = node.assignmentMode === 'manual' ? 'manual' : 'auto'
 
@@ -407,14 +377,11 @@ export async function editNodeBackend(nodeId) {
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + Number(node.time || 0) + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" />' + effectiveTimeDisplay + '</div>' +
     generateMultiStationSelector(node, compatibleStations) +
-    '<div style="margin-bottom: 8px;"><label style="display:block; margin-bottom: 6px; font-weight: 500;">Worker Assignment</label>' +
-      `<label style="margin-right:12px; font-size:13px; opacity:${manualEnabled?1:0.5}"><input type="radio" name="edit-assign-mode" value="auto" ${selectedAssignMode==='auto'?'checked':''} ${manualEnabled?'':'disabled'} onchange="handleAssignModeChangeBackend()"> Auto-assign</label>` +
-      `<label style="font-size:13px; opacity:${manualEnabled?1:0.5}"><input type="radio" name="edit-assign-mode" value="manual" ${selectedAssignMode==='manual'?'checked':''} ${manualEnabled?'':'disabled'} onchange="handleAssignModeChangeBackend()"> Manual-assign</label>` +
+    '<div style="margin-bottom: 16px;"><label style="display:block; margin-bottom: 6px; font-weight: 500;">Worker Assignment</label>' +
+      '<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">Worker assignment will be determined when production starts</div>' +
+      `<label style="margin-right:12px; font-size:13px; opacity:${manualEnabled?1:0.5}"><input type="radio" name="edit-assign-mode" value="auto" ${selectedAssignMode==='auto'?'checked':''} ${manualEnabled?'':'disabled'}> Auto-assign</label>` +
+      `<label style="font-size:13px; opacity:${manualEnabled?1:0.5}"><input type="radio" name="edit-assign-mode" value="manual" ${selectedAssignMode==='manual'?'checked':''} ${manualEnabled?'':'disabled'}> Manual-assign</label>` +
     '</div>' +
-    `<div id="manual-worker-select" style="margin-bottom: 16px; ${selectedAssignMode==='manual'&&manualEnabled?'':'display:none;'}"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Worker</label><select id="edit-worker" ${manualEnabled?'':'disabled'} style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;"><option value="">Not assigned</option>` +
-    compatibleWorkers.map(w => '<option value="' + escapeHtml(w.id) + '" ' + (node.assignedWorkerId === w.id ? 'selected' : '') + '>' + escapeHtml(w.name) + '</option>').join('') +
-    '</select></div>' +
-    generateAssignmentWarningsUI(node) +
     (function(){
       const rows = Array.isArray(node.rawMaterials) ? node.rawMaterials : (node.rawMaterial ? [node.rawMaterial] : [])
       const buildRow = (rm, idx) => {
@@ -523,16 +490,10 @@ export async function editNodeBackend(nodeId) {
   }
 }
 
+// Legacy function kept for compatibility (no longer used in plan designer)
 export function handleAssignModeChangeBackend() {
-  try {
-    const node = planDesignerState.selectedNode
-    const hasStations = node && Array.isArray(node.assignedStations) && node.assignedStations.length > 0
-    const manual = document.querySelector('input[name="edit-assign-mode"][value="manual"]')?.checked
-    const box = document.getElementById('manual-worker-select')
-    if (box) box.style.display = (manual && hasStations) ? '' : 'none'
-    const select = document.getElementById('edit-worker')
-    if (select) select.disabled = !hasStations
-  } catch {}
+  // Worker assignment mode selection is now only stored, not processed during plan design
+  // Actual assignment happens when production starts
 }
 
 export function saveNodeEditBackend() {
@@ -541,7 +502,6 @@ export function saveNodeEditBackend() {
   const name = document.getElementById('edit-name')?.value?.trim()
   const time = parseInt(document.getElementById('edit-time')?.value, 10)
   const assignMode = (document.querySelector('input[name="edit-assign-mode"]:checked')?.value || null)
-  const manualWorker = document.getElementById('edit-worker')?.value || null
   const outQtyVal = document.getElementById('edit-output-qty')?.value
   const outUnit = document.getElementById('edit-output-unit')?.value || ''
   
@@ -610,154 +570,13 @@ export function saveNodeEditBackend() {
   node.outputQty = Number.isFinite(outQtyNum) ? outQtyNum : null
   node.outputUnit = (outUnit || '').trim()
 
-  // Auto-assign worker using new logic with scheduling
-  if (primaryStation && node.assignmentMode === 'auto') {
-    // Import auto-assignment functions from planDesigner.js
-    import('./planDesigner.js').then(module => {
-      const { performAutoAssignment } = module;
-      getWorkers(true).then(ws => {
-        performAutoAssignment(node, ws, _stationsCacheFull, true)
-          .then(() => applyMaterial())
-          .catch(err => {
-            console.error('Auto-assignment failed:', err);
-            node.requiresAttention = true;
-            node.assignmentWarnings = [`Auto-assignment failed: ${err.message}`];
-            applyMaterial();
-          });
-      }).catch(() => { 
-        node.assignedWorker = null; 
-        node.requiresAttention = true;
-        node.assignmentWarnings = ['Failed to load workers data'];
-        applyMaterial(); 
-      });
-    }).catch(() => {
-      // Fallback to legacy logic if import fails
-      getWorkers(true).then(ws => {
-        const st = (_stationsCacheFull||[]).find(s => s.name === primaryStation.name)
-        const stSkills = st ? computeStationEffectiveSkills(st) : []
-        const requiredList = Array.from(new Set([...(node.skills||[]), ...stSkills]))
-        const required = new Set(requiredList)
-        const eligible = ws.filter(w => {
-          const sset = new Set((w.skills||[]))
-          for (const rs of required) { if (!sset.has(rs)) return false }
-          return true
-        })
-        if (eligible.length > 0) {
-          const worker = eligible[0];
-          node.assignedWorkerId = worker.id;
-          node.assignedWorkerName = worker.name;
-          node.assignedWorker = worker.id; // Legacy field
-        } else {
-          node.assignedWorkerId = null;
-          node.assignedWorkerName = null;
-          node.assignedWorker = null; // Legacy field
-        }
-        applyMaterial()
-      }).catch(() => { 
-        node.assignedWorkerId = null;
-        node.assignedWorkerName = null;
-        node.assignedWorker = null; // Legacy field
-        applyMaterial() 
-      })
-    });
-  } else if (primaryStation && node.assignmentMode === 'manual' && manualWorker) {
-    // Manual assignment with validation
-    import('./planDesigner.js').then(module => {
-      const { validateManualAssignment } = module;
-      const now = new Date();
-      const duration = node.time || 60;
-      const startTime = now.toISOString();
-      const endTime = new Date(now.getTime() + duration * 60000).toISOString();
-      
-      validateManualAssignment(node, manualWorker, startTime, endTime, true)
-        .then(warnings => {
-          // Look up worker name for the ID
-          getWorkers().then(workers => {
-            const worker = workers.find(w => w.id === manualWorker);
-            node.assignedWorkerId = manualWorker;
-            node.assignedWorkerName = worker ? worker.name : manualWorker;
-            node.assignedWorker = manualWorker; // Legacy field
-            node.startTime = startTime;
-            node.endTime = endTime;
-            node.assignmentMode = 'manual';
-            node.assignmentWarnings = warnings;
-            node.requiresAttention = warnings.length > 0;
-            applyMaterial();
-          }).catch(() => {
-            // Fallback if can't get worker name
-            node.assignedWorkerId = manualWorker;
-            node.assignedWorkerName = manualWorker; // Use ID as name fallback
-            node.assignedWorker = manualWorker; // Legacy field
-            node.startTime = startTime;
-            node.endTime = endTime;
-            node.assignmentMode = 'manual';
-            node.assignmentWarnings = warnings;
-            node.requiresAttention = warnings.length > 0;
-            applyMaterial();
-          });
-        })
-        .catch(err => {
-          console.error('Manual assignment validation failed:', err);
-          getWorkers().then(workers => {
-            const worker = workers.find(w => w.id === manualWorker);
-            node.assignedWorkerId = manualWorker;
-            node.assignedWorkerName = worker ? worker.name : manualWorker;
-            node.assignedWorker = manualWorker; // Legacy field
-            node.assignmentWarnings = [`Validation failed: ${err.message}`];
-            node.requiresAttention = true;
-            applyMaterial();
-          }).catch(() => {
-            node.assignedWorkerId = manualWorker;
-            node.assignedWorkerName = manualWorker; // Use ID as name fallback
-            node.assignedWorker = manualWorker; // Legacy field
-            node.assignmentWarnings = [`Validation failed: ${err.message}`];
-            node.requiresAttention = true;
-            applyMaterial();
-          });
-        });
-    }).catch(() => {
-      // Fallback if import fails
-      if (manualWorker) {
-        getWorkers().then(workers => {
-          const worker = workers.find(w => w.id === manualWorker);
-          node.assignedWorkerId = manualWorker;
-          node.assignedWorkerName = worker ? worker.name : manualWorker;
-          node.assignedWorker = manualWorker; // Legacy field
-          applyMaterial();
-        }).catch(() => {
-          node.assignedWorkerId = manualWorker;
-          node.assignedWorkerName = manualWorker; // Use ID as name fallback
-          node.assignedWorker = manualWorker; // Legacy field
-          applyMaterial();
-        });
-      } else {
-        node.assignedWorkerId = null;
-        node.assignedWorkerName = null;
-        node.assignedWorker = null; // Legacy field
-        applyMaterial();
-      }
-    });
-  } else {
-    if (manualWorker) {
-      getWorkers().then(workers => {
-        const worker = workers.find(w => w.id === manualWorker);
-        node.assignedWorkerId = manualWorker;
-        node.assignedWorkerName = worker ? worker.name : manualWorker;
-        node.assignedWorker = manualWorker; // Legacy field
-        applyMaterial();
-      }).catch(() => {
-        node.assignedWorkerId = manualWorker;
-        node.assignedWorkerName = manualWorker; // Use ID as name fallback
-        node.assignedWorker = manualWorker; // Legacy field
-        applyMaterial();
-      });
-    } else {
-      node.assignedWorkerId = null;
-      node.assignedWorkerName = null;
-      node.assignedWorker = null; // Legacy field
-      applyMaterial();
-    }
-  }
+  // Worker assignment will happen when production starts
+  // Clear any previous worker assignments from the plan
+  node.assignedWorkerId = null;
+  node.assignedWorkerName = null;
+  node.assignedWorker = null;
+
+  applyMaterial();
 
   function applyMaterial() {
     // Support multi materials; keep legacy rawMaterial as first for compatibility
@@ -1475,16 +1294,6 @@ function computeStationEffectiveSkills(station) {
     if (op && Array.isArray(op.skills)) inherited.push(...op.skills)
   }
   return Array.from(new Set([ ...inherited, ...sub ]))
-}
-
-function getWorkersMatchingAllSkills(requiredSkills) {
-  const req = Array.from(new Set(requiredSkills||[]))
-  if (req.length === 0) return _workersCacheFull
-  return (_workersCacheFull||[]).filter(w => {
-    const skills = new Set((w.skills||[]))
-    for (const rs of req) { if (!skills.has(rs)) return false }
-    return true
-  })
 }
 
 function isRawMaterial(m) {
