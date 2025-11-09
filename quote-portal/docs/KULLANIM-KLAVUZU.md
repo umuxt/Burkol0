@@ -10,8 +10,9 @@
 7. [Filtreleme ve Arama](#filtreleme-ve-arama)
 8. [Raporlama ve Export](#raporlama-ve-export)
 9. [MES Üretim Yönetim Sistemi](#mes-üretim-yönetim-sistemi)
-10. [Sistem Bakımı](#sistem-bakımı)
-11. [Sorun Giderme](#sorun-giderme)
+10. [MES Verilerini Sıfırlama](#mes-verilerini-sıfırlama)
+11. [Sistem Bakımı](#sistem-bakımı)
+12. [Sorun Giderme](#sorun-giderme)
 
 ---
 
@@ -548,7 +549,70 @@ Admin kullanıcılar üretim sürecini kontrol edebilir:
 
 ---
 
-## 🚨 Sorun Giderme
+## � MES Verilerini Sıfırlama
+
+### Ne Zaman Kullanılır?
+MES (Manufacturing Execution System) verilerini sıfırlama scripti, test ve QA süreçlerinde temiz bir başlangıç noktası oluşturmak için kullanılır.
+
+### ⚠️ DİKKAT: Bu İşlem Geri Alınamaz!
+Bu script aşağıdaki tüm MES koleksiyonlarını **kalıcı olarak siler**:
+- ✗ Üretim planları (`mes-production-plans`)
+- ✗ İşçi atamaları (`mes-worker-assignments`)
+- ✗ Onaylı teklifler (`mes-approved-quotes`)
+- ✗ İşçiler (`mes-workers`)
+- ✗ İstasyonlar (`mes-stations`)
+- ✗ Alt istasyonlar (`mes-substations`)
+- ✗ Operasyonlar (`mes-operations`)
+- ✗ Uyarılar (`mes-alerts`)
+- ✗ İş emirleri (`mes-work-orders`)
+- ✗ MES ayarları (`mes-settings`)
+- ✗ Sayaçlar (`mes-counters`)
+- ✗ Şablonlar (`mes-templates`)
+- ✗ Siparişler (`mes-orders`)
+
+### Kullanım
+```bash
+# Terminalde şu komutu çalıştırın:
+cd /Users/umutyalcin/Documents/Burkol0/Burkol0
+RESET_MES=1 node quote-portal/scripts/reset-mes-data.js
+```
+
+### Güvenlik Önlemi
+Script yanlışlıkla çalıştırılmasını önlemek için `RESET_MES=1` ortam değişkeni gerektirir. Bu değişken olmadan script çalışmaz ve uyarı verir.
+
+### Çıktı Örneği
+```
+🔥 MES DATA RESET SCRIPT
+========================
+
+✅ Connected to Firestore
+
+⚠️  WARNING: This will delete all data from MES collections!
+   Collections to purge: 13
+
+   Starting in 3 seconds... (Press Ctrl+C to cancel)
+
+📦 mes-production-plans        ✅ Deleted 42 documents
+📦 mes-worker-assignments      ✅ Deleted 156 documents
+📦 mes-approved-quotes         ✅ Deleted 23 documents
+...
+
+════════════════════════════════════════════════════════════
+✅ MES DATA RESET COMPLETE
+════════════════════════════════════════════════════════════
+   Collections processed: 13
+   Collections purged:    8
+   Total documents:       387
+
+🎯 MES is now ready for fresh testing!
+```
+
+### İptal Etme
+Script başlatıldıktan sonra 3 saniye bekleme süresi vardır. Bu süre içinde **Ctrl+C** tuşlarına basarak işlemi iptal edebilirsiniz.
+
+---
+
+## �🚨 Sorun Giderme
 
 ### Yaygın Problemler
 
