@@ -2481,9 +2481,44 @@ export async function savePlanDraft() {
   const quantityInput = document.getElementById('modal-plan-quantity');
   const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
   
-  // Check material availability before saving
-  showToast('Checking material availability...', 'info');
-  const materialCheck = await checkMaterialAvailability(planDesignerState.nodes, planQuantity);
+  // MANDATORY: Check material availability before saving
+  // Auto-run check if missing or stale (>5 minutes)
+  const MATERIAL_CHECK_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+  const existingCheck = planDesignerState.materialCheckResult;
+  const isStale = !existingCheck || 
+    !existingCheck.checkedAt || 
+    (Date.now() - new Date(existingCheck.checkedAt).getTime()) > MATERIAL_CHECK_EXPIRY_MS;
+  
+  let materialCheck = existingCheck;
+  
+  if (isStale) {
+    showToast('Running mandatory material availability check...', 'info');
+    try {
+      materialCheck = await checkMaterialAvailability(planDesignerState.nodes, planQuantity);
+    } catch (error) {
+      console.error('Material check failed:', error);
+      const proceed = confirm(
+        '❌ MATERIAL CHECK FAILED\n\n' +
+        'Could not verify material availability.\n\n' +
+        'Do you want to continue saving anyway? (Not recommended)'
+      );
+      if (!proceed) {
+        showToast('Save cancelled - material check failed', 'error');
+        return;
+      }
+      // Create fallback empty check result
+      materialCheck = {
+        items: [],
+        hasShortages: false,
+        allAvailable: false,
+        shortageDetails: [],
+        checkedAt: new Date().toISOString(),
+        error: error.message
+      };
+    }
+  } else {
+    console.log('✓ Using cached material check (fresh)');
+  }
   
   if (materialCheck.error) {
     console.warn('Material check had errors, but proceeding with save:', materialCheck.error);
@@ -2521,8 +2556,28 @@ export async function savePlanDraft() {
     // NOTE: Material consumption happens automatically during plan release.
     // rawMaterials includes both base materials and derived WIP materials consumed.
     // wipOutputs includes all semi-finished products produced by nodes.
+    
+    // Build material summary from aggregatePlanMaterials (not just materialCheck.items)
+    const aggregatedMaterials = aggregatePlanMaterials(planDesignerState.nodes, planQuantity);
+    
+    // Merge with materialCheck data for availability info
+    const enrichedMaterials = aggregatedMaterials.map(mat => {
+      const checkItem = materialCheck.items?.find(c => c.id === mat.id || c.code === mat.code) || {};
+      return {
+        id: mat.id,
+        code: mat.code,
+        name: mat.name,
+        required: mat.required,
+        unit: mat.unit,
+        isDerived: mat.isDerived || false, // From aggregatePlanMaterials
+        stock: checkItem.stock || 0,
+        shortage: checkItem.shortage || 0,
+        isOk: checkItem.isOk !== false
+      };
+    });
+    
     const wipOutputs = [];
-    nodes.forEach(node => {
+    planDesignerState.nodes.forEach(node => {
       if (node.semiCode) {
         wipOutputs.push({
           code: node.semiCode,
@@ -2537,19 +2592,19 @@ export async function savePlanDraft() {
     
     const materialSummary = {
       checkedAt: materialCheck.checkedAt || new Date().toISOString(),
-      totalItems: materialCheck.items?.length || 0,
+      totalItems: enrichedMaterials.length,
       allAvailable: materialCheck.allAvailable,
       hasShortages: materialCheck.hasShortages,
-      items: materialCheck.items || [], // All materials for reference
+      items: enrichedMaterials, // All materials with availability info
       shortages: materialCheck.shortageDetails || [],
       // Separated for stock management during release:
-      rawMaterials: (materialCheck.items || []).map(item => ({
+      rawMaterials: enrichedMaterials.map(item => ({
         id: item.id,
         code: item.code,
         name: item.name,
         required: item.required,
         unit: item.unit,
-        isDerived: item.isDerived || false // Flag for WIP materials
+        isDerived: item.isDerived // Properly flagged from node.rawMaterials.derivedFrom
       })),
       wipOutputs // WIP materials produced by this plan
     };
@@ -2595,12 +2650,31 @@ export async function savePlanDraft() {
   }
 
   // Prepare material summary for the plan document
-  // Prepare material summary for the plan document
   // NOTE: Material consumption happens automatically during plan release.
   // rawMaterials includes both base materials and derived WIP materials consumed.
   // wipOutputs includes all semi-finished products produced by nodes.
+  
+  // Build material summary from aggregatePlanMaterials (not just materialCheck.items)
+  const aggregatedMaterials = aggregatePlanMaterials(planDesignerState.nodes, planQuantity);
+  
+  // Merge with materialCheck data for availability info
+  const enrichedMaterials = aggregatedMaterials.map(mat => {
+    const checkItem = materialCheck.items?.find(c => c.id === mat.id || c.code === mat.code) || {};
+    return {
+      id: mat.id,
+      code: mat.code,
+      name: mat.name,
+      required: mat.required,
+      unit: mat.unit,
+      isDerived: mat.isDerived || false, // From aggregatePlanMaterials
+      stock: checkItem.stock || 0,
+      shortage: checkItem.shortage || 0,
+      isOk: checkItem.isOk !== false
+    };
+  });
+  
   const wipOutputs = [];
-  nodes.forEach(node => {
+  planDesignerState.nodes.forEach(node => {
     if (node.semiCode) {
       wipOutputs.push({
         code: node.semiCode,
@@ -2615,19 +2689,19 @@ export async function savePlanDraft() {
   
   const materialSummary = {
     checkedAt: materialCheck.checkedAt || new Date().toISOString(),
-    totalItems: materialCheck.items?.length || 0,
+    totalItems: enrichedMaterials.length,
     allAvailable: materialCheck.allAvailable,
     hasShortages: materialCheck.hasShortages,
-    items: materialCheck.items || [], // All materials for reference
+    items: enrichedMaterials, // All materials with availability info
     shortages: materialCheck.shortageDetails || [],
     // Separated for stock management during release:
-    rawMaterials: (materialCheck.items || []).map(item => ({
+    rawMaterials: enrichedMaterials.map(item => ({
       id: item.id,
       code: item.code,
       name: item.name,
       required: item.required,
       unit: item.unit,
-      isDerived: item.isDerived || false // Flag for WIP materials
+      isDerived: item.isDerived // Properly flagged from node.rawMaterials.derivedFrom
     })),
     wipOutputs // WIP materials produced by this plan
   };

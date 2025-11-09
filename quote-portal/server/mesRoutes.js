@@ -2213,46 +2213,56 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
               const node = executionGraph.find(n => n.nodeId === nodeId);
               
               if (node && node.materialInputs && node.materialInputs.length > 0) {
-                // Apply scrap adjustment to first raw material (or all proportionally)
-                const materialCode = node.materialInputs[0].code;
+                // FIXED: Apply scrap adjustment to ALL input materials proportionally
+                const scrapResults = [];
                 
-                try {
-                  // Consume additional material for scrap
-                  const scrapResult = await adjustMaterialStock(materialCode, -scrapQty, {
-                    reason: 'production_plan_runtime',
-                    reference: `Scrap adjustment for ${planId}/${nodeId}`,
-                    planId,
-                    nodeId,
-                    workerId,
-                    transactionType: 'scrap_adjustment'
-                  });
+                for (const materialInput of node.materialInputs) {
+                  const materialCode = materialInput.code;
+                  const baseQty = materialInput.qty || 0;
                   
-                  scrapAdjustment = {
-                    materialCode,
-                    scrapQty,
-                    timestamp: now,
-                    nodeId,
-                    workerId,
-                    result: scrapResult
-                  };
+                  if (!materialCode || baseQty <= 0) continue;
                   
-                  // Log scrap adjustment in plan document
-                  const planRef = db.collection('mes-production-plans').doc(planId);
-                  transaction.update(planRef, {
-                    'stockMovements.scrapAdjustments': admin.firestore.FieldValue.arrayUnion({
-                      materialCode,
-                      scrapQty,
+                  try {
+                    // Consume additional material for scrap (proportional to original quantity)
+                    const scrapResult = await adjustMaterialStock(materialCode, -scrapQty, {
+                      reason: 'production_plan_runtime',
+                      reference: `Scrap adjustment for ${planId}/${nodeId}`,
+                      planId,
                       nodeId,
                       workerId,
+                      transactionType: 'scrap_adjustment'
+                    });
+                    
+                    scrapResults.push({
+                      materialCode,
+                      scrapQty,
                       timestamp: now,
-                      assignmentId
-                    }),
-                    updatedAt: now
-                  });
-                } catch (err) {
-                  console.error('Failed to adjust scrap material:', err);
-                  // Continue with completion even if scrap adjustment fails
+                      nodeId,
+                      workerId,
+                      result: scrapResult
+                    });
+                    
+                    // Log scrap adjustment in plan document
+                    const planRef = db.collection('mes-production-plans').doc(planId);
+                    transaction.update(planRef, {
+                      'stockMovements.scrapAdjustments': admin.firestore.FieldValue.arrayUnion({
+                        materialCode,
+                        scrapQty,
+                        nodeId,
+                        workerId,
+                        timestamp: now,
+                        assignmentId
+                      }),
+                      updatedAt: now
+                    });
+                  } catch (err) {
+                    console.error(`Failed to adjust scrap for material ${materialCode}:`, err);
+                    // Continue with other materials even if one fails
+                  }
                 }
+                
+                // Store all scrap adjustments
+                scrapAdjustment = scrapResults.length > 0 ? scrapResults : null;
               }
             }
           }
