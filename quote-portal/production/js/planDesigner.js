@@ -1139,6 +1139,24 @@ export function renderNode(node, targetCanvas = null) {
     return `⏱️ ${nominalTime} min`;
   })();
   
+  // Worker display with manual hint indicator
+  const workerDisplay = (() => {
+    // If already assigned (should not happen in planning phase, but legacy support)
+    if (node.assignedWorkerName || node.assignedWorker) {
+      return node.assignedWorkerName || node.assignedWorker;
+    }
+    
+    // Check for manual allocation hint
+    if (node.allocationType === 'manual' && node.workerHint && node.workerHint.workerId) {
+      const workerName = node.workerHint.workerNameHint || node.workerHint.workerId;
+      // Extract just the name part (before parentheses if present)
+      const shortName = workerName.split('(')[0].trim();
+      return `📌 ${shortName}`;
+    }
+    
+    return 'Auto-assign at launch';
+  })();
+  
   nodeElement.innerHTML = [
     '<div style="display: flex; justify-content: between; align-items: flex-start; margin-bottom: 4px;">',
     `<div class="drag-handle" style="font-weight: 600; font-size: 14px; color: ${colors[node.type] || '#6b7280'}; flex: 1; cursor: ${planDesignerState.readOnly ? 'default' : 'move'}; padding: 2px;">🔸 ${node.name}${warningBadge}</div>`,
@@ -1147,7 +1165,7 @@ export function renderNode(node, targetCanvas = null) {
     `<div style="font-size: 11px; color: #6b7280; margin-bottom: 2px;">Type: ${node.type}</div>`,
     `<div style=\"font-size: 11px; color: #6b7280; margin-bottom: 2px;\">${timeDisplay}</div>`,
     scheduleInfo,
-    `<div style=\"font-size: 10px; color: #9ca3af;\">Worker: ${node.assignedWorkerName || node.assignedWorker || 'Not assigned'}<br>Station: ${node.assignedStationName || node.assignedStation || 'Not assigned'}<br>Materials: ${matSummary}</div>`
+    `<div style=\"font-size: 10px; color: #9ca3af;\">Worker: ${workerDisplay}<br>Station: ${node.assignedStationName || node.assignedStation || 'Auto-assign at launch'}<br>Materials: ${matSummary}</div>`
   ].join('');
 
   // Use global drag state instead of local variables
@@ -1480,13 +1498,34 @@ export function editNode(nodeId) {
   const allocationType = node.allocationType || 'auto';
   const workerHint = node.workerHint || {};
   
+  // Build worker select options
+  const availableWorkers = planDesignerState.availableWorkers || [];
+  const selectedWorkerId = workerHint.workerId || '';
+  
+  let workerOptions = '<option value="">-- Select a worker --</option>';
+  let workerNotFoundWarning = '';
+  
+  availableWorkers.forEach(worker => {
+    const skills = (worker.skills || []).join(', ') || 'No skills';
+    const shift = worker.shift || 'Day';
+    const label = `${worker.name} (${shift} shift, Skills: ${skills})`;
+    const selected = worker.id === selectedWorkerId ? 'selected' : '';
+    workerOptions += `<option value="${escapeHtml(worker.id)}" ${selected}>${escapeHtml(label)}</option>`;
+  });
+  
+  // Check if saved worker no longer exists
+  if (selectedWorkerId && !availableWorkers.find(w => w.id === selectedWorkerId)) {
+    const savedName = workerHint.workerNameHint || selectedWorkerId;
+    workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Previously selected worker "${escapeHtml(savedName)}" no longer exists. Please select another worker.</div>`;
+  }
+  
   const formContent =
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + node.time + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div style="font-size: 12px; color: var(--muted-foreground); padding: 8px; background: #f9fafb; border-radius: 4px;">' + (requiredSkills.length > 0 ? requiredSkills.join(', ') : 'None specified') + '</div><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Skills are inherited from the operation definition</div></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Preferred Stations <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="text" id="edit-preferred-stations" value="' + escapeHtml(preferredStations.join(', ')) + '" placeholder="e.g., CNC-01, Welding-A" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Hintalar: Bu adım için kaynak tiplerini seçin; gerçek atama üretim başladığında yapılacak.</div></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Allocation Type</label><div style="display: flex; gap: 16px;"><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="allocation-type" value="auto" ' + (allocationType === 'auto' ? 'checked' : '') + ' style="cursor: pointer;" />Auto (System assigns at launch)</label><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="allocation-type" value="manual" ' + (allocationType === 'manual' ? 'checked' : '') + ' style="cursor: pointer;" />Manual (Planner hint)</label></div></div>' +
-    '<div id="worker-hint-section" style="margin-bottom: 16px; display: ' + (allocationType === 'manual' ? 'block' : 'none') + ';"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Worker Hint <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="text" id="edit-worker-hint" value="' + escapeHtml(workerHint.workerNameHint || '') + '" placeholder="e.g., Preferred: Ali Yılmaz" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Bu sadece bir ipucudur. Nihai atama başlatma zamanında yapılacak.</div></div>';
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Allocation Type</label><div style="display: flex; gap: 16px;"><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="allocation-type" value="auto" ' + (allocationType === 'auto' ? 'checked' : '') + ' style="cursor: pointer;" />Auto (System assigns at launch)</label><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="allocation-type" value="manual" ' + (allocationType === 'manual' ? 'checked' : '') + ' style="cursor: pointer;" />Manual (Assign specific worker)</label></div></div>' +
+    '<div id="worker-hint-section" style="margin-bottom: 16px; display: ' + (allocationType === 'manual' ? 'block' : 'none') + ';"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Worker <span style="color: #ef4444;">*</span></label><select id="edit-worker-select" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: white;">' + workerOptions + '</select>' + workerNotFoundWarning + '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Backend will assign this worker at launch (if available).</div><label style="display: block; margin-top: 12px; margin-bottom: 4px; font-weight: 500;">Notes <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="text" id="edit-worker-notes" value="' + escapeHtml(workerHint.notes || '') + '" placeholder="e.g., Has experience with this product" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Optional notes for documentation purposes.</div></div>';
     
   document.getElementById('node-edit-form').innerHTML = formContent;
   
@@ -1590,13 +1629,28 @@ export function saveNodeEdit() {
   const preferredStationsInput = document.getElementById('edit-preferred-stations')?.value || '';
   const allocationTypeRadio = document.querySelector('input[name="allocation-type"]:checked');
   const allocationType = allocationTypeRadio ? allocationTypeRadio.value : 'auto';
-  const workerHintInput = document.getElementById('edit-worker-hint')?.value || '';
+  const workerSelect = document.getElementById('edit-worker-select');
+  const workerNotesInput = document.getElementById('edit-worker-notes')?.value || '';
   const outQtyVal = document.getElementById('edit-output-qty')?.value;
   const outUnit = document.getElementById('edit-output-unit')?.value || '';
   
   if (!name || !time || time < 1) { 
     showToast('Please fill all required fields', 'error'); 
     return; 
+  }
+  
+  // Validate manual allocation has worker selected
+  if (allocationType === 'manual') {
+    const selectedWorkerId = workerSelect?.value || '';
+    if (!selectedWorkerId) {
+      showToast('Manual allocation requires a worker selection', 'error');
+      // Highlight the worker select field
+      if (workerSelect) {
+        workerSelect.style.border = '2px solid #ef4444';
+        setTimeout(() => { workerSelect.style.border = '1px solid var(--border)'; }, 2000);
+      }
+      return;
+    }
   }
   
   // Update node with new values
@@ -1614,9 +1668,15 @@ export function saveNodeEdit() {
   planDesignerState.selectedNode.allocationType = allocationType;
   
   // Update worker hint (only if manual allocation)
-  if (allocationType === 'manual' && workerHintInput) {
+  if (allocationType === 'manual' && workerSelect) {
+    const selectedWorkerId = workerSelect.value;
+    const selectedOption = workerSelect.options[workerSelect.selectedIndex];
+    const workerNameHint = selectedOption ? selectedOption.text : '';
+    
     planDesignerState.selectedNode.workerHint = {
-      workerNameHint: workerHintInput
+      workerId: selectedWorkerId,
+      workerNameHint: workerNameHint,
+      notes: workerNotesInput || null
     };
   } else {
     planDesignerState.selectedNode.workerHint = null;
