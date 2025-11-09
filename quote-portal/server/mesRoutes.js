@@ -2983,6 +2983,7 @@ function buildTopologicalOrder(nodes) {
 
 /**
  * Validate material availability for plan launch
+ * NOTE: Uses unified 'materials' collection (mes-materials has been removed)
  */
 async function validateMaterialAvailability(planData, planQuantity, db) {
   const materialSummary = planData.materialSummary || {};
@@ -2992,7 +2993,7 @@ async function validateMaterialAvailability(planData, planQuantity, db) {
     return { allAvailable: true, shortages: [], details: [] };
   }
   
-  // Aggregate materials by code
+  // Aggregate materials by code to avoid duplicate lookups
   const aggregated = new Map();
   
   rawMaterials.forEach(mat => {
@@ -3004,16 +3005,51 @@ async function validateMaterialAvailability(planData, planQuantity, db) {
     aggregated.set(key, existing);
   });
   
-  // Check availability
+  // Fetch all materials in one batch to avoid multiple network calls
+  const materialCodes = Array.from(aggregated.keys());
+  const materialDocsPromises = materialCodes.map(code => 
+    db.collection('materials').doc(code).get()
+  );
+  
+  const materialDocs = await Promise.all(materialDocsPromises);
+  
+  // Build lookup map from fetched materials
+  const materialMap = new Map();
+  materialDocs.forEach((doc, index) => {
+    const code = materialCodes[index];
+    if (doc.exists) {
+      materialMap.set(code, doc.data());
+    }
+  });
+  
+  // If primary lookup from 'materials' fails, optionally check legacy 'mes-materials' as fallback
+  // This provides backward compatibility for any lingering legacy docs
+  const missingCodes = materialCodes.filter(code => !materialMap.has(code));
+  if (missingCodes.length > 0) {
+    console.warn(`Materials not found in primary collection, checking legacy mes-materials: ${missingCodes.join(', ')}`);
+    const legacyDocsPromises = missingCodes.map(code =>
+      db.collection('mes-materials').doc(code).get().catch(() => null)
+    );
+    const legacyDocs = await Promise.all(legacyDocsPromises);
+    
+    legacyDocs.forEach((doc, index) => {
+      if (doc && doc.exists) {
+        const code = missingCodes[index];
+        materialMap.set(code, doc.data());
+        console.log(`✓ Found material ${code} in legacy mes-materials collection`);
+      }
+    });
+  }
+  
+  // Check availability against fetched materials
   const shortages = [];
   const details = [];
   
   for (const [code, mat] of aggregated) {
     try {
-      // Fetch material from database
-      const materialDoc = await db.collection('mes-materials').doc(code).get();
+      const materialData = materialMap.get(code);
       
-      if (!materialDoc.exists) {
+      if (!materialData) {
         shortages.push({
           code,
           name: mat.name || code,
@@ -3026,27 +3062,32 @@ async function validateMaterialAvailability(planData, planQuantity, db) {
         continue;
       }
       
-      const materialData = materialDoc.data();
-      const available = parseFloat(materialData.stock) || 0;
+      // Use 'stock' field for availability (standard in materials collection)
+      // Also check 'available' field for backward compatibility
+      const available = parseFloat(materialData.stock || materialData.available) || 0;
       const required = mat.required;
+      
+      // Use material data from DB as source of truth for name/unit
+      const materialName = materialData.name || mat.name || code;
+      const materialUnit = materialData.unit || mat.unit || '';
       
       details.push({
         code,
-        name: mat.name || materialData.name || code,
+        name: materialName,
         required,
         available,
-        unit: mat.unit || materialData.unit || '',
+        unit: materialUnit,
         isOk: available >= required
       });
       
       if (available < required) {
         shortages.push({
           code,
-          name: mat.name || materialData.name || code,
+          name: materialName,
           required,
           available,
           shortage: required - available,
-          unit: mat.unit || materialData.unit || ''
+          unit: materialUnit
         });
       }
     } catch (error) {
