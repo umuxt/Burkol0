@@ -1,6 +1,6 @@
 // Backend-powered overrides for Plan Designer
 import { showToast } from './ui.js'
-import { getOperations, getStations, getApprovedQuotes, getMaterials, upsertProducedWipFromNode, getProductionPlans } from './mesApi.js'
+import { getOperations, getStations, getApprovedQuotes, getMaterials, getProductionPlans } from './mesApi.js'
 import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate, aggregatePlanMaterials, checkMaterialAvailability, computeNodeEffectiveDuration } from './planDesigner.js'
 import { computeAndAssignSemiCode, getSemiCodePreviewForNode, getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
@@ -85,6 +85,8 @@ let _ordersByCode = new Map()
 let _stationsCacheFull = []
 let _materialsCacheFull = []
 
+// Global escape handler for modal
+let modalEscapeHandler = null;
 // Listener for live-sync of materials when graph changes while modal is open
 let materialChangeHandler = null;
 
@@ -582,20 +584,16 @@ export function saveNodeEditBackend() {
     // Support multi materials; keep legacy rawMaterial as first for compatibility
     node.rawMaterials = rawMaterials
     node.rawMaterial = rawMaterials.length ? { ...rawMaterials[0] } : null
-    // Compute/update semi-finished product code based on op, station and materials
+    
+    // Compute/update semi-finished product code preview (not committed yet)
+    // Actual commit happens when the plan is saved
     try {
       computeAndAssignSemiCode(node, _opsCache, _stationsCacheFull)
       // Propagate changes to downstream nodes (derived materials)
       try { propagateDerivedMaterialUpdate(node.id) } catch {}
-      if (node.semiCode) {
-        // Upsert produced WIP into materials backend
-        upsertProducedWipFromNode(node, _opsCache, _stationsCacheFull)
-          .then(() => {
-            try { window.dispatchEvent(new CustomEvent('materialStockUpdated', { detail: { code: node.semiCode } })) } catch {}
-          })
-          .catch(e => console.warn('Produced WIP upsert failed:', e?.message))
-      }
-    } catch {}
+    } catch (e) {
+      console.warn('Semi-code computation failed:', e)
+    }
     
     // Invalidate timing summary and execution graph cache when node changes
     // (predecessors, assignments, or timing changes affect execution order and prerequisites)
