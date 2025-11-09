@@ -16,10 +16,10 @@ export const planDesignerState = {
   nodeIdCounter: 1,
   isFullscreen: false,
   availableOperations: [],
-  availableWorkers: [], // Cache for migration lookup
-  availableStations: [], // Cache for migration lookup
-  workersCache: [], // Full workers list for efficiency calculations
-  stationsCache: [], // Full stations list for efficiency calculations
+  availableWorkers: [], // Cache for migration lookup only
+  availableStations: [], // Cache for migration lookup only
+  workersCache: [], // For display purposes only (not assignment)
+  stationsCache: [], // For display purposes only (not assignment)
   availableMaterials: [], // Cache for material availability checks
   materialCheckResult: null, // Last material availability check result
   // Global drag state
@@ -70,372 +70,17 @@ function escapeHtml(str) {
 }
 
 // ============================================================================
-// AUTO-ASSIGNMENT UTILITIES
+// TIMING AND CAPACITY UTILITIES  
 // ============================================================================
-
-// Check if cache is expired
-function isCacheExpired() {
-  if (!planDesignerState.cacheTimestamp) return true;
-  return (Date.now() - planDesignerState.cacheTimestamp) > planDesignerState.cacheExpirationMs;
-}
-
-// Fetch worker assignments with caching
-async function fetchWorkerAssignments(workerId, force = false) {
-  if (!force && !isCacheExpired() && planDesignerState.workerAssignmentsCache.has(workerId)) {
-    return planDesignerState.workerAssignmentsCache.get(workerId);
-  }
-  
-  try {
-    const assignments = await getWorkerAssignments(workerId, 'active');
-    planDesignerState.workerAssignmentsCache.set(workerId, assignments);
-    planDesignerState.cacheTimestamp = Date.now();
-    return assignments;
-  } catch (error) {
-    console.error('Failed to fetch worker assignments:', error);
-    return [];
-  }
-}
-
-// Fetch substations with caching
-async function fetchSubstations(stationId, force = false) {
-  const cacheKey = stationId || 'all';
-  if (!force && !isCacheExpired() && planDesignerState.substationsCache.has(cacheKey)) {
-    return planDesignerState.substationsCache.get(cacheKey);
-  }
-  
-  try {
-    const substations = await getSubstations(stationId);
-    planDesignerState.substationsCache.set(cacheKey, substations);
-    planDesignerState.cacheTimestamp = Date.now();
-    return substations;
-  } catch (error) {
-    console.error('Failed to fetch substations:', error);
-    return [];
-  }
-}
-
-// Get timezone from master data (with fallback)
-function getTimezone() {
-  // TODO: Fetch from master data when available
-  // For now, use browser timezone
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
-
-// Compute next available time slot for a worker
-function computeNextAvailableSlot(worker, assignments, startAfter = new Date(), durationMinutes = 60) {
-  const schedule = worker.personalSchedule;
-  if (!schedule || !schedule.blocks) {
-    // No schedule defined, assume immediate availability
-    return {
-      start: new Date(startAfter),
-      end: new Date(startAfter.getTime() + durationMinutes * 60000)
-    };
-  }
-
-  const timezone = getTimezone();
-  const current = new Date(Math.max(startAfter.getTime(), Date.now()));
-  
-  // Convert assignments to sorted time slots
-  const busySlots = assignments
-    .map(a => ({
-      start: new Date(a.start),
-      end: new Date(a.end)
-    }))
-    .filter(slot => slot.end > current)
-    .sort((a, b) => a.start.getTime() - b.start.getTime());
-
-  // Find next available slot within schedule blocks
-  let candidate = new Date(current);
-  const maxDays = 14; // Look ahead 2 weeks maximum
-  
-  for (let dayOffset = 0; dayOffset < maxDays; dayOffset++) {
-    const checkDate = new Date(candidate);
-    checkDate.setDate(checkDate.getDate() + dayOffset);
-    
-    const dayName = checkDate.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    const dayBlocks = schedule.blocks[dayName] || [];
-    
-    for (const block of dayBlocks) {
-      if (!block.start || !block.end) continue;
-      
-      // Parse block times (assume HH:MM format)
-      const [startHour, startMin] = block.start.split(':').map(Number);
-      const [endHour, endMin] = block.end.split(':').map(Number);
-      
-      const blockStart = new Date(checkDate);
-      blockStart.setHours(startHour, startMin, 0, 0);
-      
-      const blockEnd = new Date(checkDate);
-      blockEnd.setHours(endHour, endMin, 0, 0);
-      
-      // Skip if block is in the past
-      if (blockEnd <= current) continue;
-      
-      // Adjust start time if it's in the past
-      const slotStart = new Date(Math.max(blockStart.getTime(), current.getTime()));
-      const slotEnd = new Date(slotStart.getTime() + durationMinutes * 60000);
-      
-      // Check if slot fits within block
-      if (slotEnd <= blockEnd) {
-        // Check for conflicts with busy slots
-        const hasConflict = busySlots.some(busy => 
-          (slotStart < busy.end && slotEnd > busy.start)
-        );
-        
-        if (!hasConflict) {
-          return { start: slotStart, end: slotEnd };
-        }
-      }
-    }
-  }
-  
-  // Fallback: schedule after last assignment
-  if (busySlots.length > 0) {
-    const lastEnd = busySlots[busySlots.length - 1].end;
-    return {
-      start: new Date(lastEnd),
-      end: new Date(lastEnd.getTime() + durationMinutes * 60000)
-    };
-  }
-  
-  // Ultimate fallback
-  return {
-    start: new Date(current),
-    end: new Date(current.getTime() + durationMinutes * 60000)
-  };
-}
-
-// Find best worker for a node using auto-assignment rules
-async function findBestWorker(node, workers, forceRefresh = false) {
-  if (!node.skills || !Array.isArray(node.skills) || node.skills.length === 0) {
-    return null; // No skills required
-  }
-  
-  // Filter workers by matching skills
-  const candidates = workers.filter(worker => {
-    if (!worker.skills || !Array.isArray(worker.skills)) return false;
-    return node.skills.every(skill => worker.skills.includes(skill));
-  });
-  
-  if (candidates.length === 0) return null;
-  
-  // Fetch assignments for all candidates
-  const candidateData = await Promise.all(
-    candidates.map(async worker => {
-      const assignments = await fetchWorkerAssignments(worker.id, forceRefresh);
-      const nextSlot = computeNextAvailableSlot(worker, assignments, new Date(), node.time || 60);
-      
-      return {
-        worker,
-        assignments,
-        nextSlot,
-        workload: assignments.length,
-        expectedFinish: nextSlot.end
-      };
-    })
-  );
-  
-  // Sort by auto-assignment rules:
-  // 1. Earliest expected finish time
-  // 2. If tie, count of planned tasks (lower is better)
-  // 3. Deterministic order by worker name
-  candidateData.sort((a, b) => {
-    const timeDiff = a.expectedFinish.getTime() - b.expectedFinish.getTime();
-    if (Math.abs(timeDiff) > 60000) return timeDiff; // 1-minute tolerance
-    
-    const workloadDiff = a.workload - b.workload;
-    if (workloadDiff !== 0) return workloadDiff;
-    
-    return a.worker.name.localeCompare(b.worker.name);
-  });
-  
-  return candidateData[0] || null;
-}
-
-// Find best substation for a node
-async function findBestSubstation(stationId, startTime, endTime, forceRefresh = false) {
-  if (!stationId) return null;
-  
-  const substations = await fetchSubstations(stationId, forceRefresh);
-  const activeSubstations = substations.filter(sub => sub.status === 'active');
-  
-  if (activeSubstations.length === 0) return null;
-  
-  // For now, return first available (can be enhanced with assignment checking)
-  return activeSubstations[0];
-}
-
-// Perform auto-assignment for a node
-async function performAutoAssignment(node, workers, stations, forceRefresh = false) {
-  try {
-    // Find best worker
-    const workerResult = await findBestWorker(node, workers, forceRefresh);
-    if (!workerResult) {
-      node.assignmentWarnings = ['No workers available with required skills'];
-      node.requiresAttention = true;
-      return false;
-    }
-    
-    // Find assigned station for this worker
-    const stationId = node.assignedStationId || node.assignedStation; // Support both new and legacy
-    const station = stations.find(s => s.id === stationId);
-    if (!station) {
-      node.assignmentWarnings = ['No station assigned to this node'];
-      node.requiresAttention = true;
-      return false;
-    }
-    
-    // Find best substation
-    const substation = await findBestSubstation(
-      station.id, 
-      workerResult.nextSlot.start, 
-      workerResult.nextSlot.end, 
-      forceRefresh
-    );
-    
-    // Update node with assignments
-    node.assignedWorkerId = workerResult.worker.id;
-    node.assignedWorkerName = workerResult.worker.name;
-    node.startTime = workerResult.nextSlot.start.toISOString();
-    node.endTime = workerResult.nextSlot.end.toISOString();
-    node.assignedSubStation = substation ? substation.id : null;
-    node.assignmentMode = 'auto';
-    node.requiresAttention = false;
-    node.assignmentWarnings = [];
-    
-    // Compute effective time based on efficiency
-    node.effectiveTime = computeNodeEffectiveDuration(node);
-    
-    // Legacy compatibility: also set assignedWorker for backward compatibility
-    node.assignedWorker = workerResult.worker.id;
-    
-    if (!substation) {
-      node.assignmentWarnings.push('No substations available for assigned station');
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Auto-assignment failed:', error);
-    node.assignmentWarnings = [`Auto-assignment failed: ${error.message}`];
-    node.requiresAttention = true;
-    return false;
-  }
-}
-
-// Validate manual assignment and show warnings
-async function validateManualAssignment(node, workerId, startTime, endTime, forceRefresh = false) {
-  const warnings = [];
-  
-  try {
-    if (workerId) {
-      const assignments = await fetchWorkerAssignments(workerId, forceRefresh);
-      
-      // Check for overlaps with existing assignments
-      const nodeStart = new Date(startTime);
-      const nodeEnd = new Date(endTime);
-      
-      const conflicts = assignments.filter(assignment => {
-        const assignStart = new Date(assignment.start);
-        const assignEnd = new Date(assignment.end);
-        return (nodeStart < assignEnd && nodeEnd > assignStart);
-      });
-      
-      if (conflicts.length > 0) {
-        warnings.push(`Worker has ${conflicts.length} conflicting assignment(s)`);
-      }
-      
-      // Check worker schedule availability
-      const workers = await getWorkers();
-      const worker = workers.find(w => w.id === workerId);
-      if (worker && worker.personalSchedule && worker.personalSchedule.blocks) {
-        const dayName = nodeStart.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-        const dayBlocks = worker.personalSchedule.blocks[dayName] || [];
-        
-        const nodeHour = nodeStart.getHours();
-        const nodeMinute = nodeStart.getMinutes();
-        const nodeTimeMinutes = nodeHour * 60 + nodeMinute;
-        
-        const endHour = nodeEnd.getHours();
-        const endMinute = nodeEnd.getMinutes();
-        const endTimeMinutes = endHour * 60 + endMinute;
-        
-        const withinSchedule = dayBlocks.some(block => {
-          if (!block.start || !block.end) return false;
-          
-          const [blockStartHour, blockStartMin] = block.start.split(':').map(Number);
-          const [blockEndHour, blockEndMin] = block.end.split(':').map(Number);
-          const blockStartMinutes = blockStartHour * 60 + blockStartMin;
-          const blockEndMinutes = blockEndHour * 60 + blockEndMin;
-          
-          return nodeTimeMinutes >= blockStartMinutes && endTimeMinutes <= blockEndMinutes;
-        });
-        
-        if (!withinSchedule && dayBlocks.length > 0) {
-          warnings.push('Assignment is outside worker\'s scheduled hours');
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Manual assignment validation failed:', error);
-    warnings.push(`Validation failed: ${error.message}`);
-  }
-  
-  return warnings;
-}
-
-// Generate assignments payload for production plan saving
-export function generateAssignmentsPayload(nodes) {
-  return nodes
-    .filter(node => (node.assignedWorkerId || node.assignedWorker) && node.startTime && node.endTime)
-    .map(node => ({
-      nodeId: node.id,
-      workerId: node.assignedWorkerId || node.assignedWorker, // Use new ID field, fallback to legacy
-      workerName: node.assignedWorkerName, // Include name for UI use
-      stationId: node.assignedStationId || node.assignedStation, // Use new ID field, fallback to legacy
-      stationName: node.assignedStationName, // Include name for UI use
-      subStationCode: node.assignedSubStation,
-      start: node.startTime,
-      end: node.endTime,
-      status: 'pending'
-    }));
-}
 
 // Compute effective duration based on station and worker efficiency
 export function computeNodeEffectiveDuration(node) {
   const nominalTime = parseFloat(node.time) || 0;
   if (nominalTime <= 0) return 0;
   
-  // Check if caches are available
-  if (!planDesignerState.workersCache || planDesignerState.workersCache.length === 0 || 
-      !planDesignerState.stationsCache || planDesignerState.stationsCache.length === 0) {
-    console.warn('computeNodeEffectiveDuration: workersCache or stationsCache is empty, falling back to nominal time');
-    return nominalTime;
-  }
-  
-  // Get efficiency values from assigned station and worker
-  let stationEff = 1.0;
-  let workerEff = 1.0;
-  
-  if (node.assignedStationId) {
-    const station = planDesignerState.stationsCache.find(s => s.id === node.assignedStationId);
-    if (station && typeof station.efficiency === 'number') {
-      stationEff = station.efficiency;
-    }
-  }
-  
-  if (node.assignedWorkerId) {
-    const worker = planDesignerState.workersCache.find(w => w.id === node.assignedWorkerId);
-    if (worker && typeof worker.efficiency === 'number') {
-      workerEff = worker.efficiency;
-    }
-  }
-  
-  // Formula: effectiveTime = nominalTime / (stationEff * workerEff)
-  // Higher efficiency reduces time, lower efficiency increases time
-  const combinedEff = stationEff * workerEff;
-  if (combinedEff <= 0) return nominalTime; // Prevent division by zero
-  
-  return nominalTime / combinedEff;
+  // In Plan Designer, we only track nominal time
+  // Effective time calculation happens at launch by the backend auto-assignment engine
+  return nominalTime;
 }
 
 // Aggregate material requirements across all nodes
@@ -696,9 +341,6 @@ export function summarizePlanTiming(nodes, planQuantity = 1) {
     estimatedDays
   };
 }
-
-// Export auto-assignment functions for use in planDesignerBackend.js
-export { performAutoAssignment, validateManualAssignment, fetchWorkerAssignments, fetchSubstations };
 
 export async function loadOperationsToolbox() {
   const listContainer = document.getElementById('operations-list');
@@ -1299,29 +941,21 @@ export function handleCanvasDrop(event) {
     name: operation.name,
     type: operation.type,
     time: operation.time,
-    skills: operation.skills,
-    // Scheduling and material fields
-    predecessors: [],
-    // Optional logical successors; not required for scheduling but useful
-    // successors: [],
-    rawMaterials: [],
-    semiCode: null,
+    // Rule-based fields for auto-assignment at launch
+    requiredSkills: operation.skills || [], // Skills required for this operation
+    preferredStations: [], // Preferred station IDs or tags (multi-select)
+    allocationType: 'auto', // 'auto' (default) or 'manual'
+    workerHint: null, // Optional hint for manual allocation: { workerId?, workerNameHint? }
+    priorityTag: null, // Optional priority or lane identifier
+    // Scheduling dependencies
+    predecessors: [], // Explicit list of predecessor node IDs
+    // Material inputs/outputs
+    rawMaterials: [], // List of materials consumed
+    semiCode: null, // Output semi-finished product code
+    // Canvas positioning
     x: Math.max(0, x),
     y: Math.max(0, y),
-    connections: [],
-    assignedWorker: null, // Legacy field for backward compatibility
-    assignedWorkerId: null, // New ID field
-    assignedWorkerName: null, // New name field
-    assignedStation: null, // Legacy field for backward compatibility
-    assignedStationId: null, // New ID field
-    assignedStationName: null, // New name field
-    // Auto-assignment scheduling fields
-    startTime: null,
-    endTime: null,
-    assignedSubStation: null,
-    assignmentMode: 'auto', // 'auto' or 'manual'
-    requiresAttention: false,
-    assignmentWarnings: []
+    connections: [] // Visual connections (for display only)
   };
   
   // Quiet
@@ -1837,32 +1471,36 @@ let modalEscapeHandler = null;
 
 export function editNode(nodeId) {
   const node = planDesignerState.nodes.find(n => n.id === nodeId);
-  if (!node) return; planDesignerState.selectedNode = node;
-  const workers = [
-    { id: 'w1', name: 'Ali Yılmaz', skills: ['CNC Programming', 'CAM Software'] },
-    { id: 'w2', name: 'Ahmet Can', skills: ['MIG Welding', 'Blueprint Reading'] },
-    { id: 'w3', name: 'Fatma Öz', skills: ['Quality Inspection', 'Measurement'] },
-    { id: 'w4', name: 'Mehmet Acar', skills: ['Assembly', 'Hand Tools'] }
-  ];
-  const stations = [
-    { id: 's1', name: 'CNC Mill 01', type: 'Machining' },
-    { id: 's2', name: 'Welding Station 01', type: 'Welding' },
-    { id: 's3', name: 'QC Station 01', type: 'Quality' },
-    { id: 's4', name: 'Assembly Line 01', type: 'Assembly' }
-  ];
-  const compatibleWorkers = workers.filter(w => node.skills.some(skill => w.skills.includes(skill)));
-  const compatibleStations = stations.filter(s => s.type === node.type);
+  if (!node) return; 
+  planDesignerState.selectedNode = node;
+  
+  // Build form content with rules-based fields only
+  const requiredSkills = node.requiredSkills || [];
+  const preferredStations = node.preferredStations || [];
+  const allocationType = node.allocationType || 'auto';
+  const workerHint = node.workerHint || {};
+  
   const formContent =
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + node.name + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + node.time + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Worker</label><select id="edit-worker" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;"><option value="">Not assigned</option>' +
-    compatibleWorkers.map(w => '<option value="' + w.id + '" ' + ((node.assignedWorkerId || node.assignedWorker) === w.id ? 'selected' : '') + '>' + w.name + '</option>').join('') +
-    '</select></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Station</label><select id="edit-station" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;"><option value="">Not assigned</option>' +
-    compatibleStations.map(s => '<option value="' + s.id + '" ' + ((node.assignedStationId || node.assignedStation) === s.id ? 'selected' : '') + '>' + s.id + ' – ' + s.name + '</option>').join('') +
-    '</select></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div style="font-size: 12px; color: var(--muted-foreground);">' + node.skills.join(', ') + '</div></div>';
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div style="font-size: 12px; color: var(--muted-foreground); padding: 8px; background: #f9fafb; border-radius: 4px;">' + (requiredSkills.length > 0 ? requiredSkills.join(', ') : 'None specified') + '</div><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Skills are inherited from the operation definition</div></div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Preferred Stations <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="text" id="edit-preferred-stations" value="' + escapeHtml(preferredStations.join(', ')) + '" placeholder="e.g., CNC-01, Welding-A" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Hintalar: Bu adım için kaynak tiplerini seçin; gerçek atama üretim başladığında yapılacak.</div></div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Allocation Type</label><div style="display: flex; gap: 16px;"><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="allocation-type" value="auto" ' + (allocationType === 'auto' ? 'checked' : '') + ' style="cursor: pointer;" />Auto (System assigns at launch)</label><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="allocation-type" value="manual" ' + (allocationType === 'manual' ? 'checked' : '') + ' style="cursor: pointer;" />Manual (Planner hint)</label></div></div>' +
+    '<div id="worker-hint-section" style="margin-bottom: 16px; display: ' + (allocationType === 'manual' ? 'block' : 'none') + ';"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Worker Hint <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="text" id="edit-worker-hint" value="' + escapeHtml(workerHint.workerNameHint || '') + '" placeholder="e.g., Preferred: Ali Yılmaz" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Bu sadece bir ipucudur. Nihai atama başlatma zamanında yapılacak.</div></div>';
+    
   document.getElementById('node-edit-form').innerHTML = formContent;
+  
+  // Add event listener for allocation type radio buttons
+  const radioButtons = document.querySelectorAll('input[name="allocation-type"]');
+  radioButtons.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      const workerHintSection = document.getElementById('worker-hint-section');
+      if (workerHintSection) {
+        workerHintSection.style.display = e.target.value === 'manual' ? 'block' : 'none';
+      }
+    });
+  });
+  
   const modal = document.getElementById('node-edit-modal');
   if (modal) {
     modal.style.display = 'block';
@@ -1946,67 +1584,61 @@ function getScrollbarWidth() {
 export function saveNodeEdit() {
   if (planDesignerState.readOnly) { showToast('Read-only mode', 'info'); return; }
   if (!planDesignerState.selectedNode) return;
+  
   const name = document.getElementById('edit-name').value;
   const time = parseInt(document.getElementById('edit-time').value);
-  const workerId = document.getElementById('edit-worker').value;
-  const stationId = document.getElementById('edit-station').value;
+  const preferredStationsInput = document.getElementById('edit-preferred-stations')?.value || '';
+  const allocationTypeRadio = document.querySelector('input[name="allocation-type"]:checked');
+  const allocationType = allocationTypeRadio ? allocationTypeRadio.value : 'auto';
+  const workerHintInput = document.getElementById('edit-worker-hint')?.value || '';
   const outQtyVal = document.getElementById('edit-output-qty')?.value;
   const outUnit = document.getElementById('edit-output-unit')?.value || '';
-  if (!name || !time || time < 1) { showToast('Please fill all required fields', 'error'); return; }
   
-  // Hardcoded data for now - should be replaced with real API data
-  const workers = [
-    { id: 'w1', name: 'Ali Yılmaz', skills: ['CNC Programming', 'CAM Software'] },
-    { id: 'w2', name: 'Ahmet Can', skills: ['MIG Welding', 'Blueprint Reading'] },
-    { id: 'w3', name: 'Fatma Öz', skills: ['Quality Inspection', 'Measurement'] },
-    { id: 'w4', name: 'Mehmet Acar', skills: ['Assembly', 'Hand Tools'] }
-  ];
-  const stations = [
-    { id: 's1', name: 'CNC Mill 01', type: 'Machining' },
-    { id: 's2', name: 'Welding Station 01', type: 'Welding' },
-    { id: 's3', name: 'QC Station 01', type: 'Quality' },
-    { id: 's4', name: 'Assembly Line 01', type: 'Assembly' }
-  ];
+  if (!name || !time || time < 1) { 
+    showToast('Please fill all required fields', 'error'); 
+    return; 
+  }
   
+  // Update node with new values
   planDesignerState.selectedNode.name = name;
   planDesignerState.selectedNode.time = time;
   
-  // Set worker fields
-  if (workerId) {
-    const worker = workers.find(w => w.id === workerId);
-    planDesignerState.selectedNode.assignedWorkerId = workerId;
-    planDesignerState.selectedNode.assignedWorkerName = worker ? worker.name : workerId;
-    planDesignerState.selectedNode.assignedWorker = workerId; // Legacy field
+  // Update preferred stations (parse comma-separated list)
+  const preferredStations = preferredStationsInput
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+  planDesignerState.selectedNode.preferredStations = preferredStations;
+  
+  // Update allocation type
+  planDesignerState.selectedNode.allocationType = allocationType;
+  
+  // Update worker hint (only if manual allocation)
+  if (allocationType === 'manual' && workerHintInput) {
+    planDesignerState.selectedNode.workerHint = {
+      workerNameHint: workerHintInput
+    };
   } else {
-    planDesignerState.selectedNode.assignedWorkerId = null;
-    planDesignerState.selectedNode.assignedWorkerName = null;
-    planDesignerState.selectedNode.assignedWorker = null; // Legacy field
+    planDesignerState.selectedNode.workerHint = null;
   }
   
-  // Set station fields
-  if (stationId) {
-    const station = stations.find(s => s.id === stationId);
-    planDesignerState.selectedNode.assignedStationId = stationId;
-    planDesignerState.selectedNode.assignedStationName = station ? station.name : stationId;
-    planDesignerState.selectedNode.assignedStation = stationId; // Legacy field
-  } else {
-    planDesignerState.selectedNode.assignedStationId = null;
-    planDesignerState.selectedNode.assignedStationName = null;
-    planDesignerState.selectedNode.assignedStation = null; // Legacy field
-  }
-  
-  // Compute effective time based on worker and station efficiency
-  planDesignerState.selectedNode.effectiveTime = computeNodeEffectiveDuration(planDesignerState.selectedNode);
-  
+  // Update output qty/unit
   const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal);
   planDesignerState.selectedNode.outputQty = Number.isFinite(outQtyNum) ? outQtyNum : null;
   planDesignerState.selectedNode.outputUnit = (outUnit || '').trim();
-  try { computeAndAssignSemiCode(planDesignerState.selectedNode, planDesignerState.availableOperations || [], []); } catch {}
+  
+  // Update semi-code
+  try { 
+    computeAndAssignSemiCode(planDesignerState.selectedNode, planDesignerState.availableOperations || [], []); 
+  } catch {}
+  
+  // Upsert WIP material
   try {
     if (planDesignerState.selectedNode.semiCode) {
       getStations().then(sts => upsertProducedWipFromNode(planDesignerState.selectedNode, planDesignerState.availableOperations || [], sts)).catch(()=>{})
     }
   } catch {}
+  
   renderCanvas();
   closeNodeEditModal();
   showToast('Operation updated', 'success');
@@ -2527,7 +2159,6 @@ export async function savePlanDraft() {
   const isFromTemplate = (meta.status === 'template' && meta.sourceTemplateId);
   if (isFromTemplate) {
     const id = meta.sourceTemplateId;
-    const assignments = generateAssignmentsPayload(planDesignerState.nodes);
     
     // Prepare material summary for the plan document
     // NOTE: Material consumption happens automatically during plan release.
@@ -2600,19 +2231,14 @@ export async function savePlanDraft() {
       quantity: planQuantity,
       nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
       status: 'production',
-      autoAssign: true,
+      autoAssign: true, // Enable backend auto-assignment at launch
       materialSummary, // Add material summary for reporting
       timingSummary, // Add timing summary for reporting
-      executionGraph, // Add execution graph for task prerequisite tracking
-      ...(assignments.length > 0 ? { assignments } : {})
+      executionGraph // Add execution graph for task prerequisite tracking
     };
     updateProductionPlan(id, updates)
       .then(() => {
         showToast(`Plan converted to production: ${planName}`, 'success');
-        // Dispatch event to refresh workers view if there are assignments
-        if (assignments.length > 0) {
-          window.dispatchEvent(new CustomEvent('assignments:updated'));
-        }
         planDesignerState.nodes = [];
         renderCanvas();
         cancelPlanCreation();
@@ -2699,23 +2325,16 @@ export async function savePlanDraft() {
     nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
     createdAt: new Date().toISOString(),
     status: 'production',
-    autoAssign: true, // Enable auto-assignment for production plans
+    autoAssign: true, // Enable backend auto-assignment at launch
     materialSummary, // Add material summary for reporting
     timingSummary, // Add timing summary for reporting
     executionGraph // Add execution graph for task prerequisite tracking
   };
   
-  // Generate assignments payload for production status
-  const assignments = generateAssignmentsPayload(planDesignerState.nodes);
-  if (assignments.length > 0) {
-    plan.assignments = assignments;
-  }
-  
-  console.log('🔍 SAVING PLAN WITH QUANTITY AND ASSIGNMENTS:', {
+  console.log('🔍 SAVING PLAN WITH QUANTITY:', {
     planQuantity,
     stateQuantity: planDesignerState.planQuantity,
     metaQuantity: planDesignerState.currentPlanMeta?.quantity,
-    assignmentsCount: assignments.length,
     fullPlan: plan
   });
   getNextProductionPlanId()
@@ -2726,10 +2345,6 @@ export async function savePlanDraft() {
     })
     .then(() => {
       showToast(`Plan saved: ${plan.name}`, 'success');
-      // Dispatch event to refresh workers view if there are assignments
-      if (assignments.length > 0) {
-        window.dispatchEvent(new CustomEvent('assignments:updated'));
-      }
       planDesignerState.nodes = [];
       renderCanvas();
       cancelPlanCreation();
@@ -2759,7 +2374,7 @@ export function deployWorkOrder() {
   renderCanvas();
 }
 
-// Release plan to production (activate worker assignments)
+// Release plan to production (launches auto-assignment engine)
 export async function releasePlanToProduction() {
   // Validation: Plan must be saved
   const currentPlanMeta = planDesignerState.currentPlanMeta;
@@ -2769,16 +2384,6 @@ export async function releasePlanToProduction() {
   }
   
   const planId = currentPlanMeta.id;
-  
-  // Validation: All nodes must be assigned
-  const unassignedNodes = planDesignerState.nodes.filter(n => 
-    !n.assignedWorkerId && !n.assignedWorker
-  );
-  
-  if (unassignedNodes.length > 0) {
-    showToast(`Cannot release: ${unassignedNodes.length} operation(s) need worker assignment`, 'error');
-    return;
-  }
   
   // Validation: Check material availability
   if (!planDesignerState.materialCheckResult || planDesignerState.materialCheckResult.hasShortages) {
@@ -2797,23 +2402,17 @@ export async function releasePlanToProduction() {
     showToast('Releasing plan to production...', 'info');
     
     // Step 1: Update plan status to 'released'
+    // The backend auto-assignment engine will handle worker/station assignment at launch
     await updateProductionPlan(planId, {
       status: 'released',
-      releaseNotes: `Released on ${new Date().toLocaleString('tr-TR')}`
+      releaseNotes: `Released on ${new Date().toLocaleString('tr-TR')}`,
+      launchMode: 'auto' // Trigger backend auto-assignment engine
     });
     
-    console.log(`✓ Plan ${planId} status updated to 'released'`);
-    
-    // Step 2: Activate worker assignments
-    const activationResult = await activateWorkerAssignments(planId);
-    
-    console.log(`✓ Activated assignments:`, activationResult);
+    console.log(`✓ Plan ${planId} released - backend will handle resource assignment`);
     
     // Show success message
-    const successMsg = `Plan released! Activated ${activationResult.activatedCount} assignment(s), ` +
-      `updated ${activationResult.workersUpdated} worker(s) and ${activationResult.stationsUpdated} station(s).`;
-    
-    showToast(successMsg, 'success');
+    showToast('Plan released! Backend will assign workers and stations automatically.', 'success');
     
     // Dispatch event to refresh workers view
     window.dispatchEvent(new CustomEvent('assignments:updated'));
@@ -3334,56 +2933,6 @@ function extractNumericSuffix(id) {
   return match ? parseInt(match[1], 10) || 0 : 0;
 }
 
-// Migration function to convert legacy node assignments to new ID + name format
-function migrateLegacyAssignments(node) {
-  // Use cached workers and stations from planDesignerState
-  const workers = planDesignerState.availableWorkers || [];
-  const stations = planDesignerState.availableStations || [];
-
-  // Migrate worker assignments
-  if (node.assignedWorker && !node.assignedWorkerId && !node.assignedWorkerName) {
-    // Check if assignedWorker is a name (legacy) or already an ID
-    const workerByName = workers.find(w => w.name === node.assignedWorker);
-    const workerById = workers.find(w => w.id === node.assignedWorker);
-    
-    if (workerByName) {
-      // Legacy: assignedWorker contains a name, convert to ID + name
-      node.assignedWorkerId = workerByName.id;
-      node.assignedWorkerName = workerByName.name;
-      node.assignedWorker = workerByName.id; // Update legacy field to ID
-    } else if (workerById) {
-      // assignedWorker already contains ID, just add name
-      node.assignedWorkerId = workerById.id;
-      node.assignedWorkerName = workerById.name;
-    }
-    // If no match found, keep legacy value as-is (graceful fallback)
-  }
-
-  // Migrate station assignments
-  if (node.assignedStation && !node.assignedStationId && !node.assignedStationName) {
-    // Check if assignedStation is a name (legacy) or already an ID
-    const stationByName = stations.find(s => s.name === node.assignedStation);
-    const stationById = stations.find(s => s.id === node.assignedStation);
-    
-    if (stationByName) {
-      // Legacy: assignedStation contains a name, convert to ID + name
-      node.assignedStationId = stationByName.id;
-      node.assignedStationName = stationByName.name;
-      node.assignedStation = stationByName.id; // Update legacy field to ID
-    } else if (stationById) {
-      // assignedStation already contains ID, just add name
-      node.assignedStationId = stationById.id;
-      node.assignedStationName = stationById.name;
-    }
-    // If no match found, keep legacy value as-is (graceful fallback)
-  }
-  
-  // Compute effective time after migration
-  if ((node.assignedWorkerId || node.assignedStationId) && node.time) {
-    node.effectiveTime = computeNodeEffectiveDuration(node);
-  }
-}
-
 function normalizeIncomingNodes(rawNodes = []) {
   const source = Array.isArray(rawNodes) ? rawNodes : [];
   const cloned = JSON.parse(JSON.stringify(source));
@@ -3454,8 +3003,41 @@ function normalizeIncomingNodes(rawNodes = []) {
       node.y = 80 + Math.floor(index / 6) * 140;
     }
 
-    // Migration logic: convert legacy string assignments to ID + name fields
-    migrateLegacyAssignments(node);
+    // Strip legacy assignment fields to prevent data leakage
+    delete node.assignedWorker;
+    delete node.assignedWorkerId;
+    delete node.assignedWorkerName;
+    delete node.assignedStation;
+    delete node.assignedStationId;
+    delete node.assignedStationName;
+    delete node.assignedSubStation;
+    delete node.startTime;
+    delete node.endTime;
+    delete node.assignmentMode;
+    delete node.requiresAttention;
+    delete node.assignmentWarnings;
+    delete node.effectiveTime;
+    
+    // Migrate legacy fields to new structure if they don't exist
+    if (!node.requiredSkills && node.skills) {
+      node.requiredSkills = node.skills;
+      delete node.skills;
+    }
+    if (!node.requiredSkills) {
+      node.requiredSkills = [];
+    }
+    if (!node.preferredStations) {
+      node.preferredStations = [];
+    }
+    if (!node.allocationType) {
+      node.allocationType = 'auto';
+    }
+    if (!node.workerHint) {
+      node.workerHint = null;
+    }
+    if (!node.priorityTag) {
+      node.priorityTag = null;
+    }
   });
 
   if (duplicateAlerts.length) {
@@ -3631,7 +3213,8 @@ export function getExecutionOrder() {
 /**
  * Build execution graph metadata for production plan
  * Calculates execution order, priority indices, and prerequisite relationships
- * @param {Array} nodes - Plan nodes with assignments and predecessors
+ * Note: Worker/station assignment happens at launch, not in Plan Designer
+ * @param {Array} nodes - Plan nodes with rules and predecessors
  * @returns {Array} Execution graph with metadata for each node
  */
 export function buildExecutionGraph(nodes) {
@@ -3654,27 +3237,8 @@ export function buildExecutionGraph(nodes) {
       ? priorityMap.get(node.id) 
       : executionOrder.length + originalIndex; // Fallback for unreachable nodes
     
-    // Get assigned IDs (prefer new format, fallback to legacy)
-    const workerId = node.assignedWorkerId || node.assignedWorker || null;
-    const stationId = node.assignedStationId || node.assignedStation || null;
-    
-    // Calculate timing
+    // Calculate timing (nominal only - effective calculated at launch)
     const nominalTime = Number(node.time) || 0;
-    const effectiveDuration = computeNodeEffectiveDuration(node);
-    
-    // Get worker and station names from caches
-    let workerName = '';
-    let stationName = '';
-    
-    if (workerId && planDesignerState.workersCache) {
-      const worker = planDesignerState.workersCache.find(w => w.id === workerId);
-      workerName = worker ? worker.name : workerId;
-    }
-    
-    if (stationId && planDesignerState.stationsCache) {
-      const station = planDesignerState.stationsCache.find(s => s.id === stationId);
-      stationName = station ? station.name : stationId;
-    }
     
     // Handle material inputs
     const materialInputs = [];
@@ -3700,15 +3264,15 @@ export function buildExecutionGraph(nodes) {
       // Prerequisite relationships
       predecessors: Array.isArray(node.predecessors) ? [...node.predecessors] : [],
       
-      // Resource assignments
-      assignedWorkerId: workerId,
-      workerName,
-      assignedStationId: stationId,
-      stationName,
+      // Assignment rules (not actual assignments)
+      requiredSkills: node.requiredSkills || [],
+      preferredStations: node.preferredStations || [],
+      allocationType: node.allocationType || 'auto',
+      workerHint: node.workerHint || null,
+      priorityTag: node.priorityTag || null,
       
-      // Timing information
+      // Timing information (nominal only)
       estimatedNominalTime: nominalTime,
-      estimatedEffectiveTime: effectiveDuration,
       
       // Execution priority
       priorityIndex,
