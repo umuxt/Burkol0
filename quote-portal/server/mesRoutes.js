@@ -2302,6 +2302,49 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
 });
 
 // ============================================================================
+// ALERTS ROUTES
+// ============================================================================
+
+// GET /api/mes/alerts - Get alerts with optional filtering
+router.get('/alerts', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { type, status, limit } = req.query;
+    
+    const db = getFirestore();
+    let query = db.collection('mes-alerts');
+    
+    // Apply filters
+    if (type) {
+      query = query.where('type', '==', type);
+    }
+    
+    if (status) {
+      query = query.where('status', '==', status);
+    }
+    
+    // Order by most recent
+    query = query.orderBy('createdAt', 'desc');
+    
+    // Apply limit
+    if (limit) {
+      const limitNum = parseInt(limit, 10);
+      if (!isNaN(limitNum) && limitNum > 0) {
+        query = query.limit(limitNum);
+      }
+    }
+    
+    const snapshot = await query.get();
+    const alerts = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+      createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt
+    }));
+    
+    return { alerts };
+  }, res);
+});
+
+// ============================================================================
 // SUB-STATIONS ROUTES
 // ============================================================================
 

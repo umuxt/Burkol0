@@ -94,14 +94,15 @@ export async function showWorkerDetail(id) {
   `
   
   try {
-    // Load compatible stations and worker assignments
-    const [workerStationsData, assignments] = await Promise.all([
+    // Load compatible stations, worker assignments, and active tasks
+    const [workerStationsData, assignments, activeTasksHtml] = await Promise.all([
       getWorkerStations(id),
-      getWorkerAssignments(id)
+      getWorkerAssignments(id),
+      loadWorkerActiveTasks(id)
     ])
     
     // Populate detail content
-    detailContent.innerHTML = generateWorkerDetailContentWithStations(worker, workerStationsData, assignments)
+    detailContent.innerHTML = generateWorkerDetailContentWithStations(worker, workerStationsData, assignments, activeTasksHtml)
   } catch (error) {
     console.error('Error loading worker data:', error)
     
@@ -752,7 +753,7 @@ function generateCurrentTaskSection(worker) {
   `;
 }
 
-function generateWorkerDetailContentWithStations(worker, workerStationsData, assignments = []) {
+function generateWorkerDetailContentWithStations(worker, workerStationsData, assignments = [], activeTasksHtml = null) {
   const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   
   return `
@@ -881,6 +882,17 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
         </div>
         <div class="assignments-timeline">${generateAssignmentsTimeline(assignments)}</div>
       </div>
+
+      <!-- Aktif Görevler -->
+      ${activeTasksHtml ? `
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Aktif Görevler</h3>
+          <a href="/pages/worker-portal.html" target="_blank" style="padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px; text-decoration: none; color: rgb(17, 24, 39);">👷 Portala Git</a>
+        </div>
+        ${activeTasksHtml}
+      </div>
+      ` : ''}
 
       <!-- Performans Bilgileri -->
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
@@ -1956,6 +1968,141 @@ function updateFilterCounts() {
   if (statusCount) {
     statusCount.textContent = workerFilters.statuses.length > 0 ? `(${workerFilters.statuses.length})` : ''
   }
+}
+
+// ============================================================================
+// ACTIVE TASKS SECTION FOR WORKER DETAIL
+// ============================================================================
+
+/**
+ * Load and render active tasks for a worker
+ * @param {string} workerId - Worker ID
+ * @returns {Promise<string>} HTML string for active tasks section
+ */
+async function loadWorkerActiveTasks(workerId) {
+  try {
+    const { getWorkerPortalTasks } = await import('./mesApi.js');
+    const result = await getWorkerPortalTasks(workerId);
+    const tasks = result.tasks || [];
+    
+    if (tasks.length === 0) {
+      return `
+        <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+          Aktif görev bulunmuyor
+        </div>
+      `;
+    }
+    
+    // Group tasks by status
+    const inProgress = tasks.filter(t => t.status === 'in_progress');
+    const ready = tasks.filter(t => t.status === 'ready');
+    const paused = tasks.filter(t => t.status === 'paused');
+    const pending = tasks.filter(t => t.status === 'pending');
+    
+    const taskRows = tasks.map(task => {
+      const statusBadge = getTaskStatusBadge(task.status);
+      const prerequisitesHtml = generatePrerequisitesIcons(task.prerequisites);
+      
+      return `
+        <tr style="border-bottom: 1px solid rgb(229, 231, 235);">
+          <td style="padding: 8px; font-size: 12px;">${statusBadge}</td>
+          <td style="padding: 8px; font-size: 12px; font-weight: 500;">${escapeHtml(task.planId || '-')}</td>
+          <td style="padding: 8px; font-size: 12px;">${escapeHtml(task.name || task.operationName || '-')}</td>
+          <td style="padding: 8px; font-size: 12px;">${escapeHtml(task.stationName || '-')}</td>
+          <td style="padding: 8px; font-size: 11px;">${prerequisitesHtml}</td>
+        </tr>
+      `;
+    }).join('');
+    
+    return `
+      <div style="margin-bottom: 12px; display: flex; gap: 8px;">
+        <div style="padding: 6px 10px; background: #dbeafe; border-radius: 4px; font-size: 11px; color: #1e40af; font-weight: 600;">
+          Devam Eden: ${inProgress.length}
+        </div>
+        <div style="padding: 6px 10px; background: #d1fae5; border-radius: 4px; font-size: 11px; color: #065f46; font-weight: 600;">
+          Hazır: ${ready.length}
+        </div>
+        <div style="padding: 6px 10px; background: #fed7aa; border-radius: 4px; font-size: 11px; color: #92400e; font-weight: 600;">
+          Duraklatıldı: ${paused.length}
+        </div>
+        <div style="padding: 6px 10px; background: #f3f4f6; border-radius: 4px; font-size: 11px; color: #6b7280; font-weight: 600;">
+          Bekliyor: ${pending.length}
+        </div>
+      </div>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: rgb(249, 250, 251); border-bottom: 2px solid rgb(229, 231, 235);">
+              <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 600; color: rgb(107, 114, 128);">DURUM</th>
+              <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 600; color: rgb(107, 114, 128);">PLAN</th>
+              <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 600; color: rgb(107, 114, 128);">GÖREV</th>
+              <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 600; color: rgb(107, 114, 128);">İSTASYON</th>
+              <th style="padding: 8px; text-align: left; font-size: 11px; font-weight: 600; color: rgb(107, 114, 128);">ÖN KOŞULLAR</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${taskRows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    console.error('Failed to load active tasks:', err);
+    return `
+      <div style="text-align: center; padding: 20px; color: #ef4444; font-size: 12px;">
+        Görevler yüklenemedi: ${err.message}
+      </div>
+    `;
+  }
+}
+
+/**
+ * Get status badge HTML for a task
+ */
+function getTaskStatusBadge(status) {
+  const statusMap = {
+    'pending': { label: 'Bekliyor', color: '#6b7280', bg: '#f3f4f6' },
+    'ready': { label: 'Hazır', color: '#065f46', bg: '#d1fae5' },
+    'blocked': { label: 'Bloke', color: '#991b1b', bg: '#fee2e2' },
+    'in_progress': { label: 'Devam Ediyor', color: '#1e40af', bg: '#dbeafe' },
+    'paused': { label: 'Duraklatıldı', color: '#92400e', bg: '#fed7aa' },
+    'completed': { label: 'Tamamlandı', color: '#065f46', bg: '#d1fae5' }
+  };
+  
+  const info = statusMap[status] || { label: status, color: '#6b7280', bg: '#f3f4f6' };
+  
+  return `<span style="padding: 2px 6px; background: ${info.bg}; color: ${info.color}; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap;">${info.label}</span>`;
+}
+
+/**
+ * Generate prerequisites icons
+ */
+function generatePrerequisitesIcons(prerequisites) {
+  if (!prerequisites) return '-';
+  
+  const icons = [];
+  
+  if (prerequisites.predecessorsDone === false) {
+    icons.push('<span style="font-size: 14px;" title="Önceki görevler bitmedi">⏳</span>');
+  }
+  
+  if (prerequisites.workerAvailable === false) {
+    icons.push('<span style="font-size: 14px;" title="İşçi meşgul">👷</span>');
+  }
+  
+  if (prerequisites.stationAvailable === false) {
+    icons.push('<span style="font-size: 14px;" title="İstasyon meşgul">🏭</span>');
+  }
+  
+  if (prerequisites.materialsReady === false) {
+    icons.push('<span style="font-size: 14px;" title="Malzeme eksik">📦</span>');
+  }
+  
+  if (icons.length === 0) {
+    return '<span style="color: #10b981; font-size: 14px;" title="Hazır">✅</span>';
+  }
+  
+  return icons.join(' ');
 }
 
 // No default export; named exports only

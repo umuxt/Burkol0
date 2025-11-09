@@ -112,6 +112,35 @@ export function generateModernDashboard() {
       </div>
     </div>
 
+    <!-- Active Tasks & Station Alerts Grid -->
+    <div class="grid grid-cols-2" style="gap: 16px; margin-bottom: 24px;">
+      <!-- Active Tasks Widget -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📋 Aktif Görevler</div>
+          <div class="card-description">Görev durumlarına göre dağılım</div>
+        </div>
+        <div class="card-content">
+          <div id="active-tasks-widget" style="padding: 16px;">
+            <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Station Alerts Widget -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">⚠️ İstasyon Uyarıları</div>
+          <div class="card-description">Son bildirilen hatalar</div>
+        </div>
+        <div class="card-content">
+          <div id="station-alerts-widget" style="padding: 16px;">
+            <div style="text-align: center; color: var(--muted-foreground);">Yükleniyor...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-header">
         <div class="card-title">Active Work Orders</div>
@@ -1533,4 +1562,181 @@ export function toggleMetadataColumns() {
     toggleBtn.textContent = tableState.showMetadataColumns ? 'Hide Details' : 'Show Details';
     toggleBtn.classList.toggle('active', tableState.showMetadataColumns);
   }
+}
+
+// ============================================================================
+// DASHBOARD WIDGET LOADERS
+// ============================================================================
+
+/**
+ * Initialize Active Tasks widget on dashboard
+ * Loads task counts from all workers
+ */
+export async function initActiveTasksWidget() {
+  const container = document.getElementById('active-tasks-widget');
+  if (!container) return;
+  
+  try {
+    // Import API function dynamically
+    const { getWorkerPortalTasks } = await import('./mesApi.js');
+    
+    // Get all workers
+    const workers = MESData.workers || [];
+    
+    // Aggregate task counts across all workers
+    let totalReady = 0;
+    let totalInProgress = 0;
+    let totalPaused = 0;
+    let totalPending = 0;
+    
+    for (const worker of workers) {
+      try {
+        const result = await getWorkerPortalTasks(worker.id);
+        const tasks = result.tasks || [];
+        
+        totalReady += tasks.filter(t => t.status === 'ready').length;
+        totalInProgress += tasks.filter(t => t.status === 'in_progress').length;
+        totalPaused += tasks.filter(t => t.status === 'paused').length;
+        totalPending += tasks.filter(t => t.status === 'pending').length;
+      } catch (err) {
+        console.warn(`Failed to load tasks for worker ${worker.id}:`, err);
+      }
+    }
+    
+    // Render widget content
+    container.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #dbeafe; border-radius: 8px;">
+          <div>
+            <div style="font-size: 13px; color: #1e40af; font-weight: 500;">Devam Ediyor</div>
+            <div style="font-size: 24px; font-weight: 700; color: #1e3a8a;">${totalInProgress}</div>
+          </div>
+          <div style="font-size: 32px;">▶️</div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #d1fae5; border-radius: 8px;">
+          <div>
+            <div style="font-size: 13px; color: #065f46; font-weight: 500;">Hazır</div>
+            <div style="font-size: 24px; font-weight: 700; color: #064e3b;">${totalReady}</div>
+          </div>
+          <div style="font-size: 32px;">✅</div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #fed7aa; border-radius: 8px;">
+          <div>
+            <div style="font-size: 13px; color: #92400e; font-weight: 500;">Duraklatıldı</div>
+            <div style="font-size: 24px; font-weight: 700; color: #78350f;">${totalPaused}</div>
+          </div>
+          <div style="font-size: 32px;">⏸️</div>
+        </div>
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #f3f4f6; border-radius: 8px;">
+          <div>
+            <div style="font-size: 13px; color: #6b7280; font-weight: 500;">Bekliyor</div>
+            <div style="font-size: 24px; font-weight: 700; color: #374151;">${totalPending}</div>
+          </div>
+          <div style="font-size: 32px;">⏳</div>
+        </div>
+      </div>
+    `;
+  } catch (err) {
+    console.error('Failed to load active tasks widget:', err);
+    container.innerHTML = `
+      <div style="text-align: center; color: #ef4444;">
+        <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
+        <div style="font-size: 14px;">Görevler yüklenemedi</div>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Initialize Station Alerts widget on dashboard
+ * Loads last 5 station errors from mes-alerts collection
+ */
+export async function initStationAlertsWidget() {
+  const container = document.getElementById('station-alerts-widget');
+  if (!container) return;
+  
+  try {
+    // Import API dependencies
+    const { API_BASE, withAuth } = await import('../../shared/lib/api.js');
+    
+    // Fetch alerts from mes-alerts collection
+    const res = await fetch(`${API_BASE}/api/mes/alerts?type=station_error&limit=5`, {
+      headers: withAuth()
+    });
+    
+    if (!res.ok) {
+      throw new Error(`Failed to fetch alerts: ${res.status}`);
+    }
+    
+    const data = await res.json();
+    const alerts = data.alerts || [];
+    
+    if (alerts.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 24px; color: var(--muted-foreground);">
+          <div style="font-size: 32px; margin-bottom: 8px;">✅</div>
+          <div style="font-size: 14px;">Aktif uyarı bulunmuyor</div>
+        </div>
+      `;
+      return;
+    }
+    
+    // Render alerts list
+    const alertsHtml = alerts.map(alert => {
+      const createdAt = new Date(alert.createdAt);
+      const timeAgo = getTimeAgo(createdAt);
+      
+      return `
+        <div style="padding: 12px; border-left: 3px solid #ef4444; background: #fef2f2; border-radius: 4px; margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 4px;">
+            <div style="font-size: 13px; font-weight: 600; color: #991b1b;">
+              İstasyon: ${alert.stationId || 'Belirsiz'}
+            </div>
+            <div style="font-size: 11px; color: #6b7280;">${timeAgo}</div>
+          </div>
+          <div style="font-size: 12px; color: #7f1d1d; margin-bottom: 4px;">
+            ${alert.note || 'Hata açıklaması yok'}
+          </div>
+          <div style="font-size: 11px; color: #9ca3af;">
+            Plan: ${alert.planId || '-'} | İşçi: ${alert.workerId || '-'}
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    container.innerHTML = alertsHtml;
+  } catch (err) {
+    console.error('Failed to load station alerts widget:', err);
+    container.innerHTML = `
+      <div style="text-align: center; color: #ef4444;">
+        <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
+        <div style="font-size: 14px;">Uyarılar yüklenemedi</div>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Helper: Get human-readable time ago string
+ */
+function getTimeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  
+  if (seconds < 60) return 'Az önce';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} dk önce`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} saat önce`;
+  return `${Math.floor(seconds / 86400)} gün önce`;
+}
+
+/**
+ * Initialize all dashboard widgets
+ */
+export async function initDashboardWidgets() {
+  await Promise.all([
+    initActiveTasksWidget(),
+    initStationAlertsWidget()
+  ]);
 }
