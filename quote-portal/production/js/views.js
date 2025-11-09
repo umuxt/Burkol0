@@ -1232,6 +1232,17 @@ export function generatePlanDesigner() {
           <div id="material-flow-container" style="width: 100%; min-height: 80px; position: relative; overflow-x: auto; overflow-y: hidden;"></div>
         </div>
       </div>
+      <!-- Timing / Capacity Summary Paneli -->
+      <div class="card" style="margin-top: 12px;">
+        <div class="card-header" style="padding: 8px 12px;">
+          <div class="card-title" style="font-size: 14px; display: flex; align-items: center;">
+            <span style="margin-right: 8px;">⏱️</span> Timing / Capacity
+          </div>
+        </div>
+        <div class="card-content" style="padding: 8px 12px;">
+          <div id="timing-summary-container"></div>
+        </div>
+      </div>
       <div id="node-edit-modal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); z-index: 3000;" onclick="closeNodeEditModal(event)">
         <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 0; width: 560px; max-height: 80vh; overflow: hidden;" onclick="event.stopPropagation()">
           <div style="padding: 16px 20px; border-bottom: 1px solid var(--border);">

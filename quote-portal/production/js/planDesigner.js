@@ -1369,27 +1369,11 @@ export function renderCanvas() {
 
 // Render timing and capacity summary card
 export function renderTimingSummary() {
-  let container = document.getElementById('timing-summary-container');
+  const container = document.getElementById('timing-summary-container');
   
-  // Create container if it doesn't exist
+  // If container doesn't exist (not in Plan Designer view), exit silently
   if (!container) {
-    container = document.createElement('div');
-    container.id = 'timing-summary-container';
-    container.style.cssText = [
-      'position: fixed;',
-      'top: 80px;',
-      'right: 20px;',
-      'width: 320px;',
-      'background: white;',
-      'border: 1px solid #e5e7eb;',
-      'border-radius: 8px;',
-      'box-shadow: 0 4px 6px rgba(0,0,0,0.1);',
-      'padding: 16px;',
-      'z-index: 1000;',
-      'max-height: calc(100vh - 100px);',
-      'overflow-y: auto;'
-    ].join('');
-    document.body.appendChild(container);
+    return;
   }
   
   const summary = planDesignerState.timingSummary;
@@ -1397,10 +1381,7 @@ export function renderTimingSummary() {
   // If no summary data, show minimal message
   if (!summary || planDesignerState.nodes.length === 0) {
     container.innerHTML = `
-      <div style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1f2937; display: flex; align-items: center;">
-        <span style="margin-right: 8px;">⏱️</span> Timing / Capacity
-      </div>
-      <div style="color: #6b7280; font-size: 14px;">No operations in plan</div>
+      <div style="color: #6b7280; font-size: 14px; text-align: center; padding: 12px;">No operations in plan</div>
     `;
     return;
   }
@@ -1447,10 +1428,6 @@ export function renderTimingSummary() {
     : '';
   
   container.innerHTML = `
-    <div style="font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #1f2937; display: flex; align-items: center;">
-      <span style="margin-right: 8px;">⏱️</span> Timing / Capacity
-    </div>
-    
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
       <div style="background: #f3f4f6; border-radius: 6px; padding: 10px;">
         <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Nominal Time</div>
