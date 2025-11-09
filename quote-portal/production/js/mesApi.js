@@ -720,3 +720,42 @@ export async function updateWorkerPortalTask(assignmentId, payload) {
   return await res.json();
 }
 
+/**
+ * Launch a production plan with auto-assignment engine
+ * POST /api/mes/production-plans/:planId/launch
+ * 
+ * @param {string} planId - The production plan ID to launch
+ * @param {string} workOrderCode - The approved quote work order code
+ * @returns {Promise<Object>} Launch result with assignment details
+ * @throws {Error} With status, code, and message properties on failure
+ */
+export async function launchProductionPlan(planId, workOrderCode) {
+  const res = await fetch(`${API_BASE}/api/mes/production-plans/${encodeURIComponent(planId)}/launch`, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ workOrderCode })
+  });
+  
+  if (!res.ok) {
+    // Parse error response for detailed feedback
+    let errorData;
+    try {
+      errorData = await res.json();
+    } catch {
+      errorData = { error: 'unknown_error', message: `HTTP ${res.status}` };
+    }
+    
+    // Throw structured error with code, message, and details
+    const error = new Error(errorData.message || `production_plan_launch_failed ${res.status}`);
+    error.code = errorData.error || 'unknown_error';
+    error.status = res.status;
+    error.details = errorData.details || null;
+    error.shortages = errorData.shortages || null;
+    error.errors = errorData.errors || null;
+    error.warnings = errorData.warnings || null;
+    throw error;
+  }
+  
+  return await res.json();
+}
+

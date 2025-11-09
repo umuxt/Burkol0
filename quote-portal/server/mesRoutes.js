@@ -2521,4 +2521,731 @@ router.patch('/substations/:id', withAuth, async (req, res) => {
   }, res);
 });
 
+// ============================================================================
+// PRODUCTION PLAN LAUNCH ENDPOINT
+// ============================================================================
+
+/**
+ * POST /api/mes/production-plans/:planId/launch
+ * Launch a production plan with auto-assignment engine
+ * 
+ * Input: { workOrderCode }
+ * - Validates approved quote exists and plan is ready
+ * - Runs auto-assignment engine for all nodes
+ * - Creates worker assignments
+ * - Updates plan and quote status
+ */
+router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
+  const { planId } = req.params;
+  const { workOrderCode } = req.body;
+  
+  try {
+    const db = getFirestore();
+    const userEmail = req.user?.email || 'system';
+    
+    // ========================================================================
+    // 1. INPUT VALIDATION
+    // ========================================================================
+    
+    if (!planId || !workOrderCode) {
+      return res.status(400).json({
+        error: 'validation_error',
+        message: 'planId and workOrderCode are required'
+      });
+    }
+    
+    // Fetch plan document
+    const planRef = db.collection('mes-production-plans').doc(planId);
+    const planSnap = await planRef.get();
+    
+    if (!planSnap.exists) {
+      return res.status(404).json({
+        error: 'plan_not_found',
+        message: `Production plan ${planId} not found`
+      });
+    }
+    
+    const planData = planSnap.data();
+    
+    // Check if plan is already launched
+    if (planData.launchStatus === 'launched') {
+      return res.status(409).json({
+        error: 'already_launched',
+        message: 'This plan has already been launched',
+        launchedAt: planData.launchedAt,
+        launchedBy: planData.launchedBy
+      });
+    }
+    
+    // Check if plan is cancelled
+    if (planData.status === 'cancelled') {
+      return res.status(422).json({
+        error: 'plan_cancelled',
+        message: 'Cannot launch a cancelled plan'
+      });
+    }
+    
+    // Validate plan status is 'production'
+    if (planData.status !== 'production') {
+      return res.status(422).json({
+        error: 'invalid_status',
+        message: `Plan status must be 'production', got '${planData.status}'`
+      });
+    }
+    
+    // Fetch approved quote
+    const quotesSnapshot = await db.collection('approved-quotes')
+      .where('workOrderCode', '==', workOrderCode)
+      .limit(1)
+      .get();
+    
+    if (quotesSnapshot.empty) {
+      return res.status(404).json({
+        error: 'quote_not_found',
+        message: `Approved quote with work order ${workOrderCode} not found`
+      });
+    }
+    
+    const quoteDoc = quotesSnapshot.docs[0];
+    const quoteData = quoteDoc.data();
+    
+    // ========================================================================
+    // 2. LOAD PLAN NODES AND BUILD EXECUTION GRAPH
+    // ========================================================================
+    
+    const nodes = planData.nodes || [];
+    if (nodes.length === 0) {
+      return res.status(422).json({
+        error: 'empty_plan',
+        message: 'Cannot launch plan with no operations'
+      });
+    }
+    
+    // Build execution order using topological sort
+    const executionOrder = buildTopologicalOrder(nodes);
+    
+    if (executionOrder.error) {
+      return res.status(400).json({
+        error: 'execution_graph_error',
+        message: executionOrder.error,
+        details: executionOrder.details
+      });
+    }
+    
+    // ========================================================================
+    // 3. LOAD LIVE DATA FOR ASSIGNMENT ENGINE
+    // ========================================================================
+    
+    const [workersSnapshot, stationsSnapshot, substationsSnapshot] = await Promise.all([
+      db.collection('mes-workers').where('status', '==', 'active').get(),
+      db.collection('mes-stations').where('status', '==', 'active').get(),
+      db.collection('mes-substations').where('status', '==', 'active').get()
+    ]);
+    
+    const workers = workersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const stations = stationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const substations = substationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    if (workers.length === 0) {
+      return res.status(422).json({
+        error: 'no_workers',
+        message: 'No active workers available for assignment'
+      });
+    }
+    
+    if (stations.length === 0) {
+      return res.status(422).json({
+        error: 'no_stations',
+        message: 'No active stations available for assignment'
+      });
+    }
+    
+    // ========================================================================
+    // 4. MATERIAL VALIDATION
+    // ========================================================================
+    
+    const planQuantity = planData.quantity || 1;
+    const materialValidation = await validateMaterialAvailability(
+      planData,
+      planQuantity,
+      db
+    );
+    
+    if (!materialValidation.allAvailable) {
+      return res.status(422).json({
+        error: 'material_shortage',
+        message: 'Insufficient materials to launch plan',
+        shortages: materialValidation.shortages,
+        details: materialValidation.details
+      });
+    }
+    
+    // ========================================================================
+    // 5. RUN AUTO-ASSIGNMENT ENGINE FOR EACH NODE
+    // ========================================================================
+    
+    const assignments = [];
+    const assignmentErrors = [];
+    const assignmentWarnings = [];
+    
+    // Track assignments in this run to avoid conflicts
+    const workerSchedule = new Map(); // workerId -> [{ start, end }]
+    const stationSchedule = new Map(); // stationId -> [{ start, end }]
+    
+    // Process nodes in topological order
+    for (const nodeId of executionOrder.order) {
+      const node = nodes.find(n => n.id === nodeId);
+      if (!node) {
+        assignmentErrors.push({
+          nodeId,
+          error: 'node_not_found',
+          message: `Node ${nodeId} referenced in execution order but not found in plan`
+        });
+        continue;
+      }
+      
+      try {
+        const assignment = await assignNodeResources(
+          node,
+          workers,
+          stations,
+          substations,
+          workerSchedule,
+          stationSchedule,
+          planData
+        );
+        
+        if (assignment.error) {
+          assignmentErrors.push({
+            nodeId: node.id,
+            nodeName: node.name,
+            error: assignment.error,
+            message: assignment.message,
+            details: assignment.details
+          });
+        } else {
+          assignments.push(assignment);
+          
+          // Track warnings
+          if (assignment.warnings && assignment.warnings.length > 0) {
+            assignmentWarnings.push({
+              nodeId: node.id,
+              nodeName: node.name,
+              warnings: assignment.warnings
+            });
+          }
+          
+          // Update schedules to avoid conflicts
+          const workerId = assignment.workerId;
+          const stationId = assignment.stationId;
+          
+          if (!workerSchedule.has(workerId)) {
+            workerSchedule.set(workerId, []);
+          }
+          workerSchedule.get(workerId).push({
+            start: new Date(assignment.plannedStart),
+            end: new Date(assignment.plannedEnd)
+          });
+          
+          if (!stationSchedule.has(stationId)) {
+            stationSchedule.set(stationId, []);
+          }
+          stationSchedule.get(stationId).push({
+            start: new Date(assignment.plannedStart),
+            end: new Date(assignment.plannedEnd)
+          });
+        }
+      } catch (error) {
+        assignmentErrors.push({
+          nodeId: node.id,
+          nodeName: node.name,
+          error: 'assignment_exception',
+          message: error.message
+        });
+      }
+    }
+    
+    // If any node failed assignment, abort
+    if (assignmentErrors.length > 0) {
+      return res.status(422).json({
+        error: 'assignment_failed',
+        message: `Failed to assign resources for ${assignmentErrors.length} operation(s)`,
+        errors: assignmentErrors,
+        warnings: assignmentWarnings
+      });
+    }
+    
+    // ========================================================================
+    // 6. CREATE WORKER ASSIGNMENTS IN BATCH
+    // ========================================================================
+    
+    const batch = db.batch();
+    const now = new Date();
+    const assignmentIds = [];
+    
+    // Delete any stray assignments for this plan/WO (cleanup)
+    const existingAssignments = await db.collection('mes-worker-assignments')
+      .where('planId', '==', planId)
+      .where('workOrderCode', '==', workOrderCode)
+      .get();
+    
+    existingAssignments.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    
+    // Create new assignments
+    assignments.forEach(assignment => {
+      const assignmentRef = db.collection('mes-worker-assignments').doc();
+      assignmentIds.push(assignmentRef.id);
+      
+      batch.set(assignmentRef, {
+        ...assignment,
+        planId,
+        workOrderCode,
+        createdAt: now,
+        createdBy: userEmail,
+        updatedAt: now
+      });
+    });
+    
+    // Update plan document with launch status
+    batch.update(planRef, {
+      launchStatus: 'launched',
+      launchedAt: now,
+      launchedBy: userEmail,
+      assignmentCount: assignments.length,
+      updatedAt: now
+    });
+    
+    // Update approved quote production state
+    batch.update(quoteDoc.ref, {
+      productionState: 'Üretiliyor',
+      productionStateUpdatedAt: now,
+      productionStateUpdatedBy: userEmail
+    });
+    
+    // Commit all changes atomically
+    await batch.commit();
+    
+    // ========================================================================
+    // 7. EMIT EVENT FOR FRONTEND REFRESH
+    // ========================================================================
+    
+    // Note: In a production setup, you would use Server-Sent Events, WebSocket,
+    // or a pub/sub mechanism. For now, frontend will poll or check on navigation.
+    console.log(`✓ Plan ${planId} launched with ${assignments.length} assignments`);
+    
+    // ========================================================================
+    // 8. RETURN SUCCESS RESPONSE
+    // ========================================================================
+    
+    return res.status(200).json({
+      success: true,
+      planId,
+      workOrderCode,
+      assignmentCount: assignments.length,
+      assignmentIds,
+      warnings: assignmentWarnings.length > 0 ? assignmentWarnings : undefined,
+      launchedAt: now.toISOString(),
+      launchedBy: userEmail,
+      message: `Plan launched successfully with ${assignments.length} assignments`
+    });
+    
+  } catch (error) {
+    console.error('Launch plan error:', error);
+    
+    // Check for specific error types
+    if (error.status) {
+      return res.status(error.status).json({
+        error: error.code || 'launch_error',
+        message: error.message
+      });
+    }
+    
+    return res.status(500).json({
+      error: 'internal_error',
+      message: 'Failed to launch production plan',
+      details: error.message
+    });
+  }
+});
+
+// ============================================================================
+// HELPER FUNCTIONS FOR LAUNCH ENDPOINT
+// ============================================================================
+
+/**
+ * Build topological order from node predecessors
+ * Detects cycles and validates prerequisites
+ */
+function buildTopologicalOrder(nodes) {
+  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  const inDegree = new Map();
+  const adjacencyList = new Map();
+  
+  // Initialize
+  nodes.forEach(node => {
+    inDegree.set(node.id, 0);
+    adjacencyList.set(node.id, []);
+  });
+  
+  // Build graph
+  nodes.forEach(node => {
+    const predecessors = node.predecessors || [];
+    
+    // Validate all predecessors exist
+    for (const predId of predecessors) {
+      if (!nodeMap.has(predId)) {
+        return {
+          error: `Invalid predecessor: Node ${node.id} references non-existent predecessor ${predId}`,
+          details: { nodeId: node.id, missingPredecessor: predId }
+        };
+      }
+      
+      // Add edge from predecessor to this node
+      adjacencyList.get(predId).push(node.id);
+      inDegree.set(node.id, inDegree.get(node.id) + 1);
+    }
+  });
+  
+  // Kahn's algorithm for topological sort
+  const queue = [];
+  const order = [];
+  
+  // Start with nodes that have no predecessors
+  inDegree.forEach((degree, nodeId) => {
+    if (degree === 0) {
+      queue.push(nodeId);
+    }
+  });
+  
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+    order.push(nodeId);
+    
+    // Process successors
+    const successors = adjacencyList.get(nodeId) || [];
+    for (const successorId of successors) {
+      const newDegree = inDegree.get(successorId) - 1;
+      inDegree.set(successorId, newDegree);
+      
+      if (newDegree === 0) {
+        queue.push(successorId);
+      }
+    }
+  }
+  
+  // Check for cycles
+  if (order.length !== nodes.length) {
+    const remaining = nodes.filter(n => !order.includes(n.id)).map(n => n.id);
+    return {
+      error: 'Cycle detected in execution graph',
+      details: { remainingNodes: remaining }
+    };
+  }
+  
+  return { order, success: true };
+}
+
+/**
+ * Validate material availability for plan launch
+ */
+async function validateMaterialAvailability(planData, planQuantity, db) {
+  const materialSummary = planData.materialSummary || {};
+  const rawMaterials = materialSummary.rawMaterials || [];
+  
+  if (rawMaterials.length === 0) {
+    return { allAvailable: true, shortages: [], details: [] };
+  }
+  
+  // Aggregate materials by code
+  const aggregated = new Map();
+  
+  rawMaterials.forEach(mat => {
+    if (!mat.code || mat.isDerived) return; // Skip WIP materials (they're produced in the plan)
+    
+    const key = mat.code;
+    const existing = aggregated.get(key) || { ...mat, required: 0 };
+    existing.required += (mat.required || 0) * planQuantity;
+    aggregated.set(key, existing);
+  });
+  
+  // Check availability
+  const shortages = [];
+  const details = [];
+  
+  for (const [code, mat] of aggregated) {
+    try {
+      // Fetch material from database
+      const materialDoc = await db.collection('mes-materials').doc(code).get();
+      
+      if (!materialDoc.exists) {
+        shortages.push({
+          code,
+          name: mat.name || code,
+          required: mat.required,
+          unit: mat.unit || '',
+          available: 0,
+          shortage: mat.required,
+          message: 'Material not found in inventory'
+        });
+        continue;
+      }
+      
+      const materialData = materialDoc.data();
+      const available = parseFloat(materialData.stock) || 0;
+      const required = mat.required;
+      
+      details.push({
+        code,
+        name: mat.name || materialData.name || code,
+        required,
+        available,
+        unit: mat.unit || materialData.unit || '',
+        isOk: available >= required
+      });
+      
+      if (available < required) {
+        shortages.push({
+          code,
+          name: mat.name || materialData.name || code,
+          required,
+          available,
+          shortage: required - available,
+          unit: mat.unit || materialData.unit || ''
+        });
+      }
+    } catch (error) {
+      console.error(`Error checking material ${code}:`, error);
+      shortages.push({
+        code,
+        name: mat.name || code,
+        required: mat.required,
+        unit: mat.unit || '',
+        available: 0,
+        shortage: mat.required,
+        message: `Error checking availability: ${error.message}`
+      });
+    }
+  }
+  
+  return {
+    allAvailable: shortages.length === 0,
+    shortages,
+    details
+  };
+}
+
+/**
+ * Assign worker, station, and substation to a node using auto-assignment rules
+ */
+async function assignNodeResources(
+  node,
+  workers,
+  stations,
+  substations,
+  workerSchedule,
+  stationSchedule,
+  planData
+) {
+  const requiredSkills = node.requiredSkills || [];
+  const preferredStations = node.preferredStations || [];
+  const allocationType = node.allocationType || 'auto';
+  const workerHint = node.workerHint || null;
+  const nominalTime = parseFloat(node.time) || 60; // minutes
+  
+  // ========================================================================
+  // WORKER SELECTION
+  // ========================================================================
+  
+  let selectedWorker = null;
+  
+  if (allocationType === 'manual' && workerHint && workerHint.workerId) {
+    // Manual allocation with worker ID hint
+    selectedWorker = workers.find(w => w.id === workerHint.workerId);
+    
+    if (!selectedWorker) {
+      // Fallback to auto if hint not found
+      console.warn(`Worker hint ${workerHint.workerId} not found, falling back to auto`);
+    }
+  }
+  
+  if (!selectedWorker && requiredSkills.length > 0) {
+    // Auto selection: find workers with matching skills
+    const candidates = workers.filter(w => {
+      const workerSkills = w.skills || [];
+      return requiredSkills.every(skill => workerSkills.includes(skill));
+    });
+    
+    if (candidates.length === 0) {
+      return {
+        error: 'no_qualified_workers',
+        message: `No workers found with required skills: ${requiredSkills.join(', ')}`,
+        details: { requiredSkills }
+      };
+    }
+    
+    // Sort by workload (fewest assignments first) and efficiency
+    const candidatesWithLoad = candidates.map(w => ({
+      worker: w,
+      load: (workerSchedule.get(w.id) || []).length,
+      efficiency: w.efficiency || 1.0
+    }));
+    
+    candidatesWithLoad.sort((a, b) => {
+      // Prefer less loaded workers
+      if (a.load !== b.load) return a.load - b.load;
+      // Then prefer higher efficiency
+      return b.efficiency - a.efficiency;
+    });
+    
+    selectedWorker = candidatesWithLoad[0].worker;
+  } else if (!selectedWorker) {
+    // No skills required, pick any worker
+    const candidatesWithLoad = workers.map(w => ({
+      worker: w,
+      load: (workerSchedule.get(w.id) || []).length
+    }));
+    
+    candidatesWithLoad.sort((a, b) => a.load - b.load);
+    selectedWorker = candidatesWithLoad[0].worker;
+  }
+  
+  if (!selectedWorker) {
+    return {
+      error: 'no_worker_available',
+      message: 'No worker available for assignment'
+    };
+  }
+  
+  // ========================================================================
+  // STATION SELECTION
+  // ========================================================================
+  
+  let selectedStation = null;
+  
+  if (preferredStations.length > 0) {
+    // Try to match preferred stations
+    for (const pref of preferredStations) {
+      const station = stations.find(s => 
+        s.id === pref || 
+        s.name === pref || 
+        (s.tags && s.tags.includes(pref))
+      );
+      if (station) {
+        selectedStation = station;
+        break;
+      }
+    }
+  }
+  
+  if (!selectedStation && node.type) {
+    // Try to match by operation type
+    selectedStation = stations.find(s => s.type === node.type);
+  }
+  
+  if (!selectedStation) {
+    // Pick station with least load
+    const stationsWithLoad = stations.map(s => ({
+      station: s,
+      load: (stationSchedule.get(s.id) || []).length
+    }));
+    
+    stationsWithLoad.sort((a, b) => a.load - b.load);
+    selectedStation = stationsWithLoad[0].station;
+  }
+  
+  if (!selectedStation) {
+    return {
+      error: 'no_station_available',
+      message: 'No station available for assignment'
+    };
+  }
+  
+  // ========================================================================
+  // SUBSTATION SELECTION
+  // ========================================================================
+  
+  let selectedSubstation = null;
+  const stationSubstations = substations.filter(sub => sub.stationId === selectedStation.id);
+  
+  if (stationSubstations.length > 0) {
+    // Pick first available substation
+    selectedSubstation = stationSubstations[0];
+  }
+  
+  // ========================================================================
+  // TIME CALCULATION
+  // ========================================================================
+  
+  // Calculate effective time based on worker and station efficiency
+  const workerEfficiency = selectedWorker.efficiency || 1.0;
+  const stationEfficiency = selectedStation.efficiency || 1.0;
+  const combinedEfficiency = workerEfficiency * stationEfficiency;
+  const effectiveTime = combinedEfficiency > 0 ? nominalTime / combinedEfficiency : nominalTime;
+  
+  // Find next available time slot for this worker
+  const workerAssignments = workerSchedule.get(selectedWorker.id) || [];
+  const now = new Date();
+  
+  // Simple scheduling: start after last assignment or now
+  let startTime = now;
+  if (workerAssignments.length > 0) {
+    const lastEnd = workerAssignments[workerAssignments.length - 1].end;
+    if (lastEnd > now) {
+      startTime = lastEnd;
+    }
+  }
+  
+  const endTime = new Date(startTime.getTime() + effectiveTime * 60000);
+  
+  // ========================================================================
+  // BUILD ASSIGNMENT
+  // ========================================================================
+  
+  const warnings = [];
+  
+  // Check if outside worker schedule (if defined)
+  if (selectedWorker.personalSchedule && selectedWorker.personalSchedule.blocks) {
+    const dayName = startTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    const dayBlocks = selectedWorker.personalSchedule.blocks[dayName] || [];
+    
+    if (dayBlocks.length > 0) {
+      const hour = startTime.getHours();
+      const minute = startTime.getMinutes();
+      const timeMinutes = hour * 60 + minute;
+      
+      const withinSchedule = dayBlocks.some(block => {
+        if (!block.start || !block.end) return false;
+        const [startHour, startMin] = block.start.split(':').map(Number);
+        const [endHour, endMin] = block.end.split(':').map(Number);
+        const blockStart = startHour * 60 + startMin;
+        const blockEnd = endHour * 60 + endMin;
+        return timeMinutes >= blockStart && timeMinutes <= blockEnd;
+      });
+      
+      if (!withinSchedule) {
+        warnings.push('Assignment is outside worker\'s scheduled hours');
+      }
+    }
+  }
+  
+  return {
+    nodeId: node.id,
+    nodeName: node.name,
+    operationId: node.operationId,
+    workerId: selectedWorker.id,
+    workerName: selectedWorker.name,
+    stationId: selectedStation.id,
+    stationName: selectedStation.name,
+    subStationCode: selectedSubstation ? selectedSubstation.id : null,
+    plannedStart: startTime.toISOString(),
+    plannedEnd: endTime.toISOString(),
+    nominalTime,
+    effectiveTime,
+    status: 'pending',
+    warnings: warnings.length > 0 ? warnings : undefined
+  };
+}
+
 export default router;
