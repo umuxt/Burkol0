@@ -78,10 +78,7 @@ function renderProductionPlans(plans) {
       }
       
       // Action buttons based on status
-      const viewBtn = `<button onclick="viewProductionPlan('${p.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px; margin-right: 4px;">View</button>`;
-      const releaseBtn = status !== 'released' 
-        ? `<button onclick="releasePlanFromOverview('${p.id || ''}', '${name.replace(/'/g, "\\'")}')" style="padding:4px 8px; border:1px solid #059669; background:#059669; color:white; border-radius:4px; cursor:pointer; font-size:12px; font-weight:500;">Release</button>` 
-        : `<span style="font-size:11px; color:#059669; font-weight:500;">✓ Released</span>`;
+      const viewBtn = `<button onclick="viewProductionPlan('${p.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;">View</button>`;
       
       return `<tr data-status="${status}">
         <td style="padding: 10px 12px;">${planId}</td>
@@ -95,7 +92,7 @@ function renderProductionPlans(plans) {
         <td class="metadata-column hidden" style="padding: 10px 12px;">${updated}</td>
         <td class="metadata-column hidden" style="padding: 10px 12px;">${updatedBy}</td>
         <td style="padding: 10px 12px; text-align:right;">
-          ${viewBtn}${releaseBtn}
+          ${viewBtn}
         </td>
       </tr>`
     }).join('')

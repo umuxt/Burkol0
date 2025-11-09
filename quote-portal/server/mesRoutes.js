@@ -50,8 +50,13 @@ async function handleFirestoreOperation(operation, res) {
     res.json(result);
   } catch (error) {
     console.error('Firestore operation error:', error);
-    res.status(500).json({ 
-      error: 'Internal server error', 
+    
+    // Use error properties if available (status, code)
+    const status = error.status || 500;
+    const errorCode = error.code || 'internal_server_error';
+    
+    res.status(status).json({ 
+      error: errorCode,
       message: error.message 
     });
   }
@@ -1757,7 +1762,10 @@ router.patch('/approved-quotes/:workOrderCode/production-state', withAuth, async
     const snapshot = await col.where('workOrderCode', '==', workOrderCode).limit(1).get();
     
     if (snapshot.empty) {
-      const e = new Error('work_order_not_found'); e.status = 404; throw e;
+      const e = new Error(`${workOrderCode} için onaylı teklif bulunamadı. Quotes ekranından bu work order'ı oluşturup tekrar deneyin.`);
+      e.status = 404;
+      e.code = 'approved_quote_not_found';
+      throw e;
     }
     
     const doc = snapshot.docs[0];
@@ -2616,15 +2624,16 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     }
     
     // Fetch approved quote
-    const quotesSnapshot = await db.collection('approved-quotes')
+    const quotesSnapshot = await db.collection('mes-approved-quotes')
       .where('workOrderCode', '==', workOrderCode)
       .limit(1)
       .get();
     
     if (quotesSnapshot.empty) {
       return res.status(404).json({
-        error: 'quote_not_found',
-        message: `Approved quote with work order ${workOrderCode} not found`
+        error: 'approved_quote_not_found',
+        message: `${workOrderCode} için onaylı teklif bulunamadı. Önce quote'u Approved Quotes listesine ekleyin.`,
+        workOrderCode
       });
     }
     

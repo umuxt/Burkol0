@@ -236,8 +236,15 @@ async function startProduction(workOrderCode) {
       // Restore original state
       await setProductionState(workOrderCode, originalState);
       
-      // Show detailed error message
-      if (error.status === 422 && error.shortages) {
+      // Show detailed error message based on error type
+      if (error.code === 'approved_quote_not_found') {
+        // Approved quote not found - direct user to create it
+        alert(
+          `Onaylı Teklif Bulunamadı\n\n` +
+          `${workOrderCode} iş emri için onaylı teklif bulunamadı.\n\n` +
+          `Quotes ekranından bu iş emrini oluşturup onayladıktan sonra tekrar deneyin.`
+        );
+      } else if (error.status === 422 && error.shortages) {
         // Material shortage
         const shortageList = error.shortages.map(s => 
           `- ${s.name} (${s.code}): İhtiyaç ${s.required} ${s.unit}, Stok ${s.available} ${s.unit}, Eksik ${s.shortage} ${s.unit}`
@@ -306,7 +313,17 @@ async function pauseProduction(workOrderCode) {
     } catch (error) {
       console.error('Pause failed:', error);
       await setProductionState(workOrderCode, originalState);
-      alert(`Üretim Durdurulamadı\n\n${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin.`);
+      
+      // Handle specific error types
+      if (error.code === 'approved_quote_not_found') {
+        alert(
+          `Onaylı Teklif Bulunamadı\n\n` +
+          `${workOrderCode} iş emri için onaylı teklif bulunamadı.\n\n` +
+          `Quotes ekranından bu iş emrini oluşturup onayladıktan sonra tekrar deneyin.`
+        );
+      } else {
+        alert(`Üretim Durdurulamadı\n\n${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin.`);
+      }
     }
   } catch (error) {
     console.error('Pause production error:', error);
@@ -359,7 +376,17 @@ async function resumeProduction(workOrderCode) {
     } catch (error) {
       console.error('Resume failed:', error);
       await setProductionState(workOrderCode, originalState);
-      alert(`Üretim Devam Ettirilemedi\n\n${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin.`);
+      
+      // Handle specific error types
+      if (error.code === 'approved_quote_not_found') {
+        alert(
+          `Onaylı Teklif Bulunamadı\n\n` +
+          `${workOrderCode} iş emri için onaylı teklif bulunamadı.\n\n` +
+          `Quotes ekranından bu iş emrini oluşturup onayladıktan sonra tekrar deneyin.`
+        );
+      } else {
+        alert(`Üretim Devam Ettirilemedi\n\n${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin.`);
+      }
     }
   } catch (error) {
     console.error('Resume production error:', error);
@@ -426,7 +453,17 @@ async function cancelProduction(workOrderCode) {
     } catch (error) {
       console.error('Cancel failed:', error);
       await setProductionState(workOrderCode, originalState);
-      alert(`Üretim İptal Edilemedi\n\n${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin.`);
+      
+      // Handle specific error types
+      if (error.code === 'approved_quote_not_found') {
+        alert(
+          `Onaylı Teklif Bulunamadı\n\n` +
+          `${workOrderCode} iş emri için onaylı teklif bulunamadı.\n\n` +
+          `Quotes ekranından bu iş emrini oluşturup onayladıktan sonra tekrar deneyin.`
+        );
+      } else {
+        alert(`Üretim İptal Edilemedi\n\n${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin.`);
+      }
     }
   } catch (error) {
     console.error('Cancel production error:', error);
