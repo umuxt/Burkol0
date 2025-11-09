@@ -120,11 +120,14 @@ export async function createSession(email, days = 7) {
   
   // Get user info for session from Firestore
   let userName = email.split('@')[0] // fallback
+  let workerId = null // Worker ID if user is a worker
+  
   try {
     const usersSnapshot = await getDb().collection('users').where('email', '==', email).get()
     if (!usersSnapshot.empty) {
       const userData = usersSnapshot.docs[0].data()
       userName = userData.name || userData.email?.split('@')[0] || userName
+      workerId = userData.workerId || null // Extract workerId if exists
     }
   } catch (error) {
     console.warn('Warning: Could not fetch user details for session:', error.message)
@@ -141,7 +144,8 @@ export async function createSession(email, days = 7) {
     description: `${email} oturumu başlatıldı`,
     metadata: {
       email,
-      expires: expires.toISOString()
+      expires: expires.toISOString(),
+      workerId: workerId || undefined
     },
     performedBy: {
       email,
@@ -155,6 +159,7 @@ export async function createSession(email, days = 7) {
     token,
     userName,
     email,
+    workerId, // Include workerId in session
     loginTime: loginTime.toISOString(),
     loginDate: loginTime.toISOString().split('T')[0], // YYYY-MM-DD format
     expires: expires.toISOString(),
@@ -175,6 +180,7 @@ export async function createSession(email, days = 7) {
       token,
       email,
       userName,
+      workerId, // Persist workerId to Firestore
       loginTime: sessionData.loginTime,
       loginDate: sessionData.loginDate,
       expires: sessionData.expires,
@@ -198,7 +204,14 @@ export function getSession(token) {
     // keep sessionsById for admin listing with inactive flag
     return null
   }
-  return session
+  
+  // Copy workerId to session object for req.user access
+  const sessionWithWorker = { ...session }
+  if (session.workerId) {
+    sessionWithWorker.workerId = session.workerId
+  }
+  
+  return sessionWithWorker
 }
 
 export function deleteSession(token) { 

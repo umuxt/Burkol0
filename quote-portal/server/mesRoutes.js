@@ -2131,6 +2131,51 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
       
       switch (action) {
         case 'start':
+          // PRECONDITION CHECK: Verify task is ready to start
+          // Get fresh execution state to validate prerequisites
+          try {
+            const tasks = await getPlanExecutionState(planId);
+            const currentTask = tasks.find(t => t.assignmentId === assignmentId);
+            
+            if (!currentTask) {
+              const e = new Error('Task not found in execution graph');
+              e.status = 404;
+              throw e;
+            }
+            
+            // Check if task status is ready or pending
+            if (currentTask.status !== 'ready' && currentTask.status !== 'pending') {
+              const e = new Error(`Task cannot be started: current status is ${currentTask.status}`);
+              e.status = 400;
+              e.code = 'precondition_failed';
+              throw e;
+            }
+            
+            // Check prerequisites
+            const prereqs = currentTask.prerequisites || {};
+            const failedPrereqs = [];
+            
+            if (!prereqs.predecessorsDone) failedPrereqs.push('Önceki görevler tamamlanmadı');
+            if (!prereqs.workerAvailable) failedPrereqs.push('İşçi meşgul');
+            if (!prereqs.stationAvailable) failedPrereqs.push('İstasyon meşgul');
+            if (!prereqs.materialsReady) failedPrereqs.push('Malzeme eksik');
+            
+            if (failedPrereqs.length > 0) {
+              const e = new Error(`Preconditions not met: ${failedPrereqs.join(', ')}`);
+              e.status = 400;
+              e.code = 'precondition_failed';
+              e.details = failedPrereqs;
+              throw e;
+            }
+          } catch (err) {
+            // If it's a precondition error, re-throw
+            if (err.code === 'precondition_failed') {
+              throw err;
+            }
+            // Otherwise, log warning but allow start (backward compatibility)
+            console.warn('Precondition check failed, but allowing start:', err.message);
+          }
+          
           updateData.status = 'in_progress';
           updateData.actualStart = now;
           

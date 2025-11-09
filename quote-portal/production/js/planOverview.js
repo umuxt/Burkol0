@@ -233,7 +233,7 @@ export async function releasePlanFromOverview(planId, planName) {
     window.showToast?.(`Plan released! ${updatedCount} assignment${updatedCount !== 1 ? 's' : ''} activated.`, 'success');
     
     // Dispatch event for other modules
-    document.dispatchEvent(new CustomEvent('assignments:updated', { detail: { planId } }));
+    window.dispatchEvent(new CustomEvent('assignments:updated', { detail: { planId } }));
     
     // Reload the plans table
     await loadAndRenderPlans();

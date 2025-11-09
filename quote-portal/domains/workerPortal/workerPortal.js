@@ -73,7 +73,24 @@ async function loadWorkerTasks() {
 
 async function startTask(assignmentId) {
   try {
-    await updateWorkerPortalTask(assignmentId, { action: 'start' });
+    const result = await updateWorkerPortalTask(assignmentId, { action: 'start' });
+    
+    // Check if backend rejected due to preconditions
+    if (result.error && result.error.includes('precondition')) {
+      showNotification('Görev başlatılamadı: Önkoşullar sağlanmadı', 'warning');
+      
+      // Mark task as blocked in UI
+      const task = state.tasks.find(t => t.assignmentId === assignmentId);
+      if (task) {
+        task.status = 'blocked'; // Temporarily mark as blocked
+      }
+      render();
+      
+      // Reload tasks to get fresh status
+      await loadWorkerTasks();
+      return;
+    }
+    
     await loadWorkerTasks();
     
     // Notify other components
@@ -82,7 +99,17 @@ async function startTask(assignmentId) {
     showNotification('Görev başlatıldı', 'success');
   } catch (err) {
     console.error('Failed to start task:', err);
-    showNotification('Görev başlatılamadı: ' + err.message, 'error');
+    
+    // Check if error message indicates precondition failure
+    const errorMsg = err.message || String(err);
+    if (errorMsg.includes('precondition') || errorMsg.includes('prerequisite')) {
+      showNotification('Görev başlatılamadı: Önkoşullar sağlanmadı', 'warning');
+      
+      // Reload to refresh task status
+      await loadWorkerTasks();
+    } else {
+      showNotification('Görev başlatılamadı: ' + errorMsg, 'error');
+    }
   }
 }
 
@@ -459,10 +486,30 @@ function renderPrerequisites(prerequisites) {
 function renderTaskActions(task) {
   const actions = [];
   
+  // Check if task is blocked by prerequisites
+  const isBlocked = task.prerequisites && (
+    !task.prerequisites.predecessorsDone ||
+    !task.prerequisites.workerAvailable ||
+    !task.prerequisites.stationAvailable ||
+    !task.prerequisites.materialsReady
+  );
+  
+  // Build tooltip for blocked reasons
+  let blockTooltip = '';
+  if (isBlocked) {
+    const reasons = [];
+    if (!task.prerequisites.predecessorsDone) reasons.push('Önceki görevler tamamlanmadı');
+    if (!task.prerequisites.workerAvailable) reasons.push('İşçi meşgul');
+    if (!task.prerequisites.stationAvailable) reasons.push('İstasyon meşgul');
+    if (!task.prerequisites.materialsReady) reasons.push('Malzeme eksik');
+    blockTooltip = `title="${reasons.join(', ')}"`;
+  }
+  
   // Start button - only if ready
   if (task.status === 'ready') {
+    const disabled = isBlocked ? 'disabled' : '';
     actions.push(`
-      <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}">
+      <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}" ${disabled} ${blockTooltip}>
         ▶️ Başla
       </button>
     `);
