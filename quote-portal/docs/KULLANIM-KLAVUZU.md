@@ -470,6 +470,43 @@ Burkol MES sistemi, onaylanmış tekliflerden üretim planlamasına kadar tam ot
 
 > ⚠️ **Önemli:** Plan Designer artık sadece **kuralları** tanımlar, atama yapmaz!
 
+##### 🏷️ Yarı Mamul Kod Sistemi (Semi-Finished Codes)
+
+Plan Designer'da oluşturulan her operasyon düğümü, belirli koşullar sağlandığında otomatik olarak **yarı mamul kod** alır:
+
+**Kod Oluşturma Koşulları:**
+- ✅ İstasyon seçilmiş olmalı
+- ✅ Tüm malzemeler miktar bilgisi ile girilmiş olmalı
+
+**Kod Formatı:** `<Prefix>-NNN`
+- **Prefix:** Operasyonun istasyonundaki işlemlerden oluşan kısaltma (ör: `Ka` = Kaynak, `KaO` = Kaynak+Oyma)
+- **NNN:** 001'den başlayan 3 haneli sıra numarası
+
+**Örnekler:**
+- `Ka-001`: İlk kaynak işlemi
+- `Ka-002`: İkinci kaynak işlemi (farklı malzeme kombinasyonu)
+- `KaO-001`: Kaynak ve Oyma istasyonunda yapılan ilk işlem
+
+**Merkezi Kayıt Sistemi:**
+- 🔒 Kodlar **Firestore**'da merkezi olarak saklanır (artık localStorage değil)
+- 🌍 Tüm tarayıcılarda ve kullanıcılarda **tutarlı** kodlar
+- 🔄 Aynı istasyon + malzeme kombinasyonu = **Aynı kod** (tekrar kullanım)
+- 💾 Kodlar **plan/template kaydedildiğinde** kalıcı hale gelir
+
+**Çalışma Prensibi:**
+1. **Önizleme:** Operasyon düzenleme sırasında kod önizlemesi gösterilir
+2. **Geçici:** Kod düğümde gösterilir ama henüz kalıcı değildir
+3. **Kayıt:** Plan veya template kaydedildiğinde kodlar Firestore'a işlenir
+4. **Tekrar Kullanım:** Aynı imza (operasyon + istasyon + malzemeler) varsa mevcut kod kullanılır
+
+**Kullanım Alanları:**
+- 📦 WIP (Work in Progress) malzeme takibi
+- 🔗 Operasyonlar arası malzeme akışı
+- 📊 Yarı mamul stok yönetimi
+- 🏷️ Üretim takip etiketleri
+
+> **Not:** Kod sistemi tamamen otomatiktir. İstasyon ve malzeme bilgilerini girdikten sonra sistem otomatik olarak uygun kodu atar veya yeni kod oluşturur.
+
 #### ✅ Adım 2: Teklif Onaylama
 1. **Quotes** sayfasına gidin
 2. İlgili teklifi bulun ve **"Onayla"** butonuna tıklayın

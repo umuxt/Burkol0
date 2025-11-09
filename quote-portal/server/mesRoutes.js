@@ -7,6 +7,8 @@ import { adjustMaterialStock, consumeMaterials } from './materialsRoutes.js'
 
 const router = express.Router();
 
+console.log('✅ MES Routes module loaded - including semi-code endpoints');
+
 // Middleware to authenticate requests (reuse existing auth)
 function withAuth(req, res, next) {
   // Basic token presence check
@@ -4007,6 +4009,234 @@ function chunkArray(array, size) {
   }
   return chunks;
 }
+
+// ============================================================================
+// SEMI-FINISHED CODE REGISTRY (Firestore-backed)
+// ============================================================================
+
+// Helper: normalize materials for signature building
+function normalizeMaterialsForSignature(mats = []) {
+  const arr = Array.isArray(mats) ? mats : [];
+  return arr
+    .filter(m => !!m && !!m.id)
+    .map(m => ({ 
+      id: String(m.id), 
+      qty: (m.qty == null || m.qty === '') ? null : Number(m.qty), 
+      unit: m.unit || '' 
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+// Helper: build signature matching frontend logic
+function buildSemiCodeSignature(operationId, operationCode, stationId, materials) {
+  const mats = normalizeMaterialsForSignature(materials);
+  const matsStr = mats.map(m => `${m.id}:${m.qty != null ? m.qty : ''}${m.unit || ''}`).join(',');
+  return `op:${operationId || ''}|code:${operationCode || ''}|st:${stationId || ''}|mats:${matsStr}`;
+}
+
+// Helper: generate prefix from operation code (matches frontend logic)
+function generatePrefix(operationCode) {
+  if (!operationCode) return 'S';
+  const raw = String(operationCode).trim();
+  const letters = raw.replace(/[^A-Za-z]/g, '');
+  if (!letters) return 'S';
+  return (letters[0].toUpperCase() + (letters[1] ? letters[1].toLowerCase() : '')).slice(0, 2);
+}
+
+// Helper: pad counter to 3 digits
+function pad3(n) { 
+  return String(n).padStart(3, '0'); 
+}
+
+// POST /api/mes/output-codes/preview
+// Preview what code would be assigned without committing
+router.post('/output-codes/preview', withAuth, async (req, res) => {
+  console.log('📋 Semi-code preview request:', { operationId: req.body?.operationId, stationId: req.body?.stationId });
+  try {
+    const { operationId, operationCode, stationId, materials } = req.body;
+    
+    // Validation
+    if (!operationId) {
+      return res.status(400).json({ error: 'operationId required' });
+    }
+    if (!stationId) {
+      return res.status(400).json({ error: 'stationId required' });
+    }
+    if (!Array.isArray(materials) || materials.length === 0) {
+      return res.status(400).json({ error: 'materials array required with at least one item' });
+    }
+    
+    // Ensure all materials have quantities
+    const allQtyKnown = materials.every(m => m.qty != null && Number.isFinite(Number(m.qty)));
+    if (!allQtyKnown) {
+      return res.json({ code: null, reserved: false, message: 'incomplete_materials' });
+    }
+    
+    const db = getFirestore();
+    const prefix = generatePrefix(operationCode);
+    const signature = buildSemiCodeSignature(operationId, operationCode, stationId, materials);
+    
+    // Hash materials for storage (simple concatenation)
+    const matsNorm = normalizeMaterialsForSignature(materials);
+    const materialsHash = matsNorm.map(m => `${m.id}:${m.qty}${m.unit}`).join(',');
+    
+    // Run transaction to check if code exists or preview next
+    const result = await db.runTransaction(async (transaction) => {
+      const docRef = db.collection('mes-outputCodes').doc(prefix);
+      const doc = await transaction.get(docRef);
+      
+      if (doc.exists) {
+        const data = doc.data();
+        const codes = data.codes || {};
+        
+        // Check if signature already has a code
+        if (codes[signature]) {
+          return { 
+            code: codes[signature].code, 
+            reserved: true,
+            existingEntry: codes[signature]
+          };
+        }
+        
+        // Preview next code without incrementing
+        const nextCounter = data.nextCounter || 1;
+        const previewCode = `${prefix}-${pad3(nextCounter)}`;
+        return { 
+          code: previewCode, 
+          reserved: false,
+          nextCounter
+        };
+      } else {
+        // New prefix - would start at 001
+        return { 
+          code: `${prefix}-001`, 
+          reserved: false,
+          nextCounter: 1
+        };
+      }
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Output code preview error:', error);
+    res.status(500).json({ error: 'output_code_preview_failed', message: error.message });
+  }
+});
+
+// POST /api/mes/output-codes/commit
+// Commit codes when plan/template is saved
+router.post('/output-codes/commit', withAuth, async (req, res) => {
+  try {
+    const { assignments } = req.body;
+    
+    if (!Array.isArray(assignments) || assignments.length === 0) {
+      return res.status(400).json({ error: 'assignments array required' });
+    }
+    
+    const db = getFirestore();
+    let committed = 0;
+    let skipped = 0;
+    const errors = [];
+    
+    // Group assignments by prefix to batch transactions
+    const byPrefix = new Map();
+    for (const assignment of assignments) {
+      const { prefix, signature, code, operationId, stationId, materialsHash } = assignment;
+      
+      if (!prefix || !signature || !code) {
+        errors.push({ assignment, error: 'missing_required_fields' });
+        continue;
+      }
+      
+      if (!byPrefix.has(prefix)) {
+        byPrefix.set(prefix, []);
+      }
+      byPrefix.get(prefix).push(assignment);
+    }
+    
+    // Process each prefix group in a transaction
+    for (const [prefix, prefixAssignments] of byPrefix.entries()) {
+      try {
+        await db.runTransaction(async (transaction) => {
+          const docRef = db.collection('mes-outputCodes').doc(prefix);
+          const doc = await transaction.get(docRef);
+          
+          let data;
+          if (doc.exists) {
+            data = doc.data();
+          } else {
+            // Initialize new prefix document
+            data = {
+              prefix,
+              nextCounter: 1,
+              codes: {}
+            };
+          }
+          
+          const codes = data.codes || {};
+          let nextCounter = data.nextCounter || 1;
+          let modified = false;
+          
+          for (const assignment of prefixAssignments) {
+            const { signature, code, operationId, stationId, materialsHash } = assignment;
+            
+            // Skip if already exists
+            if (codes[signature]) {
+              skipped++;
+              continue;
+            }
+            
+            // Validate code format matches expected next value
+            const expectedCode = `${prefix}-${pad3(nextCounter)}`;
+            if (code !== expectedCode) {
+              errors.push({ 
+                assignment, 
+                error: 'code_mismatch', 
+                expected: expectedCode, 
+                received: code 
+              });
+              continue;
+            }
+            
+            // Commit the code
+            codes[signature] = {
+              code,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+              operationId,
+              stationId,
+              materialsHash
+            };
+            
+            nextCounter++;
+            committed++;
+            modified = true;
+          }
+          
+          // Update document if modified
+          if (modified) {
+            transaction.set(docRef, {
+              prefix,
+              nextCounter,
+              codes
+            }, { merge: true });
+          }
+        });
+      } catch (error) {
+        console.error(`Transaction failed for prefix ${prefix}:`, error);
+        errors.push({ prefix, error: error.message });
+      }
+    }
+    
+    res.json({ 
+      committed, 
+      skipped, 
+      errors: errors.length > 0 ? errors : undefined 
+    });
+  } catch (error) {
+    console.error('Output code commit error:', error);
+    res.status(500).json({ error: 'output_code_commit_failed', message: error.message });
+  }
+});
 
 export default router;
 

@@ -1,26 +1,8 @@
 // Semi-finished product code generation and registry
 // Code format: <prefix>-NNN where prefix comes primarily from the selected station's operations
-// Registry: stores signature -> code mapping and per-prefix counters in localStorage
+// Registry: now stored in Firestore (mes-outputCodes collection) instead of localStorage
 
-const LS_KEY = 'semiCodeRegistry.v1';
-
-function loadRegistry() {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return { map: {}, counters: {} };
-    const parsed = JSON.parse(raw);
-    return {
-      map: parsed.map || {},
-      counters: parsed.counters || {}
-    };
-  } catch {
-    return { map: {}, counters: {} };
-  }
-}
-
-function saveRegistry(reg) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(reg)); } catch {}
-}
+import { getSemiCodePreview } from './mesApi.js';
 
 function pad3(n) { return String(n).padStart(3, '0'); }
 
@@ -60,7 +42,7 @@ function normalizeMaterials(mats = []) {
     .sort((a,b) => a.id.localeCompare(b.id));
 }
 
-function buildSignature(node, ops = [], stations = []) {
+export function buildSignature(node, ops = [], stations = []) {
   const op = Array.isArray(ops) ? ops.find(o => o.id === node.operationId) : null;
   const opId = op ? op.id : (node.operationId || '');
   const opCode = op ? (op.semiOutputCode || '') : '';
@@ -72,48 +54,107 @@ function buildSignature(node, ops = [], stations = []) {
   return `op:${opId}|code:${opCode}|st:${stId}|mats:${matsStr}`;
 }
 
-export function computeAndAssignSemiCode(node, ops = [], stations = []) {
+// Fetch semi code from API and assign to node
+export async function computeAndAssignSemiCode(node, ops = [], stations = []) {
   if (!node) return null;
+  
   // Require station and materials with quantities to generate definitive code
   const stPresent = !!(node.assignedStation);
   const mats = normalizeMaterials(node.rawMaterials);
   const allQtyKnown = mats.length > 0 && mats.every(m => m.qty != null && Number.isFinite(m.qty));
+  
   if (!stPresent || !allQtyKnown) {
     node.semiCode = null;
+    node._semiCodePending = false;
     return null;
   }
-  const reg = loadRegistry();
-  const prefix = getPrefixForNode(node, ops, stations);
-  const sig = buildSignature(node, ops, stations);
-
-  let code = reg.map[sig];
-  if (!code) {
-    const current = reg.counters[prefix] || 1;
-    code = `${prefix}-${pad3(current)}`;
-    reg.counters[prefix] = current + 1;
-    reg.map[sig] = code;
-    saveRegistry(reg);
+  
+  try {
+    const op = Array.isArray(ops) ? ops.find(o => o.id === node.operationId) : null;
+    const st = Array.isArray(stations) ? stations.find(s => s.name === node.assignedStation || s.id === node.assignedStation) : null;
+    
+    const payload = {
+      operationId: node.operationId || '',
+      operationCode: op?.semiOutputCode || '',
+      stationId: st ? (st.id || st.name || '') : (node.assignedStation || ''),
+      materials: mats.map(m => ({ id: m.id, qty: m.qty, unit: m.unit }))
+    };
+    
+    const result = await getSemiCodePreview(payload);
+    
+    if (result.code) {
+      node.semiCode = result.code;
+      node._semiCodePending = !result.reserved; // Mark as pending if not yet committed
+      
+      // Store metadata for commit later
+      node._semiCodeMeta = {
+        prefix: getPrefixForNode(node, ops, stations),
+        signature: buildSignature(node, ops, stations),
+        code: result.code,
+        operationId: payload.operationId,
+        stationId: payload.stationId,
+        materialsHash: mats.map(m => `${m.id}:${m.qty}${m.unit}`).join(',')
+      };
+      
+      return result.code;
+    } else {
+      node.semiCode = null;
+      node._semiCodePending = false;
+      node._semiCodeMeta = null;
+      return null;
+    }
+  } catch (error) {
+    console.error('Error fetching semi code preview:', error);
+    node.semiCode = null;
+    node._semiCodePending = false;
+    node._semiCodeMeta = null;
+    return null;
   }
-  node.semiCode = code;
-  return code;
 }
 
-export function getSemiCodePreview(node, ops = [], stations = []) {
+// Get preview without mutating node (for display purposes)
+export async function getSemiCodePreviewForNode(node, ops = [], stations = []) {
   if (!node) return null;
+  
   const stPresent = !!(node.assignedStation);
   const mats = normalizeMaterials(node.rawMaterials);
   const allQtyKnown = mats.length > 0 && mats.every(m => m.qty != null && Number.isFinite(m.qty));
+  
   if (!stPresent || !allQtyKnown) return null;
-  const reg = loadRegistry();
-  const prefix = getPrefixForNode(node, ops, stations);
-  const sig = buildSignature(node, ops, stations);
-  // Return existing mapping or hypothetical next code (without reserving)
-  const existing = reg.map[sig];
-  if (existing) return existing;
-  const next = reg.counters[prefix] || 1;
-  return `${prefix}-${pad3(next)}`;
+  
+  try {
+    const op = Array.isArray(ops) ? ops.find(o => o.id === node.operationId) : null;
+    const st = Array.isArray(stations) ? stations.find(s => s.name === node.assignedStation || s.id === node.assignedStation) : null;
+    
+    const payload = {
+      operationId: node.operationId || '',
+      operationCode: op?.semiOutputCode || '',
+      stationId: st ? (st.id || st.name || '') : (node.assignedStation || ''),
+      materials: mats.map(m => ({ id: m.id, qty: m.qty, unit: m.unit }))
+    };
+    
+    const result = await getSemiCodePreview(payload);
+    return result.code || null;
+  } catch (error) {
+    console.error('Error fetching semi code preview:', error);
+    return null;
+  }
 }
 
+// Gather all pending semi codes for commit
+export function collectPendingSemiCodes(nodes) {
+  const assignments = [];
+  
+  for (const node of nodes) {
+    if (node._semiCodePending && node._semiCodeMeta) {
+      assignments.push(node._semiCodeMeta);
+    }
+  }
+  
+  return assignments;
+}
+
+// No longer needed - registry is in Firestore
 export function clearSemiRegistry() {
-  try { localStorage.removeItem(LS_KEY); } catch {}
+  console.warn('clearSemiRegistry is deprecated - registry is now in Firestore');
 }

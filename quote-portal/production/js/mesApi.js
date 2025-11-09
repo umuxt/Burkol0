@@ -987,3 +987,45 @@ if (typeof window !== 'undefined') {
     };
   } catch {}
 }
+
+// ============================================================================
+// SEMI-FINISHED CODE REGISTRY API
+// ============================================================================
+
+/**
+ * Get preview of semi-finished product code without committing
+ * @param {Object} payload - { operationId, operationCode, stationId, materials: [{ id, qty, unit }] }
+ * @returns {Promise<Object>} - { code, reserved, message? }
+ */
+export async function getSemiCodePreview(payload) {
+  const res = await fetch(`${API_BASE}/api/mes/output-codes/preview`, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload)
+  });
+  
+  if (!res.ok) {
+    throw new Error(`semi_code_preview_failed ${res.status}`);
+  }
+  
+  return await res.json();
+}
+
+/**
+ * Commit semi-finished product codes when plan/template is saved
+ * @param {Array} assignments - [{ prefix, signature, code, operationId, stationId, materialsHash }]
+ * @returns {Promise<Object>} - { committed, skipped, errors? }
+ */
+export async function commitSemiCodes(assignments) {
+  const res = await fetch(`${API_BASE}/api/mes/output-codes/commit`, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ assignments })
+  });
+  
+  if (!res.ok) {
+    throw new Error(`semi_code_commit_failed ${res.status}`);
+  }
+  
+  return await res.json();
+}

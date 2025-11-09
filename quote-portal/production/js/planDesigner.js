@@ -1,7 +1,7 @@
 // Plan Designer logic and state
 import { showToast } from './ui.js';
-import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js';
-import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments, getMaterials, checkMesMaterialAvailability, getGeneralMaterials, activateWorkerAssignments } from './mesApi.js';
+import { computeAndAssignSemiCode, getSemiCodePreviewForNode, getPrefixForNode, collectPendingSemiCodes } from './semiCode.js';
+import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments, getMaterials, checkMesMaterialAvailability, getGeneralMaterials, activateWorkerAssignments, commitSemiCodes } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
 import { API_BASE, withAuth } from '../../shared/lib/api.js';
@@ -1669,7 +1669,7 @@ window.selectStation = function(stationId) {
 // Global escape handler for modal
 let modalEscapeHandler = null;
 
-export function editNode(nodeId) {
+export async function editNode(nodeId) {
   const node = planDesignerState.nodes.find(n => n.id === nodeId);
   if (!node) return; 
   planDesignerState.selectedNode = node;
@@ -1742,7 +1742,7 @@ export function editNode(nodeId) {
     try {
       const label = document.getElementById('node-output-code-label');
       if (label) {
-        const preview = node.semiCode || getSemiCodePreview(node, planDesignerState.availableOperations || [], []);
+        const preview = node.semiCode || await getSemiCodePreviewForNode(node, planDesignerState.availableOperations || [], []).catch(() => null);
         if (preview) {
           label.textContent = `Output: ${preview}`;
         } else {
@@ -2193,7 +2193,29 @@ export function savePlanAsTemplate() {
     : getNextProductionPlanId().then((newId) => { template.id = newId || genId('plan-'); return template.id })
 
   ensureId
-    .then(() => createTemplate(template))
+    .then(async () => {
+      // Commit pending semi codes before saving template
+      const pendingCodes = collectPendingSemiCodes(planDesignerState.nodes);
+      if (pendingCodes.length > 0) {
+        try {
+          console.log(`Committing ${pendingCodes.length} semi codes...`);
+          const result = await commitSemiCodes(pendingCodes);
+          console.log(`Semi codes committed: ${result.committed}, skipped: ${result.skipped}`);
+          
+          // Clear pending flags
+          planDesignerState.nodes.forEach(node => {
+            if (node._semiCodePending) {
+              node._semiCodePending = false;
+            }
+          });
+        } catch (error) {
+          console.error('Failed to commit semi codes:', error);
+          showToast('Warning: Semi codes may not be persisted', 'warning');
+        }
+      }
+      
+      return createTemplate(template);
+    })
     .catch(() => {
       // As an extra fallback, still try to save with a local id
       template.id = template.id || genId('tpl-');
@@ -2501,6 +2523,27 @@ export async function savePlanDraft() {
       timingSummary, // Add timing summary for reporting
       executionGraph // Add execution graph for task prerequisite tracking
     };
+    
+    // Commit pending semi codes before updating plan
+    const pendingCodes = collectPendingSemiCodes(planDesignerState.nodes);
+    if (pendingCodes.length > 0) {
+      try {
+        console.log(`Committing ${pendingCodes.length} semi codes...`);
+        const result = await commitSemiCodes(pendingCodes);
+        console.log(`Semi codes committed: ${result.committed}, skipped: ${result.skipped}`);
+        
+        // Clear pending flags
+        planDesignerState.nodes.forEach(node => {
+          if (node._semiCodePending) {
+            node._semiCodePending = false;
+          }
+        });
+      } catch (error) {
+        console.error('Failed to commit semi codes:', error);
+        showToast('Warning: Semi codes may not be persisted', 'warning');
+      }
+    }
+    
     updateProductionPlan(id, updates)
       .then(() => {
         showToast(`Plan converted to production: ${planName}`, 'success');
@@ -2602,8 +2645,32 @@ export async function savePlanDraft() {
     metaQuantity: planDesignerState.currentPlanMeta?.quantity,
     fullPlan: plan
   });
+  
   getNextProductionPlanId()
-    .then((newId) => { plan.id = newId || genId('plan-'); return createProductionPlan(plan) })
+    .then((newId) => { plan.id = newId || genId('plan-'); return plan.id; })
+    .then(async (planId) => {
+      // Commit pending semi codes before saving plan
+      const pendingCodes = collectPendingSemiCodes(planDesignerState.nodes);
+      if (pendingCodes.length > 0) {
+        try {
+          console.log(`Committing ${pendingCodes.length} semi codes...`);
+          const result = await commitSemiCodes(pendingCodes);
+          console.log(`Semi codes committed: ${result.committed}, skipped: ${result.skipped}`);
+          
+          // Clear pending flags
+          planDesignerState.nodes.forEach(node => {
+            if (node._semiCodePending) {
+              node._semiCodePending = false;
+            }
+          });
+        } catch (error) {
+          console.error('Failed to commit semi codes:', error);
+          showToast('Warning: Semi codes may not be persisted', 'warning');
+        }
+      }
+      
+      return createProductionPlan(plan);
+    })
     .catch(() => {
       plan.id = plan.id || genId('plan-');
       return createProductionPlan(plan)

@@ -2,7 +2,7 @@
 import { showToast } from './ui.js'
 import { getOperations, getWorkers, getStations, getApprovedQuotes, getMaterials, upsertProducedWipFromNode, getProductionPlans } from './mesApi.js'
 import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate, aggregatePlanMaterials, checkMaterialAvailability, computeNodeEffectiveDuration } from './planDesigner.js'
-import { computeAndAssignSemiCode, getSemiCodePreview, getPrefixForNode } from './semiCode.js'
+import { computeAndAssignSemiCode, getSemiCodePreviewForNode, getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
 
 // Helper functions to manage body scroll lock
@@ -1005,7 +1005,7 @@ export function addMaterialRow() {
 }
 
 // Update footer output code label based on current form values
-export function updateOutputCodePreviewBackend() {
+export async function updateOutputCodePreviewBackend() {
   try {
     const node = planDesignerState.selectedNode
     if (!node) return
@@ -1029,7 +1029,7 @@ export function updateOutputCodePreviewBackend() {
       if (id) mats.push({ id, qty: Number.isFinite(qty) ? qty : null, unit })
     }
     const temp = { ...node, assignedStation: primaryStationName, rawMaterials: mats }
-    const code = getSemiCodePreview(temp, _opsCache, _stationsCacheFull)
+    const code = await getSemiCodePreviewForNode(temp, _opsCache, _stationsCacheFull).catch(() => null)
     const label = document.getElementById('node-output-code-label')
     if (label) {
       if (code) {
