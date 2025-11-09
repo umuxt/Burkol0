@@ -367,9 +367,13 @@ export async function editNodeBackend(nodeId) {
   let materials = []
   try {
     workers = await getWorkers(true)
-    stations = await getStations()
+    stations = await getStations(true)
     materials = await getMaterials()
     console.log(`Loaded data: ${workers.length} workers, ${stations.length} stations, ${materials.length} materials`)
+    
+    // Update planDesignerState caches for efficiency calculations
+    planDesignerState.workersCache = workers;
+    planDesignerState.stationsCache = stations;
   } catch (e) {
     console.error('editNodeBackend data load failed', e)
     // Continue with empty arrays to prevent UI breaking

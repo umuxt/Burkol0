@@ -18,6 +18,8 @@ export const planDesignerState = {
   availableOperations: [],
   availableWorkers: [], // Cache for migration lookup
   availableStations: [], // Cache for migration lookup
+  workersCache: [], // Full workers list for efficiency calculations
+  stationsCache: [], // Full stations list for efficiency calculations
   availableMaterials: [], // Cache for material availability checks
   materialCheckResult: null, // Last material availability check result
   // Global drag state
@@ -403,18 +405,25 @@ export function computeNodeEffectiveDuration(node) {
   const nominalTime = parseFloat(node.time) || 0;
   if (nominalTime <= 0) return 0;
   
+  // Check if caches are available
+  if (!planDesignerState.workersCache || planDesignerState.workersCache.length === 0 || 
+      !planDesignerState.stationsCache || planDesignerState.stationsCache.length === 0) {
+    console.warn('computeNodeEffectiveDuration: workersCache or stationsCache is empty, falling back to nominal time');
+    return nominalTime;
+  }
+  
   // Get efficiency values from assigned station and worker
   let stationEff = 1.0;
   let workerEff = 1.0;
   
-  if (node.assignedStationId && planDesignerState.stationsCache) {
+  if (node.assignedStationId) {
     const station = planDesignerState.stationsCache.find(s => s.id === node.assignedStationId);
     if (station && typeof station.efficiency === 'number') {
       stationEff = station.efficiency;
     }
   }
   
-  if (node.assignedWorkerId && planDesignerState.workersCache) {
+  if (node.assignedWorkerId) {
     const worker = planDesignerState.workersCache.find(w => w.id === node.assignedWorkerId);
     if (worker && typeof worker.efficiency === 'number') {
       workerEff = worker.efficiency;
@@ -713,14 +722,19 @@ export async function loadOperationsToolbox() {
     try {
       const [workers, stations] = await Promise.all([
         getWorkers(true).catch(() => []),
-        getStations().catch(() => [])
+        getStations(true).catch(() => [])
       ]);
       planDesignerState.availableWorkers = workers;
       planDesignerState.availableStations = stations;
+      // Also populate workersCache and stationsCache for efficiency calculations
+      planDesignerState.workersCache = workers;
+      planDesignerState.stationsCache = stations;
     } catch (e) {
       console.warn('Could not load workers/stations for migration:', e);
       planDesignerState.availableWorkers = [];
       planDesignerState.availableStations = [];
+      planDesignerState.workersCache = [];
+      planDesignerState.stationsCache = [];
     }
 
     // Normal operations list
@@ -3589,25 +3603,40 @@ export function buildExecutionGraph(nodes) {
       ? priorityMap.get(node.id) 
       : executionOrder.length + originalIndex; // Fallback for unreachable nodes
     
-    // Calculate effective duration with efficiency multipliers
+    // Get assigned IDs (prefer new format, fallback to legacy)
+    const workerId = node.assignedWorkerId || node.assignedWorker || null;
+    const stationId = node.assignedStationId || node.assignedStation || null;
+    
+    // Calculate timing
+    const nominalTime = Number(node.time) || 0;
     const effectiveDuration = computeNodeEffectiveDuration(node);
     
-    // Get worker and station names from current state caches
+    // Get worker and station names from caches
     let workerName = '';
     let stationName = '';
     
-    if (node.assignedWorker) {
-      const worker = (planDesignerState.workers || []).find(w => 
-        w.id === node.assignedWorker || w.name === node.assignedWorker
-      );
-      workerName = worker ? worker.name : node.assignedWorker;
+    if (workerId && planDesignerState.workersCache) {
+      const worker = planDesignerState.workersCache.find(w => w.id === workerId);
+      workerName = worker ? worker.name : workerId;
     }
     
-    if (node.assignedStation) {
-      const station = (planDesignerState.stations || []).find(s => 
-        s.id === node.assignedStation || s.name === node.assignedStation
-      );
-      stationName = station ? station.name : node.assignedStation;
+    if (stationId && planDesignerState.stationsCache) {
+      const station = planDesignerState.stationsCache.find(s => s.id === stationId);
+      stationName = station ? station.name : stationId;
+    }
+    
+    // Handle material inputs
+    const materialInputs = [];
+    if (Array.isArray(node.rawMaterials) && node.rawMaterials.length > 0) {
+      node.rawMaterials.forEach(mat => {
+        if (mat && mat.code) {
+          materialInputs.push({
+            code: mat.code,
+            qty: mat.qty || 0,
+            unit: mat.unit || ''
+          });
+        }
+      });
     }
     
     return {
@@ -3620,19 +3649,20 @@ export function buildExecutionGraph(nodes) {
       predecessors: Array.isArray(node.predecessors) ? [...node.predecessors] : [],
       
       // Resource assignments
-      assignedWorkerId: node.assignedWorker || null,
+      assignedWorkerId: workerId,
       workerName,
-      assignedStationId: node.assignedStation || null,
+      assignedStationId: stationId,
       stationName,
       
       // Timing information
-      estimatedNominalTime: node.estimatedTime || 0,
+      estimatedNominalTime: nominalTime,
       estimatedEffectiveTime: effectiveDuration,
       
       // Execution priority
       priorityIndex,
       
       // Material information
+      materialInputs,
       hasOutputs: !!(node.semiCode || node.outputQty),
       outputCode: node.semiCode || null,
       outputQty: node.outputQty || null,
