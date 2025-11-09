@@ -9,8 +9,9 @@
 6. [Teklif Yönetimi](#teklif-yönetimi)
 7. [Filtreleme ve Arama](#filtreleme-ve-arama)
 8. [Raporlama ve Export](#raporlama-ve-export)
-9. [Sistem Bakımı](#sistem-bakımı)
-10. [Sorun Giderme](#sorun-giderme)
+9. [MES Üretim Yönetim Sistemi](#mes-üretim-yönetim-sistemi)
+10. [Sistem Bakımı](#sistem-bakımı)
+11. [Sorun Giderme](#sorun-giderme)
 
 ---
 
@@ -440,6 +441,110 @@ cd quote-portal/logs
 cat out-0.log  # Normal loglar
 cat err-0.log  # Hata logları
 ```
+
+---
+
+## 🏭 MES Üretim Yönetim Sistemi
+
+### Yeni Üretim Akışı
+
+Burkol MES sistemi, onaylanmış tekliflerden üretim planlamasına kadar tam otomasyonlu bir akış sunar:
+
+#### 📋 Adım 1: Plan Tasarlama (Plan Designer)
+1. **Production Dashboard** sayfasına gidin
+2. **"+ Yeni Plan Oluştur"** butonuna tıklayın
+3. Plan bilgilerini girin:
+   - Plan adı
+   - Açıklama
+   - İş emri kodu (WO-XXXX)
+   - Miktar
+4. **Operasyon düğümleri** ekleyin:
+   - Operasyon adı (ör: Kesme, Kaynak, Montaj)
+   - Gerekli beceriler (ör: Kaynak Uzmanlığı)
+   - Tercih edilen istasyonlar
+   - Tahmini süre
+   - Malzeme gereksinimleri
+5. **Bağımlılıkları** tanımlayın (hangi operasyon hangi operasyondan sonra yapılmalı)
+6. **"Kaydet"** butonuna tıklayın
+
+> ⚠️ **Önemli:** Plan Designer artık sadece **kuralları** tanımlar, atama yapmaz!
+
+#### ✅ Adım 2: Teklif Onaylama
+1. **Quotes** sayfasına gidin
+2. İlgili teklifi bulun ve **"Onayla"** butonuna tıklayın
+3. Teklif **"Onaylandı"** durumuna geçer
+
+#### 🏁 Adım 3: Üretim Başlatma (Onaylı Teklifler)
+1. **Approved Quotes** sayfasına gidin
+2. Başlatılacak iş emrini bulun
+3. **"🏁 Başlat"** butonuna tıklayın
+4. Sistem otomatik olarak:
+   - ✅ Malzeme kontrolü yapar
+   - ✅ Topolojik sıralama ile çalışma sırasını belirler
+   - ✅ İşçi ve istasyon atamaları yapar
+   - ✅ Work Packages (iş paketleri) oluşturur
+
+**Olası Hatalar:**
+- ❌ **Malzeme eksikliği:** Hangi malzeme eksikse detaylı bilgi gösterilir
+- ❌ **Atama hatası:** Hangi operasyona atama yapılamadığı belirtilir
+
+#### 📊 Adım 4: Takip (Work Packages Dashboard)
+1. **Production Dashboard** ana sayfasında **"Work Packages"** kartına bakın
+2. Filtreleme seçenekleri:
+   - 🔍 WO kodu/müşteri/ürün ile arama
+   - 📌 Durum: Tümü / Beklemede / Hazır / Devam Ediyor / Tamamlandı / Duraklatıldı
+   - 👷 İşçi filtresi
+   - 🏭 İstasyon filtresi
+3. **Tablo Sütunları:**
+   - WO kodu + Müşteri (tıklanabilir link)
+   - Ürün / Plan
+   - Adım / Operasyon
+   - İşçi
+   - İstasyon / Alt İstasyon
+   - Durum (renkli badge)
+   - Öncelik
+   - Malzeme (✓ Hazır / ⚠️ Eksik)
+   - Tahmini Tamamlanma
+   - Aksiyonlar (Detay, Düzenle, vb.)
+
+#### 👷 Adım 5: İşçi Portalı (Worker Portal)
+1. İşçi hesabı ile **Worker Portal** sayfasına giriş yapın
+2. **Atanmış görevler** listesini görüntüleyin
+3. Görev bilgileri:
+   - ⏸️ **Duraklatıldı bannerı** (admin durdurduysa kırmızı uyarı)
+   - 📦 **Malzeme durumu** (✓ Hazır / ⚠️ Eksik / ? Bilinmiyor)
+   - 🔒 **Önkoşullar** (önceki görevler, istasyon, malzeme)
+   - ⏱️ **Tahmini süre**
+4. **"Başlat"** butonuna tıklayın
+   - Sistem tekrar malzeme kontrolü yapar
+   - ❌ Malzeme tükendiyse detaylı eksiklik bilgisi gösterilir
+   - ✅ Her şey hazırsa görev başlar
+5. İşlem tamamlandığında **"Tamamla"** butonuna tıklayın
+
+**Özellikler:**
+- 🔄 **Otomatik yenileme:** Admin işlem yaptığında otomatik güncelleme
+- 📋 **Boş durum:** Görev yoksa "Admin bir plan başlatmalı" mesajı + yenile butonu
+- ⚠️ **Hata mesajları:** Açık ve anlaşılır Türkçe uyarılar
+
+#### ⚙️ Adım 6: Yönetim Kontrolleri (Approved Quotes)
+Admin kullanıcılar üretim sürecini kontrol edebilir:
+
+1. **⏸️ Durdur (Pause):**
+   - Tüm atamaları duraklatır
+   - İşçi ve istasyonlardan atamaları kaldırır
+   - Worker Portal'da kırmızı banner gösterir
+   - İstediğiniz zaman devam ettirilebilir
+
+2. **▶️ Devam Et (Resume):**
+   - Duraklatılmış planı tekrar aktifleştirir
+   - Atamaları geri yükler
+   - Görevler kaldığı yerden devam eder
+
+3. **❌ İptal Et (Cancel):**
+   - **Kalıcı işlem!** Geri alınamaz
+   - Tüm atamaları iptal eder
+   - Teklif durumunu "İptal Edildi" olarak günceller
+   - İşçi ve istasyon atamalarını siler
 
 ---
 

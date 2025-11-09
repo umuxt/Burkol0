@@ -714,10 +714,47 @@ export async function updateWorkerPortalTask(assignmentId, payload) {
     error.code = errorData.code || 'unknown_error';
     error.status = res.status;
     error.details = errorData.details || null;
+    error.shortages = errorData.shortages || null;
     throw error;
   }
   
-  return await res.json();
+  const result = await res.json();
+  
+  // Emit event to notify other tabs/widgets (for start/pause/complete actions)
+  if (['start', 'pause', 'complete'].includes(payload.action)) {
+    try {
+      const channel = new BroadcastChannel('mes-assignments');
+      channel.postMessage({ 
+        type: 'assignments:updated', 
+        assignmentId,
+        action: payload.action,
+        timestamp: Date.now() 
+      });
+      channel.close();
+    } catch (error) {
+      console.warn('Failed to emit assignments:updated:', error);
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Emit assignments:updated event via BroadcastChannel
+ * This notifies all open tabs/windows to refresh their assignment data
+ */
+function emitAssignmentsUpdated(planId = null) {
+  try {
+    const channel = new BroadcastChannel('mes-assignments');
+    channel.postMessage({ 
+      type: 'assignments:updated', 
+      planId,
+      timestamp: Date.now() 
+    });
+    channel.close();
+  } catch (error) {
+    console.warn('Failed to emit assignments:updated:', error);
+  }
 }
 
 /**
@@ -756,7 +793,12 @@ export async function launchProductionPlan(planId, workOrderCode) {
     throw error;
   }
   
-  return await res.json();
+  const result = await res.json();
+  
+  // Emit event to notify other tabs/widgets
+  emitAssignmentsUpdated(planId);
+  
+  return result;
 }
 
 /**
@@ -788,7 +830,12 @@ export async function pauseProductionPlan(planId) {
     throw error;
   }
   
-  return await res.json();
+  const result = await res.json();
+  
+  // Emit event to notify other tabs/widgets
+  emitAssignmentsUpdated(planId);
+  
+  return result;
 }
 
 /**
@@ -820,7 +867,12 @@ export async function resumeProductionPlan(planId) {
     throw error;
   }
   
-  return await res.json();
+  const result = await res.json();
+  
+  // Emit event to notify other tabs/widgets
+  emitAssignmentsUpdated(planId);
+  
+  return result;
 }
 
 /**
@@ -852,7 +904,12 @@ export async function cancelProductionPlan(planId) {
     throw error;
   }
   
-  return await res.json();
+  const result = await res.json();
+  
+  // Emit event to notify other tabs/widgets
+  emitAssignmentsUpdated(planId);
+  
+  return result;
 }
 
 /**

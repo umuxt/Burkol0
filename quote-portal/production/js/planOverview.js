@@ -214,33 +214,29 @@ export async function releasePlanFromOverview(planId, planName) {
     return;
   }
   
-  // Confirm with user
-  const confirmMsg = `Release plan "${planName || planId}" to production?\n\nThis will:\n- Mark the plan as released\n- Activate all worker assignments\n- Update worker/station current tasks`;
+  // NEW WORKFLOW: Direct users to Approved Quotes for launch
+  const orderCode = window._currentPlanMeta?.orderCode;
+  
+  if (!orderCode) {
+    window.showToast?.('Bu planın iş emri bulunamadı. Lütfen plana bir iş emri atayın.', 'warning');
+    return;
+  }
+  
+  const confirmMsg = `"${planName || planId}" planını onaylanmış tekliflerden başlatmak ister misiniz?\n\nYeni üretim akışı:\n✓ Plan tasarlanır\n✓ Teklif onaylanır\n✓ Onaylı Teklifler sayfasından "🏁 Başlat" tıklanır\n✓ Sistem otomatik atama yapar\n✓ Work Packages'tan takip edilir\n✓ İşçi Portal'dan çalışılır\n\nOnaylı Teklifler sayfasına gitmek için Tamam'a basın.`;
+  
   if (!confirm(confirmMsg)) return;
   
   try {
-    // Import required API functions dynamically if not already imported
-    const { updateProductionPlan, activateWorkerAssignments } = await import('./mesApi.js');
-    
-    // Step 1: Update plan status to released
-    await updateProductionPlan(planId, { status: 'released' });
-    
-    // Step 2: Activate all worker assignments
-    const result = await activateWorkerAssignments(planId);
-    
-    // Success feedback
-    const updatedCount = result?.updated || 0;
-    window.showToast?.(`Plan released! ${updatedCount} assignment${updatedCount !== 1 ? 's' : ''} activated.`, 'success');
-    
-    // Dispatch event for other modules
-    window.dispatchEvent(new CustomEvent('assignments:updated', { detail: { planId } }));
-    
-    // Reload the plans table
-    await loadAndRenderPlans();
-    
+    // Navigate to Approved Quotes view
+    if (typeof window.loadView === 'function') {
+      window.loadView('approvedQuotes');
+      window.showToast?.(`"${orderCode}" iş emrini Onaylı Teklifler'de bulup 🏁 Başlat düğmesine tıklayın`, 'info', 8000);
+    } else {
+      window.showToast?.('Onaylı Teklifler sayfasına gidin ve bu planı başlatın', 'info');
+    }
   } catch (error) {
-    console.error('Release plan failed:', error);
-    window.showToast?.(`Failed to release plan: ${error.message}`, 'error');
+    console.error('Navigation failed:', error);
+    window.showToast?.(`Onaylı Teklifler sayfasına gidin ve "${orderCode}" iş emrini başlatın`, 'info');
   }
 }
 

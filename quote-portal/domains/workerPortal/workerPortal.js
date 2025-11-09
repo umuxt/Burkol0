@@ -113,6 +113,33 @@ async function startTask(assignmentId) {
   } catch (err) {
     console.error('Failed to start task:', err);
     
+    // Check if error has material_shortage code
+    if (err.code === 'material_shortage') {
+      const shortages = err.shortages || [];
+      const shortageList = shortages.map(s => 
+        `${s.name || s.code}: ${s.shortage} ${s.unit} eksik (Var: ${s.available}, Gerek: ${s.required})`
+      ).join('<br>');
+      
+      showNotification(
+        `Malzeme eksikliği nedeniyle görev başlatılamadı:<br>${shortageList}`, 
+        'error',
+        10000 // Show for 10 seconds
+      );
+      
+      // Mark task as blocked
+      const task = state.tasks.find(t => t.assignmentId === assignmentId);
+      if (task) {
+        task.status = 'blocked';
+        task.blockReasons = ['Malzeme eksik'];
+      }
+      
+      render();
+      
+      // Reload tasks to get fresh status
+      setTimeout(() => loadWorkerTasks(), 3000);
+      return;
+    }
+    
     // Check if error has precondition_failed code
     if (err.code === 'precondition_failed') {
       // Display inline error with details

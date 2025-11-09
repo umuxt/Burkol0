@@ -2179,9 +2179,31 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
               e.details = failedPrereqs;
               throw e;
             }
+            
+            // RE-VALIDATE MATERIAL AVAILABILITY
+            // Fetch the plan to check materials haven't been depleted since launch
+            const planDoc = await db.collection('mes-production-plans').doc(planId).get();
+            if (planDoc.exists) {
+              const planData = planDoc.data();
+              const planQuantity = planData.quantity || 1;
+              const materialValidation = await validateMaterialAvailability(
+                planData,
+                planQuantity,
+                db
+              );
+              
+              if (!materialValidation.allAvailable) {
+                const e = new Error('Malzemeler tükendi, görev başlatılamıyor');
+                e.status = 409;
+                e.code = 'material_shortage';
+                e.shortages = materialValidation.shortages;
+                e.details = materialValidation.details;
+                throw e;
+              }
+            }
           } catch (err) {
-            // If it's a precondition error, re-throw
-            if (err.code === 'precondition_failed') {
+            // If it's a precondition error or material shortage, re-throw
+            if (err.code === 'precondition_failed' || err.code === 'material_shortage') {
               throw err;
             }
             // Otherwise, log warning but allow start (backward compatibility)
@@ -2672,6 +2694,17 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     );
     
     if (!materialValidation.allAvailable) {
+      // Store shortage info in plan document for UI display
+      await planRef.update({
+        lastLaunchShortage: {
+          timestamp: new Date().toISOString(),
+          attemptedBy: userEmail,
+          shortages: materialValidation.shortages,
+          details: materialValidation.details
+        },
+        updatedAt: new Date()
+      });
+      
       return res.status(422).json({
         error: 'material_shortage',
         message: 'Insufficient materials to launch plan',
@@ -2814,6 +2847,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       launchedAt: now,
       launchedBy: userEmail,
       assignmentCount: assignments.length,
+      lastLaunchShortage: admin.firestore.FieldValue.delete(), // Clear any previous shortage
       updatedAt: now
     });
     
