@@ -29,6 +29,5 @@ service cloud.firestore {
     
     // orderItems and stockMovements collections removed
     // Items are embedded in orders, stock managed by backend API
-    }
   }
 }

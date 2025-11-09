@@ -1685,8 +1685,20 @@ export async function initStationAlertsWidget() {
       headers: withAuth()
     });
     
+    // Handle API errors gracefully
     if (!res.ok) {
-      throw new Error(`Failed to fetch alerts: ${res.status}`);
+      const errorData = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+      console.warn('Alerts API error:', errorData);
+      
+      // Show empty state instead of error for 500s (likely empty collection)
+      container.innerHTML = `
+        <div style="text-align: center; padding: 24px; color: var(--muted-foreground);">
+          <div style="font-size: 32px; margin-bottom: 8px;">📭</div>
+          <div style="font-size: 14px;">Uyarı sistemi henüz kullanılmadı</div>
+          <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">İstasyon hataları burada görünecek</div>
+        </div>
+      `;
+      return;
     }
     
     const data = await res.json();
@@ -1729,9 +1741,10 @@ export async function initStationAlertsWidget() {
   } catch (err) {
     console.error('Failed to load station alerts widget:', err);
     container.innerHTML = `
-      <div style="text-align: center; color: #ef4444;">
-        <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
-        <div style="font-size: 14px;">Uyarılar yüklenemedi</div>
+      <div style="text-align: center; padding: 16px; color: #9ca3af;">
+        <div style="font-size: 32px; margin-bottom: 8px;">📭</div>
+        <div style="font-size: 13px;">Uyarı sistemi henüz kullanılmadı</div>
+        <div style="font-size: 11px; margin-top: 4px;">İstasyon hataları burada görünecek</div>
       </div>
     `;
   }
