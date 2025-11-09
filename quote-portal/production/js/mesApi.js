@@ -759,3 +759,99 @@ export async function launchProductionPlan(planId, workOrderCode) {
   return await res.json();
 }
 
+/**
+ * Pause a production plan - stops all assignments
+ * POST /api/mes/production-plans/:planId/pause
+ * 
+ * @param {string} planId - The production plan ID to pause
+ * @returns {Promise<Object>} Pause result with summary counts
+ * @throws {Error} With status, code, and message properties on failure
+ */
+export async function pauseProductionPlan(planId) {
+  const res = await fetch(`${API_BASE}/api/mes/production-plans/${encodeURIComponent(planId)}/pause`, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' })
+  });
+  
+  if (!res.ok) {
+    let errorData;
+    try {
+      errorData = await res.json();
+    } catch {
+      errorData = { error: 'unknown_error', message: `HTTP ${res.status}` };
+    }
+    
+    const error = new Error(errorData.message || `production_plan_pause_failed ${res.status}`);
+    error.code = errorData.error || 'unknown_error';
+    error.status = res.status;
+    error.details = errorData.details || null;
+    throw error;
+  }
+  
+  return await res.json();
+}
+
+/**
+ * Resume a paused production plan
+ * POST /api/mes/production-plans/:planId/resume
+ * 
+ * @param {string} planId - The production plan ID to resume
+ * @returns {Promise<Object>} Resume result with summary counts
+ * @throws {Error} With status, code, and message properties on failure
+ */
+export async function resumeProductionPlan(planId) {
+  const res = await fetch(`${API_BASE}/api/mes/production-plans/${encodeURIComponent(planId)}/resume`, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' })
+  });
+  
+  if (!res.ok) {
+    let errorData;
+    try {
+      errorData = await res.json();
+    } catch {
+      errorData = { error: 'unknown_error', message: `HTTP ${res.status}` };
+    }
+    
+    const error = new Error(errorData.message || `production_plan_resume_failed ${res.status}`);
+    error.code = errorData.error || 'unknown_error';
+    error.status = res.status;
+    error.details = errorData.details || null;
+    throw error;
+  }
+  
+  return await res.json();
+}
+
+/**
+ * Cancel a production plan - cancels all assignments permanently
+ * POST /api/mes/production-plans/:planId/cancel
+ * 
+ * @param {string} planId - The production plan ID to cancel
+ * @returns {Promise<Object>} Cancel result with summary counts
+ * @throws {Error} With status, code, and message properties on failure
+ */
+export async function cancelProductionPlan(planId) {
+  const res = await fetch(`${API_BASE}/api/mes/production-plans/${encodeURIComponent(planId)}/cancel`, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' })
+  });
+  
+  if (!res.ok) {
+    let errorData;
+    try {
+      errorData = await res.json();
+    } catch {
+      errorData = { error: 'unknown_error', message: `HTTP ${res.status}` };
+    }
+    
+    const error = new Error(errorData.message || `production_plan_cancel_failed ${res.status}`);
+    error.code = errorData.error || 'unknown_error';
+    error.status = res.status;
+    error.details = errorData.details || null;
+    throw error;
+  }
+  
+  return await res.json();
+}
+

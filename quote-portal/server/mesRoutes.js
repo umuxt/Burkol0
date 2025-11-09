@@ -3248,4 +3248,390 @@ async function assignNodeResources(
   };
 }
 
+// ============================================================================
+// PRODUCTION PLAN CONTROL ENDPOINTS (PAUSE/RESUME/CANCEL)
+// ============================================================================
+
+/**
+ * POST /api/mes/production-plans/:planId/pause
+ * Pause all assignments for a production plan
+ * - Sets all assignment statuses to 'paused'
+ * - Preserves actualStart for in-progress tasks
+ * - Clears worker.currentTask and station.currentOperation
+ */
+router.post('/production-plans/:planId/pause', withAuth, async (req, res) => {
+  const { planId } = req.params;
+  
+  try {
+    const db = getFirestore();
+    const userEmail = req.user?.email || 'system';
+    const now = new Date();
+    
+    // Fetch plan
+    const planRef = db.collection('mes-production-plans').doc(planId);
+    const planSnap = await planRef.get();
+    
+    if (!planSnap.exists) {
+      return res.status(404).json({
+        error: 'plan_not_found',
+        message: `Production plan ${planId} not found`
+      });
+    }
+    
+    const planData = planSnap.data();
+    
+    // Check if plan is launched
+    if (planData.launchStatus !== 'launched') {
+      return res.status(422).json({
+        error: 'not_launched',
+        message: 'Cannot pause a plan that has not been launched'
+      });
+    }
+    
+    // Check if already paused
+    if (planData.launchStatus === 'paused') {
+      return res.status(409).json({
+        error: 'already_paused',
+        message: 'Plan is already paused'
+      });
+    }
+    
+    // Fetch all assignments for this plan
+    const assignmentsSnapshot = await db.collection('mes-worker-assignments')
+      .where('planId', '==', planId)
+      .get();
+    
+    if (assignmentsSnapshot.empty) {
+      return res.status(404).json({
+        error: 'no_assignments',
+        message: 'No assignments found for this plan'
+      });
+    }
+    
+    // Collect unique workers and stations to update
+    const workersToUpdate = new Set();
+    const stationsToUpdate = new Set();
+    
+    const batch = db.batch();
+    let pausedCount = 0;
+    let alreadyCompleteCount = 0;
+    
+    // Update all assignments
+    assignmentsSnapshot.docs.forEach(doc => {
+      const assignment = doc.data();
+      
+      // Skip if already completed or cancelled
+      if (assignment.status === 'completed' || assignment.status === 'cancelled') {
+        alreadyCompleteCount++;
+        return;
+      }
+      
+      // Pause the assignment, preserve actualStart if it exists
+      batch.update(doc.ref, {
+        status: 'paused',
+        pausedAt: now,
+        pausedBy: userEmail,
+        updatedAt: now
+      });
+      
+      pausedCount++;
+      
+      // Track resources to clear
+      if (assignment.workerId) workersToUpdate.add(assignment.workerId);
+      if (assignment.stationId) stationsToUpdate.add(assignment.stationId);
+    });
+    
+    // Clear worker currentTask for affected workers
+    for (const workerId of workersToUpdate) {
+      const workerRef = db.collection('mes-workers').doc(workerId);
+      batch.update(workerRef, {
+        currentTask: null,
+        currentTaskUpdatedAt: now
+      });
+    }
+    
+    // Clear station currentOperation for affected stations
+    for (const stationId of stationsToUpdate) {
+      const stationRef = db.collection('mes-stations').doc(stationId);
+      batch.update(stationRef, {
+        currentOperation: null,
+        currentOperationUpdatedAt: now
+      });
+    }
+    
+    // Update plan status
+    batch.update(planRef, {
+      launchStatus: 'paused',
+      pausedAt: now,
+      pausedBy: userEmail,
+      updatedAt: now
+    });
+    
+    // Commit all changes
+    await batch.commit();
+    
+    return res.status(200).json({
+      success: true,
+      planId,
+      pausedCount,
+      alreadyCompleteCount,
+      workersCleared: workersToUpdate.size,
+      stationsCleared: stationsToUpdate.size,
+      pausedAt: now.toISOString(),
+      pausedBy: userEmail,
+      message: `Plan paused: ${pausedCount} assignment(s) paused, ${alreadyCompleteCount} already complete`
+    });
+    
+  } catch (error) {
+    console.error('Pause plan error:', error);
+    return res.status(500).json({
+      error: 'internal_error',
+      message: 'Failed to pause production plan',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/mes/production-plans/:planId/resume
+ * Resume all paused assignments for a production plan
+ * - Sets paused assignments back to 'ready' or 'pending'
+ * - If actualStart exists, set to 'in-progress'
+ * - Does NOT automatically assign to workers/stations (worker portal handles that)
+ */
+router.post('/production-plans/:planId/resume', withAuth, async (req, res) => {
+  const { planId } = req.params;
+  
+  try {
+    const db = getFirestore();
+    const userEmail = req.user?.email || 'system';
+    const now = new Date();
+    
+    // Fetch plan
+    const planRef = db.collection('mes-production-plans').doc(planId);
+    const planSnap = await planRef.get();
+    
+    if (!planSnap.exists) {
+      return res.status(404).json({
+        error: 'plan_not_found',
+        message: `Production plan ${planId} not found`
+      });
+    }
+    
+    const planData = planSnap.data();
+    
+    // Check if plan is paused
+    if (planData.launchStatus !== 'paused') {
+      return res.status(422).json({
+        error: 'not_paused',
+        message: 'Cannot resume a plan that is not paused'
+      });
+    }
+    
+    // Fetch all paused assignments for this plan
+    const assignmentsSnapshot = await db.collection('mes-worker-assignments')
+      .where('planId', '==', planId)
+      .where('status', '==', 'paused')
+      .get();
+    
+    const batch = db.batch();
+    let resumedCount = 0;
+    
+    // Update paused assignments
+    assignmentsSnapshot.docs.forEach(doc => {
+      const assignment = doc.data();
+      
+      // Determine new status based on whether task was started
+      let newStatus = 'pending'; // Default: not yet started
+      
+      if (assignment.actualStart) {
+        // Was in progress when paused
+        newStatus = 'in-progress';
+      }
+      
+      batch.update(doc.ref, {
+        status: newStatus,
+        resumedAt: now,
+        resumedBy: userEmail,
+        updatedAt: now
+      });
+      
+      resumedCount++;
+    });
+    
+    // Update plan status back to launched
+    batch.update(planRef, {
+      launchStatus: 'launched',
+      resumedAt: now,
+      resumedBy: userEmail,
+      updatedAt: now
+    });
+    
+    // Commit all changes
+    await batch.commit();
+    
+    return res.status(200).json({
+      success: true,
+      planId,
+      resumedCount,
+      resumedAt: now.toISOString(),
+      resumedBy: userEmail,
+      message: `Plan resumed: ${resumedCount} assignment(s) resumed`
+    });
+    
+  } catch (error) {
+    console.error('Resume plan error:', error);
+    return res.status(500).json({
+      error: 'internal_error',
+      message: 'Failed to resume production plan',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/mes/production-plans/:planId/cancel
+ * Cancel all assignments for a production plan
+ * - Sets all non-completed assignments to 'cancelled'
+ * - Marks plan launchStatus as 'cancelled'
+ * - Clears worker.currentTask and station.currentOperation
+ * - Updates approved quote productionState to 'İptal Edildi'
+ */
+router.post('/production-plans/:planId/cancel', withAuth, async (req, res) => {
+  const { planId } = req.params;
+  
+  try {
+    const db = getFirestore();
+    const userEmail = req.user?.email || 'system';
+    const now = new Date();
+    
+    // Fetch plan
+    const planRef = db.collection('mes-production-plans').doc(planId);
+    const planSnap = await planRef.get();
+    
+    if (!planSnap.exists) {
+      return res.status(404).json({
+        error: 'plan_not_found',
+        message: `Production plan ${planId} not found`
+      });
+    }
+    
+    const planData = planSnap.data();
+    const workOrderCode = planData.orderCode;
+    
+    // Check if plan is already cancelled
+    if (planData.launchStatus === 'cancelled') {
+      return res.status(409).json({
+        error: 'already_cancelled',
+        message: 'Plan is already cancelled'
+      });
+    }
+    
+    // Fetch all assignments for this plan
+    const assignmentsSnapshot = await db.collection('mes-worker-assignments')
+      .where('planId', '==', planId)
+      .get();
+    
+    // Collect unique workers and stations to update
+    const workersToUpdate = new Set();
+    const stationsToUpdate = new Set();
+    
+    const batch = db.batch();
+    let cancelledCount = 0;
+    let alreadyCompleteCount = 0;
+    
+    // Cancel all non-completed assignments
+    assignmentsSnapshot.docs.forEach(doc => {
+      const assignment = doc.data();
+      
+      // Skip if already completed
+      if (assignment.status === 'completed') {
+        alreadyCompleteCount++;
+        return;
+      }
+      
+      // Cancel the assignment
+      batch.update(doc.ref, {
+        status: 'cancelled',
+        cancelledAt: now,
+        cancelledBy: userEmail,
+        updatedAt: now
+      });
+      
+      cancelledCount++;
+      
+      // Track resources to clear
+      if (assignment.workerId) workersToUpdate.add(assignment.workerId);
+      if (assignment.stationId) stationsToUpdate.add(assignment.stationId);
+    });
+    
+    // Clear worker currentTask for affected workers
+    for (const workerId of workersToUpdate) {
+      const workerRef = db.collection('mes-workers').doc(workerId);
+      batch.update(workerRef, {
+        currentTask: null,
+        currentTaskUpdatedAt: now
+      });
+    }
+    
+    // Clear station currentOperation for affected stations
+    for (const stationId of stationsToUpdate) {
+      const stationRef = db.collection('mes-stations').doc(stationId);
+      batch.update(stationRef, {
+        currentOperation: null,
+        currentOperationUpdatedAt: now
+      });
+    }
+    
+    // Update plan status
+    batch.update(planRef, {
+      launchStatus: 'cancelled',
+      cancelledAt: now,
+      cancelledBy: userEmail,
+      updatedAt: now
+    });
+    
+    // Update approved quote productionState if workOrderCode exists
+    if (workOrderCode) {
+      const quotesSnapshot = await db.collection('approved-quotes')
+        .where('workOrderCode', '==', workOrderCode)
+        .limit(1)
+        .get();
+      
+      if (!quotesSnapshot.empty) {
+        const quoteDoc = quotesSnapshot.docs[0];
+        batch.update(quoteDoc.ref, {
+          productionState: 'İptal Edildi',
+          productionStateUpdatedAt: now,
+          productionStateUpdatedBy: userEmail
+        });
+      }
+    }
+    
+    // Commit all changes
+    await batch.commit();
+    
+    return res.status(200).json({
+      success: true,
+      planId,
+      cancelledCount,
+      alreadyCompleteCount,
+      workersCleared: workersToUpdate.size,
+      stationsCleared: stationsToUpdate.size,
+      cancelledAt: now.toISOString(),
+      cancelledBy: userEmail,
+      message: `Plan cancelled: ${cancelledCount} assignment(s) cancelled, ${alreadyCompleteCount} already complete`
+    });
+    
+  } catch (error) {
+    console.error('Cancel plan error:', error);
+    return res.status(500).json({
+      error: 'internal_error',
+      message: 'Failed to cancel production plan',
+      details: error.message
+    });
+  }
+});
+
 export default router;
+

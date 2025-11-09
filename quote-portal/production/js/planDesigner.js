@@ -2363,8 +2363,8 @@ export function deployWorkOrder() {
   const selectedOrder = document.getElementById('order-select').value;
   if (!planName) { showToast('Please enter a plan name', 'error'); return; }
   if (!selectedOrder) { showToast('Please select an order', 'error'); return; }
-  const unassignedOps = planDesignerState.nodes.filter(n => !n.assignedWorker);
-  if (unassignedOps.length > 0) { showToast(`${unassignedOps.length} operations need worker assignment`, 'warning'); return; }
+  
+  // Note: Worker/station assignment is now done at launch time, not during plan creation
   const totalTime = planDesignerState.nodes.reduce((sum, n) => sum + n.time, 0);
   showToast(`Work Order deployed successfully! Total estimated time: ${totalTime} minutes`, 'success');
   planDesignerState.nodes = [];
@@ -2412,7 +2412,7 @@ export async function releasePlanToProduction() {
     console.log(`✓ Plan ${planId} released - backend will handle resource assignment`);
     
     // Show success message
-    showToast('Plan released! Backend will assign workers and stations automatically.', 'success');
+    showToast('Plan marked as production-ready! Use "Başlat" button in Approved Quotes to launch with auto-assignment.', 'success');
     
     // Dispatch event to refresh workers view
     window.dispatchEvent(new CustomEvent('assignments:updated'));

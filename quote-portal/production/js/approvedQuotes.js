@@ -1,6 +1,6 @@
 // Approved Quotes listing (read-only). Uses backend API only.
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
-import { updateProductionState } from './mesApi.js'
+import { updateProductionState, launchProductionPlan, pauseProductionPlan, resumeProductionPlan, cancelProductionPlan } from './mesApi.js'
 
 let quotesState = []
 let selectedQuoteId = null
@@ -178,28 +178,259 @@ async function setProductionState(workOrderCode, newState) {
   }
 }
 
+/**
+ * Start production: Launch the production plan with auto-assignment
+ * Button is only enabled if quote has linked production plan with status=production and not yet launched
+ */
 async function startProduction(workOrderCode) {
-  await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION)
+  try {
+    // Find the production plan for this work order
+    const plan = productionPlansMap[workOrderCode];
+    
+    if (!plan || plan.type !== 'production') {
+      alert('Üretim planı bulunamadı. Lütfen önce bir üretim planı oluşturun.');
+      return;
+    }
+    
+    // Confirm launch
+    const confirmed = confirm(
+      `Üretimi Başlatmak İstediğinizden Emin misiniz?\n\n` +
+      `İş Emri: ${workOrderCode}\n` +
+      `Plan: ${plan.name}\n\n` +
+      `Bu işlem tüm operasyonlar için kaynak ataması yapacak ve üretim başlatılacaktır.`
+    );
+    
+    if (!confirmed) return;
+    
+    // Show loading state
+    const originalState = getProductionState(workOrderCode);
+    await setProductionState(workOrderCode, 'Başlatılıyor...');
+    
+    try {
+      // Call launch endpoint
+      const result = await launchProductionPlan(plan.id, workOrderCode);
+      
+      // Success! Update state to IN_PRODUCTION
+      await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION);
+      
+      // Show success message
+      const message = result.warnings && result.warnings.length > 0
+        ? `Üretim başlatıldı!\n\n${result.assignmentCount} atama oluşturuldu.\n\n⚠️ Uyarılar:\n${result.warnings.map(w => `- ${w.nodeName}: ${w.warnings.join(', ')}`).join('\n')}`
+        : `Üretim başarıyla başlatıldı!\n\n${result.assignmentCount} atama oluşturuldu.`;
+      
+      alert(message);
+      
+      // Refresh quotes and plans
+      await loadQuotesAndRender();
+      
+      // Emit event for other components (e.g., plan overview)
+      try {
+        const channel = new BroadcastChannel('mes-assignments');
+        channel.postMessage({ type: 'assignments:updated', planId: plan.id, workOrderCode });
+        channel.close();
+      } catch {}
+      
+    } catch (error) {
+      console.error('Launch failed:', error);
+      
+      // Restore original state
+      await setProductionState(workOrderCode, originalState);
+      
+      // Show detailed error message
+      if (error.status === 422 && error.shortages) {
+        // Material shortage
+        const shortageList = error.shortages.map(s => 
+          `- ${s.name} (${s.code}): İhtiyaç ${s.required} ${s.unit}, Stok ${s.available} ${s.unit}, Eksik ${s.shortage} ${s.unit}`
+        ).join('\n');
+        alert(`Malzeme Eksikliği Nedeniyle Üretim Başlatılamadı\n\n${shortageList}\n\nLütfen eksik malzemeleri temin edip tekrar deneyin.`);
+      } else if (error.status === 422 && error.errors) {
+        // Assignment errors
+        const errorList = error.errors.map(e => 
+          `- ${e.nodeName || e.nodeId}: ${e.message}`
+        ).join('\n');
+        alert(`Kaynak Ataması Başarısız\n\n${errorList}\n\nLütfen planı kontrol edip tekrar deneyin.`);
+      } else {
+        // Generic error
+        alert(`Üretim Başlatılamadı\n\n${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin.`);
+      }
+    }
+  } catch (error) {
+    console.error('Start production error:', error);
+    alert('Üretim başlatılırken beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
+  }
 }
 
+/**
+ * Pause production: Pause all assignments for this plan
+ */
 async function pauseProduction(workOrderCode) {
-  await setProductionState(workOrderCode, PRODUCTION_STATES.PAUSED)
+  try {
+    const plan = productionPlansMap[workOrderCode];
+    
+    if (!plan || plan.type !== 'production') {
+      alert('Üretim planı bulunamadı.');
+      return;
+    }
+    
+    // Confirm pause
+    const confirmed = confirm(
+      `Üretimi Durdurmak İstediğinizden Emin misiniz?\n\n` +
+      `İş Emri: ${workOrderCode}\n` +
+      `Plan: ${plan.name}\n\n` +
+      `Tüm görevler duraklatılacak ve işçiler bu iş emrinde çalışamayacak.`
+    );
+    
+    if (!confirmed) return;
+    
+    // Show loading state
+    const originalState = getProductionState(workOrderCode);
+    await setProductionState(workOrderCode, 'Duraklatılıyor...');
+    
+    try {
+      // Call pause endpoint
+      const result = await pauseProductionPlan(plan.id);
+      
+      // Success! Update state to PAUSED
+      await setProductionState(workOrderCode, PRODUCTION_STATES.PAUSED);
+      
+      // Show success message
+      alert(
+        `Üretim durduruldu!\n\n` +
+        `${result.pausedCount} görev duraklatıldı.\n` +
+        `${result.workersCleared} işçi ve ${result.stationsCleared} istasyon temizlendi.`
+      );
+      
+      // Refresh
+      await loadQuotesAndRender();
+      
+    } catch (error) {
+      console.error('Pause failed:', error);
+      await setProductionState(workOrderCode, originalState);
+      alert(`Üretim Durdurulamadı\n\n${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin.`);
+    }
+  } catch (error) {
+    console.error('Pause production error:', error);
+    alert('Üretim durdurulurken beklenmeyen bir hata oluştu.');
+  }
 }
 
+/**
+ * Resume production: Resume all paused assignments
+ */
 async function resumeProduction(workOrderCode) {
-  await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION)
+  try {
+    const plan = productionPlansMap[workOrderCode];
+    
+    if (!plan || plan.type !== 'production') {
+      alert('Üretim planı bulunamadı.');
+      return;
+    }
+    
+    // Confirm resume
+    const confirmed = confirm(
+      `Üretime Devam Etmek İstediğinizden Emin misiniz?\n\n` +
+      `İş Emri: ${workOrderCode}\n` +
+      `Plan: ${plan.name}\n\n` +
+      `Duraklatılmış görevler devam edecek.`
+    );
+    
+    if (!confirmed) return;
+    
+    // Show loading state
+    const originalState = getProductionState(workOrderCode);
+    await setProductionState(workOrderCode, 'Devam ettiriliyor...');
+    
+    try {
+      // Call resume endpoint
+      const result = await resumeProductionPlan(plan.id);
+      
+      // Success! Update state to IN_PRODUCTION
+      await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION);
+      
+      // Show success message
+      alert(
+        `Üretim devam ediyor!\n\n` +
+        `${result.resumedCount} görev devam ettirildi.`
+      );
+      
+      // Refresh
+      await loadQuotesAndRender();
+      
+    } catch (error) {
+      console.error('Resume failed:', error);
+      await setProductionState(workOrderCode, originalState);
+      alert(`Üretim Devam Ettirilemedi\n\n${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin.`);
+    }
+  } catch (error) {
+    console.error('Resume production error:', error);
+    alert('Üretim devam ettirilirken beklenmeyen bir hata oluştu.');
+  }
 }
 
 async function completeProduction(workOrderCode) {
   await setProductionState(workOrderCode, PRODUCTION_STATES.COMPLETED)
 }
 
+/**
+ * Cancel production: Cancel all assignments and mark plan as cancelled
+ */
 async function cancelProduction(workOrderCode) {
-  // Show confirmation dialog
-  const confirmed = confirm('Tüm İşlemi Sonlandırmak İstediğinizden Emin misiniz?\n\nBu işlemin geri dönüşü yoktur.')
-  
-  if (confirmed) {
-    await setProductionState(workOrderCode, PRODUCTION_STATES.CANCELLED)
+  try {
+    const plan = productionPlansMap[workOrderCode];
+    
+    if (!plan || plan.type !== 'production') {
+      alert('Üretim planı bulunamadı.');
+      return;
+    }
+    
+    // Confirm cancel
+    const confirmed = confirm(
+      `Tüm İşlemi İPTAL Etmek İstediğinizden Emin misiniz?\n\n` +
+      `İş Emri: ${workOrderCode}\n` +
+      `Plan: ${plan.name}\n\n` +
+      `⚠️ BU İŞLEMİN GERİ DÖNÜŞÜ YOKTUR!\n\n` +
+      `Tüm görevler iptal edilecek ve üretim kaydı kalıcı olarak sonlandırılacaktır.`
+    );
+    
+    if (!confirmed) return;
+    
+    // Second confirmation
+    const doubleConfirm = confirm(
+      `SON ONAY\n\nİptal işlemini kesinleştirmek istiyor musunuz?\n\n` +
+      `Bu işlem GERİ ALINAMAZ!`
+    );
+    
+    if (!doubleConfirm) return;
+    
+    // Show loading state
+    const originalState = getProductionState(workOrderCode);
+    await setProductionState(workOrderCode, 'İptal ediliyor...');
+    
+    try {
+      // Call cancel endpoint
+      const result = await cancelProductionPlan(plan.id);
+      
+      // Success! Update state to CANCELLED
+      await setProductionState(workOrderCode, PRODUCTION_STATES.CANCELLED);
+      
+      // Show success message
+      alert(
+        `Üretim iptal edildi.\n\n` +
+        `${result.cancelledCount} görev iptal edildi.\n` +
+        `${result.workersCleared} işçi ve ${result.stationsCleared} istasyon temizlendi.`
+      );
+      
+      // Refresh
+      await loadQuotesAndRender();
+      
+    } catch (error) {
+      console.error('Cancel failed:', error);
+      await setProductionState(workOrderCode, originalState);
+      alert(`Üretim İptal Edilemedi\n\n${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin.`);
+    }
+  } catch (error) {
+    console.error('Cancel production error:', error);
+    alert('Üretim iptal edilirken beklenmeyen bir hata oluştu.');
   }
 }
 
@@ -239,13 +470,16 @@ async function fetchProductionPlans() {
     // Create a map of orderCode to plan data
     productionPlansMap = {}
     
-    // Add production plans
+    // Add production plans with full metadata including launchStatus
     plans.forEach(plan => {
       if (plan.orderCode) {
         productionPlansMap[plan.orderCode] = {
           id: plan.id,
           name: plan.name,
-          type: 'production'
+          type: 'production',
+          status: plan.status, // 'draft', 'production', etc.
+          launchStatus: plan.launchStatus, // 'launched', 'paused', 'cancelled', undefined
+          nodes: plan.nodes || []
         }
       }
     })
@@ -256,7 +490,9 @@ async function fetchProductionPlans() {
         productionPlansMap[template.orderCode] = {
           id: template.id,
           name: template.name,
-          type: 'template'
+          type: 'template',
+          status: 'template',
+          nodes: template.nodes || []
         }
       }
     })
@@ -462,8 +698,34 @@ function renderApprovedQuotesTable() {
     const hasProductionPlan = !!plan && plan.type === 'production'
     let productionStateCell = '<span style=\"font-size:11px; color:#6b7280;\">—</span>'
     let actionsCell = ''
+    
     if (hasProductionPlan) {
-      const currentState = getProductionState(idForRow)
+      // Determine actual production state based on plan launchStatus and productionState
+      let currentState = PRODUCTION_STATES.WAITING_APPROVAL;
+      
+      // First check plan's launchStatus (most authoritative)
+      if (plan.launchStatus === 'cancelled') {
+        currentState = PRODUCTION_STATES.CANCELLED;
+      } else if (plan.launchStatus === 'paused') {
+        currentState = PRODUCTION_STATES.PAUSED;
+      } else if (plan.launchStatus === 'launched') {
+        currentState = PRODUCTION_STATES.IN_PRODUCTION;
+      } else {
+        // Not launched yet - check if plan is ready to launch
+        if (plan.status === 'production' && plan.nodes && plan.nodes.length > 0) {
+          currentState = PRODUCTION_STATES.WAITING_APPROVAL; // Ready to launch
+        } else {
+          currentState = 'Plan Hazırlanıyor'; // Plan not ready
+        }
+      }
+      
+      // Override with productionState from quote if available
+      const quoteState = getProductionState(idForRow);
+      if (quoteState && quoteState !== PRODUCTION_STATES.WAITING_APPROVAL) {
+        // Quote has explicit state (for backward compatibility or manual updates)
+        currentState = quoteState;
+      }
+      
       let stateColor = '#6b7280'
       switch(currentState) {
         case PRODUCTION_STATES.WAITING_APPROVAL:
@@ -476,11 +738,20 @@ function renderApprovedQuotesTable() {
           stateColor = '#3b82f6'; break
         case PRODUCTION_STATES.CANCELLED:
           stateColor = '#6b7280'; break
+        case 'Plan Hazırlanıyor':
+          stateColor = '#9ca3af'; break
       }
       productionStateCell = `<div style=\"color: ${stateColor}; font-weight: 600; font-size: 12px;\">${esc(currentState)}</div>`
 
+      // Button rendering based on state
       const buttonStyle = 'border: none; background: transparent; cursor: pointer; font-size: 9px; padding: 1px 3px; margin: 1px; border-radius: 3px; white-space: nowrap; display: inline-block;'
-      if (currentState === PRODUCTION_STATES.WAITING_APPROVAL) {
+      
+      // Only show "Başla" if plan is ready (status=production, has nodes, not launched)
+      const canLaunch = plan.status === 'production' && 
+                        plan.nodes && plan.nodes.length > 0 && 
+                        !plan.launchStatus;
+      
+      if (currentState === PRODUCTION_STATES.WAITING_APPROVAL && canLaunch) {
         actionsCell += `<button onclick=\"event.stopPropagation(); startProduction('${esc(idForRow)}')\" style=\"${buttonStyle} background: #dcfce7; color: #166534;\" title=\"Üretimi Başlat\">🏁 Başlat</button>`
       } else if (currentState === PRODUCTION_STATES.IN_PRODUCTION) {
         actionsCell += `<button onclick=\"event.stopPropagation(); pauseProduction('${esc(idForRow)}')\" style=\"${buttonStyle} background: #fef3c7; color: #92400e;\" title=\"Üretimi Durdur\">⏹️ Durdur</button>`
@@ -490,9 +761,12 @@ function renderApprovedQuotesTable() {
         actionsCell += `<span style=\"color: #3b82f6; font-size: 11px;\">✅ Tamamlandı</span>`
       } else if (currentState === PRODUCTION_STATES.CANCELLED) {
         actionsCell = `<span style=\"color: #6b7280; font-size: 11px;\">❌ İptal Edildi</span>`
+      } else if (currentState === 'Plan Hazırlanıyor') {
+        actionsCell += `<span style=\"color: #9ca3af; font-size: 10px;\">Plan henüz hazır değil</span>`
       }
 
-      if (currentState !== PRODUCTION_STATES.CANCELLED) {
+      // Show cancel button for all states except cancelled and completed
+      if (currentState !== PRODUCTION_STATES.CANCELLED && currentState !== PRODUCTION_STATES.COMPLETED && currentState !== 'Plan Hazırlanıyor') {
         actionsCell += ` <button onclick=\"event.stopPropagation(); cancelProduction('${esc(idForRow)}')\" style=\"${buttonStyle} background: #fee2e2; color: #dc2626;\" title=\"İptal Et\">❌ İptal Et</button>`
       }
     }
