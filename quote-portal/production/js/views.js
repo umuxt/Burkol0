@@ -1703,7 +1703,9 @@ let workPackagesState = {
   searchTerm: '',
   statusFilter: '',
   workerFilter: '',
-  stationFilter: ''
+  stationFilter: '',
+  isRefreshing: false,
+  refreshDebounceTimer: null
 };
 
 export async function initWorkPackagesWidget() {
@@ -1732,6 +1734,9 @@ export async function initWorkPackagesWidget() {
     // Bind event listeners
     bindWorkPackagesEvents();
     
+    // Setup auto-refresh listeners
+    setupWorkPackagesAutoRefresh();
+    
     // Render table
     renderWorkPackagesTable();
     
@@ -1745,6 +1750,138 @@ export async function initWorkPackagesWidget() {
         <div style="font-size: 12px; color: #991b1b;">${errorMessage}</div>
       </div>
     `;
+  }
+}
+
+/**
+ * Setup auto-refresh for Work Packages widget
+ * Listens to both window events and BroadcastChannel
+ */
+function setupWorkPackagesAutoRefresh() {
+  // Debounced refresh function to avoid hammering the API
+  const debouncedRefresh = () => {
+    // Clear existing timer
+    if (workPackagesState.refreshDebounceTimer) {
+      clearTimeout(workPackagesState.refreshDebounceTimer);
+    }
+    
+    // Set new timer (500ms debounce)
+    workPackagesState.refreshDebounceTimer = setTimeout(async () => {
+      await refreshWorkPackagesData(false); // false = silent refresh (no button state change)
+    }, 500);
+  };
+  
+  // Listen to window event (legacy support)
+  window.addEventListener('assignments:updated', (e) => {
+    console.log('Work Packages: Received window event assignments:updated', e.detail);
+    debouncedRefresh();
+  });
+  
+  // Listen to BroadcastChannel
+  try {
+    const assignmentsChannel = new BroadcastChannel('mes-assignments');
+    assignmentsChannel.onmessage = (e) => {
+      if (e.data && e.data.type === 'assignments:updated') {
+        console.log('Work Packages: Received BroadcastChannel message', e.data);
+        debouncedRefresh();
+      }
+    };
+    
+    // Store reference for cleanup if needed
+    workPackagesState.broadcastChannel = assignmentsChannel;
+  } catch (err) {
+    console.warn('BroadcastChannel not supported, falling back to window events only:', err);
+  }
+}
+
+/**
+ * Refresh work packages data
+ * @param {boolean} showButtonState - Whether to update refresh button state
+ */
+async function refreshWorkPackagesData(showButtonState = true) {
+  // Prevent concurrent refreshes
+  if (workPackagesState.isRefreshing) {
+    console.log('Work Packages: Refresh already in progress, skipping');
+    return;
+  }
+  
+  workPackagesState.isRefreshing = true;
+  
+  const refreshBtn = document.getElementById('work-packages-refresh-btn');
+  const container = document.getElementById('work-packages-widget');
+  
+  try {
+    // Show refreshing state
+    if (showButtonState && refreshBtn) {
+      refreshBtn.disabled = true;
+      refreshBtn.innerHTML = '<span>⏳</span> Loading...';
+    }
+    
+    // Show subtle loading indicator on table if silent refresh
+    if (!showButtonState && container) {
+      const loadingOverlay = document.createElement('div');
+      loadingOverlay.id = 'wp-loading-overlay';
+      loadingOverlay.style.cssText = `
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        color: #6b7280;
+        border-radius: 8px;
+        z-index: 10;
+      `;
+      loadingOverlay.innerHTML = '🔄 Refreshing...';
+      
+      const widgetCard = container.closest('.dashboard-card');
+      if (widgetCard) {
+        widgetCard.style.position = 'relative';
+        widgetCard.appendChild(loadingOverlay);
+      }
+    }
+    
+    // Import API functions
+    const { getWorkPackages, clearWorkPackagesCache } = await import('./mesApi.js');
+    
+    // Clear cache and fetch fresh data
+    clearWorkPackagesCache();
+    const packagesData = await getWorkPackages({ limit: 200 }, true);
+    
+    // Update state
+    workPackagesState.allPackages = packagesData.workPackages || [];
+    
+    // Reapply filters
+    applyWorkPackagesFilters();
+    
+    // Re-render table
+    renderWorkPackagesTable();
+    
+    console.log(`✓ Work Packages refreshed: ${workPackagesState.allPackages.length} packages loaded`);
+    
+  } catch (err) {
+    console.error('Work Packages refresh failed:', err);
+    if (showButtonState) {
+      alert('Refresh failed: ' + err.message);
+    }
+  } finally {
+    workPackagesState.isRefreshing = false;
+    
+    // Restore button state
+    if (showButtonState && refreshBtn) {
+      refreshBtn.disabled = false;
+      refreshBtn.innerHTML = '<span>🔄</span> Refresh';
+    }
+    
+    // Remove loading overlay
+    const loadingOverlay = document.getElementById('wp-loading-overlay');
+    if (loadingOverlay) {
+      loadingOverlay.remove();
+    }
   }
 }
 
@@ -1773,22 +1910,7 @@ function bindWorkPackagesEvents() {
   const refreshBtn = document.getElementById('work-packages-refresh-btn');
   if (refreshBtn) {
     refreshBtn.onclick = async () => {
-      refreshBtn.disabled = true;
-      refreshBtn.innerHTML = '<span>⏳</span> Loading...';
-      try {
-        const { getWorkPackages, clearWorkPackagesCache } = await import('./mesApi.js');
-        clearWorkPackagesCache();
-        const packagesData = await getWorkPackages({ limit: 200 }, true);
-        workPackagesState.allPackages = packagesData.workPackages || [];
-        applyWorkPackagesFilters();
-        renderWorkPackagesTable();
-      } catch (err) {
-        console.error('Refresh failed:', err);
-        alert('Refresh failed: ' + err.message);
-      } finally {
-        refreshBtn.disabled = false;
-        refreshBtn.innerHTML = '<span>🔄</span> Refresh';
-      }
+      await refreshWorkPackagesData(true); // true = show button state
     };
   }
   
