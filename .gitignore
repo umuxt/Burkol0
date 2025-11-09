@@ -59,7 +59,9 @@ typings/
 
 # Firebase service account keys (SECURITY: Never commit these!)
 serviceAccountKey.json
+**/serviceAccountKey.json
 *-firebase-adminsdk-*.json
+config/serviceAccountKey.json
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
