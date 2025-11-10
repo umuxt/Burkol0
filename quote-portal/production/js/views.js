@@ -170,6 +170,8 @@ export function generateModernDashboard() {
             <option value="ready">Ready</option>
             <option value="in-progress">In Progress</option>
             <option value="paused">Paused</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
           </select>
           <select id="wp-worker-filter" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; min-width: 140px;">
             <option value="">All Workers</option>
@@ -177,6 +179,14 @@ export function generateModernDashboard() {
           <select id="wp-station-filter" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; min-width: 140px;">
             <option value="">All Stations</option>
           </select>
+          <button 
+            id="wp-hide-completed-btn" 
+            style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; background: var(--background); display: inline-flex; align-items: center; gap: 6px; transition: all 150ms;"
+            title="Toggle completed tasks visibility"
+          >
+            <span id="wp-hide-completed-icon">👁️</span>
+            <span id="wp-hide-completed-text">Hide Completed</span>
+          </button>
           <button id="wp-clear-filters-btn" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; background: var(--background);">
             Clear Filters
           </button>
@@ -1710,6 +1720,7 @@ let workPackagesState = {
   statusFilter: '',
   workerFilter: '',
   stationFilter: '',
+  hideCompleted: true, // Default: hide completed tasks
   isRefreshing: false,
   refreshDebounceTimer: null
 };
@@ -1960,6 +1971,44 @@ function bindWorkPackagesEvents() {
     };
   }
   
+  // Hide completed toggle button
+  const hideCompletedBtn = document.getElementById('wp-hide-completed-btn');
+  const hideCompletedIcon = document.getElementById('wp-hide-completed-icon');
+  const hideCompletedText = document.getElementById('wp-hide-completed-text');
+  if (hideCompletedBtn) {
+    // Set initial state
+    updateHideCompletedButton();
+    
+    hideCompletedBtn.onclick = () => {
+      workPackagesState.hideCompleted = !workPackagesState.hideCompleted;
+      updateHideCompletedButton();
+      applyWorkPackagesFilters();
+      renderWorkPackagesTable();
+    };
+  }
+  
+  function updateHideCompletedButton() {
+    if (!hideCompletedBtn) return;
+    
+    if (workPackagesState.hideCompleted) {
+      // Currently hiding completed - button shows "Hide Completed"
+      hideCompletedBtn.style.background = 'var(--muted)';
+      hideCompletedBtn.style.borderColor = 'var(--border)';
+      hideCompletedBtn.style.color = 'var(--foreground)';
+      if (hideCompletedIcon) hideCompletedIcon.textContent = '�';
+      if (hideCompletedText) hideCompletedText.textContent = 'Hide Completed';
+      hideCompletedBtn.title = 'Click to show completed tasks';
+    } else {
+      // Currently showing all - button shows "Show All"
+      hideCompletedBtn.style.background = '#10b981';
+      hideCompletedBtn.style.borderColor = '#10b981';
+      hideCompletedBtn.style.color = 'white';
+      if (hideCompletedIcon) hideCompletedIcon.textContent = '👁️';
+      if (hideCompletedText) hideCompletedText.textContent = 'Show All';
+      hideCompletedBtn.title = 'Click to hide completed tasks';
+    }
+  }
+  
   // Clear filters button
   const clearBtn = document.getElementById('wp-clear-filters-btn');
   if (clearBtn) {
@@ -1968,6 +2017,7 @@ function bindWorkPackagesEvents() {
       workPackagesState.statusFilter = '';
       workPackagesState.workerFilter = '';
       workPackagesState.stationFilter = '';
+      // Don't reset hideCompleted - keep user's preference
       
       if (searchInput) searchInput.value = '';
       if (statusFilter) statusFilter.value = '';
@@ -1982,6 +2032,11 @@ function bindWorkPackagesEvents() {
 
 function applyWorkPackagesFilters() {
   let filtered = workPackagesState.allPackages;
+  
+  // Hide completed filter (applied first)
+  if (workPackagesState.hideCompleted) {
+    filtered = filtered.filter(pkg => pkg.status !== 'completed' && pkg.status !== 'cancelled');
+  }
   
   // Search filter
   if (workPackagesState.searchTerm) {
@@ -2042,7 +2097,9 @@ function renderWorkPackagesTable() {
       'pending': { color: '#6b7280', bg: '#f3f4f6', label: 'Pending' },
       'ready': { color: '#f59e0b', bg: '#fef3c7', label: 'Ready' },
       'in-progress': { color: '#10b981', bg: '#d1fae5', label: 'In Progress' },
-      'paused': { color: '#ef4444', bg: '#fee2e2', label: 'Paused' }
+      'paused': { color: '#ef4444', bg: '#fee2e2', label: 'Paused' },
+      'completed': { color: '#059669', bg: '#d1fae5', label: 'Completed' },
+      'cancelled': { color: '#dc2626', bg: '#fee2e2', label: 'Cancelled' }
     };
     const s = statusMap[status] || { color: '#6b7280', bg: '#f3f4f6', label: status };
     return `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: ${s.color}; background: ${s.bg};">${s.label}</span>`;

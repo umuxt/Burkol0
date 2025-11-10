@@ -5166,18 +5166,14 @@ router.get('/work-packages', withAuth, async (req, res) => {
     const maxResults = Math.min(parseInt(limit) || 100, 500);
     
     // Fetch all assignments for launched plans
-    // Active statuses: pending, ready, in-progress, paused, cancelled_pending_report
-    const activeStatuses = ['pending', 'ready', 'in-progress', 'paused', 'cancelled_pending_report'];
-    
     let assignmentsQuery = db.collection('mes-worker-assignments');
     
-    // Apply filters
-    if (status && activeStatuses.includes(status)) {
+    // Apply status filter if specified
+    if (status) {
       assignmentsQuery = assignmentsQuery.where('status', '==', status);
-    } else {
-      // Default: only active assignments (not completed/cancelled)
-      assignmentsQuery = assignmentsQuery.where('status', 'in', activeStatuses);
     }
+    // No default filtering - return all statuses including completed/cancelled
+    // Frontend handles visibility via hideCompleted toggle
     
     if (workerId) {
       assignmentsQuery = assignmentsQuery.where('workerId', '==', workerId);
