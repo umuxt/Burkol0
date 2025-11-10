@@ -4528,6 +4528,391 @@ router.post('/production-plans/:planId/cancel', withAuth, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/mes/production-plans/:planId/cancel-with-progress
+ * Cancel production plan with material accounting for partial completion
+ * 
+ * This endpoint handles "early completion" when cancelling a production plan.
+ * Unlike regular cancel, this properly accounts for materials that were:
+ * - Reserved at start (wipReserved)
+ * - Actually consumed during production
+ * - Produced as good output
+ * - Lost as defects
+ * 
+ * Request body:
+ * - actualOutputQuantity: Total good units produced so far
+ * - defectQuantity: Total defective/scrap units produced so far
+ * 
+ * Process (all in single atomic transaction):
+ * 1. Aggregate preProductionReservedAmount from all work packages
+ * 2. Calculate actual consumption based on total output + defects
+ * 3. Release wipReserved and adjust stock for all input materials
+ * 4. Add actualOutputQuantity to output material stock
+ * 5. Mark plan and all assignments as cancelled
+ */
+router.post('/production-plans/:planId/cancel-with-progress', withAuth, async (req, res) => {
+  const { planId } = req.params;
+  const { actualOutputQuantity, defectQuantity } = req.body;
+  
+  try {
+    const db = getFirestore();
+    const userEmail = req.user?.email || 'system';
+    const userName = req.user?.name || req.user?.userName || null;
+    const now = new Date();
+    
+    console.log(`🔄 Starting cancel-with-progress for plan ${planId}`);
+    console.log(`   Actual output: ${actualOutputQuantity}, Defects: ${defectQuantity}`);
+    
+    // Validate input
+    const actualOutput = parseFloat(actualOutputQuantity) || 0;
+    const defects = parseFloat(defectQuantity) || 0;
+    
+    if (actualOutput < 0 || defects < 0) {
+      return res.status(400).json({
+        error: 'invalid_input',
+        message: 'Output and defect quantities cannot be negative'
+      });
+    }
+    
+    // Execute everything in a single transaction
+    const result = await db.runTransaction(async (transaction) => {
+      // ========================================================================
+      // STEP 1: Fetch Plan and Validate
+      // ========================================================================
+      
+      const planRef = db.collection('mes-production-plans').doc(planId);
+      const planDoc = await transaction.get(planRef);
+      
+      if (!planDoc.exists) {
+        throw new Error(`Production plan ${planId} not found`);
+      }
+      
+      const planData = planDoc.data();
+      const workOrderCode = planData.orderCode;
+      
+      if (planData.launchStatus === 'cancelled') {
+        throw new Error('Plan is already cancelled');
+      }
+      
+      const executionGraph = planData.executionGraph || [];
+      
+      // ========================================================================
+      // STEP 2: Fetch All Assignments and Aggregate Reserved Materials
+      // ========================================================================
+      
+      const assignmentsQuery = db.collection('mes-worker-assignments')
+        .where('planId', '==', planId);
+      const assignmentsSnapshot = await transaction.get(assignmentsQuery);
+      
+      if (assignmentsSnapshot.empty) {
+        throw new Error('No assignments found for this plan');
+      }
+      
+      // Aggregate all reserved materials from all work packages
+      const totalReservedMaterials = {}; // { materialCode: totalReservedQty }
+      const totalPlannedOutput = {}; // { outputCode: totalPlannedQty }
+      const assignments = [];
+      
+      assignmentsSnapshot.docs.forEach(doc => {
+        const assignment = doc.data();
+        assignments.push({ id: doc.id, ref: doc.ref, data: assignment });
+        
+        // Aggregate reserved materials
+        if (assignment.preProductionReservedAmount) {
+          Object.entries(assignment.preProductionReservedAmount).forEach(([materialCode, qty]) => {
+            totalReservedMaterials[materialCode] = 
+              (totalReservedMaterials[materialCode] || 0) + (parseFloat(qty) || 0);
+          });
+        }
+        
+        // Aggregate planned output
+        if (assignment.plannedOutput) {
+          Object.entries(assignment.plannedOutput).forEach(([outputCode, qty]) => {
+            totalPlannedOutput[outputCode] = 
+              (totalPlannedOutput[outputCode] || 0) + (parseFloat(qty) || 0);
+          });
+        }
+      });
+      
+      console.log(`📦 Total reserved materials:`, totalReservedMaterials);
+      console.log(`🎯 Total planned output:`, totalPlannedOutput);
+      
+      // ========================================================================
+      // STEP 3: Calculate Material Consumption
+      // ========================================================================
+      
+      // Get material inputs and outputs from first node (assuming all nodes produce same output)
+      const firstNode = executionGraph.length > 0 ? executionGraph[0] : null;
+      const materialInputs = firstNode?.materialInputs || [];
+      const outputCode = firstNode?.outputCode || Object.keys(totalPlannedOutput)[0];
+      const totalPlannedOutputQty = Object.values(totalPlannedOutput)[0] || 0;
+      
+      const totalConsumedOutput = actualOutput + defects;
+      const consumptionResults = [];
+      const stockAdjustmentResults = [];
+      
+      console.log(`🔢 Total consumed (output + defect): ${totalConsumedOutput}`);
+      console.log(`📋 Material inputs:`, materialInputs.map(m => `${m.code}: ${m.qty}`));
+      
+      if (materialInputs.length > 0 && totalPlannedOutputQty > 0) {
+        
+        for (const materialInput of materialInputs) {
+          const inputCode = materialInput.code;
+          const requiredInputQtyPerUnit = materialInput.qty || materialInput.required || 0;
+          
+          if (!inputCode || requiredInputQtyPerUnit <= 0) continue;
+          
+          // Calculate total required input for the plan
+          const totalRequiredInput = requiredInputQtyPerUnit * (totalPlannedOutputQty / (firstNode?.outputQty || 1));
+          
+          // Calculate input-output ratio
+          const inputOutputRatio = totalRequiredInput / totalPlannedOutputQty;
+          
+          // Calculate actual consumption
+          const actualConsumption = totalConsumedOutput * inputOutputRatio;
+          
+          // Get total reserved amount
+          const totalReserved = totalReservedMaterials[inputCode] || 0;
+          
+          // Calculate stock adjustment
+          const stockAdjustment = totalReserved - actualConsumption;
+          
+          console.log(`
+📊 Material: ${inputCode}
+   Required per unit: ${requiredInputQtyPerUnit}
+   Total planned output: ${totalPlannedOutputQty}
+   Input-output ratio: ${inputOutputRatio.toFixed(4)}
+   Total reserved: ${totalReserved}
+   Actual consumption: ${actualConsumption.toFixed(2)}
+   Stock adjustment: ${stockAdjustment >= 0 ? '+' : ''}${stockAdjustment.toFixed(2)}
+          `);
+          
+          consumptionResults.push({
+            materialCode: inputCode,
+            totalRequiredInput,
+            totalPlannedOutputQty,
+            inputOutputRatio,
+            totalReserved,
+            actualConsumption,
+            stockAdjustment
+          });
+        }
+        
+        // ========================================================================
+        // STEP 4: Stock Adjustment for Input Materials
+        // ========================================================================
+        
+        console.log(`🔄 Processing stock adjustments for ${consumptionResults.length} input material(s)`);
+        
+        for (const consumption of consumptionResults) {
+          const { materialCode, totalReserved, actualConsumption, stockAdjustment } = consumption;
+          
+          try {
+            const materialRef = db.collection('materials').doc(materialCode);
+            const materialDoc = await transaction.get(materialRef);
+            
+            if (!materialDoc.exists) {
+              console.error(`❌ Material ${materialCode} not found`);
+              continue;
+            }
+            
+            const materialData = materialDoc.data();
+            const currentStock = parseFloat(materialData.stock) || 0;
+            const currentWipReserved = parseFloat(materialData.wipReserved) || 0;
+            
+            // Release wipReserved
+            const newWipReserved = Math.max(0, currentWipReserved - totalReserved);
+            
+            // Adjust stock
+            const newStock = currentStock + stockAdjustment;
+            
+            transaction.update(materialRef, {
+              stock: Math.max(0, newStock),
+              wipReserved: newWipReserved,
+              updatedAt: now,
+              updatedBy: userEmail
+            });
+            
+            stockAdjustmentResults.push({
+              materialCode,
+              materialName: materialData.name,
+              totalReserved,
+              actualConsumption,
+              stockAdjustment,
+              previousStock: currentStock,
+              newStock: Math.max(0, newStock),
+              previousWipReserved: currentWipReserved,
+              newWipReserved,
+              unit: materialData.unit
+            });
+            
+            console.log(`✅ ${materialCode}: stock ${currentStock} → ${Math.max(0, newStock)}, wipReserved ${currentWipReserved} → ${newWipReserved}`);
+            
+          } catch (err) {
+            console.error(`❌ Failed to adjust stock for ${materialCode}:`, err);
+          }
+        }
+      }
+      
+      // ========================================================================
+      // STEP 5: Stock Update for Output Material
+      // ========================================================================
+      
+      let outputStockResult = null;
+      
+      if (outputCode && actualOutput > 0) {
+        console.log(`📦 Adding ${actualOutput} units of ${outputCode} to stock`);
+        
+        try {
+          const outputMaterialRef = db.collection('materials').doc(outputCode);
+          const outputMaterialDoc = await transaction.get(outputMaterialRef);
+          
+          if (outputMaterialDoc.exists) {
+            const outputMaterialData = outputMaterialDoc.data();
+            const currentOutputStock = parseFloat(outputMaterialData.stock) || 0;
+            const newOutputStock = currentOutputStock + actualOutput;
+            
+            transaction.update(outputMaterialRef, {
+              stock: newOutputStock,
+              updatedAt: now,
+              updatedBy: userEmail
+            });
+            
+            outputStockResult = {
+              materialCode: outputCode,
+              materialName: outputMaterialData.name,
+              addedQuantity: actualOutput,
+              previousStock: currentOutputStock,
+              newStock: newOutputStock,
+              unit: outputMaterialData.unit
+            };
+            
+            console.log(`✅ Output ${outputCode}: stock ${currentOutputStock} → ${newOutputStock}`);
+          }
+        } catch (err) {
+          console.error(`❌ Failed to update output material:`, err);
+        }
+      }
+      
+      // ========================================================================
+      // STEP 6: Cancel All Assignments
+      // ========================================================================
+      
+      const workersToUpdate = new Set();
+      const stationsToUpdate = new Set();
+      let cancelledCount = 0;
+      
+      assignments.forEach(({ ref, data: assignment }) => {
+        // Mark all assignments as cancelled
+        transaction.update(ref, {
+          status: 'cancelled',
+          cancelledAt: now,
+          cancelledBy: userEmail,
+          cancelledByName: userName,
+          cancelledWithProgress: true,
+          actualOutputQuantity: actualOutput,
+          defectQuantity: defects,
+          updatedAt: now
+        });
+        
+        cancelledCount++;
+        
+        if (assignment.workerId) workersToUpdate.add(assignment.workerId);
+        if (assignment.stationId) stationsToUpdate.add(assignment.stationId);
+      });
+      
+      // Clear worker currentTask
+      for (const workerId of workersToUpdate) {
+        const workerRef = db.collection('mes-workers').doc(workerId);
+        const workerDoc = await transaction.get(workerRef);
+        if (workerDoc.exists) {
+          transaction.update(workerRef, {
+            currentTask: null,
+            updatedAt: now
+          });
+        }
+      }
+      
+      // Clear station currentOperation
+      for (const stationId of stationsToUpdate) {
+        const stationRef = db.collection('mes-stations').doc(stationId);
+        const stationDoc = await transaction.get(stationRef);
+        if (stationDoc.exists) {
+          transaction.update(stationRef, {
+            currentOperation: null,
+            updatedAt: now
+          });
+        }
+      }
+      
+      // ========================================================================
+      // STEP 7: Update Plan Status
+      // ========================================================================
+      
+      transaction.update(planRef, {
+        launchStatus: 'cancelled',
+        cancelledAt: now,
+        cancelledBy: userEmail,
+        cancelledByName: userName,
+        cancelledWithProgress: true,
+        cancellationSummary: {
+          actualOutputQuantity: actualOutput,
+          defectQuantity: defects,
+          totalConsumedOutput,
+          inputMaterialsAdjusted: stockAdjustmentResults.length,
+          outputMaterialUpdated: outputStockResult !== null
+        },
+        updatedAt: now
+      });
+      
+      // Update approved quote if exists
+      if (workOrderCode) {
+        const quotesQuery = db.collection('mes-approved-quotes')
+          .where('workOrderCode', '==', workOrderCode)
+          .limit(1);
+        const quotesSnapshot = await transaction.get(quotesQuery);
+        
+        if (!quotesSnapshot.empty) {
+          const quoteDoc = quotesSnapshot.docs[0];
+          transaction.update(quoteDoc.ref, {
+            productionState: 'İptal Edildi',
+            productionStateUpdatedAt: now,
+            productionStateUpdatedBy: userEmail
+          });
+        }
+      }
+      
+      return {
+        success: true,
+        planId,
+        cancelledCount,
+        actualOutputQuantity: actualOutput,
+        defectQuantity: defects,
+        totalConsumedOutput,
+        materialAdjustments: {
+          inputMaterials: stockAdjustmentResults,
+          outputMaterial: outputStockResult
+        },
+        workersCleared: workersToUpdate.size,
+        stationsCleared: stationsToUpdate.size,
+        cancelledAt: now.toISOString(),
+        cancelledBy: userEmail
+      };
+    });
+    
+    console.log(`✅ Cancel-with-progress completed for plan ${planId}`);
+    return res.status(200).json(result);
+    
+  } catch (error) {
+    console.error('Cancel-with-progress error:', error);
+    return res.status(500).json({
+      error: 'internal_error',
+      message: 'Failed to cancel production plan with progress',
+      details: error.message
+    });
+  }
+});
+
 // ============================================================================
 // WORK PACKAGES ENDPOINT (GLOBAL TASK AGGREGATION)
 // ============================================================================

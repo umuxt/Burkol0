@@ -1,6 +1,6 @@
 // Approved Quotes listing (read-only). Uses backend API only.
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
-import { updateProductionState, launchProductionPlan, pauseProductionPlan, resumeProductionPlan, cancelProductionPlan } from './mesApi.js'
+import { updateProductionState, launchProductionPlan, pauseProductionPlan, resumeProductionPlan, cancelProductionPlan, cancelProductionPlanWithProgress } from './mesApi.js'
 
 let quotesState = []
 let selectedQuoteId = null
@@ -417,7 +417,7 @@ async function completeProduction(workOrderCode) {
 }
 
 /**
- * Cancel production: Cancel all assignments and mark plan as cancelled
+ * Cancel production: Show modal to collect production progress, then cancel with material accounting
  */
 async function cancelProduction(workOrderCode) {
   try {
@@ -430,39 +430,50 @@ async function cancelProduction(workOrderCode) {
     
     // Confirm cancel
     const confirmed = confirm(
-      `Tüm İşlemi İPTAL Etmek İstediğinizden Emin misiniz?\n\n` +
+      `Üretimi İptal Etmek İstediğinizden Emin misiniz?\n\n` +
       `İş Emri: ${workOrderCode}\n` +
       `Plan: ${plan.name}\n\n` +
-      `⚠️ BU İŞLEMİN GERİ DÖNÜŞÜ YOKTUR!\n\n` +
-      `Tüm görevler iptal edilecek ve üretim kaydı kalıcı olarak sonlandırılacaktır.`
+      `⚠️ İptal işleminden önce, o ana kadar ne kadar üretim gerçekleştiğini girmeniz gerekecek.\n` +
+      `Bu, malzeme stoklarının doğru şekilde güncellenmesini sağlar.`
     );
     
     if (!confirmed) return;
     
-    // Second confirmation
-    const doubleConfirm = confirm(
-      `SON ONAY\n\nİptal işlemini kesinleştirmek istiyor musunuz?\n\n` +
-      `Bu işlem GERİ ALINAMAZ!`
-    );
+    // Show modal to collect production progress
+    const progressData = await showCancelProgressModal(plan);
     
-    if (!doubleConfirm) return;
+    if (progressData === null) {
+      // User cancelled the modal
+      return;
+    }
     
-    // Show loading state (don't update server)
+    // Show loading state
     const originalState = getProductionState(workOrderCode);
     await setProductionState(workOrderCode, 'İptal ediliyor...', false);
     
     try {
-      // Call cancel endpoint
-      const result = await cancelProductionPlan(plan.id);
+      // Call new cancel-with-progress endpoint
+      const result = await cancelProductionPlanWithProgress(plan.id, {
+        actualOutputQuantity: progressData.actualOutputQuantity,
+        defectQuantity: progressData.defectQuantity
+      });
       
-      // Success! Update state to CANCELLED (update server)
+      // Success! Update state to CANCELLED
       await setProductionState(workOrderCode, PRODUCTION_STATES.CANCELLED, true);
       
-      // Show success message
+      // Show detailed success message
+      const materialSummary = result.materialAdjustments ? 
+        `\n\nMalzeme Hareketleri:\n` +
+        `- ${result.materialAdjustments.inputMaterials.length} girdi malzemesi ayarlandı\n` +
+        `- Üretilen: ${result.actualOutputQuantity} adet\n` +
+        `- Fire: ${result.defectQuantity} adet` 
+        : '';
+      
       alert(
-        `Üretim iptal edildi.\n\n` +
+        `Üretim İptal Edildi\n\n` +
         `${result.cancelledCount} görev iptal edildi.\n` +
-        `${result.workersCleared} işçi ve ${result.stationsCleared} istasyon temizlendi.`
+        `${result.workersCleared} işçi ve ${result.stationsCleared} istasyon temizlendi.` +
+        materialSummary
       );
       
       // Refresh
@@ -487,6 +498,172 @@ async function cancelProduction(workOrderCode) {
     console.error('Cancel production error:', error);
     alert('Üretim iptal edilirken beklenmeyen bir hata oluştu.');
   }
+}
+
+/**
+ * Show modal to collect production progress before cancellation
+ */
+function showCancelProgressModal(plan) {
+  return new Promise((resolve) => {
+    // Extract planned output from plan
+    let totalPlannedOutput = 0;
+    let outputUnit = 'adet';
+    let outputCode = '';
+    
+    // Try to get from first node in execution graph
+    if (plan.executionGraph && plan.executionGraph.length > 0) {
+      const firstNode = plan.executionGraph[0];
+      outputCode = firstNode.outputCode || '';
+      totalPlannedOutput = firstNode.outputQty || 0;
+    }
+    
+    // Multiply by plan quantity
+    totalPlannedOutput = totalPlannedOutput * (plan.quantity || 1);
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.zIndex = '10000';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+          <h2 class="modal-title">⚠️ Üretim İptal - İlerleme Kaydı</h2>
+          <button class="modal-close" onclick="this.closest('.modal-overlay').remove(); event.stopPropagation();">×</button>
+        </div>
+        <div class="modal-body">
+          <div style="margin-bottom: 20px; padding: 16px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
+            <div style="font-size: 14px; color: #92400e; font-weight: 600; margin-bottom: 8px;">
+              📋 Plan: ${plan.name}
+            </div>
+            <div style="font-size: 13px; color: #78350f;">
+              İş Emri: ${plan.orderCode || '-'}<br>
+              Planlanan Çıktı: ${totalPlannedOutput} ${outputUnit}
+              ${outputCode ? `<br>Çıktı Kodu: ${outputCode}` : ''}
+            </div>
+          </div>
+          
+          <div style="margin-bottom: 20px; padding: 16px; background: #fee2e2; border-left: 4px solid #dc2626; border-radius: 4px;">
+            <div style="font-size: 13px; color: #991b1b; font-weight: 600; margin-bottom: 6px;">
+              ⚠️ Önemli Bilgi
+            </div>
+            <div style="font-size: 12px; color: #7f1d1d; line-height: 1.5;">
+              Üretim iptal edilmeden önce, o ana kadar ne kadar üretim gerçekleştiğini girmeniz gerekiyor.
+              Bu bilgi, malzeme stoklarının doğru şekilde güncellenmesi için kullanılacaktır.
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="cancelActualOutput">
+              Üretilen Toplam Miktar (${outputUnit})
+              <span style="color: #dc2626;">*</span>
+            </label>
+            <input 
+              type="number" 
+              id="cancelActualOutput" 
+              class="form-input" 
+              min="0" 
+              step="0.01" 
+              value="0"
+              placeholder="O ana kadar üretilen sağlam ürün miktarı"
+              required
+            />
+            <p class="form-help">İptal anına kadar üretilmiş tüm sağlam ürünlerin toplamını girin.</p>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="cancelDefectQty">
+              Fire/Hatalı Toplam Miktar (${outputUnit})
+            </label>
+            <input 
+              type="number" 
+              id="cancelDefectQty" 
+              class="form-input" 
+              min="0" 
+              step="0.01" 
+              value="0"
+              placeholder="0.00"
+            />
+            <p class="form-help">İptal anına kadar oluşan tüm hatalı/hurda ürünlerin toplamını girin.</p>
+          </div>
+          
+          <div style="margin-top: 20px; padding: 12px; background: #dbeafe; border-left: 4px solid #3b82f6; border-radius: 4px;">
+            <div style="font-size: 12px; color: #1e40af; line-height: 1.5;">
+              <strong>💡 Not:</strong> Bu değerler, tüm görevlerin toplamı olmalıdır. 
+              Sistem bu bilgilere göre malzeme stoklarını otomatik olarak düzeltecektir.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove();">Vazgeç</button>
+          <button class="btn-danger" id="confirmCancelWithProgressBtn">
+            Onayla ve İptal Et
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    const actualOutputInput = modal.querySelector('#cancelActualOutput');
+    const defectInput = modal.querySelector('#cancelDefectQty');
+    const confirmBtn = modal.querySelector('#confirmCancelWithProgressBtn');
+    
+    actualOutputInput.focus();
+    actualOutputInput.select();
+    
+    confirmBtn.onclick = () => {
+      const actualOutputQuantity = parseFloat(actualOutputInput.value);
+      const defectQuantity = parseFloat(defectInput.value) || 0;
+      
+      // Validation
+      if (isNaN(actualOutputQuantity) || actualOutputQuantity < 0) {
+        alert('Lütfen geçerli bir üretim miktarı girin (0 veya daha fazla)');
+        actualOutputInput.focus();
+        return;
+      }
+      
+      if (defectQuantity < 0) {
+        alert('Fire miktarı negatif olamaz');
+        defectInput.focus();
+        return;
+      }
+      
+      // Confirm one more time
+      const total = actualOutputQuantity + defectQuantity;
+      const finalConfirm = confirm(
+        `İptal İşlemini Onaylıyor musunuz?\n\n` +
+        `Üretilen: ${actualOutputQuantity} ${outputUnit}\n` +
+        `Fire: ${defectQuantity} ${outputUnit}\n` +
+        `Toplam: ${total} ${outputUnit}\n\n` +
+        `Bu değerlerle üretim iptal edilecek ve malzeme stokları güncellenecektir.\n\n` +
+        `Devam etmek istiyor musunuz?`
+      );
+      
+      if (!finalConfirm) return;
+      
+      modal.remove();
+      resolve({
+        actualOutputQuantity,
+        defectQuantity
+      });
+    };
+    
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        modal.remove();
+        resolve(null);
+      }
+    };
+    
+    // Allow Enter key to submit
+    const handleEnter = (e) => {
+      if (e.key === 'Enter') {
+        confirmBtn.click();
+      }
+    };
+    
+    actualOutputInput.addEventListener('keypress', handleEnter);
+    defectInput.addEventListener('keypress', handleEnter);
+  });
 }
 
 // Expose functions globally for onclick handlers

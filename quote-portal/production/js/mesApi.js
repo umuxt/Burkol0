@@ -918,6 +918,51 @@ export async function cancelProductionPlan(planId) {
 }
 
 /**
+ * Cancel a production plan with progress tracking and material accounting
+ * POST /api/mes/cancel-with-progress
+ * 
+ * @param {string} planId - The production plan ID to cancel
+ * @param {Object} progressData - Production progress data
+ * @param {number} progressData.actualOutputQuantity - Total output produced before cancellation
+ * @param {number} progressData.defectQuantity - Total defects produced before cancellation
+ * @returns {Promise<Object>} Result with cancelled counts and material adjustments
+ * @throws {Error} With status, code, and message properties on failure
+ */
+export async function cancelProductionPlanWithProgress(planId, progressData) {
+  const res = await fetch(`${API_BASE}/api/mes/cancel-with-progress`, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      planId,
+      actualOutputQuantity: progressData.actualOutputQuantity,
+      defectQuantity: progressData.defectQuantity
+    })
+  });
+  
+  if (!res.ok) {
+    let errorData;
+    try {
+      errorData = await res.json();
+    } catch {
+      errorData = { error: 'unknown_error', message: `HTTP ${res.status}` };
+    }
+    
+    const error = new Error(errorData.message || `cancel_with_progress_failed ${res.status}`);
+    error.code = errorData.error || 'unknown_error';
+    error.status = res.status;
+    error.details = errorData.details || null;
+    throw error;
+  }
+  
+  const result = await res.json();
+  
+  // Emit event to notify other tabs/widgets
+  emitAssignmentsUpdated(planId);
+  
+  return result;
+}
+
+/**
  * Fetch all active work packages (assignments) across all launched plans
  * GET /api/mes/work-packages
  * 
