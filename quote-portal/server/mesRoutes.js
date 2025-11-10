@@ -65,6 +65,75 @@ async function handleFirestoreOperation(operation, res) {
 }
 
 // ============================================================================
+// MATERIAL RESERVATION HELPERS
+// ============================================================================
+
+/**
+ * Calculate pre-production reserved amounts for a work package
+ * Takes into account the expected defect rate from the operation
+ * 
+ * Formula: rehinMiktari = gerekliInputMiktari / (1 - (expectedDefectRate / 100))
+ * Example: For 200 units needed with 2% defect rate: 200 / (1 - 0.02) = 204.08 ≈ 204
+ * 
+ * @param {Object} node - Execution graph node with materialInputs
+ * @param {number} expectedDefectRate - Expected defect rate from operation (percentage)
+ * @param {number} planQuantity - Production plan quantity multiplier
+ * @returns {Object} Object with materialCode as key and reserved quantity as value
+ */
+function calculatePreProductionReservedAmount(node, expectedDefectRate = 0, planQuantity = 1) {
+  const preProductionReservedAmount = {};
+  
+  if (!node || !node.materialInputs || !Array.isArray(node.materialInputs)) {
+    return preProductionReservedAmount;
+  }
+  
+  // Ensure defect rate is a valid number between 0 and 100
+  const defectRate = Math.max(0, Math.min(100, parseFloat(expectedDefectRate) || 0));
+  const defectMultiplier = defectRate >= 100 ? 1 : (1 - (defectRate / 100));
+  
+  node.materialInputs.forEach(material => {
+    const materialCode = material.code;
+    const requiredQty = (material.qty || material.required || 0) * planQuantity;
+    
+    if (!materialCode || requiredQty <= 0) return;
+    
+    // Calculate reserved amount with defect rate adjustment
+    const reservedQty = defectRate > 0 
+      ? Math.ceil(requiredQty / defectMultiplier) 
+      : requiredQty;
+    
+    // Accumulate if material appears multiple times
+    preProductionReservedAmount[materialCode] = 
+      (preProductionReservedAmount[materialCode] || 0) + reservedQty;
+  });
+  
+  return preProductionReservedAmount;
+}
+
+/**
+ * Calculate planned output for a work package
+ * 
+ * @param {Object} node - Execution graph node with output information
+ * @param {number} planQuantity - Production plan quantity multiplier
+ * @returns {Object} Object with materialCode as key and planned quantity as value
+ */
+function calculatePlannedOutput(node, planQuantity = 1) {
+  const plannedOutput = {};
+  
+  if (!node) return plannedOutput;
+  
+  // Check if node has output material (semi-finished product or final product)
+  if (node.outputCode && node.outputQty) {
+    const outputQty = parseFloat(node.outputQty) || 0;
+    if (outputQty > 0) {
+      plannedOutput[node.outputCode] = outputQty * planQuantity;
+    }
+  }
+  
+  return plannedOutput;
+}
+
+// ============================================================================
 // EXECUTION STATE HELPERS
 // ============================================================================
 
@@ -1867,13 +1936,51 @@ router.post('/worker-assignments/batch', withAuth, async (req, res) => {
         transaction.delete(doc.ref);
       });
 
-      // Create new assignments
+      // Fetch plan to get execution graph and operation details
+      const planRef = db.collection('mes-production-plans').doc(planId);
+      const planDoc = await transaction.get(planRef);
+      
+      let planData = null;
+      let executionGraph = [];
+      let planQuantity = 1;
+      let operationsMap = new Map();
+      
+      if (planDoc.exists) {
+        planData = planDoc.data();
+        executionGraph = planData.executionGraph || [];
+        planQuantity = planData.quantity || 1;
+        
+        // Fetch operations to get expectedDefectRate
+        const operationsSnapshot = await db.collection('mes-operations').get();
+        operationsSnapshot.docs.forEach(doc => {
+          const opData = doc.data();
+          operationsMap.set(doc.id, opData);
+        });
+      }
+
+      // Create new assignments with material reservation calculations
       const now = new Date();
       const createdBy = req.user?.email || 'system';
       
       assignments.forEach(assignment => {
         const assignmentId = `${planId}-${assignment.nodeId || assignment.workerId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
         const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
+        
+        // Find the node in execution graph
+        const node = executionGraph.find(n => n.nodeId === assignment.nodeId);
+        
+        // Get operation data for defect rate
+        const operation = node && node.operationId ? operationsMap.get(node.operationId) : null;
+        const expectedDefectRate = operation?.expectedDefectRate || 0;
+        
+        // Calculate material reservations
+        const preProductionReservedAmount = node 
+          ? calculatePreProductionReservedAmount(node, expectedDefectRate, planQuantity)
+          : {};
+        
+        const plannedOutput = node 
+          ? calculatePlannedOutput(node, planQuantity)
+          : {};
         
         transaction.set(docRef, {
           id: assignmentId,
@@ -1885,6 +1992,14 @@ router.post('/worker-assignments/batch', withAuth, async (req, res) => {
           start: assignment.start ? new Date(assignment.start) : null,
           end: assignment.end ? new Date(assignment.end) : null,
           status: assignment.status || 'pending',
+          // Material reservation fields
+          preProductionReservedAmount: Object.keys(preProductionReservedAmount).length > 0 
+            ? preProductionReservedAmount 
+            : null,
+          plannedOutput: Object.keys(plannedOutput).length > 0 
+            ? plannedOutput 
+            : null,
+          materialReservationStatus: 'pending', // pending, reserved, consumed
           createdAt: now,
           updatedAt: now,
           createdBy
@@ -2242,6 +2357,7 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
       let stationUpdate = null;
       let alertCreated = false;
       let scrapAdjustment = null;
+      let materialReservationResult = null;
       
       switch (action) {
         case 'start':
@@ -2318,6 +2434,123 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
             // Otherwise, log warning but allow start (backward compatibility)
             console.warn('Precondition check failed, but allowing start:', err.message);
           }
+          
+          // ========================================================================
+          // MATERIAL RESERVATION: Deduct from stock and add to wipReserved
+          // ========================================================================
+          // When a worker starts a task, materials are physically moved from 
+          // warehouse stock to the production floor (WIP area).
+          // This is an atomic operation that:
+          // 1. Deducts from material.stock (physical inventory)
+          // 2. Adds to material.wipReserved (in-production inventory)
+          // ========================================================================
+          
+          // Only process if this assignment hasn't already reserved materials
+          if (assignment.materialReservationStatus !== 'reserved' && 
+              assignment.preProductionReservedAmount && 
+              Object.keys(assignment.preProductionReservedAmount).length > 0) {
+            
+            const reservationResults = [];
+            const reservationErrors = [];
+            
+            console.log(`🔄 Starting material reservation for assignment ${assignmentId}`);
+            
+            // Process each material in preProductionReservedAmount
+            for (const [materialCode, reservedQty] of Object.entries(assignment.preProductionReservedAmount)) {
+              try {
+                const materialRef = db.collection('materials').doc(materialCode);
+                const materialDoc = await transaction.get(materialRef);
+                
+                if (!materialDoc.exists) {
+                  reservationErrors.push({
+                    materialCode,
+                    error: 'Material not found',
+                    reservedQty
+                  });
+                  console.error(`❌ Material ${materialCode} not found`);
+                  continue;
+                }
+                
+                const materialData = materialDoc.data();
+                const currentStock = parseFloat(materialData.stock) || 0;
+                const currentWipReserved = parseFloat(materialData.wipReserved) || 0;
+                
+                // Validate sufficient stock
+                if (currentStock < reservedQty) {
+                  reservationErrors.push({
+                    materialCode,
+                    error: 'Insufficient stock',
+                    required: reservedQty,
+                    available: currentStock,
+                    shortage: reservedQty - currentStock
+                  });
+                  console.error(`❌ Insufficient stock for ${materialCode}: required ${reservedQty}, available ${currentStock}`);
+                  continue;
+                }
+                
+                // Atomic update: deduct from stock, add to wipReserved
+                const newStock = currentStock - reservedQty;
+                const newWipReserved = currentWipReserved + reservedQty;
+                
+                transaction.update(materialRef, {
+                  stock: newStock,
+                  wipReserved: newWipReserved,
+                  updatedAt: now,
+                  updatedBy: actorEmail
+                });
+                
+                reservationResults.push({
+                  materialCode,
+                  materialName: materialData.name,
+                  reservedQty,
+                  previousStock: currentStock,
+                  newStock,
+                  previousWipReserved: currentWipReserved,
+                  newWipReserved,
+                  unit: materialData.unit
+                });
+                
+                console.log(`✅ Reserved ${reservedQty} ${materialData.unit} of ${materialCode}: stock ${currentStock} → ${newStock}, wipReserved ${currentWipReserved} → ${newWipReserved}`);
+                
+              } catch (err) {
+                reservationErrors.push({
+                  materialCode,
+                  error: err.message,
+                  reservedQty
+                });
+                console.error(`❌ Failed to reserve ${materialCode}:`, err);
+              }
+            }
+            
+            // If any errors occurred, throw to rollback transaction
+            if (reservationErrors.length > 0) {
+              const e = new Error('Material reservation failed');
+              e.status = 409;
+              e.code = 'material_reservation_failed';
+              e.errors = reservationErrors;
+              e.details = reservationErrors.map(err => 
+                `${err.materialCode}: ${err.error}${err.shortage ? ` (eksik: ${err.shortage})` : ''}`
+              ).join(', ');
+              throw e;
+            }
+            
+            // Update assignment with reservation status
+            updateData.materialReservationStatus = 'reserved';
+            updateData.materialReservationTimestamp = now;
+            updateData.materialReservationResults = reservationResults;
+            
+            materialReservationResult = {
+              success: true,
+              materialsReserved: reservationResults.length,
+              details: reservationResults
+            };
+            
+            console.log(`✅ Material reservation completed for assignment ${assignmentId}: ${reservationResults.length} material(s) reserved`);
+          }
+          
+          // ========================================================================
+          // UPDATE ASSIGNMENT STATUS
+          // ========================================================================
           
           updateData.status = 'in_progress';
           
@@ -2541,6 +2774,7 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
         status: updateData.status,
         alertCreated,
         scrapAdjustment,
+        materialReservation: materialReservationResult,
         updatedAt: now.toISOString()
       };
     });
