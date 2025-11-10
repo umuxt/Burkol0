@@ -78,9 +78,17 @@ export const MaterialSchema = {
     description: 'Rezerve edilmiş miktar (sipariş için ayrılan)'
   },
   
+  wipReserved: {
+    type: 'number',
+    required: true,
+    default: 0,
+    minimum: 0,
+    description: 'Üretimdeki işler için rezerve edilmiş miktar (MES tarafından yönetilir)'
+  },
+  
   available: {
     type: 'number',
-    computed: true, // stock - reserved
+    computed: true, // stock - reserved - wipReserved
     description: 'Kullanılabilir stok (hesaplanmış alan)'
   },
   
@@ -428,7 +436,7 @@ export const MESOperationSchema = {
     required: false,
     default: 0,
     minimum: 0,
-    description: 'Beklenen hata/fire oranı (yüzde olarak, örn: 1 = %1)'
+    description: 'Beklenen hata/fire oranı (yüzde olarak, örn: 1.5 = %1.5). Malzeme rezervasyonu hesaplamalarında kullanılır.'
   },
   
   // Yetenekler
