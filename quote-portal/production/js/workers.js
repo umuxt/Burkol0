@@ -347,8 +347,39 @@ export function saveWorkerSchedule() {
     try {
       await persistWorkers()
       showToast('Çalışma saatleri kaydedildi', 'success')
-      // refresh details if open
-      try { if (selectedWorkerId) await showWorkerDetail(selectedWorkerId) } catch {}
+      
+      // Refresh details if open to show updated schedule
+      if (selectedWorkerId) {
+        await showWorkerDetail(selectedWorkerId)
+      }
+      
+      // Re-render the schedule grid immediately if the modal has it
+      const modal = document.getElementById('worker-schedule-modal')
+      if (modal && modal.style.display !== 'none') {
+        // Re-populate the grid with fresh data
+        const worker = workersState.find(w => w.id === selectedWorkerId)
+        if (worker && worker.personalSchedule && worker.personalSchedule.blocks) {
+          const blocksByDay = worker.personalSchedule.blocks
+          const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+          
+          days.forEach((d, idx) => {
+            const dayKey = `worker-${d}`
+            const col = modal.querySelector(`.day-timeline-vertical[data-day="${dayKey}"]`)
+            if (!col) return
+            
+            // Clear existing blocks
+            col.querySelectorAll('[data-block-info]').forEach(el => el.remove())
+            
+            // Re-render blocks
+            const blocks = blocksByDay[d] || []
+            blocks.forEach((b, laneIdx) => {
+              try { 
+                createScheduleBlock(dayKey, b.type, b.startHour, b.endHour, b.start, b.end, laneIdx) 
+              } catch {}
+            })
+          })
+        }
+      }
     } catch (e) {
       console.error('saveWorkerSchedule persist error', e)
       showToast('Çalışma saatleri kaydedilemedi', 'error')

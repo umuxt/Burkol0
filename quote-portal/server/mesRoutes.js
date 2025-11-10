@@ -2762,34 +2762,22 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     }
     
     // ========================================================================
-    // 4. MATERIAL VALIDATION
+    // 4. MATERIAL VALIDATION (NON-BLOCKING - WARNINGS ONLY)
     // ========================================================================
     
     const planQuantity = planData.quantity || 1;
-    const materialValidation = await validateMaterialAvailability(
+    const materialValidation = await validateMaterialAvailabilityForLaunch(
       planData,
       planQuantity,
       db
     );
     
-    if (!materialValidation.allAvailable) {
-      // Store shortage info in plan document for UI display
-      await planRef.update({
-        lastLaunchShortage: {
-          timestamp: new Date().toISOString(),
-          attemptedBy: userEmail,
-          shortages: materialValidation.shortages,
-          details: materialValidation.details
-        },
-        updatedAt: new Date()
-      });
-      
-      return res.status(422).json({
-        error: 'material_shortage',
-        message: 'Insufficient materials to launch plan',
-        shortages: materialValidation.shortages,
-        details: materialValidation.details
-      });
+    // Material shortages are now warnings, not errors
+    // Store warnings in response but continue with launch
+    const materialWarnings = materialValidation.warnings || [];
+    
+    if (materialWarnings.length > 0) {
+      console.warn(`⚠️ Material shortages detected (${materialWarnings.length} items) - proceeding with launch`);
     }
     
     // ========================================================================
@@ -2803,6 +2791,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     // Track assignments in this run to avoid conflicts
     const workerSchedule = new Map(); // workerId -> [{ start, end }]
     const stationSchedule = new Map(); // stationId -> [{ start, end }]
+    const nodeEndTimes = new Map(); // nodeId -> plannedEnd timestamp (for dependency tracking)
     
     // Process nodes in topological order
     for (const nodeId of executionOrder.order) {
@@ -2824,7 +2813,8 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
           substations,
           workerSchedule,
           stationSchedule,
-          planData
+          planData,
+          nodeEndTimes // Pass predecessor tracking map
         );
         
         if (assignment.error) {
@@ -2837,6 +2827,9 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
           });
         } else {
           assignments.push(assignment);
+          
+          // Track node end time for successor dependencies
+          nodeEndTimes.set(node.id, new Date(assignment.plannedEnd));
           
           // Track warnings
           if (assignment.warnings && assignment.warnings.length > 0) {
@@ -2949,10 +2942,10 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     console.log(`✓ Plan ${planId} launched with ${assignments.length} assignments`);
     
     // ========================================================================
-    // 8. RETURN SUCCESS RESPONSE
+    // 8. RETURN SUCCESS RESPONSE (with material warnings if any)
     // ========================================================================
     
-    return res.status(200).json({
+    const response = {
       success: true,
       planId,
       workOrderCode,
@@ -2962,7 +2955,17 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       launchedAt: now.toISOString(),
       launchedBy: userEmail,
       message: `Plan launched successfully with ${assignments.length} assignments`
-    });
+    };
+    
+    // Add material warnings to response if any
+    if (materialWarnings.length > 0) {
+      response.warnings = {
+        materialShortages: materialWarnings,
+        assignmentWarnings: assignmentWarnings.length > 0 ? assignmentWarnings : undefined
+      };
+    }
+    
+    return res.status(200).json(response);
     
   } catch (error) {
     console.error('Launch plan error:', error);
@@ -3061,8 +3064,110 @@ function buildTopologicalOrder(nodes) {
 }
 
 /**
+ * Validate material availability for plan launch - NON-BLOCKING
+ * Only checks materials for:
+ * 1. Start nodes (nodes with no predecessors)
+ * 2. Raw materials with codes starting with M-00 (regardless of node position)
+ * Returns warnings array instead of throwing errors
+ */
+async function validateMaterialAvailabilityForLaunch(planData, planQuantity, db) {
+  const executionGraph = planData.executionGraph || [];
+  const nodes = executionGraph.nodes || [];
+  const materialSummary = planData.materialSummary || {};
+  const rawMaterials = materialSummary.rawMaterials || [];
+  
+  if (rawMaterials.length === 0 || nodes.length === 0) {
+    return { warnings: [] };
+  }
+  
+  // Build predecessor map to identify start nodes
+  const predecessorMap = new Map();
+  nodes.forEach(node => {
+    predecessorMap.set(node.id, node.predecessors || []);
+  });
+  
+  // Identify start nodes (no predecessors)
+  const startNodeIds = new Set(
+    nodes.filter(node => !node.predecessors || node.predecessors.length === 0).map(n => n.id)
+  );
+  
+  // Filter materials to check:
+  // 1. Materials from start nodes
+  // 2. Materials with code starting with M-00 (critical raw materials)
+  const materialsToCheck = new Map();
+  
+  rawMaterials.forEach(mat => {
+    if (mat.isDerived) return; // Skip WIP materials
+    
+    const shouldCheck = 
+      (mat.nodeId && startNodeIds.has(mat.nodeId)) || // From start node
+      (mat.code && mat.code.startsWith('M-00')); // Critical raw material
+    
+    if (shouldCheck) {
+      const key = mat.code;
+      const existing = materialsToCheck.get(key) || { 
+        ...mat, 
+        required: 0,
+        nodeNames: new Set()
+      };
+      existing.required += (mat.required || 0) * planQuantity;
+      if (mat.nodeName) existing.nodeNames.add(mat.nodeName);
+      materialsToCheck.set(key, existing);
+    }
+  });
+  
+  if (materialsToCheck.size === 0) {
+    return { warnings: [] };
+  }
+  
+  // Fetch materials from database
+  const materialCodes = Array.from(materialsToCheck.keys());
+  const materialDocsPromises = materialCodes.map(code => 
+    db.collection('materials').doc(code).get()
+  );
+  
+  const materialDocs = await Promise.all(materialDocsPromises);
+  
+  // Build lookup map
+  const materialMap = new Map();
+  materialDocs.forEach((doc, index) => {
+    const code = materialCodes[index];
+    if (doc.exists) {
+      materialMap.set(code, doc.data());
+    }
+  });
+  
+  // Check for shortages and build warnings array
+  const warnings = [];
+  
+  for (const [code, mat] of materialsToCheck) {
+    const materialData = materialMap.get(code);
+    const available = materialData 
+      ? parseFloat(materialData.stock || materialData.available) || 0
+      : 0;
+    const required = mat.required;
+    
+    if (available < required) {
+      const nodeNamesList = Array.from(mat.nodeNames).join(', ');
+      warnings.push({
+        nodeName: nodeNamesList || 'Unknown',
+        materialCode: code,
+        materialName: mat.name || code,
+        required,
+        available,
+        shortage: required - available,
+        unit: mat.unit || ''
+      });
+    }
+  }
+  
+  return { warnings };
+}
+
+/**
  * Validate material availability for plan launch
  * NOTE: Uses unified 'materials' collection (mes-materials has been removed)
+ * DEPRECATED: Use validateMaterialAvailabilityForLaunch instead (non-blocking)
  */
 async function validateMaterialAvailability(planData, planQuantity, db) {
   const materialSummary = planData.materialSummary || {};
@@ -3192,6 +3297,7 @@ async function validateMaterialAvailability(planData, planQuantity, db) {
 
 /**
  * Assign worker, station, and substation to a node using auto-assignment rules
+ * Now respects predecessor dependencies for scheduling
  */
 async function assignNodeResources(
   node,
@@ -3200,7 +3306,8 @@ async function assignNodeResources(
   substations,
   workerSchedule,
   stationSchedule,
-  planData
+  planData,
+  nodeEndTimes = new Map() // Track when predecessor nodes finish
 ) {
   const requiredSkills = node.requiredSkills || [];
   const preferredStationIds = node.preferredStationIds || [];
@@ -3365,7 +3472,7 @@ async function assignNodeResources(
   }
   
   // ========================================================================
-  // TIME CALCULATION
+  // TIME CALCULATION WITH DEPENDENCY TRACKING
   // ========================================================================
   
   // Calculate effective time based on worker and station efficiency
@@ -3376,16 +3483,48 @@ async function assignNodeResources(
   
   // Find next available time slot for this worker
   const workerAssignments = workerSchedule.get(selectedWorker.id) || [];
+  const stationAssignments = stationSchedule.get(selectedStation.id) || [];
   const now = new Date();
   
-  // Simple scheduling: start after last assignment or now
-  let startTime = now;
+  // Calculate earliest start time based on multiple constraints:
+  // 1. Worker availability (after their last assignment)
+  // 2. Station availability (after station's last assignment)
+  // 3. Predecessor dependencies (after all predecessors finish)
+  
+  let earliestWorkerStart = now;
   if (workerAssignments.length > 0) {
-    const lastEnd = workerAssignments[workerAssignments.length - 1].end;
-    if (lastEnd > now) {
-      startTime = lastEnd;
+    const lastWorkerEnd = workerAssignments[workerAssignments.length - 1].end;
+    if (lastWorkerEnd > earliestWorkerStart) {
+      earliestWorkerStart = lastWorkerEnd;
     }
   }
+  
+  let earliestStationStart = now;
+  if (stationAssignments.length > 0) {
+    const lastStationEnd = stationAssignments[stationAssignments.length - 1].end;
+    if (lastStationEnd > earliestStationStart) {
+      earliestStationStart = lastStationEnd;
+    }
+  }
+  
+  // Check predecessor dependencies
+  let earliestPredecessorEnd = now;
+  const predecessors = node.predecessors || [];
+  if (predecessors.length > 0) {
+    for (const predId of predecessors) {
+      const predEnd = nodeEndTimes.get(predId);
+      if (predEnd && predEnd > earliestPredecessorEnd) {
+        earliestPredecessorEnd = predEnd;
+      }
+    }
+  }
+  
+  // Start time is the maximum of all constraints
+  const startTime = new Date(Math.max(
+    earliestWorkerStart.getTime(),
+    earliestStationStart.getTime(),
+    earliestPredecessorEnd.getTime()
+  ));
   
   const endTime = new Date(startTime.getTime() + effectiveTime * 60000);
   

@@ -468,7 +468,7 @@ Burkol MES sistemi, onaylanmış tekliflerden üretim planlamasına kadar tam ot
 5. **Bağımlılıkları** tanımlayın (hangi operasyon hangi operasyondan sonra yapılmalı)
 6. **"Kaydet"** butonuna tıklayın
 
-> ⚠️ **Önemli:** Plan Designer artık sadece **kuralları** tanımlar, atama yapmaz!
+> ⚠️ **Önemli:** Plan Designer artık sadece **kuralları** tanımlar, atama ve malzeme kontrolü yapmaz! Malzeme kontrolleri üretim başlatma sırasında gerçekleşir.
 
 ##### 🏷️ Yarı Mamul Kod Sistemi (Semi-Finished Codes)
 
@@ -517,14 +517,19 @@ Plan Designer'da oluşturulan her operasyon düğümü, belirli koşullar sağla
 2. Başlatılacak iş emrini bulun
 3. **"🏁 Başlat"** butonuna tıklayın
 4. Sistem otomatik olarak:
-   - ✅ Malzeme kontrolü yapar
+   - ℹ️ Malzeme uyarıları gösterir (sadece başlangıç düğümleri ve M-00 kodlu hammaddeler için)
    - ✅ Topolojik sıralama ile çalışma sırasını belirler
-   - ✅ İşçi ve istasyon atamaları yapar
+   - ✅ İşçi ve istasyon atamaları yapar (bağımlılıkları dikkate alarak)
    - ✅ Work Packages (iş paketleri) oluşturur
 
+**Malzeme Uyarıları (Non-Blocking):**
+- ⚠️ **Malzeme eksiklikleri:** Başlangıç düğümleri ve kritik hammaddeler (M-00) için eksiklikler bilgilendirme amaçlı gösterilir
+- ✅ **Üretim başlar:** Malzeme eksiklikleri üretimi engellemez, sadece uyarı verilir
+- 📦 **Aksiyon:** Eksik malzemeleri en kısa sürede temin edin
+
 **Olası Hatalar:**
-- ❌ **Malzeme eksikliği:** Hangi malzeme eksikse detaylı bilgi gösterilir
 - ❌ **Atama hatası:** Hangi operasyona atama yapılamadığı belirtilir
+- ❌ **İşçi bulunamadı:** Aktif ve müsait işçi yoksa detaylı bilgi gösterilir
 
 #### 📊 Adım 4: Takip (Work Packages Dashboard)
 1. **Production Dashboard** ana sayfasında **"Work Packages"** kartına bakın
@@ -560,16 +565,15 @@ Plan Designer'da oluşturulan her operasyon düğümü, belirli koşullar sağla
 - **Atanmış görevler** öncelik sırasına göre listelenir
 - Her görev için:
   - ⏸️ **Duraklatıldı bannerı** (admin durdurduysa kırmızı uyarı)
-  - 📦 **Malzeme durumu** (✓ Hazır / ⚠️ Eksik / ? Bilinmiyor)
-  - 🔒 **Önkoşullar** (önceki görevler, istasyon, malzeme)
+  - 📦 **Malzeme durumu** (✓ Hazır / ⚠️ Eksik / ? Bilinmiyor) - bilgilendirme amaçlıdır
+  - 🔒 **Önkoşullar** (önceki görevler, istasyon durumu)
   - ⏱️ **Tahmini süre**
 
 **Görev İşlemleri:**
 1. **"Başlat"** butonuna tıklayın:
    - ⚠️ İşçi **İzinli**, **Hasta**, **İşten ayrıldı** veya **Mola** durumundaysa buton devre dışıdır
-   - Sistem tekrar malzeme kontrolü yapar
-   - ❌ Malzeme tükendiyse detaylı eksiklik bilgisi gösterilir
-   - ✅ Her şey hazırsa görev başlar
+   - ℹ️ Malzeme eksikliği bilgilendirme amaçlı gösterilir (engel değildir)
+   - ✅ Genel durumu uygunsa görev başlar
    
 2. **"Duraklat"** butonuna tıklayın:
    - ⚠️ İşçi uygun durumda değilse buton devre dışıdır
@@ -632,6 +636,11 @@ Sistem iki ayrı durum kontrolü kullanır:
    - İzin süresi bittiğinde manuel olarak "Çalışıyor" durumuna alınmalıdır
 5. **"💾 Durumu Kaydet"** butonuna tıklayın
 
+**Yeni İşçi Ekleme:**
+- Yeni işçiler otomatik olarak "Çalışıyor" (available) durumunda oluşturulur
+- Durum değişiklikleri sadece detay panelinden yapılır
+- Oluşturma formunda durum seçeneği yoktur
+
 **Mesai Durumu ve Worker Portal:**
 - Worker Portal'da Mesai Durumu kontrol edilir
 - Eğer çalışan mola saatindeyse:
@@ -645,6 +654,7 @@ Sistem iki ayrı durum kontrolü kullanır:
 - **Kişisel Ayar:** İşçiye özel haftalık çalışma programı oluşturulur
 - Programda sadece **"Çalışma"** ve **"Mola"** blokları tanımlanır
 - Mola blokları Worker Portal'da görev başlatmayı engeller
+- Kayıt sonrası program görünümü otomatik olarak güncellenir
 
 **Filtreler:**
 Workers sayfasında **"Durum Filtresi"** ile işçileri durumlarına göre filtreleyebilirsiniz:
@@ -664,6 +674,9 @@ Workers sayfasında **"Durum Filtresi"** ile işçileri durumlarına göre filtr
 **Timeline Blok Ekleme/Düzenleme:**
 1. **✏️ Düzenle** moduna geçin
 2. Timeline üzerinde boş alana tıklayın veya var olan bloğa tıklayın
+3. Blok türü seçin: **Çalışma** (work) veya **Mola** (break)
+4. Değişiklikler anında kaydedilir ve görünüm otomatik güncellenir
+5. Blok silmek için bloğa tıklayıp sil düğmesini kullanın
 3. Modal açılır:
    - **Blok Türü:** Sadece "Çalışma" veya "Mola" seçenekleri var
    - **Başlangıç Saati:** (örn: 08:00)

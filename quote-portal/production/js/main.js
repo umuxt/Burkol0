@@ -243,15 +243,90 @@ async function saveTimeManagement() {
       try { setTimelineLaneCount(laneCount); } catch {}
       // Exit edit mode
       try { stopTimelineEdit(); } catch {}
-      // Refresh timeline UI immediately with saved data
+      
+      // Refresh timeline UI immediately by re-fetching master data and rebuilding
       try {
-        // Update cache is already done by saveMasterData()
-        // Just trigger re-render by dispatching event
-        const event = new CustomEvent('master-data:changed', { 
-          detail: { source: 'production', timeSettings: timeSettingsData } 
-        });
-        window.dispatchEvent(event);
-      } catch {}
+        const { getMasterData } = await import('./mesApi.js');
+        const freshData = await getMasterData(true); // force refresh
+        
+        // Rebuild the timeline with fresh data
+        if (freshData && freshData.timeSettings) {
+          const ts = freshData.timeSettings;
+          const currentWorkType = ts.workType || 'fixed';
+          const currentLaneCount = ts.laneCount || 1;
+          
+          // Update lane count input
+          const laneInput = document.getElementById('lane-count-input');
+          if (laneInput) laneInput.value = currentLaneCount;
+          
+          // Update work type tabs
+          const fixedTab = document.getElementById('work-type-fixed');
+          const shiftTab = document.getElementById('work-type-shift');
+          if (fixedTab && shiftTab) {
+            fixedTab.classList.toggle('active', currentWorkType === 'fixed');
+            shiftTab.classList.toggle('active', currentWorkType === 'shift');
+          }
+          
+          // Show/hide appropriate schedule panels
+          const fixedPanel = document.getElementById('fixed-schedule');
+          const shiftPanel = document.getElementById('shift-schedule');
+          if (fixedPanel) fixedPanel.style.display = currentWorkType === 'fixed' ? 'block' : 'none';
+          if (shiftPanel) shiftPanel.style.display = currentWorkType === 'shift' ? 'block' : 'none';
+          
+          // Rebuild timeline blocks
+          const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+          
+          if (currentWorkType === 'fixed') {
+            // Rebuild fixed schedule blocks
+            const fixedBlocks = ts.fixedBlocks || {};
+            days.forEach(day => {
+              const col = document.getElementById(`timeline-${day}`);
+              if (!col) return;
+              
+              // Clear existing blocks
+              col.querySelectorAll('[data-block-info]').forEach(el => el.remove());
+              
+              // Add fresh blocks
+              const blocks = fixedBlocks[day] || [];
+              blocks.forEach((block, laneIdx) => {
+                try {
+                  createScheduleBlock(day, block.type, block.startHour, block.endHour, block.start, block.end, laneIdx);
+                } catch (e) {
+                  console.error('Failed to create block:', e);
+                }
+              });
+            });
+          } else {
+            // Rebuild shift schedule blocks
+            const shiftBlocks = ts.shiftBlocks || {};
+            days.forEach(day => {
+              const key = `shift-${day}`;
+              const col = document.getElementById(`timeline-${key}`);
+              if (!col) return;
+              
+              // Clear existing blocks
+              col.querySelectorAll('[data-block-info]').forEach(el => el.remove());
+              
+              // Add fresh blocks
+              const blocks = shiftBlocks[key] || [];
+              blocks.forEach((block) => {
+                try {
+                  createScheduleBlock(key, block.type, block.startHour, block.endHour, block.start, block.end, block.laneIndex || 0);
+                } catch (e) {
+                  console.error('Failed to create block:', e);
+                }
+              });
+            });
+          }
+          
+          // Apply lane count
+          setTimelineLaneCount(currentLaneCount);
+        }
+        
+        console.log('Timeline UI refreshed with latest data');
+      } catch (e) {
+        console.error('Failed to refresh timeline UI:', e);
+      }
     } else {
       showToast('Zaman ayarları kaydedilemedi', 'error');
       // Revert to snapshot

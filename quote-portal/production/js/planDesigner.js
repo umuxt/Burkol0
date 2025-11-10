@@ -21,7 +21,6 @@ export const planDesignerState = {
   workersCache: [], // For display purposes only (not assignment)
   stationsCache: [], // For display purposes only (not assignment)
   availableMaterials: [], // Cache for material availability checks
-  materialCheckResult: null, // Last material availability check result
   // Global drag state
   isDragging: false,
   draggedNode: null,
@@ -123,145 +122,19 @@ export function aggregatePlanMaterials(nodes, planQuantity = 1) {
   return Array.from(materialMap.values());
 }
 
-// Check material availability and mark nodes with shortages
+// DEPRECATED: Material availability check removed from Plan Designer
+// Material warnings now appear only when launching production in Approved Quotes
 export async function checkMaterialAvailability(nodes, planQuantity = 1) {
-  try {
-    const aggregated = aggregatePlanMaterials(nodes, planQuantity);
-    
-    if (aggregated.length === 0) {
-      return {
-        items: [],
-        hasShortages: false,
-        message: 'No materials to check'
-      };
-    }
-    
-    // Prepare required materials for API check
-    const requiredMaterials = aggregated.map(item => ({
-      code: item.code,
-      name: item.name,
-      required: item.required,
-      unit: item.unit
-    }));
-    
-    // First, try to check via MES API
-    let apiResult = null;
-    try {
-      apiResult = await checkMesMaterialAvailability(requiredMaterials);
-      console.log('📦 MES API material check result:', apiResult);
-    } catch (error) {
-      console.warn('MES API check failed, will use fallback:', error);
-    }
-    
-    // Fallback: Fetch general materials list and compare
-    let generalMaterials = [];
-    try {
-      generalMaterials = await getGeneralMaterials(true);
-      planDesignerState.availableMaterials = generalMaterials;
-    } catch (error) {
-      console.warn('Failed to fetch general materials:', error);
-    }
-    
-    // Map materials by code/ID for lookup
-    const materialStockMap = new Map();
-    generalMaterials.forEach(m => {
-      const stock = parseFloat(m.stock || m.available) || 0;
-      if (m.code) materialStockMap.set(m.code, stock);
-      if (m.id && m.id !== m.code) materialStockMap.set(m.id, stock);
-    });
-    
-    // Update aggregated items with availability info
-    let hasShortages = false;
-    const shortageDetails = [];
-    
-    aggregated.forEach(item => {
-      // Try to get stock from API result first, then fallback to general materials
-      let available = 0;
-      
-      if (apiResult && apiResult.materials && Array.isArray(apiResult.materials)) {
-        const apiMat = apiResult.materials.find(m => 
-          m.code === item.code || m.id === item.id || m.name === item.name
-        );
-        if (apiMat) {
-          available = parseFloat(apiMat.available || apiMat.stock) || 0;
-        }
-      }
-      
-      // Fallback to general materials map
-      if (available === 0) {
-        available = materialStockMap.get(item.code) || materialStockMap.get(item.id) || 0;
-      }
-      
-      item.stock = available;
-      item.shortage = Math.max(0, item.required - item.stock);
-      item.isOk = item.shortage === 0;
-      
-      if (!item.isOk) {
-        hasShortages = true;
-        shortageDetails.push({
-          code: item.code,
-          name: item.name,
-          required: item.required,
-          available: item.stock,
-          shortage: item.shortage,
-          unit: item.unit
-        });
-      }
-    });
-    
-    // Store result in state for UI access
-    planDesignerState.materialCheckResult = {
-      items: aggregated,
-      hasShortages,
-      shortageDetails,
-      allAvailable: !hasShortages,
-      checkedAt: new Date().toISOString()
-    };
-    
-    // Mark nodes with material shortages
-    if (hasShortages) {
-      const shortageIds = new Set(
-        aggregated.filter(item => !item.isOk).map(item => item.id)
-      );
-      
-      nodes.forEach(node => {
-        const materials = Array.isArray(node.rawMaterials) 
-          ? node.rawMaterials 
-          : (node.rawMaterial ? [node.rawMaterial] : []);
-        
-        const hasShortage = materials.some(mat => 
-          mat && mat.id && shortageIds.has(mat.id)
-        );
-        
-        if (hasShortage) {
-          node.requiresAttention = true;
-          const warnings = node.assignmentWarnings || [];
-          const materialWarning = 'Material shortage detected';
-          if (!warnings.includes(materialWarning)) {
-            warnings.push(materialWarning);
-          }
-          node.assignmentWarnings = warnings;
-        }
-      });
-    }
-    
-    return {
-      items: aggregated,
-      hasShortages,
-      shortageDetails,
-      allAvailable: !hasShortages,
-      message: hasShortages 
-        ? `${shortageDetails.length} material(s) with shortages`
-        : 'All materials available'
-    };
-  } catch (error) {
-    console.error('Material availability check failed:', error);
-    return {
-      items: [],
-      hasShortages: false,
-      error: error.message
-    };
-  }
+  // Stub function - no longer performs actual checks
+  console.log('⚠️ Material checks are disabled in Plan Designer');
+  
+  return {
+    items: [],
+    hasShortages: false,
+    shortageDetails: [],
+    allAvailable: true,
+    message: 'Material checks disabled in designer'
+  };
 }
 
 // Summarize plan timing and capacity
@@ -2242,121 +2115,17 @@ export function savePlanAsTemplate() {
     });
 }
 
-// Show material availability check modal
+// DEPRECATED: Material check modal removed from Plan Designer
+// Material warnings now appear at launch time in Approved Quotes
 export async function showMaterialCheckModal() {
-  if (planDesignerState.nodes.length === 0) {
-    showToast('No operations to check materials for', 'info');
-    return;
-  }
-  
-  const quantityInput = document.getElementById('modal-plan-quantity');
-  const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
-  
-  // Show loading state
-  showToast('Checking material availability...', 'info');
-  
-  try {
-    const result = await checkMaterialAvailability(planDesignerState.nodes, planQuantity);
-    
-    if (result.error) {
-      showToast(`Material check failed: ${result.error}`, 'error');
-      return;
-    }
-    
-    if (result.items.length === 0) {
-      showToast('No materials found in this plan', 'info');
-      return;
-    }
-    
-    // Create modal HTML
-    const modalHtml = `
-      <div id="material-check-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;" onclick="if(event.target.id==='material-check-modal') closeMaterialCheckModal()">
-        <div style="background: white; border-radius: 8px; max-width: 800px; width: 90%; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.2);" onclick="event.stopPropagation()">
-          <div style="padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="margin: 0; font-size: 18px; font-weight: 600;">Material Availability Check</h2>
-            <button onclick="closeMaterialCheckModal()" style="border: none; background: none; font-size: 24px; cursor: pointer; color: #6b7280; line-height: 1;">&times;</button>
-          </div>
-          
-          <div style="padding: 20px; overflow-y: auto;">
-            <div style="margin-bottom: 16px; padding: 12px; background: ${result.hasShortages ? '#fee2e2' : '#d1fae5'}; border-radius: 6px; border: 1px solid ${result.hasShortages ? '#fecaca' : '#86efac'};">
-              <div style="font-weight: 600; color: ${result.hasShortages ? '#991b1b' : '#065f46'}; margin-bottom: 4px;">
-                ${result.hasShortages ? '⚠️ Material Shortages Detected' : '✓ All Materials Available'}
-              </div>
-              <div style="font-size: 14px; color: ${result.hasShortages ? '#7f1d1d' : '#064e3b'};">
-                ${result.message}
-              </div>
-            </div>
-            
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-              <thead>
-                <tr style="background: #f9fafb; border-bottom: 2px solid var(--border);">
-                  <th style="padding: 12px 8px; text-align: left; font-weight: 600;">Code / Name</th>
-                  <th style="padding: 12px 8px; text-align: right; font-weight: 600;">Required</th>
-                  <th style="padding: 12px 8px; text-align: right; font-weight: 600;">Stock</th>
-                  <th style="padding: 12px 8px; text-align: right; font-weight: 600;">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${result.items.map((item, idx) => `
-                  <tr style="border-bottom: 1px solid #e5e7eb; ${idx % 2 === 0 ? 'background: #fafafa;' : ''}">
-                    <td style="padding: 10px 8px;">
-                      <div style="font-weight: 500;">${escapeHtml(item.code)}</div>
-                      <div style="font-size: 12px; color: #6b7280;">${escapeHtml(item.name)}</div>
-                      ${item.isDerived ? '<span style="font-size: 10px; color: #2563eb; background: #eff6ff; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">auto</span>' : ''}
-                    </td>
-                    <td style="padding: 10px 8px; text-align: right; font-weight: 500;">
-                      ${item.required.toFixed(2)} ${escapeHtml(item.unit)}
-                    </td>
-                    <td style="padding: 10px 8px; text-align: right; font-weight: 500; color: ${item.isOk ? '#059669' : '#dc2626'};">
-                      ${item.stock.toFixed(2)} ${escapeHtml(item.unit)}
-                    </td>
-                    <td style="padding: 10px 8px; text-align: right;">
-                      ${item.isOk 
-                        ? '<span style="color: #059669; font-weight: 500;">✓ OK</span>' 
-                        : `<span style="color: #dc2626; font-weight: 500;">⚠️ Short ${item.shortage.toFixed(2)}</span>`
-                      }
-                    </td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-          
-          <div style="padding: 16px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px;">
-            <button onclick="closeMaterialCheckModal()" style="padding: 8px 16px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; font-weight: 500;">Close</button>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Remove existing modal if any
-    const existing = document.getElementById('material-check-modal');
-    if (existing) existing.remove();
-    
-    // Add modal to body
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    
-    // Update canvas to show material warnings
-    renderCanvas();
-    
-    if (result.hasShortages) {
-      showToast('Material shortages detected - check the details', 'warning');
-    } else {
-      showToast('All materials available', 'success');
-    }
-  } catch (error) {
-    console.error('Material check error:', error);
-    showToast('Failed to check material availability', 'error');
-  }
+  showToast('Material checks are now performed at launch time', 'info');
 }
 
-// Close material check modal
 export function closeMaterialCheckModal() {
-  const modal = document.getElementById('material-check-modal');
-  if (modal) modal.remove();
+  // No-op - modal no longer exists
 }
 
-// Make functions globally available
+// Make functions globally available for backward compatibility
 window.showMaterialCheckModal = showMaterialCheckModal;
 window.closeMaterialCheckModal = closeMaterialCheckModal;
 
@@ -2377,97 +2146,32 @@ export async function savePlanDraft() {
   const quantityInput = document.getElementById('modal-plan-quantity');
   const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
   
-  // MANDATORY: Check material availability before saving
-  // Auto-run check if missing or stale (>5 minutes)
-  const MATERIAL_CHECK_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
-  const existingCheck = planDesignerState.materialCheckResult;
-  const isStale = !existingCheck || 
-    !existingCheck.checkedAt || 
-    (Date.now() - new Date(existingCheck.checkedAt).getTime()) > MATERIAL_CHECK_EXPIRY_MS;
-  
-  let materialCheck = existingCheck;
-  
-  if (isStale) {
-    showToast('Running mandatory material availability check...', 'info');
-    try {
-      materialCheck = await checkMaterialAvailability(planDesignerState.nodes, planQuantity);
-    } catch (error) {
-      console.error('Material check failed:', error);
-      const proceed = confirm(
-        '❌ MATERIAL CHECK FAILED\n\n' +
-        'Could not verify material availability.\n\n' +
-        'Do you want to continue saving anyway? (Not recommended)'
-      );
-      if (!proceed) {
-        showToast('Save cancelled - material check failed', 'error');
-        return;
-      }
-      // Create fallback empty check result
-      materialCheck = {
-        items: [],
-        hasShortages: false,
-        allAvailable: false,
-        shortageDetails: [],
-        checkedAt: new Date().toISOString(),
-        error: error.message
-      };
-    }
-  } else {
-    console.log('✓ Using cached material check (fresh)');
-  }
-  
-  if (materialCheck.error) {
-    console.warn('Material check had errors, but proceeding with save:', materialCheck.error);
-  }
-  
-  if (!materialCheck.allAvailable && materialCheck.hasShortages) {
-    // Show material shortage details and prevent save
-    const shortageList = materialCheck.shortageDetails
-      .map(s => `• ${s.code} - ${s.name}: Need ${s.required.toFixed(2)} ${s.unit}, Available ${s.available.toFixed(2)} ${s.unit}`)
-      .join('\n');
-    
-    const proceed = confirm(
-      `⚠️ MATERIAL SHORTAGES DETECTED\n\n${materialCheck.shortageDetails.length} material(s) are insufficient:\n\n${shortageList}\n\nDo you want to view details or continue saving anyway?`
-    );
-    
-    if (!proceed) {
-      showToast('Save cancelled - material shortages detected', 'warning');
-      // Open material check modal to show details
-      await showMaterialCheckModal();
-      return;
-    } else {
-      showToast('Saving plan despite material shortages...', 'warning');
-    }
-  } else {
-    console.log('✓ All materials available');
-  }
+  // Material checks are now disabled in Plan Designer - warnings appear at launch time
+  console.log('✓ Material checks disabled - will be validated at launch');
   
   const meta = planDesignerState.currentPlanMeta || {};
   const isFromTemplate = (meta.status === 'template' && meta.sourceTemplateId);
   if (isFromTemplate) {
     const id = meta.sourceTemplateId;
     
-    // Prepare material summary for the plan document
-    // NOTE: Material consumption happens automatically during plan release.
-    // rawMaterials includes both base materials and derived WIP materials consumed.
-    // wipOutputs includes all semi-finished products produced by nodes.
+    // Prepare material summary for the plan document (unchecked)
+    // Material consumption validation happens at launch time in Approved Quotes
     
-    // Build material summary from aggregatePlanMaterials (not just materialCheck.items)
+    // Build material summary from aggregatePlanMaterials
     const aggregatedMaterials = aggregatePlanMaterials(planDesignerState.nodes, planQuantity);
     
-    // Merge with materialCheck data for availability info
+    // Mark all materials as unchecked (no stock validation in designer)
     const enrichedMaterials = aggregatedMaterials.map(mat => {
-      const checkItem = materialCheck.items?.find(c => c.id === mat.id || c.code === mat.code) || {};
       return {
         id: mat.id,
         code: mat.code,
         name: mat.name,
         required: mat.required,
         unit: mat.unit,
-        isDerived: mat.isDerived || false, // From aggregatePlanMaterials
-        stock: checkItem.stock || 0,
-        shortage: checkItem.shortage || 0,
-        isOk: checkItem.isOk !== false
+        isDerived: mat.isDerived || false,
+        stock: 0, // Not checked
+        shortage: 0, // Not checked
+        isOk: true // Assume OK - will be validated at launch
       };
     });
     
@@ -2486,12 +2190,12 @@ export async function savePlanDraft() {
     });
     
     const materialSummary = {
-      checkedAt: materialCheck.checkedAt || new Date().toISOString(),
+      checkedAt: null, // Not checked in designer
       totalItems: enrichedMaterials.length,
-      allAvailable: materialCheck.allAvailable,
-      hasShortages: materialCheck.hasShortages,
-      items: enrichedMaterials, // All materials with availability info
-      shortages: materialCheck.shortageDetails || [],
+      allAvailable: false, // Unknown until launch
+      hasShortages: false, // Unknown until launch
+      items: enrichedMaterials,
+      shortages: [],
       // Separated for stock management during release:
       rawMaterials: enrichedMaterials.map(item => ({
         id: item.id,
@@ -2717,18 +2421,8 @@ export async function releasePlanToProduction() {
   
   const planId = currentPlanMeta.id;
   
-  // Validation: Check material availability
-  if (!planDesignerState.materialCheckResult || planDesignerState.materialCheckResult.hasShortages) {
-    const proceed = confirm(
-      'Material shortages detected or materials not checked.\n\n' +
-      'Do you want to proceed with release anyway?'
-    );
-    
-    if (!proceed) {
-      showToast('Release cancelled - check materials first', 'info');
-      return;
-    }
-  }
+  // Material validation removed - checks happen at launch time in Approved Quotes
+  console.log('✓ Releasing plan without material checks (validation at launch)');
   
   try {
     showToast('Releasing plan to production...', 'info');

@@ -216,10 +216,26 @@ async function startProduction(workOrderCode) {
       // Success! Update state to IN_PRODUCTION (update server)
       await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION, true);
       
-      // Show success message
-      const message = result.warnings && result.warnings.length > 0
-        ? `Üretim başlatıldı!\n\n${result.assignmentCount} atama oluşturuldu.\n\n⚠️ Uyarılar:\n${result.warnings.map(w => `- ${w.nodeName}: ${w.warnings.join(', ')}`).join('\n')}`
-        : `Üretim başarıyla başlatıldı!\n\n${result.assignmentCount} atama oluşturuldu.`;
+      // Build success message with warnings
+      let message = `Üretim başarıyla başlatıldı!\n\n${result.assignmentCount} atama oluşturuldu.`;
+      
+      // Check for material shortage warnings
+      if (result.warnings && result.warnings.materialShortages && result.warnings.materialShortages.length > 0) {
+        const shortageList = result.warnings.materialShortages.map(s => 
+          `• ${s.nodeName || 'Node'} – ${s.materialCode}: İhtiyaç ${s.required} ${s.unit}, Stok ${s.available} ${s.unit}`
+        ).join('\n');
+        
+        message += `\n\n⚠️ Malzeme Eksiklikleri (Bilgilendirme):\n${shortageList}\n\nÜretim başladı; stokları en kısa sürede tamamlayın.`;
+      }
+      
+      // Check for assignment warnings
+      if (result.warnings && result.warnings.assignmentWarnings && result.warnings.assignmentWarnings.length > 0) {
+        const warningList = result.warnings.assignmentWarnings.map(w => 
+          `• ${w.nodeName}: ${w.warnings.join(', ')}`
+        ).join('\n');
+        
+        message += `\n\n⚠️ Atama Uyarıları:\n${warningList}`;
+      }
       
       alert(message);
       
@@ -252,12 +268,6 @@ async function startProduction(workOrderCode) {
         console.warn('Launch error - no eligible workers:', error);
         const sampleInfo = error.sample ? error.sample.map(s => `${s.name || s.id}: ${s.status}${s.onLeave ? ' (on leave)' : ''}`).join('\n') : '';
         alert(`Üretim Başlatılamadı\n\nAktif ve müsait işçi bulunamadı. Lütfen Worker Portal'dan işçilerin durumunu kontrol edin.\n\n${sampleInfo}`);
-      } else if (error.status === 422 && error.shortages) {
-        // Material shortage
-        const shortageList = error.shortages.map(s => 
-          `- ${s.name} (${s.code}): İhtiyaç ${s.required} ${s.unit}, Stok ${s.available} ${s.unit}, Eksik ${s.shortage} ${s.unit}`
-        ).join('\n');
-        alert(`Malzeme Eksikliği Nedeniyle Üretim Başlatılamadı\n\n${shortageList}\n\nLütfen eksik malzemeleri temin edip tekrar deneyin.`);
       } else if (error.status === 422 && error.errors) {
         // Assignment errors
         const errorList = error.errors.map(e => 
