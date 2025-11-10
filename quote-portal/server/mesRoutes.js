@@ -2305,14 +2305,19 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
   }, res);
 });
 
-// PATCH /api/mes/worker-portal/tasks/:assignmentId - Update task status
-router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) => {
+// ============================================================================
+// WORK PACKAGE (ASSIGNMENT) UPDATE ENDPOINT
+// ============================================================================
+// PATCH /api/mes/work-packages/:id - Update work package with actions
+// This is the unified endpoint for all task state changes: start, pause, station_error, complete
+// Replaces the old /worker-portal/tasks endpoint for consistency
+router.patch('/work-packages/:id', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
-    const { assignmentId } = req.params;
+    const { id: assignmentId } = req.params;
     const { action, scrapQty, stationNote, actualOutputQuantity, defectQuantity } = req.body;
     
     if (!assignmentId) {
-      const e = new Error('assignment_id_required');
+      const e = new Error('work_package_id_required');
       e.status = 400;
       throw e;
     }
@@ -2335,10 +2340,10 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
     const actorEmail = req.user?.email || 'system';
     const actorName = req.user?.name || req.user?.userName || null;
     
-    // Get assignment
+    // Get assignment (work package)
     const assignmentDoc = await db.collection('mes-worker-assignments').doc(assignmentId).get();
     if (!assignmentDoc.exists) {
-      const e = new Error('assignment_not_found');
+      const e = new Error('work_package_not_found');
       e.status = 404;
       throw e;
     }
@@ -2346,7 +2351,7 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
     const assignment = assignmentDoc.data();
     const { planId, nodeId, workerId, stationId } = assignment;
     
-    // Execute action
+    // Execute action in atomic transaction
     const result = await db.runTransaction(async (transaction) => {
       const assignmentRef = db.collection('mes-worker-assignments').doc(assignmentId);
       const workerRef = workerId ? db.collection('mes-workers').doc(workerId) : null;
@@ -2453,7 +2458,7 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
             const reservationResults = [];
             const reservationErrors = [];
             
-            console.log(`🔄 Starting material reservation for assignment ${assignmentId}`);
+            console.log(`🔄 Starting material reservation for work package ${assignmentId}`);
             
             // Process each material in preProductionReservedAmount
             for (const [materialCode, reservedQty] of Object.entries(assignment.preProductionReservedAmount)) {
@@ -2510,6 +2515,42 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
                   unit: materialData.unit
                 });
                 
+                // ========================================================================
+                // STOCK MOVEMENTS: Record material transfer to WIP
+                // ========================================================================
+                const stockMovementRef = db.collection('stockMovements').doc();
+                transaction.set(stockMovementRef, {
+                  materialId: materialCode,
+                  materialCode: materialCode,
+                  materialName: materialData.name || '',
+                  type: 'out', // Stock'tan çıkış
+                  subType: 'wip_reservation', // Üretim rezervasyonu
+                  quantity: reservedQty,
+                  unit: materialData.unit || 'Adet',
+                  stockBefore: currentStock,
+                  stockAfter: newStock,
+                  wipReservedBefore: currentWipReserved,
+                  wipReservedAfter: newWipReserved,
+                  unitCost: materialData.costPrice || null,
+                  totalCost: materialData.costPrice ? materialData.costPrice * reservedQty : null,
+                  currency: 'TRY',
+                  reference: assignmentId,
+                  referenceType: 'mes_task_start',
+                  relatedPlanId: planId,
+                  relatedNodeId: nodeId,
+                  warehouse: null,
+                  location: 'WIP',
+                  notes: `Görev başlatıldı - Malzeme üretime alındı`,
+                  reason: 'MES görev başlatma - WIP rezervasyonu',
+                  movementDate: now,
+                  createdAt: now,
+                  userId: actorEmail,
+                  userName: actorName || actorEmail,
+                  approved: true,
+                  approvedBy: actorEmail,
+                  approvedAt: now
+                });
+                
                 console.log(`✅ Reserved ${reservedQty} ${materialData.unit} of ${materialCode}: stock ${currentStock} → ${newStock}, wipReserved ${currentWipReserved} → ${newWipReserved}`);
                 
               } catch (err) {
@@ -2545,7 +2586,7 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
               details: reservationResults
             };
             
-            console.log(`✅ Material reservation completed for assignment ${assignmentId}: ${reservationResults.length} material(s) reserved`);
+            console.log(`✅ Material reservation completed for work package ${assignmentId}: ${reservationResults.length} material(s) reserved`);
           }
           
           // ========================================================================
@@ -2588,10 +2629,13 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
           break;
           
         case 'pause':
+          // ========================================================================
+          // PAUSE: No material changes, only status update
+          // ========================================================================
           updateData.status = 'paused';
           updateData.pausedAt = now;
-          updateData.pausedBy = userEmail;
-          updateData.pausedByName = req.user?.displayName || userEmail;
+          updateData.pausedBy = actorEmail;
+          updateData.pausedByName = actorName;
           updateData.pauseContext = 'worker'; // Worker-level pause
           updateData.pauseReason = 'Worker paused the task';
           
@@ -2605,12 +2649,15 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
           break;
           
         case 'station_error':
+          // ========================================================================
+          // STATION ERROR: Pause + create alert
+          // ========================================================================
           updateData.status = 'paused';
           updateData.pausedAt = now;
-          updateData.pausedBy = userEmail;
-          updateData.pausedByName = req.user?.displayName || userEmail;
+          updateData.pausedBy = actorEmail;
+          updateData.pausedByName = actorName;
           updateData.pauseContext = 'station_error'; // Station error pause
-          updateData.pauseReason = 'Station error reported';
+          updateData.pauseReason = stationNote || 'Station error reported';
           
           // Update worker currentTask status
           if (workerRef) {
@@ -2650,7 +2697,7 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
           // 4. Record all material movements for audit trail
           // ========================================================================
           
-          console.log(`📊 Starting comprehensive completion for assignment ${assignmentId}`);
+          console.log(`📊 Starting comprehensive completion for work package ${assignmentId}`);
           
           updateData.status = 'completed';
           updateData.actualFinish = now;
@@ -2805,6 +2852,115 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
                   unit: materialData.unit
                 });
                 
+                // ========================================================================
+                // STOCK MOVEMENTS: Record WIP release and consumption
+                // ========================================================================
+                
+                // 1. WIP Release (always happens)
+                const wipReleaseMovementRef = db.collection('stockMovements').doc();
+                transaction.set(wipReleaseMovementRef, {
+                  materialId: materialCode,
+                  materialCode: materialCode,
+                  materialName: materialData.name || '',
+                  type: 'in', // WIP'ten serbest bırakma (conceptually "in" to available pool)
+                  subType: 'wip_release',
+                  quantity: reservedAmount,
+                  unit: materialData.unit || 'Adet',
+                  stockBefore: currentStock,
+                  stockAfter: Math.max(0, newStock),
+                  wipReservedBefore: currentWipReserved,
+                  wipReservedAfter: newWipReserved,
+                  unitCost: materialData.costPrice || null,
+                  totalCost: materialData.costPrice ? materialData.costPrice * reservedAmount : null,
+                  currency: 'TRY',
+                  reference: assignmentId,
+                  referenceType: 'mes_task_complete',
+                  relatedPlanId: planId,
+                  relatedNodeId: nodeId,
+                  warehouse: null,
+                  location: 'WIP Release',
+                  notes: `Görev tamamlandı - WIP rezervi serbest bırakıldı`,
+                  reason: 'MES görev tamamlama - WIP serbest bırakma',
+                  movementDate: now,
+                  createdAt: now,
+                  userId: actorEmail,
+                  userName: actorName || actorEmail,
+                  approved: true,
+                  approvedBy: actorEmail,
+                  approvedAt: now
+                });
+                
+                // 2. Actual Consumption (production usage)
+                const consumptionMovementRef = db.collection('stockMovements').doc();
+                transaction.set(consumptionMovementRef, {
+                  materialId: materialCode,
+                  materialCode: materialCode,
+                  materialName: materialData.name || '',
+                  type: actualConsumption > 0 ? 'out' : 'in', // Consumption is 'out', over-reservation return is 'in'
+                  subType: 'production_consumption',
+                  quantity: Math.abs(actualConsumption),
+                  unit: materialData.unit || 'Adet',
+                  stockBefore: currentStock,
+                  stockAfter: Math.max(0, newStock),
+                  actualOutput: actualOutput,
+                  defectQuantity: defects,
+                  plannedOutput: plannedOutputQty,
+                  unitCost: materialData.costPrice || null,
+                  totalCost: materialData.costPrice ? materialData.costPrice * Math.abs(actualConsumption) : null,
+                  currency: 'TRY',
+                  reference: assignmentId,
+                  referenceType: 'mes_task_complete',
+                  relatedPlanId: planId,
+                  relatedNodeId: nodeId,
+                  warehouse: null,
+                  location: 'Production Floor',
+                  notes: `Görev tamamlandı - Gerçek sarfiyat: ${actualConsumption.toFixed(2)} ${materialData.unit} (Çıktı: ${actualOutput}, Fire: ${defects})`,
+                  reason: 'MES görev tamamlama - Üretim sarfiyatı',
+                  movementDate: now,
+                  createdAt: now,
+                  userId: actorEmail,
+                  userName: actorName || actorEmail,
+                  approved: true,
+                  approvedBy: actorEmail,
+                  approvedAt: now
+                });
+                
+                // 3. Stock Adjustment (if there's a difference)
+                if (Math.abs(stockAdjustment) > 0.001) { // Floating point tolerance
+                  const adjustmentMovementRef = db.collection('stockMovements').doc();
+                  transaction.set(adjustmentMovementRef, {
+                    materialId: materialCode,
+                    materialCode: materialCode,
+                    materialName: materialData.name || '',
+                    type: stockAdjustment > 0 ? 'in' : 'out',
+                    subType: 'production_adjustment',
+                    quantity: Math.abs(stockAdjustment),
+                    unit: materialData.unit || 'Adet',
+                    stockBefore: currentStock,
+                    stockAfter: Math.max(0, newStock),
+                    unitCost: materialData.costPrice || null,
+                    totalCost: materialData.costPrice ? materialData.costPrice * Math.abs(stockAdjustment) : null,
+                    currency: 'TRY',
+                    reference: assignmentId,
+                    referenceType: 'mes_task_complete',
+                    relatedPlanId: planId,
+                    relatedNodeId: nodeId,
+                    warehouse: null,
+                    location: 'Production Adjustment',
+                    notes: stockAdjustment > 0 
+                      ? `Fazla rezerve edildi - ${Math.abs(stockAdjustment).toFixed(2)} ${materialData.unit} iade edildi`
+                      : `Eksik rezerve edildi - ${Math.abs(stockAdjustment).toFixed(2)} ${materialData.unit} ek kullanıldı`,
+                    reason: 'MES görev tamamlama - Rezervasyon düzeltmesi',
+                    movementDate: now,
+                    createdAt: now,
+                    userId: actorEmail,
+                    userName: actorName || actorEmail,
+                    approved: true,
+                    approvedBy: actorEmail,
+                    approvedAt: now
+                  });
+                }
+                
                 console.log(`✅ ${materialCode}: stock ${currentStock} → ${Math.max(0, newStock)} (${stockAdjustment >= 0 ? '+' : ''}${stockAdjustment.toFixed(2)}), wipReserved ${currentWipReserved} → ${newWipReserved} (-${reservedAmount})`);
                 
               } catch (err) {
@@ -2849,6 +3005,43 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
                   unit: outputMaterialData.unit
                 };
                 
+                // ========================================================================
+                // STOCK MOVEMENTS: Record production output addition
+                // ========================================================================
+                const outputMovementRef = db.collection('stockMovements').doc();
+                transaction.set(outputMovementRef, {
+                  materialId: outputCode,
+                  materialCode: outputCode,
+                  materialName: outputMaterialData.name || '',
+                  type: 'in', // Üretimden gelen stok girişi
+                  subType: 'production_output',
+                  quantity: actualOutput,
+                  unit: outputMaterialData.unit || 'Adet',
+                  stockBefore: currentOutputStock,
+                  stockAfter: newOutputStock,
+                  actualOutput: actualOutput,
+                  defectQuantity: defects,
+                  plannedOutput: plannedOutputQty,
+                  unitCost: outputMaterialData.costPrice || null,
+                  totalCost: outputMaterialData.costPrice ? outputMaterialData.costPrice * actualOutput : null,
+                  currency: 'TRY',
+                  reference: assignmentId,
+                  referenceType: 'mes_task_complete',
+                  relatedPlanId: planId,
+                  relatedNodeId: nodeId,
+                  warehouse: null,
+                  location: 'Production Output',
+                  notes: `Üretim tamamlandı - ${actualOutput} ${outputMaterialData.unit} üretildi${defects > 0 ? ` (Fire: ${defects})` : ''}`,
+                  reason: 'MES görev tamamlama - Üretim çıktısı',
+                  movementDate: now,
+                  createdAt: now,
+                  userId: actorEmail,
+                  userName: actorName || actorEmail,
+                  approved: true,
+                  approvedBy: actorEmail,
+                  approvedAt: now
+                });
+                
                 console.log(`✅ Output ${outputCode}: stock ${currentOutputStock} → ${newOutputStock} (+${actualOutput})`);
                 
               } else {
@@ -2882,6 +3075,43 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
                   unit: 'adet',
                   created: true
                 };
+                
+                // ========================================================================
+                // STOCK MOVEMENTS: Record new material creation + production output
+                // ========================================================================
+                const newMaterialMovementRef = db.collection('stockMovements').doc();
+                transaction.set(newMaterialMovementRef, {
+                  materialId: outputCode,
+                  materialCode: outputCode,
+                  materialName: node.name || outputCode,
+                  type: 'in',
+                  subType: 'production_output_new_material',
+                  quantity: actualOutput,
+                  unit: 'adet',
+                  stockBefore: 0,
+                  stockAfter: actualOutput,
+                  actualOutput: actualOutput,
+                  defectQuantity: defects,
+                  plannedOutput: plannedOutputQty,
+                  unitCost: null,
+                  totalCost: null,
+                  currency: 'TRY',
+                  reference: assignmentId,
+                  referenceType: 'mes_task_complete',
+                  relatedPlanId: planId,
+                  relatedNodeId: nodeId,
+                  warehouse: null,
+                  location: 'Production Output',
+                  notes: `Yeni WIP malzemesi oluşturuldu ve ${actualOutput} adet üretildi${defects > 0 ? ` (Fire: ${defects})` : ''}`,
+                  reason: 'MES görev tamamlama - Yeni WIP malzeme + Üretim çıktısı',
+                  movementDate: now,
+                  createdAt: now,
+                  userId: actorEmail,
+                  userName: actorName || actorEmail,
+                  approved: true,
+                  approvedBy: actorEmail,
+                  approvedAt: now
+                });
                 
                 console.log(`✅ Created output material ${outputCode} with initial stock ${actualOutput}`);
               }
@@ -2941,12 +3171,13 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
       
       return {
         success: true,
-        assignmentId,
+        workPackageId: assignmentId,
         action,
         status: updateData.status,
         alertCreated,
         scrapAdjustment,
         materialReservation: materialReservationResult,
+        materialMovements: updateData.materialMovements || null,
         updatedAt: now.toISOString()
       };
     });

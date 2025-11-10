@@ -1,7 +1,8 @@
 // Worker Portal Domain Module
 // Handles worker task management, status updates, and scrap reporting
 
-import { getWorkerPortalTasks, updateWorkerPortalTask, getWorkers } from '../../production/js/mesApi.js';
+import { getWorkerPortalTasks, updateWorkPackage, getWorkers } from '../../production/js/mesApi.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
 import { 
   getEffectiveStatus, 
   getWorkerStatusBanner, 
@@ -125,7 +126,7 @@ async function loadWorkerTasks() {
 
 async function startTask(assignmentId) {
   try {
-    const result = await updateWorkerPortalTask(assignmentId, { action: 'start' });
+    const result = await updateWorkPackage(assignmentId, { action: 'start' });
     
     // Check if backend rejected due to preconditions
     if (result.error && result.error.includes('precondition')) {
@@ -210,7 +211,7 @@ async function startTask(assignmentId) {
 
 async function pauseTask(assignmentId) {
   try {
-    await updateWorkerPortalTask(assignmentId, { action: 'pause' });
+    await updateWorkPackage(assignmentId, { action: 'pause' });
     await loadWorkerTasks();
     
     window.dispatchEvent(new CustomEvent('assignments:updated'));
@@ -227,7 +228,7 @@ async function reportStationError(assignmentId) {
   if (!note) return; // User cancelled
   
   try {
-    await updateWorkerPortalTask(assignmentId, { 
+    await updateWorkPackage(assignmentId, { 
       action: 'station_error',
       stationNote: note
     });
@@ -250,7 +251,7 @@ async function completeTask(assignmentId) {
   if (completionData === null) return; // User cancelled
   
   try {
-    await updateWorkerPortalTask(assignmentId, { 
+    await updateWorkPackage(assignmentId, { 
       action: 'complete',
       actualOutputQuantity: completionData.actualOutputQuantity,
       defectQuantity: completionData.defectQuantity,
@@ -1048,21 +1049,21 @@ function formatDuration(minutes) {
   return `${hours}s ${remainingMins}dk`;
 }
 
+// ============================================================================
+// NOTIFICATION SYSTEM (using new Toast component)
+// ============================================================================
+
 function showNotification(message, type = 'info') {
-  const notification = document.createElement('div');
-  notification.className = `notification notification-${type}`;
-  notification.textContent = message;
+  // Map old types to toast types
+  const toastTypeMap = {
+    'info': showInfoToast,
+    'success': showSuccessToast,
+    'warning': showWarningToast,
+    'error': showErrorToast
+  };
   
-  document.body.appendChild(notification);
-  
-  setTimeout(() => {
-    notification.classList.add('show');
-  }, 10);
-  
-  setTimeout(() => {
-    notification.classList.remove('show');
-    setTimeout(() => notification.remove(), 300);
-  }, 3000);
+  const toastFn = toastTypeMap[type] || showInfoToast;
+  toastFn(message);
 }
 
 // ============================================================================

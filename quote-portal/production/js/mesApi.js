@@ -694,11 +694,20 @@ export async function getWorkerPortalTasks(workerId = null) {
  * @param {string} [payload.stationNote] - Station error note (for station_error action)
  * @returns {Promise<Object>}
  */
-export async function updateWorkerPortalTask(assignmentId, payload) {
-  if (!assignmentId) throw new Error('assignment_id_required');
+/**
+ * Update a work package (assignment) with actions: start, pause, station_error, complete
+ * PATCH /api/mes/work-packages/:id
+ * 
+ * @param {string} workPackageId - The assignment/work package ID
+ * @param {Object} payload - Action payload { action, scrapQty?, stationNote?, actualOutputQuantity?, defectQuantity? }
+ * @returns {Promise<Object>} Result with success, action, status, etc.
+ * @throws {Error} With status, code, message, and details properties on failure
+ */
+export async function updateWorkPackage(workPackageId, payload) {
+  if (!workPackageId) throw new Error('work_package_id_required');
   if (!payload || !payload.action) throw new Error('action_required');
   
-  const res = await fetch(`${API_BASE}/api/mes/worker-portal/tasks/${encodeURIComponent(assignmentId)}`, {
+  const res = await fetch(`${API_BASE}/api/mes/work-packages/${encodeURIComponent(workPackageId)}`, {
     method: 'PATCH',
     headers: withAuth({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload),
@@ -715,7 +724,7 @@ export async function updateWorkerPortalTask(assignmentId, payload) {
     }
     
     // Throw structured error with code, message, and details
-    const error = new Error(errorData.message || `worker_portal_task_update_failed ${res.status}`);
+    const error = new Error(errorData.message || `work_package_update_failed ${res.status}`);
     error.code = errorData.code || 'unknown_error';
     error.status = res.status;
     error.details = errorData.details || null;
@@ -731,7 +740,7 @@ export async function updateWorkerPortalTask(assignmentId, payload) {
       const channel = new BroadcastChannel('mes-assignments');
       channel.postMessage({ 
         type: 'assignments:updated', 
-        assignmentId,
+        assignmentId: workPackageId,
         action: payload.action,
         timestamp: Date.now() 
       });
