@@ -243,21 +243,27 @@ async function reportStationError(assignmentId) {
 }
 
 async function completeTask(assignmentId) {
-  const scrapQty = await showScrapModal();
-  if (scrapQty === null) return; // User cancelled
+  // Find the task to get plannedOutput information
+  const task = state.tasks.find(t => t.assignmentId === assignmentId);
+  
+  const completionData = await showCompletionModal(task);
+  if (completionData === null) return; // User cancelled
   
   try {
     await updateWorkerPortalTask(assignmentId, { 
       action: 'complete',
-      scrapQty: parseFloat(scrapQty) || 0
+      actualOutputQuantity: completionData.actualOutputQuantity,
+      defectQuantity: completionData.defectQuantity,
+      // Keep scrapQty for backward compatibility
+      scrapQty: completionData.defectQuantity
     });
     await loadWorkerTasks();
     
     window.dispatchEvent(new CustomEvent('assignments:updated'));
     
-    const message = scrapQty > 0 
-      ? `Görev tamamlandı (Fire: ${scrapQty})`
-      : 'Görev tamamlandı';
+    const message = completionData.defectQuantity > 0 
+      ? `Görev tamamlandı (Üretilen: ${completionData.actualOutputQuantity}, Fire: ${completionData.defectQuantity})`
+      : `Görev tamamlandı (Üretilen: ${completionData.actualOutputQuantity})`;
     showNotification(message, 'success');
   } catch (err) {
     console.error('Failed to complete task:', err);
@@ -324,6 +330,146 @@ function showStationErrorModal() {
   });
 }
 
+function showCompletionModal(task) {
+  return new Promise((resolve) => {
+    // Extract planned output information
+    let plannedQty = 0;
+    let outputUnit = 'adet';
+    let outputCode = '';
+    
+    if (task && task.plannedOutput) {
+      // plannedOutput is an object like { "AK-002": 100 }
+      const outputEntries = Object.entries(task.plannedOutput);
+      if (outputEntries.length > 0) {
+        [outputCode, plannedQty] = outputEntries[0];
+      }
+    }
+    
+    // Fallback to hasOutputs and outputQty if plannedOutput not available
+    if (plannedQty === 0 && task) {
+      plannedQty = task.outputQty || 0;
+      outputCode = task.outputCode || '';
+    }
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 550px;">
+        <div class="modal-header">
+          <h2 class="modal-title">✅ Görev Tamamlama</h2>
+          <button class="modal-close" onclick="this.closest('.modal-overlay').remove(); arguments[0].stopPropagation();">×</button>
+        </div>
+        <div class="modal-body">
+          ${outputCode ? `<div class="form-info" style="margin-bottom: 16px; padding: 12px; background: #f0f9ff; border-left: 3px solid #0284c7; border-radius: 4px;">
+            <div style="font-size: 13px; color: #0c4a6e; font-weight: 600; margin-bottom: 4px;">
+              📦 Üretim Kodu: ${outputCode}
+            </div>
+            <div style="font-size: 12px; color: #075985;">
+              Bu görevin hedef çıktısı
+            </div>
+          </div>` : ''}
+          
+          <div class="form-group">
+            <label class="form-label" for="actualOutputQty">
+              Üretilen Miktar (${outputUnit})
+              <span style="color: #dc2626;">*</span>
+            </label>
+            <input 
+              type="number" 
+              id="actualOutputQty" 
+              class="form-input" 
+              min="0" 
+              step="0.01" 
+              value="${plannedQty}"
+              placeholder="Üretilen sağlam ürün miktarı"
+              required
+            />
+            <p class="form-help">Bu görev sonunda kaç adet sağlam ürün ürettiğinizi girin.</p>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="defectQty">
+              Fire/Hatalı Miktar (${outputUnit})
+            </label>
+            <input 
+              type="number" 
+              id="defectQty" 
+              class="form-input" 
+              min="0" 
+              step="0.01" 
+              value="0"
+              placeholder="0.00"
+            />
+            <p class="form-help">Üretim sırasında oluşan hatalı veya hurda ürün adedini girin.</p>
+          </div>
+          
+          <div class="form-info" style="margin-top: 16px; padding: 12px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
+            <div style="font-size: 12px; color: #92400e;">
+              <strong>💡 Not:</strong> Planlanan miktar ${plannedQty} ${outputUnit} olarak ayarlanmıştır. 
+              Gerçekleşen miktarı değiştirebilir ve fire varsa girebilirsiniz.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="this.closest('.modal-overlay').remove();">İptal</button>
+          <button class="btn-primary" id="confirmCompleteBtn">Onayla ve Bitir</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    const actualOutputInput = modal.querySelector('#actualOutputQty');
+    const defectInput = modal.querySelector('#defectQty');
+    const confirmBtn = modal.querySelector('#confirmCompleteBtn');
+    
+    actualOutputInput.focus();
+    actualOutputInput.select();
+    
+    confirmBtn.onclick = () => {
+      const actualOutputQuantity = parseFloat(actualOutputInput.value);
+      const defectQuantity = parseFloat(defectInput.value) || 0;
+      
+      // Validation
+      if (isNaN(actualOutputQuantity) || actualOutputQuantity < 0) {
+        showNotification('Lütfen geçerli bir üretim miktarı girin', 'warning');
+        actualOutputInput.focus();
+        return;
+      }
+      
+      if (defectQuantity < 0) {
+        showNotification('Fire miktarı negatif olamaz', 'warning');
+        defectInput.focus();
+        return;
+      }
+      
+      modal.remove();
+      resolve({
+        actualOutputQuantity,
+        defectQuantity
+      });
+    };
+    
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        modal.remove();
+        resolve(null);
+      }
+    };
+    
+    // Allow Enter key to submit
+    const handleEnter = (e) => {
+      if (e.key === 'Enter') {
+        confirmBtn.click();
+      }
+    };
+    
+    actualOutputInput.addEventListener('keypress', handleEnter);
+    defectInput.addEventListener('keypress', handleEnter);
+  });
+}
+
+// Legacy function for backward compatibility
 function showScrapModal() {
   return new Promise((resolve) => {
     const modal = document.createElement('div');

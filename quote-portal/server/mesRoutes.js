@@ -2309,7 +2309,7 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
 router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const { assignmentId } = req.params;
-    const { action, scrapQty, stationNote } = req.body;
+    const { action, scrapQty, stationNote, actualOutputQuantity, defectQuantity } = req.body;
     
     if (!assignmentId) {
       const e = new Error('assignment_id_required');
@@ -2643,13 +2643,24 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
           updateData.status = 'completed';
           updateData.actualFinish = now;
           
+          // Store actual output and defect quantities
+          if (actualOutputQuantity !== undefined) {
+            updateData.actualOutputQuantity = parseFloat(actualOutputQuantity) || 0;
+          }
+          
+          if (defectQuantity !== undefined) {
+            updateData.defectQuantity = parseFloat(defectQuantity) || 0;
+          }
+          
           // If completing a cancelled_pending_report task, stamp completionContext
           if (assignment.status === 'cancelled_pending_report' || assignment.finishContext === 'cancelled') {
             updateData.completionContext = 'cancelled';
           }
           
-          // Handle scrap material adjustment
-          if (scrapQty && scrapQty > 0) {
+          // Handle scrap material adjustment (backward compatibility with scrapQty)
+          const scrapAmount = defectQuantity !== undefined ? parseFloat(defectQuantity) : parseFloat(scrapQty);
+          
+          if (scrapAmount && scrapAmount > 0) {
             // Get plan to find material info
             const planDoc = await transaction.get(db.collection('mes-production-plans').doc(planId));
             if (planDoc.exists) {
@@ -2684,7 +2695,7 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
                   
                   try {
                     // Consume additional material for scrap
-                    const scrapResult = await adjustMaterialStock(materialCode, -scrapQty, {
+                    const scrapResult = await adjustMaterialStock(materialCode, -scrapAmount, {
                       reason: 'production_plan_runtime',
                       reference: `Scrap adjustment for ${planId}/${nodeId}`,
                       planId,
@@ -2693,11 +2704,11 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
                       transactionType: 'scrap_adjustment'
                     });
                     
-                    console.log(`✅ Scrap adjustment applied: ${materialCode} -${scrapQty} (baseQty: ${baseQty})`);
+                    console.log(`✅ Scrap adjustment applied: ${materialCode} -${scrapAmount} (baseQty: ${baseQty})`);
                     
                     scrapResults.push({
                       materialCode,
-                      scrapQty,
+                      scrapQty: scrapAmount,
                       baseQty,
                       timestamp: now,
                       nodeId,
@@ -2710,7 +2721,7 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
                     transaction.update(planRef, {
                       'stockMovements.scrapAdjustments': admin.firestore.FieldValue.arrayUnion({
                         materialCode,
-                        scrapQty,
+                        scrapQty: scrapAmount,
                         baseQty,
                         nodeId,
                         workerId,
