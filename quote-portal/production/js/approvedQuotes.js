@@ -755,11 +755,16 @@ function renderApprovedQuotesTable() {
     let actionsCell = ''
     
     if (hasProductionPlan) {
-      // Determine actual production state based on plan launchStatus and productionState
+      // Determine actual production state - prefer quote.productionState over plan metadata
       let currentState = PRODUCTION_STATES.WAITING_APPROVAL;
       
-      // First check plan's launchStatus (most authoritative)
-      if (plan.launchStatus === 'cancelled') {
+      // First check quote's productionState (most authoritative)
+      const quoteState = getProductionState(idForRow);
+      if (quoteState && quoteState !== PRODUCTION_STATES.WAITING_APPROVAL) {
+        currentState = quoteState;
+      } 
+      // Fall back to plan's launchStatus only if quote state is missing
+      else if (plan.launchStatus === 'cancelled') {
         currentState = PRODUCTION_STATES.CANCELLED;
       } else if (plan.launchStatus === 'paused') {
         currentState = PRODUCTION_STATES.PAUSED;
@@ -772,13 +777,6 @@ function renderApprovedQuotesTable() {
         } else {
           currentState = 'Plan Hazırlanıyor'; // Plan not ready
         }
-      }
-      
-      // Override with productionState from quote if available
-      const quoteState = getProductionState(idForRow);
-      if (quoteState && quoteState !== PRODUCTION_STATES.WAITING_APPROVAL) {
-        // Quote has explicit state (for backward compatibility or manual updates)
-        currentState = quoteState;
       }
       
       let stateColor = '#6b7280'

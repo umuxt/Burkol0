@@ -198,6 +198,13 @@ async function getPlanExecutionState(planId) {
         materialsReady
       },
       
+      // Pause metadata (to differentiate plan pause vs worker pause)
+      pauseContext: assignment?.pauseContext || null,
+      pauseReason: assignment?.pauseReason || null,
+      pausedBy: assignment?.pausedBy || null,
+      pausedByName: assignment?.pausedByName || null,
+      pausedAt: assignment?.pausedAt || null,
+      
       // Timing
       priorityIndex: node.priorityIndex,
       estimatedNominalTime: node.estimatedNominalTime,
@@ -2104,7 +2111,7 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
     for (const doc of assignmentsSnapshot.docs) {
       const assignment = { id: doc.id, ...doc.data() };
       
-      // Skip completed tasks
+      // Skip only completed tasks; keep cancelled_pending_report for scrap reporting
       if (assignment.status === 'completed' || assignment.status === 'cancelled') {
         continue;
       }
@@ -2147,6 +2154,13 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         assignedAt: assignment.createdAt,
         actualStart: assignment.actualStart || null,
         actualFinish: assignment.actualFinish || null,
+        
+        // Pause metadata (to differentiate plan pause vs worker pause)
+        pauseContext: assignment.pauseContext || null,
+        pauseReason: assignment.pauseReason || null,
+        pausedBy: assignment.pausedBy || null,
+        pausedByName: assignment.pausedByName || null,
+        pausedAt: assignment.pausedAt || null,
         
         // Prerequisites (simplified for worker view)
         prerequisites: {
@@ -2243,8 +2257,15 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
               throw e;
             }
             
-            // Check if task status is ready or pending
-            if (currentTask.status !== 'ready' && currentTask.status !== 'pending') {
+            // Check if task status is ready, pending, or paused (but only if not plan-paused)
+            if (currentTask.status === 'paused' && currentTask.pauseContext === 'plan') {
+              const e = new Error('Task cannot be started: paused by admin');
+              e.status = 400;
+              e.code = 'precondition_failed';
+              throw e;
+            }
+            
+            if (currentTask.status !== 'ready' && currentTask.status !== 'pending' && currentTask.status !== 'paused') {
               const e = new Error(`Task cannot be started: current status is ${currentTask.status}`);
               e.status = 400;
               e.code = 'precondition_failed';
@@ -2299,7 +2320,16 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
           }
           
           updateData.status = 'in_progress';
-          updateData.actualStart = now;
+          
+          // Only set actualStart if it doesn't already exist (preserve on resume)
+          if (!assignment.actualStart) {
+            updateData.actualStart = now;
+          }
+          
+          // Clear pause metadata when starting/resuming
+          updateData.pauseContext = admin.firestore.FieldValue.delete();
+          updateData.pauseReason = admin.firestore.FieldValue.delete();
+          updateData.pausedAt = admin.firestore.FieldValue.delete();
           
           // Set worker currentTask
           if (workerRef) {
@@ -2326,6 +2356,11 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
           
         case 'pause':
           updateData.status = 'paused';
+          updateData.pausedAt = now;
+          updateData.pausedBy = userEmail;
+          updateData.pausedByName = req.user?.displayName || userEmail;
+          updateData.pauseContext = 'worker'; // Worker-level pause
+          updateData.pauseReason = 'Worker paused the task';
           
           // Update worker currentTask status
           if (workerRef) {
@@ -2338,6 +2373,11 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
           
         case 'station_error':
           updateData.status = 'paused';
+          updateData.pausedAt = now;
+          updateData.pausedBy = userEmail;
+          updateData.pausedByName = req.user?.displayName || userEmail;
+          updateData.pauseContext = 'station_error'; // Station error pause
+          updateData.pauseReason = 'Station error reported';
           
           // Update worker currentTask status
           if (workerRef) {
@@ -2369,6 +2409,11 @@ router.patch('/worker-portal/tasks/:assignmentId', withAuth, async (req, res) =>
         case 'complete':
           updateData.status = 'completed';
           updateData.actualFinish = now;
+          
+          // If completing a cancelled_pending_report task, stamp completionContext
+          if (assignment.status === 'cancelled_pending_report' || assignment.finishContext === 'cancelled') {
+            updateData.completionContext = 'cancelled';
+          }
           
           // Handle scrap material adjustment
           if (scrapQty && scrapQty > 0) {
@@ -3717,10 +3762,14 @@ router.post('/production-plans/:planId/pause', withAuth, async (req, res) => {
       }
       
       // Pause the assignment, preserve actualStart if it exists
+      // Set pauseContext='plan' to distinguish admin pause from worker pause
       batch.update(doc.ref, {
         status: 'paused',
         pausedAt: now,
         pausedBy: userEmail,
+        pausedByName: req.user?.displayName || userEmail,
+        pauseContext: 'plan', // Admin-level pause
+        pauseReason: 'Admin paused the production plan',
         updatedAt: now
       });
       
@@ -3759,6 +3808,15 @@ router.post('/production-plans/:planId/pause', withAuth, async (req, res) => {
     
     // Commit all changes
     await batch.commit();
+    
+    // Update approved quote productionState to 'Üretim Durduruldu'
+    if (planData.orderCode) {
+      await updateApprovedQuoteProductionState(
+        planData.orderCode,
+        'Üretim Durduruldu',
+        userEmail
+      );
+    }
     
     return res.status(200).json({
       success: true,
@@ -3826,10 +3884,17 @@ router.post('/production-plans/:planId/resume', withAuth, async (req, res) => {
     
     const batch = db.batch();
     let resumedCount = 0;
+    let skippedWorkerPauseCount = 0;
     
-    // Update paused assignments
+    // Update paused assignments (only those paused by admin)
     assignmentsSnapshot.docs.forEach(doc => {
       const assignment = doc.data();
+      
+      // Skip assignments paused by worker or station error (not admin plan pause)
+      if (assignment.pauseContext && assignment.pauseContext !== 'plan') {
+        skippedWorkerPauseCount++;
+        return;
+      }
       
       // Determine new status based on whether task was started
       let newStatus = 'pending'; // Default: not yet started
@@ -3843,7 +3908,13 @@ router.post('/production-plans/:planId/resume', withAuth, async (req, res) => {
         status: newStatus,
         resumedAt: now,
         resumedBy: userEmail,
-        updatedAt: now
+        updatedAt: now,
+        // Clear pause metadata
+        pauseContext: admin.firestore.FieldValue.delete(),
+        pauseReason: admin.firestore.FieldValue.delete(),
+        pausedAt: admin.firestore.FieldValue.delete(),
+        pausedBy: admin.firestore.FieldValue.delete(),
+        pausedByName: admin.firestore.FieldValue.delete()
       });
       
       resumedCount++;
@@ -3860,13 +3931,23 @@ router.post('/production-plans/:planId/resume', withAuth, async (req, res) => {
     // Commit all changes
     await batch.commit();
     
+    // Update approved quote productionState to 'Üretiliyor'
+    if (planData.orderCode) {
+      await updateApprovedQuoteProductionState(
+        planData.orderCode,
+        'Üretiliyor',
+        userEmail
+      );
+    }
+    
     return res.status(200).json({
       success: true,
       planId,
       resumedCount,
+      skippedWorkerPauseCount,
       resumedAt: now.toISOString(),
       resumedBy: userEmail,
-      message: `Plan resumed: ${resumedCount} assignment(s) resumed`
+      message: `Plan resumed: ${resumedCount} assignment(s) resumed, ${skippedWorkerPauseCount} worker-paused assignment(s) skipped`
     });
     
   } catch (error) {
@@ -3928,6 +4009,7 @@ router.post('/production-plans/:planId/cancel', withAuth, async (req, res) => {
     
     const batch = db.batch();
     let cancelledCount = 0;
+    let pendingReportCount = 0;
     let alreadyCompleteCount = 0;
     
     // Cancel all non-completed assignments
@@ -3940,19 +4022,35 @@ router.post('/production-plans/:planId/cancel', withAuth, async (req, res) => {
         return;
       }
       
-      // Cancel the assignment
-      batch.update(doc.ref, {
-        status: 'cancelled',
-        cancelledAt: now,
-        cancelledBy: userEmail,
-        updatedAt: now
-      });
+      // Check if task has started (has actualStart or is in_progress)
+      const hasStarted = assignment.actualStart || assignment.status === 'in_progress';
       
-      cancelledCount++;
+      if (hasStarted) {
+        // Set to cancelled_pending_report to allow scrap reporting
+        batch.update(doc.ref, {
+          status: 'cancelled_pending_report',
+          finishContext: 'cancelled',
+          cancelledAt: now,
+          cancelledBy: userEmail,
+          updatedAt: now
+        });
+        pendingReportCount++;
+      } else {
+        // Never started - set to cancelled immediately
+        batch.update(doc.ref, {
+          status: 'cancelled',
+          cancelledAt: now,
+          cancelledBy: userEmail,
+          updatedAt: now
+        });
+        cancelledCount++;
+      }
       
-      // Track resources to clear
-      if (assignment.workerId) workersToUpdate.add(assignment.workerId);
-      if (assignment.stationId) stationsToUpdate.add(assignment.stationId);
+      // Track resources to clear (only for tasks that weren't started)
+      if (!hasStarted) {
+        if (assignment.workerId) workersToUpdate.add(assignment.workerId);
+        if (assignment.stationId) stationsToUpdate.add(assignment.stationId);
+      }
     });
     
     // Clear worker currentTask for affected workers
@@ -3983,7 +4081,7 @@ router.post('/production-plans/:planId/cancel', withAuth, async (req, res) => {
     
     // Update approved quote productionState if workOrderCode exists
     if (workOrderCode) {
-      const quotesSnapshot = await db.collection('approved-quotes')
+      const quotesSnapshot = await db.collection('mes-approved-quotes')
         .where('workOrderCode', '==', workOrderCode)
         .limit(1)
         .get();
@@ -4005,12 +4103,13 @@ router.post('/production-plans/:planId/cancel', withAuth, async (req, res) => {
       success: true,
       planId,
       cancelledCount,
+      pendingReportCount,
       alreadyCompleteCount,
       workersCleared: workersToUpdate.size,
       stationsCleared: stationsToUpdate.size,
       cancelledAt: now.toISOString(),
       cancelledBy: userEmail,
-      message: `Plan cancelled: ${cancelledCount} assignment(s) cancelled, ${alreadyCompleteCount} already complete`
+      message: `Plan cancelled: ${cancelledCount} assignment(s) cancelled immediately, ${pendingReportCount} pending scrap report, ${alreadyCompleteCount} already complete`
     });
     
   } catch (error) {
@@ -4045,8 +4144,8 @@ router.get('/work-packages', withAuth, async (req, res) => {
     const maxResults = Math.min(parseInt(limit) || 100, 500);
     
     // Fetch all assignments for launched plans
-    // Active statuses: pending, ready, in-progress, paused
-    const activeStatuses = ['pending', 'ready', 'in-progress', 'paused'];
+    // Active statuses: pending, ready, in-progress, paused, cancelled_pending_report
+    const activeStatuses = ['pending', 'ready', 'in-progress', 'paused', 'cancelled_pending_report'];
     
     let assignmentsQuery = db.collection('mes-worker-assignments');
     

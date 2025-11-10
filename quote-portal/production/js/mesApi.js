@@ -660,7 +660,10 @@ export async function getWorkerPortalTasks(workerId = null) {
     ? `${API_BASE}/api/mes/worker-portal/tasks?workerId=${encodeURIComponent(workerId)}`
     : `${API_BASE}/api/mes/worker-portal/tasks`;
     
-  const res = await fetch(url, { headers: withAuth() });
+  const res = await fetch(url, { 
+    headers: withAuth(),
+    credentials: 'include'
+  });
   
   if (!res.ok) {
     // Parse error response to extract code and message
@@ -697,7 +700,8 @@ export async function updateWorkerPortalTask(assignmentId, payload) {
   const res = await fetch(`${API_BASE}/api/mes/worker-portal/tasks/${encodeURIComponent(assignmentId)}`, {
     method: 'PATCH',
     headers: withAuth({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    credentials: 'include'
   });
   
   if (!res.ok) {

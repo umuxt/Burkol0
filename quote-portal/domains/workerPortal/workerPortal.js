@@ -629,17 +629,41 @@ function renderTaskRow(task, isNextTask) {
   const statusInfo = getStatusInfo(task.status);
   const priorityBadge = isNextTask ? '<span class="priority-badge">Öncelikli</span>' : '';
   
-  // Show paused banner if admin paused this task
-  const pausedBannerHtml = task.status === 'paused'
-    ? `<div style="margin-top: 8px; padding: 10px; background: #fee2e2; border-left: 3px solid #ef4444; border-radius: 4px;">
+  // Show paused banner based on pause context
+  let pausedBannerHtml = '';
+  if (task.status === 'paused') {
+    if (task.pauseContext === 'plan') {
+      // Admin plan pause - blocks worker
+      pausedBannerHtml = `<div style="margin-top: 8px; padding: 10px; background: #fee2e2; border-left: 3px solid #ef4444; border-radius: 4px;">
          <div style="font-size: 12px; color: #991b1b; font-weight: 600; display: flex; align-items: center; gap: 6px;">
            ⏸️ Bu görev admin tarafından durduruldu
          </div>
          <div style="font-size: 11px; color: #7f1d1d; margin-top: 4px;">
            Görevi başlatmak için admin tarafından devam ettirilmesini bekleyin
          </div>
-       </div>`
-    : '';
+       </div>`;
+    } else if (task.pauseContext === 'station_error') {
+      // Station error pause - can be resumed by worker
+      pausedBannerHtml = `<div style="margin-top: 8px; padding: 10px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
+         <div style="font-size: 12px; color: #92400e; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+           ⚠️ İstasyon hatası nedeniyle duraklatıldı
+         </div>
+         <div style="font-size: 11px; color: #78350f; margin-top: 4px;">
+           Hata giderildiğinde görevi devam ettirebilirsiniz
+         </div>
+       </div>`;
+    } else {
+      // Worker pause - can be resumed
+      pausedBannerHtml = `<div style="margin-top: 8px; padding: 10px; background: #dbeafe; border-left: 3px solid #3b82f6; border-radius: 4px;">
+         <div style="font-size: 12px; color: #1e40af; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+           ⏸️ Tarafınızdan duraklatıldı
+         </div>
+         <div style="font-size: 11px; color: #1e3a8a; margin-top: 4px;">
+           Hazır olduğunuzda devam edebilirsiniz
+         </div>
+       </div>`;
+    }
+  }
   
   // Render inline block reasons if task failed to start
   const blockReasonsHtml = task.blockReasons && task.blockReasons.length > 0 
@@ -723,8 +747,11 @@ function renderTaskActions(task) {
   const workCheck = state.currentWorkerDetails ? canWorkerStartTasks(state.currentWorkerDetails) : { canWork: true, reason: null };
   const workerUnavailable = !workCheck.canWork;
   
-  // Check if task is paused by admin
-  const isPaused = task.status === 'paused';
+  // Check if task is paused by admin plan
+  const isPlanPaused = task.status === 'paused' && task.pauseContext === 'plan';
+  
+  // Check if task is paused by worker (can be resumed)
+  const isWorkerPaused = task.status === 'paused' && task.pauseContext !== 'plan';
   
   // Check if task is blocked by prerequisites
   const isBlocked = task.prerequisites && (
@@ -738,7 +765,7 @@ function renderTaskActions(task) {
   let blockTooltip = '';
   if (workerUnavailable) {
     blockTooltip = `title="İşçi durumu görev başlatmaya uygun değil: ${workCheck.reason || 'Bilinmeyen sebep'}"`;
-  } else if (isPaused) {
+  } else if (isPlanPaused) {
     blockTooltip = `title="Admin tarafından durduruldu"`;
   } else if (isBlocked) {
     const reasons = [];
@@ -749,9 +776,19 @@ function renderTaskActions(task) {
     blockTooltip = `title="${reasons.join(', ')}"`;
   }
   
-  // Start button - only if ready (and not paused, blocked, or worker unavailable)
-  if (task.status === 'ready') {
-    const disabled = (isBlocked || isPaused || workerUnavailable) ? 'disabled' : '';
+  // Resume button - only if paused by worker/station (not admin)
+  if (isWorkerPaused) {
+    const disabled = (isBlocked || workerUnavailable) ? 'disabled' : '';
+    actions.push(`
+      <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}" ${disabled} ${blockTooltip}>
+        ▶️ Devam
+      </button>
+    `);
+  }
+  
+  // Start button - for ready OR pending tasks (and not paused, blocked, or worker unavailable)
+  if (task.status === 'ready' || task.status === 'pending') {
+    const disabled = (isBlocked || isPlanPaused || workerUnavailable) ? 'disabled' : '';
     actions.push(`
       <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}" ${disabled} ${blockTooltip}>
         ▶️ Başla
@@ -779,8 +816,18 @@ function renderTaskActions(task) {
     `);
   }
   
-  // Station error - always available (except completed)
-  if (task.status !== 'completed') {
+  // Report scrap for cancelled tasks - show complete button to allow scrap reporting
+  if (task.status === 'cancelled_pending_report') {
+    const disabled = workerUnavailable ? 'disabled' : '';
+    actions.push(`
+      <button class="action-btn action-complete" data-action="complete" data-id="${task.assignmentId}" ${disabled}>
+        📝 Raporla
+      </button>
+    `);
+  }
+  
+  // Station error - always available (except completed and cancelled_pending_report)
+  if (task.status !== 'completed' && task.status !== 'cancelled_pending_report') {
     actions.push(`
       <button class="action-btn action-error" data-action="error" data-id="${task.assignmentId}">
         ⚠️ Hata
@@ -837,7 +884,8 @@ function getStatusInfo(status) {
     'blocked': { label: 'Bloke', icon: '🚫', color: 'red' },
     'in_progress': { label: 'Devam Ediyor', icon: '▶️', color: 'blue' },
     'paused': { label: 'Duraklatıldı', icon: '⏸️', color: 'orange' },
-    'completed': { label: 'Tamamlandı', icon: '✓', color: 'success' }
+    'completed': { label: 'Tamamlandı', icon: '✓', color: 'success' },
+    'cancelled_pending_report': { label: 'İptal - Rapor Gerekli', icon: '❌', color: 'red' }
   };
   
   return statusMap[status] || { label: status, icon: '❓', color: 'gray' };

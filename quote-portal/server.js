@@ -106,33 +106,41 @@ app.use(express.json({ limit: '5mb' }))
 app.use((req, res, next) => {
   const allowedOrigins = process.env.NODE_ENV === 'production'
     ? ['https://burkol.com', 'https://admin.burkol.com']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001']
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:5173']
 
   const origin = req.headers.origin
 
-  // Only log CORS details when an Origin header is present
-  if (origin) {
-    if (allowedOrigins.includes(origin)) {
+  // In development, always allow the requesting origin
+  if (process.env.NODE_ENV !== 'production') {
+    // Always set CORS headers in development
+    const allowOrigin = origin || 'http://localhost:3000'
+    res.header('Access-Control-Allow-Origin', allowOrigin)
+    res.header('Access-Control-Allow-Credentials', 'true')
+    if (origin && process.env.CORS_LOG !== 'silent') {
+      console.log('🔓 CORS (dev mode) allowed for:', origin)
+    }
+  } else {
+    // Production mode - strict origin checking
+    if (origin && allowedOrigins.includes(origin)) {
       res.header('Access-Control-Allow-Origin', origin)
+      res.header('Access-Control-Allow-Credentials', 'true')
       if (process.env.CORS_LOG !== 'silent') console.log('✅ CORS allowed for:', origin)
     } else {
-      // In dev, allow wildcard for non-allowlisted origins to ease local testing
-      if (process.env.NODE_ENV !== 'production') {
-        res.header('Access-Control-Allow-Origin', '*')
-      }
-      if (process.env.CORS_LOG !== 'silent') console.log('⚠️ CORS origin not in allowlist:', origin)
+      if (process.env.CORS_LOG !== 'silent') console.log('❌ CORS blocked origin:', origin)
     }
   }
 
-  // Security headers
+  // Security headers (relax DENY in development for iframe testing)
   res.header('X-Content-Type-Options', 'nosniff')
-  res.header('X-Frame-Options', 'DENY')
+  res.header('X-Frame-Options', process.env.NODE_ENV === 'production' ? 'DENY' : 'SAMEORIGIN')
   res.header('X-XSS-Protection', '1; mode=block')
-  res.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  if (process.env.NODE_ENV === 'production') {
+    res.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  }
 
   // CORS headers
   res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control')
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Cache-Control, X-Requested-With')
   res.header('Access-Control-Max-Age', '86400')
 
   if (req.method === 'OPTIONS') {
