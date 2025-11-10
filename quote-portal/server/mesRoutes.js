@@ -2042,23 +2042,11 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const db = getFirestore();
     
-    // Get workerId from user profile or query param
-    let workerId = req.user?.workerId;
-    
-    // Allow admin to override workerId via query param
-    if (!workerId && req.query.workerId) {
-      // Only admins can specify workerId via query param
-      if (req.user?.role !== 'admin') {
-        const e = new Error('Forbidden: Only admins can query tasks for other workers');
-        e.status = 403;
-        e.code = 'forbidden';
-        throw e;
-      }
-      workerId = req.query.workerId;
-    }
+    // Get workerId from query param (required)
+    const workerId = req.query.workerId;
     
     if (!workerId) {
-      const e = new Error('Worker ID is required. Workers must authenticate with a worker account, admins must provide ?workerId=');
+      const e = new Error('Worker ID is required. Please provide ?workerId=<id> parameter');
       e.status = 400;
       e.code = 'worker_id_required';
       throw e;
@@ -2073,7 +2061,9 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
       throw e;
     }
     
-    // Get all assignments for this worker
+    const workerData = workerDoc.data();
+    
+    // Get all assignments for this worker with active statuses
     const assignmentsSnapshot = await db.collection('mes-worker-assignments')
       .where('workerId', '==', workerId)
       .get();
@@ -2082,33 +2072,104 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
       return { tasks: [], nextTaskId: null };
     }
     
-    // Get unique plan IDs
+    // Get unique plan IDs and station IDs to fetch additional data
     const planIds = [...new Set(assignmentsSnapshot.docs.map(doc => doc.data().planId))];
+    const stationIds = [...new Set(assignmentsSnapshot.docs.map(doc => doc.data().stationId).filter(Boolean))];
     
-    // Get execution state for each plan and merge
-    const allTasks = [];
-    
+    // Fetch plans
+    const plansMap = new Map();
     for (const planId of planIds) {
       try {
-        const tasks = await getPlanExecutionState(planId);
-        // Filter: only this worker and active statuses
-        const workerTasks = tasks.filter(task => 
-          task.workerId === workerId &&
-          ['pending', 'ready', 'in_progress', 'paused'].includes(task.status)
-        );
-        allTasks.push(...workerTasks);
+        const planDoc = await db.collection('mes-production-plans').doc(planId).get();
+        if (planDoc.exists) {
+          plansMap.set(planId, planDoc.data());
+        }
       } catch (err) {
-        console.error(`Failed to get execution state for plan ${planId}:`, err);
-        // Skip this plan and continue with others
+        console.error(`Failed to fetch plan ${planId}:`, err);
+      }
+    }
+    
+    // Fetch stations
+    const stationsMap = new Map();
+    if (stationIds.length > 0) {
+      const stationsSnapshot = await db.collection('mes-stations').where('__name__', 'in', stationIds).get();
+      stationsSnapshot.docs.forEach(doc => {
+        stationsMap.set(doc.id, doc.data());
+      });
+    }
+    
+    // Build tasks from assignments
+    const allTasks = [];
+    
+    for (const doc of assignmentsSnapshot.docs) {
+      const assignment = { id: doc.id, ...doc.data() };
+      
+      // Skip completed tasks
+      if (assignment.status === 'completed' || assignment.status === 'cancelled') {
         continue;
       }
+      
+      const plan = plansMap.get(assignment.planId);
+      const station = assignment.stationId ? stationsMap.get(assignment.stationId) : null;
+      
+      // Find node info from plan's execution graph
+      let nodeInfo = null;
+      if (plan && plan.executionGraph && assignment.nodeId) {
+        nodeInfo = plan.executionGraph.find(node => node.nodeId === assignment.nodeId);
+      }
+      
+      // Build task object
+      const task = {
+        // Assignment info
+        assignmentId: assignment.id,
+        planId: assignment.planId,
+        nodeId: assignment.nodeId,
+        status: assignment.status || 'pending',
+        
+        // Worker info
+        workerId: assignment.workerId,
+        workerName: workerData.name,
+        
+        // Station info
+        stationId: assignment.stationId,
+        stationName: station?.name || 'Belirsiz',
+        subStationCode: assignment.subStationCode,
+        
+        // Task details from node
+        name: nodeInfo?.name || 'İsimsiz Görev',
+        operationId: nodeInfo?.operationId,
+        operationName: nodeInfo?.operationName,
+        priorityIndex: nodeInfo?.priorityIndex || 0,
+        estimatedNominalTime: nodeInfo?.estimatedNominalTime || 0,
+        estimatedEffectiveTime: nodeInfo?.estimatedEffectiveTime || 0,
+        
+        // Timing
+        assignedAt: assignment.createdAt,
+        actualStart: assignment.actualStart || null,
+        actualFinish: assignment.actualFinish || null,
+        
+        // Prerequisites (simplified for worker view)
+        prerequisites: {
+          predecessorsDone: true, // Worker doesn't need to worry about this
+          workerAvailable: true,  // If assigned, worker is available
+          stationAvailable: true, // If assigned, station is available
+          materialsReady: !plan?.materialSummary?.hasShortages
+        },
+        
+        // Material output info
+        hasOutputs: nodeInfo?.hasOutputs || false,
+        outputCode: nodeInfo?.outputCode,
+        outputQty: nodeInfo?.outputQty
+      };
+      
+      allTasks.push(task);
     }
     
     // Sort by priorityIndex
     allTasks.sort((a, b) => a.priorityIndex - b.priorityIndex);
     
-    // Find next task (first ready or pending task)
-    const nextTask = allTasks.find(task => task.status === 'ready' || task.status === 'pending');
+    // Find next task (first pending or ready task)
+    const nextTask = allTasks.find(t => t.status === 'pending' || t.status === 'ready');
     const nextTaskId = nextTask?.assignmentId || null;
     
     return { tasks: allTasks, nextTaskId };

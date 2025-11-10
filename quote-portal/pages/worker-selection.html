@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>İşçi Seçimi - Burkol MES</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link rel="stylesheet" href="/production/styles/production.css">
+  <style>
+    .worker-card {
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: var(--card);
+    }
+    .worker-card:hover {
+      border-color: #2563eb;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+      transform: translateY(-2px);
+    }
+    .worker-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      margin: 0 auto 16px;
+    }
+    .worker-name {
+      font-size: 20px;
+      font-weight: 600;
+      text-align: center;
+      color: var(--foreground);
+    }
+    .worker-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+      margin-top: 24px;
+    }
+    .loading-state {
+      text-align: center;
+      padding: 48px;
+      color: var(--muted-foreground);
+    }
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <div class="main-content" style="max-width: 1200px; margin: 0 auto;">
+      <div class="content-header">
+        <div>
+          <h1 class="content-title">👷 İşçi Seçimi</h1>
+          <p class="content-subtitle">Portal'a giriş yapmak için bir işçi seçin</p>
+        </div>
+        <button class="btn-secondary" onclick="window.location.href='/pages/production.html'">
+          <span>←</span>
+          <span>Geri Dön</span>
+        </button>
+      </div>
+
+      <div id="workerSelectionContent">
+        <div class="loading-state">
+          <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
+          <p>İşçiler yükleniyor...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getWorkers } from '../production/js/mesApi.js';
+    import { 
+      getEffectiveStatus, 
+      getStatusLabel,
+      isWorkerAvailable 
+    } from '../shared/utils/workerStatus.js';
+
+    async function loadWorkers() {
+      const container = document.getElementById('workerSelectionContent');
+      
+      try {
+        const workers = await getWorkers();
+        
+        if (!workers || workers.length === 0) {
+          container.innerHTML = `
+            <div class="loading-state">
+              <div style="font-size: 48px; margin-bottom: 16px;">😔</div>
+              <p>Henüz kayıtlı işçi bulunmuyor.</p>
+            </div>
+          `;
+          return;
+        }
+
+        // Sort workers by name
+        workers.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+
+        container.innerHTML = `
+          <div class="worker-grid">
+            ${workers.map(worker => {
+              const effectiveStatus = getEffectiveStatus(worker);
+              const statusLabel = getStatusLabel(effectiveStatus);
+              const available = isWorkerAvailable(worker);
+              
+              return `
+                <div class="worker-card" onclick="selectWorker('${worker.id}', '${worker.name}')">
+                  <div class="worker-icon">👷</div>
+                  <div class="worker-name">${worker.name}</div>
+                  <div style="text-align: center; margin-top: 8px;">
+                    <span style="
+                      display: inline-block;
+                      padding: 4px 12px;
+                      border-radius: 12px;
+                      font-size: 12px;
+                      font-weight: 500;
+                      background: ${available ? '#dcfce7' : '#fee2e2'};
+                      color: ${available ? '#166534' : '#991b1b'};
+                    ">${statusLabel}</span>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      } catch (err) {
+        console.error('Failed to load workers:', err);
+        container.innerHTML = `
+          <div class="loading-state">
+            <div style="font-size: 48px; margin-bottom: 16px;">❌</div>
+            <p style="color: var(--destructive);">İşçiler yüklenirken hata oluştu: ${err.message}</p>
+            <button class="btn-primary" style="margin-top: 16px;" onclick="location.reload()">
+              Tekrar Dene
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    window.selectWorker = function(workerId, workerName) {
+      console.log(`Selected worker: ${workerName} (${workerId})`);
+      window.location.href = `/pages/worker-portal.html?workerId=${workerId}`;
+    };
+
+    // Initialize
+    loadWorkers();
+  </script>
+</body>
+</html>

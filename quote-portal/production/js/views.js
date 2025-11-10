@@ -17,7 +17,7 @@ export function generateModernDashboard() {
     <div style="margin-bottom: 24px;">
       <h2 style="font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--foreground);">Hızlı Erişim</h2>
       <div class="grid grid-cols-4" style="gap: 16px;">
-        <div class="card" style="cursor: pointer; transition: all 0.2s;" onclick="window.location.href='/pages/worker-portal.html'" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
+        <div class="card" style="cursor: pointer; transition: all 0.2s;" onclick="window.location.href='/pages/worker-selection.html'" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
           <div class="card-content" style="text-align: center; padding: 24px;">
             <div style="font-size: 48px; margin-bottom: 12px;">👷</div>
             <div style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 4px;">İşçi Portalı</div>

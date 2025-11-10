@@ -30,6 +30,18 @@ const state = {
 async function init() {
   console.log('Initializing Worker Portal...');
   
+  // Get workerId from URL parameter
+  const urlParams = new URLSearchParams(window.location.search);
+  const workerId = urlParams.get('workerId');
+  
+  if (!workerId) {
+    // Redirect to worker selection page
+    window.location.href = '/pages/worker-selection.html';
+    return;
+  }
+  
+  state.currentWorker = { id: workerId };
+  
   // Make app globally accessible for refresh button
   window.workerPortalApp = { loadWorkerTasks };
   
@@ -66,7 +78,7 @@ async function loadWorkerTasks() {
   render();
   
   try {
-    const result = await getWorkerPortalTasks();
+    const result = await getWorkerPortalTasks(state.currentWorker.id);
     state.tasks = result.tasks || [];
     state.nextTaskId = result.nextTaskId || null;
     
@@ -81,6 +93,17 @@ async function loadWorkerTasks() {
       try {
         const workers = await getWorkers();
         state.currentWorkerDetails = workers.find(w => w.id === state.currentWorker.id);
+      } catch (err) {
+        console.warn('Failed to load worker details:', err);
+      }
+    } else {
+      // No tasks, fetch worker details directly
+      try {
+        const workers = await getWorkers();
+        state.currentWorkerDetails = workers.find(w => w.id === state.currentWorker.id);
+        if (state.currentWorkerDetails) {
+          state.currentWorker.name = state.currentWorkerDetails.name;
+        }
       } catch (err) {
         console.warn('Failed to load worker details:', err);
       }

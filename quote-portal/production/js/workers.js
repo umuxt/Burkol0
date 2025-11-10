@@ -949,7 +949,7 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
           <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Aktif Görevler</h3>
-          <a href="/pages/worker-portal.html" target="_blank" style="padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px; text-decoration: none; color: rgb(17, 24, 39);">👷 Portala Git</a>
+          <a href="/pages/worker-portal.html?workerId=${worker.id}" target="_blank" style="padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px; text-decoration: none; color: rgb(17, 24, 39);">👷 Portala Git</a>
         </div>
         ${activeTasksHtml}
       </div>
