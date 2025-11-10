@@ -244,7 +244,12 @@ export function generateSettings() {
         <div class="card-header" style="padding: 8px 12px;">
           <div class="card-title" style="font-size: 1.1em;">Production Settings</div>
         </div>
-        <div class="card-content" style="padding: 8px 12px;"></div>
+        <div class="card-content" style="padding: 8px 12px;">
+          <div style="margin-bottom: 16px;">
+            <h4 style="font-size: 0.95em; font-weight: 600; margin: 0 0 8px 0; color: var(--foreground);">Operations Management</h4>
+            <div id="operations-management"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -709,11 +714,18 @@ export function generateOperations() {
                 </div>
               </div>
             </div>
-            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 0;\">
+            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 8px;\">
               <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px; margin-top: 6px;\">Çıktı Kodu:</span>
               <div style=\"flex: 1 1 0%;\">
                 <input id=\"operation-output-code\" type=\"text\" placeholder=\"Örn. A, Qc (1-2 harf)\" style=\"width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\" />
                 <div style=\"margin-top: 4px; font-size: 11px; color: var(--muted-foreground);\">1-2 harf: İlk büyük, ikinci küçük. 'M' tek başına kullanılamaz; örn. Mq.</div>
+              </div>
+            </div>
+            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 0;\">
+              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px; margin-top: 6px;\">Fire Oranı (%):</span>
+              <div style=\"flex: 1 1 0%;\">
+                <input id=\"operation-defect-rate\" type=\"number\" min=\"0\" step=\"0.1\" placeholder=\"0\" style=\"width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\" />
+                <div style=\"margin-top: 4px; font-size: 11px; color: var(--muted-foreground);\">Beklenen hata/fire oranı (örn: 1.5 = %1.5). Malzeme rezervasyonu hesaplamalarında kullanılır.</div>
               </div>
             </div>
           </div>
@@ -778,6 +790,11 @@ export function generateStations() {
                       <th style=\"min-width: 160px; white-space: nowrap; padding: 8px;\">
                         <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
                           Operations <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
+                        </button>
+                      </th>
+                      <th style=\"min-width: 80px; white-space: nowrap; padding: 8px;\">
+                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
+                          Fire (%) <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
                         </button>
                       </th>
                       <th style=\"min-width: 160px; white-space: nowrap; padding: 8px;\">

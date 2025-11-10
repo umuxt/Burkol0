@@ -1,5 +1,5 @@
-// Skills master-data UI for Settings view
-import { getMasterData, saveMasterData, addSkill } from './mesApi.js'
+// Skills and Operations master-data UI for Settings view
+import { getMasterData, saveMasterData, addSkill, getOperations, saveOperations } from './mesApi.js'
 import { showToast } from './ui.js'
 
 let skillsState = []
@@ -7,17 +7,37 @@ let activeSkillId = null
 let globalSkillsClickAttached = false
 let skillsQuery = ''
 
+// Operations state
+let operationsState = []
+let activeOperationId = null
+let operationsQuery = ''
+
 export async function initMasterDataUI() {
-  const host = document.getElementById('skills-management')
-  if (!host) return
-  host.innerHTML = '<div style="color:#888;">Loading skills...</div>'
-  try {
-    const md = await getMasterData()
-    skillsState = md.skills || []
-    renderSkills(host)
-  } catch (e) {
-    console.error('Skills load error', e)
-    host.innerHTML = '<div style="color:#ef4444;">Skills yüklenemedi</div>'
+  // Initialize Skills
+  const skillsHost = document.getElementById('skills-management')
+  if (skillsHost) {
+    skillsHost.innerHTML = '<div style="color:#888;">Loading skills...</div>'
+    try {
+      const md = await getMasterData()
+      skillsState = md.skills || []
+      renderSkills(skillsHost)
+    } catch (e) {
+      console.error('Skills load error', e)
+      skillsHost.innerHTML = '<div style="color:#ef4444;">Skills yüklenemedi</div>'
+    }
+  }
+
+  // Initialize Operations
+  const operationsHost = document.getElementById('operations-management')
+  if (operationsHost) {
+    operationsHost.innerHTML = '<div style="color:#888;">Loading operations...</div>'
+    try {
+      operationsState = await getOperations()
+      renderOperations(operationsHost)
+    } catch (e) {
+      console.error('Operations load error', e)
+      operationsHost.innerHTML = '<div style="color:#ef4444;">Operations yüklenemedi</div>'
+    }
   }
 }
 
@@ -247,6 +267,156 @@ export async function deleteSkill(skillId) {
   } catch (e) {
     console.error('delete skill error', e)
     showToast('Skill silinemedi', 'error')
+  }
+}
+
+// Operations Management Functions
+function renderOperations(host) {
+  const q = (operationsQuery || '').toLowerCase()
+  const filtered = q ? operationsState.filter(op => String(op.name || '').toLowerCase().includes(q)) : operationsState
+
+  host.innerHTML = `
+    <div class="operations-input-row" style="display:flex; gap:4px; margin-bottom:8px;">
+      <input id="operation-search" type="text" placeholder="Operasyon ara..." value="${escapeHtml(operationsQuery)}" oninput="onOperationsSearchInput()" style="flex:1 1 auto; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size: 0.9em; max-width:600px;" />
+    </div>
+    <div class="operations-scroll" style="overflow-y:auto; border:1px solid var(--border); border-radius:6px; position: relative; min-width:300px; max-height: 200px;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead style="background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;">
+          <tr>
+            <th style="min-width: 150px; white-space: nowrap; padding: 8px; text-align:left; font-size: 0.85em;">Operasyon Adı</th>
+            <th style="min-width: 80px; white-space: nowrap; padding: 8px; text-align:left; font-size: 0.85em;">Çıktı Kodu</th>
+            <th style="min-width: 80px; white-space: nowrap; padding: 8px; text-align:left; font-size: 0.85em;">Fire Oranı (%)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.length === 0 ? 
+            `<tr><td colspan="3" style="padding: 12px; text-align: center; color: var(--muted-foreground); font-size: 0.9em;">Operasyon bulunamadı</td></tr>` :
+            filtered.map(op => `
+            <tr data-operation-row="${escapeHtml(op.id)}" onclick="activateOperationRow('${escapeHtml(op.id)}')" style="cursor:pointer; background-color: white; border-bottom: 1px solid rgb(243, 244, 246);">
+              <td style="padding: 6px 8px;">
+                <span style="font-size: 0.9em; color: rgb(75, 85, 99);">${escapeHtml(op.name)}</span>
+              </td>
+              <td style="padding: 6px 8px;">
+                <span style="font-size: 0.9em; color: rgb(75, 85, 99);">${escapeHtml(op.semiOutputCode || '-')}</span>
+              </td>
+              <td style="padding: 6px 8px;">
+                <div class="operation-row" style="display:inline-flex; align-items:center; gap:8px;">
+                  <span data-operation-defect-label="${escapeHtml(op.id)}" style="display:inline-block; font-size: 0.9em;">${(op.expectedDefectRate || 0)}%</span>
+                  <input data-operation-defect-id="${escapeHtml(op.id)}" type="number" min="0" step="0.1" value="${op.expectedDefectRate || 0}"
+                         oninput="onOperationDefectRateInput('${escapeHtml(op.id)}')"
+                         style="display:none; width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:0.8em;" />
+                  <button data-operation-save="${escapeHtml(op.id)}" onclick="event.stopPropagation(); saveOperationEdit('${escapeHtml(op.id)}')" style="display:none; font-size:0.75em; padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">✓</button>
+                  <button data-operation-cancel="${escapeHtml(op.id)}" onclick="event.stopPropagation(); cancelOperationEdit('${escapeHtml(op.id)}')" style="display:none; font-size:0.75em; padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">✗</button>
+                </div>
+              </td>
+            </tr>`).join('')
+          }
+        </tbody>
+      </table>
+    </div>
+  `
+}
+
+export function onOperationsSearchInput() {
+  const input = document.getElementById('operation-search')
+  operationsQuery = input?.value || ''
+  renderOperations(document.getElementById('operations-management'))
+}
+
+export function activateOperationRow(operationId) {
+  if (activeOperationId === operationId) return
+  
+  // Cancel any existing edit
+  if (activeOperationId) cancelOperationEdit(activeOperationId)
+  
+  activeOperationId = operationId
+  
+  // Only show input field and buttons for defect rate (read-only for name and output code)
+  const defectLabel = document.querySelector(`span[data-operation-defect-label="${CSS.escape(operationId)}"]`)
+  const defectInput = document.querySelector(`input[data-operation-defect-id="${CSS.escape(operationId)}"]`)
+  const saveBtn = document.querySelector(`button[data-operation-save="${CSS.escape(operationId)}"]`)
+  const cancelBtn = document.querySelector(`button[data-operation-cancel="${CSS.escape(operationId)}"]`)
+
+  if (defectLabel) defectLabel.style.display = 'none'
+  if (defectInput) defectInput.style.display = 'inline-block'
+  if (saveBtn) saveBtn.style.display = 'inline-block'
+  if (cancelBtn) cancelBtn.style.display = 'inline-block'
+}
+
+export function onOperationDefectRateInput(operationId) {
+  // Enable/disable save button based on input
+  const defectInput = document.querySelector(`input[data-operation-defect-id="${CSS.escape(operationId)}"]`)
+  const saveBtn = document.querySelector(`button[data-operation-save="${CSS.escape(operationId)}"]`)
+  if (saveBtn) {
+    const value = defectInput?.value
+    const isValid = value !== '' && !isNaN(parseFloat(value)) && parseFloat(value) >= 0
+    saveBtn.disabled = !isValid
+    saveBtn.style.opacity = isValid ? '1' : '0.5'
+    saveBtn.style.cursor = isValid ? 'pointer' : 'not-allowed'
+  }
+}
+
+export function cancelOperationEdit(operationId) {
+  activeOperationId = null
+  
+  // Hide input field, show label (only for defect rate)
+  const defectLabel = document.querySelector(`span[data-operation-defect-label="${CSS.escape(operationId)}"]`)
+  const defectInput = document.querySelector(`input[data-operation-defect-id="${CSS.escape(operationId)}"]`)
+  const saveBtn = document.querySelector(`button[data-operation-save="${CSS.escape(operationId)}"]`)
+  const cancelBtn = document.querySelector(`button[data-operation-cancel="${CSS.escape(operationId)}"]`)
+
+  if (defectLabel) defectLabel.style.display = 'inline-block'
+  if (defectInput) defectInput.style.display = 'none'
+  if (saveBtn) saveBtn.style.display = 'none'
+  if (cancelBtn) cancelBtn.style.display = 'none'
+}
+
+export async function saveOperationEdit(operationId) {
+  const defectInput = document.querySelector(`input[data-operation-defect-id="${CSS.escape(operationId)}"]`)
+  const defectRateStr = defectInput?.value || '0'
+  
+  let expectedDefectRate = 0
+  if (defectRateStr) {
+    const parsed = parseFloat(defectRateStr)
+    if (isNaN(parsed) || parsed < 0) {
+      showToast('Fire oranı geçerli bir pozitif sayı olmalıdır', 'warning')
+      return
+    }
+    expectedDefectRate = parsed
+  }
+  
+  try {
+    const idx = operationsState.findIndex(op => op.id === operationId)
+    if (idx < 0) return
+    
+    // Only update defect rate, keep other fields unchanged
+    operationsState[idx] = { 
+      ...operationsState[idx], 
+      expectedDefectRate
+    }
+    
+    await saveOperations(operationsState)
+    activeOperationId = null
+    renderOperations(document.getElementById('operations-management'))
+    showToast('Fire oranı güncellendi', 'success')
+  } catch (e) {
+    console.error('save operation error', e)
+    showToast('Fire oranı güncellenemedi', 'error')
+  }
+}
+
+export async function deleteOperationFromMaster(operationId) {
+  if (!confirm('Bu operasyon silinsin mi?')) return
+  
+  try {
+    operationsState = operationsState.filter(op => op.id !== operationId)
+    await saveOperations(operationsState)
+    activeOperationId = null
+    renderOperations(document.getElementById('operations-management'))
+    showToast('Operasyon silindi', 'success')
+  } catch (e) {
+    console.error('delete operation error', e)
+    showToast('Operasyon silinemedi', 'error')
   }
 }
 

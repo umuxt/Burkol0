@@ -93,6 +93,11 @@ export const dict = {
     f_surface_ra: 'Yüzey Pürüzlülüğü (Ra)',
     f_bend_count: 'Büküm Sayısı',
     f_weld_method: 'Kaynak Yöntemi',
+    // Operation related
+    f_expected_defect_rate: 'Yüzdelik Fire Oranı',
+    f_defect_rate_short: 'Fire Oranı (%)',
+    f_operation_output_code: 'Yarı Mamül Kodu',
+    operation_defect_rate_help: 'Beklenen hata/fire oranı (örn: 1.5 = %1.5). Malzeme rezervasyonu hesaplamalarında kullanılır.',
     // Input field placeholders - Turkish
     ph_name: 'Örn. Ahmet Yılmaz',
     ph_company: 'Şirket adı',
@@ -313,6 +318,11 @@ export const dict = {
     f_surface_ra: 'Surface Roughness (Ra)',
     f_bend_count: 'Bend Count',
     f_weld_method: 'Weld Method',
+    // Operation related
+    f_expected_defect_rate: 'Expected Defect Rate',
+    f_defect_rate_short: 'Defect Rate (%)',
+    f_operation_output_code: 'Semi-finished Code',
+    operation_defect_rate_help: 'Expected defect/waste rate (e.g., 1.5 = 1.5%). Used in material reservation calculations.',
     // Input field placeholders - English
     ph_name: 'e.g., John Smith',
     ph_company: 'Company name',

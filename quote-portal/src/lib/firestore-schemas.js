@@ -7,7 +7,9 @@ export const COLLECTIONS = {
   MATERIAL_TYPES: 'material_types',
   SUPPLIERS: 'suppliers',
   AUDIT_LOGS: 'audit_logs',
-  ORDERS: 'orders'
+  ORDERS: 'orders',
+  // MES Collections
+  MES_OPERATIONS: 'mes-operations'
   // ORDER_ITEMS: Removed - items are embedded in orders
   // STOCK_MOVEMENTS: Removed - handled by backend API
   // SUPPLIER_CATEGORIES: Removed - suppliers show categories of materials they supply
@@ -383,6 +385,100 @@ export const validateMaterial = (data) => {
   // Format validations
   if (data.code && !/^M-\d{3,}$/.test(data.code)) {
     errors.push('Malzeme kodu M-XXX formatında olmalı');
+  }
+  
+  return errors;
+};
+
+// ================================
+// MES OPERATIONS COLLECTION SCHEMA
+// ================================
+export const MESOperationSchema = {
+  // Temel Bilgiler
+  id: {
+    type: 'string',
+    required: true,
+    unique: true,
+    description: 'Operasyon benzersiz kimliği'
+  },
+  
+  name: {
+    type: 'string', 
+    required: true,
+    maxLength: 200,
+    description: 'Operasyon adı'
+  },
+  
+  type: {
+    type: 'string',
+    required: false,
+    description: 'Operasyon tipi'
+  },
+  
+  // Materyal İlişkileri
+  semiOutputCode: {
+    type: 'string',
+    required: false,
+    description: 'Yarı mamül kodu - operasyon çıktısı'
+  },
+  
+  // Fire Oranı
+  expectedDefectRate: {
+    type: 'number',
+    required: false,
+    default: 0,
+    minimum: 0,
+    description: 'Beklenen hata/fire oranı (yüzde olarak, örn: 1 = %1)'
+  },
+  
+  // Yetenekler
+  skills: {
+    type: 'array',
+    required: true,
+    items: {
+      type: 'string'
+    },
+    description: 'Bu operasyon için gerekli yetenekler'
+  },
+  
+  // Zaman Bilgileri
+  nominalTime: {
+    type: 'number',
+    required: false,
+    minimum: 0,
+    description: 'Nominal operasyon süresi (dakika)'
+  },
+  
+  // Sistem Alanları
+  createdAt: {
+    type: 'timestamp',
+    required: false,
+    description: 'Oluşturulma tarihi'
+  },
+  
+  updatedAt: {
+    type: 'timestamp', 
+    required: false,
+    description: 'Son güncelleme tarihi'
+  }
+};
+
+// MES Operations validation
+export const validateMESOperation = (data) => {
+  const errors = [];
+  
+  // Required fields
+  if (!data.id) errors.push('Operasyon ID gerekli');
+  if (!data.name) errors.push('Operasyon adı gerekli');
+  if (!Array.isArray(data.skills)) errors.push('Yetenekler array olmalı');
+  
+  // Numeric validations
+  if (data.expectedDefectRate !== undefined && data.expectedDefectRate < 0) {
+    errors.push('Beklenen hata oranı negatif olamaz');
+  }
+  
+  if (data.nominalTime !== undefined && data.nominalTime < 0) {
+    errors.push('Nominal süre negatif olamaz');
   }
   
   return errors;

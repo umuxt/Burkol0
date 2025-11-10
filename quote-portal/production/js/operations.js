@@ -29,7 +29,7 @@ function renderOperations() {
   const body = document.getElementById('operations-table-body')
   if (body) {
     if (!operationsState.length) {
-      body.innerHTML = `<tr><td colspan="4" style="padding:8px; color:#666;">No operations yet. Add your first operation.</td></tr>`
+      body.innerHTML = `<tr><td colspan="5" style="padding:8px; color:#666;">No operations yet. Add your first operation.</td></tr>`
       return
     }
     body.innerHTML = operationsState.map(op => `
@@ -37,6 +37,7 @@ function renderOperations() {
         <td style="padding: 4px 8px;"><strong>${escapeHtml(op.name || '')}</strong></td>
         <td style="padding: 4px 8px;">${escapeHtml(op.type || 'General')}</td>
         <td style="padding: 4px 8px;">${escapeHtml(op.semiOutputCode || '')}</td>
+        <td style="padding: 4px 8px;">${(op.expectedDefectRate || 0)}%</td>
         <td style="padding: 4px 8px;">
           <div style="display: flex; flex-wrap: wrap; gap: 4px;">
             ${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span style=\"background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(s)}</span>`).join('')}
@@ -44,21 +45,21 @@ function renderOperations() {
         </td>
         
       </tr>`).join('')
-    // Ensure header columns align (add missing Output Code header if absent)
+    // Ensure header columns align (add missing Fire Rate header if absent)
     try {
       const table = body.closest('table')
       const headRow = table?.querySelector('thead tr')
       if (headRow) {
         const ths = Array.from(headRow.children)
-        // Expected order with 4 columns: Name, Type, Output Code, Skills
-        // If only 3 headers exist (missing Output Code), insert it after Type
-        if (ths.length === 3) {
-          const outTh = document.createElement('th')
-          outTh.setAttribute('style', 'min-width: 120px; white-space: nowrap; padding: 8px;')
-          outTh.innerHTML = '<button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">Output Code <span style="font-size: 12px; opacity: 0.6;">↕</span></button>'
-          // Insert as 3rd column (index 2)
-          if (ths[1]?.nextSibling) headRow.insertBefore(outTh, ths[1].nextSibling)
-          else headRow.appendChild(outTh)
+        // Expected order with 5 columns: Name, Type, Output Code, Fire (%), Skills
+        // If only 4 headers exist (missing Fire Rate), insert it after Output Code
+        if (ths.length === 4) {
+          const fireRateTh = document.createElement('th')
+          fireRateTh.setAttribute('style', 'min-width: 80px; white-space: nowrap; padding: 8px;')
+          fireRateTh.innerHTML = '<button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">Fire (%) <span style="font-size: 12px; opacity: 0.6;">↕</span></button>'
+          // Insert as 4th column (index 3) after Output Code
+          if (ths[2]?.nextSibling) headRow.insertBefore(fireRateTh, ths[2].nextSibling)
+          else headRow.appendChild(fireRateTh)
         }
       }
     } catch {}
@@ -74,7 +75,7 @@ function renderOperations() {
   container.innerHTML = `
     <table class="table">
       <thead>
-        <tr><th>Name</th><th>Type</th><th>Output Code</th><th>Skills</th><th>Actions</th></tr>
+        <tr><th>Name</th><th>Type</th><th>Output Code</th><th>Fire (%)</th><th>Skills</th><th>Actions</th></tr>
       </thead>
       <tbody>
         ${operationsState.map(op => `
@@ -82,6 +83,7 @@ function renderOperations() {
             <td><strong>${escapeHtml(op.name || '')}</strong></td>
             <td>${escapeHtml(op.type || 'General')}</td>
             <td>${escapeHtml(op.semiOutputCode || '')}</td>
+            <td>${(op.expectedDefectRate || 0)}%</td>
             <td>${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span class=\"badge badge-outline\" style=\"margin-right:4px;\">${escapeHtml(s)}</span>`).join('')}</td>
             
             <td>
@@ -140,6 +142,7 @@ export async function showOperationDetail(id) {
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Operasyon Adı:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.name||'')}</span></div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Tür:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.type||'General')}</span></div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yarı Mamül Kodu:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.semiOutputCode || '-')}</span></div>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yüzdelik Fire Oranı:</span><span style="font-size:12px; color: rgb(17,24,39);">${(op.expectedDefectRate || 0)}%</span></div>
       ${supervisorHtml}
       
     </div>
@@ -175,8 +178,19 @@ export async function saveOperation() {
   const name = document.getElementById('operation-name')?.value?.trim()
   const type = document.getElementById('operation-type')?.value?.trim() || 'General'
   const rawCode = document.getElementById('operation-output-code')?.value || ''
+  const rawDefectRate = document.getElementById('operation-defect-rate')?.value || ''
   const letters = rawCode.replace(/[^A-Za-z]/g, '')
   const semiCode = letters ? (letters[0].toUpperCase() + (letters[1] ? letters[1].toLowerCase() : '')).slice(0,2) : ''
+  // Parse defect rate
+  let expectedDefectRate = 0
+  if (rawDefectRate) {
+    const parsed = parseFloat(rawDefectRate)
+    if (isNaN(parsed) || parsed < 0) {
+      showToast('Fire oranı geçerli bir pozitif sayı olmalıdır', 'warning')
+      return
+    }
+    expectedDefectRate = parsed
+  }
   const supervisorId = document.getElementById('operation-supervisor')?.value || ''
   // Read skills from modern UI hidden field; fallback to any legacy checkboxes
   let skills = (document.getElementById('operation-skills-selected')?.value || '')
@@ -206,6 +220,7 @@ export async function saveOperation() {
     type,
     supervisorId: supervisorId || null,
     semiOutputCode: semiCode,
+    expectedDefectRate,
     skills,
     
     active: true
@@ -249,6 +264,10 @@ function openOperationModal(op = null) {
     const c = (op?.semiOutputCode || '').toString()
     const l = c.replace(/[^A-Za-z]/g, '')
     codeEl.value = l ? (l[0].toUpperCase() + (l[1] ? l[1].toLowerCase() : '')).slice(0,2) : ''
+  }
+  const defectRateEl = document.getElementById('operation-defect-rate')
+  if (defectRateEl) {
+    defectRateEl.value = op?.expectedDefectRate || 0
   }
   // Removed time input - duration will be station-specific
   
