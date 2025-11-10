@@ -647,16 +647,44 @@ router.get('/workers/:id/stations', withAuth, async (req, res) => {
 router.get('/stations', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const db = getFirestore();
-    const snapshot = await db.collection('mes-stations').orderBy('name').get();
-    const stations = snapshot.docs.map(doc => ({
+    
+    // Get all stations
+    const stationsSnapshot = await db.collection('mes-stations').orderBy('name').get();
+    const stations = stationsSnapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
-    return { stations };
+    
+    // Get all substations
+    const subStationsSnapshot = await db.collection('mes-substations').get();
+    const subStationsByStation = {};
+    
+    subStationsSnapshot.docs.forEach(doc => {
+      const subStation = { id: doc.id, ...doc.data() };
+      const stationId = subStation.stationId;
+      
+      if (!subStationsByStation[stationId]) {
+        subStationsByStation[stationId] = [];
+      }
+      
+      subStationsByStation[stationId].push({
+        code: subStation.code,
+        status: subStation.status
+      });
+    });
+    
+    // Merge substations back into station objects for frontend compatibility
+    const stationsWithSubStations = stations.map(station => ({
+      ...station,
+      subStations: subStationsByStation[station.id] || []
+    }));
+    
+    return { stations: stationsWithSubStations };
   }, res);
 });
 
 // POST /api/mes/stations - Create/Update multiple stations (batch)
+// Now manages mes-substations as separate documents in their own collection
 router.post('/stations', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const { stations } = req.body;
@@ -670,31 +698,84 @@ router.post('/stations', withAuth, async (req, res) => {
     }
 
     const db = getFirestore();
-    const batch = db.batch();
-
+    
     // Get existing stations to find deletions
     const existingSnapshot = await db.collection('mes-stations').get();
     const existingIds = new Set(existingSnapshot.docs.map(doc => doc.id));
     const newIds = new Set(stations.map(s => s.id));
-
-    // Add/Update stations
-    stations.forEach(station => {
-      const docRef = db.collection('mes-stations').doc(station.id);
-      batch.set(docRef, {
-        ...station,
+    
+    // Pre-fetch all existing substations (before transaction)
+    const allSubStationsSnapshot = await db.collection('mes-substations').get();
+    const existingSubStationsByStation = {};
+    allSubStationsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (!existingSubStationsByStation[data.stationId]) {
+        existingSubStationsByStation[data.stationId] = [];
+      }
+      existingSubStationsByStation[data.stationId].push(doc.ref);
+    });
+    
+    // Use a batch for better performance (transactions have query limitations)
+    const batch = db.batch();
+    
+    // Step 1: Process each station
+    for (const station of stations) {
+      const stationId = station.id;
+      const subStations = Array.isArray(station.subStations) ? station.subStations : [];
+      
+      // Step 1a: Delete old substations for this station
+      const oldSubStationRefs = existingSubStationsByStation[stationId] || [];
+      oldSubStationRefs.forEach(ref => {
+        batch.delete(ref);
+      });
+      
+      // Step 1b: Create new substation documents
+      subStations.forEach(subStation => {
+        if (!subStation.code) return; // Skip invalid substations
+        
+        // Use the code as-is (it's already in format like ST-XXX-1)
+        const subStationId = subStation.code;
+        const subStationRef = db.collection('mes-substations').doc(subStationId);
+        
+        batch.set(subStationRef, {
+          id: subStationId,
+          code: subStation.code,
+          stationId: stationId,
+          status: subStation.status || 'active',
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      });
+      
+      // Step 1c: Save station document WITHOUT embedded subStations array
+      const stationRef = db.collection('mes-stations').doc(stationId);
+      const { subStations: _, ...stationDataWithoutSubStations } = station;
+      
+      batch.set(stationRef, {
+        ...stationDataWithoutSubStations,
+        subStationCount: subStations.length,
         updatedAt: new Date()
       }, { merge: true });
-    });
-
-    // Delete removed stations
-    existingIds.forEach(id => {
+    }
+    
+    // Step 2: Delete removed stations and their substations
+    for (const id of existingIds) {
       if (!newIds.has(id)) {
-        const docRef = db.collection('mes-stations').doc(id);
-        batch.delete(docRef);
+        // Delete station
+        const stationRef = db.collection('mes-stations').doc(id);
+        batch.delete(stationRef);
+        
+        // Delete all substations of this station
+        const subStationRefs = existingSubStationsByStation[id] || [];
+        subStationRefs.forEach(ref => {
+          batch.delete(ref);
+        });
       }
-    });
-
+    }
+    
+    // Commit all changes
     await batch.commit();
+
     return { success: true, updated: stations.length };
   }, res);
 });
@@ -765,8 +846,26 @@ router.delete('/stations/:id', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const { id } = req.params
     const db = getFirestore()
-    await db.collection('mes-stations').doc(id).delete()
-    return { success: true, id }
+    
+    // Delete all substations belonging to this station
+    const subStationsSnapshot = await db.collection('mes-substations')
+      .where('stationId', '==', id)
+      .get()
+    
+    const batch = db.batch()
+    
+    // Add all substation deletes to batch
+    subStationsSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref)
+    })
+    
+    // Add station delete to batch
+    batch.delete(db.collection('mes-stations').doc(id))
+    
+    // Commit all deletes atomically
+    await batch.commit()
+    
+    return { success: true, id, deletedSubStations: subStationsSnapshot.size }
   }, res)
 });
 

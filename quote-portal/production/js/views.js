@@ -867,13 +867,13 @@ export function generateStations() {
               <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;\">Location:</span>
               <input type=\"text\" id=\"station-location\" placeholder=\"e.g. Line A\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\">
             </div>
-            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 8px;\">
+            <div class=\"detail-item\" style=\"display: flex; align-items: center; margin-bottom: 8px;\">
+              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;\">Alt İstasyon Sayısı:</span>
+              <input type=\"number\" id=\"station-substation-count\" min=\"1\" max=\"50\" value=\"1\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\">
+            </div>
+            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 0;\">
               <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px; margin-top: 6px;\">Açıklama:</span>
               <textarea id=\"station-description\" placeholder=\"Description\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; min-height: 60px; resize: vertical;\"></textarea>
-            </div>
-            <div class=\"detail-item\" style=\"display: flex; align-items: center; margin-bottom: 0;\">
-              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;\">İstasyon Sayısı:</span>
-              <input type=\"number\" id=\"station-substation-count\" min=\"1\" value=\"1\" style=\"flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\">
             </div>
           </div>
 

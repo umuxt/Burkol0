@@ -982,18 +982,23 @@ function fillStationModal(station) {
   document.getElementById('station-description').value = station.description || ''
   document.getElementById('station-location').value = station.location || ''
   document.getElementById('station-status').value = station.status || 'active'
+  
+  // Set substation count
   const subStationCountInput = document.getElementById('station-substation-count')
   if (subStationCountInput) {
     if (editingStationId) {
-      const existingCount = Array.isArray(station.subStations)
-        ? station.subStations.length
-        : (Number.isFinite(station.subStationCount) ? station.subStationCount : 1)
-      subStationCountInput.value = Math.max(1, existingCount || 1)
+      // Editing: show current count, make it read-only (can't change existing substations here)
+      const existingCount = Array.isArray(station.subStations) ? station.subStations.length : 1
+      subStationCountInput.value = existingCount
       subStationCountInput.disabled = true
+      subStationCountInput.style.opacity = '0.5'
+      subStationCountInput.style.cursor = 'not-allowed'
     } else {
+      // New station: allow editing
+      subStationCountInput.value = 1
       subStationCountInput.disabled = false
-      const defaultCount = Number.isFinite(station.subStationCount) ? station.subStationCount : 1
-      subStationCountInput.value = Math.max(1, defaultCount || 1)
+      subStationCountInput.style.opacity = '1'
+      subStationCountInput.style.cursor = 'text'
     }
   }
   
@@ -1504,8 +1509,10 @@ export async function saveStation() {
   const status = document.getElementById('station-status').value
   const operationIds = Array.from(document.querySelectorAll('#station-operations input[type="checkbox"]:checked')).map(cb => cb.value)
   const subSkills = Array.from(document.querySelectorAll('#station-subskills-box input[type="checkbox"]:checked')).map(cb => cb.value)
+  
+  // Get substation count from input
   const subStationCountInput = document.getElementById('station-substation-count')
-  const requestedSubStationCount = Math.max(1, parseInt(subStationCountInput?.value ?? '1', 10) || 1)
+  const requestedSubStationCount = subStationCountInput ? Math.max(1, Math.min(50, parseInt(subStationCountInput.value) || 1)) : 1
 
   if (!name) { showToast('Please enter a station name', 'error'); return }
   if (operationIds.length < 1) { showToast('Select at least one operation for this station', 'warning'); return }
@@ -1518,20 +1525,20 @@ export async function saveStation() {
       stationId = await generateStationId(operationIds)
     }
 
-    const existingStation = editingStationId
-      ? stationsState.find(s => s.id === editingStationId)
-      : null
-
+    // Determine substations
     let subStations = []
     if (!editingStationId) {
+      // For new stations, create the requested number of substations
       subStations = generateInitialSubStations(stationId, requestedSubStationCount, status)
-    } else if (existingStation && Array.isArray(existingStation.subStations)) {
-      subStations = sortSubStations(existingStation.subStations.map(normalizeSubStationEntry).filter(Boolean))
     } else {
-      subStations = []
+      // For existing stations, keep existing substations unchanged
+      const existingStation = stationsState.find(s => s.id === editingStationId)
+      subStations = existingStation?.subStations || []
     }
+    
     const subStationCount = subStations.length
 
+    // normalizeStation now returns a regular station object
     const payload = normalizeStation({
       id: stationId,
       name, description, location, status, operationIds, subSkills,

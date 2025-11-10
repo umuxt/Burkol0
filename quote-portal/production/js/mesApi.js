@@ -103,26 +103,41 @@ export async function getStations(force = false) {
 
 export async function saveStations(stations) {
   const ops = await getOperations()
-  const payload = { stations: stations.map(s => normalizeStation(s, ops)) }
+  
+  // Stations are already normalized in state
+  // Just ensure subStations are included in the payload
+  const payload = { 
+    stations: stations.map(s => ({
+      ...s,
+      // Ensure subStations array is present (backend expects it)
+      subStations: Array.isArray(s.subStations) ? s.subStations : []
+    }))
+  }
+  
   const res = await fetch(`${API_BASE}/api/mes/stations`, {
     method: 'POST',
     headers: withAuth({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload)
   })
   if (!res.ok) throw new Error(`stations_save_failed ${res.status}`)
-  _stationsCache = payload.stations
+  
+  // Cache stations as-is
+  _stationsCache = stations.map(s => ({ ...s }))
   writeCache('mes_stations_cache', _stationsCache)
   try { window.dispatchEvent(new CustomEvent(STATIONS_CHANGED_EVENT, { detail: { source: 'production' } })) } catch {}
   return true
 }
 
 export function normalizeStation(station, operations) {
+  const stationId = station.id || genId('s-')
   const opIds = Array.isArray(station.operationIds) ? station.operationIds : []
   const subSkills = Array.isArray(station.subSkills)
     ? station.subSkills
     : (typeof station.subSkills === 'string' ? station.subSkills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   const inherited = computeStationInheritedSkills(opIds, operations)
   const effectiveSkills = Array.from(new Set([ ...inherited, ...subSkills ]))
+  
+  // Keep subStations as-is (backend will handle them)
   const subStations = Array.isArray(station.subStations)
     ? station.subStations.map(sub => {
         const code = String(sub?.code || '').trim()
@@ -131,11 +146,13 @@ export function normalizeStation(station, operations) {
         return { code, status }
       }).filter(Boolean)
     : []
+  
   const subStationCount = Number.isFinite(station.subStationCount)
     ? Math.max(0, Number(station.subStationCount))
     : subStations.length
+  
   return {
-    id: station.id || genId('s-'),
+    id: stationId,
     name: (station.name || '').trim(),
     description: (station.description || '').trim(),
     location: (station.location || '').trim(),
