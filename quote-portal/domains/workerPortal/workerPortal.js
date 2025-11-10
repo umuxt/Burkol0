@@ -1,7 +1,14 @@
 // Worker Portal Domain Module
 // Handles worker task management, status updates, and scrap reporting
 
-import { getWorkerPortalTasks, updateWorkerPortalTask } from '../../production/js/mesApi.js';
+import { getWorkerPortalTasks, updateWorkerPortalTask, getWorkers } from '../../production/js/mesApi.js';
+import { 
+  getEffectiveStatus, 
+  getWorkerStatusBanner, 
+  isWorkerAvailable,
+  getStatusLabel,
+  canWorkerStartTasks
+} from '../../shared/utils/workerStatus.js';
 
 // ============================================================================
 // STATE MANAGEMENT
@@ -12,6 +19,7 @@ const state = {
   loading: false,
   error: null,
   currentWorker: null,
+  currentWorkerDetails: null, // Full worker object with status/leave info
   nextTaskId: null
 };
 
@@ -68,6 +76,14 @@ async function loadWorkerTasks() {
         id: state.tasks[0].workerId,
         name: state.tasks[0].workerName
       };
+      
+      // Fetch full worker details (status, leave info)
+      try {
+        const workers = await getWorkers();
+        state.currentWorkerDetails = workers.find(w => w.id === state.currentWorker.id);
+      } catch (err) {
+        console.warn('Failed to load worker details:', err);
+      }
     }
     
     state.loading = false;
@@ -366,6 +382,7 @@ function render() {
   }
   
   container.innerHTML = `
+    ${renderStatusBanner()}
     ${renderWorkerSummary()}
     ${renderTaskList()}
   `;
@@ -394,6 +411,63 @@ function renderError(error) {
   `;
 }
 
+function renderStatusBanner() {
+  // Only show banner if we have worker details
+  if (!state.currentWorkerDetails) return '';
+  
+  // Check if worker can start tasks (includes schedule check)
+  const workCheck = canWorkerStartTasks(state.currentWorkerDetails);
+  
+  if (!workCheck.canWork) {
+    const icons = {
+      'İşten ayrıldı': '❌',
+      'Hasta': '🤒',
+      'İzinli': '🏖️',
+      'Mola': '☕',
+      'Mesai programına göre mola saatinde': '⏰'
+    };
+    const types = {
+      'İşten ayrıldı': 'error',
+      'Hasta': 'warning',
+      'İzinli': 'warning',
+      'Mola': 'info',
+      'Mesai programına göre mola saatinde': 'info'
+    };
+    
+    const icon = icons[workCheck.reason] || '⚠️';
+    const type = types[workCheck.reason] || 'info';
+    const message = workCheck.reason === 'Mesai programına göre mola saatinde' 
+      ? 'Şu an çalışma programınıza göre mola saatindesiniz. Görev başlatılamaz.'
+      : getWorkerStatusBanner(state.currentWorkerDetails)?.message || `Durum: ${workCheck.reason}`;
+    
+    const typeClasses = {
+      error: 'bg-red-50 border-red-500 text-red-900',
+      warning: 'bg-yellow-50 border-yellow-500 text-yellow-900',
+      info: 'bg-blue-50 border-blue-500 text-blue-900'
+    };
+    
+    const bgClass = typeClasses[type] || typeClasses.info;
+    
+    return `
+      <div class="worker-status-banner" style="margin-bottom: 16px; padding: 16px; ${bgClass} border-l-4; border-radius: 8px;">
+        <div style="display: flex; align-items: start; gap: 12px;">
+          <div style="font-size: 24px;">${icon}</div>
+          <div style="flex: 1;">
+            <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">
+              Durum Bildirimi
+            </div>
+            <div style="font-size: 13px;">
+              ${message}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  return '';
+}
+
 function renderWorkerSummary() {
   if (!state.currentWorker) {
     return `
@@ -413,12 +487,36 @@ function renderWorkerSummary() {
   const readyTasks = state.tasks.filter(t => t.status === 'ready').length;
   const pendingTasks = state.tasks.filter(t => t.status === 'pending').length;
   
+  // Get worker status badge if we have details
+  let statusBadgeHtml = '';
+  if (state.currentWorkerDetails) {
+    const effectiveStatus = getEffectiveStatus(state.currentWorkerDetails);
+    const statusLabel = getStatusLabel(effectiveStatus);
+    const badgeColors = {
+      'available': 'bg-green-100 text-green-800',
+      'busy': 'bg-yellow-100 text-yellow-800',
+      'break': 'bg-blue-100 text-blue-800',
+      'inactive': 'bg-gray-100 text-gray-800',
+      'leave-sick': 'bg-red-100 text-red-800',
+      'leave-vacation': 'bg-orange-100 text-orange-800'
+    };
+    const badgeColor = badgeColors[effectiveStatus] || 'bg-gray-100 text-gray-800';
+    statusBadgeHtml = `
+      <div style="padding: 4px 12px; ${badgeColor}; border-radius: 12px; font-size: 12px; font-weight: 600;">
+        ${statusLabel}
+      </div>
+    `;
+  }
+  
   return `
     <div class="worker-card">
       <div class="worker-card-header">
         <div class="worker-avatar">👷</div>
         <div style="flex: 1;">
-          <h3 class="worker-name">${state.currentWorker.name || 'İsimsiz İşçi'}</h3>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <h3 class="worker-name">${state.currentWorker.name || 'İsimsiz İşçi'}</h3>
+            ${statusBadgeHtml}
+          </div>
           <p class="worker-subtitle">ID: ${state.currentWorker.id}</p>
         </div>
         <div class="worker-stats">
@@ -598,6 +696,10 @@ function renderPrerequisites(prerequisites) {
 function renderTaskActions(task) {
   const actions = [];
   
+  // Check if worker can start tasks (includes general status + schedule check)
+  const workCheck = state.currentWorkerDetails ? canWorkerStartTasks(state.currentWorkerDetails) : { canWork: true, reason: null };
+  const workerUnavailable = !workCheck.canWork;
+  
   // Check if task is paused by admin
   const isPaused = task.status === 'paused';
   
@@ -611,7 +713,9 @@ function renderTaskActions(task) {
   
   // Build tooltip for blocked reasons
   let blockTooltip = '';
-  if (isPaused) {
+  if (workerUnavailable) {
+    blockTooltip = `title="İşçi durumu görev başlatmaya uygun değil: ${workCheck.reason || 'Bilinmeyen sebep'}"`;
+  } else if (isPaused) {
     blockTooltip = `title="Admin tarafından durduruldu"`;
   } else if (isBlocked) {
     const reasons = [];
@@ -622,9 +726,9 @@ function renderTaskActions(task) {
     blockTooltip = `title="${reasons.join(', ')}"`;
   }
   
-  // Start button - only if ready (and not paused or blocked)
+  // Start button - only if ready (and not paused, blocked, or worker unavailable)
   if (task.status === 'ready') {
-    const disabled = (isBlocked || isPaused) ? 'disabled' : '';
+    const disabled = (isBlocked || isPaused || workerUnavailable) ? 'disabled' : '';
     actions.push(`
       <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}" ${disabled} ${blockTooltip}>
         ▶️ Başla
@@ -632,19 +736,21 @@ function renderTaskActions(task) {
     `);
   }
   
-  // Pause button - only if in progress
+  // Pause button - only if in progress (and worker available)
   if (task.status === 'in_progress') {
+    const disabled = workerUnavailable ? 'disabled' : '';
     actions.push(`
-      <button class="action-btn action-pause" data-action="pause" data-id="${task.assignmentId}">
+      <button class="action-btn action-pause" data-action="pause" data-id="${task.assignmentId}" ${disabled}>
         ⏸️ Duraklat
       </button>
     `);
   }
   
-  // Complete button - only if in progress
+  // Complete button - only if in progress (and worker available)
   if (task.status === 'in_progress') {
+    const disabled = workerUnavailable ? 'disabled' : '';
     actions.push(`
-      <button class="action-btn action-complete" data-action="complete" data-id="${task.assignmentId}">
+      <button class="action-btn action-complete" data-action="complete" data-id="${task.assignmentId}" ${disabled}>
         ✅ Tamamla
       </button>
     `);

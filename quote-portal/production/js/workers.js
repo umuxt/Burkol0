@@ -24,38 +24,9 @@ export async function initializeWorkersUI() {
 function handleMasterDataChanged(event) {
   if (!event.detail || event.detail.source === 'production') return // avoid self-loops
   
-  // Update workers that are using company mode
-  let hasUpdates = false
-  const newCompanySettings = safeLoadCompanyTimeSettings()
-  
-  workersState.forEach((worker, idx) => {
-    const ps = worker.personalSchedule
-    if (ps && ps.mode === 'company') {
-      // Auto-populate new schedule blocks based on updated company settings
-      if (newCompanySettings) {
-        const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
-        const shiftNo = ps.shiftNo || '1'
-        const blocksByDay = {}
-        days.forEach(d => {
-          const list = getShiftBlocksForDay(newCompanySettings, d, shiftNo)
-          blocksByDay[d] = Array.isArray(list) ? list : []
-        })
-        // Update worker's blocks with new company schedule
-        workersState[idx].personalSchedule = { ...ps, blocks: blocksByDay }
-        hasUpdates = true
-      }
-    }
-  })
-  
-  if (hasUpdates) {
-    // Persist updated workers
-    persistWorkers().then(() => {
-      console.log('Workers using company settings auto-updated')
-      // Refresh UI if worker details are open
-      if (selectedWorkerId) showWorkerDetail(selectedWorkerId).catch(() => {})
-    }).catch(e => {
-      console.warn('Failed to auto-update worker schedules:', e)
-    })
+  // Refresh worker detail if open (to show updated company schedule)
+  if (selectedWorkerId) {
+    showWorkerDetail(selectedWorkerId).catch(() => {})
   }
 }
 
@@ -103,6 +74,9 @@ export async function showWorkerDetail(id) {
     
     // Populate detail content
     detailContent.innerHTML = generateWorkerDetailContentWithStations(worker, workerStationsData, assignments, activeTasksHtml)
+    
+    // Update schedule status (Mesai Durumu) after content is rendered
+    updateWorkerScheduleStatus(worker)
   } catch (error) {
     console.error('Error loading worker data:', error)
     
@@ -485,6 +459,14 @@ function renderCompanyScheduleGrid(company, shiftNo) {
 }
 
 function getShiftBlocksForDay(ts, day, shiftNo) {
+  // 0) Standard shifts array model: shifts: [{ id: '1', blocks: { monday: [...] } }]
+  if (Array.isArray(ts?.shifts)) {
+    const shift = ts.shifts.find(s => s.id === String(shiftNo || '1'));
+    if (shift && shift.blocks && Array.isArray(shift.blocks[day])) {
+      return shift.blocks[day];
+    }
+  }
+  
   // 1) Aggregated model with laneIndex under `shift-${day}`
   const agg = ts?.shiftBlocks?.[`shift-${day}`]
   if (Array.isArray(agg)) {
@@ -558,13 +540,19 @@ function renderStaticWeeklyTimeline(blocksByDay) {
         ${dayOrder.map((d, i) => {
           const blocks = Array.isArray(blocksByDay[d]) ? blocksByDay[d] : []
           const blocksHtml = blocks.map(b => {
-            const sh = typeof b.startHour === 'number' ? b.startHour : timeToHourLocal(b.startTime)
-            const eh = typeof b.endHour === 'number' ? b.endHour : timeToHourLocal(b.endTime)
+            if (!b) return '';
+            // Handle both start/end and startTime/endTime formats
+            const startTime = b.startTime || b.start;
+            const endTime = b.endTime || b.end;
+            if (!startTime || !endTime) return '';
+            
+            const sh = typeof b.startHour === 'number' ? b.startHour : timeToHourLocal(startTime)
+            const eh = typeof b.endHour === 'number' ? b.endHour : timeToHourLocal(endTime)
             const top = Math.max(0, Math.min(100, (sh / 24) * 100))
             const height = Math.max(1, Math.min(100, ((eh - sh) / 24) * 100))
             const c = colors[b.type] || colors.work
             const label = b.type === 'break' ? 'Mola' : (b.type === 'rest' ? 'Dinlenme' : 'Çalışma')
-            const time = `${escapeHtml(b.startTime || '')}-${escapeHtml(b.endTime || '')}`
+            const time = `${escapeHtml(startTime)}-${escapeHtml(endTime)}`
             return `
               <div style="position:absolute; left:2px; right:2px; top:${top}%; height:${height}%; background:${c.bg}; border:1px solid ${c.border}; color:${c.text}; border-radius:3px; display:flex; align-items:center; justify-content:center; font-size:10px; pointer-events:none;">
                 <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${label} ${time}</span>
@@ -756,6 +744,12 @@ function generateCurrentTaskSection(worker) {
 function generateWorkerDetailContentWithStations(worker, workerStationsData, assignments = [], activeTasksHtml = null) {
   const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   
+  // Determine UI status from backend status + leave fields
+  let uiStatus = worker.status || 'available'
+  if (worker.leaveStart && worker.leaveEnd && worker.leaveReason) {
+    uiStatus = worker.leaveReason === 'Hasta' ? 'leave-sick' : 'leave-vacation'
+  }
+  
   return `
     <form id="worker-detail-form" class="worker-details-layout">
       <!-- Temel Bilgiler -->
@@ -777,9 +771,45 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
             ? `<a class="detail-value" href="${telHref(worker.phone)}" style="font-size: 12px; color: rgb(37, 99, 235); text-decoration: none;">${escapeHtml(worker.phone)}</a>`
             : '<span class="detail-value" style="font-size: 12px; color: rgb(107, 114, 128);">-</span>'}
         </div>
+        <!-- Genel Durum (Manuel) -->
         <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Durum:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(capitalize(worker.status || 'available'))}</span>
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Genel Durum:</span>
+          <select id="worker-status-select" onchange="handleWorkerStatusChange()" style="flex: 1; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;">
+            <option value="available" ${uiStatus === 'available' ? 'selected' : ''}>✅ Çalışıyor</option>
+            <option value="inactive" ${uiStatus === 'inactive' ? 'selected' : ''}>❌ İşten ayrıldı</option>
+            <option value="leave-sick" ${uiStatus === 'leave-sick' ? 'selected' : ''}>🤒 Hasta</option>
+            <option value="leave-vacation" ${uiStatus === 'leave-vacation' ? 'selected' : ''}>🏖️ İzinli</option>
+          </select>
+        </div>
+        
+        <!-- Mesai Durumu (Otomatik - Çalışma Programından) -->
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Mesai Durumu:</span>
+          <span id="worker-schedule-status" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: rgb(243, 244, 246); color: rgb(107, 114, 128);">
+            ⏳ Hesaplanıyor...
+          </span>
+        </div>
+        
+        <!-- Leave Date Fields (shown only for Hasta/İzinli) -->
+        <div id="leave-dates-container" style="display: ${['leave-sick', 'leave-vacation'].includes(uiStatus) ? 'block' : 'none'}; margin-top: 12px; padding: 12px; background: rgb(254, 242, 242); border: 1px solid rgb(254, 202, 202); border-radius: 6px;">
+          <div style="margin-bottom: 8px; font-size: 11px; font-weight: 600; color: rgb(153, 27, 27);">⚠️ İzin Tarihleri - Bu tarihler arasında görev atanamaz</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div>
+              <label style="display: block; font-size: 11px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">Başlangıç:</label>
+              <input type="date" id="worker-leave-start" value="${worker.leaveStart || ''}" style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px;">
+            </div>
+            <div>
+              <label style="display: block; font-size: 11px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">Bitiş:</label>
+              <input type="date" id="worker-leave-end" value="${worker.leaveEnd || ''}" style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px;">
+            </div>
+          </div>
+        </div>
+        
+        <!-- Save Button -->
+        <div style="margin-top: 12px;">
+          <button type="button" onclick="saveWorkerStatus()" id="save-worker-status-btn" style="width: 100%; padding: 8px; background: rgb(37, 99, 235); color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
+            💾 Durumu Kaydet
+          </button>
         </div>
       </div>
 
@@ -1127,7 +1157,28 @@ async function renderWorkersTable() {
   tbody.innerHTML = filtered.map(w => {
     const skills = Array.isArray(w.skills) ? w.skills : (typeof w.skills === 'string' ? w.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
     const status = (w.status || 'available').toLowerCase()
-    const badgeClass = status === 'available' || status === 'active' ? 'success' : status === 'busy' ? 'warning' : 'default'
+    const onLeave = w.onLeave === true
+    
+    // Determine status display text and badge style
+    let statusText = capitalize(status)
+    let badgeClass = 'default'
+    
+    if (onLeave && w.leaveReason) {
+      statusText = w.leaveReason
+      badgeClass = 'warning'
+    } else if (status === 'available' || status === 'active') {
+      statusText = 'Çalışıyor'
+      badgeClass = 'success'
+    } else if (status === 'inactive') {
+      statusText = 'İşten ayrıldı'
+      badgeClass = 'default'
+    } else if (status === 'break') {
+      statusText = 'Mola'
+      badgeClass = 'warning'
+    } else if (status === 'busy') {
+      statusText = 'Meşgul'
+      badgeClass = 'warning'
+    }
     
     return `
       <tr onclick="(async () => await showWorkerDetail('${w.id}'))()" data-worker-id="${w.id}" style="cursor: pointer; background-color: white; border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: rgb(243, 244, 246);">
@@ -1137,7 +1188,7 @@ async function renderWorkersTable() {
             ${skills.map(skill => `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`).join('')}
           </div>
         </td>
-        <td style="padding: 4px 8px;"><span class="badge badge-${badgeClass}">${escapeHtml(capitalize(status))}</span></td>
+        <td style="padding: 4px 8px;"><span class="badge badge-${badgeClass}">${escapeHtml(statusText)}</span></td>
       </tr>`
   }).join('')
   
@@ -1220,9 +1271,15 @@ async function applyWorkersFilter(list) {
 
   // First apply non-async filters
   let filtered = (list || []).filter(w => {
-    // status
-    const wStatus = String(w.status || 'available').toLowerCase()
-    if (statuses.length > 0 && !statuses.includes(wStatus)) return false
+    // Determine UI status (might be different from backend status if worker has leave dates)
+    let uiStatus = (w.status || 'available').toLowerCase()
+    if (w.onLeave || (w.leaveStart && w.leaveEnd && w.leaveReason)) {
+      // Worker is on leave - map to appropriate leave status
+      uiStatus = (w.leaveReason === 'Hasta') ? 'leave-sick' : 'leave-vacation'
+    }
+    
+    // status filter
+    if (statuses.length > 0 && !statuses.includes(uiStatus)) return false
 
     // skills: require all selected skills to be present
     const wSkills = normalizeSkills(w.skills)
@@ -1233,7 +1290,7 @@ async function applyWorkersFilter(list) {
 
     // query: match name, email, phone, status, skills
     if (q) {
-      const hay = [w.name, w.email, w.phone, wStatus, ...wSkills]
+      const hay = [w.name, w.email, w.phone, uiStatus, ...wSkills]
         .map(x => String(x || '').toLowerCase())
         .join(' ')
       if (!hay.includes(q)) return false
@@ -1385,10 +1442,12 @@ function setupStatusFilter() {
   if (!btn || !panel || !list) return
 
   const OPTIONS = [
-    { value: 'available', label: 'Available' },
-    { value: 'active', label: 'Active' },
-    { value: 'busy', label: 'Busy' },
-    { value: 'offline', label: 'Offline' }
+    { value: 'available', label: 'Çalışıyor' },
+    { value: 'busy', label: 'Meşgul' },
+    { value: 'break', label: 'Mola' },
+    { value: 'inactive', label: 'İşten ayrıldı' },
+    { value: 'leave-vacation', label: 'İzinli' },
+    { value: 'leave-sick', label: 'Hasta' }
   ]
 
   function updateCount() {
@@ -1502,7 +1561,10 @@ export async function saveWorker() {
   const email = document.getElementById('worker-email')?.value?.trim()
   const phone = document.getElementById('worker-phone')?.value?.trim()
   const timeSource = document.getElementById('worker-time-source')?.value || 'company'
-  const status = document.getElementById('worker-status')?.value || 'available'
+  
+  // New workers default to 'available' status
+  // Status and leave are managed from detail view, not at creation
+  const status = 'available'
 
   if (!name) { showToast('İsim gerekli', 'warning'); return }
   if (!email) { showToast('Email gerekli', 'warning'); return }
@@ -1589,7 +1651,7 @@ async function persistWorkers() {
 }
 
 function sanitizeWorker(w) {
-  return {
+  const sanitized = {
     id: w.id || genId(),
     name: (w.name || '').trim(),
     email: (w.email || '').trim(),
@@ -1605,10 +1667,20 @@ function sanitizeWorker(w) {
       const mode = (ps.mode === 'personal' || ps.mode === 'company') ? ps.mode : 'company'
       const out = { mode }
       if (ps.shiftNo) out.shiftNo = ps.shiftNo
-      if (ps.blocks && typeof ps.blocks === 'object') out.blocks = ps.blocks
+      // Only save blocks for 'personal' mode - 'company' mode reads from master-data
+      if (mode === 'personal' && ps.blocks && typeof ps.blocks === 'object') {
+        out.blocks = ps.blocks
+      }
       return out
     })()
   }
+  
+  // Leave fields (optional)
+  if (w.leaveStart) sanitized.leaveStart = w.leaveStart
+  if (w.leaveEnd) sanitized.leaveEnd = w.leaveEnd
+  if (w.leaveReason) sanitized.leaveReason = w.leaveReason
+  
+  return sanitized
 }
 
 function openWorkerModal(worker = null) {
@@ -1617,7 +1689,6 @@ function openWorkerModal(worker = null) {
   const nameI = document.getElementById('worker-name')
   const emailI = document.getElementById('worker-email')
   const phoneI = document.getElementById('worker-phone')
-  const statusI = document.getElementById('worker-status')
   const deleteBtn = document.getElementById('worker-delete-btn')
 
   if (!overlay) return
@@ -1625,7 +1696,7 @@ function openWorkerModal(worker = null) {
   nameI.value = worker?.name || ''
   emailI.value = worker?.email || ''
   if (phoneI) phoneI.value = worker?.phone || ''
-  statusI.value = (worker?.status || 'available').toLowerCase()
+  // Status no longer set here - managed from detail view
 
   overlay.style.display = 'block'
   
@@ -2103,6 +2174,202 @@ function generatePrerequisitesIcons(prerequisites) {
   }
   
   return icons.join(' ');
+}
+
+// ============================================================================
+// WORKER STATUS & LEAVE HANDLERS
+// ============================================================================
+
+/**
+ * Handle worker status dropdown change - show/hide leave date fields
+ */
+window.handleWorkerStatusChange = function() {
+  const statusSelect = document.getElementById('worker-status-select');
+  const leaveDatesContainer = document.getElementById('leave-dates-container');
+  const saveBtn = document.getElementById('save-worker-status-btn');
+  
+  if (!statusSelect || !leaveDatesContainer) return;
+  
+  const status = statusSelect.value;
+  const needsLeave = ['leave-sick', 'leave-vacation'].includes(status);
+  
+  leaveDatesContainer.style.display = needsLeave ? 'block' : 'none';
+  
+  // Enable/disable save button based on validation
+  if (saveBtn) {
+    if (needsLeave) {
+      // Check if dates are filled when needed
+      const startInput = document.getElementById('worker-leave-start');
+      const endInput = document.getElementById('worker-leave-end');
+      const hasValidDates = startInput && endInput && startInput.value && endInput.value;
+      saveBtn.disabled = !hasValidDates;
+      saveBtn.style.opacity = hasValidDates ? '1' : '0.5';
+      saveBtn.style.cursor = hasValidDates ? 'pointer' : 'not-allowed';
+    } else {
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = '1';
+      saveBtn.style.cursor = 'pointer';
+    }
+  }
+};
+
+/**
+ * Save worker status and leave dates
+ */
+window.saveWorkerStatus = async function() {
+  if (!selectedWorkerId) {
+    showToast('İşçi seçili değil', 'warning');
+    return;
+  }
+  
+  const statusSelect = document.getElementById('worker-status-select');
+  const leaveStartInput = document.getElementById('worker-leave-start');
+  const leaveEndInput = document.getElementById('worker-leave-end');
+  
+  if (!statusSelect) {
+    showToast('Durum alanı bulunamadı', 'error');
+    return;
+  }
+  
+  const status = statusSelect.value;
+  const needsLeave = ['leave-sick', 'leave-vacation'].includes(status);
+  
+  // Validate leave dates if needed
+  if (needsLeave) {
+    if (!leaveStartInput?.value || !leaveEndInput?.value) {
+      showToast('İzin tarihleri gerekli', 'warning');
+      return;
+    }
+    
+    const start = new Date(leaveStartInput.value);
+    const end = new Date(leaveEndInput.value);
+    
+    if (end < start) {
+      showToast('Bitiş tarihi başlangıç tarihinden önce olamaz', 'warning');
+      return;
+    }
+  }
+  
+  // Find worker in state
+  const workerIndex = workersState.findIndex(w => w.id === selectedWorkerId);
+  if (workerIndex === -1) {
+    showToast('İşçi bulunamadı', 'error');
+    return;
+  }
+  
+  // Update worker state
+  const updatedWorker = { ...workersState[workerIndex] };
+  
+  // Map UI status to backend status
+  if (status === 'leave-sick' || status === 'leave-vacation') {
+    updatedWorker.status = 'available'; // Backend expects available with leave dates
+    updatedWorker.leaveStart = leaveStartInput.value;
+    updatedWorker.leaveEnd = leaveEndInput.value;
+    updatedWorker.leaveReason = status === 'leave-sick' ? 'Hasta' : 'İzinli';
+  } else {
+    updatedWorker.status = status;
+    updatedWorker.leaveStart = null;
+    updatedWorker.leaveEnd = null;
+    updatedWorker.leaveReason = null;
+  }
+  
+  workersState[workerIndex] = updatedWorker;
+  
+  try {
+    // Persist to backend
+    await persistWorkers();
+    
+    showToast('İşçi durumu güncellendi', 'success');
+    
+    // Refresh worker detail panel
+    await showWorkerDetail(selectedWorkerId);
+    
+    // Refresh table to show updated status badge
+    await renderWorkersTable();
+  } catch (error) {
+    console.error('Failed to save worker status:', error);
+    showToast('Durum kaydedilemedi: ' + (error.message || 'Bilinmeyen hata'), 'error');
+  }
+};
+
+// Update worker schedule status badge (Mesai Durumu) based on current time
+function updateWorkerScheduleStatus(worker) {
+  const statusElement = document.getElementById('worker-schedule-status');
+  if (!statusElement) return;
+  
+  // Get worker's schedule
+  const schedule = worker.personalSchedule;
+  if (!schedule) {
+    statusElement.innerHTML = '❓ Program tanımlanmamış';
+    statusElement.style.background = 'rgb(254, 243, 199)';
+    statusElement.style.color = 'rgb(146, 64, 14)';
+    return;
+  }
+  
+  // Determine blocks for current day
+  let blocks = [];
+  const now = new Date();
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const currentDay = dayNames[now.getDay()];
+  
+  if (schedule.mode === 'company') {
+    // Load from company settings
+    const companySettings = safeLoadCompanyTimeSettings();
+    if (companySettings) {
+      const shiftNo = schedule.shiftNo || '1';
+      blocks = getShiftBlocksForDay(companySettings, currentDay, shiftNo) || [];
+    }
+  } else if (schedule.mode === 'personal') {
+    // Load from personal blocks
+    blocks = schedule.blocks?.[currentDay] || [];
+  }
+  
+  // Filter only work/break blocks (ignore rest)
+  blocks = blocks.filter(b => b && (b.type === 'work' || b.type === 'break'));
+  
+  if (blocks.length === 0) {
+    statusElement.innerHTML = '🏠 Bugün mesai yok';
+    statusElement.style.background = 'rgb(243, 244, 246)';
+    statusElement.style.color = 'rgb(107, 114, 128)';
+    return;
+  }
+  
+  // Check current time against blocks
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  
+  for (const block of blocks) {
+    // Handle different block formats (start/end vs startTime/endTime)
+    if (!block) continue;
+    
+    const startStr = block.start || block.startTime;
+    const endStr = block.end || block.endTime;
+    
+    if (!startStr || !endStr) continue;
+    
+    const [startHour, startMin] = startStr.split(':').map(Number);
+    const [endHour, endMin] = endStr.split(':').map(Number);
+    const blockStart = startHour * 60 + startMin;
+    const blockEnd = endHour * 60 + endMin;
+    
+    if (currentMinutes >= blockStart && currentMinutes < blockEnd) {
+      // Currently in this block
+      if (block.type === 'work') {
+        statusElement.innerHTML = '🕒 Şu an mesaide';
+        statusElement.style.background = 'rgba(34, 197, 94, 0.15)';
+        statusElement.style.color = 'rgb(6, 95, 70)';
+      } else if (block.type === 'break') {
+        statusElement.innerHTML = '☕ Şu an mola saatinde';
+        statusElement.style.background = 'rgba(251, 191, 36, 0.15)';
+        statusElement.style.color = 'rgb(146, 64, 14)';
+      }
+      return;
+    }
+  }
+  
+  // Not currently in any block
+  statusElement.innerHTML = '🏠 Mesai dışında';
+  statusElement.style.background = 'rgb(243, 244, 246)';
+  statusElement.style.color = 'rgb(107, 114, 128)';
 }
 
 // No default export; named exports only

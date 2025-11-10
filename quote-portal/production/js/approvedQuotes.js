@@ -156,12 +156,9 @@ function getProductionState(workOrderCode) {
   return productionStates[workOrderCode] || PRODUCTION_STATES.WAITING_APPROVAL
 }
 
-async function setProductionState(workOrderCode, newState) {
+async function setProductionState(workOrderCode, newState, updateServer = true) {
   try {
-    // Update in Firebase via API
-    await updateProductionState(workOrderCode, newState)
-    
-    // Update local state
+    // Update local state first for immediate UI feedback
     productionStates[workOrderCode] = newState
     
     // Update the quote in quotesState as well
@@ -171,10 +168,16 @@ async function setProductionState(workOrderCode, newState) {
     }
     
     renderApprovedQuotesTable()
-    console.log(`Production state updated to ${newState} for ${workOrderCode}`)
+    
+    // Only update server if it's a valid state (not temporary states like 'Başlatılıyor...')
+    if (updateServer) {
+      await updateProductionState(workOrderCode, newState)
+      console.log(`Production state updated to ${newState} for ${workOrderCode}`)
+    }
   } catch (error) {
     console.error('Failed to update production state:', error)
     alert('Üretim durumu güncellenirken hata oluştu. Lütfen tekrar deneyin.')
+    throw error; // Re-throw to allow caller to handle
   }
 }
 
@@ -202,16 +205,16 @@ async function startProduction(workOrderCode) {
     
     if (!confirmed) return;
     
-    // Show loading state
+    // Show loading state (don't update server)
     const originalState = getProductionState(workOrderCode);
-    await setProductionState(workOrderCode, 'Başlatılıyor...');
+    await setProductionState(workOrderCode, 'Başlatılıyor...', false);
     
     try {
       // Call launch endpoint
       const result = await launchProductionPlan(plan.id, workOrderCode);
       
-      // Success! Update state to IN_PRODUCTION
-      await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION);
+      // Success! Update state to IN_PRODUCTION (update server)
+      await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION, true);
       
       // Show success message
       const message = result.warnings && result.warnings.length > 0
@@ -233,8 +236,8 @@ async function startProduction(workOrderCode) {
     } catch (error) {
       console.error('Launch failed:', error);
       
-      // Restore original state
-      await setProductionState(workOrderCode, originalState);
+      // Restore original state (don't update server, just UI)
+      await setProductionState(workOrderCode, originalState, false);
       
       // Show detailed error message based on error type
       if (error.code === 'approved_quote_not_found') {
@@ -244,6 +247,11 @@ async function startProduction(workOrderCode) {
           `${workOrderCode} iş emri için onaylı teklif bulunamadı.\n\n` +
           `Quotes ekranından bu iş emrini oluşturup onayladıktan sonra tekrar deneyin.`
         );
+      } else if (error.code === 'no_workers' || (error.status === 422 && error.error === 'no_workers')) {
+        // No eligible workers available
+        console.warn('Launch error - no eligible workers:', error);
+        const sampleInfo = error.sample ? error.sample.map(s => `${s.name || s.id}: ${s.status}${s.onLeave ? ' (on leave)' : ''}`).join('\n') : '';
+        alert(`Üretim Başlatılamadı\n\nAktif ve müsait işçi bulunamadı. Lütfen Worker Portal'dan işçilerin durumunu kontrol edin.\n\n${sampleInfo}`);
       } else if (error.status === 422 && error.shortages) {
         // Material shortage
         const shortageList = error.shortages.map(s => 
@@ -289,16 +297,16 @@ async function pauseProduction(workOrderCode) {
     
     if (!confirmed) return;
     
-    // Show loading state
+    // Show loading state (don't update server)
     const originalState = getProductionState(workOrderCode);
-    await setProductionState(workOrderCode, 'Duraklatılıyor...');
+    await setProductionState(workOrderCode, 'Duraklatılıyor...', false);
     
     try {
       // Call pause endpoint
       const result = await pauseProductionPlan(plan.id);
       
-      // Success! Update state to PAUSED
-      await setProductionState(workOrderCode, PRODUCTION_STATES.PAUSED);
+      // Success! Update state to PAUSED (update server)
+      await setProductionState(workOrderCode, PRODUCTION_STATES.PAUSED, true);
       
       // Show success message
       alert(
@@ -312,7 +320,7 @@ async function pauseProduction(workOrderCode) {
       
     } catch (error) {
       console.error('Pause failed:', error);
-      await setProductionState(workOrderCode, originalState);
+      await setProductionState(workOrderCode, originalState, false);
       
       // Handle specific error types
       if (error.code === 'approved_quote_not_found') {
@@ -353,16 +361,16 @@ async function resumeProduction(workOrderCode) {
     
     if (!confirmed) return;
     
-    // Show loading state
+    // Show loading state (don't update server)
     const originalState = getProductionState(workOrderCode);
-    await setProductionState(workOrderCode, 'Devam ettiriliyor...');
+    await setProductionState(workOrderCode, 'Devam ettiriliyor...', false);
     
     try {
       // Call resume endpoint
       const result = await resumeProductionPlan(plan.id);
       
-      // Success! Update state to IN_PRODUCTION
-      await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION);
+      // Success! Update state to IN_PRODUCTION (update server)
+      await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION, true);
       
       // Show success message
       alert(
@@ -375,7 +383,7 @@ async function resumeProduction(workOrderCode) {
       
     } catch (error) {
       console.error('Resume failed:', error);
-      await setProductionState(workOrderCode, originalState);
+      await setProductionState(workOrderCode, originalState, false);
       
       // Handle specific error types
       if (error.code === 'approved_quote_not_found') {
@@ -429,16 +437,16 @@ async function cancelProduction(workOrderCode) {
     
     if (!doubleConfirm) return;
     
-    // Show loading state
+    // Show loading state (don't update server)
     const originalState = getProductionState(workOrderCode);
-    await setProductionState(workOrderCode, 'İptal ediliyor...');
+    await setProductionState(workOrderCode, 'İptal ediliyor...', false);
     
     try {
       // Call cancel endpoint
       const result = await cancelProductionPlan(plan.id);
       
-      // Success! Update state to CANCELLED
-      await setProductionState(workOrderCode, PRODUCTION_STATES.CANCELLED);
+      // Success! Update state to CANCELLED (update server)
+      await setProductionState(workOrderCode, PRODUCTION_STATES.CANCELLED, true);
       
       // Show success message
       alert(
@@ -452,7 +460,7 @@ async function cancelProduction(workOrderCode) {
       
     } catch (error) {
       console.error('Cancel failed:', error);
-      await setProductionState(workOrderCode, originalState);
+      await setProductionState(workOrderCode, originalState, false);
       
       // Handle specific error types
       if (error.code === 'approved_quote_not_found') {

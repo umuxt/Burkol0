@@ -294,10 +294,34 @@ router.get('/workers', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const db = getFirestore();
     const snapshot = await db.collection('mes-workers').orderBy('name').get();
-    const workers = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const nowIso = new Date().toISOString();
+    const normalize = (doc) => {
+      const data = doc.data();
+      const w = { id: doc.id, ...data };
+      // default status
+      w.status = (w.status || w.availability || 'available').toString();
+      if (/active/i.test(w.status)) w.status = 'available';
+      if (/enabled|on/i.test(w.status)) w.status = 'available';
+      if (/off|inactive|removed/i.test(w.status)) w.status = 'inactive';
+      if (/break|paused|rest/i.test(w.status)) w.status = 'break';
+      if (/busy|working/i.test(w.status)) w.status = 'busy';
+      // compute leave flag
+      const leaveStart = w.leaveStart || (w.leave && w.leave.start) || null;
+      const leaveEnd = w.leaveEnd || (w.leave && w.leave.end) || null;
+      w.onLeave = false;
+      if (leaveStart && leaveEnd) {
+        try {
+          const s = new Date(leaveStart).toISOString();
+          const e = new Date(leaveEnd).toISOString();
+          w.onLeave = s <= nowIso && nowIso <= e;
+        } catch (err) {
+          w.onLeave = false;
+        }
+      }
+      return w;
+    };
+
+    const workers = snapshot.docs.map(normalize);
     return { workers };
   }, res);
 });
@@ -325,6 +349,14 @@ router.post('/workers', withAuth, async (req, res) => {
 
     // Helper to compute blocks for a day from master time settings
     function getShiftBlocksForDay(ts, day, shiftNo) {
+      // 0) Standard shifts array model: shifts: [{ id: '1', blocks: { monday: [...] } }]
+      if (Array.isArray(ts?.shifts)) {
+        const shift = ts.shifts.find(s => s.id === String(shiftNo || '1'));
+        if (shift && shift.blocks && Array.isArray(shift.blocks[day])) {
+          return shift.blocks[day];
+        }
+      }
+      
       // Aggregated model with laneIndex under `shift-${day}`
       const agg = ts?.shiftBlocks?.[`shift-${day}`];
       if (Array.isArray(agg)) {
@@ -365,20 +397,6 @@ router.post('/workers', withAuth, async (req, res) => {
       return [];
     }
 
-    function buildCompanyBlocks(ts, shiftNo) {
-      const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
-      const result = {};
-      const isShift = (ts?.workType === 'shift');
-      for (const d of days) {
-        if (isShift) {
-          result[d] = getShiftBlocksForDay(ts, d, shiftNo);
-        } else {
-          result[d] = Array.isArray(ts?.fixedBlocks?.[d]) ? ts.fixedBlocks[d] : [];
-        }
-      }
-      return result;
-    }
-
     function normalizeSkills(skills) {
       if (Array.isArray(skills)) return skills;
       if (typeof skills === 'string') return skills.split(',').map(s=>s.trim()).filter(Boolean);
@@ -397,10 +415,10 @@ router.post('/workers', withAuth, async (req, res) => {
         const mode = (ps.mode === 'personal' || ps.mode === 'company') ? ps.mode : 'company';
         if (mode === 'company') {
           const shiftNo = ps.shiftNo || (timeSettings?.workType === 'shift' ? '1' : undefined);
+          // Company mode: only save mode and shiftNo, blocks come from master-data
           personalSchedule = {
             mode: 'company',
-            ...(shiftNo ? { shiftNo } : {}),
-            blocks: buildCompanyBlocks(timeSettings, shiftNo)
+            ...(shiftNo ? { shiftNo } : {})
           };
         } else {
           // personal mode: accept provided blocks, default missing days to []
@@ -411,12 +429,11 @@ router.post('/workers', withAuth, async (req, res) => {
           personalSchedule = { mode: 'personal', blocks: normalized };
         }
       } else {
-        // No schedule provided: default to company with computed blocks
+        // No schedule provided: default to company mode (no blocks stored)
         const shiftNo = (timeSettings?.workType === 'shift') ? '1' : undefined;
         personalSchedule = {
           mode: 'company',
-          ...(shiftNo ? { shiftNo } : {}),
-          blocks: buildCompanyBlocks(timeSettings, shiftNo)
+          ...(shiftNo ? { shiftNo } : {})
         };
       }
 
@@ -2669,20 +2686,71 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     // 3. LOAD LIVE DATA FOR ASSIGNMENT ENGINE
     // ========================================================================
     
+    // First, get all workers to check their status values
+    const allWorkersSnapshot = await db.collection('mes-workers').get();
+    const allWorkers = allWorkersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log(`📊 Total workers in DB: ${allWorkers.length}`);
+    if (allWorkers.length > 0) {
+      console.log(`📊 Sample worker statuses:`, allWorkers.slice(0, 3).map(w => ({ name: w.name, status: w.status })));
+    }
+    
+    // Load all workers/stations/substations, but don't rely on a specific string value
+    // for the worker status at query time (some records may use different conventions).
     const [workersSnapshot, stationsSnapshot, substationsSnapshot] = await Promise.all([
-      db.collection('mes-workers').where('status', '==', 'active').get(),
+      db.collection('mes-workers').get(),
       db.collection('mes-stations').where('status', '==', 'active').get(),
       db.collection('mes-substations').where('status', '==', 'active').get()
     ]);
-    
-    const workers = workersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    const rawWorkers = workersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     const stations = stationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     const substations = substationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-    if (workers.length === 0) {
+
+    // Normalize worker status and filter out workers that cannot be auto-assigned.
+    // New status enum: 'available', 'busy', 'break', 'inactive'
+    const nowIso = new Date().toISOString();
+    function isOnLeave(w) {
+      // Support several possible field shapes for backwards compatibility
+      const leaveStart = w.leaveStart || (w.leave && w.leave.start) || null;
+      const leaveEnd = w.leaveEnd || (w.leave && w.leave.end) || null;
+      if (!leaveStart || !leaveEnd) return false;
+      try {
+        const s = new Date(leaveStart).toISOString();
+        const e = new Date(leaveEnd).toISOString();
+        return s <= nowIso && nowIso <= e;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    const workers = rawWorkers.map(w => {
+      const copy = { ...w };
+      // Provide default status = 'available' for older records
+      copy.status = (copy.status || copy.availability || 'available').toString();
+      // Normalize some common legacy values
+      if (/active/i.test(copy.status)) copy.status = 'available';
+      if (/enabled|on/i.test(copy.status)) copy.status = 'available';
+      if (/off|inactive|removed/i.test(copy.status)) copy.status = 'inactive';
+      if (/break|paused|rest/i.test(copy.status)) copy.status = 'break';
+      if (/busy|working/i.test(copy.status)) copy.status = 'busy';
+      // Attach computed onLeave flag
+      copy.onLeave = isOnLeave(copy);
+      return copy;
+    });
+
+    // Only workers with status 'available' or 'busy' and not on leave are eligible for auto-assignment
+    const eligibleWorkers = workers.filter(w => (w.status === 'available' || w.status === 'busy') && !w.onLeave);
+
+    console.log(`✅ Total workers in DB: ${rawWorkers.length}`);
+    console.log(`✅ Eligible workers for assignment: ${eligibleWorkers.length}`);
+
+    if (eligibleWorkers.length === 0) {
+      // Provide helpful debug info in the response to aid troubleshooting
       return res.status(422).json({
         error: 'no_workers',
-        message: 'No active workers available for assignment'
+        message: 'No eligible workers available for assignment. Check worker.status and leave windows.',
+        totalWorkers: rawWorkers.length,
+        sample: workers.slice(0, 10).map(w => ({ id: w.id, name: w.name, status: w.status, onLeave: w.onLeave }))
       });
     }
     
@@ -2751,7 +2819,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       try {
         const assignment = await assignNodeResources(
           node,
-          workers,
+          eligibleWorkers,
           stations,
           substations,
           workerSchedule,

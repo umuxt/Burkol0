@@ -546,25 +546,168 @@ Plan Designer'da oluşturulan her operasyon düğümü, belirli koşullar sağla
    - Aksiyonlar (Detay, Düzenle, vb.)
 
 #### 👷 Adım 5: İşçi Portalı (Worker Portal)
+
+**Giriş ve Genel Görünüm:**
 1. İşçi hesabı ile **Worker Portal** sayfasına giriş yapın
-2. **Atanmış görevler** listesini görüntüleyin
-3. Görev bilgileri:
-   - ⏸️ **Duraklatıldı bannerı** (admin durdurduysa kırmızı uyarı)
-   - 📦 **Malzeme durumu** (✓ Hazır / ⚠️ Eksik / ? Bilinmiyor)
-   - 🔒 **Önkoşullar** (önceki görevler, istasyon, malzeme)
-   - ⏱️ **Tahmini süre**
-4. **"Başlat"** butonuna tıklayın
+2. **Durum bannerı** (varsa):
+   - ❌ **İşten ayrıldı:** Kırmızı banner, görev başlatılamaz
+   - 🩺 **Hasta:** Sarı banner, izin tarihleri gösterilir
+   - 🏖️ **İzinli:** Sarı banner, izin tarihleri gösterilir
+   - ☕ **Mola:** Mavi banner, durumu "Çalışıyor" olarak güncellemesi gerektiğini belirtir
+3. **İşçi profil kartı:** İsim, ID, aktif görev sayıları ve mevcut durum badge'i gösterilir
+
+**Görev Listesi:**
+- **Atanmış görevler** öncelik sırasına göre listelenir
+- Her görev için:
+  - ⏸️ **Duraklatıldı bannerı** (admin durdurduysa kırmızı uyarı)
+  - 📦 **Malzeme durumu** (✓ Hazır / ⚠️ Eksik / ? Bilinmiyor)
+  - 🔒 **Önkoşullar** (önceki görevler, istasyon, malzeme)
+  - ⏱️ **Tahmini süre**
+
+**Görev İşlemleri:**
+1. **"Başlat"** butonuna tıklayın:
+   - ⚠️ İşçi **İzinli**, **Hasta**, **İşten ayrıldı** veya **Mola** durumundaysa buton devre dışıdır
    - Sistem tekrar malzeme kontrolü yapar
    - ❌ Malzeme tükendiyse detaylı eksiklik bilgisi gösterilir
    - ✅ Her şey hazırsa görev başlar
-5. İşlem tamamlandığında **"Tamamla"** butonuna tıklayın
+   
+2. **"Duraklat"** butonuna tıklayın:
+   - ⚠️ İşçi uygun durumda değilse buton devre dışıdır
+   - Görev duraklatılır
+   
+3. **"Tamamla"** butonuna tıklayın:
+   - ⚠️ İşçi uygun durumda değilse buton devre dışıdır
+   - Fire miktarı girebilirsiniz (varsa)
+   - Görev tamamlanır
+
+**Durum Kısıtlamaları:**
+- 🚫 **İşten ayrıldı:** Hiçbir işlem yapılamaz
+- 🚫 **İzinli/Hasta:** İzin süresince hiçbir işlem yapılamaz, izin bitiş tarihi gösterilir
+- ⚠️ **Mola:** Görevlere devam etmek için admin tarafından durum değiştirilmelidir
 
 **Özellikler:**
 - 🔄 **Otomatik yenileme:** Admin işlem yaptığında otomatik güncelleme
 - 📋 **Boş durum:** Görev yoksa "Admin bir plan başlatmalı" mesajı + yenile butonu
 - ⚠️ **Hata mesajları:** Açık ve anlaşılır Türkçe uyarılar
+- 🎯 **Görsel ipuçları:** Devre dışı butonlar için tooltip açıklamaları
 
-#### ⚙️ Adım 6: Yönetim Kontrolleri (Approved Quotes)
+#### ⚙️ Adım 6: İşçi Yönetimi ve Durum Kontrolü
+
+**İşçi Oluşturma:**
+- Yeni işçi eklerken **durum seçimi yapılmaz**
+- Tüm yeni işçiler otomatik olarak **"Çalışıyor (available)"** durumunda başlar
+- Durum yönetimi sadece işçi detay panelinden yapılır
+
+**İşçi Durumları - Genel Durum vs Mesai Durumu:**
+
+Sistem iki ayrı durum kontrolü kullanır:
+
+1. **Genel Durum (Manuel Yönetim):**
+   - ✅ **Çalışıyor (available):** İşçi aktif olarak görev alabilir
+   - ❌ **İşten ayrıldı (inactive):** İşçi artık çalışmıyor, görev atanamaz (kalıcı)
+   - � **Hasta (leave-sick):** İşçi hastalık izni kullanıyor, tarih aralığı zorunlu
+   - 🏖️ **İzinli (leave-vacation):** İşçi yıllık izinde, tarih aralığı zorunlu
+   
+   **Not:** "Meşgul (busy)" ve "Mola (break)" durumları Genel Durum'da gösterilmez. 
+   Meşgul durumu sistem tarafından otomatik atanır, Mola durumu ise Çalışma Programı ile kontrol edilir.
+
+2. **Mesai Durumu (Otomatik - Çalışma Programından):**
+   - 🕒 **Şu an mesaide:** Çalışan şu anda çalışma programındaki iş saatinde
+   - ☕ **Şu an mola saatinde:** Çalışan çalışma programındaki mola bloğunda
+   - 🏠 **Mesai dışında:** Çalışan herhangi bir çalışma bloğu dışında
+   - ❓ **Program tanımlanmamış:** Henüz çalışma programı atanmamış
+   
+   **Not:** Mesai Durumu gerçek zamanlı hesaplanır ve sadece bilgilendirme amaçlıdır (değiştirilemez).
+
+**İşçi Detay Panelinde Durum Değiştirme:**
+1. **Workers** sayfasında işçi kartına tıklayın
+2. Detay panelinde **"Genel Durum"** dropdown'ından yeni durumu seçin
+3. **İşten ayrıldı** seçilirse:
+   - Durum kalıcı olarak "inactive" yapılır
+   - İşçiye yeni görev atanamaz
+   - Worker Portal'da tüm görev butonları devre dışı kalır
+4. **Hasta** veya **İzinli** seçilirse:
+   - İzin başlangıç ve bitiş tarihleri **zorunlu**
+   - Bu tarihler arasında görev atanamaz
+   - İzin süresi bittiğinde manuel olarak "Çalışıyor" durumuna alınmalıdır
+5. **"💾 Durumu Kaydet"** butonuna tıklayın
+
+**Mesai Durumu ve Worker Portal:**
+- Worker Portal'da Mesai Durumu kontrol edilir
+- Eğer çalışan mola saatindeyse:
+  - "⏰ Şu an çalışma programınıza göre mola saatindesiniz" banner'ı gösterilir
+  - Start/Pause/Complete butonları **devre dışı** bırakılır
+- Mola saati bittiğinde otomatik olarak butonlar aktifleşir
+
+**Çalışma Programı (Time Management):**
+- Her işçi için "Genel Ayarlar" veya "Kişisel Ayar" seçilebilir
+- **Genel Ayarlar:** Şirket çalışma takvimini takip eder (Vardiya No seçilir)
+- **Kişisel Ayar:** İşçiye özel haftalık çalışma programı oluşturulur
+- Programda sadece **"Çalışma"** ve **"Mola"** blokları tanımlanır
+- Mola blokları Worker Portal'da görev başlatmayı engeller
+
+**Filtreler:**
+Workers sayfasında **"Durum Filtresi"** ile işçileri durumlarına göre filtreleyebilirsiniz:
+- Çalışıyor
+- İşten ayrıldı
+- İzinli
+- Hasta
+
+#### 📊 Adım 7: Çalışma Programı (Time Management) Yönetimi
+
+**Şirket Çalışma Takvimine Erişim:**
+1. **Production** sayfasında **"⚙️ Time Management"** butonuna tıklayın
+2. **Çalışma Tipi** seçin:
+   - **Sabit (Fixed):** Tüm günler aynı program
+   - **Vardiyalı (Shift):** Farklı vardiyalar (her biri farklı program)
+
+**Timeline Blok Ekleme/Düzenleme:**
+1. **✏️ Düzenle** moduna geçin
+2. Timeline üzerinde boş alana tıklayın veya var olan bloğa tıklayın
+3. Modal açılır:
+   - **Blok Türü:** Sadece "Çalışma" veya "Mola" seçenekleri var
+   - **Başlangıç Saati:** (örn: 08:00)
+   - **Bitiş Saati:** (örn: 12:00)
+4. **"Kaydet"** butonuna tıklayın
+5. Blok timeline'da görünür
+
+**Timeline Blok Silme:**
+- Herhangi bir bloğun üzerine fareyi getirin
+- Sağ üst köşede kırmızı **×** butonu belirir
+- Butona tıklayın → blok **anında silinir** (onay sorusu yok)
+- Değişiklikler "dirty" olarak işaretlenir
+
+**Değişiklikleri Kaydetme:**
+1. Bloklarda değişiklik yaptıktan sonra
+2. **"💾 Çalışma Programını Kaydet"** butonuna tıklayın
+3. Sistem:
+   - Backend'e POST /api/mes/master-data gönderir
+   - Cache'i otomatik günceller (F5 gerekmez!)
+   - Toast bildirimi gösterir: "✅ Çalışma programı kaydedildi"
+   - Timeline anında yeni durumu gösterir
+4. Hata olursa:
+   - Toast gösterir: "❌ Kaydetme başarısız"
+   - Timeline eski haline döner
+
+**İşçi Çalışma Programı (Kişisel):**
+1. İşçi detay panelinde **"Detaylı Düzenle"** butonuna tıklayın
+2. Modal açılır:
+   - **Genel Ayarlar:** Şirket takvimine göre çalış (Vardiya No seç)
+   - **Kişisel Ayar:** Sadece bu işçi için özel program
+3. Kişisel ayar seçilirse haftalık timeline düzenleyici açılır
+4. Blok ekleme/silme işlemleri şirket takvimiyle aynı şekilde çalışır
+
+#### 📊 Adım 8: Dashboard - İşçi Durumu Görünümü
+
+**Production Dashboard** ana sayfasında **"Workers Overview"** widget'ı şunları gösterir:
+- 📈 **Toplam işçi sayısı**
+- ✅ **Çalışıyor:** Aktif ve uygun işçi sayısı
+- 📊 **Durum Dağılımı:** Her durumdaki işçi sayısı (Meşgul, Mola, İzinli, Hasta, İşten ayrıldı)
+- 📉 **Müsaitlik Oranı:** Toplam işçilerin yüzde kaçı aktif çalışıyor (görsel çubuk ile)
+
+Bu widget gerçek zamanlı veri gösterir ve işçi durumu değiştiğinde otomatik güncellenir.
+
+#### ⚙️ Adım 9: Yönetim Kontrolleri (Approved Quotes)
 Admin kullanıcılar üretim sürecini kontrol edebilir:
 
 1. **⏸️ Durdur (Pause):**
@@ -649,7 +792,108 @@ Script başlatıldıktan sonra 3 saniye bekleme süresi vardır. Bu süre içind
 
 ---
 
-## �🚨 Sorun Giderme
+## 🧪 Test ve Kalite Kontrol
+
+### İşçi Durum Sistemi Test Checklist
+
+#### 1. İşçi Durum Değişiklikleri
+- [ ] **Workers** sayfasında bir işçi seçin
+- [ ] Durum dropdown'ından **"Hasta"** seçin
+- [ ] İzin başlangıç ve bitiş tarihleri girin (bugünden 3 gün sonrasına kadar)
+- [ ] **"Durumu Kaydet"** butonuna tıklayın
+- [ ] ✅ Toast bildirimi gösterilmeli: "İşçi durumu güncellendi"
+- [ ] ✅ İşçi tablosunda durum badge'i **"Hasta"** olmalı (kırmızı)
+- [ ] ✅ İzin tarihleri işçi detayında görünmeli
+
+#### 2. Dashboard Widget Kontrolü
+- [ ] **Production Dashboard** ana sayfasına gidin
+- [ ] **Workers Overview** widget'ına bakın
+- [ ] ✅ "Hasta" sayısı 1 artmış olmalı
+- [ ] ✅ "Çalışıyor" sayısı 1 azalmış olmalı
+- [ ] ✅ Müsaitlik yüzdesi güncellenmiş olmalı
+- [ ] ✅ Durum dağılımında "Hasta: 1" satırı görünmeli
+
+#### 3. Worker Portal - Durum Bannerı
+- [ ] İşçi hesabı ile **Worker Portal**'a giriş yapın (hasta olan işçi)
+- [ ] ✅ Sayfanın üstünde sarı bir banner gösterilmeli
+- [ ] ✅ Banner içeriği: "🩺 Hasta (DD.MM - DD.MM). Bu tarihler arasında görev başlatamazsınız."
+- [ ] ✅ İşçi profil kartında "Hasta" badge'i görünmeli (kırmızı)
+
+#### 4. Worker Portal - Buton Kontrolü
+- [ ] Görev listesinde herhangi bir görev varsa:
+  - [ ] ✅ **"Başla"** butonu devre dışı olmalı (grileşmiş)
+  - [ ] ✅ Butona hover yapınca tooltip: "İşçi durumu görev başlatmaya uygun değil"
+  - [ ] ✅ **"Duraklat"** ve **"Tamamla"** butonları (varsa) devre dışı olmalı
+
+#### 5. Görev Atama Kontrolü
+- [ ] **Approved Quotes** sayfasına gidin
+- [ ] Bir iş emri seçin ve **"🏁 Başlat"** butonuna tıklayın
+- [ ] ✅ Sistem hasta işçiye görev atamamalı
+- [ ] ✅ Sadece uygun işçilere görev atanmalı
+- [ ] Eğer hiç uygun işçi yoksa:
+  - [ ] ✅ 422 hatası alınmalı: "Hiçbir uygun işçi bulunamadı"
+  - [ ] ✅ Hata mesajında işçi durumları gösterilmeli
+
+#### 6. Filtre Kontrolü
+- [ ] **Workers** sayfasında **"Durum Filtresi"** dropdown'ını açın
+- [ ] ✅ Şu seçenekler görünmeli: Çalışıyor, Meşgul, Mola, İşten ayrıldı, İzinli, Hasta
+- [ ] **"Hasta"** seçeneğini seçin
+- [ ] ✅ Sadece hasta olan işçi(ler) görünmeli
+- [ ] **"Çalışıyor"** seçeneğini seçin
+- [ ] ✅ Hasta işçi listeden kaybolmalı
+
+#### 7. İzin Süresi Bitişi
+- [ ] **Workers** sayfasında hasta işçinin durumunu tekrar değiştirin
+- [ ] **"Çalışıyor"** seçin (izin tarihlerini silmek için)
+- [ ] **"Durumu Kaydet"** butonuna tıklayın
+- [ ] ✅ Dashboard widget'ı güncellenmeli
+- [ ] ✅ Worker Portal'da banner kaybolmalı
+- [ ] ✅ Butonlar tekrar aktif olmalı
+
+#### 8. Diğer Durum Türleri
+**Mola Durumu:**
+- [ ] Bir işçiyi **"Mola"** durumuna alın
+- [ ] ✅ Dashboard'da "Mola" sayısı artmalı
+- [ ] ✅ Worker Portal'da mavi banner: "☕ Mola - Görevlere devam etmek için durumunuzu 'Çalışıyor' olarak güncelleyin"
+
+**İşten Ayrıldı Durumu:**
+- [ ] Bir işçiyi **"İşten ayrıldı"** durumuna alın
+- [ ] ✅ Dashboard'da "İşten ayrıldı" sayısı artmalı (gri renk)
+- [ ] ✅ Worker Portal'da kırmızı banner: "❌ Bu çalışan işten ayrıldı, görev başlatılamaz"
+- [ ] ✅ Tüm butonlar kalıcı olarak devre dışı
+
+### Seed Data - İşçi Durumlarını Sıfırlama
+
+Testler sonrasında işçi durumlarını varsayılana döndürmek için:
+
+**Manuel Reset:**
+1. **Workers** sayfasına gidin
+2. Her işçi için:
+   - Durum: **"Çalışıyor"**
+   - İzin tarihlerini boş bırakın
+   - **"Durumu Kaydet"**
+
+**Script ile Reset (tüm MES verisini siler):**
+```bash
+cd /Users/umutyalcin/Documents/Burkol0/Burkol0
+RESET_MES=1 node quote-portal/scripts/reset-mes-data.js
+```
+⚠️ **Dikkat:** Bu işlem tüm üretim planlarını, atamaları ve diğer MES verilerini de siler!
+
+### Beklenen Sonuçlar Özeti
+
+| Test | Beklenen Davranış |
+|------|------------------|
+| Durum değiştirme | Toast bildirimi + badge güncellemesi |
+| Dashboard widget | Gerçek zamanlı sayılar |
+| Worker Portal banner | Durum bazlı uyarılar (kırmızı/sarı/mavi) |
+| Buton kontrolü | Uygun olmayan durumda disable |
+| Görev ataması | Hasta/izinli/inactive işçilere atama yapılmamalı |
+| Filtreler | Seçilen duruma göre doğru sonuçlar |
+
+---
+
+## � Sorun Giderme
 
 ### Yaygın Problemler
 

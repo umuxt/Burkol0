@@ -258,7 +258,7 @@ export function generateSettings() {
           <div style="display:flex; align-items:center; justify-content: space-between; gap:12px; margin-bottom:16px;">
             <div style="display:flex; align-items:center; gap:12px;">
               <h3 style="font-size: 16px; font-weight: 600; margin: 0; color: var(--foreground);">Haftalık Çalışma Programı</h3>
-              <span style="font-size: 11px; color: var(--muted-foreground);">( Çalışma: 🟩 , Mola: 🟨 , Dinlenme: ⬜️ )</span>
+              <span style="font-size: 11px; color: var(--muted-foreground);">( Çalışma: 🟩 , Mola: 🟨 )</span>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
               <button id="timeline-edit-btn" onclick="startTimelineEdit()" style="background: white; color: var(--foreground); padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 12px; line-height: 1;">Düzenle</button>
@@ -286,7 +286,6 @@ export function generateSettings() {
           <select id="block-type" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
             <option value="work">Çalışma</option>
             <option value="break">Mola</option>
-            <option value="rest">Dinlenme</option>
           </select>
         </div>
         
@@ -569,20 +568,11 @@ export function generateWorkers() {
           <!-- Çalışma Saatleri Ayarı -->
           <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
             <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Çalışma Saatleri</h3>
-            <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+            <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 0;">
               <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Zaman Kaynağı:</span>
               <select id="worker-time-source" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; max-width: 200px;">
                 <option value="company" selected>Şirket Genel Ayarları</option>
                 <option value="personal">Kişisel Ayar</option>
-              </select>
-            </div>
-            <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 0;">
-              <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Status:</span>
-              <select id="worker-status" style="flex: 1 1 0%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white; max-width: 200px;">
-                <option value="available">Available</option>
-                <option value="busy">Busy</option>
-                <option value="break">Break</option>
-                <option value="inactive">Inactive</option>
               </select>
             </div>
           </div>
@@ -663,7 +653,6 @@ export function generateWorkers() {
           <select id="block-type" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
             <option value="work">Çalışma</option>
             <option value="break">Mola</option>
-            <option value="rest">Dinlenme</option>
           </select>
         </div>
         
@@ -2417,41 +2406,78 @@ export async function initWorkersOverviewWidget() {
 
   try {
     const { getWorkers } = await import('./mesApi.js');
+    const { aggregateWorkersByStatus, getStatusLabel } = await import('../../shared/utils/workerStatus.js');
+    
     const workers = await getWorkers();
-
+    const statusCounts = aggregateWorkersByStatus(workers);
+    
     const totalWorkers = workers.length;
-    const withSkills = workers.filter(w => w.skills?.length > 0).length;
-    const avgSkillLevel = workers.length > 0
-      ? (workers.reduce((sum, w) => {
-          const skillLevels = w.skills?.map(s => s.level || 0) || [];
-          const avgLevel = skillLevels.length > 0
-            ? skillLevels.reduce((a, b) => a + b, 0) / skillLevels.length
-            : 0;
-          return sum + avgLevel;
-        }, 0) / workers.length).toFixed(1)
-      : 0;
+    const activeWorkers = statusCounts.available + statusCounts.busy;
+    const onLeaveWorkers = statusCounts.leaveSick + statusCounts.leaveVacation;
 
     container.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 12px;">
+        <!-- Total and Active -->
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <span style="font-size: 13px; color: #6b7280;">Toplam İşçi</span>
           <span style="font-size: 20px; font-weight: 700; color: #111827;">${totalWorkers}</span>
         </div>
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; color: #6b7280;">Yetenekli</span>
-          <span style="font-size: 20px; font-weight: 700; color: #ec4899;">${withSkills}</span>
+          <span style="font-size: 13px; color: #6b7280;">Çalışıyor</span>
+          <span style="font-size: 20px; font-weight: 700; color: #10b981;">${statusCounts.available}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-size: 13px; color: #6b7280;">Ort. Beceri</span>
-          <span style="font-size: 20px; font-weight: 700; color: #14b8a6;">${avgSkillLevel}/5</span>
+        
+        <!-- Status breakdown -->
+        <div style="padding-top: 8px; border-top: 1px solid #e5e7eb;">
+          <div style="font-size: 11px; font-weight: 600; color: #9ca3af; margin-bottom: 8px; text-transform: uppercase;">Durum Dağılımı</div>
+          ${statusCounts.busy > 0 ? `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
+              <span style="font-size: 12px; color: #6b7280;">Meşgul</span>
+              <span style="font-size: 14px; font-weight: 600; color: #f59e0b;">${statusCounts.busy}</span>
+            </div>
+          ` : ''}
+          ${statusCounts.break > 0 ? `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
+              <span style="font-size: 12px; color: #6b7280;">Mola</span>
+              <span style="font-size: 14px; font-weight: 600; color: #3b82f6;">${statusCounts.break}</span>
+            </div>
+          ` : ''}
+          ${statusCounts.leaveVacation > 0 ? `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
+              <span style="font-size: 12px; color: #6b7280;">İzinli</span>
+              <span style="font-size: 14px; font-weight: 600; color: #f97316;">${statusCounts.leaveVacation}</span>
+            </div>
+          ` : ''}
+          ${statusCounts.leaveSick > 0 ? `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
+              <span style="font-size: 12px; color: #6b7280;">Hasta</span>
+              <span style="font-size: 14px; font-weight: 600; color: #ef4444;">${statusCounts.leaveSick}</span>
+            </div>
+          ` : ''}
+          ${statusCounts.inactive > 0 ? `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0;">
+              <span style="font-size: 12px; color: #6b7280;">İşten ayrıldı</span>
+              <span style="font-size: 14px; font-weight: 600; color: #6b7280;">${statusCounts.inactive}</span>
+            </div>
+          ` : ''}
         </div>
+        
+        <!-- Visual bar for available workers -->
+        ${totalWorkers > 0 ? `
+          <div style="padding-top: 8px; border-top: 1px solid #e5e7eb;">
+            <div style="font-size: 11px; color: #9ca3af; margin-bottom: 4px;">Müsaitlik: ${Math.round((activeWorkers / totalWorkers) * 100)}%</div>
+            <div style="background: #e5e7eb; height: 6px; border-radius: 3px; overflow: hidden;">
+              <div style="background: linear-gradient(90deg, #10b981, #059669); height: 100%; width: ${(activeWorkers / totalWorkers) * 100}%;"></div>
+            </div>
+          </div>
+        ` : ''}
       </div>
     `;
 
     // Update status bar
     const statusDiv = document.getElementById('status-workers');
     if (statusDiv) {
-      statusDiv.innerHTML = `<strong>${totalWorkers}</strong> işçi`;
+      statusDiv.innerHTML = `<strong>${activeWorkers}</strong> / ${totalWorkers} aktif`;
     }
   } catch (err) {
     console.error('Failed to load workers overview:', err);

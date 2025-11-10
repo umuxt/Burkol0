@@ -177,7 +177,14 @@ async function saveTimeManagement() {
     ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].forEach(day => {
       const col = document.getElementById(`timeline-${day}`);
       const blocks = col ? Array.from(col.querySelectorAll('[data-block-info]')).map(el => {
-        try { return JSON.parse(el.dataset.blockInfo) } catch { return null }
+        try { 
+          const block = JSON.parse(el.dataset.blockInfo);
+          // Migrate legacy block types: rest/Dinlenme -> break
+          if (block && (block.type === 'rest' || block.type === 'Dinlenme' || block.type === 'dinlenme')) {
+            block.type = 'break';
+          }
+          return block;
+        } catch { return null }
       }).filter(Boolean) : [];
       fixedBlocks[day] = blocks;
     });
@@ -188,7 +195,14 @@ async function saveTimeManagement() {
       const key = `shift-${day}`;
       const col = document.getElementById(`timeline-${key}`);
       const blocks = col ? Array.from(col.querySelectorAll('[data-block-info]')).map(el => {
-        try { return JSON.parse(el.dataset.blockInfo) } catch { return null }
+        try { 
+          const block = JSON.parse(el.dataset.blockInfo);
+          // Migrate legacy block types: rest/Dinlenme -> break
+          if (block && (block.type === 'rest' || block.type === 'Dinlenme' || block.type === 'dinlenme')) {
+            block.type = 'break';
+          }
+          return block;
+        } catch { return null }
       }).filter(Boolean) : [];
       shiftBlocks[key] = blocks;
     });
@@ -208,31 +222,46 @@ async function saveTimeManagement() {
 
     // Persist to backend master data (mes-settings/master-data.timeSettings)
     let remoteOk = true;
+    const timeSettingsData = { workType, laneCount, fixedBlocks, shiftBlocks, shiftByLane };
+    
     try {
-      const timeSettingsData = { workType, laneCount, fixedBlocks, shiftBlocks, shiftByLane };
       console.log('Saving timeSettings to Firebase:', timeSettingsData);
       
-      const res = await fetch(`${API_BASE}/api/mes/master-data`, {
-        method: 'POST',
-        headers: withAuth({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ timeSettings: timeSettingsData })
-      });
+      // Use saveMasterData to ensure cache is updated
+      const { saveMasterData } = await import('./mesApi.js');
+      await saveMasterData({ timeSettings: timeSettingsData });
       
-      console.log('Firebase save response status:', res.status);
-      const responseData = await res.json();
-      console.log('Firebase save response data:', responseData);
-      
-      if (!res.ok) throw new Error(`master_data_time_save_failed ${res.status}: ${JSON.stringify(responseData)}`);
+      console.log('Firebase save successful, cache updated');
     } catch (e) {
       remoteOk = false;
       console.error('Master time settings save error:', e);
     }
-    showToast(remoteOk ? 'Zaman ayarları kaydedildi' : 'Zaman ayarları yerelde kaydedildi, sunucuya yazılamadı', remoteOk ? 'success' : 'warning');
-    // Apply lane count to UI only after saving
-    try { setTimelineLaneCount(laneCount); } catch {}
+    
+    if (remoteOk) {
+      showToast('Çalışma programı güncellendi', 'success');
+      // Apply lane count to UI
+      try { setTimelineLaneCount(laneCount); } catch {}
+      // Exit edit mode
+      try { stopTimelineEdit(); } catch {}
+      // Refresh timeline UI immediately with saved data
+      try {
+        // Update cache is already done by saveMasterData()
+        // Just trigger re-render by dispatching event
+        const event = new CustomEvent('master-data:changed', { 
+          detail: { source: 'production', timeSettings: timeSettingsData } 
+        });
+        window.dispatchEvent(event);
+      } catch {}
+    } else {
+      showToast('Zaman ayarları kaydedilemedi', 'error');
+      // Revert to snapshot
+      try { restoreTimeline(); } catch {}
+    }
   } catch (e) {
     console.error('saveTimeManagement error', e);
     showToast('Zaman ayarları kaydedilemedi', 'error');
+    // Revert to snapshot
+    try { restoreTimeline(); } catch {}
   }
 }
 
@@ -943,11 +972,26 @@ function createScheduleBlock(dayId, type, startHour, endHour, startTime, endTime
   const _toHM = (m) => { m = Math.max(0, m); const hh=String(Math.floor(m/60)).padStart(2,'0'); const mm=String(m%60).padStart(2,'0'); return `${hh}:${mm}`; };
   const dispStart = startTime;
   const dispEnd = _toHM(_toMin(endTime)-1);
-  block.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; line-height:1.1; gap:1px;">
-    <div style="font-size:9px;">${dispStart}</div>
-    <div style="font-size:9px;">-</div>
-    <div style="font-size:9px;">${dispEnd}</div>
-  </div>`;
+  
+  // Add delete button that appears on hover
+  block.innerHTML = `
+    <div style="display:flex; flex-direction:column; align-items:center; line-height:1.1; gap:1px; position:relative; width:100%; height:100%;">
+      <button class="block-delete-btn" onclick="event.stopPropagation(); deleteScheduleBlockDirect(this.closest('[data-block-info]'))" 
+              style="position:absolute; top:1px; right:1px; width:14px; height:14px; padding:0; border:none; background:rgba(239,68,68,0.9); color:white; border-radius:2px; cursor:pointer; font-size:10px; line-height:1; display:none; z-index:10;">×</button>
+      <div style="font-size:9px;">${dispStart}</div>
+      <div style="font-size:9px;">-</div>
+      <div style="font-size:9px;">${dispEnd}</div>
+    </div>`;
+  
+  // Show delete button on hover
+  block.addEventListener('mouseenter', () => {
+    const deleteBtn = block.querySelector('.block-delete-btn');
+    if (deleteBtn && window.timelineEditMode) deleteBtn.style.display = 'block';
+  });
+  block.addEventListener('mouseleave', () => {
+    const deleteBtn = block.querySelector('.block-delete-btn');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+  });
   
   // Store block data
   block.dataset.blockInfo = JSON.stringify({
@@ -1000,14 +1044,26 @@ function updateScheduleBlock(blockElement, type, startHour, endHour, startTime, 
   const _toHM2 = (m) => { m = Math.max(0, m); const hh=String(Math.floor(m/60)).padStart(2,'0'); const mm=String(m%60).padStart(2,'0'); return `${hh}:${mm}`; };
   const dispStart2 = startTime;
   const dispEnd2 = _toHM2(_toMin2(endTime)-1);
-  blockElement.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; line-height:1.1; gap:1px;">
-    <div style="font-size:9px;">${dispStart2}</div>
-    <div style="font-size:9px;">-</div>
-    <div style="font-size:9px;">${dispEnd2}</div>
-  </div>`;
   
-  //
-  blockElement.textContent = '';
+  // Update block with delete button
+  blockElement.innerHTML = `
+    <div style="display:flex; flex-direction:column; align-items:center; line-height:1.1; gap:1px; position:relative; width:100%; height:100%;">
+      <button class="block-delete-btn" onclick="event.stopPropagation(); deleteScheduleBlockDirect(this.closest('[data-block-info]'))" 
+              style="position:absolute; top:1px; right:1px; width:14px; height:14px; padding:0; border:none; background:rgba(239,68,68,0.9); color:white; border-radius:2px; cursor:pointer; font-size:10px; line-height:1; display:none; z-index:10;">×</button>
+      <div style="font-size:9px;">${dispStart2}</div>
+      <div style="font-size:9px;">-</div>
+      <div style="font-size:9px;">${dispEnd2}</div>
+    </div>`;
+  
+  // Re-attach hover listeners for delete button
+  blockElement.addEventListener('mouseenter', () => {
+    const deleteBtn = blockElement.querySelector('.block-delete-btn');
+    if (deleteBtn && window.timelineEditMode) deleteBtn.style.display = 'block';
+  });
+  blockElement.addEventListener('mouseleave', () => {
+    const deleteBtn = blockElement.querySelector('.block-delete-btn');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+  });
   
   // Keep laneIndex from element dataset
   blockElement.dataset.blockInfo = JSON.stringify({
@@ -1035,6 +1091,22 @@ function deleteScheduleBlock() {
     if (window.timelineEditMode && typeof markTimelineDirty === 'function') markTimelineDirty();
   }
 }
+
+// Direct delete function for inline delete buttons (no confirmation needed)
+function deleteScheduleBlockDirect(blockElement) {
+  if (!blockElement) return;
+  
+  // Simply remove the element from DOM
+  blockElement.remove();
+  
+  // Mark timeline as dirty to enable save
+  if (window.timelineEditMode && typeof markTimelineDirty === 'function') {
+    markTimelineDirty();
+  }
+}
+
+// Make function globally accessible for onclick handlers
+window.deleteScheduleBlockDirect = deleteScheduleBlockDirect;
 
 function cancelScheduleEdit() {
   const modal = document.getElementById('schedule-edit-modal');
