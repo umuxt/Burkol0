@@ -698,28 +698,28 @@ export function generateOperations() {
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Operations Management</h1>
     </div>
 
-    <div class="operations-filter-compact" style="margin-bottom: 24px; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
-      <button onclick="openAddOperationModal()" class="operation-add-button" style="background: var(--primary); color: var(--primary-foreground); height: 44px; padding: 0px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Add Operation</button>
-      <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
-        <input id="operation-filter-search" type="text" placeholder="Search operations..." class="operation-filter-input" style="height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 500px; width: 100%; flex: 1 1 auto !important;">
+    <div class="operations-filter-compact mes-filter-bar" style="margin-bottom: 24px;">
+      <button onclick="openAddOperationModal()" class="operation-add-button mes-primary-action is-compact">+ Add Operation</button>
+      <div class="mes-filter-controls">
+        <input id="operation-filter-search" type="text" placeholder="Search operations..." class="operation-filter-input mes-filter-input is-compact">
 
-        <div id="operation-filter-skills" style="position: relative;">
-          <button id="operation-filter-skills-btn" type="button" class="operation-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;">
+        <div id="operation-filter-skills" class="mes-filter-group">
+          <button id="operation-filter-skills-btn" type="button" class="operation-filter-button mes-filter-button is-compact">
             <span>Skills</span>
-            <span id="operation-filter-skills-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
-            <span style="margin-left: auto; opacity: .6">▾</span>
+            <span id="operation-filter-skills-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
           </button>
-          <div id="operation-filter-skills-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; max-height: 320px; overflow: hidden; z-index: 1000;">
-            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-              <input id="operation-filter-skills-search" type="text" placeholder="Search skills..." class="operation-filter-panel-input" style="flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;">
-              <button id="operation-filter-skills-clear" type="button" class="operation-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
-              <button id="operation-filter-skills-hide" type="button" title="Kapat" class="operation-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+          <div id="operation-filter-skills-panel" class="mes-filter-panel is-wide">
+            <div class="mes-filter-panel-header">
+              <input id="operation-filter-skills-search" type="text" placeholder="Search skills..." class="operation-filter-panel-input mes-filter-panel-input">
+              <button id="operation-filter-skills-clear" type="button" class="operation-filter-panel-button mes-filter-panel-button">Clear</button>
+              <button id="operation-filter-skills-hide" type="button" title="Kapat" class="operation-filter-panel-button mes-filter-panel-button">×</button>
             </div>
-            <div id="operation-filter-skills-list" style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;"></div>
+            <div id="operation-filter-skills-list" class="mes-filter-panel-content"></div>
           </div>
         </div>
 
-        <button id="operation-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="operation-filter-button" style="display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;">
+        <button id="operation-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="operation-filter-button operation-clear-all-button mes-filter-clear is-compact" style="display: none;">
           Clear All
         </button>
       </div>
