@@ -44,41 +44,46 @@ export async function initMasterDataUI() {
 function renderSkills(host) {
   const q = (skillsQuery || '').toLowerCase()
   const filtered = q ? skillsState.filter(s => String(s.name || '').toLowerCase().includes(q)) : skillsState
+  const rowsMarkup = filtered.length === 0
+    ? `<tr class="mes-table-row is-empty"><td class="mes-empty-cell text-center" colspan="1"><em>Skill bulunamadı</em></td></tr>`
+    : filtered.map(s => `
+      <tr class="mes-table-row" data-skill-row="${escapeHtml(s.id)}" onclick="activateSkillRow('${escapeHtml(s.id)}')">
+        <td>
+          <div class="skill-row" style="display:inline-flex; align-items:center; gap:8px;">
+            <span data-skill-label="${escapeHtml(s.id)}" style="display:inline-block;">${escapeHtml(s.name)}</span>
+            <input data-skill-id="${escapeHtml(s.id)}" value="${escapeHtml(s.name)}"
+                   oninput="onSkillNameInput('${escapeHtml(s.id)}')"
+                   style="display:none; width:auto; flex:0 0 220px; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:0.9em;" />
+            <div data-skill-actions="${escapeHtml(s.id)}" style="display:none; gap:6px; align-items:center;">
+              <button data-skill-save="${escapeHtml(s.id)}" onclick="event.stopPropagation(); renameSkill('${escapeHtml(s.id)}')"
+                      style="display:none; padding:2px 8px; border:1px solid var(--border); background:white; border-radius:4px; font-size:12px;">Kaydet</button>
+              <button data-skill-cancel="${escapeHtml(s.id)}" onclick="event.stopPropagation(); cancelSkillEdit('${escapeHtml(s.id)}')"
+                      style="display:inline-block; padding:2px 8px; border:1px solid var(--border); color:#6b7280; background:white; border-radius:4px; font-size:12px;">İptal</button>
+              <button data-skill-delete="${escapeHtml(s.id)}" onclick="event.stopPropagation(); deleteSkill('${escapeHtml(s.id)}')"
+                      style="display:inline-block; padding:2px 8px; border:1px solid #ef4444; color:#ef4444; background:white; border-radius:4px; font-size:12px;">Sil</button>
+            </div>
+          </div>
+        </td>
+      </tr>`).join('')
 
   host.innerHTML = `
     <div class="skills-input-row" style="display:flex; gap:4px; margin-bottom:8px;">
       <input id="skill-new-name" type="text" placeholder="Yeni skill adı veya ara" value="${escapeHtml(skillsQuery)}" oninput="onSkillsSearchInput()" style="flex:1 1 auto; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size: 0.9em; max-width:600px;" />
       <button id="skill-add-btn" onclick="addSkillFromSettings()" disabled style="padding:4px 8px; background:#e5e7eb; color:#9ca3af; border:none; border-radius:4px; font-size: 0.9em; cursor:not-allowed;">+ Ekle</button>
     </div>
-    <div class="skills-scroll" style="overflow-y:auto; border:1px solid var(--border); border-radius:6px; position: relative; min-width:300px;">
-      <table style="width: 100%; border-collapse: collapse;">
-        <thead style="background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;">
+    <div class="skills-scroll mes-table-container" style="position: relative; min-width:300px;">
+      <table class="mes-table">
+        <thead class="mes-table-header">
           <tr>
-            <th style="min-width: 200px; white-space: nowrap; padding: 8px; text-align:left;">
-              <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; cursor: default; padding: 0; color: inherit; font: inherit;">Ad <span style="font-size: 12px; opacity: 0.6;">↕</span></button>
+            <th style="min-width: 200px;">
+              <button type="button" class="mes-sort-button" style="cursor: default;">
+                Ad <span class="mes-sort-icon">↕</span>
+              </button>
             </th>
           </tr>
         </thead>
-        <tbody>
-          ${filtered.map(s => `
-            <tr data-skill-row="${escapeHtml(s.id)}" onclick="activateSkillRow('${escapeHtml(s.id)}')" style="cursor:pointer; background-color: white; border-bottom: 1px solid rgb(243, 244, 246);">
-              <td style="padding: 6px 8px;">
-                <div class="skill-row" style="display:inline-flex; align-items:center; gap:8px;">
-                  <span data-skill-label="${escapeHtml(s.id)}" style="display:inline-block;">${escapeHtml(s.name)}</span>
-                  <input data-skill-id="${escapeHtml(s.id)}" value="${escapeHtml(s.name)}"
-                         oninput="onSkillNameInput('${escapeHtml(s.id)}')"
-                         style="display:none; width:auto; flex:0 0 220px; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:0.9em;" />
-                  <div data-skill-actions="${escapeHtml(s.id)}" style="display:none; gap:6px; align-items:center;">
-                    <button data-skill-save="${escapeHtml(s.id)}" onclick="event.stopPropagation(); renameSkill('${escapeHtml(s.id)}')"
-                            style="display:none; padding:2px 8px; border:1px solid var(--border); background:white; border-radius:4px; font-size:12px;">Kaydet</button>
-                    <button data-skill-cancel="${escapeHtml(s.id)}" onclick="event.stopPropagation(); cancelSkillEdit('${escapeHtml(s.id)}')"
-                            style="display:inline-block; padding:2px 8px; border:1px solid var(--border); color:#6b7280; background:white; border-radius:4px; font-size:12px;">İptal</button>
-                    <button data-skill-delete="${escapeHtml(s.id)}" onclick="event.stopPropagation(); deleteSkill('${escapeHtml(s.id)}')"
-                            style="display:inline-block; padding:2px 8px; border:1px solid #ef4444; color:#ef4444; background:white; border-radius:4px; font-size:12px;">Sil</button>
-                  </div>
-                </div>
-              </td>
-            </tr>`).join('')}
+        <tbody class="mes-table-body">
+          ${rowsMarkup}
         </tbody>
       </table>
     </div>
@@ -275,42 +280,56 @@ function renderOperations(host) {
   const q = (operationsQuery || '').toLowerCase()
   const filtered = q ? operationsState.filter(op => String(op.name || '').toLowerCase().includes(q)) : operationsState
 
+  const rowsMarkup = filtered.length === 0
+    ? `<tr class="mes-table-row is-empty"><td colspan="3" class="mes-empty-cell text-center"><em>Operasyon bulunamadı</em></td></tr>`
+    : filtered.map(op => {
+        const rawRate = Number(op.expectedDefectRate)
+        const safeRate = Number.isFinite(rawRate) ? rawRate : 0
+        const normalizedRate = Math.max(0, safeRate)
+        let formattedRate = normalizedRate.toFixed(2)
+        if (formattedRate.includes('.')) {
+          formattedRate = formattedRate.replace(/0+$/, '')
+          if (formattedRate.endsWith('.')) {
+            formattedRate = formattedRate.slice(0, -1)
+          }
+        }
+        const defectLabel = `${formattedRate}%`
+        return `
+          <tr class="mes-table-row" data-operation-row="${escapeHtml(op.id)}" onclick="activateOperationRow('${escapeHtml(op.id)}')">
+            <td>
+              <span style="font-size: 0.9em; color: rgb(75, 85, 99);">${escapeHtml(op.name)}</span>
+            </td>
+            <td class="text-center">
+              <span class="mes-code-text">${escapeHtml(op.semiOutputCode || '-')}</span>
+            </td>
+            <td class="text-center">
+              <div class="operation-row" style="display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+                <span data-operation-defect-label="${escapeHtml(op.id)}" style="display:inline-block; font-size: 0.9em;">${escapeHtml(defectLabel)}</span>
+                <input data-operation-defect-id="${escapeHtml(op.id)}" type="number" min="0" step="0.1" value="${escapeHtml(String(normalizedRate))}"
+                       oninput="onOperationDefectRateInput('${escapeHtml(op.id)}')"
+                       style="display:none; width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:0.8em; text-align:center;" />
+                <button data-operation-save="${escapeHtml(op.id)}" onclick="event.stopPropagation(); saveOperationEdit('${escapeHtml(op.id)}')" style="display:none; font-size:0.75em; padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">✓</button>
+                <button data-operation-cancel="${escapeHtml(op.id)}" onclick="event.stopPropagation(); cancelOperationEdit('${escapeHtml(op.id)}')" style="display:none; font-size:0.75em; padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">✗</button>
+              </div>
+            </td>
+          </tr>`
+      }).join('')
+
   host.innerHTML = `
     <div class="operations-input-row" style="display:flex; gap:4px; margin-bottom:8px;">
       <input id="operation-search" type="text" placeholder="Operasyon ara..." value="${escapeHtml(operationsQuery)}" oninput="onOperationsSearchInput()" style="flex:1 1 auto; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size: 0.9em; max-width:600px;" />
     </div>
-    <div class="operations-scroll" style="overflow-y:auto; border:1px solid var(--border); border-radius:6px; position: relative; min-width:300px; max-height: 200px;">
-      <table style="width: 100%; border-collapse: collapse;">
-        <thead style="background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;">
+    <div class="operations-scroll mes-table-container" style="position: relative; min-width:300px; max-height: 200px;">
+      <table class="mes-table">
+        <thead class="mes-table-header">
           <tr>
-            <th style="min-width: 150px; white-space: nowrap; padding: 8px; text-align:left; font-size: 0.85em;">Operasyon Adı</th>
-            <th style="min-width: 80px; white-space: nowrap; padding: 8px; text-align:left; font-size: 0.85em;">Çıktı Kodu</th>
-            <th style="min-width: 80px; white-space: nowrap; padding: 8px; text-align:left; font-size: 0.85em;">Fire Oranı (%)</th>
+            <th style="min-width: 150px; text-align:left; font-size: 0.85em;">Operasyon Adı</th>
+            <th style="min-width: 80px; text-align:center; font-size: 0.85em;">Çıktı Kodu</th>
+            <th style="min-width: 80px; text-align:center; font-size: 0.85em;">Fire Oranı (%)</th>
           </tr>
         </thead>
-        <tbody>
-          ${filtered.length === 0 ? 
-            `<tr><td colspan="3" style="padding: 12px; text-align: center; color: var(--muted-foreground); font-size: 0.9em;">Operasyon bulunamadı</td></tr>` :
-            filtered.map(op => `
-            <tr data-operation-row="${escapeHtml(op.id)}" onclick="activateOperationRow('${escapeHtml(op.id)}')" style="cursor:pointer; background-color: white; border-bottom: 1px solid rgb(243, 244, 246);">
-              <td style="padding: 6px 8px;">
-                <span style="font-size: 0.9em; color: rgb(75, 85, 99);">${escapeHtml(op.name)}</span>
-              </td>
-              <td style="padding: 6px 8px;">
-                <span style="font-size: 0.9em; color: rgb(75, 85, 99);">${escapeHtml(op.semiOutputCode || '-')}</span>
-              </td>
-              <td style="padding: 6px 8px;">
-                <div class="operation-row" style="display:inline-flex; align-items:center; gap:8px;">
-                  <span data-operation-defect-label="${escapeHtml(op.id)}" style="display:inline-block; font-size: 0.9em;">${(op.expectedDefectRate || 0)}%</span>
-                  <input data-operation-defect-id="${escapeHtml(op.id)}" type="number" min="0" step="0.1" value="${op.expectedDefectRate || 0}"
-                         oninput="onOperationDefectRateInput('${escapeHtml(op.id)}')"
-                         style="display:none; width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:0.8em;" />
-                  <button data-operation-save="${escapeHtml(op.id)}" onclick="event.stopPropagation(); saveOperationEdit('${escapeHtml(op.id)}')" style="display:none; font-size:0.75em; padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">✓</button>
-                  <button data-operation-cancel="${escapeHtml(op.id)}" onclick="event.stopPropagation(); cancelOperationEdit('${escapeHtml(op.id)}')" style="display:none; font-size:0.75em; padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">✗</button>
-                </div>
-              </td>
-            </tr>`).join('')
-          }
+        <tbody class="mes-table-body">
+          ${rowsMarkup}
         </tbody>
       </table>
     </div>

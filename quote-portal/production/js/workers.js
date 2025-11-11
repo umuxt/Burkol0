@@ -139,31 +139,28 @@ export function openWorkerScheduleModal() {
 
   // Populate shift-no options from master-data lane count
   const select = document.getElementById('worker-schedule-shift-no')
-  ;(async () => {
+  const loadShiftOptions = async () => {
     try {
       const md = await getMasterData().catch(() => null)
       const ts = md && md.timeSettings ? md.timeSettings : null
       const laneCount = Math.max(1, Math.min(7, Number(ts?.laneCount || 1)))
-      // Build options 1..laneCount
-      if (select) {
-        let opts = ''
-        for (let i = 1; i <= laneCount; i++) opts += `<option value="${i}">${i}</option>`
-        select.innerHTML = opts
-        // Disable select if company workType is not shift
-        if (ts && ts.workType !== 'shift') {
-          select.disabled = true
-          select.title = 'Genel ayarlar sabit modda; vardiya seçimi devre dışı'
-        } else {
-          select.disabled = false
-          select.title = ''
-        }
-        // Preselect saved shiftNo if present
-        const savedShift = (worker.personalSchedule && worker.personalSchedule.shiftNo) ? parseInt(worker.personalSchedule.shiftNo, 10) : null
-        const selectedVal = (savedShift && savedShift >= 1 && savedShift <= laneCount) ? String(savedShift) : '1'
-        select.value = selectedVal
+      if (!select) return
+      let opts = ''
+      for (let i = 1; i <= laneCount; i++) opts += `<option value="${i}">${i}</option>`
+      select.innerHTML = opts
+      if (ts && ts.workType !== 'shift') {
+        select.disabled = true
+        select.title = 'Genel ayarlar sabit modda; vardiya seçimi devre dışı'
+      } else {
+        select.disabled = false
+        select.title = ''
       }
+      const savedShift = (worker.personalSchedule && worker.personalSchedule.shiftNo) ? parseInt(worker.personalSchedule.shiftNo, 10) : null
+      const selectedVal = (savedShift && savedShift >= 1 && savedShift <= laneCount) ? String(savedShift) : '1'
+      select.value = selectedVal
     } catch {}
-  })()
+  }
+  loadShiftOptions()
 
   handleWorkerScheduleModeChange(savedMode)
 
