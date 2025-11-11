@@ -1052,13 +1052,10 @@ export function generateStationDuplicateModal() {
 
 export function generatePlanDesigner() {
   return `
-    <div id="plans-header" style="margin-bottom: 8px;">
-      <div style="display:flex; align-items:center; justify-content: space-between; gap: 8px; margin-bottom: 8px;">
-        <h1 id="plans-title" style="font-size: 32px; font-weight: 700; margin: 0;">Production Planning</h1>
-        <button id="plans-back-btn" onclick="cancelPlanCreation()" title="Go back" style="display:none; padding: 6px 10px; font-size: 12px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer;">← Back</button>
-      </div>
+    <div id="plans-header" style="margin-bottom: 16px;">
+      <h1 id="plans-title" style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Planning</h1>
+      <button id="plans-back-btn" onclick="cancelPlanCreation()" title="Go back" style="display:none; padding: 6px 10px; font-size: 12px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer;">← Back</button>
     </div>
-
     <div class="plans-filter-compact" id="plans-filter-compact" style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
       <button id="create-plan-button" onclick="openCreatePlan()" style="background: var(--primary); color: var(--primary-foreground); height: 44px; padding: 0px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Create New Production Plan</button>
 
@@ -1128,68 +1125,70 @@ export function generatePlanDesigner() {
       </div>
     </div>
 
-    <div class="stations-tabs" id="plans-tabs" style="padding: 8px; background: rgb(248, 249, 250); border-bottom: 1px solid rgb(229, 231, 235); border-radius: 6px 6px 0 0;">
-      <button class="station-tab-button active" onclick="setActivePlanTab('production')" style="padding: 6px 12px; font-size: 12px; border: none; background: white; border-radius: 4px; cursor: pointer; margin-right: 6px; font-weight: 600; color: rgb(17, 24, 39); box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: all 0.2s ease;">
-        Production Plans
-        <span id="production-count" style="color: var(--muted-foreground); font-size: 11px; margin-left: 4px;">(0)</span>
-      </button>
-      <button class="station-tab-button" onclick="setActivePlanTab('templates')" style="padding: 6px 12px; font-size: 12px; border: none; background: transparent; border-radius: 4px; cursor: pointer; margin-right: 6px; font-weight: 400; color: rgb(75, 85, 99); box-shadow: none; transition: all 0.2s ease;">
-        Templates
-        <span id="templates-count" style="color: var(--muted-foreground); font-size: 11px; margin-left: 4px;">(0)</span>
-      </button>
-    </div>
+    <div id="plans-panel-card" class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
+      <div class="workers-table">
+        <div class="mes-table-container">
+          <div class="mes-table-tabs" id="plans-tabs">
+            <button class="station-tab-button mes-tab-button active" data-tab="production" onclick="setActivePlanTab('production')">
+              Production Plans
+              <span id="production-count" class="mes-tab-count">(0)</span>
+            </button>
+            <button class="station-tab-button mes-tab-button" data-tab="templates" onclick="setActivePlanTab('templates')">
+              Templates
+              <span id="templates-count" class="mes-tab-count">(0)</span>
+            </button>
+          </div>
 
-    <div id="plans-panel-card" class="card" style="border-radius: 0 0 6px 6px;">
-      <div class="card-content" style="padding: 0;">
-        <div id="production-table-panel" style="display: block;">
-          <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr style="background: var(--muted); text-align: left;">
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Plan ID</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Plan Adı</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Order</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Steps</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Throughput</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Bottleneck</th>
-                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created At</th>
-                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
-                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated At</th>
-                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated By</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">
-                  <button class="metadata-toggle-btn" onclick="toggleMetadataColumns()">Show Details</button>
-                </th>
-              </tr>
-            </thead>
-            <tbody id="production-table-body">
-              <tr>
-                <td colspan="11" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No production plans yet</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div id="templates-table-panel" style="display: none;">
-          <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr style="background: var(--muted); text-align: left;">
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Plan ID</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Template Adı</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Order</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Steps</th>
-                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created At</th>
-                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Created By</th>
-                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated At</th>
-                <th class="metadata-column hidden" style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground);">Updated By</th>
-                <th style="padding: 10px 12px; font-size: 12px; color: var(--muted-foreground); text-align: right;">
-                  <button class="metadata-toggle-btn" onclick="toggleMetadataColumns()">Show Details</button>
-                </th>
-              </tr>
-            </thead>
-            <tbody id="templates-table-body">
-              <tr>
-                <td colspan="9" style="padding: 16px 12px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No templates yet</td>
-              </tr>
-            </tbody>
-          </table>
+          <div id="production-table-panel" style="display: block;">
+            <table class="mes-table">
+              <thead class="mes-table-header">
+                <tr>
+                  <th style="min-width: 140px;">Plan ID</th>
+                  <th style="min-width: 180px;">Plan Adı</th>
+                  <th style="min-width: 120px;">Order</th>
+                  <th style="min-width: 80px;">Steps</th>
+                  <th style="min-width: 140px;">Throughput</th>
+                  <th style="min-width: 160px;">Bottleneck</th>
+                  <th class="metadata-column hidden" style="min-width: 140px;">Created At</th>
+                  <th class="metadata-column hidden" style="min-width: 140px;">Created By</th>
+                  <th class="metadata-column hidden" style="min-width: 140px;">Updated At</th>
+                  <th class="metadata-column hidden" style="min-width: 140px;">Updated By</th>
+                  <th style="text-align: right;">
+                    <button class="metadata-toggle-btn" onclick="toggleMetadataColumns()">Show Details</button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="production-table-body" class="mes-table-body">
+                <tr class="mes-table-row is-empty">
+                  <td colspan="11" class="mes-empty-cell text-center"><em>No production plans yet</em></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="templates-table-panel" style="display: none;">
+            <table class="mes-table">
+              <thead class="mes-table-header">
+                <tr>
+                  <th style="min-width: 140px;">Plan ID</th>
+                  <th style="min-width: 180px;">Template Adı</th>
+                  <th style="min-width: 120px;">Order</th>
+                  <th style="min-width: 80px;">Steps</th>
+                  <th class="metadata-column hidden" style="min-width: 140px;">Created At</th>
+                  <th class="metadata-column hidden" style="min-width: 140px;">Created By</th>
+                  <th class="metadata-column hidden" style="min-width: 140px;">Updated At</th>
+                  <th class="metadata-column hidden" style="min-width: 140px;">Updated By</th>
+                  <th style="text-align: right;">
+                    <button class="metadata-toggle-btn" onclick="toggleMetadataColumns()">Show Details</button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="templates-table-body" class="mes-table-body">
+                <tr class="mes-table-row is-empty">
+                  <td colspan="9" class="mes-empty-cell text-center"><em>No templates yet</em></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

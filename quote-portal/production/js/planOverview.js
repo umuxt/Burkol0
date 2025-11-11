@@ -329,29 +329,10 @@ export async function deleteTemplateById(id) {
 }
 
 export function setActivePlanTab(tabId) {
-  const buttons = document.querySelectorAll('.station-tab-button, .plan-tab-button');
+  const buttons = document.querySelectorAll('#plans-tabs .station-tab-button');
   buttons.forEach(btn => {
-    const isActive = (tabId === 'production' && btn.textContent.trim().startsWith('Production')) || (tabId === 'templates' && btn.textContent.trim().startsWith('Templates'));
-    if (isActive) {
-      btn.classList.add('active');
-      btn.style.background = 'white';
-      btn.style.color = 'rgb(17, 24, 39)';
-      btn.style.fontWeight = '600';
-      btn.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
-      // Bring active tab visually in front of the panel
-      btn.style.position = 'relative';
-      btn.style.zIndex = '3';
-      btn.style.borderBottom = '1px solid white';
-    } else {
-      btn.classList.remove('active');
-      btn.style.background = 'transparent';
-      btn.style.color = 'rgb(75, 85, 99)';
-      btn.style.fontWeight = '400';
-      btn.style.boxShadow = 'none';
-      btn.style.position = '';
-      btn.style.zIndex = '';
-      btn.style.borderBottom = '';
-    }
+    const isActive = btn.dataset.tab === tabId;
+    btn.classList.toggle('active', Boolean(isActive));
   });
 
   const prodPanel = document.getElementById('production-table-panel');
@@ -361,24 +342,8 @@ export function setActivePlanTab(tabId) {
     templPanel.style.display = tabId === 'templates' ? 'block' : 'none';
   }
 
-  // Ensure tabs overlap the panel top border nicely
-  try {
-    const tabsBar = document.getElementById('plans-tabs');
-    const panelCard = document.getElementById('plans-panel-card');
-    if (tabsBar) {
-      tabsBar.style.position = 'relative';
-      tabsBar.style.zIndex = '2';
-    }
-    if (panelCard) {
-      panelCard.style.position = 'relative';
-      panelCard.style.zIndex = '1';
-      panelCard.style.marginTop = '-6px';
-      const content = panelCard.querySelector('.card-content');
-      if (content) content.style.paddingTop = '6px';
-    }
-    // Refresh current lists to reflect any external changes/deletions
-    try { loadAndRenderPlans(); } catch {}
-  } catch {}
+  // Refresh current lists to reflect any external changes/deletions
+  try { loadAndRenderPlans(); } catch {}
 }
 
 export function filterProductionPlans() {
