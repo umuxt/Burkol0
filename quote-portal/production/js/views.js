@@ -1052,14 +1052,14 @@ export function generatePlanDesigner() {
       <h1 id="plans-title" style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Planning</h1>
       <button id="plans-back-btn" onclick="cancelPlanCreation()" title="Go back" style="display:none; padding: 6px 10px; font-size: 12px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer;">← Back</button>
     </div>
-  <div class="plans-filter-compact mes-filter-bar" id="plans-filter-compact">
-      <button id="create-plan-button" onclick="openCreatePlan()" style="background: var(--primary); color: var(--primary-foreground); height: 44px; padding: 0px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Create New Production Plan</button>
+    <div class="plans-filter-compact mes-filter-bar" id="plans-filter-compact">
+      <button id="create-plan-button" onclick="openCreatePlan()" class="mes-primary-action is-compact">+ Create New Production Plan</button>
 
       <div id="plans-header-controls" class="mes-filter-controls">
-        <input id="plan-filter-search" type="text" placeholder="Search plans..." class="plan-filter-input mes-filter-input" oninput="filterProductionPlans()">
+        <input id="plan-filter-search" type="text" placeholder="Search plans..." class="plan-filter-input mes-filter-input is-compact" oninput="filterProductionPlans()">
 
         <div id="plan-filter-status" class="mes-filter-group">
-          <button id="plan-filter-status-btn" type="button" class="plan-filter-button mes-filter-button" onclick="togglePlanFilterPanel('status')">
+          <button id="plan-filter-status-btn" type="button" class="plan-filter-button mes-filter-button is-compact" onclick="togglePlanFilterPanel('status')">
             <span>Status</span>
             <span id="plan-filter-status-count" class="mes-filter-count"></span>
             <span class="mes-filter-caret">▾</span>
@@ -1079,7 +1079,7 @@ export function generatePlanDesigner() {
         </div>
 
         <div id="plan-filter-priority" class="mes-filter-group">
-          <button id="plan-filter-priority-btn" type="button" class="plan-filter-button mes-filter-button" onclick="togglePlanFilterPanel('priority')">
+          <button id="plan-filter-priority-btn" type="button" class="plan-filter-button mes-filter-button is-compact" onclick="togglePlanFilterPanel('priority')">
             <span>Priority</span>
             <span id="plan-filter-priority-count" class="mes-filter-count"></span>
             <span class="mes-filter-caret">▾</span>
@@ -1098,7 +1098,7 @@ export function generatePlanDesigner() {
         </div>
 
         <div id="plan-filter-type" class="mes-filter-group">
-          <button id="plan-filter-type-btn" type="button" class="plan-filter-button mes-filter-button" onclick="togglePlanFilterPanel('type')">
+          <button id="plan-filter-type-btn" type="button" class="plan-filter-button mes-filter-button is-compact" onclick="togglePlanFilterPanel('type')">
             <span>Type</span>
             <span id="plan-filter-type-count" class="mes-filter-count"></span>
             <span class="mes-filter-caret">▾</span>
@@ -1115,7 +1115,7 @@ export function generatePlanDesigner() {
           </div>
         </div>
 
-        <button id="plan-filter-clear-all" type="button" title="Clear all filters" class="mes-filter-clear" style="display: none;" onclick="clearAllPlanFilters()">
+        <button id="plan-filter-clear-all" type="button" title="Clear all filters" class="mes-filter-clear is-compact" style="display: none;" onclick="clearAllPlanFilters()">
           Clear All
         </button>
       </div>
