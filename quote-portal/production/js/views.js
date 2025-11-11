@@ -835,7 +835,68 @@ export function generateOperations() {
 
 export function generateStations() {
   return `
-    <div style=\"margin-bottom: 24px;\">\n      <h1 style=\"font-size: 32px; font-weight: 700; margin-bottom: 8px;\">Stations Management</h1>\n      </div>\n    <div class=\"stations-filter-compact\" style=\"margin-bottom: 24px; display: flex; gap: 12px; align-items: center; justify-content: space-between;\">\n      <button onclick=\"openAddStationModal()\" class=\"station-add-button\" style=\"background: var(--primary); color: var(--primary-foreground); height: 30px; padding: 3px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;\">+ Add Station</button>\n      <div style=\"display: flex; align-items: center; gap: 8px; flex: 1;\">\n        <input id=\"station-filter-search\" type=\"text\" placeholder=\"Search stations...\" class=\"station-filter-input\" style=\"height: 30px; padding: 3px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 500px; width: 100%; flex: 1 1 auto !important;\">\n\n        <div id=\"station-filter-status\" style=\"position: relative;\">\n          <button id=\"station-filter-status-btn\" type=\"button\" class=\"station-filter-button\" style=\"height: 30px; padding: 3px 3px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 80px; display: flex; align-items: center; gap: 5px;\">\n            <span>Status</span>\n            <span id=\"station-filter-status-count\" style=\"color: var(--muted-foreground); font-size: 12px;\"></span>\n            <span style=\"margin-left: auto; opacity: .6\">▾</span>\n          </button>\n          <div id=\"station-filter-status-panel\" style=\"display:none; position: absolute; right: 0px; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 6px; box-shadow: rgba(0, 0, 0, 0.08) 0px 8px 24px; max-height: 300px; overflow: hidden; z-index: 1000;\">\n            <div style=\"padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;\">\n              <button id=\"station-filter-status-clear\" type=\"button\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">Clear</button>\n              <button id=\"station-filter-status-hide\" type=\"button\" title=\"Kapat\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">×</button>\n            </div>\n            <div id=\"station-filter-status-list\" style=\"max-height: 220px; overflow: auto; padding: 6px; display: grid; gap: 2px;\"></div>\n          </div>\n        </div>\n\n        <div id=\"station-filter-skills\" style=\"position: relative;\">\n          <button id=\"station-filter-skills-btn\" type=\"button\" class=\"station-filter-button\" style=\"height: 30px; padding: 3px 3px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 80px; display: flex; align-items: center; gap: 5px;\">\n            <span>Skills</span>\n            <span id=\"station-filter-skills-count\" style=\"color: var(--muted-foreground); font-size: 12px;\"></span>\n            <span style=\"margin-left: auto; opacity: .6\">▾</span>\n          </button>\n          <div id=\"station-filter-skills-panel\" style=\"display:none; position: absolute; right: 0px; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 6px; box-shadow: rgba(0, 0, 0, 0.08) 0px 8px 24px; width: 320px; max-height: 300px; overflow: hidden; z-index: 1000;\">\n            <div style=\"padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;\">\n              <input id=\"station-filter-skills-search\" type=\"text\" placeholder=\"Search skills...\" class=\"station-filter-panel-input\" style=\"flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;\">\n              <button id=\"station-filter-skills-clear\" type=\"button\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">Clear</button>\n              <button id=\"station-filter-skills-hide\" type=\"button\" title=\"Kapat\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">×</button>\n            </div>\n            <div id=\"station-filter-skills-list\" style=\"max-height: 220px; overflow: auto; padding: 6px; display: grid; gap: 2px;\"></div>\n          </div>\n        </div>\n\n        <div id=\"station-filter-operations\" style=\"position: relative;\">\n          <button id=\"station-filter-operations-btn\" type=\"button\" class=\"station-filter-button\" style=\"height: 30px; padding: 3px 3px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 100px; display: flex; align-items: center; gap: 5px;\">\n            <span>Operations</span>\n            <span id=\"station-filter-operations-count\" style=\"color: var(--muted-foreground); font-size: 12px;\"></span>\n            <span style=\"margin-left: auto; opacity: .6\">▾</span>\n          </button>\n          <div id=\"station-filter-operations-panel\" style=\"display:none; position: absolute; right: 0px; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 6px; box-shadow: rgba(0, 0, 0, 0.08) 0px 8px 24px; width: 320px; max-height: 300px; overflow: hidden; z-index: 1000;\">\n            <div style=\"padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;\">\n              <input id=\"station-filter-operations-search\" type=\"text\" placeholder=\"Search operations...\" class=\"station-filter-panel-input\" style=\"flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;\">\n              <button id=\"station-filter-operations-clear\" type=\"button\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">Clear</button>\n              <button id=\"station-filter-operations-hide\" type=\"button\" title=\"Kapat\" class=\"station-filter-panel-button\" style=\"flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">×</button>\n            </div>\n            <div id=\"station-filter-operations-list\" style=\"max-height: 220px; overflow: auto; padding: 6px; display: grid; gap: 2px;\"></div>\n          </div>\n        </div>\n\n        <button id=\"station-filter-clear-all\" type=\"button\" title=\"Tüm filtreleri temizle\" class=\"station-filter-button\" style=\"display: none; height: 30px; padding: 3px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;\">\n          Clear All\n        </button>\n      </div>\n    </div>\n    
+    <div style="margin-bottom: 24px;">
+      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Stations Management</h1>
+    </div>
+
+    <div class="mes-filter-bar" style="margin-bottom: 24px;">
+      <button onclick="openAddStationModal()" class="mes-primary-action is-compact">+ Add Station</button>
+      <div class="mes-filter-controls">
+        <input id="station-filter-search" type="text" placeholder="Search stations..." class="mes-filter-input is-compact">
+
+        <div id="station-filter-status" class="mes-filter-group">
+          <button id="station-filter-status-btn" type="button" class="mes-filter-button is-compact">
+            <span>Status</span>
+            <span id="station-filter-status-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
+          </button>
+          <div id="station-filter-status-panel" class="mes-filter-panel is-narrow">
+            <div class="mes-filter-panel-header" style="justify-content: flex-end;">
+              <button id="station-filter-status-clear" type="button" class="mes-filter-panel-button">Clear</button>
+              <button id="station-filter-status-hide" type="button" title="Kapat" class="mes-filter-panel-button">×</button>
+            </div>
+            <div id="station-filter-status-list" class="mes-filter-panel-content"></div>
+          </div>
+        </div>
+
+        <div id="station-filter-skills" class="mes-filter-group">
+          <button id="station-filter-skills-btn" type="button" class="mes-filter-button is-compact">
+            <span>Skills</span>
+            <span id="station-filter-skills-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
+          </button>
+          <div id="station-filter-skills-panel" class="mes-filter-panel is-wide">
+            <div class="mes-filter-panel-header">
+              <input id="station-filter-skills-search" type="text" placeholder="Search skills..." class="mes-filter-panel-input">
+              <button id="station-filter-skills-clear" type="button" class="mes-filter-panel-button">Clear</button>
+              <button id="station-filter-skills-hide" type="button" title="Kapat" class="mes-filter-panel-button">×</button>
+            </div>
+            <div id="station-filter-skills-list" class="mes-filter-panel-content"></div>
+          </div>
+        </div>
+
+        <div id="station-filter-operations" class="mes-filter-group">
+          <button id="station-filter-operations-btn" type="button" class="mes-filter-button is-compact">
+            <span>Operations</span>
+            <span id="station-filter-operations-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
+          </button>
+          <div id="station-filter-operations-panel" class="mes-filter-panel is-wide">
+            <div class="mes-filter-panel-header">
+              <input id="station-filter-operations-search" type="text" placeholder="Search operations..." class="mes-filter-panel-input">
+              <button id="station-filter-operations-clear" type="button" class="mes-filter-panel-button">Clear</button>
+              <button id="station-filter-operations-hide" type="button" title="Kapat" class="mes-filter-panel-button">×</button>
+            </div>
+            <div id="station-filter-operations-list" class="mes-filter-panel-content"></div>
+          </div>
+        </div>
+
+        <button id="station-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="mes-filter-clear is-compact" style="display: none;">
+          Clear All
+        </button>
+      </div>
+    </div>
+    
     <!-- Stations Table with Tabs -->
     <section class=\"workers-table\">
       <div style=\"padding: 0px;\">

@@ -81,17 +81,17 @@ function renderProductionPlans(plans) {
       const viewBtn = `<button onclick="viewProductionPlan('${p.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;">View</button>`;
       
       return `<tr data-status="${status}">
-        <td style="padding: 10px 12px;">${planId}</td>
-        <td style="padding: 10px 12px;">${name}</td>
-        <td style="padding: 10px 12px;">${order}</td>
-        <td style="padding: 10px 12px;">${steps}</td>
-        <td style="padding: 10px 12px; font-size: 12px;" title="${tooltipText}">${throughputDisplay}</td>
-        <td style="padding: 10px 12px; font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${tooltipText}">${bottleneckDisplay}</td>
-        <td class="metadata-column hidden" style="padding: 10px 12px;">${created}</td>
-        <td class="metadata-column hidden" style="padding: 10px 12px;">${createdBy}</td>
-        <td class="metadata-column hidden" style="padding: 10px 12px;">${updated}</td>
-        <td class="metadata-column hidden" style="padding: 10px 12px;">${updatedBy}</td>
-        <td style="padding: 10px 12px; text-align:right;">
+        <td>${planId}</td>
+        <td>${name}</td>
+        <td>${order}</td>
+        <td>${steps}</td>
+        <td style="font-size: 12px;" title="${tooltipText}">${throughputDisplay}</td>
+        <td style="font-size: 11px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${tooltipText}">${bottleneckDisplay}</td>
+        <td class="metadata-column hidden">${created}</td>
+        <td class="metadata-column hidden">${createdBy}</td>
+        <td class="metadata-column hidden">${updated}</td>
+        <td class="metadata-column hidden">${updatedBy}</td>
+        <td style="text-align:right;">
           ${viewBtn}
         </td>
       </tr>`
@@ -118,15 +118,15 @@ function renderTemplatesList(templates) {
       const updated = (t.updatedDate && t.updatedTime) ? `${t.updatedDate} ${t.updatedTime}` : fmtDate(t.lastModifiedAt || t.updatedAt || t.createdAt)
       const updatedBy = t.lastModifiedByName || t.updatedByName || t.lastModifiedBy || t.updatedBy || t.ownerName || t.createdByName || t.owner || t.createdBy || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
       return `<tr>
-        <td style="padding: 10px 12px;">${templateId}</td>
-        <td style="padding: 10px 12px;">${name}</td>
-        <td style="padding: 10px 12px;">${order}</td>
-        <td style="padding: 10px 12px;">${steps}</td>
-        <td class="metadata-column hidden" style="padding: 10px 12px;">${created}</td>
-        <td class="metadata-column hidden" style="padding: 10px 12px;">${createdBy}</td>
-        <td class="metadata-column hidden" style="padding: 10px 12px;">${updated}</td>
-        <td class="metadata-column hidden" style="padding: 10px 12px;">${updatedBy}</td>
-        <td style="padding: 10px 12px; text-align:right;">
+        <td>${templateId}</td>
+        <td>${name}</td>
+        <td>${order}</td>
+        <td>${steps}</td>
+        <td class="metadata-column hidden">${created}</td>
+        <td class="metadata-column hidden">${createdBy}</td>
+        <td class="metadata-column hidden">${updated}</td>
+        <td class="metadata-column hidden">${updatedBy}</td>
+        <td style="text-align:right;">
           <button onclick="editTemplateById('${t.id || ''}')" style="padding:4px 8px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px; margin-right:4px;">Edit</button>
           <button onclick="deleteTemplateById('${t.id || ''}')" style="padding:4px 8px; border:1px solid #dc2626; background:white; color:#dc2626; border-radius:4px; cursor:pointer; font-size:12px;">Delete</button>
         </td>
