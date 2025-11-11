@@ -580,7 +580,7 @@ function initOperationFilters() {
       const q = (query||'').toLowerCase()
       skillsList.innerHTML = allSkills.filter(s => !q || s.toLowerCase().includes(q)).map(s => {
         const checked = operationFilters.skills.includes(s) ? 'checked' : ''
-        return `<label style=\"display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;\"><input type=\"checkbox\" value=\"${escapeHtml(s)}\" ${checked}> <span style=\"font-size:12px;\">${escapeHtml(s)}</span></label>`
+        return `<label><input type=\"checkbox\" value=\"${escapeHtml(s)}\" ${checked}> <span>${escapeHtml(s)}</span></label>`
       }).join('')
       skillsList.querySelectorAll('input[type=\"checkbox\"]').forEach(cb => {
         cb.addEventListener('change', () => {

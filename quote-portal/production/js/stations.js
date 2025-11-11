@@ -474,7 +474,7 @@ function populateFilterPanel(filterType) {
   }
 
   listContainer.innerHTML = items.map(item => `
-    <label style="display: flex; align-items: center; gap: 8px; padding: 4px; cursor: pointer; font-size: 12px;">
+    <label>
       <input type="checkbox" 
              value="${escapeHtml(item.value)}" 
              ${stationFilters[filterType].has(item.value) ? 'checked' : ''}

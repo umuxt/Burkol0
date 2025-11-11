@@ -1417,9 +1417,9 @@ async function setupSkillsFilter() {
     list.innerHTML = items.map(s => {
       const checked = workerFilters.skills.includes(s.name) ? 'checked' : ''
       return `
-        <label style="display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;">
+        <label>
           <input type="checkbox" value="${escapeHtml(s.name)}" ${checked} />
-          <span style="font-size:12px;">${escapeHtml(s.name)}</span>
+          <span>${escapeHtml(s.name)}</span>
         </label>`
     }).join('')
 
@@ -1501,9 +1501,9 @@ function setupStatusFilter() {
     list.innerHTML = OPTIONS.map(opt => {
       const checked = workerFilters.statuses.includes(opt.value) ? 'checked' : ''
       return `
-        <label style=\"display:flex; align-items:center; gap:8px; padding:1.5px 2px; border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:12px;\">
+        <label>
           <input type=\"checkbox\" value=\"${opt.value}\" ${checked} />
-          <span style=\"font-size:12px;\">${opt.label}</span>
+          <span>${opt.label}</span>
         </label>`
     }).join('')
 

@@ -155,39 +155,66 @@ export function generateWorkerPanel() {
         <span>🔄</span>
         <span>Refresh</span>
       </button>
-      <div class="mes-filter-controls" data-nowrap="true">
+      <div class="mes-filter-controls">
         <input
           type="text"
           id="wp-search-input"
           placeholder="Search WO, customer, plan..."
           class="mes-filter-input is-compact"
         >
-        <div class="mes-filter-group">
-          <select id="wp-status-filter" class="mes-filter-input is-compact">
-            <option value="">All Statuses</option>
-            <option value="pending">Pending</option>
-            <option value="ready">Ready</option>
-            <option value="in-progress">In Progress</option>
-            <option value="paused">Paused</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+
+        <div id="wp-filter-status" class="mes-filter-group">
+          <button id="wp-filter-status-btn" type="button" class="mes-filter-button is-compact" onclick="toggleWPFilterPanel('status')">
+            <span>Status</span>
+            <span id="wp-filter-status-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
+          </button>
+          <div id="wp-filter-status-panel" class="mes-filter-panel is-narrow">
+            <div class="mes-filter-panel-header">
+              <button id="wp-filter-status-clear" type="button" class="mes-filter-panel-button" onclick="clearWPFilter('status')">Clear</button>
+              <button id="wp-filter-status-hide" type="button" title="Close" class="mes-filter-panel-button" onclick="hideWPFilterPanel('status')">×</button>
+            </div>
+            <div id="wp-filter-status-list" class="mes-filter-panel-content"></div>
+          </div>
         </div>
-        <div class="mes-filter-group">
-          <select id="wp-worker-filter" class="mes-filter-input is-compact">
-            <option value="">All Workers</option>
-          </select>
+
+        <div id="wp-filter-workers" class="mes-filter-group">
+          <button id="wp-filter-workers-btn" type="button" class="mes-filter-button is-compact" onclick="toggleWPFilterPanel('workers')">
+            <span>Workers</span>
+            <span id="wp-filter-workers-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
+          </button>
+          <div id="wp-filter-workers-panel" class="mes-filter-panel is-wide">
+            <div class="mes-filter-panel-header">
+              <input id="wp-filter-workers-search" type="text" placeholder="Search workers..." class="mes-filter-panel-input" oninput="searchWPFilter('workers', this)">
+              <button id="wp-filter-workers-clear" type="button" class="mes-filter-panel-button" onclick="clearWPFilter('workers')">Clear</button>
+              <button id="wp-filter-workers-hide" type="button" title="Close" class="mes-filter-panel-button" onclick="hideWPFilterPanel('workers')">×</button>
+            </div>
+            <div id="wp-filter-workers-list" class="mes-filter-panel-content"></div>
+          </div>
         </div>
-        <div class="mes-filter-group">
-          <select id="wp-station-filter" class="mes-filter-input is-compact">
-            <option value="">All Stations</option>
-          </select>
+
+        <div id="wp-filter-stations" class="mes-filter-group">
+          <button id="wp-filter-stations-btn" type="button" class="mes-filter-button is-compact" onclick="toggleWPFilterPanel('stations')">
+            <span>Stations</span>
+            <span id="wp-filter-stations-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
+          </button>
+          <div id="wp-filter-stations-panel" class="mes-filter-panel is-wide">
+            <div class="mes-filter-panel-header">
+              <input id="wp-filter-stations-search" type="text" placeholder="Search stations..." class="mes-filter-panel-input" oninput="searchWPFilter('stations', this)">
+              <button id="wp-filter-stations-clear" type="button" class="mes-filter-panel-button" onclick="clearWPFilter('stations')">Clear</button>
+              <button id="wp-filter-stations-hide" type="button" title="Close" class="mes-filter-panel-button" onclick="hideWPFilterPanel('stations')">×</button>
+            </div>
+            <div id="wp-filter-stations-list" class="mes-filter-panel-content"></div>
+          </div>
         </div>
+
         <label id="wp-hide-completed-wrapper" class="mes-filter-toggle is-compact" title="Click to show completed tasks">
           <input type="checkbox" id="wp-hide-completed-toggle" checked>
           <span id="wp-hide-completed-text">Hide Completed</span>
         </label>
-        <button id="wp-clear-filters-btn" type="button" class="mes-filter-clear is-compact">
+        <button id="wp-clear-filters-btn" type="button" class="mes-filter-clear is-compact" onclick="clearAllWPFilters()">
           Clear Filters
         </button>
       </div>
@@ -1103,10 +1130,10 @@ export function generatePlanDesigner() {
               <button type="button" title="Close" class="mes-filter-panel-button" onclick="hidePlanFilterPanel('status')">×</button>
             </div>
             <div class="mes-filter-panel-content">
-              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('status','planned',this.checked)"> planned</label>
-              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('status','in-progress',this.checked)"> in-progress</label>
-              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('status','completed',this.checked)"> completed</label>
-              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('status','canceled',this.checked)"> canceled</label>
+              <label><input type="checkbox" onchange="onPlanFilterChange('status','planned',this.checked)"> <span>planned</span></label>
+              <label><input type="checkbox" onchange="onPlanFilterChange('status','in-progress',this.checked)"> <span>in-progress</span></label>
+              <label><input type="checkbox" onchange="onPlanFilterChange('status','completed',this.checked)"> <span>completed</span></label>
+              <label><input type="checkbox" onchange="onPlanFilterChange('status','canceled',this.checked)"> <span>canceled</span></label>
             </div>
           </div>
         </div>
@@ -1123,9 +1150,9 @@ export function generatePlanDesigner() {
               <button type="button" title="Close" class="mes-filter-panel-button" onclick="hidePlanFilterPanel('priority')">×</button>
             </div>
             <div class="mes-filter-panel-content">
-              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('priority','high',this.checked)"> high</label>
-              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('priority','medium',this.checked)"> medium</label>
-              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('priority','low',this.checked)"> low</label>
+              <label><input type="checkbox" onchange="onPlanFilterChange('priority','high',this.checked)"> <span>high</span></label>
+              <label><input type="checkbox" onchange="onPlanFilterChange('priority','medium',this.checked)"> <span>medium</span></label>
+              <label><input type="checkbox" onchange="onPlanFilterChange('priority','low',this.checked)"> <span>low</span></label>
             </div>
           </div>
         </div>
@@ -1142,8 +1169,8 @@ export function generatePlanDesigner() {
               <button type="button" title="Close" class="mes-filter-panel-button" onclick="hidePlanFilterPanel('type')">×</button>
             </div>
             <div class="mes-filter-panel-content">
-              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('type','one-time',this.checked)"> one-time</label>
-              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('type','recurring',this.checked)"> recurring</label>
+              <label><input type="checkbox" onchange="onPlanFilterChange('type','one-time',this.checked)"> <span>one-time</span></label>
+              <label><input type="checkbox" onchange="onPlanFilterChange('type','recurring',this.checked)"> <span>recurring</span></label>
             </div>
           </div>
         </div>
@@ -1837,9 +1864,9 @@ let workPackagesState = {
   workers: [],
   stations: [],
   searchTerm: '',
-  statusFilter: '',
-  workerFilter: '',
-  stationFilter: '',
+  statusFilters: [],
+  workerFilters: [],
+  stationFilters: [],
   hideCompleted: true, // Default: hide completed tasks
   isRefreshing: false,
   refreshDebounceTimer: null
@@ -1998,23 +2025,165 @@ async function refreshWorkPackagesData(showButtonState = true) {
 }
 
 function populateWorkPackagesFilters() {
-  // Populate worker filter
-  const workerSelect = document.getElementById('wp-worker-filter');
-  if (workerSelect && workPackagesState.workers.length > 0) {
-    const workerOptions = workPackagesState.workers
-      .map(w => `<option value="${w.id}">${w.name}</option>`)
-      .join('');
-    workerSelect.innerHTML = '<option value="">All Workers</option>' + workerOptions;
+  const statusOptions = ['pending', 'ready', 'in-progress', 'paused', 'completed', 'cancelled'];
+  
+  // Status filter
+  const statusList = document.getElementById('wp-filter-status-list');
+  if (statusList) {
+    statusList.innerHTML = statusOptions.map(status => `
+      <label>
+        <input type="checkbox" value="${status}" onchange="handleWPFilterChange('status', this)">
+        <span>${status}</span>
+      </label>
+    `).join('');
+  }
+
+  // Workers filter
+  const workersList = document.getElementById('wp-filter-workers-list');
+  if (workersList && workPackagesState.workers.length > 0) {
+    workersList.innerHTML = workPackagesState.workers.map(w => `
+      <label>
+        <input type="checkbox" value="${w.id}" onchange="handleWPFilterChange('workers', this)">
+        <span>${w.name}</span>
+      </label>
+    `).join('');
   }
   
-  // Populate station filter
-  const stationSelect = document.getElementById('wp-station-filter');
-  if (stationSelect && workPackagesState.stations.length > 0) {
-    const stationOptions = workPackagesState.stations
-      .map(s => `<option value="${s.id}">${s.name}</option>`)
-      .join('');
-    stationSelect.innerHTML = '<option value="">All Stations</option>' + stationOptions;
+  // Stations filter
+  const stationsList = document.getElementById('wp-filter-stations-list');
+  if (stationsList && workPackagesState.stations.length > 0) {
+    stationsList.innerHTML = workPackagesState.stations.map(s => `
+      <label>
+        <input type="checkbox" value="${s.id}" onchange="handleWPFilterChange('stations', this)">
+        <span>${s.name}</span>
+      </label>
+    `).join('');
   }
+}
+
+// Work Packages Filter Panel Controls (Global - called from onclick)
+window.toggleWPFilterPanel = function(type) {
+  const panel = document.getElementById(`wp-filter-${type}-panel`);
+  if (!panel) return;
+  const isOpen = panel.style.display === 'block';
+  // Close all panels first
+  ['status', 'workers', 'stations'].forEach(n => {
+    const p = document.getElementById(`wp-filter-${n}-panel`);
+    if (p) p.style.display = 'none';
+  });
+  // Toggle current panel
+  panel.style.display = isOpen ? 'none' : 'block';
+};
+
+window.hideWPFilterPanel = function(type) {
+  const panel = document.getElementById(`wp-filter-${type}-panel`);
+  if (panel) panel.style.display = 'none';
+};
+
+window.clearWPFilter = function(type) {
+  const filterProp = getWPFilterProperty(type);
+  if (!filterProp || !workPackagesState[filterProp]) {
+    console.error(`Invalid filter type: ${type}`);
+    return;
+  }
+  
+  workPackagesState[filterProp] = [];
+  const list = document.getElementById(`wp-filter-${type}-list`);
+  if (list) {
+    list.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+  }
+  updateWPFilterCount(type);
+  applyWorkPackagesFilters();
+  renderWorkPackagesTable();
+  updateWPClearFiltersButton();
+};
+
+window.searchWPFilter = function(type, searchInput) {
+  const searchTerm = searchInput.value.toLowerCase();
+  const list = document.getElementById(`wp-filter-${type}-list`);
+  if (!list) return;
+  const labels = list.querySelectorAll('label');
+  labels.forEach(label => {
+    const text = label.textContent.toLowerCase();
+    label.style.display = text.includes(searchTerm) ? '' : 'none';
+  });
+};
+
+// Helper function to get correct filter property name
+function getWPFilterProperty(type) {
+  const mapping = {
+    'status': 'statusFilters',
+    'workers': 'workerFilters',
+    'stations': 'stationFilters'
+  };
+  return mapping[type];
+}
+
+window.handleWPFilterChange = function(type, checkbox) {
+  const filterProp = getWPFilterProperty(type);
+  if (!filterProp || !workPackagesState[filterProp]) {
+    console.error(`Invalid filter type: ${type}`);
+    return;
+  }
+  
+  const value = checkbox.value;
+  if (checkbox.checked) {
+    if (!workPackagesState[filterProp].includes(value)) {
+      workPackagesState[filterProp].push(value);
+    }
+  } else {
+    workPackagesState[filterProp] = workPackagesState[filterProp].filter(v => v !== value);
+  }
+  updateWPFilterCount(type);
+  applyWorkPackagesFilters();
+  renderWorkPackagesTable();
+  updateWPClearFiltersButton();
+};
+
+window.clearAllWPFilters = function() {
+  const searchInput = document.getElementById('wp-search-input');
+  
+  workPackagesState.searchTerm = '';
+  workPackagesState.statusFilters = [];
+  workPackagesState.workerFilters = [];
+  workPackagesState.stationFilters = [];
+  
+  if (searchInput) searchInput.value = '';
+  
+  // Clear all checkboxes
+  document.querySelectorAll('#wp-filter-status-list input[type="checkbox"]').forEach(cb => cb.checked = false);
+  document.querySelectorAll('#wp-filter-workers-list input[type="checkbox"]').forEach(cb => cb.checked = false);
+  document.querySelectorAll('#wp-filter-stations-list input[type="checkbox"]').forEach(cb => cb.checked = false);
+  
+  // Update counts
+  updateWPFilterCount('status');
+  updateWPFilterCount('workers');
+  updateWPFilterCount('stations');
+  
+  applyWorkPackagesFilters();
+  renderWorkPackagesTable();
+  updateWPClearFiltersButton();
+};
+
+function updateWPFilterCount(type) {
+  const countEl = document.getElementById(`wp-filter-${type}-count`);
+  if (!countEl) return;
+  const filterProp = getWPFilterProperty(type);
+  if (!filterProp) return;
+  const count = workPackagesState[filterProp]?.length || 0;
+  countEl.textContent = count ? `(${count})` : '';
+}
+
+function updateWPClearFiltersButton() {
+  const clearBtn = document.getElementById('wp-clear-filters-btn');
+  if (!clearBtn) return;
+  const hasFilters = Boolean(
+    workPackagesState.searchTerm ||
+    workPackagesState.statusFilters.length ||
+    workPackagesState.workerFilters.length ||
+    workPackagesState.stationFilters.length
+  );
+  clearBtn.style.display = hasFilters ? 'inline-flex' : 'none';
 }
 
 function bindWorkPackagesEvents() {
@@ -2030,58 +2199,16 @@ function bindWorkPackagesEvents() {
   const searchInput = document.getElementById('wp-search-input');
   const clearBtn = document.getElementById('wp-clear-filters-btn');
 
-  function updateClearFiltersButton() {
-    if (!clearBtn) return;
-    const hasFilters = Boolean(
-      workPackagesState.searchTerm ||
-      workPackagesState.statusFilter ||
-      workPackagesState.workerFilter ||
-      workPackagesState.stationFilter
-    );
-    clearBtn.style.display = hasFilters ? 'inline-flex' : 'none';
-  }
-
   if (searchInput) {
     searchInput.oninput = (e) => {
       workPackagesState.searchTerm = e.target.value.toLowerCase();
       applyWorkPackagesFilters();
       renderWorkPackagesTable();
-      updateClearFiltersButton();
+      updateWPClearFiltersButton();
     };
   }
-  
-  // Status filter
-  const statusFilter = document.getElementById('wp-status-filter');
-  if (statusFilter) {
-    statusFilter.onchange = (e) => {
-      workPackagesState.statusFilter = e.target.value;
-      applyWorkPackagesFilters();
-      renderWorkPackagesTable();
-      updateClearFiltersButton();
-    };
-  }
-  
-  // Worker filter
-  const workerFilter = document.getElementById('wp-worker-filter');
-  if (workerFilter) {
-    workerFilter.onchange = (e) => {
-      workPackagesState.workerFilter = e.target.value;
-      applyWorkPackagesFilters();
-      renderWorkPackagesTable();
-      updateClearFiltersButton();
-    };
-  }
-  
-  // Station filter
-  const stationFilter = document.getElementById('wp-station-filter');
-  if (stationFilter) {
-    stationFilter.onchange = (e) => {
-      workPackagesState.stationFilter = e.target.value;
-      applyWorkPackagesFilters();
-      renderWorkPackagesTable();
-      updateClearFiltersButton();
-    };
-  }
+
+
   
   // Hide completed toggle
   const hideCompletedWrapper = document.getElementById('wp-hide-completed-wrapper');
@@ -2111,27 +2238,11 @@ function bindWorkPackagesEvents() {
     }
   }
   
-  // Clear filters button
-  if (clearBtn) {
-    clearBtn.onclick = () => {
-      workPackagesState.searchTerm = '';
-      workPackagesState.statusFilter = '';
-      workPackagesState.workerFilter = '';
-      workPackagesState.stationFilter = '';
-      // Don't reset hideCompleted - keep user's preference
-      
-      if (searchInput) searchInput.value = '';
-      if (statusFilter) statusFilter.value = '';
-      if (workerFilter) workerFilter.value = '';
-      if (stationFilter) stationFilter.value = '';
-      
-      applyWorkPackagesFilters();
-      renderWorkPackagesTable();
-      updateClearFiltersButton();
-    };
-    updateClearFiltersButton();
-  }
+  // Initialize clear filters button
+  updateWPClearFiltersButton();
 }
+
+
 
 function applyWorkPackagesFilters() {
   let filtered = workPackagesState.allPackages;
@@ -2159,18 +2270,18 @@ function applyWorkPackagesFilters() {
   }
   
   // Status filter
-  if (workPackagesState.statusFilter) {
-    filtered = filtered.filter(pkg => pkg.status === workPackagesState.statusFilter);
+  if (workPackagesState.statusFilters.length > 0) {
+    filtered = filtered.filter(pkg => workPackagesState.statusFilters.includes(pkg.status));
   }
   
   // Worker filter
-  if (workPackagesState.workerFilter) {
-    filtered = filtered.filter(pkg => pkg.workerId === workPackagesState.workerFilter);
+  if (workPackagesState.workerFilters.length > 0) {
+    filtered = filtered.filter(pkg => workPackagesState.workerFilters.includes(pkg.workerId));
   }
   
   // Station filter
-  if (workPackagesState.stationFilter) {
-    filtered = filtered.filter(pkg => pkg.stationId === workPackagesState.stationFilter);
+  if (workPackagesState.stationFilters.length > 0) {
+    filtered = filtered.filter(pkg => workPackagesState.stationFilters.includes(pkg.stationId));
   }
   
   workPackagesState.filteredPackages = filtered;

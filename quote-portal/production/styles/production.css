@@ -140,6 +140,7 @@ body {
 .mes-filter-controls[data-nowrap="true"] {
   flex-wrap: nowrap;
   overflow-x: auto;
+  overflow-y: visible;
   scrollbar-width: none;
 }
 
@@ -157,8 +158,8 @@ body {
 }
 
 .mes-filter-controls[data-nowrap="true"] .mes-filter-group {
-  display: inline-flex;
-  align-items: center;
+  position: relative;
+  flex: 0 0 auto;
 }
 
 .mes-filter-group {
@@ -270,6 +271,22 @@ select.mes-filter-input.is-compact {
   padding: 8px;
   display: grid;
   gap: 6px;
+}
+
+/* Filter panel checkbox labels */
+.mes-filter-panel-content label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1.5px 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.mes-filter-panel-content label span {
+  font-size: 12px;
 }
 
 .mes-filter-panel-input {
@@ -555,12 +572,6 @@ select.mes-filter-input.is-compact {
 .workers-filter-compact #worker-filter-skills-hide,
 .workers-filter-compact #worker-filter-status-clear,
 .workers-filter-compact #worker-filter-status-hide {
-  padding: 1.5px 2px !important;
-}
-
-/* Dinamik label elementleri için */
-.workers-filter-compact #worker-filter-skills-list label,
-.workers-filter-compact #worker-filter-status-list label {
   padding: 1.5px 2px !important;
 }
 
