@@ -7,6 +7,23 @@ let editingOperationId = null
 let selectedOperationId = null
 let operationFilters = { query: '', skills: [] }
 
+function computeFilteredOperations(list = operationsState, filters = operationFilters) {
+  const source = Array.isArray(list) ? list : []
+  const q = (filters.query || '').toLowerCase().trim()
+  const selectedSkills = new Set(filters.skills || [])
+  return source.filter(op => {
+    const name = (op.name || '').toLowerCase()
+    const type = (op.type || '').toLowerCase()
+    const code = (op.semiOutputCode || '').toLowerCase()
+    const matchesQuery = !q || name.includes(q) || type.includes(q) || code.includes(q)
+    const skills = Array.isArray(op.skills)
+      ? op.skills
+      : (typeof op.skills === 'string' ? op.skills.split(',').map(s => s.trim()).filter(Boolean) : [])
+    const matchesSkills = selectedSkills.size === 0 || Array.from(selectedSkills).every(skill => skills.includes(skill))
+    return matchesQuery && matchesSkills
+  })
+}
+
 export async function initializeOperationsUI() {
   initOperationFilters()
   await loadOperationsAndRender()
@@ -15,6 +32,10 @@ export async function initializeOperationsUI() {
 async function loadOperationsAndRender() {
   const container = document.getElementById('operations-list-container')
   if (container) container.innerHTML = `<div style="padding:12px; color:#888;">Loading operations...</div>`
+  const body = document.getElementById('operations-table-body')
+  if (body) {
+    body.innerHTML = buildOperationsRows([], 'Loading operations...')
+  }
   try {
     operationsState = await getOperations(true)
     renderOperations()
@@ -28,41 +49,14 @@ async function loadOperationsAndRender() {
 function renderOperations() {
   const body = document.getElementById('operations-table-body')
   if (body) {
-    if (!operationsState.length) {
-      body.innerHTML = `<tr><td colspan="5" style="padding:8px; color:#666;">No operations yet. Add your first operation.</td></tr>`
-      return
-    }
-    body.innerHTML = operationsState.map(op => `
-      <tr onclick=\"showOperationDetail('${op.id}')\" style=\"cursor:pointer; background-color: white; border-bottom: 1px solid rgb(243, 244, 246);\">\n
-        <td style="padding: 4px 8px;"><strong>${escapeHtml(op.name || '')}</strong></td>
-        <td style="padding: 4px 8px;">${escapeHtml(op.type || 'General')}</td>
-        <td style="padding: 4px 8px;">${escapeHtml(op.semiOutputCode || '')}</td>
-        <td style="padding: 4px 8px;">${(op.expectedDefectRate || 0)}%</td>
-        <td style="padding: 4px 8px;">
-          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-            ${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span style=\"background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(s)}</span>`).join('')}
-          </div>
-        </td>
-        
-      </tr>`).join('')
-    // Ensure header columns align (add missing Fire Rate header if absent)
-    try {
-      const table = body.closest('table')
-      const headRow = table?.querySelector('thead tr')
-      if (headRow) {
-        const ths = Array.from(headRow.children)
-        // Expected order with 5 columns: Name, Type, Output Code, Fire (%), Skills
-        // If only 4 headers exist (missing Fire Rate), insert it after Output Code
-        if (ths.length === 4) {
-          const fireRateTh = document.createElement('th')
-          fireRateTh.setAttribute('style', 'min-width: 80px; white-space: nowrap; padding: 8px;')
-          fireRateTh.innerHTML = '<button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">Fire (%) <span style="font-size: 12px; opacity: 0.6;">↕</span></button>'
-          // Insert as 4th column (index 3) after Output Code
-          if (ths[2]?.nextSibling) headRow.insertBefore(fireRateTh, ths[2].nextSibling)
-          else headRow.appendChild(fireRateTh)
-        }
-      }
-    } catch {}
+    const filtered = computeFilteredOperations()
+    const hasFilters = Boolean((operationFilters.query || '').trim()) || (operationFilters.skills || []).length > 0
+    const hasAnyOperations = (operationsState || []).length > 0
+    const emptyMessage = hasFilters && hasAnyOperations
+      ? 'No operations match the current filters.'
+      : 'No operations yet. Add your first operation.'
+    body.innerHTML = buildOperationsRows(filtered, emptyMessage)
+    highlightSelectedOperationRow()
     return
   }
   // Legacy container fallback
@@ -78,22 +72,103 @@ function renderOperations() {
         <tr><th>Name</th><th>Type</th><th>Output Code</th><th>Fire (%)</th><th>Skills</th><th>Actions</th></tr>
       </thead>
       <tbody>
-        ${operationsState.map(op => `
-          <tr>
-            <td><strong>${escapeHtml(op.name || '')}</strong></td>
-            <td>${escapeHtml(op.type || 'General')}</td>
-            <td>${escapeHtml(op.semiOutputCode || '')}</td>
-            <td>${(op.expectedDefectRate || 0)}%</td>
-            <td>${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span class=\"badge badge-outline\" style=\"margin-right:4px;\">${escapeHtml(s)}</span>`).join('')}</td>
-            
-            <td>
-              <button onclick=\"editOperation('${op.id}')\" style=\"padding:4px 8px; margin-right:4px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;\">Edit</button>
-              <button onclick=\"deleteOperation('${op.id}')\" style=\"padding:4px 8px; border:1px solid #ef4444; background:white; color:#ef4444; border-radius:4px; cursor:pointer;\">Delete</button>
-            </td>
-          </tr>
-        `).join('')}
+        ${buildOperationsRows(operationsState, 'No operations yet. Add your first operation.', { legacy: true })}
       </tbody>
     </table>`
+}
+
+function buildOperationsRows(list, emptyText, options = {}) {
+  const items = Array.isArray(list) ? list : []
+  const { legacy = false } = options
+  const columnCount = legacy ? 6 : 5
+  if (!items.length) {
+    if (legacy) {
+      return `<tr><td colspan="${columnCount}" style="padding:8px; color:#666;">${escapeHtml(emptyText)}</td></tr>`
+    }
+    return `
+      <tr class="mes-table-row is-empty">
+        <td colspan="${columnCount}" class="mes-empty-cell text-center"><em>${escapeHtml(emptyText)}</em></td>
+      </tr>`
+  }
+
+  return items.map(op => {
+    const typeName = (op.type || '').toString().trim()
+    const typeMarkup = typeName
+      ? (legacy
+        ? escapeHtml(typeName)
+        : `<span class="mes-tag">${escapeHtml(typeName)}</span>`)
+      : (legacy
+        ? 'General'
+        : '<span class="mes-muted-text">General</span>')
+
+    const outputCode = (op.semiOutputCode || '').toString().trim()
+    const outputMarkup = outputCode
+      ? (legacy
+        ? escapeHtml(outputCode)
+        : `<span class="mes-code-text">${escapeHtml(outputCode)}</span>`)
+      : (legacy
+        ? '-'
+        : '<span class="mes-muted-text">-</span>')
+
+    const skills = Array.isArray(op.skills)
+      ? op.skills
+      : (typeof op.skills === 'string'
+        ? op.skills.split(',').map(skill => skill.trim()).filter(Boolean)
+        : [])
+    const skillsMarkup = skills.length
+      ? (legacy
+        ? skills.map(s => `<span class="badge badge-outline" style="margin-right:4px;">${escapeHtml(s)}</span>`).join('')
+        : `<div class="mes-tag-group">${skills.map(skill => `<span class="mes-tag">${escapeHtml(skill)}</span>`).join('')}</div>`)
+      : (legacy
+        ? '-'
+        : '<span class="mes-muted-text">-</span>')
+
+    const defectValue = formatDefectRate(op.expectedDefectRate)
+    const defectMarkup = legacy
+      ? escapeHtml(defectValue)
+      : `<span class="mes-code-text">${escapeHtml(defectValue)}</span>`
+    const actionMarkup = legacy
+      ? `
+        <td>
+          <button onclick="editOperation('${op.id}')" style="padding:4px 8px; margin-right:4px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">Edit</button>
+          <button onclick="deleteOperation('${op.id}')" style="padding:4px 8px; border:1px solid #ef4444; background:white; color:#ef4444; border-radius:4px; cursor:pointer;">Delete</button>
+        </td>`
+      : ''
+
+    const rowAttrs = legacy
+      ? ''
+      : ` class="mes-table-row" data-operation-id="${op.id}" onclick="(async () => await showOperationDetail('${op.id}'))()"`
+
+    return `
+      <tr${rowAttrs}>
+        <td><strong>${escapeHtml(op.name || 'Unnamed Operation')}</strong></td>
+        <td>${typeMarkup}</td>
+  <td class="text-center">${outputMarkup}</td>
+        <td class="text-center">${defectMarkup}</td>
+        <td>${skillsMarkup}</td>
+        ${actionMarkup}
+      </tr>`
+  }).join('')
+}
+
+function formatDefectRate(value) {
+  const num = Number(value)
+  if (!Number.isFinite(num) || num < 0) return '0%'
+  const normalized = Math.max(0, num)
+  const formatted = normalized.toFixed(2).replace(/\.00$/, '').replace(/0$/, '')
+  return `${formatted}%`
+}
+
+function highlightSelectedOperationRow() {
+  const rows = document.querySelectorAll('#operations-table-body tr')
+  rows.forEach(row => {
+    row.style.backgroundColor = ''
+  })
+  if (!selectedOperationId) return
+  const selectedRow = document.querySelector(`#operations-table-body tr[data-operation-id="${selectedOperationId}"]`)
+  if (selectedRow) {
+    selectedRow.style.backgroundColor = 'rgb(239, 246, 255)'
+  }
 }
 
 export function openAddOperationModal() {
@@ -116,6 +191,8 @@ export async function showOperationDetail(id) {
   const content = document.getElementById('operation-detail-content')
   if (!panel || !content) return
   panel.style.display = 'block'
+  highlightSelectedOperationRow()
+  const defectRate = formatDefectRate(op.expectedDefectRate)
   let supervisorHtml = ''
   try {
     if (op.supervisorId) {
@@ -142,7 +219,7 @@ export async function showOperationDetail(id) {
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Operasyon Adı:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.name||'')}</span></div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Tür:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.type||'General')}</span></div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yarı Mamül Kodu:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.semiOutputCode || '-')}</span></div>
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yüzdelik Fire Oranı:</span><span style="font-size:12px; color: rgb(17,24,39);">${(op.expectedDefectRate || 0)}%</span></div>
+  <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yüzdelik Fire Oranı:</span><span style="font-size:12px; color: rgb(17,24,39);">${defectRate}</span></div>
       ${supervisorHtml}
       
     </div>
@@ -157,6 +234,7 @@ export function closeOperationDetail() {
   const panel = document.getElementById('operation-detail-panel')
   if (panel) panel.style.display = 'none'
   selectedOperationId = null
+  highlightSelectedOperationRow()
 }
 
 // Actions from detail panel
@@ -453,28 +531,16 @@ function initOperationFilters() {
   const skillsCount = document.getElementById('operation-filter-skills-count')
 
   const applyFilters = () => {
-    const q = (operationFilters.query || '').toLowerCase()
-    const selected = new Set(operationFilters.skills || [])
     const body = document.getElementById('operations-table-body')
     if (!body) { renderOperations(); return }
-    const filtered = (operationsState || []).filter(op => {
-      const matchesQuery = !q || (op.name||'').toLowerCase().includes(q) || (op.type||'').toLowerCase().includes(q)
-      const skills = Array.isArray(op.skills) ? op.skills : []
-      const matchesSkills = selected.size === 0 || Array.from(selected).every(s => skills.includes(s))
-      return matchesQuery && matchesSkills
-    })
-    if (!filtered.length) {
-      body.innerHTML = `<tr><td colspan="4" style="padding:8px; color:#666;">No operations found</td></tr>`
-    } else {
-      body.innerHTML = filtered.map(op => `
-        <tr style="background-color: white; border-bottom: 1px solid rgb(243, 244, 246);">
-          <td style="padding: 4px 8px;"><strong>${escapeHtml(op.name || "")}</strong></td>
-          <td style="padding: 4px 8px;">${escapeHtml(op.type || "General")}</td>
-          <td style="padding: 4px 8px;">${escapeHtml(op.semiOutputCode || "")}</td>
-          <td style="padding: 4px 8px;"><div style="display:flex; flex-wrap:wrap; gap:4px;">${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span style=\"background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(s)}</span>`).join('')}</div></td>
-          
-        </tr>`).join('')
-    }
+    const filtered = computeFilteredOperations()
+    const hasFilters = Boolean((operationFilters.query || '').trim()) || (operationFilters.skills || []).length > 0
+    const hasAnyOperations = (operationsState || []).length > 0
+    const emptyMessage = hasFilters && hasAnyOperations
+      ? 'No operations match the current filters.'
+      : 'No operations yet. Add your first operation.'
+    body.innerHTML = buildOperationsRows(filtered, emptyMessage)
+    highlightSelectedOperationRow()
   }
 
   const updateClearAllVisibility = () => {

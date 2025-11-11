@@ -498,32 +498,32 @@ export function generateWorkers() {
           <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
             <div class="workers-table">
               <div class="mes-table-container">
-                <table id="workers-table" class="mes-table">
-                  <thead class="mes-table-header">
-                    <tr>
-                      <th class="worker-name-column" style="min-width: 160px;">
-                        <button type="button" class="mes-sort-button">
-                          Name <span class="mes-sort-icon">↕</span>
-                        </button>
-                      </th>
-                      <th class="worker-skills-column" style="min-width: 140px;">
-                        <button type="button" class="mes-sort-button">
-                          Skills <span class="mes-sort-icon">↕</span>
-                        </button>
-                      </th>
-                      <th class="worker-status-column text-center" style="min-width: 100px;">
-                        <button type="button" class="mes-sort-button">
-                          Status <span class="mes-sort-icon">↕</span>
-                        </button>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody id="workers-table-body" class="mes-table-body">
-                    <tr class="mes-table-row is-empty">
-                      <td colspan="3" class="mes-empty-cell text-center"><em>Loading workers...</em></td>
-                    </tr>
-                  </tbody>
-                </table>
+                  <table id="workers-table" class="mes-table">
+                    <thead class="mes-table-header">
+                      <tr>
+                        <th class="worker-name-column" style="min-width: 160px;">
+                          <button type="button" class="mes-sort-button">
+                            Name <span class="mes-sort-icon">↕</span>
+                          </button>
+                        </th>
+                        <th class="worker-skills-column" style="min-width: 140px;">
+                          <button type="button" class="mes-sort-button">
+                            Skills <span class="mes-sort-icon">↕</span>
+                          </button>
+                        </th>
+                        <th class="worker-status-column text-center" style="min-width: 100px;">
+                          <button type="button" class="mes-sort-button">
+                            Status <span class="mes-sort-icon">↕</span>
+                          </button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody id="workers-table-body" class="mes-table-body">
+                      <tr class="mes-table-row is-empty">
+                        <td colspan="3" class="mes-empty-cell text-center"><em>Loading workers...</em></td>
+                      </tr>
+                    </tbody>
+                  </table>
               </div>
             </div>
           </div>
@@ -701,8 +701,103 @@ export function generateOperations() {
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Operations Management</h1>
     </div>
-    <div class=\"operations-filter-compact\" style=\"margin-bottom: 24px; display: flex; gap: 12px; align-items: center; justify-content: space-between;\">\n      <button onclick=\"openAddOperationModal()\" class=\"operation-add-button\" style=\"background: var(--primary); color: var(--primary-foreground); height: 44px; padding: 0px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;\">+ Add Operation</button>\n      <div style=\"display: flex; align-items: center; gap: 8px; flex: 1;\">\n        <input id=\"operation-filter-search\" type=\"text\" placeholder=\"Search operations...\" class=\"operation-filter-input\" style=\"height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 500px; width: 100%; flex: 1 1 auto !important;\">\n\n        <div id=\"operation-filter-skills\" style=\"position: relative;\">\n          <button id=\"operation-filter-skills-btn\" type=\"button\" class=\"operation-filter-button\" style=\"height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;\">\n            <span>Skills</span>\n            <span id=\"operation-filter-skills-count\" style=\"color: var(--muted-foreground); font-size: 12px;\"></span>\n            <span style=\"margin-left: auto; opacity: .6\">▾</span>\n          </button>\n          <div id=\"operation-filter-skills-panel\" style=\"display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; max-height: 320px; overflow: hidden; z-index: 1000;\">\n            <div style=\"padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;\">\n              <input id=\"operation-filter-skills-search\" type=\"text\" placeholder=\"Search skills...\" class=\"operation-filter-panel-input\" style=\"flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;\">\n              <button id=\"operation-filter-skills-clear\" type=\"button\" class=\"operation-filter-panel-button\" style=\"flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">Clear</button>\n              <button id=\"operation-filter-skills-hide\" type=\"button\" title=\"Kapat\" class=\"operation-filter-panel-button\" style=\"flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;\">×</button>\n            </div>\n            <div id=\"operation-filter-skills-list\" style=\"max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;\"></div>\n          </div>\n        </div>\n\n        <button id=\"operation-filter-clear-all\" type=\"button\" title=\"Tüm filtreleri temizle\" class=\"operation-filter-button\" style=\"display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;\">\n          Clear All\n        </button>\n      </div>\n    </div>
-    <section class=\"workers-table\">\n      <div style=\"padding: 0px;\">\n        <div class=\"workers-container\" style=\"display: flex; gap: 20px; height: auto; flex-direction: row;\">\n          <div class=\"workers-table-panel\" style=\"flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;\">\n            <div class=\"workers-table\">\n              <div class=\"table-container\" style=\"overflow-y: auto; border: 1px solid rgb(229, 231, 235); border-radius: 6px; background: white;\">\n                <table style=\"width: 100%; border-collapse: collapse;\">\n                  <thead style=\"background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;\">\n                    <tr>\n                      <th style=\"min-width: 200px; white-space: nowrap; padding: 8px;\">\n                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">\n                          Name <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>\n                        </button>\n                      </th>\n                      <th style=\"min-width: 160px; white-space: nowrap; padding: 8px;\">\n                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">\n                          Type <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>\n                          </button>\n                          <button type=\"button\" title=\"Manage Operation Types\" onclick=\"openOperationTypesModal()\" style=\"padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer; font-size:12px;\">i</button>\n                        </th>\n                      <th style=\"min-width: 120px; white-space: nowrap; padding: 8px;\">\n                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">\n                          Output Code <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>\n                        </button>\n                      </th>\n                      <th style=\"min-width: 160px; white-space: nowrap; padding: 8px;\">\n                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">\n                          Skills <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>\n                        </button>\n                      </th>\n                    </tr>\n                  </thead>\n                  <tbody id=\"operations-table-body\"></tbody>\n                </table>\n              </div>\n            </div>\n          </div>\n          <div class=\"worker-detail-panel\" id=\"operation-detail-panel\" style=\"flex: 1 1 0%; min-width: 400px; height: auto; display: none;\">\n            <div style=\"background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;\">\n              <div style=\"padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;\">\n                <div style=\"display: flex; align-items: center; gap: 12px;\">\n                  <button title=\"Detayları Kapat\" onclick=\"closeOperationDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;\">←</button>\n                  <h3 style=\"margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);\">Operasyon Detayları</h3>\n                </div>\n                <div style=\"display:flex; align-items:center; gap:8px;\">\n                  <button onclick=\"editOperationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;\">✏️ Düzenle</button>\n                  <button onclick=\"deleteOperationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;\">🗑️ Sil</button>\n                </div>\n              </div>\n              <div style=\"flex: 1 1 0%; overflow: auto; padding: 20px;\">\n                <div id=\"operation-detail-content\"></div>\n              </div>\n            </div>\n          </div>\n        </div>\n      </div>\n    </section>
+
+    <div class="operations-filter-compact" style="margin-bottom: 24px; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
+      <button onclick="openAddOperationModal()" class="operation-add-button" style="background: var(--primary); color: var(--primary-foreground); height: 44px; padding: 0px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Add Operation</button>
+      <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+        <input id="operation-filter-search" type="text" placeholder="Search operations..." class="operation-filter-input" style="height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 500px; width: 100%; flex: 1 1 auto !important;">
+
+        <div id="operation-filter-skills" style="position: relative;">
+          <button id="operation-filter-skills-btn" type="button" class="operation-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;">
+            <span>Skills</span>
+            <span id="operation-filter-skills-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
+            <span style="margin-left: auto; opacity: .6">▾</span>
+          </button>
+          <div id="operation-filter-skills-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; max-height: 320px; overflow: hidden; z-index: 1000;">
+            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
+              <input id="operation-filter-skills-search" type="text" placeholder="Search skills..." class="operation-filter-panel-input" style="flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;">
+              <button id="operation-filter-skills-clear" type="button" class="operation-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
+              <button id="operation-filter-skills-hide" type="button" title="Kapat" class="operation-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+            </div>
+            <div id="operation-filter-skills-list" style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;"></div>
+          </div>
+        </div>
+
+        <button id="operation-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="operation-filter-button" style="display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;">
+          Clear All
+        </button>
+      </div>
+    </div>
+
+    <section class="workers-table">
+      <div style="padding: 0px;">
+        <div class="workers-container" style="display: flex; gap: 20px; height: auto; flex-direction: row;">
+          <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
+            <div class="workers-table">
+              <div class="mes-table-container">
+                <table id="operations-table" class="mes-table">
+                  <thead class="mes-table-header">
+                    <tr>
+                      <th style="min-width: 200px;">
+                        <button type="button" class="mes-sort-button">
+                          Name <span class="mes-sort-icon">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 160px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <button type="button" class="mes-sort-button">
+                            Type <span class="mes-sort-icon">↕</span>
+                          </button>
+                          <button type="button" title="Manage Operation Types" onclick="openOperationTypesModal()" style="padding: 0px 3px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Manage</button>
+                        </div>
+                      </th>
+                      <th style="min-width: 110px; text-align: center;">
+                        <button type="button" class="mes-sort-button">
+                          Output Code <span class="mes-sort-icon">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 85px; text-align: center;" class="text-center">
+                        <button type="button" class="mes-sort-button">
+                          Fire (%) <span class="mes-sort-icon">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 160px;">
+                        <button type="button" class="mes-sort-button">
+                          Skills <span class="mes-sort-icon">↕</span>
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody id="operations-table-body" class="mes-table-body">
+                    <tr class="mes-table-row is-empty">
+                      <td colspan="5" class="mes-empty-cell text-center"><em>Loading operations...</em></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="worker-detail-panel" id="operation-detail-panel" style="flex: 1 1 0%; min-width: 400px; height: auto; display: none;">
+            <div style="background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;">
+              <div style="padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <button title="Detayları Kapat" onclick="closeOperationDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">←</button>
+                  <h3 style="margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);">Operasyon Detayları</h3>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <button onclick="editOperationFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">✏️ Düzenle</button>
+                  <button onclick="deleteOperationFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;">🗑️ Sil</button>
+                </div>
+              </div>
+              <div style="flex: 1 1 0%; overflow: auto; padding: 20px;">
+                <div id="operation-detail-content"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <div id=\"operation-modal\" style=\"display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000;\" onclick=\"closeOperationModal(event)\">
       <div style=\"position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 8px; padding: 0; width: 560px; max-height: 80vh; overflow: hidden;\" onclick=\"event.stopPropagation()\">
         <div style=\"padding: 16px 20px; border-bottom: 1px solid var(--border);\">
