@@ -1,7 +1,7 @@
 // Entry point: wire modules to global for inline handlers to keep working
 import { MESData, loadData, saveData, currentView, setCurrentView, getSavedView } from './state.js';
 import { showToast } from './ui.js';
-import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generateStationDuplicateModal, generatePlanDesigner, generateTemplates, generateApprovedQuotes, injectMetadataToggleStyles, toggleMetadataColumns, initDashboardWidgets } from './views.js';
+import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generateStationDuplicateModal, generatePlanDesigner, generateTemplates, generateApprovedQuotes, injectMetadataToggleStyles, toggleMetadataColumns, initDashboardWidgets, initWorkPackagesWidget } from './views.js';
 import { initPlanOverviewUI, setActivePlanTab, openCreatePlan, filterProductionPlans, togglePlanFilterPanel, hidePlanFilterPanel, onPlanFilterChange, clearPlanFilter, clearAllPlanFilters, cancelPlanCreation, viewProductionPlan, releasePlanFromOverview, editTemplateById, deleteTemplateById } from './planOverview.js';
 import { initializeWorkersUI, openAddWorkerModal, editWorker, deleteWorker as deleteWorkerAction, saveWorker, closeWorkerModal, showWorkerDetail, closeWorkerDetail, editWorkerFromDetail, deleteWorkerFromDetail, openWorkerScheduleModal, closeWorkerScheduleModal, handleWorkerScheduleModeChange, saveWorkerSchedule } from './workers.js';
 import { initializePlanDesigner, loadOperationsToolbox, handleOperationDragStart, handleCanvasDragOver, handleCanvasDrop, renderCanvas, editNode, saveNodeEdit, closeNodeEditModal, deleteNode, toggleConnectMode, clearCanvas, handleOrderChange, savePlanAsTemplate, deployWorkOrder, handleCanvasClick, handleScheduleTypeChange, handleRecurringTypeChange, handlePeriodicFrequencyChange, savePlanDraft, togglePlanOrderPanel, hidePlanOrderPanel, clearPlanOrder, filterPlanOrderList, selectPlanOrder, togglePlanTypePanel, hidePlanTypePanel, clearPlanType, selectPlanType } from './planDesigner.js';
@@ -22,7 +22,10 @@ function renderView(viewId) {
       content = generateModernDashboard(); 
       setTimeout(() => initDashboardWidgets(), 100);
       break;
-    case 'worker-panel': content = generateWorkerPanel(); break;
+    case 'worker-panel': 
+      content = generateWorkerPanel(); 
+      setTimeout(() => initWorkPackagesWidget(), 100);
+      break;
     case 'plan-designer':
       content = generatePlanDesigner();
       setTimeout(async () => {

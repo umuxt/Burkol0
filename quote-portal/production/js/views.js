@@ -141,14 +141,22 @@ export function generateModernDashboard() {
         </div>
       </div>
     </div>
+  `;
+}
 
-    <!-- Work Packages Widget (Full Width) -->
-    <div class="card" style="margin-top: 24px;">
+export function generateWorkerPanel() {
+  return `
+    <div style="margin-bottom: 24px;">
+      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Worker Panel</h1>
+    </div>
+
+    <!-- Work Packages Widget -->
+    <div class="card">
       <div class="card-header">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <div>
             <div class="card-title">📦 Work Packages</div>
-            <div class="card-description">Global task overview across all work orders</div>
+            <div class="card-description">Tüm iş emirleri ve görevlerin takibi</div>
           </div>
           <button id="work-packages-refresh-btn" style="background: var(--primary); color: var(--primary-foreground); padding: 6px 12px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
             <span>🔄</span> Refresh
@@ -181,8 +189,8 @@ export function generateModernDashboard() {
           </select>
           <button 
             id="wp-hide-completed-btn" 
-            style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; background: var(--background); display: inline-flex; align-items: center; gap: 6px; transition: all 150ms;"
-            title="Toggle completed tasks visibility"
+            style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; background: var(--muted); display: inline-flex; align-items: center; gap: 6px; transition: 150ms; color: var(--foreground);"
+            title="Click to show completed tasks"
           >
             <span id="wp-hide-completed-icon">👁️</span>
             <span id="wp-hide-completed-text">Hide Completed</span>
@@ -196,38 +204,6 @@ export function generateModernDashboard() {
         <div id="work-packages-widget" style="padding: 0 16px 16px;">
           <div style="text-align: center; color: var(--muted-foreground); padding: 32px;">Yükleniyor...</div>
         </div>
-      </div>
-    </div>
-  `;
-}
-
-export function generateWorkerPanel() {
-  return `
-    <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Worker Panel</h1>
-      <p style="color: var(--muted-foreground);">İşçi atama ve takip sistemi</p>
-    </div>
-
-    <div class="grid grid-cols-3" style="margin-bottom: 32px;">
-      <div class="card"><div class="card-content"><div class="card-title">Active Workers</div><div class="kpi-value" style="color: #10b981;">8</div><div style="font-size: 14px; color: var(--muted-foreground);">Currently working</div></div></div>
-      <div class="card"><div class="card-content"><div class="card-title">On Break</div><div class="kpi-value" style="color: #f59e0b;">2</div><div style="font-size: 14px; color: var(--muted-foreground);">Break time</div></div></div>
-      <div class="card"><div class="card-content"><div class="card-title">Efficiency</div><div class="kpi-value" style="color: #3b82f6;">94%</div><div style="font-size: 14px; color: var(--muted-foreground);">Today's average</div></div></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">Worker Status</div>
-        <div class="card-description">Real-time worker availability and task assignments</div>
-      </div>
-      <div class="card-content">
-        <table class="table">
-          <thead><tr><th>Worker</th><th>Station</th><th>Current Task</th><th>Status</th><th>Completion</th></tr></thead>
-          <tbody>
-            <tr><td><strong>Ali Kaya</strong></td><td>Station A</td><td>Welding - WO-001</td><td><span class="badge badge-success">Active</span></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="progress" style="width: 100px;"><div class="progress-indicator" style="width: 80%;"></div></div><span style="font-size: 12px;">80%</span></div></td></tr>
-            <tr><td><strong>Mehmet Yılmaz</strong></td><td>Station B</td><td>Cutting - WO-002</td><td><span class="badge badge-success">Active</span></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="progress" style="width: 100px;"><div class="progress-indicator" style="width: 45%;"></div></div><span style="font-size: 12px;">45%</span></div></td></tr>
-            <tr><td><strong>Fatma Şahin</strong></td><td>Station C</td><td>Assembly - WO-003</td><td><span class="badge badge-warning">Break</span></td><td><div style="display:flex;align-items:center;gap:8px;"><div class="progress" style="width: 100px;"><div class="progress-indicator" style="width: 60%;"></div></div><span style="font-size: 12px;">60%</span></div></td></tr>
-          </tbody>
-        </table>
       </div>
     </div>
   `;
