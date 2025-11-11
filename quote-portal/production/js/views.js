@@ -441,52 +441,48 @@ export function generateWorkers() {
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Workers Management</h1>
       
     </div>
-    <div class="workers-filter-compact" style="margin-bottom: 24px; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
-      <button onclick="openAddWorkerModal()" class="worker-add-button" style="background: var(--primary); color: var(--primary-foreground); height: 44px; padding: 0px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Add Worker</button>
-      <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
-        <input id="worker-filter-search" type="text" placeholder="Search workers..." class="worker-filter-input"
-          style="height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 500px; width: 100%; flex: 1 1 auto;">
-        
-        <div id="worker-filter-skills" style="position: relative;">
-          <button id="worker-filter-skills-btn" type="button" class="worker-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;">
+    <div class="workers-filter-compact mes-filter-bar" style="margin-bottom: 24px;">
+      <button onclick="openAddWorkerModal()" class="worker-add-button mes-primary-action is-compact">+ Add Worker</button>
+      <div class="mes-filter-controls">
+        <input id="worker-filter-search" type="text" placeholder="Search workers..." class="worker-filter-input mes-filter-input is-compact">
+
+        <div id="worker-filter-skills" class="mes-filter-group">
+          <button id="worker-filter-skills-btn" type="button" class="worker-filter-button mes-filter-button is-compact">
             <span>Skills</span>
-            <span id="worker-filter-skills-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
-            <span style="margin-left: auto; opacity: .6">▾</span>
+            <span id="worker-filter-skills-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
           </button>
-          <div id="worker-filter-skills-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; max-height: 320px; overflow: hidden; z-index: 1000;">
-            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-              <input id="worker-filter-skills-search" type="text" placeholder="Search skills..." class="worker-filter-panel-input"
-                style="flex:1; min-width:0; padding: 3px 4px; font-size:12px; border: 1px solid var(--border); border-radius: 6px;">
-              <button id="worker-filter-skills-clear" type="button" class="worker-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
-              <button id="worker-filter-skills-hide" type="button" title="Kapat" class="worker-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+          <div id="worker-filter-skills-panel" class="mes-filter-panel is-wide">
+            <div class="mes-filter-panel-header">
+              <input id="worker-filter-skills-search" type="text" placeholder="Search skills..." class="worker-filter-panel-input mes-filter-panel-input">
+              <button id="worker-filter-skills-clear" type="button" class="worker-filter-panel-button mes-filter-panel-button">Clear</button>
+              <button id="worker-filter-skills-hide" type="button" title="Kapat" class="worker-filter-panel-button mes-filter-panel-button">×</button>
             </div>
-            <div id="worker-filter-skills-list" style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;"></div>
+            <div id="worker-filter-skills-list" class="mes-filter-panel-content"></div>
           </div>
         </div>
 
-        <div id="worker-filter-status" style="position: relative;">
-          <button id="worker-filter-status-btn" type="button" class="worker-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;">
+        <div id="worker-filter-status" class="mes-filter-group">
+          <button id="worker-filter-status-btn" type="button" class="worker-filter-button mes-filter-button is-compact">
             <span>Status</span>
-            <span id="worker-filter-status-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
-            <span style="margin-left: auto; opacity: .6">▾</span>
+            <span id="worker-filter-status-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
           </button>
-          <div id="worker-filter-status-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 220px; max-height: 260px; overflow: hidden; z-index: 1000;">
-            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; justify-content:flex-end; box-sizing: border-box;">
-              <button id="worker-filter-status-clear" type="button" class="worker-filter-panel-button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
-              <button id="worker-filter-status-hide" type="button" title="Kapat" class="worker-filter-panel-button" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
+          <div id="worker-filter-status-panel" class="mes-filter-panel is-narrow">
+            <div class="mes-filter-panel-header" style="justify-content: flex-end;">
+              <button id="worker-filter-status-clear" type="button" class="worker-filter-panel-button mes-filter-panel-button">Clear</button>
+              <button id="worker-filter-status-hide" type="button" title="Kapat" class="worker-filter-panel-button mes-filter-panel-button">×</button>
             </div>
-            <div id="worker-filter-status-list" style="max-height: 200px; overflow: auto; padding: 8px; display: grid; gap: 6px;"></div>
+            <div id="worker-filter-status-list" class="mes-filter-panel-content"></div>
           </div>
         </div>
 
-        <!-- Conflict Filter -->
-        <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); background: white; border-radius: 6px; min-width: 140px;">
-          <input id="worker-filter-conflict" type="checkbox" style="margin: 0;">
-          <label for="worker-filter-conflict" style="font-size: 14px; cursor: pointer; user-select: none;">Has conflict</label>
-        </div>
-        
-        <button id="worker-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="worker-filter-button"
-          style="display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;">
+        <label class="worker-filter-conflict mes-filter-toggle is-compact">
+          <input id="worker-filter-conflict" type="checkbox">
+          <span>Has conflict</span>
+        </label>
+
+        <button id="worker-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="worker-filter-button worker-clear-all-button mes-filter-clear is-compact" style="display: none;">
           Clear All
         </button>
       </div>

@@ -274,6 +274,58 @@ body {
   gap: 6px;
 }
 
+.mes-filter-clear.is-compact {
+  height: 30px;
+  padding: 3px 8px;
+}
+
+.mes-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  height: 44px;
+}
+
+.mes-filter-toggle input {
+  margin: 0;
+}
+
+.mes-filter-toggle span {
+  user-select: none;
+}
+
+.mes-filter-toggle.is-compact {
+  height: 30px;
+  padding: 3px 8px;
+}
+
+.mes-primary-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 44px;
+  border: none;
+  border-radius: 6px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.mes-primary-action.is-compact {
+  height: 30px;
+  padding: 3px 12px;
+  font-size: 12px;
+}
+
 .mes-table {
   width: 100%;
   border-collapse: collapse;
@@ -434,40 +486,6 @@ body {
 .worker-details-layout .detail-value {
   font-size: 12px;
   color: rgb(17, 24, 39);
-}
-
-/* Worker Filter Compact Styles */
-.workers-filter-compact .worker-filter-button {
-  padding: 3px 3px !important;
-}
-
-.workers-filter-compact .worker-filter-input {
-  padding: 3px 3px !important;
-}
-
-.workers-filter-compact .worker-filter-panel-button {
-  padding: 1.5px 2px !important;
-}
-
-.workers-filter-compact .worker-filter-panel-input {
-  padding: 1.5px 2px !important;
-}
-
-.workers-filter-compact .worker-filter-label {
-  padding: 1.5px 2px !important;
-}
-
-.workers-filter-compact .worker-add-button {
-  padding: 0px 6px !important;
-}
-
-.workers-filter-compact .worker-clear-all-button {
-  padding: 0px 4px !important;
-}
-
-/* Additional specific element targeting */
-.workers-filter-compact #worker-filter-search {
-  padding: 3px 3px !important;
 }
 
 /* Operations Filter Compact Styles - allowing dynamic width */
