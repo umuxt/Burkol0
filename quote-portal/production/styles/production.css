@@ -371,6 +371,10 @@ body {
   color: inherit;
   font-size: 13px;
   border-bottom: 1px solid rgb(243, 244, 246);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
 }
 
 .workers-table .mes-table-body td {

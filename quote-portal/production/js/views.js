@@ -1550,45 +1550,47 @@ export function generateApprovedQuotes() {
         <div class="workers-container" style="display: flex; gap: 20px; height: calc(-200px + 100vh); flex-direction: row;">
           <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
             <div class="workers-table">
-              <div class="table-container" style="overflow-y: auto; border: 1px solid rgb(229, 231, 235); border-radius: 6px; background: white;">
-                <table style="width: 100%; border-collapse: collapse;">
-                  <thead style="background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;">
+              <div class="mes-table-container">
+                <table id="approved-quotes-table" class="mes-table">
+                  <thead class="mes-table-header">
                     <tr>
-                      <th style="min-width: 80px; white-space: normal; padding: 8px;">
-                        <button type="button" onclick="sortApprovedQuotes('woCode')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                          WO Code <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                      <th style="min-width: 80px;">
+                        <button type="button" onclick="sortApprovedQuotes('woCode')" class="mes-sort-button">
+                          WO Code <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
-                        <button type="button" onclick="sortApprovedQuotes('customer')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                          Customer <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                      <th style="min-width: 160px;">
+                        <button type="button" onclick="sortApprovedQuotes('customer')" class="mes-sort-button">
+                          Customer <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
-                        <button type="button" onclick="sortApprovedQuotes('company')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                          Company <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                      <th style="min-width: 160px;">
+                        <button type="button" onclick="sortApprovedQuotes('company')" class="mes-sort-button">
+                          Company <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 140px; white-space: nowrap; padding: 8px;">
-                        <button type="button" onclick="sortApprovedQuotes('deliveryDate')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                          Delivery Date <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                      <th style="min-width: 140px;">
+                        <button type="button" onclick="sortApprovedQuotes('deliveryDate')" class="mes-sort-button">
+                          Delivery Date <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
-                        <button type="button" onclick="sortApprovedQuotes('productionPlan')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                          Production Plan <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                      <th style="min-width: 160px;">
+                        <button type="button" onclick="sortApprovedQuotes('productionPlan')" class="mes-sort-button">
+                          Production Plan <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 180px; white-space: nowrap; padding: 8px;">
-                        <button type="button" onclick="sortApprovedQuotes('productionState')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                          Üretim Durumu <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                      <th style="min-width: 180px;">
+                        <button type="button" onclick="sortApprovedQuotes('productionState')" class="mes-sort-button">
+                          Üretim Durumu <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th style="min-width: 200px; white-space: nowrap; padding: 8px; text-align: left;">Actions</th>
+                      <th style="min-width: 200px;">Actions</th>
                     </tr>
                   </thead>
-                  <tbody id="approved-quotes-table-body">
-                    <tr><td colspan="7"><em>Loading quotes...</em></td></tr>
+                  <tbody id="approved-quotes-table-body" class="mes-table-body">
+                    <tr class="mes-table-row is-empty">
+                      <td colspan="7" class="mes-empty-cell text-center"><em>Loading quotes...</em></td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
