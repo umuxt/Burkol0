@@ -85,7 +85,11 @@ function renderStations() {
   if (!tabsContainer || !tableBody) return
   
   if (!stationsState.length) {
-    tableBody.innerHTML = `<tr><td colspan="${compact ? 2 : 5}" style="padding:20px;color:#666;text-align:center;">No stations yet. Add a station.</td></tr>`
+    tableBody.innerHTML = `
+      <tr class="mes-table-row is-empty">
+        <td colspan="${compact ? 2 : 5}" class="mes-empty-cell text-center">No stations yet. Add a station.</td>
+      </tr>
+    `
     tabsContainer.innerHTML = ''
     return
   }
@@ -141,12 +145,11 @@ function renderStations() {
   // Render tabs as integrated part of table
   tabsContainer.innerHTML = tabs.map(tab => `
     <button 
-      class="station-tab-button ${activeOperationTypeTab === tab.id ? 'active' : ''}"
+      class="station-tab-button mes-tab-button ${activeOperationTypeTab === tab.id ? 'active' : ''}"
       onclick="setActiveStationTab('${tab.id}')"
-      style="padding: 2px 8px; font-size: 12px; border: none; background: ${activeOperationTypeTab === tab.id ? 'white' : 'transparent'}; border-radius: 4px; cursor: pointer; margin-right: 2px; font-weight: ${activeOperationTypeTab === tab.id ? '600' : '400'}; color: ${activeOperationTypeTab === tab.id ? 'rgb(17, 24, 39)' : 'rgb(75, 85, 99)'}; box-shadow: ${activeOperationTypeTab === tab.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'}; transition: all 0.2s ease;"
     >
       ${escapeHtml(tab.label)}
-      <span style="color: var(--muted-foreground); font-size: 11px; margin-left: 4px;">(${tab.count})</span>
+      <span class="mes-tab-count">(${tab.count})</span>
     </button>
   `).join('')
 
@@ -157,14 +160,14 @@ function renderStations() {
       if (compact) {
         thead.innerHTML = `
           <tr>
-            <th style="min-width: 70px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('id')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
-                Station ID <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('id')}</span>
+            <th style="min-width: 70px;">
+              <button type="button" class="mes-sort-button" onclick="sortStations('id')">
+                Station ID <span class="mes-sort-icon">${getSortIcon('id')}</span>
               </button>
             </th>
-            <th style="min-width: 200px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('name')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
-                Station Name <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('name')}</span>
+            <th style="min-width: 200px;">
+              <button type="button" class="mes-sort-button" onclick="sortStations('name')">
+                Station Name <span class="mes-sort-icon">${getSortIcon('name')}</span>
               </button>
             </th>
           </tr>
@@ -172,29 +175,29 @@ function renderStations() {
       } else {
         thead.innerHTML = `
           <tr>
-            <th style="min-width: 70px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('id')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
-                Station ID <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('id')}</span>
+            <th style="min-width: 70px;">
+              <button type="button" class="mes-sort-button" onclick="sortStations('id')">
+                Station ID <span class="mes-sort-icon">${getSortIcon('id')}</span>
               </button>
             </th>
-            <th style="min-width: 200px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('name')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
-                Station Name <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('name')}</span>
+            <th style="min-width: 200px;">
+              <button type="button" class="mes-sort-button" onclick="sortStations('name')">
+                Station Name <span class="mes-sort-icon">${getSortIcon('name')}</span>
               </button>
             </th>
-            <th style="min-width: 75px; white-space: nowrap; padding: 8px; text-align: center;">
-              <button type="button" onclick="sortStations('amount')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
-                Amount <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('amount')}</span>
+            <th style="min-width: 75px;" class="text-center">
+              <button type="button" class="mes-sort-button" onclick="sortStations('amount')">
+                Amount <span class="mes-sort-icon">${getSortIcon('amount')}</span>
               </button>
             </th>
-            <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('operations')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
-                Operations <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('operations')}</span>
+            <th style="min-width: 160px;">
+              <button type="button" class="mes-sort-button" onclick="sortStations('operations')">
+                Operations <span class="mes-sort-icon">${getSortIcon('operations')}</span>
               </button>
             </th>
-            <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('skills')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
-                Skills <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('skills')}</span>
+            <th style="min-width: 160px;">
+              <button type="button" class="mes-sort-button" onclick="sortStations('skills')">
+                Skills <span class="mes-sort-icon">${getSortIcon('skills')}</span>
               </button>
             </th>
           </tr>
@@ -204,63 +207,88 @@ function renderStations() {
   } catch {}
   
   // Render table rows
-  tableBody.innerHTML = filteredStations.map(station => {
-    const isInactive = station.status === 'inactive'
-    const isMaintenance = station.status === 'maintenance'
-    const rowBg = isInactive ? '#fff1f2' : (isMaintenance ? '#fffbeb' : 'white')
-    const textColor = isInactive ? '#dc2626' : (isMaintenance ? '#b45309' : 'inherit')
+  const rowsMarkup = filteredStations.map(station => {
+    const rowClasses = ['mes-table-row']
+    if (station.status === 'inactive') {
+      rowClasses.push('station-row-inactive')
+    } else if (station.status === 'maintenance') {
+      rowClasses.push('station-row-maintenance')
+    }
+
     const inherited = computeStationInheritedSkills(station.operationIds || [], operationsCache)
-    const effective = Array.from(new Set([...(station.subSkills||[]), ...inherited]))
+    const effective = Array.from(new Set([...(station.subSkills || []), ...inherited]))
     const opsLabels = (station.operationIds || []).map(id => opMap.get(id)?.name || id)
     const subStationCount = Array.isArray(station.subStations)
       ? station.subStations.length
       : Number.isFinite(Number(station.subStationCount))
         ? Number(station.subStationCount)
         : 0
-    
-    // Use description as tooltip for the entire row
+
     const description = station.description || ''
-    
+
     if (compact) {
       return `
-        <tr onclick="(async () => await showStationDetail('${station.id}'))()" style="cursor:pointer; background-color: ${rowBg}; border-bottom: 1px solid rgb(243, 244, 246); color: ${textColor};" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
-          <td style="padding: 4px 8px; color: ${textColor};">
-            <span style="font-family: monospace; font-size: 11px; color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor};">${escapeHtml(station.id || '')}</span>
+        <tr class="${rowClasses.join(' ')}" onclick="(async () => await showStationDetail('${station.id}'))()" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
+          <td>
+            <span class="mes-code-text">${escapeHtml(station.id || '')}</span>
           </td>
-          <td style="padding: 4px 8px; color: ${textColor};">
+          <td>
             ${escapeHtml(station.name || '')}
           </td>
-        </tr>`
+        </tr>
+      `
     }
+
+    const operationsMarkup = opsLabels.slice(0, 3).map(name => `
+      <span class="mes-tag">${escapeHtml(name)}</span>
+    `).join('')
+
+    const operationsExtra = opsLabels.length > 3
+      ? `<span class="mes-tag">+${opsLabels.length - 3}</span>`
+      : ''
+
+    const skillsMarkup = effective.slice(0, 3).map(skill => `
+      <span class="mes-tag">${escapeHtml(skill)}</span>
+    `).join('')
+
+    const skillsExtra = effective.length > 3
+      ? `<span class="mes-tag">+${effective.length - 3}</span>`
+      : ''
+
     return `
-      <tr onclick="(async () => await showStationDetail('${station.id}'))()" style="cursor:pointer; background-color: ${rowBg}; border-bottom: 1px solid rgb(243, 244, 246); color: ${textColor};" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
-        <td style="padding: 4px 8px; color: ${textColor};">
-          <span style="font-family: monospace; font-size: 11px; color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor};">${escapeHtml(station.id || '')}</span>
+      <tr class="${rowClasses.join(' ')}" onclick="(async () => await showStationDetail('${station.id}'))()" title="${escapeHtml(description)}" data-tooltip="${escapeHtml(description)}">
+        <td>
+          <span class="mes-code-text">${escapeHtml(station.id || '')}</span>
         </td>
-        <td style="padding: 4px 8px; color: ${textColor};">
+        <td>
           ${escapeHtml(station.name || '')}
         </td>
-        <td style="padding: 4px 8px; color: ${textColor}; text-align: center;">
-          <span style="font-size: 11px;">${subStationCount}</span>
+        <td class="text-center">
+          <span class="mes-code-text">${subStationCount}</span>
         </td>
-        <td style="padding: 4px 8px; color: ${textColor};">
-          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-            ${opsLabels.slice(0, 3).map(name => 
-              `<span style=\"background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(name)}</span>`
-            ).join('')}
-            ${opsLabels.length > 3 ? `<span style=\"background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">+${opsLabels.length - 3}</span>` : ''}
+        <td>
+          <div class="mes-tag-group">
+            ${operationsMarkup}${operationsExtra}
           </div>
         </td>
-        <td style="padding: 4px 8px; color: ${textColor};">
-          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-            ${effective.slice(0, 3).map(skill => 
-              `<span style=\"background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(skill)}</span>`
-            ).join('')}
-            ${effective.length > 3 ? `<span style=\"background-color: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">+${effective.length - 3}</span>` : ''}
+        <td>
+          <div class="mes-tag-group">
+            ${skillsMarkup}${skillsExtra}
           </div>
         </td>
-      </tr>`
+      </tr>
+    `
   }).join('')
+
+  if (!filteredStations.length) {
+    tableBody.innerHTML = `
+      <tr class="mes-table-row is-empty">
+        <td colspan="${compact ? 2 : 5}" class="mes-empty-cell text-center">No stations match your filters.</td>
+      </tr>
+    `
+  } else {
+    tableBody.innerHTML = rowsMarkup
+  }
   
   // Setup fast tooltips by disabling browser default and using our CSS tooltip
   setTimeout(() => {

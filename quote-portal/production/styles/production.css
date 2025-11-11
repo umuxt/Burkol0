@@ -106,6 +106,188 @@ body {
   background-color: rgb(249, 250, 251);
 }
 
+/* ==========================================================================
+   MES Table Standardization
+   ========================================================================== */
+.mes-table-container {
+  overflow-y: auto;
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.mes-table-tabs {
+  padding: 4px;
+  background: rgb(248, 249, 250);
+  border-bottom: 1px solid rgb(229, 231, 235);
+  border-radius: 6px 6px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mes-tab-button {
+  padding: 2px 8px;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 400;
+  color: rgb(75, 85, 99);
+  background: transparent;
+  box-shadow: none;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mes-tab-button.active {
+  font-weight: 600;
+  color: rgb(17, 24, 39);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.mes-tab-count {
+  color: var(--muted-foreground, rgb(107, 114, 128));
+  font-size: 11px;
+  margin-left: 4px;
+}
+
+.mes-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.mes-table-header {
+  background: rgb(248, 249, 250);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.mes-table-header th {
+  padding: 8px;
+  white-space: nowrap;
+  font-size: 14px;
+  color: rgb(55, 65, 81);
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 1px solid rgb(229, 231, 235);
+}
+
+.mes-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.mes-sort-icon {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.mes-table-body td {
+  padding: 2px 8px;
+  color: inherit;
+  font-size: 13px;
+  border-bottom: 1px solid rgb(243, 244, 246);
+}
+
+.workers-table .mes-table-body td {
+  padding: 2px 8px;
+}
+
+.mes-table-body .mes-table-row {
+  cursor: pointer;
+  background-color: #ffffff;
+  transition: background-color 0.2s ease;
+}
+
+.mes-table-body .mes-table-row:hover {
+  background-color: rgb(249, 250, 251);
+}
+
+.mes-code-text {
+  display: inline-block;
+  font-family: monospace;
+  font-size: 11px;
+  color: rgb(107, 114, 128);
+}
+
+.mes-tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mes-tag {
+  background-color: rgb(243, 244, 246);
+  color: rgb(107, 114, 128);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mes-empty-cell {
+  color: var(--muted-foreground, rgb(107, 114, 128));
+  padding: 16px;
+}
+
+.mes-table-row.is-empty:hover {
+  background-color: inherit;
+}
+
+.mes-table-row.station-row-maintenance {
+  background-color: #fffbeb;
+}
+
+.mes-table-row.station-row-maintenance:hover {
+  background-color: #fef3c7;
+}
+
+.mes-table-row.station-row-inactive {
+  background-color: #fff1f2;
+}
+
+.mes-table-row.station-row-inactive:hover {
+  background-color: #fee2e2;
+}
+
+.mes-table-row.station-row-maintenance,
+.mes-table-row.station-row-maintenance td {
+  color: #b45309;
+}
+
+.mes-table-row.station-row-inactive,
+.mes-table-row.station-row-inactive td {
+  color: #dc2626;
+}
+
+.mes-table-row.station-row-maintenance .mes-code-text,
+.mes-table-row.station-row-inactive .mes-code-text {
+  color: inherit;
+}
+
+.mes-table-row.station-row-maintenance .mes-tag,
+.mes-table-row.station-row-inactive .mes-tag {
+  color: inherit;
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
 .worker-details-layout .detail-item {
   display: flex;
   align-items: center;
@@ -1111,40 +1293,6 @@ body {
 /* Table Container */
 .table-container {
   overflow-x: auto;
-}
-
-/* Table Styles */
-#stations-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-#stations-table th {
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 12px 16px;
-  text-align: left;
-  font-weight: 600;
-  color: #374151;
-  font-size: 0.875rem;
-}
-
-#stations-table td {
-  padding: 12px 16px;
-  border-bottom: 1px solid #f3f4f6;
-  vertical-align: top;
-}
-
-#stations-table tbody tr {
-  transition: background-color 0.15s ease;
-}
-
-#stations-table tbody tr:hover {
-  background: #f8fafc;
-}
-
-#stations-table tbody tr:last-child td {
-  border-bottom: none;
 }
 
 /* Badge Styles */

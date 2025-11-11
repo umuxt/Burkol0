@@ -778,44 +778,42 @@ export function generateStations() {
           <div class=\"workers-table-panel\" style=\"flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;\">
             <div class=\"workers-table\">
               <!-- Stations Table with integrated tabs -->
-              <div class=\"table-container\" style=\"overflow-y: auto; border: 1px solid rgb(229, 231, 235); border-radius: 6px; background: white;\">
-                <!-- Station Type Tabs - integrated as part of table -->
-                <div class=\"stations-tabs\" id=\"stations-tabs\" style=\"padding: 4px; background: rgb(248, 249, 250); border-bottom: 1px solid rgb(229, 231, 235); border-radius: 6px 6px 0 0;\">
+              <div class="mes-table-container">
+                <div class="mes-table-tabs" id="stations-tabs">
                   <!-- Tabs will be populated by renderStations() -->
                 </div>
-                
-                <table id=\"stations-table\" style=\"width: 100%; border-collapse: collapse;\">
-                  <thead style=\"background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;\">
-                    <tr>
-                      <th style=\"min-width: 120px; white-space: nowrap; padding: 8px;\">
-                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
-                          Station ID <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
-                        </button>
-                      </th>
-                      <th style=\"min-width: 200px; white-space: nowrap; padding: 8px;\">
-                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
-                          Station Name <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
-                        </button>
-                      </th>
-                      <th style=\"min-width: 160px; white-space: nowrap; padding: 8px;\">
-                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
-                          Operations <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
-                        </button>
-                      </th>
-                      <th style=\"min-width: 80px; white-space: nowrap; padding: 8px;\">
-                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
-                          Fire (%) <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
-                        </button>
-                      </th>
-                      <th style=\"min-width: 160px; white-space: nowrap; padding: 8px;\">
-                        <button type=\"button\" style=\"display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;\">
-                          Skills <span style=\"font-size: 12px; opacity: 0.6;\">↕</span>
-                        </button>
-                      </th>
 
+                <table id="stations-table" class="mes-table">
+                  <thead class="mes-table-header">
+                    <tr>
+                      <th style="min-width: 120px;">
+                        <button type="button" class="mes-sort-button">
+                          Station ID <span class="mes-sort-icon">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 200px;">
+                        <button type="button" class="mes-sort-button">
+                          Station Name <span class="mes-sort-icon">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 90px;" class="text-center">
+                        <button type="button" class="mes-sort-button">
+                          Amount <span class="mes-sort-icon">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 160px;">
+                        <button type="button" class="mes-sort-button">
+                          Operations <span class="mes-sort-icon">↕</span>
+                        </button>
+                      </th>
+                      <th style="min-width: 160px;">
+                        <button type="button" class="mes-sort-button">
+                          Skills <span class="mes-sort-icon">↕</span>
+                        </button>
+                      </th>
                     </tr>
                   </thead>
-                  <tbody id=\"stations-list\">
+                  <tbody id="stations-list" class="mes-table-body">
                     <!-- Station rows will be populated by renderStations() -->
                   </tbody>
                 </table>
