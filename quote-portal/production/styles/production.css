@@ -137,6 +137,30 @@ body {
   flex-wrap: wrap;
 }
 
+.mes-filter-controls[data-nowrap="true"] {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mes-filter-controls[data-nowrap="true"]::-webkit-scrollbar {
+  display: none;
+}
+
+.mes-filter-controls[data-nowrap="true"] > * {
+  flex: 0 0 auto;
+}
+
+.mes-filter-controls[data-nowrap="true"] > .mes-filter-input {
+  flex: 1 1 260px;
+  min-width: 200px;
+}
+
+.mes-filter-controls[data-nowrap="true"] .mes-filter-group {
+  display: inline-flex;
+  align-items: center;
+}
+
 .mes-filter-group {
   position: relative;
   flex: 0 0 auto;
@@ -152,6 +176,8 @@ body {
   width: 100%;
   flex: 1 1 auto;
   font-size: 13px;
+  background: #ffffff;
+  color: var(--foreground);
 }
 
 .mes-filter-button {
@@ -187,6 +213,25 @@ body {
 .mes-filter-input.is-compact {
   height: 30px;
   padding: 3px 12px;
+}
+
+select.mes-filter-input {
+  padding-right: 30px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath fill='%236b7280' d='M0 0h8L4 5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 10px 6px;
+  width: auto;
+  min-width: 140px;
+}
+
+select.mes-filter-input.is-compact {
+  padding: 3px 30px 3px 12px;
+  height: 30px;
 }
 
 .mes-filter-panel {

@@ -148,32 +148,22 @@ export function generateWorkerPanel() {
   return `
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Work Packages</h1>
-      <p style="color: var(--muted-foreground);">Tüm iş emirleri ve görevlerin admin takibi</p>
     </div>
 
-    <!-- Work Packages Widget -->
-    <div class="card">
-      <div class="card-header">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <div>
-            <div class="card-title">📦 Work Packages</div>
-            <div class="card-description">Tüm iş emirleri ve görevlerin takibi</div>
-          </div>
-          <button id="work-packages-refresh-btn" style="background: var(--primary); color: var(--primary-foreground); padding: 6px 12px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
-            <span>🔄</span> Refresh
-          </button>
-        </div>
-      </div>
-      <div class="card-content">
-        <!-- Filters -->
-        <div id="work-packages-filters" style="padding: 12px 16px; background: var(--muted); border-radius: 8px; margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-          <input 
-            type="text" 
-            id="wp-search-input" 
-            placeholder="Search WO, customer, plan..." 
-            style="flex: 1; min-width: 200px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;"
-          />
-          <select id="wp-status-filter" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; min-width: 140px;">
+    <div class="mes-filter-bar" style="margin-bottom: 24px;">
+      <button id="work-packages-refresh-btn" type="button" class="mes-primary-action is-compact">
+        <span>🔄</span>
+        <span>Refresh</span>
+      </button>
+      <div class="mes-filter-controls" data-nowrap="true">
+        <input
+          type="text"
+          id="wp-search-input"
+          placeholder="Search WO, customer, plan..."
+          class="mes-filter-input is-compact"
+        >
+        <div class="mes-filter-group">
+          <select id="wp-status-filter" class="mes-filter-input is-compact">
             <option value="">All Statuses</option>
             <option value="pending">Pending</option>
             <option value="ready">Ready</option>
@@ -182,30 +172,35 @@ export function generateWorkerPanel() {
             <option value="completed">Completed</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          <select id="wp-worker-filter" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; min-width: 140px;">
+        </div>
+        <div class="mes-filter-group">
+          <select id="wp-worker-filter" class="mes-filter-input is-compact">
             <option value="">All Workers</option>
           </select>
-          <select id="wp-station-filter" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; min-width: 140px;">
+        </div>
+        <div class="mes-filter-group">
+          <select id="wp-station-filter" class="mes-filter-input is-compact">
             <option value="">All Stations</option>
           </select>
-          <button 
-            id="wp-hide-completed-btn" 
-            style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; background: var(--muted); display: inline-flex; align-items: center; gap: 6px; transition: 150ms; color: var(--foreground);"
-            title="Click to show completed tasks"
-          >
-            <span id="wp-hide-completed-icon">👁️</span>
-            <span id="wp-hide-completed-text">Hide Completed</span>
-          </button>
-          <button id="wp-clear-filters-btn" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; cursor: pointer; background: var(--background);">
-            Clear Filters
-          </button>
         </div>
-        
-        <!-- Table -->
-        <div id="work-packages-widget" style="padding: 0 16px 16px;">
-          <div style="text-align: center; color: var(--muted-foreground); padding: 32px;">Yükleniyor...</div>
-        </div>
+        <label id="wp-hide-completed-wrapper" class="mes-filter-toggle is-compact" title="Click to show completed tasks">
+          <input type="checkbox" id="wp-hide-completed-toggle" checked>
+          <span id="wp-hide-completed-text">Hide Completed</span>
+        </label>
+        <button id="wp-clear-filters-btn" type="button" class="mes-filter-clear is-compact">
+          Clear Filters
+        </button>
       </div>
+    </div>
+
+    <div id="work-packages-widget" class="mes-table-container">
+      <table class="mes-table">
+        <tbody class="mes-table-body">
+          <tr class="mes-table-row is-empty">
+            <td class="mes-empty-cell text-center"><em>Yükleniyor...</em></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   `;
 }
@@ -1824,13 +1819,16 @@ export async function initWorkPackagesWidget() {
   } catch (err) {
     console.error('Failed to load work packages widget:', err);
     const errorMessage = err.message || 'Bilinmeyen hata';
-    container.innerHTML = `
-      <div style="padding: 32px; text-align: center; color: #ef4444; background: #fee; border-radius: 8px;">
-        <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
-        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Work packages yüklenemedi</div>
-        <div style="font-size: 12px; color: #991b1b;">${errorMessage}</div>
-      </div>
-    `;
+    workPackagesState.allPackages = [];
+    workPackagesState.filteredPackages = [];
+    renderWorkPackagesTable();
+    const errorCell = container.querySelector('.mes-empty-cell');
+    if (errorCell) {
+      errorCell.innerHTML = `
+        <div class="mes-error-text">Work packages yüklenemedi</div>
+        <div class="mes-muted-text">${errorMessage}</div>
+      `;
+    }
   }
 }
 
@@ -1896,34 +1894,6 @@ async function refreshWorkPackagesData(showButtonState = true) {
     if (showButtonState && refreshBtn) {
       refreshBtn.disabled = true;
       refreshBtn.innerHTML = '<span>⏳</span> Loading...';
-    }
-    
-    // Show subtle loading indicator on table if silent refresh
-    if (!showButtonState && container) {
-      const loadingOverlay = document.createElement('div');
-      loadingOverlay.id = 'wp-loading-overlay';
-      loadingOverlay.style.cssText = `
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(255, 255, 255, 0.7);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        color: #6b7280;
-        border-radius: 8px;
-        z-index: 10;
-      `;
-      loadingOverlay.innerHTML = '🔄 Refreshing...';
-      
-      const widgetCard = container.closest('.dashboard-card');
-      if (widgetCard) {
-        widgetCard.style.position = 'relative';
-        widgetCard.appendChild(loadingOverlay);
-      }
     }
     
     // Import API functions
@@ -1997,11 +1967,25 @@ function bindWorkPackagesEvents() {
   
   // Search input
   const searchInput = document.getElementById('wp-search-input');
+  const clearBtn = document.getElementById('wp-clear-filters-btn');
+
+  function updateClearFiltersButton() {
+    if (!clearBtn) return;
+    const hasFilters = Boolean(
+      workPackagesState.searchTerm ||
+      workPackagesState.statusFilter ||
+      workPackagesState.workerFilter ||
+      workPackagesState.stationFilter
+    );
+    clearBtn.style.display = hasFilters ? 'inline-flex' : 'none';
+  }
+
   if (searchInput) {
     searchInput.oninput = (e) => {
       workPackagesState.searchTerm = e.target.value.toLowerCase();
       applyWorkPackagesFilters();
       renderWorkPackagesTable();
+      updateClearFiltersButton();
     };
   }
   
@@ -2012,6 +1996,7 @@ function bindWorkPackagesEvents() {
       workPackagesState.statusFilter = e.target.value;
       applyWorkPackagesFilters();
       renderWorkPackagesTable();
+      updateClearFiltersButton();
     };
   }
   
@@ -2022,6 +2007,7 @@ function bindWorkPackagesEvents() {
       workPackagesState.workerFilter = e.target.value;
       applyWorkPackagesFilters();
       renderWorkPackagesTable();
+      updateClearFiltersButton();
     };
   }
   
@@ -2032,49 +2018,39 @@ function bindWorkPackagesEvents() {
       workPackagesState.stationFilter = e.target.value;
       applyWorkPackagesFilters();
       renderWorkPackagesTable();
+      updateClearFiltersButton();
     };
   }
   
-  // Hide completed toggle button
-  const hideCompletedBtn = document.getElementById('wp-hide-completed-btn');
-  const hideCompletedIcon = document.getElementById('wp-hide-completed-icon');
+  // Hide completed toggle
+  const hideCompletedWrapper = document.getElementById('wp-hide-completed-wrapper');
+  const hideCompletedToggle = document.getElementById('wp-hide-completed-toggle');
   const hideCompletedText = document.getElementById('wp-hide-completed-text');
-  if (hideCompletedBtn) {
-    // Set initial state
-    updateHideCompletedButton();
-    
-    hideCompletedBtn.onclick = () => {
-      workPackagesState.hideCompleted = !workPackagesState.hideCompleted;
-      updateHideCompletedButton();
+  if (hideCompletedToggle) {
+    hideCompletedToggle.checked = workPackagesState.hideCompleted;
+    updateHideCompletedToggle();
+
+    hideCompletedToggle.onchange = () => {
+      workPackagesState.hideCompleted = hideCompletedToggle.checked;
+      updateHideCompletedToggle();
       applyWorkPackagesFilters();
       renderWorkPackagesTable();
     };
   }
-  
-  function updateHideCompletedButton() {
-    if (!hideCompletedBtn) return;
-    
+
+  function updateHideCompletedToggle() {
+    if (!hideCompletedToggle) return;
+
     if (workPackagesState.hideCompleted) {
-      // Currently hiding completed - button shows "Hide Completed"
-      hideCompletedBtn.style.background = 'var(--muted)';
-      hideCompletedBtn.style.borderColor = 'var(--border)';
-      hideCompletedBtn.style.color = 'var(--foreground)';
-      if (hideCompletedIcon) hideCompletedIcon.textContent = '�';
       if (hideCompletedText) hideCompletedText.textContent = 'Hide Completed';
-      hideCompletedBtn.title = 'Click to show completed tasks';
+      if (hideCompletedWrapper) hideCompletedWrapper.title = 'Click to show completed tasks';
     } else {
-      // Currently showing all - button shows "Show All"
-      hideCompletedBtn.style.background = '#10b981';
-      hideCompletedBtn.style.borderColor = '#10b981';
-      hideCompletedBtn.style.color = 'white';
-      if (hideCompletedIcon) hideCompletedIcon.textContent = '👁️';
-      if (hideCompletedText) hideCompletedText.textContent = 'Show All';
-      hideCompletedBtn.title = 'Click to hide completed tasks';
+      if (hideCompletedText) hideCompletedText.textContent = 'Show Completed';
+      if (hideCompletedWrapper) hideCompletedWrapper.title = 'Click to hide completed tasks';
     }
   }
   
   // Clear filters button
-  const clearBtn = document.getElementById('wp-clear-filters-btn');
   if (clearBtn) {
     clearBtn.onclick = () => {
       workPackagesState.searchTerm = '';
@@ -2090,7 +2066,9 @@ function bindWorkPackagesEvents() {
       
       applyWorkPackagesFilters();
       renderWorkPackagesTable();
+      updateClearFiltersButton();
     };
+    updateClearFiltersButton();
   }
 }
 
@@ -2142,37 +2120,25 @@ function renderWorkPackagesTable() {
   if (!container) return;
   
   const packages = workPackagesState.filteredPackages;
-  
-  if (packages.length === 0) {
-    container.innerHTML = `
-      <div style="text-align: center; padding: 48px; color: var(--muted-foreground);">
-        <div style="font-size: 48px; margin-bottom: 12px;">📦</div>
-        <div style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">No work packages found</div>
-        <div style="font-size: 13px;">Launch a production plan to create assignments</div>
-      </div>
-    `;
-    return;
-  }
-  
   const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
   
   const getStatusBadge = (status) => {
     const statusMap = {
-      'pending': { color: '#6b7280', bg: '#f3f4f6', label: 'Pending' },
-      'ready': { color: '#f59e0b', bg: '#fef3c7', label: 'Ready' },
-      'in-progress': { color: '#10b981', bg: '#d1fae5', label: 'In Progress' },
-      'paused': { color: '#ef4444', bg: '#fee2e2', label: 'Paused' },
-      'completed': { color: '#059669', bg: '#d1fae5', label: 'Completed' },
-      'cancelled': { color: '#dc2626', bg: '#fee2e2', label: 'Cancelled' }
+      'pending': { label: 'Pending', className: 'badge badge-outline' },
+      'ready': { label: 'Ready', className: 'badge badge-warning' },
+      'in-progress': { label: 'In Progress', className: 'badge badge-success' },
+      'paused': { label: 'Paused', className: 'badge badge-destructive' },
+      'completed': { label: 'Completed', className: 'badge badge-success' },
+      'cancelled': { label: 'Cancelled', className: 'badge badge-destructive' }
     };
-    const s = statusMap[status] || { color: '#6b7280', bg: '#f3f4f6', label: status };
-    return `<span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; color: ${s.color}; background: ${s.bg};">${s.label}</span>`;
+    const s = statusMap[status] || { label: status, className: 'badge badge-outline' };
+    return `<span class="${s.className}">${s.label}</span>`;
   };
   
   const getMaterialBadge = (status) => {
-    if (status === 'ok') return '<span style="color: #10b981; font-size: 14px;" title="Materials OK">✓</span>';
-    if (status === 'short') return '<span style="color: #ef4444; font-size: 14px;" title="Material Shortage">⚠️</span>';
-    return '<span style="color: #9ca3af; font-size: 14px;" title="Unknown">?</span>';
+    if (status === 'ok') return '<span class="badge badge-success">OK</span>';
+    if (status === 'short') return '<span class="badge badge-destructive">Short</span>';
+    return '<span class="badge badge-outline">Unknown</span>';
   };
   
   const formatTime = (iso) => {
@@ -2195,75 +2161,79 @@ function renderWorkPackagesTable() {
     const planUrl = `/pages/production.html?view=plan-designer&action=view&id=${encodeURIComponent(pkg.planId)}`;
     
     return `
-      <tr style="border-bottom: 1px solid var(--border);">
-        <td style="padding: 12px 8px;">
-          <div style="font-weight: 600; font-size: 12px; margin-bottom: 2px;">
-            <a href="${quoteUrl}" target="_blank" style="color: var(--primary); text-decoration: none;">${esc(pkg.workOrderCode)}</a>
+      <tr class="mes-table-row">
+        <td>
+          <div>
+            <a href="${quoteUrl}" target="_blank" rel="noopener" style="color: var(--primary); text-decoration: none; font-weight: 600;">
+              ${esc(pkg.workOrderCode)}
+            </a>
           </div>
-          <div style="font-size: 11px; color: var(--muted-foreground);">${esc(pkg.customer || pkg.company)}</div>
+          <div class="mes-muted-text">${esc(pkg.customer || pkg.company)}</div>
         </td>
-        <td style="padding: 12px 8px;">
-          <div style="font-size: 12px; font-weight: 500;">${esc(pkg.planName)}</div>
+        <td>
+          <div style="font-weight: 500;">${esc(pkg.planName)}</div>
         </td>
-        <td style="padding: 12px 8px;">
-          <div style="font-size: 12px;">${esc(pkg.nodeName)}</div>
+        <td>
+          <div>${esc(pkg.nodeName)}</div>
         </td>
-        <td style="padding: 12px 8px;">
-          <div style="font-size: 12px;">${esc(pkg.workerName)}</div>
+        <td>
+          <div>${esc(pkg.workerName)}</div>
         </td>
-        <td style="padding: 12px 8px;">
-          <div style="font-size: 12px;">${esc(pkg.stationName)}</div>
-          ${pkg.subStationCode ? `<div style="font-size: 10px; color: var(--muted-foreground);">${esc(pkg.subStationCode)}</div>` : ''}
+        <td>
+          <div>${esc(pkg.stationName)}</div>
+          ${pkg.subStationCode ? `<div class="mes-muted-text" style="font-size: 11px;">${esc(pkg.subStationCode)}</div>` : ''}
         </td>
-        <td style="padding: 12px 8px; text-align: center;">
-          ${getStatusBadge(pkg.status)}
+        <td class="text-center">
+          <div>${getStatusBadge(pkg.status)}</div>
         </td>
-        <td style="padding: 12px 8px; text-align: center;">
-          <span style="font-size: 12px; font-weight: 600; color: var(--muted-foreground);">#${pkg.priority || 0}</span>
+        <td class="text-center">
+          <span class="mes-muted-text" style="font-weight: 600;">#${pkg.priority || 0}</span>
         </td>
-        <td style="padding: 12px 8px; text-align: center;">
+        <td class="text-center">
           ${getMaterialBadge(pkg.materialStatus)}
         </td>
-        <td style="padding: 12px 8px;">
-          <div style="font-size: 11px; color: var(--muted-foreground);">
-            <div>Start: ${formatTime(pkg.actualStart || pkg.plannedStart)}</div>
-            <div>End: ${formatTime(pkg.actualEnd || pkg.plannedEnd)}</div>
-          </div>
+        <td>
+          <div class="mes-muted-text" style="font-size: 50%;">Start: ${formatTime(pkg.actualStart || pkg.plannedStart)}</div>
+          <div class="mes-muted-text" style="font-size: 50%;">End: ${formatTime(pkg.actualEnd || pkg.plannedEnd)}</div>
         </td>
-        <td style="padding: 12px 8px;">
-          <div style="display: flex; gap: 4px;">
-            <a href="${planUrl}" target="_blank" style="font-size: 11px; padding: 4px 8px; border-radius: 4px; background: var(--muted); color: var(--foreground); text-decoration: none; white-space: nowrap;">View Plan</a>
-          </div>
+        <td>
+          <a href="${planUrl}" target="_blank" rel="noopener" class="badge badge-outline" style="text-decoration: none;">View Plan</a>
         </td>
       </tr>
     `;
   }).join('');
   
+  const headerRow = `
+    <tr>
+      <th>Work Order</th>
+      <th>Plan</th>
+      <th>Operation</th>
+      <th>Worker</th>
+      <th>Station</th>
+      <th class="text-center">Status</th>
+      <th class="text-center">Priority</th>
+      <th class="text-center">Materials</th>
+      <th>ETA</th>
+      <th>Actions</th>
+    </tr>
+  `;
+
+  const emptyRow = `
+    <tr class="mes-table-row is-empty">
+      <td colspan="10" class="mes-empty-cell text-center"><em>No work packages found</em></td>
+    </tr>
+  `;
+
   container.innerHTML = `
-    <div style="overflow-x: auto;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-        <thead>
-          <tr style="border-bottom: 2px solid var(--border); background: var(--muted);">
-            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Work Order</th>
-            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Plan</th>
-            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Operation</th>
-            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Worker</th>
-            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Station</th>
-            <th style="padding: 10px 8px; text-align: center; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Status</th>
-            <th style="padding: 10px 8px; text-align: center; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Priority</th>
-            <th style="padding: 10px 8px; text-align: center; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Materials</th>
-            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">ETA</th>
-            <th style="padding: 10px 8px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; color: var(--muted-foreground);">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${tableRows}
-        </tbody>
-      </table>
-    </div>
-    <div style="margin-top: 12px; padding: 8px; background: var(--muted); border-radius: 6px; font-size: 12px; color: var(--muted-foreground); text-align: center;">
-      Showing ${packages.length} work package(s) ${workPackagesState.allPackages.length !== packages.length ? `of ${workPackagesState.allPackages.length} total` : ''}
-    </div>
+    <table class="mes-table">
+      <thead class="mes-table-header">
+        ${headerRow}
+      </thead>
+      <tbody class="mes-table-body">
+        ${packages.length > 0 ? tableRows : emptyRow}
+      </tbody>
+    </table>
+    ${packages.length > 0 ? `<div class="mes-muted-text" style="margin-top: 12px; text-align: center;">Showing ${packages.length} work package(s)${workPackagesState.allPackages.length !== packages.length ? ` of ${workPackagesState.allPackages.length} total` : ''}</div>` : ''}
   `;
 }
 
