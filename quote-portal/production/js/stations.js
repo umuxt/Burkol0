@@ -185,7 +185,7 @@ function renderStations() {
                 Station Name <span class="mes-sort-icon">${getSortIcon('name')}</span>
               </button>
             </th>
-            <th style="min-width: 75px;" class="text-center">
+            <th style="min-width: 1%; white-space: nowrap; text-align: center;" class="text-center">
               <button type="button" class="mes-sort-button" onclick="sortStations('amount')">
                 Amount <span class="mes-sort-icon">${getSortIcon('amount')}</span>
               </button>
@@ -264,7 +264,7 @@ function renderStations() {
           ${escapeHtml(station.name || '')}
         </td>
         <td class="text-center">
-          <span class="mes-code-text">${subStationCount}</span>
+          ${subStationCount}
         </td>
         <td>
           <div class="mes-tag-group">

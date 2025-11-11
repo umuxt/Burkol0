@@ -1228,7 +1228,7 @@ async function renderWorkersTable() {
 
     return `
       <tr class="mes-table-row" data-worker-id="${w.id}" onclick="(async () => await showWorkerDetail('${w.id}'))()">
-        <td><strong>${escapeHtml(w.name || '')}</strong></td>
+        <td>${escapeHtml(w.name || '')}</td>
         <td>${skillsMarkup}</td>
   <td class="worker-status-cell text-center"><span class="badge badge-${badgeClass}">${escapeHtml(statusText)}</span></td>
       </tr>`

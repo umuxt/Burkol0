@@ -126,7 +126,7 @@ function buildOperationsRows(list, emptyText, options = {}) {
     const defectValue = formatDefectRate(op.expectedDefectRate)
     const defectMarkup = legacy
       ? escapeHtml(defectValue)
-      : `<span class="mes-code-text">${escapeHtml(defectValue)}</span>`
+      : escapeHtml(defectValue)
     const actionMarkup = legacy
       ? `
         <td>
@@ -141,7 +141,7 @@ function buildOperationsRows(list, emptyText, options = {}) {
 
     return `
       <tr${rowAttrs}>
-        <td><strong>${escapeHtml(op.name || 'Unnamed Operation')}</strong></td>
+        <td>${escapeHtml(op.name || 'Unnamed Operation')}</td>
         <td>${typeMarkup}</td>
   <td class="text-center">${outputMarkup}</td>
         <td class="text-center">${defectMarkup}</td>
@@ -153,7 +153,7 @@ function buildOperationsRows(list, emptyText, options = {}) {
 
 function formatDefectRate(value) {
   const num = Number(value)
-  if (!Number.isFinite(num) || num < 0) return '0%'
+  if (!Number.isFinite(num) || num < 0 || num === 0) return '—'
   const normalized = Math.max(0, num)
   const formatted = normalized.toFixed(2).replace(/\.00$/, '').replace(/0$/, '')
   return `${formatted}%`

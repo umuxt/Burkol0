@@ -1004,7 +1004,7 @@ function renderApprovedQuotesTable() {
 
     return `
       <tr data-quote-id="${esc(idForRow)}" onclick="showApprovedQuoteDetail('${esc(idForRow)}')" style="cursor: pointer;">
-        <td style="padding:8px; border-bottom:1px solid var(--border);"><strong>${esc(idForRow)}</strong></td>
+        <td style="padding:8px; border-bottom:1px solid var(--border);"><span class="mes-code-text">${esc(idForRow)}</span></td>
         <td style="padding:8px; border-bottom:1px solid var(--border);">${esc(customer)}</td>
         <td style="padding:8px; border-bottom:1px solid var(--border);">${esc(company)}</td>
         <td style="padding:8px; border-bottom:1px solid var(--border);">${deliveryCell}</td>

@@ -124,7 +124,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   margin-bottom: 16px;
 }
 
@@ -133,8 +133,8 @@ body {
   align-items: center;
   gap: 8px;
   flex: 1 1 0%;
-  min-width: 260px;
-  flex-wrap: wrap;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
 .mes-filter-controls[data-nowrap="true"] {
@@ -153,18 +153,21 @@ body {
 }
 
 .mes-filter-controls[data-nowrap="true"] > .mes-filter-input {
-  flex: 1 1 260px;
+  flex: 1 1 auto;
   min-width: 200px;
+  max-width: none;
 }
 
 .mes-filter-controls[data-nowrap="true"] .mes-filter-group {
   position: relative;
   flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .mes-filter-group {
   position: relative;
   flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .mes-filter-input {
@@ -173,7 +176,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 6px;
   min-width: 200px;
-  max-width: 500px;
+  max-width: none;
   width: 100%;
   flex: 1 1 auto;
   font-size: 13px;
@@ -334,6 +337,8 @@ select.mes-filter-input.is-compact {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .mes-filter-clear.is-compact {
