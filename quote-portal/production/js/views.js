@@ -2335,6 +2335,11 @@ function renderWorkPackagesTable() {
     return `
       <tr class="mes-table-row">
         <td>
+          <div class="mes-muted-text" style="font-size: 11px; font-family: monospace;">
+            ${esc(pkg.assignmentId || pkg.id || '—')}
+          </div>
+        </td>
+        <td>
           <div>
             <a href="${quoteUrl}" target="_blank" rel="noopener" style="color: var(--primary); text-decoration: none; font-weight: 600;">
               ${esc(pkg.workOrderCode)}
@@ -2377,6 +2382,7 @@ function renderWorkPackagesTable() {
   
   const headerRow = `
     <tr>
+      <th>Work Package ID</th>
       <th>Work Order</th>
       <th>Plan</th>
       <th>Operation</th>
@@ -2392,7 +2398,7 @@ function renderWorkPackagesTable() {
 
   const emptyRow = `
     <tr class="mes-table-row is-empty">
-      <td colspan="10" class="mes-empty-cell text-center"><em>No work packages found</em></td>
+      <td colspan="11" class="mes-empty-cell text-center"><em>No work packages found</em></td>
     </tr>
   `;
 

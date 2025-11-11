@@ -45,6 +45,33 @@ function formatDateParts(d) {
   }
 }
 
+// Generate work package ID based on work order code
+async function generateWorkPackageId(workOrderCode, db) {
+  if (!workOrderCode) {
+    throw new Error('workOrderCode is required for generating work package ID');
+  }
+  
+  // Use counter for this work order to ensure sequential numbering
+  const counterRef = db.collection('mes-counters').doc(`workpackage-${workOrderCode}`);
+  
+  return await db.runTransaction(async (tx) => {
+    const snap = await tx.get(counterRef);
+    let next = 1;
+    if (snap.exists) {
+      const data = snap.data() || {};
+      next = Number.isFinite(data.next) ? data.next : 1;
+    }
+    
+    // Format: WO-001-01, WO-001-02, etc.
+    const workPackageId = `${workOrderCode}-${String(next).padStart(2, '0')}`;
+    
+    // Update counter
+    tx.set(counterRef, { next: next + 1, updatedAt: new Date() }, { merge: true });
+    
+    return workPackageId;
+  });
+}
+
 // Helper function to handle Firestore operations
 async function handleFirestoreOperation(operation, res) {
   try {
@@ -1181,14 +1208,23 @@ router.post('/production-plans', withAuth, async (req, res) => {
           updatedByName: actorName || createdBy || null
         }, { merge: true });
 
-        // Create assignments
-        assignments.forEach(assignment => {
-          const assignmentId = `${productionPlan.id}-${assignment.nodeId || assignment.workerId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+        // Generate assignment IDs before transaction
+        const workOrderCode = productionPlan.orderCode || productionPlan.id;
+        const assignmentIds = [];
+        for (let i = 0; i < assignments.length; i++) {
+          const assignmentId = await generateWorkPackageId(workOrderCode, db);
+          assignmentIds.push(assignmentId);
+        }
+
+        // Create assignments with work order-based IDs
+        assignments.forEach((assignment, index) => {
+          const assignmentId = assignmentIds[index];
           const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
           
           transaction.set(docRef, {
             id: assignmentId,
             planId: productionPlan.id,
+            workOrderCode: workOrderCode,
             nodeId: assignment.nodeId || null,
             workerId: assignment.workerId || null,
             stationId: assignment.stationId || null,
@@ -1200,7 +1236,7 @@ router.post('/production-plans', withAuth, async (req, res) => {
             updatedAt: now,
             createdBy: actorEmail || 'system'
           });
-        });
+        })
 
         return { success: true, id: productionPlan.id, assignmentsCreated: assignments.length };
       });
@@ -1296,14 +1332,23 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
           transaction.delete(doc.ref);
         });
 
-        // Create new assignments
-        assignments.forEach(assignment => {
-          const assignmentId = `${id}-${assignment.nodeId || assignment.workerId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+        // Generate assignment IDs before transaction
+        const workOrderCode = updates.orderCode || planUpdates.orderCode || id;
+        const assignmentIds = [];
+        for (let i = 0; i < assignments.length; i++) {
+          const assignmentId = await generateWorkPackageId(workOrderCode, db);
+          assignmentIds.push(assignmentId);
+        }
+
+        // Create new assignments with work order-based IDs
+        assignments.forEach((assignment, index) => {
+          const assignmentId = assignmentIds[index];
           const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
           
           transaction.set(docRef, {
             id: assignmentId,
             planId: id,
+            workOrderCode: workOrderCode,
             nodeId: assignment.nodeId || null,
             workerId: assignment.workerId || null,
             stationId: assignment.stationId || null,
@@ -1315,7 +1360,7 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
             updatedAt: now,
             createdBy: updatedByEmail || 'system'
           });
-        });
+        })
 
         return { success: true, id, assignmentsCreated: assignments.length };
       });
@@ -2057,12 +2102,20 @@ router.post('/worker-assignments/batch', withAuth, async (req, res) => {
         });
       }
 
+      // Generate assignment IDs before transaction
+      const workOrderCode = planData?.orderCode || planId;
+      const assignmentIds = [];
+      for (let i = 0; i < assignments.length; i++) {
+        const assignmentId = await generateWorkPackageId(workOrderCode, db);
+        assignmentIds.push(assignmentId);
+      }
+
       // Create new assignments with material reservation calculations
       const now = new Date();
       const createdBy = req.user?.email || 'system';
       
-      assignments.forEach(assignment => {
-        const assignmentId = `${planId}-${assignment.nodeId || assignment.workerId}-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+      assignments.forEach((assignment, index) => {
+        const assignmentId = assignmentIds[index];
         const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
         
         // Find the node in execution graph
@@ -2084,6 +2137,7 @@ router.post('/worker-assignments/batch', withAuth, async (req, res) => {
         transaction.set(docRef, {
           id: assignmentId,
           planId,
+          workOrderCode: workOrderCode,
           nodeId: assignment.nodeId || null,
           workerId: assignment.workerId || null,
           stationId: assignment.stationId || null,
@@ -2401,6 +2455,160 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
     const nextTaskId = nextTask?.assignmentId || null;
     
     return { tasks: allTasks, nextTaskId };
+  }, res);
+});
+
+// ============================================================================
+// MIGRATION ENDPOINT FOR ASSIGNMENT IDS
+// ============================================================================
+// POST /api/mes/migrate-assignment-ids - Migrate existing assignment IDs to work order format
+router.post('/migrate-assignment-ids', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { dryRun = true } = req.body;
+    const userEmail = req.user?.email || 'system';
+    
+    console.log(`🚀 Starting assignment ID migration (${dryRun ? 'DRY RUN' : 'LIVE'})`);
+    
+    const db = getFirestore();
+    
+    // Fetch all assignments
+    const assignmentsSnapshot = await db.collection('mes-worker-assignments').get();
+    const assignments = assignmentsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ref: doc.ref,
+      ...doc.data()
+    }));
+    
+    console.log(`Found ${assignments.length} assignments to process`);
+    
+    if (assignments.length === 0) {
+      return { success: true, message: 'No assignments found', migrations: [] };
+    }
+    
+    // Get unique plan IDs to fetch plan data
+    const planIds = [...new Set(assignments.map(a => a.planId).filter(Boolean))];
+    
+    // Fetch plan data to get work order codes
+    const plansMap = new Map();
+    for (const planId of planIds) {
+      try {
+        const planDoc = await db.collection('mes-production-plans').doc(planId).get();
+        if (planDoc.exists) {
+          const planData = planDoc.data();
+          plansMap.set(planId, planData);
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch plan ${planId}:`, error.message);
+      }
+    }
+    
+    // Group assignments by work order code and prepare migrations
+    const assignmentGroups = new Map();
+    const counters = new Map();
+    const migrations = [];
+    
+    for (const assignment of assignments) {
+      const plan = plansMap.get(assignment.planId);
+      const workOrderCode = plan?.orderCode || assignment.workOrderCode || assignment.planId || 'UNKNOWN';
+      
+      if (!assignmentGroups.has(workOrderCode)) {
+        assignmentGroups.set(workOrderCode, []);
+      }
+      assignmentGroups.get(workOrderCode).push(assignment);
+    }
+    
+    // Generate new IDs for each work order group
+    for (const [workOrderCode, workOrderAssignments] of assignmentGroups) {
+      for (const assignment of workOrderAssignments) {
+        const oldId = assignment.id;
+        
+        // Skip if already in new format
+        if (oldId.startsWith(workOrderCode + '-') && /\d{2}$/.test(oldId)) {
+          continue;
+        }
+        
+        // Generate new ID
+        const counterKey = `workpackage-${workOrderCode}`;
+        let counter = counters.get(counterKey) || 0;
+        counter++;
+        counters.set(counterKey, counter);
+        
+        const newId = `${workOrderCode}-${String(counter).padStart(2, '0')}`;
+        
+        migrations.push({
+          oldId,
+          newId,
+          workOrderCode,
+          assignment
+        });
+      }
+    }
+    
+    console.log(`Migration plan: ${migrations.length} assignments to migrate`);
+    
+    if (dryRun) {
+      return {
+        success: true,
+        dryRun: true,
+        totalAssignments: assignments.length,
+        migrationsNeeded: migrations.length,
+        workOrdersAffected: assignmentGroups.size,
+        migrations: migrations.map(m => ({ oldId: m.oldId, newId: m.newId, workOrderCode: m.workOrderCode }))
+      };
+    }
+    
+    // Execute migrations in batches
+    const BATCH_SIZE = 450;
+    let processedCount = 0;
+    
+    for (let i = 0; i < migrations.length; i += BATCH_SIZE) {
+      const batch = migrations.slice(i, i + BATCH_SIZE);
+      const firestoreBatch = db.batch();
+      
+      for (const migration of batch) {
+        const { oldId, newId, assignment } = migration;
+        
+        // Create new document
+        const newRef = db.collection('mes-worker-assignments').doc(newId);
+        const newData = { ...assignment };
+        newData.id = newId;
+        delete newData.ref;
+        firestoreBatch.set(newRef, newData);
+        
+        // Delete old document
+        firestoreBatch.delete(assignment.ref);
+      }
+      
+      await firestoreBatch.commit();
+      processedCount += batch.length;
+      console.log(`Migrated batch: ${processedCount}/${migrations.length}`);
+    }
+    
+    // Update counters
+    const counterBatch = db.batch();
+    for (const [counterKey, count] of counters) {
+      const counterRef = db.collection('mes-counters').doc(counterKey);
+      counterBatch.set(counterRef, { 
+        next: count + 1, 
+        updatedAt: new Date(),
+        migratedAt: new Date(),
+        migratedBy: userEmail
+      }, { merge: true });
+    }
+    await counterBatch.commit();
+    
+    console.log(`✅ Migration completed: ${processedCount} assignments migrated`);
+    
+    return {
+      success: true,
+      dryRun: false,
+      totalAssignments: assignments.length,
+      migrated: processedCount,
+      workOrdersAffected: assignmentGroups.size,
+      countersUpdated: counters.size,
+      migratedBy: userEmail,
+      migratedAt: new Date().toISOString()
+    };
   }, res);
 });
 
@@ -3740,20 +3948,22 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       batch.delete(doc.ref);
     });
     
-    // Create new assignments
-    assignments.forEach(assignment => {
-      const assignmentRef = db.collection('mes-worker-assignments').doc();
-      assignmentIds.push(assignmentRef.id);
+    // Create new assignments with work order-based IDs
+    for (const assignment of assignments) {
+      const workPackageId = await generateWorkPackageId(workOrderCode, db);
+      const assignmentRef = db.collection('mes-worker-assignments').doc(workPackageId);
+      assignmentIds.push(workPackageId);
       
       batch.set(assignmentRef, {
         ...assignment,
+        id: workPackageId,
         planId,
         workOrderCode,
         createdAt: now,
         createdBy: userEmail,
         updatedAt: now
       });
-    });
+    }
     
     // Update plan document with launch status
     batch.update(planRef, {
