@@ -212,7 +212,7 @@ export function generateWorkerPanel() {
 
         <label id="wp-hide-completed-wrapper" class="mes-filter-toggle is-compact" title="Click to show completed tasks">
           <input type="checkbox" id="wp-hide-completed-toggle" checked>
-          <span id="wp-hide-completed-text">Hide Completed</span>
+          <span id="wp-hide-completed-text" style="white-space: nowrap;">Hide Completed</span>
         </label>
         <button id="wp-clear-filters-btn" type="button" class="mes-filter-clear is-compact" onclick="clearAllWPFilters()">
           Clear Filters
@@ -1131,11 +1131,12 @@ export function generateStationDuplicateModal() {
 
 export function generatePlanDesigner() {
   return `
-    <div id="plans-header" style="margin-bottom: 16px;">
+    <div id="plans-header" style="margin-bottom: 24px;">
       <h1 id="plans-title" style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Planning</h1>
       <button id="plans-back-btn" onclick="cancelPlanCreation()" title="Go back" style="display:none; padding: 6px 10px; font-size: 12px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer;">← Back</button>
     </div>
-    <div class="plans-filter-compact mes-filter-bar" id="plans-filter-compact">
+
+    <div class="plans-filter-compact mes-filter-bar" id="plans-filter-compact" style="margin-bottom: 24px;">
       <button id="create-plan-button" onclick="openCreatePlan()" class="mes-primary-action is-compact">+ Create New Production Plan</button>
 
       <div id="plans-header-controls" class="mes-filter-controls">
@@ -1272,7 +1273,7 @@ export function generatePlanDesigner() {
       </div>
     </div>
 
-    <div id="plan-designer-section" style="margin-top: 16px; display: none;">
+    <div id="plan-designer-section" style="margin-top: 24px; display: none;">
       <div class="card" style="margin-bottom: 10px;">
         <div class="card-header" style="padding: 8px 10px;">
           <div class="card-title" style="font-size: 15px; display: flex; align-items: center; gap: 8px;">
