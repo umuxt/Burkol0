@@ -1455,57 +1455,52 @@ export function generateApprovedQuotes() {
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Approved Quotes</h1>
     </div>
 
-    <div class="approved-filter-compact" style="margin-bottom: 24px; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
-      <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
-        <input id="approved-quotes-search" type="text" placeholder="Ara: müşteri, firma, teklif #..." class="worker-filter-input"
-          style="height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 100%; width: 100%; flex: 1 1 auto;">
+    <div class="approved-filter-compact mes-filter-bar" style="margin-bottom: 24px;">
+      <div class="mes-filter-controls">
+        <input id="approved-quotes-search" type="text" placeholder="Ara: müşteri, firma, teklif #..." class="mes-filter-input is-compact">
 
         <!-- Plan Type Toggle: Tamamlanan / Taslak -->
-        <div id="aq-filter-plan-type" style="position: relative;">
-          <button id="aq-filter-plan-type-btn" type="button" class="station-filter-button" style="height: 44px; padding: 6px 10px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 180px; display: flex; align-items: center; gap: 8px;">
-            <span id="aq-filter-plan-type-label" style="white-space: nowrap;">Tamamlanan Planlar</span>
-            <span id="aq-filter-plan-type-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
-            <span style="margin-left: auto; opacity: .6">⇆</span>
+        <div class="mes-filter-group" id="aq-filter-plan-type">
+          <button id="aq-filter-plan-type-btn" type="button" class="mes-filter-button is-compact">
+            <span id="aq-filter-plan-type-label">Tamamlanan Planlar</span>
+            <span id="aq-filter-plan-type-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">⇆</span>
           </button>
         </div>
 
         <!-- Production State Filter -->
-        <div id="aq-filter-state" style="position: relative;">
-          <button id="aq-filter-state-btn" type="button" class="station-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 8px;">
+        <div class="mes-filter-group" id="aq-filter-state">
+          <button id="aq-filter-state-btn" type="button" class="mes-filter-button is-compact">
             <span>Üretim Durumu</span>
-            <span id="aq-filter-state-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
-            <span style="margin-left: auto; opacity: .6">▾</span>
+            <span id="aq-filter-state-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
           </button>
-          <div id="aq-filter-state-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 280px; overflow: hidden; z-index: 10000;">
-            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-              <div style="margin-left: auto; display: flex; gap: 6px;">
-                <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
-                <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
-              </div>
+          <div id="aq-filter-state-panel" class="mes-filter-panel is-narrow">
+            <div class="mes-filter-panel-header" style="justify-content: flex-end;">
+              <button type="button" class="mes-filter-panel-button">Clear</button>
+              <button type="button" title="Close" class="mes-filter-panel-button">×</button>
             </div>
-            <div style="max-height: 260px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" data-state="Üretim Onayı Bekliyor"> Üretim Onayı Bekliyor</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" data-state="Üretiliyor"> Üretiliyor</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" data-state="Üretim Durduruldu"> Üretim Durduruldu</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" data-state="Üretim Tamamlandı"> Üretim Tamamlandı</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" data-state="İptal Edildi"> İptal Edildi</label>
+            <div class="mes-filter-panel-content">
+              <label class="mes-filter-option"><input type="checkbox" data-state="Üretim Onayı Bekliyor"> Üretim Onayı Bekliyor</label>
+              <label class="mes-filter-option"><input type="checkbox" data-state="Üretiliyor"> Üretiliyor</label>
+              <label class="mes-filter-option"><input type="checkbox" data-state="Üretim Durduruldu"> Üretim Durduruldu</label>
+              <label class="mes-filter-option"><input type="checkbox" data-state="Üretim Tamamlandı"> Üretim Tamamlandı</label>
+              <label class="mes-filter-option"><input type="checkbox" data-state="İptal Edildi"> İptal Edildi</label>
             </div>
           </div>
         </div>
 
         <!-- Delivery Date Range Filter -->
-        <div id="aq-filter-delivery" style="position: relative;">
-          <button id="aq-filter-delivery-btn" type="button" class="station-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 160px; display: flex; align-items: center; gap: 6px; overflow: hidden;">
-            <span style="white-space: nowrap;">Teslim Tarihi</span>
-            <span id="aq-filter-delivery-summary" style="color: var(--muted-foreground); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;"></span>
-            <span style="opacity: .6; flex-shrink: 0;">▾</span>
+        <div class="mes-filter-group" id="aq-filter-delivery">
+          <button id="aq-filter-delivery-btn" type="button" class="mes-filter-button is-compact">
+            <span>Teslim Tarihi</span>
+            <span id="aq-filter-delivery-summary" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
           </button>
-          <div id="aq-filter-delivery-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 320px; overflow: hidden; z-index: 10000;">
-            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-              <div style="margin-left: auto; display: flex; gap: 6px;">
-                <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">Clear</button>
-                <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;">×</button>
-              </div>
+          <div id="aq-filter-delivery-panel" class="mes-filter-panel is-wide">
+            <div class="mes-filter-panel-header" style="justify-content: flex-end;">
+              <button type="button" class="mes-filter-panel-button">Clear</button>
+              <button type="button" title="Close" class="mes-filter-panel-button">×</button>
             </div>
             <div style="padding: 8px; display: grid; gap: 8px;">
               <!-- Gecikmiş Workorderlar butonu -->
@@ -1539,12 +1534,12 @@ export function generateApprovedQuotes() {
                 </button>
               </div>
               
-              <button type="button" class="station-filter-button" style="height: 32px; padding: 4px 6px; border: 1px solid black; background: black; color: white; border-radius: 6px; cursor: pointer; font-size: 12px;">Apply</button>
+              <button type="button" class="mes-filter-panel-button" style="height: 32px; padding: 4px 6px; border: 1px solid black; background: black; color: white;">Apply</button>
             </div>
           </div>
         </div>
 
-        <button id="aq-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="station-filter-button" style="display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;">
+        <button id="aq-filter-clear-all" type="button" title="Tüm filtreleri temizle" class="mes-filter-clear is-compact" style="display: none;">
           Clear All
         </button>
       </div>
