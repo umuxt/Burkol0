@@ -143,7 +143,7 @@ function renderStations() {
     <button 
       class="station-tab-button ${activeOperationTypeTab === tab.id ? 'active' : ''}"
       onclick="setActiveStationTab('${tab.id}')"
-      style="padding: 6px 12px; font-size: 12px; border: none; background: ${activeOperationTypeTab === tab.id ? 'white' : 'transparent'}; border-radius: 4px; cursor: pointer; margin-right: 6px; font-weight: ${activeOperationTypeTab === tab.id ? '600' : '400'}; color: ${activeOperationTypeTab === tab.id ? 'rgb(17, 24, 39)' : 'rgb(75, 85, 99)'}; box-shadow: ${activeOperationTypeTab === tab.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'}; transition: all 0.2s ease;"
+      style="padding: 2px 8px; font-size: 12px; border: none; background: ${activeOperationTypeTab === tab.id ? 'white' : 'transparent'}; border-radius: 4px; cursor: pointer; margin-right: 2px; font-weight: ${activeOperationTypeTab === tab.id ? '600' : '400'}; color: ${activeOperationTypeTab === tab.id ? 'rgb(17, 24, 39)' : 'rgb(75, 85, 99)'}; box-shadow: ${activeOperationTypeTab === tab.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'}; transition: all 0.2s ease;"
     >
       ${escapeHtml(tab.label)}
       <span style="color: var(--muted-foreground); font-size: 11px; margin-left: 4px;">(${tab.count})</span>
@@ -157,13 +157,13 @@ function renderStations() {
       if (compact) {
         thead.innerHTML = `
           <tr>
-            <th style="min-width: 120px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('id')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+            <th style="min-width: 70px; white-space: nowrap; padding: 8px;">
+              <button type="button" onclick="sortStations('id')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
                 Station ID <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('id')}</span>
               </button>
             </th>
             <th style="min-width: 200px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('name')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+              <button type="button" onclick="sortStations('name')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
                 Station Name <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('name')}</span>
               </button>
             </th>
@@ -172,28 +172,28 @@ function renderStations() {
       } else {
         thead.innerHTML = `
           <tr>
-            <th style="min-width: 120px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('id')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+            <th style="min-width: 70px; white-space: nowrap; padding: 8px;">
+              <button type="button" onclick="sortStations('id')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
                 Station ID <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('id')}</span>
               </button>
             </th>
             <th style="min-width: 200px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('name')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+              <button type="button" onclick="sortStations('name')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
                 Station Name <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('name')}</span>
               </button>
             </th>
-            <th style="min-width: 100px; white-space: nowrap; padding: 8px; text-align: right;">
-              <button type="button" onclick="sortStations('amount')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+            <th style="min-width: 75px; white-space: nowrap; padding: 8px; text-align: center;">
+              <button type="button" onclick="sortStations('amount')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
                 Amount <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('amount')}</span>
               </button>
             </th>
             <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('operations')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+              <button type="button" onclick="sortStations('operations')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
                 Operations <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('operations')}</span>
               </button>
             </th>
             <th style="min-width: 160px; white-space: nowrap; padding: 8px;">
-              <button type="button" onclick="sortStations('skills')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
+              <button type="button" onclick="sortStations('skills')" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font-size: 14px;">
                 Skills <span style="font-size: 12px; opacity: 0.6;">${getSortIcon('skills')}</span>
               </button>
             </th>
@@ -228,7 +228,7 @@ function renderStations() {
             <span style="font-family: monospace; font-size: 11px; color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor};">${escapeHtml(station.id || '')}</span>
           </td>
           <td style="padding: 4px 8px; color: ${textColor};">
-            <strong>${escapeHtml(station.name || '')}</strong>
+            ${escapeHtml(station.name || '')}
           </td>
         </tr>`
     }
@@ -238,10 +238,10 @@ function renderStations() {
           <span style="font-family: monospace; font-size: 11px; color: ${textColor === 'inherit' ? 'rgb(107, 114, 128)' : textColor};">${escapeHtml(station.id || '')}</span>
         </td>
         <td style="padding: 4px 8px; color: ${textColor};">
-          <strong>${escapeHtml(station.name || '')}</strong>
+          ${escapeHtml(station.name || '')}
         </td>
-        <td style="padding: 4px 8px; color: ${textColor}; text-align: right;">
-          <span style="display: inline-flex; align-items: center; justify-content: center; min-width: 32px; padding: 2px 6px; border-radius: 12px; background: rgb(243, 244, 246); color: ${textColor === 'inherit' ? 'rgb(55, 65, 81)' : textColor}; font-size: 11px; font-weight: 600;">${subStationCount}</span>
+        <td style="padding: 4px 8px; color: ${textColor}; text-align: center;">
+          <span style="font-size: 11px;">${subStationCount}</span>
         </td>
         <td style="padding: 4px 8px; color: ${textColor};">
           <div style="display: flex; flex-wrap: wrap; gap: 4px;">
