@@ -185,7 +185,7 @@ export async function viewProductionPlan(id) {
     // Title should reflect view mode
     try {
       const title = document.getElementById('plans-title');
-      if (title) title.textContent = 'Production Planning / Overview';
+      if (title) title.textContent = 'Production Route Management / Overview';
     } catch {}
     // Show plan ID in configuration header
     try {
@@ -385,7 +385,7 @@ export function openCreatePlan() {
   if (headerControls) headerControls.style.display = 'none';
   if (createButton) createButton.style.display = 'none';
   if (filterBar) filterBar.style.display = 'none';
-  if (title) title.textContent = 'Production Planning / New Plan Creation';
+  if (title) title.textContent = 'Production Route Management / New Route Creation';
   if (backBtn) backBtn.style.display = '';
 
   // Hide plan ID in configuration header for new plans
@@ -420,7 +420,7 @@ export function cancelPlanCreation() {
   if (filterBar) {
     filterBar.style.display = 'flex'; // Restore flex layout
   }
-  if (title) title.textContent = 'Production Planning';
+  if (title) title.textContent = 'Production Route Management';
   if (backBtn) backBtn.style.display = 'none';
   // Optionally scroll back to top
   setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0);

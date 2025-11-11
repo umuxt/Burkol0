@@ -10,7 +10,9 @@ export function generateModernDashboard() {
   return `
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">MES Dashboard</h1>
-      <p style="color: var(--muted-foreground);">Production Planning & Execution System - Last updated: ${new Date().toLocaleTimeString()}</p>
+      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+        Central hub for monitoring production activities, tracking work orders, and managing manufacturing execution. Access real-time production metrics and quick navigation to all system functions.
+      </p>
     </div>
 
     <!-- Quick Actions -->
@@ -54,8 +56,8 @@ export function generateModernDashboard() {
         <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
           <div class="status-indicator"><div class="status-dot status-online"></div><span>System Online</span></div>
           <div class="status-indicator" id="status-operations"><div class="status-dot status-busy"></div><span>Operations: Loading...</span></div>
-          <div class="status-indicator" id="status-stations"><div class="status-dot status-busy"></div><span>Stations: Loading...</span></div>
-          <div class="status-indicator" id="status-workers"><div class="status-dot status-busy"></div><span>Workers: Loading...</span></div>
+          <div class="status-indicator" id="status-stations"><div class="status-dot status-busy"></div><span>Work Stations: Loading...</span></div>
+          <div class="status-indicator" id="status-workers"><div class="status-dot status-busy"></div><span>Production Personnel: Loading...</span></div>
           <div class="status-indicator" id="status-plans"><div class="status-dot status-busy"></div><span>Plans: Loading...</span></div>
         </div>
       </div>
@@ -104,10 +106,10 @@ export function generateModernDashboard() {
         </div>
       </div>
 
-      <!-- Stations Overview -->
+      <!-- Work Stations Overview -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">🏭 İstasyonlar</div>
+          <div class="card-title">🏭 İş İstasyonları</div>
         </div>
         <div class="card-content">
           <div id="stations-overview-widget" style="padding: 16px;">
@@ -116,10 +118,10 @@ export function generateModernDashboard() {
         </div>
       </div>
 
-      <!-- Workers Overview -->
+      <!-- Production Personnel Overview -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">👷 İşçiler</div>
+          <div class="card-title">👷 Üretim Personeli</div>
         </div>
         <div class="card-content">
           <div id="workers-overview-widget" style="padding: 16px;">
@@ -148,6 +150,9 @@ export function generateWorkerPanel() {
   return `
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Work Packages</h1>
+      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+        Active work package assignments for production personnel. Monitor task progress, manage operations, and track completion status across all manufacturing activities.
+      </p>
     </div>
 
     <div class="mes-filter-bar" style="margin-bottom: 24px;">
@@ -180,13 +185,13 @@ export function generateWorkerPanel() {
 
         <div id="wp-filter-workers" class="mes-filter-group">
           <button id="wp-filter-workers-btn" type="button" class="mes-filter-button is-compact" onclick="toggleWPFilterPanel('workers')">
-            <span>Workers</span>
+            <span>Production Personnel</span>
             <span id="wp-filter-workers-count" class="mes-filter-count"></span>
             <span class="mes-filter-caret">▾</span>
           </button>
           <div id="wp-filter-workers-panel" class="mes-filter-panel is-wide">
             <div class="mes-filter-panel-header">
-              <input id="wp-filter-workers-search" type="text" placeholder="Search workers..." class="mes-filter-panel-input" oninput="searchWPFilter('workers', this)">
+              <input id="wp-filter-workers-search" type="text" placeholder="Search production personnel..." class="mes-filter-panel-input" oninput="searchWPFilter('workers', this)">
               <button id="wp-filter-workers-clear" type="button" class="mes-filter-panel-button" onclick="clearWPFilter('workers')">Clear</button>
               <button id="wp-filter-workers-hide" type="button" title="Close" class="mes-filter-panel-button" onclick="hideWPFilterPanel('workers')">×</button>
             </div>
@@ -196,7 +201,7 @@ export function generateWorkerPanel() {
 
         <div id="wp-filter-stations" class="mes-filter-group">
           <button id="wp-filter-stations-btn" type="button" class="mes-filter-button is-compact" onclick="toggleWPFilterPanel('stations')">
-            <span>Stations</span>
+            <span>Work Stations</span>
             <span id="wp-filter-stations-count" class="mes-filter-count"></span>
             <span class="mes-filter-caret">▾</span>
           </button>
@@ -257,8 +262,11 @@ export function generateWorkerPanel() {
 
 export function generateSettings() {
   return `
-    <div style="margin-bottom: 16px;">
+    <div style="margin-bottom: 24px;">
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Master Data</h1>
+      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+        Configure fundamental system data including skills, operation types, and production settings. This master data forms the foundation for all production planning and resource management activities.
+      </p>
     </div>
     
     <!-- İlk satır: Skills ve Production Settings -->
@@ -460,13 +468,15 @@ function generateTimeGridLines() {
 export function generateWorkers() {
   return `
     <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Workers Management</h1>
-      
+      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Personnel Management</h1>
+      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+        Manage production personnel, their skills, operations assignments, and work station capabilities. Add new personnel, define their expertise areas, and track their availability for production tasks.
+      </p>
     </div>
     <div class="workers-filter-compact mes-filter-bar" style="margin-bottom: 24px;">
-      <button onclick="openAddWorkerModal()" class="worker-add-button mes-primary-action is-compact">+ Add Worker</button>
+      <button onclick="openAddWorkerModal()" class="worker-add-button mes-primary-action is-compact">+ Add Production Personnel</button>
       <div class="mes-filter-controls">
-        <input id="worker-filter-search" type="text" placeholder="Search workers..." class="worker-filter-input mes-filter-input is-compact">
+        <input id="worker-filter-search" type="text" placeholder="Search production personnel..." class="worker-filter-input mes-filter-input is-compact">
 
         <div id="worker-filter-skills" class="mes-filter-group">
           <button id="worker-filter-skills-btn" type="button" class="worker-filter-button mes-filter-button is-compact">
@@ -529,7 +539,7 @@ export function generateWorkers() {
                             Skills <span class="mes-sort-icon">↕</span>
                           </button>
                         </th>
-                        <th class="worker-status-column text-center" style="min-width: 100px;">
+                        <th class="worker-status-column text-center" style="min-width: 100px; text-align: center;">
                           <button type="button" class="mes-sort-button">
                             Status <span class="mes-sort-icon">↕</span>
                           </button>
@@ -718,6 +728,9 @@ export function generateOperations() {
   return `
     <div style="margin-bottom: 24px;">
       <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Operations Management</h1>
+      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+        Define and manage production operations including machining, welding, assembly, and quality control processes. Configure required skills, estimated time, and station requirements for each operation type.
+      </p>
     </div>
 
     <div class="operations-filter-compact mes-filter-bar" style="margin-bottom: 24px;">
@@ -886,13 +899,16 @@ export function generateOperations() {
 export function generateStations() {
   return `
     <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Stations Management</h1>
+      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Work Stations Management</h1>
+      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+        Configure and manage production work stations including CNC machines, welding stations, and assembly areas. Define station capacity, operational status, and technical specifications for optimal resource planning.
+      </p>
     </div>
 
     <div class="mes-filter-bar" style="margin-bottom: 24px;">
-      <button onclick="openAddStationModal()" class="mes-primary-action is-compact">+ Add Station</button>
+      <button onclick="openAddStationModal()" class="mes-primary-action is-compact">+ Add Work Station</button>
       <div class="mes-filter-controls">
-        <input id="station-filter-search" type="text" placeholder="Search stations..." class="mes-filter-input is-compact">
+        <input id="station-filter-search" type="text" placeholder="Search work stations..." class="mes-filter-input is-compact">
 
         <div id="station-filter-status" class="mes-filter-group">
           <button id="station-filter-status-btn" type="button" class="mes-filter-button is-compact">
@@ -1132,12 +1148,15 @@ export function generateStationDuplicateModal() {
 export function generatePlanDesigner() {
   return `
     <div id="plans-header" style="margin-bottom: 24px;">
-      <h1 id="plans-title" style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Planning</h1>
+      <h1 id="plans-title" style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Route Management</h1>
+      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+        Design production routes and operation sequences. Define workflow dependencies, resource requirements, and process rules. Create reusable templates for efficient production planning.
+      </p>
       <button id="plans-back-btn" onclick="cancelPlanCreation()" title="Go back" style="display:none; padding: 6px 10px; font-size: 12px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer;">← Back</button>
     </div>
 
     <div class="plans-filter-compact mes-filter-bar" id="plans-filter-compact" style="margin-bottom: 24px;">
-      <button id="create-plan-button" onclick="openCreatePlan()" class="mes-primary-action is-compact">+ Create New Production Plan</button>
+      <button id="create-plan-button" onclick="openCreatePlan()" class="mes-primary-action is-compact">+ Create New Production Route</button>
 
       <div id="plans-header-controls" class="mes-filter-controls">
         <input id="plan-filter-search" type="text" placeholder="Search plans..." class="plan-filter-input mes-filter-input is-compact" oninput="filterProductionPlans()">
@@ -1536,7 +1555,10 @@ export function generateTemplates() {
 export function generateApprovedQuotes() {
   return `
     <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Approved Quotes</h1>
+      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Work Orders</h1>
+      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+        Monitor and manage approved work orders ready for production. Launch production processes, track status, and control production flow with pause, resume, and cancel operations.
+      </p>
     </div>
 
     <div class="approved-filter-compact mes-filter-bar" style="margin-bottom: 24px;">
@@ -2541,7 +2563,7 @@ export async function initProductionPlansWidget() {
         <div style="text-align: center; padding: 24px; color: var(--muted-foreground);">
           <div style="font-size: 32px; margin-bottom: 8px;">📋</div>
           <div style="font-size: 14px;">Henüz üretim planı oluşturulmamış</div>
-          <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">Plan Designer'dan yeni plan oluşturabilirsiniz</div>
+          <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">Route Designer'dan yeni plan oluşturabilirsiniz</div>
         </div>
       `;
       return;

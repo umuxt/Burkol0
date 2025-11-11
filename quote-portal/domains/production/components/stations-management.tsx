@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../shared/components/ui/select";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -23,10 +23,22 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "../../../shared/components/ui/dialog";
 import { Textarea } from "../../../shared/components/ui/textarea";
 import { Badge } from "../../../shared/components/ui/badge";
-import { useMES, Station } from "../contexts/MESContext";
+// import { useMES, Station } from "../contexts/MESContext";
+
+// Define Station type locally for now
+type Station = {
+  id: string;
+  name: string;
+  type: string;
+  capacity: number;
+  status: string;
+  description?: string;
+};
 
 export function StationsManagement() {
-  const { stations, setStations } = useMES();
+  // Mock data for now - replace with actual MES context when available
+  const stations: Station[] = [];
+  const setStations = (stations: Station[]) => {};
   
   const [stationDialog, setStationDialog] = useState(false);
   const [editingStation, setEditingStation] = useState<Station | null>(null);
@@ -105,9 +117,9 @@ export function StationsManagement() {
         <div className="flex items-center gap-3">
           <Factory className="h-6 w-6" />
           <div>
-            <h1>Stations Management</h1>
+            <h1>Work Stations Management</h1>
             <p className="text-muted-foreground">
-              Manage production stations and work centers
+              Manage production work stations and work centers
             </p>
           </div>
         </div>
@@ -120,14 +132,14 @@ export function StationsManagement() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Production Stations</CardTitle>
+                  <CardTitle>Production Work Stations</CardTitle>
                   <CardDescription>
-                    Add and configure stations where operations are performed
+                    Add and configure work stations where operations are performed
                   </CardDescription>
                 </div>
                 <Button onClick={handleAddStation}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Station
+                  Add Work Station
                 </Button>
               </div>
             </CardHeader>
@@ -146,7 +158,7 @@ export function StationsManagement() {
                   {stations.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        No stations yet. Click "Add Station" to get started.
+                        No work stations yet. Click "Add Work Station" to get started.
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -248,7 +260,7 @@ export function StationsManagement() {
                   min="1"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Number of workers that can operate this station simultaneously
+                  Number of production personnel that can operate this work station simultaneously
                 </p>
               </div>
               <div className="space-y-2">

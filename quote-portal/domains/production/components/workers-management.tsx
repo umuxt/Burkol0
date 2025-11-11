@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../shared/components/ui/select";
-import { toast } from "sonner@2.0.3";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -22,17 +22,37 @@ import {
 } from "../../../shared/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "../../../shared/components/ui/dialog";
 import { Badge } from "../../../shared/components/ui/badge";
-import { useMES, Worker } from "../contexts/MESContext";
+// import { useMES, Worker } from "../contexts/MESContext";
+
+// Define types locally for now
+type Worker = {
+  id: string;
+  name: string;
+  email: string;
+  skills: string[];
+  assignedOperations: string[];
+  assignedStations: string[];
+  assignedOperationIds?: string[];
+  assignedStationIds?: string[];
+  shift: string;
+  availability?: string;
+};
+
+type Station = {
+  id: string;
+  name: string;
+  type?: string;
+  capacity?: number;
+};
 
 export function WorkersManagement() {
-  const { 
-    workers, 
-    operations,
-    stations,
-    availableSkills,
-    setWorkers,
-    addSkill,
-  } = useMES();
+  // Mock data for now - replace with actual MES context when available
+  const workers: Worker[] = [];
+  const operations: any[] = [];
+  const stations: Station[] = [];
+  const availableSkills: string[] = [];
+  const setWorkers = (workers: Worker[]) => {};
+  const addSkill = (skill: string) => {};
   
   const [workerDialog, setWorkerDialog] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
@@ -162,9 +182,9 @@ export function WorkersManagement() {
         <div className="flex items-center gap-3">
           <Users className="h-6 w-6" />
           <div>
-            <h1>Workers Management</h1>
+            <h1>Production Personnel Management</h1>
             <p className="text-muted-foreground">
-              Manage workers, their skills, and assignments
+              Manage production personnel, their skills, and assignments
             </p>
           </div>
         </div>
@@ -177,14 +197,14 @@ export function WorkersManagement() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Workers & Capabilities</CardTitle>
+                  <CardTitle>Production Personnel & Capabilities</CardTitle>
                   <CardDescription>
-                    Define workers with their skills, operations, and station assignments
+                    Define production personnel with their skills, operations, and work station assignments
                   </CardDescription>
                 </div>
                 <Button onClick={handleAddWorker}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Worker
+                  Add Production Personnel
                 </Button>
               </div>
             </CardHeader>
@@ -206,7 +226,7 @@ export function WorkersManagement() {
                   {workers.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="text-center text-muted-foreground">
-                        No workers yet. Click "Add Worker" to get started.
+                        No production personnel yet. Click "Add Production Personnel" to get started.
                       </TableCell>
                     </TableRow>
                   ) : (
