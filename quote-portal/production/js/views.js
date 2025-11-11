@@ -2327,13 +2327,13 @@ function renderWorkPackagesTable() {
       'cancelled': { label: 'Cancelled', className: 'badge badge-destructive' }
     };
     const s = statusMap[status] || { label: status, className: 'badge badge-outline' };
-    return `<span class="${s.className}">${s.label}</span>`;
+    return `<span class="${s.className}" style="padding: 1px 8px;">${s.label}</span>`;
   };
   
   const getMaterialBadge = (status) => {
-    if (status === 'ok') return '<span class="badge badge-success">OK</span>';
-    if (status === 'short') return '<span class="badge badge-destructive">Short</span>';
-    return '<span class="badge badge-outline">Unknown</span>';
+    if (status === 'ok') return '<span class="badge badge-success" style="padding: 1px 8px; font-size: 0.75rem;">OK</span>';
+    if (status === 'short') return '<span class="badge badge-destructive" style="padding: 1px 8px; font-size: 0.75rem;">Short</span>';
+    return '<span class="badge badge-outline" style="padding: 1px 8px; font-size: 0.75rem;">Unknown</span>';
   };
   
   const formatTime = (iso) => {
@@ -2364,14 +2364,11 @@ function renderWorkPackagesTable() {
         </td>
         <td>
           <div>
-            <a href="${quoteUrl}" target="_blank" rel="noopener" style="color: var(--primary); text-decoration: none; font-weight: 600;">
+            <a href="${quoteUrl}" target="_blank" rel="noopener" class="mes-muted-text" style="font-size: 11px; font-family: monospace; text-decoration: none;">
               ${esc(pkg.workOrderCode)}
             </a>
           </div>
           <div class="mes-muted-text">${esc(pkg.customer || pkg.company)}</div>
-        </td>
-        <td>
-          <div style="font-weight: 500;">${esc(pkg.planName)}</div>
         </td>
         <td>
           <div>${esc(pkg.nodeName)}</div>
@@ -2381,7 +2378,6 @@ function renderWorkPackagesTable() {
         </td>
         <td>
           <div>${esc(pkg.stationName)}</div>
-          ${pkg.subStationCode ? `<div class="mes-muted-text" style="font-size: 11px;">${esc(pkg.subStationCode)}</div>` : ''}
         </td>
         <td class="text-center">
           <div>${getStatusBadge(pkg.status)}</div>
@@ -2396,32 +2392,27 @@ function renderWorkPackagesTable() {
           <div class="mes-muted-text" style="font-size: 50%;">Start: ${formatTime(pkg.actualStart || pkg.plannedStart)}</div>
           <div class="mes-muted-text" style="font-size: 50%;">End: ${formatTime(pkg.actualEnd || pkg.plannedEnd)}</div>
         </td>
-        <td>
-          <a href="${planUrl}" target="_blank" rel="noopener" class="badge badge-outline" style="text-decoration: none;">View Plan</a>
-        </td>
       </tr>
     `;
   }).join('');
   
   const headerRow = `
     <tr>
-      <th>Work Package ID</th>
-      <th>Work Order</th>
-      <th>Plan</th>
+      <th style="width: 1%; white-space: nowrap;">Work Package ID</th>
+      <th style="width: 1%; white-space: nowrap;">Work Order</th>
       <th>Operation</th>
       <th>Worker</th>
       <th>Station</th>
-      <th class="text-center">Status</th>
-      <th class="text-center">Priority</th>
-      <th class="text-center">Materials</th>
+      <th class="text-center" style="text-align: center;">Status</th>
+      <th class="text-center" style="text-align: center; width: 1%; white-space: nowrap;">Priority</th>
+      <th class="text-center" style="text-align: center; width: 1%; white-space: nowrap;">Materials</th>
       <th>ETA</th>
-      <th>Actions</th>
     </tr>
   `;
 
   const emptyRow = `
     <tr class="mes-table-row is-empty">
-      <td colspan="11" class="mes-empty-cell text-center"><em>No work packages found</em></td>
+      <td colspan="9" class="mes-empty-cell text-center"><em>No work packages found</em></td>
     </tr>
   `;
 
@@ -2909,13 +2900,13 @@ function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
       'cancelled': { label: 'İptal Edildi', className: 'badge badge-destructive' }
     };
     const s = statusMap[status] || { label: status, className: 'badge badge-outline' };
-    return `<span class="${s.className}">${s.label}</span>`;
+    return `<span class="${s.className}" style="padding: 1px 8px;">${s.label}</span>`;
   };
   
   const getMaterialBadge = (status) => {
-    if (status === 'ok') return '<span class="badge badge-success">Hazır</span>';
-    if (status === 'short') return '<span class="badge badge-destructive">Eksik</span>';
-    return '<span class="badge badge-outline">Bilinmeyen</span>';
+    if (status === 'ok') return '<span class="badge badge-success" style="padding: 1px 8px; font-size: 0.75rem;">Hazır</span>';
+    if (status === 'short') return '<span class="badge badge-destructive" style="padding: 1px 8px; font-size: 0.75rem;">Eksik</span>';
+    return '<span class="badge badge-outline" style="padding: 1px 8px; font-size: 0.75rem;">Bilinmeyen</span>';
   };
   
   const formatTime = (iso) => {
