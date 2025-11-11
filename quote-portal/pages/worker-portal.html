@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>İşçi Portalı - Burkol MES</title>
-  <script type="module" src="/components/BurkolNavigation.js"></script>
+  <!-- BurkolNavigation component removed - worker portal should be isolated -->
   <script type="module" src="/components/AuthGuard.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
@@ -24,34 +24,24 @@
         <!-- Logo Area -->
         <div style="padding: 0 16px 16px; border-bottom: 1px solid var(--border);">
           <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #2563eb, #1d4ed8); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">🏭</div>
+            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #2563eb, #1d4ed8); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;">👷</div>
             <div>
-              <h2 style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 2px;">MES System</h2>
-              <p style="font-size: 12px; color: var(--muted-foreground);">Manufacturing Execution</p>
+              <h2 style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 2px;">İşçi Portalı</h2>
+              <p style="font-size: 12px; color: var(--muted-foreground);">Görev Yönetimi</p>
             </div>
           </div>
         </div>
 
         <!-- Navigation Groups -->
         <div class="nav-group">
-          <div class="nav-group-header">İşçi Paneli</div>
+          <div class="nav-group-header">İşçi Menüsü</div>
           <div class="nav-group-content">
             <button class="nav-item active" onclick="window.location.href='/pages/worker-selection.html'">
-              <div class="nav-item-icon">👷</div>
-              <span>İşçi Seçimi</span>
+              <div class="nav-item-icon">�</div>
+              <span>İşçi Değiştir</span>
             </button>
             <button class="nav-item" onclick="window.location.href='/pages/production.html'">
               <div class="nav-item-icon">🏭</div>
-              <span>Üretim Paneli</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="nav-group">
-          <div class="nav-group-header">Yönetim</div>
-          <div class="nav-group-content">
-            <button class="nav-item" onclick="window.location.href='/pages/production.html'">
-              <div class="nav-item-icon">📊</div>
               <span>Ana Panel</span>
             </button>
           </div>
@@ -63,7 +53,8 @@
     <div class="main-content">
       <div id="content-area">
         <div style="margin-bottom: 24px;">
-          <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Worker Panel</h1>
+          <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">İşçi Portalı</h1>
+          <p style="color: var(--muted-foreground);">Atanan görevlerinizi görüntüleyin ve yönetin</p>
         </div>
 
         <!-- Work Packages Widget -->

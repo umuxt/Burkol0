@@ -147,7 +147,8 @@ export function generateModernDashboard() {
 export function generateWorkerPanel() {
   return `
     <div style="margin-bottom: 24px;">
-      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Worker Panel</h1>
+      <h1 style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Work Packages</h1>
+      <p style="color: var(--muted-foreground);">Tüm iş emirleri ve görevlerin admin takibi</p>
     </div>
 
     <!-- Work Packages Widget -->
