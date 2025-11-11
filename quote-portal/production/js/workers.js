@@ -979,13 +979,13 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
 
 function hideStatusColumn() {
   // Hide status column header
-  const statusHeader = document.querySelector('.workers-table th:nth-child(3)')
+  const statusHeader = document.querySelector('.worker-status-column')
   if (statusHeader) {
     statusHeader.style.display = 'none'
   }
   
   // Hide status column in all rows
-  const statusCells = document.querySelectorAll('#workers-table-body td:nth-child(3)')
+  const statusCells = document.querySelectorAll('#workers-table-body .worker-status-cell')
   statusCells.forEach(cell => {
     cell.style.display = 'none'
   })
@@ -993,13 +993,13 @@ function hideStatusColumn() {
 
 function showStatusColumn() {
   // Show status column header
-  const statusHeader = document.querySelector('.workers-table th:nth-child(3)')
+  const statusHeader = document.querySelector('.worker-status-column')
   if (statusHeader) {
     statusHeader.style.display = ''
   }
   
   // Show status column in all rows
-  const statusCells = document.querySelectorAll('#workers-table-body td:nth-child(3)')
+  const statusCells = document.querySelectorAll('#workers-table-body .worker-status-cell')
   statusCells.forEach(cell => {
     cell.style.display = ''
   })
@@ -1160,7 +1160,12 @@ async function loadWorkersAndRender() {
     await renderWorkersTable()
   } catch (e) {
     console.error('Workers load error:', e)
-    if (tbody) tbody.innerHTML = `<tr><td colspan="4"><span style="color:#ef4444">Workers yüklenemedi.</span></td></tr>`
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr class="mes-table-row is-empty">
+          <td colspan="3" class="mes-empty-cell text-center"><span class="mes-error-text">Workers yüklenemedi.</span></td>
+        </tr>`
+    }
     showToast('Workers yüklenemedi', 'error')
   }
 }
@@ -1171,17 +1176,26 @@ async function renderWorkersTable() {
 
   // Show loading state if conflict filter is active
   if (workerFilters.hasConflict) {
-    tbody.innerHTML = `<tr><td colspan=\"3\"><em>Checking for conflicts...</em></td></tr>`
+    tbody.innerHTML = `
+      <tr class="mes-table-row is-empty">
+        <td colspan="3" class="mes-empty-cell text-center"><em>Çakışmalar kontrol ediliyor...</em></td>
+      </tr>`
   }
 
   const filtered = await applyWorkersFilter(workersState)
 
   if (workersState.length === 0) {
-    tbody.innerHTML = `<tr><td colspan=\"3\"><em>Hiç worker yok. Yeni ekleyin.</em></td></tr>`
+    tbody.innerHTML = `
+      <tr class="mes-table-row is-empty">
+        <td colspan="3" class="mes-empty-cell text-center"><em>Hiç worker yok. Yeni ekleyin.</em></td>
+      </tr>`
     return
   }
   if (filtered.length === 0) {
-    tbody.innerHTML = `<tr><td colspan=\"3\"><em>Filtrelere uyan worker bulunamadı.</em></td></tr>`
+    tbody.innerHTML = `
+      <tr class="mes-table-row is-empty">
+        <td colspan="3" class="mes-empty-cell text-center"><em>Filtrelere uyan worker bulunamadı.</em></td>
+      </tr>`
     return
   }
 
@@ -1211,15 +1225,15 @@ async function renderWorkersTable() {
       badgeClass = 'warning'
     }
     
+    const skillsMarkup = skills.length
+      ? `<div class="mes-tag-group">${skills.map(skill => `<span class="mes-tag">${escapeHtml(skill)}</span>`).join('')}</div>`
+      : `<span class="mes-muted-text">-</span>`
+
     return `
-      <tr onclick="(async () => await showWorkerDetail('${w.id}'))()" data-worker-id="${w.id}" style="cursor: pointer; background-color: white; border-bottom-width: 1px; border-bottom-style: solid; border-bottom-color: rgb(243, 244, 246);">
-        <td style="padding: 4px 8px;"><strong>${escapeHtml(w.name || '')}</strong></td>
-        <td style="padding: 4px 8px;">
-          <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-            ${skills.map(skill => `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`).join('')}
-          </div>
-        </td>
-        <td style="padding: 4px 8px;"><span class="badge badge-${badgeClass}">${escapeHtml(statusText)}</span></td>
+      <tr class="mes-table-row" data-worker-id="${w.id}" onclick="(async () => await showWorkerDetail('${w.id}'))()">
+        <td><strong>${escapeHtml(w.name || '')}</strong></td>
+        <td>${skillsMarkup}</td>
+  <td class="worker-status-cell text-center"><span class="badge badge-${badgeClass}">${escapeHtml(statusText)}</span></td>
       </tr>`
   }).join('')
   

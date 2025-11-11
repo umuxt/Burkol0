@@ -497,29 +497,31 @@ export function generateWorkers() {
         <div class="workers-container" style="display: flex; gap: 20px; height: calc(-200px + 100vh); flex-direction: row;">
           <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
             <div class="workers-table">
-              <div class="table-container" style="overflow-y: auto; border: 1px solid rgb(229, 231, 235); border-radius: 6px; background: white;">
-                <table style="width: 100%; border-collapse: collapse;">
-                  <thead style="background: rgb(248, 249, 250); position: sticky; top: 0px; z-index: 1;">
+              <div class="mes-table-container">
+                <table id="workers-table" class="mes-table">
+                  <thead class="mes-table-header">
                     <tr>
-                      <th class="worker-name-column" style="min-width: 160px; white-space: nowrap; padding: 8px; text-align: left;">
-                        <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                          Name <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                      <th class="worker-name-column" style="min-width: 160px;">
+                        <button type="button" class="mes-sort-button">
+                          Name <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th class="worker-skills-column" style="min-width: 140px; white-space: nowrap; padding: 8px; text-align: left;">
-                        <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                          Skills <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                      <th class="worker-skills-column" style="min-width: 140px;">
+                        <button type="button" class="mes-sort-button">
+                          Skills <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
-                      <th class="worker-status-column" style="min-width: 100px; white-space: nowrap; padding: 8px; text-align: left;">
-                        <button type="button" style="display: inline-flex; align-items: center; gap: 6px; background: none; border: medium; cursor: pointer; padding: 0px; color: inherit; font: inherit;">
-                          Status <span style="font-size: 12px; opacity: 0.6;">↕</span>
+                      <th class="worker-status-column text-center" style="min-width: 100px;">
+                        <button type="button" class="mes-sort-button">
+                          Status <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
                     </tr>
                   </thead>
-                  <tbody id="workers-table-body">
-                    <tr><td colspan="3"><em>Loading workers...</em></td></tr>
+                  <tbody id="workers-table-body" class="mes-table-body">
+                    <tr class="mes-table-row is-empty">
+                      <td colspan="3" class="mes-empty-cell text-center"><em>Loading workers...</em></td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
