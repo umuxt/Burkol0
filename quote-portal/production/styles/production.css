@@ -116,6 +116,164 @@ body {
   margin-left: 4px;
 }
 
+/* ==========================================================================
+   MES Filter Toolkit
+   ========================================================================== */
+.mes-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.mes-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 0%;
+  min-width: 260px;
+  flex-wrap: wrap;
+}
+
+.mes-filter-group {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.mes-filter-input {
+  height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  min-width: 200px;
+  max-width: 500px;
+  width: 100%;
+  flex: 1 1 auto;
+  font-size: 13px;
+}
+
+.mes-filter-button {
+  height: 44px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.mes-filter-button:hover {
+  background: rgb(249, 250, 251);
+}
+
+.mes-filter-caret {
+  margin-left: auto;
+  opacity: 0.6;
+}
+
+.mes-filter-button.is-compact {
+  height: 30px;
+  padding: 3px 6px;
+  gap: 5px;
+}
+
+.mes-filter-input.is-compact {
+  height: 30px;
+  padding: 3px 12px;
+}
+
+.mes-filter-panel {
+  display: none;
+  position: absolute;
+  right: 0;
+  margin-top: 6px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+  z-index: 1000;
+}
+
+.mes-filter-panel.is-narrow {
+  width: 240px;
+}
+
+.mes-filter-panel.is-wide {
+  width: 320px;
+}
+
+.mes-filter-panel-header {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+}
+
+.mes-filter-panel-content {
+  max-height: 240px;
+  overflow: auto;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.mes-filter-panel-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 3px 4px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.mes-filter-panel-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 3px 4px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mes-filter-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.mes-filter-count {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.mes-filter-clear {
+  height: 44px;
+  padding: 0 8px;
+  border: 1px solid #ef4444;
+  background: #ffffff;
+  color: #ef4444;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .mes-table {
   width: 100%;
   border-collapse: collapse;

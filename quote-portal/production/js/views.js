@@ -1056,70 +1056,70 @@ export function generatePlanDesigner() {
       <h1 id="plans-title" style="font-size: 32px; font-weight: 700; margin-bottom: 8px;">Production Planning</h1>
       <button id="plans-back-btn" onclick="cancelPlanCreation()" title="Go back" style="display:none; padding: 6px 10px; font-size: 12px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer;">← Back</button>
     </div>
-    <div class="plans-filter-compact" id="plans-filter-compact" style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center; justify-content: space-between;">
+  <div class="plans-filter-compact mes-filter-bar" id="plans-filter-compact">
       <button id="create-plan-button" onclick="openCreatePlan()" style="background: var(--primary); color: var(--primary-foreground); height: 44px; padding: 0px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer;">+ Create New Production Plan</button>
 
-      <div id="plans-header-controls" style="display: flex; align-items: center; gap: 8px; flex: 1 1 0%;">
-        <input id="plan-filter-search" type="text" placeholder="Search plans..." class="plan-filter-input" style="height: 44px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; min-width: 200px; max-width: 500px; width: 100%; flex: 1 1 auto;" oninput="filterProductionPlans()">
+      <div id="plans-header-controls" class="mes-filter-controls">
+        <input id="plan-filter-search" type="text" placeholder="Search plans..." class="plan-filter-input mes-filter-input" oninput="filterProductionPlans()">
 
-        <div id="plan-filter-status" style="position: relative;">
-          <button id="plan-filter-status-btn" type="button" class="plan-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 120px; display: flex; align-items: center; gap: 8px;" onclick="togglePlanFilterPanel('status')">
+        <div id="plan-filter-status" class="mes-filter-group">
+          <button id="plan-filter-status-btn" type="button" class="plan-filter-button mes-filter-button" onclick="togglePlanFilterPanel('status')">
             <span>Status</span>
-            <span id="plan-filter-status-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
-            <span style="margin-left: auto; opacity: .6">▾</span>
+            <span id="plan-filter-status-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
           </button>
-          <div id="plan-filter-status-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 240px; overflow: hidden; z-index: 1000;">
-            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-              <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearPlanFilter('status')">Clear</button>
-              <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="hidePlanFilterPanel('status')">×</button>
+          <div id="plan-filter-status-panel" class="mes-filter-panel is-narrow">
+            <div class="mes-filter-panel-header">
+              <button type="button" class="mes-filter-panel-button" onclick="clearPlanFilter('status')">Clear</button>
+              <button type="button" title="Close" class="mes-filter-panel-button" onclick="hidePlanFilterPanel('status')">×</button>
             </div>
-            <div style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('status','planned',this.checked)"> planned</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('status','in-progress',this.checked)"> in-progress</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('status','completed',this.checked)"> completed</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('status','canceled',this.checked)"> canceled</label>
+            <div class="mes-filter-panel-content">
+              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('status','planned',this.checked)"> planned</label>
+              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('status','in-progress',this.checked)"> in-progress</label>
+              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('status','completed',this.checked)"> completed</label>
+              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('status','canceled',this.checked)"> canceled</label>
             </div>
           </div>
         </div>
 
-        <div id="plan-filter-priority" style="position: relative;">
-          <button id="plan-filter-priority-btn" type="button" class="plan-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 120px; display: flex; align-items: center; gap: 8px;" onclick="togglePlanFilterPanel('priority')">
+        <div id="plan-filter-priority" class="mes-filter-group">
+          <button id="plan-filter-priority-btn" type="button" class="plan-filter-button mes-filter-button" onclick="togglePlanFilterPanel('priority')">
             <span>Priority</span>
-            <span id="plan-filter-priority-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
-            <span style="margin-left: auto; opacity: .6">▾</span>
+            <span id="plan-filter-priority-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
           </button>
-          <div id="plan-filter-priority-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 240px; overflow: hidden; z-index: 1000;">
-            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-              <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearPlanFilter('priority')">Clear</button>
-              <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="hidePlanFilterPanel('priority')">×</button>
+          <div id="plan-filter-priority-panel" class="mes-filter-panel is-narrow">
+            <div class="mes-filter-panel-header">
+              <button type="button" class="mes-filter-panel-button" onclick="clearPlanFilter('priority')">Clear</button>
+              <button type="button" title="Close" class="mes-filter-panel-button" onclick="hidePlanFilterPanel('priority')">×</button>
             </div>
-            <div style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('priority','high',this.checked)"> high</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('priority','medium',this.checked)"> medium</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('priority','low',this.checked)"> low</label>
+            <div class="mes-filter-panel-content">
+              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('priority','high',this.checked)"> high</label>
+              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('priority','medium',this.checked)"> medium</label>
+              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('priority','low',this.checked)"> low</label>
             </div>
           </div>
         </div>
 
-        <div id="plan-filter-type" style="position: relative;">
-          <button id="plan-filter-type-btn" type="button" class="plan-filter-button" style="height: 44px; padding: 6px 6px; border: 1px solid var(--border); background: white; border-radius: 6px; cursor: pointer; min-width: 140px; display: flex; align-items: center; gap: 8px;" onclick="togglePlanFilterPanel('type')">
+        <div id="plan-filter-type" class="mes-filter-group">
+          <button id="plan-filter-type-btn" type="button" class="plan-filter-button mes-filter-button" onclick="togglePlanFilterPanel('type')">
             <span>Type</span>
-            <span id="plan-filter-type-count" style="color: var(--muted-foreground); font-size: 12px;"></span>
-            <span style="margin-left: auto; opacity: .6">▾</span>
+            <span id="plan-filter-type-count" class="mes-filter-count"></span>
+            <span class="mes-filter-caret">▾</span>
           </button>
-          <div id="plan-filter-type-panel" style="display:none; position: absolute; right: 0; margin-top: 6px; background: white; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); width: 240px; overflow: hidden; z-index: 1000;">
-            <div style="padding: 8px; border-bottom: 1px solid var(--border); display:flex; gap:6px; align-items:center; box-sizing: border-box;">
-              <button type="button" style="flex:0 0 auto; white-space:nowrap; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="clearPlanFilter('type')">Clear</button>
-              <button type="button" title="Close" style="flex:0 0 auto; font-size:12px; padding:3px 4px; border:1px solid var(--border); background:white; border-radius:6px; cursor:pointer;" onclick="hidePlanFilterPanel('type')">×</button>
+          <div id="plan-filter-type-panel" class="mes-filter-panel is-narrow">
+            <div class="mes-filter-panel-header">
+              <button type="button" class="mes-filter-panel-button" onclick="clearPlanFilter('type')">Clear</button>
+              <button type="button" title="Close" class="mes-filter-panel-button" onclick="hidePlanFilterPanel('type')">×</button>
             </div>
-            <div style="max-height: 240px; overflow: auto; padding: 8px; display: grid; gap: 6px;">
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('type','one-time',this.checked)"> one-time</label>
-              <label style="display:flex; align-items:center; gap:8px; font-size: 12px;"><input type="checkbox" onchange="onPlanFilterChange('type','recurring',this.checked)"> recurring</label>
+            <div class="mes-filter-panel-content">
+              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('type','one-time',this.checked)"> one-time</label>
+              <label class="mes-filter-option"><input type="checkbox" onchange="onPlanFilterChange('type','recurring',this.checked)"> recurring</label>
             </div>
           </div>
         </div>
 
-        <button id="plan-filter-clear-all" type="button" title="Clear all filters" class="plan-filter-button" style="display: none; height: 44px; padding: 0px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; margin-left: 8px;" onclick="clearAllPlanFilters()">
+        <button id="plan-filter-clear-all" type="button" title="Clear all filters" class="mes-filter-clear" style="display: none;" onclick="clearAllPlanFilters()">
           Clear All
         </button>
       </div>
