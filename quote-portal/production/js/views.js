@@ -220,14 +220,37 @@ export function generateWorkerPanel() {
       </div>
     </div>
 
-    <div id="work-packages-widget" class="mes-table-container">
-      <table class="mes-table">
-        <tbody class="mes-table-body">
-          <tr class="mes-table-row is-empty">
-            <td class="mes-empty-cell text-center"><em>Yükleniyor...</em></td>
-          </tr>
-        </tbody>
-      </table>
+    <div style="display: flex; gap: 16px; height: 100vh; max-height: calc(100vh - 280px);">
+      <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
+        <div id="work-packages-widget" class="mes-table-container">
+          <table class="mes-table">
+            <tbody class="mes-table-body">
+              <tr class="mes-table-row is-empty">
+                <td class="mes-empty-cell text-center"><em>Yükleniyor...</em></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="worker-detail-panel" id="work-package-detail-panel" style="flex: 1 1 0%; min-width: 400px; height: auto; display: none;">
+        <div style="background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;">
+          <div style="padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+              <button title="Detayları Kapat" onclick="closeWorkPackageDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">←</button>
+              <h3 style="margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);">Work Package Detayları</h3>
+            </div>
+          </div>
+          <div style="flex: 1 1 0%; overflow: auto; padding: 20px;">
+            <div id="work-package-detail-content">
+              <div style="text-align: center; color: var(--muted-foreground); padding: 64px;">
+                <div style="font-size: 48px; margin-bottom: 16px;">📦</div>
+                <p>Bir work package seçin</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -2333,7 +2356,7 @@ function renderWorkPackagesTable() {
     const planUrl = `/pages/production.html?view=plan-designer&action=view&id=${encodeURIComponent(pkg.planId)}`;
     
     return `
-      <tr class="mes-table-row">
+      <tr class="mes-table-row" onclick="(async () => await showWorkPackageDetail('${esc(pkg.assignmentId || pkg.id)}'))()" style="cursor: pointer;">
         <td>
           <div class="mes-muted-text" style="font-size: 11px; font-family: monospace;">
             ${esc(pkg.assignmentId || pkg.id || '—')}
@@ -2788,4 +2811,371 @@ export async function initDashboardWidgets() {
     initStationAlertsWidget(),
     initWorkPackagesWidget()
   ]);
+}
+
+/**
+ * Show work package detail panel
+ */
+export async function showWorkPackageDetail(assignmentId) {
+  const workPackage = workPackagesState.allPackages.find(pkg => pkg.assignmentId === assignmentId || pkg.id === assignmentId);
+  if (!workPackage) return;
+
+  // Debug: Log work package structure to see available fields
+  console.log('Work Package Data:', workPackage);
+
+  const detailPanel = document.getElementById('work-package-detail-panel');
+  const detailContent = document.getElementById('work-package-detail-content');
+  
+  if (!detailPanel || !detailContent) return;
+
+  // Show detail panel
+  detailPanel.style.display = 'block';
+  
+  // Show loading state first
+  detailContent.innerHTML = `
+    <div style="padding: 20px; text-align: center;">
+      <div style="font-size: 14px; color: rgb(107, 114, 128);">Yükleniyor...</div>
+    </div>
+  `;
+
+  try {
+    // Try to fetch additional details if we have workOrderCode or planId
+    let additionalData = {};
+    
+    // Fetch work order details if available
+    if (workPackage.workOrderCode) {
+      try {
+        const { getApprovedQuotes } = await import('./mesApi.js');
+        const quotes = await getApprovedQuotes();
+        const relatedQuote = quotes.find(q => q.workOrderCode === workPackage.workOrderCode);
+        if (relatedQuote) {
+          additionalData.quote = relatedQuote;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch work order details:', err);
+      }
+    }
+    
+    // Fetch plan details if available
+    if (workPackage.planId) {
+      try {
+        const { getProductionPlans } = await import('./mesApi.js');
+        const plans = await getProductionPlans();
+        const relatedPlan = plans.find(p => p.id === workPackage.planId);
+        if (relatedPlan) {
+          additionalData.plan = relatedPlan;
+        }
+      } catch (err) {
+        console.warn('Failed to fetch plan details:', err);
+      }
+    }
+    
+    // Generate work package detail content with additional data
+    detailContent.innerHTML = generateWorkPackageDetailContent(workPackage, additionalData);
+  } catch (err) {
+    console.error('Failed to show work package detail:', err);
+    detailContent.innerHTML = `
+      <div style="padding: 20px; text-align: center; color: #ef4444;">
+        <div style="font-size: 14px;">Detaylar yüklenemedi</div>
+        <div style="font-size: 12px; margin-top: 4px;">${err.message || 'Bilinmeyen hata'}</div>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Close work package detail panel
+ */
+export function closeWorkPackageDetail() {
+  const detailPanel = document.getElementById('work-package-detail-panel');
+  if (detailPanel) {
+    detailPanel.style.display = 'none';
+  }
+}
+
+/**
+ * Generate work package detail content HTML
+ */
+function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
+  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+  
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      'pending': { label: 'Beklemede', className: 'badge badge-outline' },
+      'ready': { label: 'Hazır', className: 'badge badge-warning' },
+      'in-progress': { label: 'Devam Ediyor', className: 'badge badge-success' },
+      'paused': { label: 'Duraklatıldı', className: 'badge badge-destructive' },
+      'completed': { label: 'Tamamlandı', className: 'badge badge-success' },
+      'cancelled': { label: 'İptal Edildi', className: 'badge badge-destructive' }
+    };
+    const s = statusMap[status] || { label: status, className: 'badge badge-outline' };
+    return `<span class="${s.className}">${s.label}</span>`;
+  };
+  
+  const getMaterialBadge = (status) => {
+    if (status === 'ok') return '<span class="badge badge-success">Hazır</span>';
+    if (status === 'short') return '<span class="badge badge-destructive">Eksik</span>';
+    return '<span class="badge badge-outline">Bilinmeyen</span>';
+  };
+  
+  const formatTime = (iso) => {
+    if (!iso) return '—';
+    try {
+      const date = new Date(iso);
+      return date.toLocaleString('tr-TR', { 
+        day: 'numeric',
+        month: 'long', 
+        year: 'numeric',
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } catch {
+      return '—';
+    }
+  };
+
+  return `
+    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Work Package Bilgileri</h3>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Package ID:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc(workPackage.assignmentId || workPackage.id || '—')}</span>
+      </div>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.planName || '—')}</span>
+      </div>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Priority:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-weight: 600; color: var(--muted-foreground);">#${workPackage.priority || 0}</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Work Order Bilgileri</h3>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Work Order:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-weight: 600;">${esc(workPackage.workOrderCode || '—')}</span>
+      </div>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Müşteri:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc((additionalData.quote && additionalData.quote.customer) || workPackage.customer || workPackage.company || '—')}</span>
+      </div>
+      ${(additionalData.quote && additionalData.quote.projectName) || workPackage.projectName ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Proje:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc((additionalData.quote && additionalData.quote.projectName) || workPackage.projectName)}</span>
+      </div>
+      ` : ''}
+      ${(additionalData.quote && additionalData.quote.description) || workPackage.description ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Açıklama:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc((additionalData.quote && additionalData.quote.description) || workPackage.description)}</span>
+      </div>
+      ` : ''}
+      ${(additionalData.quote && additionalData.quote.quantity) || workPackage.quantity ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Miktar:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc((additionalData.quote && additionalData.quote.quantity) || workPackage.quantity)}${workPackage.unit ? ` ${esc(workPackage.unit)}` : ''}</span>
+      </div>
+      ` : ''}
+      ${(additionalData.quote && additionalData.quote.deliveryDate) || workPackage.deliveryDate ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teslim Tarihi:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime((additionalData.quote && additionalData.quote.deliveryDate) || workPackage.deliveryDate)}</span>
+      </div>
+      ` : ''}
+      ${(additionalData.quote && additionalData.quote.orderDate) || workPackage.orderDate ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Sipariş Tarihi:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime((additionalData.quote && additionalData.quote.orderDate) || workPackage.orderDate)}</span>
+      </div>
+      ` : ''}
+      ${(additionalData.quote && additionalData.quote.quoteNumber) || workPackage.quoteId ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teklif No:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc((additionalData.quote && additionalData.quote.quoteNumber) || workPackage.quoteId)}</span>
+      </div>
+      ` : ''}
+      ${(additionalData.quote && additionalData.quote.totalValue) ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Toplam Değer:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-weight: 600; color: rgb(34, 197, 94);">${additionalData.quote.totalValue} ₺</span>
+      </div>
+      ` : ''}
+      ${workPackage.description ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Açıklama:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.description)}</span>
+      </div>
+      ` : ''}
+      ${workPackage.quantity ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Miktar:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.quantity)}${workPackage.unit ? ` ${esc(workPackage.unit)}` : ''}</span>
+      </div>
+      ` : ''}
+      ${workPackage.deliveryDate ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teslim Tarihi:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.deliveryDate)}</span>
+      </div>
+      ` : ''}
+      ${workPackage.orderDate ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Sipariş Tarihi:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.orderDate)}</span>
+      </div>
+      ` : ''}
+      ${workPackage.quoteId ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teklif ID:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc(workPackage.quoteId)}</span>
+      </div>
+      ` : ''}
+      ${workPackage.projectName ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Proje:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.projectName)}</span>
+      </div>
+      ` : ''}
+      ${workPackage.notes ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Notlar:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; white-space: pre-wrap;">${esc(workPackage.notes)}</span>
+      </div>
+      ` : ''}
+    </div>
+
+    ${workPackage.productName || workPackage.productCode || workPackage.drawingNumber ? `
+    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Ürün Bilgileri</h3>
+      ${workPackage.productName ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ürün Adı:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-weight: 500;">${esc(workPackage.productName)}</span>
+      </div>
+      ` : ''}
+      ${workPackage.productCode ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ürün Kodu:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc(workPackage.productCode)}</span>
+      </div>
+      ` : ''}
+      ${workPackage.drawingNumber ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teknik Resim:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc(workPackage.drawingNumber)}</span>
+      </div>
+      ` : ''}
+      ${workPackage.material ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Malzeme:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.material)}</span>
+      </div>
+      ` : ''}
+    </div>
+    ` : ''}
+
+    ${additionalData.plan || workPackage.planName ? `
+    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Plan Bilgileri</h3>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan Adı:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-weight: 500;">${esc((additionalData.plan && additionalData.plan.name) || workPackage.planName)}</span>
+      </div>
+      ${additionalData.plan && additionalData.plan.id ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan ID:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-family: monospace;">${esc(additionalData.plan.id)}</span>
+      </div>
+      ` : ''}
+      ${additionalData.plan && additionalData.plan.description ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan Açıklaması:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc(additionalData.plan.description)}</span>
+      </div>
+      ` : ''}
+      ${additionalData.plan && additionalData.plan.type ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan Tipi:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc(additionalData.plan.type)}</span>
+      </div>
+      ` : ''}
+      ${additionalData.plan && (additionalData.plan.nodes && additionalData.plan.nodes.length > 0) ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Toplam Operasyon:</span>
+        <span style="flex: 1 1 0%; font-size: 12px; font-weight: 600;">${additionalData.plan.nodes.length} operasyon</span>
+      </div>
+      ` : ''}
+      ${additionalData.plan && additionalData.plan.estimatedDuration ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tahmini Süre:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${additionalData.plan.estimatedDuration} dakika</span>
+      </div>
+      ` : ''}
+      ${additionalData.plan && additionalData.plan.createdAt ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Plan Tarihi:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(additionalData.plan.createdAt)}</span>
+      </div>
+      ` : ''}
+    </div>
+    ` : ''}
+
+    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Operasyon & Atama</h3>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Operasyon:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.nodeName || workPackage.operationName || '—')}</span>
+      </div>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İşçi:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${esc(workPackage.workerName || '—')}</span>
+      </div>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İstasyon:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">
+          ${esc(workPackage.stationName || '—')}
+          ${workPackage.subStationCode ? `<br><span style="font-size: 11px; color: var(--muted-foreground); font-family: monospace;">${esc(workPackage.subStationCode)}</span>` : ''}
+        </span>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Durum & Malzemeler</h3>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Status:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${getStatusBadge(workPackage.status)}</span>
+      </div>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Malzemeler:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${getMaterialBadge(workPackage.materialStatus)}</span>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Zaman Bilgileri</h3>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Planlanan Başlangıç:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.plannedStart)}</span>
+      </div>
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Planlanan Bitiş:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.plannedEnd)}</span>
+      </div>
+      ${workPackage.actualStart ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Gerçek Başlangıç:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.actualStart)}</span>
+      </div>
+      ` : ''}
+      ${workPackage.actualEnd ? `
+      <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Gerçek Bitiş:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.actualEnd)}</span>
+      </div>
+      ` : ''}
+    </div>
+  `;
 }

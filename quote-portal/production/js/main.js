@@ -1,7 +1,7 @@
 // Entry point: wire modules to global for inline handlers to keep working
 import { MESData, loadData, saveData, currentView, setCurrentView, getSavedView } from './state.js';
 import { showToast } from './ui.js';
-import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generateStationDuplicateModal, generatePlanDesigner, generateTemplates, generateApprovedQuotes, injectMetadataToggleStyles, toggleMetadataColumns, initDashboardWidgets, initWorkPackagesWidget } from './views.js';
+import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generateStationDuplicateModal, generatePlanDesigner, generateTemplates, generateApprovedQuotes, injectMetadataToggleStyles, toggleMetadataColumns, initDashboardWidgets, initWorkPackagesWidget, showWorkPackageDetail, closeWorkPackageDetail } from './views.js';
 import { initPlanOverviewUI, setActivePlanTab, openCreatePlan, filterProductionPlans, togglePlanFilterPanel, hidePlanFilterPanel, onPlanFilterChange, clearPlanFilter, clearAllPlanFilters, cancelPlanCreation, viewProductionPlan, releasePlanFromOverview, editTemplateById, deleteTemplateById } from './planOverview.js';
 import { initializeWorkersUI, openAddWorkerModal, editWorker, deleteWorker as deleteWorkerAction, saveWorker, closeWorkerModal, showWorkerDetail, closeWorkerDetail, editWorkerFromDetail, deleteWorkerFromDetail, openWorkerScheduleModal, closeWorkerScheduleModal, handleWorkerScheduleModeChange, saveWorkerSchedule } from './workers.js';
 import { initializePlanDesigner, loadOperationsToolbox, handleOperationDragStart, handleCanvasDragOver, handleCanvasDrop, renderCanvas, editNode, saveNodeEdit, closeNodeEditModal, deleteNode, toggleConnectMode, clearCanvas, handleOrderChange, savePlanAsTemplate, deployWorkOrder, handleCanvasClick, handleScheduleTypeChange, handleRecurringTypeChange, handlePeriodicFrequencyChange, savePlanDraft, togglePlanOrderPanel, hidePlanOrderPanel, clearPlanOrder, filterPlanOrderList, selectPlanOrder, togglePlanTypePanel, hidePlanTypePanel, clearPlanType, selectPlanType } from './planDesigner.js';
@@ -126,6 +126,8 @@ Object.assign(window, {
   // stations
   openAddStationModal, editStation, closeStationModal, saveStation, toggleStationStatus, deleteStation: deleteStationAction, setActiveStationTab, deleteStationFromModal, showStationDetail, closeStationDetail, editStationFromDetail, duplicateStationFromDetail, showStationDuplicateModal, closeStationDuplicateModal, confirmStationDuplicate, deleteStationFromDetail, sortStations,
   handleSubStationAdd, handleSubStationAddInputChange, toggleSubStationStatus, deleteSubStation, sortStations,
+  // work packages
+  showWorkPackageDetail, closeWorkPackageDetail,
   // operations
   openAddOperationModal, editOperation, deleteOperation, saveOperation, closeOperationModal, showOperationDetail, closeOperationDetail, editOperationFromDetail, deleteOperationFromDetail,
   openOperationTypesModal, closeOperationTypesModal, addOperationTypeFromModal, editOperationType, deleteOperationTypeConfirm,
