@@ -4,6 +4,7 @@ import { getProductionPlans, getPlanTemplates, deleteProductionPlan, clearTempla
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
 import { loadPlanNodes, setReadOnly, setPlanMeta, resetPlanDesignerState } from './planDesigner.js'
 import { loadApprovedOrdersToSelect } from './planDesignerBackend.js'
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
 
 export function initPlanOverviewUI() {
   // Default active tab
@@ -323,13 +324,13 @@ export async function deleteTemplateById(id) {
     
     console.log('Template deleted successfully:', id);
     if (typeof window.showToast === 'function') {
-      window.showToast('Template başarıyla silindi', 'success');
+      showSuccessToast('Template başarıyla silindi');
     }
     
   } catch (error) {
     console.error('Error deleting template:', error);
     if (typeof window.showToast === 'function') {
-      window.showToast('Template silinirken hata oluştu: ' + error.message, 'error');
+      showErrorToast('Template silinirken hata oluştu: ' + error.message);
     }
   }
 }

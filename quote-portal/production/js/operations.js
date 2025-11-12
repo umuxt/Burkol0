@@ -1,6 +1,6 @@
 // Operations management UI backed by backend API
 import { getOperations, saveOperations, normalizeOperation, genId, getMasterData, addSkill, addOperationType, updateOperationType, deleteOperationType, getWorkers } from './mesApi.js'
-import { showToast } from './ui.js'
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
 
 let operationsState = []
 let editingOperationId = null
@@ -42,7 +42,7 @@ async function loadOperationsAndRender() {
   } catch (e) {
     console.error('Operations load error:', e)
     if (container) container.innerHTML = `<div style="padding:12px; color:#ef4444;">Operations yüklenemedi.</div>`
-    showToast('Operations yüklenemedi', 'error')
+    showErrorToast('Operations yüklenemedi')
   }
 }
 
@@ -264,7 +264,7 @@ export async function saveOperation() {
   if (rawDefectRate) {
     const parsed = parseFloat(rawDefectRate)
     if (isNaN(parsed) || parsed < 0) {
-      showToast('Fire oranı geçerli bir pozitif sayı olmalıdır', 'warning')
+      showWarningToast('Fire oranı geçerli bir pozitif sayı olmalıdır')
       return
     }
     expectedDefectRate = parsed
@@ -278,10 +278,10 @@ export async function saveOperation() {
     skills = Array.from(document.querySelectorAll('#operation-skills-box input[type="checkbox"]:checked')).map(cb => cb.value)
   }
   
-  if (!name) { showToast('Operation name required', 'warning'); return }
-  if (!semiCode) { showToast('Yarı mamül çıktı kodu gerekli (örn. A, Qc)', 'warning'); return }
-  if (!/^[A-Z]([a-z])?$/.test(semiCode)) { showToast('Kod 1-2 harf olmalı: İlk büyük, ikinci küçük (örn. A, Qc)', 'warning'); return }
-  if (semiCode === 'M') { showToast("'M' tek başına kullanılamaz. İki harfli kullanın (örn. Mq) veya farklı bir kod girin.", 'warning'); return }
+  if (!name) { showWarningToast('Operation name required'); return }
+  if (!semiCode) { showWarningToast('Yarı mamül çıktı kodu gerekli (örn. A, Qc)'); return }
+  if (!/^[A-Z]([a-z])?$/.test(semiCode)) { showWarningToast('Kod 1-2 harf olmalı: İlk büyük, ikinci küçük (örn. A, Qc)'); return }
+  if (semiCode === 'M') { showWarningToast("'M' tek başına kullanılamaz. İki harfli kullanın (örn. Mq) veya farklı bir kod girin."); return }
   const exists = operationsState.some(o => {
     if (editingOperationId && o.id === editingOperationId) return false
     const c = (o.semiOutputCode || '').toString()
@@ -289,8 +289,8 @@ export async function saveOperation() {
     const n = l ? (l[0].toUpperCase() + (l[1] ? l[1].toLowerCase() : '')).slice(0,2) : ''
     return n && n === semiCode
   })
-  if (exists) { showToast('Bu çıktı kodu başka bir operasyonda kullanılıyor', 'warning'); return }
-  if (skills.length === 0) { showToast('Select at least one skill', 'warning'); return }
+  if (exists) { showWarningToast('Bu çıktı kodu başka bir operasyonda kullanılıyor'); return }
+  if (skills.length === 0) { showWarningToast('Select at least one skill'); return }
 
   const op = normalizeOperation({
     id: editingOperationId || genId('op-'),
@@ -311,10 +311,10 @@ export async function saveOperation() {
     await saveOperations(operationsState)
     closeOperationModal(true)
     renderOperations()
-    showToast('Operation saved', 'success')
+    showSuccessToast('Operation saved')
   } catch (e) {
     console.error('Operation save error:', e)
-    showToast('Operation could not be saved', 'error')
+    showErrorToast('Operation could not be saved')
   }
 }
 
@@ -324,10 +324,10 @@ export async function deleteOperation(id) {
   try {
     await saveOperations(operationsState)
     renderOperations()
-    showToast('Operation deleted', 'success')
+    showSuccessToast('Operation deleted')
   } catch (e) {
     console.error('Operation delete error:', e)
-    showToast('Operation could not be deleted', 'error')
+    showErrorToast('Operation could not be deleted')
   }
 }
 
@@ -730,18 +730,18 @@ export async function addOperationTypeFromModal() {
   
   const name = input.value.trim()
   if (!name) {
-    showToast('Operasyon tipi adı gerekli', 'error')
+    showErrorToast('Operasyon tipi adı gerekli')
     return
   }
   
   try {
     await addOperationType(name)
     input.value = ''
-    showToast('Operasyon tipi eklendi', 'success')
+    showSuccessToast('Operasyon tipi eklendi')
     loadOperationTypes() // Reload the list
   } catch (error) {
     console.error('Error adding operation type:', error)
-    showToast('Operasyon tipi eklenirken hata oluştu', 'error')
+    showErrorToast('Operasyon tipi eklenirken hata oluştu')
   }
 }
 
@@ -751,12 +751,12 @@ export function editOperationType(id, currentName) {
   
   updateOperationType(id, newName.trim())
     .then(() => {
-      showToast('Operasyon tipi güncellendi', 'success')
+      showSuccessToast('Operasyon tipi güncellendi')
       loadOperationTypes()
     })
     .catch(error => {
       console.error('Error updating operation type:', error)
-      showToast('Operasyon tipi güncellenirken hata oluştu', 'error')
+      showErrorToast('Operasyon tipi güncellenirken hata oluştu')
     })
 }
 
@@ -765,12 +765,12 @@ export function deleteOperationTypeConfirm(id, name) {
   
   deleteOperationType(id)
     .then(() => {
-      showToast('Operasyon tipi silindi', 'success')
+      showSuccessToast('Operasyon tipi silindi')
       loadOperationTypes()
     })
     .catch(error => {
       console.error('Error deleting operation type:', error)
-      showToast('Operasyon tipi silinirken hata oluştu', 'error')
+      showErrorToast('Operasyon tipi silinirken hata oluştu')
     })
 }
 
@@ -848,12 +848,12 @@ export async function addNewOperationTypeFromInput() {
   
   try {
     await addOperationType(input.value.trim())
-    showToast('New operation type added', 'success')
+    showSuccessToast('New operation type added')
     const dropdown = document.getElementById('operation-type-dropdown')
     if (dropdown) dropdown.style.display = 'none'
   } catch (error) {
     console.error('Error adding operation type:', error)
-    showToast('Error adding operation type', 'error')
+    showErrorToast('Error adding operation type')
   }
 }
 

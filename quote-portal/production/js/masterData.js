@@ -1,6 +1,6 @@
 // Skills and Operations master-data UI for Settings view
 import { getMasterData, saveMasterData, addSkill, getOperations, saveOperations } from './mesApi.js'
-import { showToast } from './ui.js'
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
 
 let skillsState = []
 let activeSkillId = null
@@ -228,17 +228,17 @@ export function onSkillsSearchInput() {
 export async function addSkillFromSettings() {
   const input = document.getElementById('skill-new-name')
   const name = input?.value?.trim()
-  if (!name) { showToast('Skill adı gerekli', 'warning'); return }
+  if (!name) { showWarningToast('Skill adı gerekli'); return }
   try {
     const created = await addSkill(name)
     skillsState.push(created)
     input.value = ''
     skillsQuery = ''
     renderSkills(document.getElementById('skills-management'))
-    showToast('Skill eklendi', 'success')
+    showSuccessToast('Skill eklendi')
   } catch (e) {
     console.error('addSkill error', e)
-    showToast('Skill eklenemedi', 'error')
+    showErrorToast('Skill eklenemedi')
   }
 }
 
@@ -246,7 +246,7 @@ export async function renameSkill(skillId) {
   const input = document.querySelector(`input[data-skill-id="${CSS.escape(skillId)}"]`)
   if (!input) return
   const name = input.value.trim()
-  if (!name) { showToast('Skill adı gerekli', 'warning'); return }
+  if (!name) { showWarningToast('Skill adı gerekli'); return }
   try {
     const idx = skillsState.findIndex(s => s.id === skillId)
     if (idx < 0) return
@@ -254,10 +254,10 @@ export async function renameSkill(skillId) {
     await saveMasterData({ skills: skillsState, operationTypes: [] })
     activeSkillId = null
     renderSkills(document.getElementById('skills-management'))
-    showToast('Skill güncellendi', 'success')
+    showSuccessToast('Skill güncellendi')
   } catch (e) {
     console.error('rename skill error', e)
-    showToast('Skill güncellenemedi', 'error')
+    showErrorToast('Skill güncellenemedi')
   }
 }
 
@@ -268,10 +268,10 @@ export async function deleteSkill(skillId) {
     await saveMasterData({ skills: skillsState, operationTypes: [] })
     activeSkillId = null
     renderSkills(document.getElementById('skills-management'))
-    showToast('Skill silindi', 'success')
+    showSuccessToast('Skill silindi')
   } catch (e) {
     console.error('delete skill error', e)
-    showToast('Skill silinemedi', 'error')
+    showErrorToast('Skill silinemedi')
   }
 }
 
@@ -398,7 +398,7 @@ export async function saveOperationEdit(operationId) {
   if (defectRateStr) {
     const parsed = parseFloat(defectRateStr)
     if (isNaN(parsed) || parsed < 0) {
-      showToast('Fire oranı geçerli bir pozitif sayı olmalıdır', 'warning')
+      showWarningToast('Fire oranı geçerli bir pozitif sayı olmalıdır')
       return
     }
     expectedDefectRate = parsed
@@ -417,10 +417,10 @@ export async function saveOperationEdit(operationId) {
     await saveOperations(operationsState)
     activeOperationId = null
     renderOperations(document.getElementById('operations-management'))
-    showToast('Fire oranı güncellendi', 'success')
+    showSuccessToast('Fire oranı güncellendi')
   } catch (e) {
     console.error('save operation error', e)
-    showToast('Fire oranı güncellenemedi', 'error')
+    showErrorToast('Fire oranı güncellenemedi')
   }
 }
 
@@ -432,10 +432,10 @@ export async function deleteOperationFromMaster(operationId) {
     await saveOperations(operationsState)
     activeOperationId = null
     renderOperations(document.getElementById('operations-management'))
-    showToast('Operasyon silindi', 'success')
+    showSuccessToast('Operasyon silindi')
   } catch (e) {
     console.error('delete operation error', e)
-    showToast('Operasyon silinemedi', 'error')
+    showErrorToast('Operasyon silinemedi')
   }
 }
 

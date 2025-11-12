@@ -1,6 +1,6 @@
 // Entry point: wire modules to global for inline handlers to keep working
 import { MESData, loadData, saveData, currentView, setCurrentView, getSavedView } from './state.js';
-import { showToast } from './ui.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
 import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generateStationDuplicateModal, generatePlanDesigner, generateTemplates, generateApprovedQuotes, injectMetadataToggleStyles, toggleMetadataColumns, initDashboardWidgets, initWorkPackagesWidget, showWorkPackageDetail, closeWorkPackageDetail } from './views.js';
 import { initPlanOverviewUI, setActivePlanTab, openCreatePlan, filterProductionPlans, togglePlanFilterPanel, hidePlanFilterPanel, onPlanFilterChange, clearPlanFilter, clearAllPlanFilters, cancelPlanCreation, viewProductionPlan, releasePlanFromOverview, editTemplateById, deleteTemplateById } from './planOverview.js';
 import { initializeWorkersUI, openAddWorkerModal, editWorker, deleteWorker as deleteWorkerAction, saveWorker, closeWorkerModal, showWorkerDetail, closeWorkerDetail, editWorkerFromDetail, deleteWorkerFromDetail, openWorkerScheduleModal, closeWorkerScheduleModal, handleWorkerScheduleModeChange, saveWorkerSchedule } from './workers.js';
@@ -105,7 +105,7 @@ function navigateToView(viewId) {
 
 // Attach to window for inline event handlers
 Object.assign(window, {
-  MESData, saveData, showToast,
+  MESData, saveData, showSuccessToast, showErrorToast, showWarningToast, showInfoToast,
   navigateToView,
   // plan designer handlers
   // prefer backend-enhanced versions where provided
@@ -245,7 +245,7 @@ async function saveTimeManagement() {
     }
     
     if (remoteOk) {
-      showToast('Çalışma programı güncellendi', 'success');
+      showSuccessToast('Çalışma programı güncellendi');
       // Apply lane count to UI
       try { setTimelineLaneCount(laneCount); } catch {}
       // Exit edit mode
@@ -335,13 +335,13 @@ async function saveTimeManagement() {
         console.error('Failed to refresh timeline UI:', e);
       }
     } else {
-      showToast('Zaman ayarları kaydedilemedi', 'error');
+      showErrorToast('Zaman ayarları kaydedilemedi');
       // Revert to snapshot
       try { restoreTimeline(); } catch {}
     }
   } catch (e) {
     console.error('saveTimeManagement error', e);
-    showToast('Zaman ayarları kaydedilemedi', 'error');
+    showErrorToast('Zaman ayarları kaydedilemedi');
     // Revert to snapshot
     try { restoreTimeline(); } catch {}
   }

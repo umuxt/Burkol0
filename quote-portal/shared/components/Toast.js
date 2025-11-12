@@ -172,7 +172,8 @@ function initToastContainer() {
         height: 100%;
         background: currentColor;
         transform-origin: left;
-        animation: toast-progress ${TOAST_AUTO_CLOSE_DURATION}ms linear;
+        transform: scaleX(1);
+        transition: transform linear;
       }
       
       .toast.success .toast-progress-bar {
@@ -191,14 +192,7 @@ function initToastContainer() {
         color: #3b82f6;
       }
       
-      @keyframes toast-progress {
-        from {
-          transform: scaleX(1);
-        }
-        to {
-          transform: scaleX(0);
-        }
-      }
+
       
       @media (max-width: 640px) {
         .toast-container {
@@ -285,12 +279,18 @@ export function showToast(messageOrOptions, type = 'info', options = {}) {
   // Handle both simple and object syntax
   let message, title, duration, closeable, onClose;
   
+  // Set default duration based on toast type
+  const getDefaultDuration = (toastType) => {
+    return (toastType === 'info' || toastType === 'message') ? 5000 : TOAST_AUTO_CLOSE_DURATION;
+  };
+  
   if (typeof messageOrOptions === 'object') {
-    ({ message, type = 'info', title, duration = TOAST_AUTO_CLOSE_DURATION, closeable = true, onClose } = messageOrOptions);
+    ({ message, type = 'info', title, duration, closeable = true, onClose } = messageOrOptions);
+    duration = duration !== undefined ? duration : getDefaultDuration(type);
   } else {
     message = messageOrOptions;
     title = options.title;
-    duration = options.duration !== undefined ? options.duration : TOAST_AUTO_CLOSE_DURATION;
+    duration = options.duration !== undefined ? options.duration : getDefaultDuration(type);
     closeable = options.closeable !== undefined ? options.closeable : true;
     onClose = options.onClose;
   }
@@ -329,6 +329,15 @@ export function showToast(messageOrOptions, type = 'info', options = {}) {
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       toast.classList.add('show');
+      
+      // Start progress bar animation if duration is set
+      if (duration > 0) {
+        const progressBar = toast.querySelector('.toast-progress-bar');
+        if (progressBar) {
+          progressBar.style.transitionDuration = `${duration}ms`;
+          progressBar.style.transform = 'scaleX(0)';
+        }
+      }
     });
   });
   

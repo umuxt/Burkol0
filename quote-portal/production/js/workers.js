@@ -1,7 +1,7 @@
 // Workers management backed by backend API (no direct Firebase client)
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
 import { getMasterData, getWorkerStations, getWorkerAssignments } from './mesApi.js'
-import { showToast } from './ui.js'
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
 import { generateWeeklyTimeline } from './views.js'
 
 let workersState = []
@@ -269,7 +269,7 @@ export function saveWorkerSchedule() {
   // Validate when company settings are shift-based
   const company = safeLoadCompanyTimeSettings()
   if (selectedMode === 'company' && company && company.workType === 'shift') {
-    if (!shiftNo) { showToast('Vardiyalı modda vardiya no seçiniz', 'warning'); return }
+    if (!shiftNo) { showWarningToast('Vardiyalı modda vardiya no seçiniz'); return }
   }
 
   const schedule = { mode: selectedMode }
@@ -343,7 +343,7 @@ export function saveWorkerSchedule() {
   (async () => {
     try {
       await persistWorkers()
-      showToast('Çalışma saatleri kaydedildi', 'success')
+      showSuccessToast('Çalışma saatleri kaydedildi')
       
       // Refresh details if open to show updated schedule
       if (selectedWorkerId) {
@@ -379,7 +379,7 @@ export function saveWorkerSchedule() {
       }
     } catch (e) {
       console.error('saveWorkerSchedule persist error', e)
-      showToast('Çalışma saatleri kaydedilemedi', 'error')
+      showErrorToast('Çalışma saatleri kaydedilemedi')
     } finally {
       closeWorkerScheduleModal()
     }
@@ -1121,10 +1121,10 @@ async function refreshWorkerAssignments(workerId) {
       await showWorkerDetail(workerId);
     }
     
-    showToast('Görevler güncellendi', 'success');
+    showSuccessToast('Görevler güncellendi');
   } catch (error) {
     console.error('Failed to refresh assignments:', error);
-    showToast('Görevler güncellenirken hata oluştu', 'error');
+    showErrorToast('Görevler güncellenirken hata oluştu');
   }
 }
 
@@ -1163,7 +1163,7 @@ async function loadWorkersAndRender() {
           <td colspan="3" class="mes-empty-cell text-center"><span class="mes-error-text">Workers yüklenemedi.</span></td>
         </tr>`
     }
-    showToast('Workers yüklenemedi', 'error')
+    showErrorToast('Workers yüklenemedi')
   }
 }
 
@@ -1608,14 +1608,14 @@ export async function saveWorker() {
   // Status and leave are managed from detail view, not at creation
   const status = 'available'
 
-  if (!name) { showToast('İsim gerekli', 'warning'); return }
-  if (!email) { showToast('Email gerekli', 'warning'); return }
+  if (!name) { showWarningToast('İsim gerekli'); return }
+  if (!email) { showWarningToast('Email gerekli'); return }
 
     // Get skills from modern interface
   const skills = getSelectedSkills();
   
   if (skills.length === 0) { 
-    showToast('En az bir skill giriniz', 'warning'); 
+    showWarningToast('En az bir skill giriniz'); 
     return;
   }
 
@@ -1658,10 +1658,10 @@ export async function saveWorker() {
         showWorkerDetail(payload.id)
       }
     } catch {}
-    showToast('Worker kaydedildi', 'success')
+    showSuccessToast('Worker kaydedildi')
   } catch (e) {
     console.error('Worker save error:', e)
-    showToast('Worker kaydedilemedi', 'error')
+    showErrorToast('Worker kaydedilemedi')
   }
 }
 
@@ -1672,10 +1672,10 @@ export async function deleteWorker(id) {
     await persistWorkers()
     closeWorkerModal(true)
     await renderWorkersTable()
-    showToast('Worker silindi', 'success')
+    showSuccessToast('Worker silindi')
   } catch (e) {
     console.error('Worker delete error:', e)
-    showToast('Worker silinemedi', 'error')
+    showErrorToast('Worker silinemedi')
   }
 }
 
@@ -1774,7 +1774,7 @@ async function initializeSkillsInterface(selectedSkills = []) {
   try {
     const masterData = await getMasterData();
     if (!masterData?.skills) {
-      showToast('Skills verisi yüklenemedi', 'error');
+      showErrorToast('Skills verisi yüklenemedi');
       return;
     }
     
@@ -1785,7 +1785,7 @@ async function initializeSkillsInterface(selectedSkills = []) {
     console.log('✅ Modern skills interface created');
   } catch (error) {
     console.error('❌ Skills interface error:', error);
-    showToast('Skills arayüzü oluşturulamadı', 'error');
+    showErrorToast('Skills arayüzü oluşturulamadı');
   }
 }
 
@@ -2260,7 +2260,7 @@ window.handleWorkerStatusChange = function() {
  */
 window.saveWorkerStatus = async function() {
   if (!selectedWorkerId) {
-    showToast('İşçi seçili değil', 'warning');
+    showWarningToast('İşçi seçili değil');
     return;
   }
   
@@ -2269,7 +2269,7 @@ window.saveWorkerStatus = async function() {
   const leaveEndInput = document.getElementById('worker-leave-end');
   
   if (!statusSelect) {
-    showToast('Durum alanı bulunamadı', 'error');
+    showErrorToast('Durum alanı bulunamadı');
     return;
   }
   
@@ -2279,7 +2279,7 @@ window.saveWorkerStatus = async function() {
   // Validate leave dates if needed
   if (needsLeave) {
     if (!leaveStartInput?.value || !leaveEndInput?.value) {
-      showToast('İzin tarihleri gerekli', 'warning');
+      showWarningToast('İzin tarihleri gerekli');
       return;
     }
     
@@ -2287,7 +2287,7 @@ window.saveWorkerStatus = async function() {
     const end = new Date(leaveEndInput.value);
     
     if (end < start) {
-      showToast('Bitiş tarihi başlangıç tarihinden önce olamaz', 'warning');
+      showWarningToast('Bitiş tarihi başlangıç tarihinden önce olamaz');
       return;
     }
   }
@@ -2295,7 +2295,7 @@ window.saveWorkerStatus = async function() {
   // Find worker in state
   const workerIndex = workersState.findIndex(w => w.id === selectedWorkerId);
   if (workerIndex === -1) {
-    showToast('İşçi bulunamadı', 'error');
+    showErrorToast('İşçi bulunamadı');
     return;
   }
   
@@ -2321,7 +2321,7 @@ window.saveWorkerStatus = async function() {
     // Persist to backend
     await persistWorkers();
     
-    showToast('İşçi durumu güncellendi', 'success');
+    showSuccessToast('İşçi durumu güncellendi');
     
     // Refresh worker detail panel
     await showWorkerDetail(selectedWorkerId);
@@ -2330,7 +2330,7 @@ window.saveWorkerStatus = async function() {
     await renderWorkersTable();
   } catch (error) {
     console.error('Failed to save worker status:', error);
-    showToast('Durum kaydedilemedi: ' + (error.message || 'Bilinmeyen hata'), 'error');
+    showErrorToast('Durum kaydedilemedi: ' + (error.message || 'Bilinmeyen hata'));
   }
 };
 

@@ -1,5 +1,5 @@
 // Backend-powered overrides for Plan Designer
-import { showToast } from './ui.js'
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
 import { getOperations, getStations, getApprovedQuotes, getMaterials, getProductionPlans } from './mesApi.js'
 import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate, aggregatePlanMaterials, checkMaterialAvailability, computeNodeEffectiveDuration } from './planDesigner.js'
 import { computeAndAssignSemiCode, getSemiCodePreviewForNode, getPrefixForNode } from './semiCode.js'
@@ -232,7 +232,7 @@ export function handleOrderChangeBackend() {
   const q = _ordersByCode.get(code)
   if (q) {
     const price = q.price != null ? `₺${Number(q.price).toFixed(2)}` : '—'
-    showToast(`Selected: ${code} • ${q.company || q.customer || q.name || '-'} • ${price}`, 'info')
+    showInfoToast(`Selected: ${code} • ${q.company || q.customer || q.name || '-'} • ${price}`)
   }
 }
 
@@ -240,7 +240,7 @@ export function handleCanvasDropBackend(event) {
   event.preventDefault()
   if (!planDesignerState.draggedOperation) return
   const op = (_opsCache||[]).find(o => o.id === planDesignerState.draggedOperation)
-  if (!op) { showToast('Operation not found. Refresh list.', 'error'); return }
+  if (!op) { showErrorToast('Operation not found. Refresh list.'); return }
 
   // Determine which canvas is active (normal or fullscreen)
   const canvas = planDesignerState.isFullscreen ? 
@@ -285,7 +285,7 @@ export function handleCanvasDropBackend(event) {
   }
   
   planDesignerState.draggedOperation = null
-  showToast(`${op.name} operasyonu eklendi`, 'success')
+  showSuccessToast(`${op.name} operasyonu eklendi`)
 }
 
 export async function editNodeBackend(nodeId) {
@@ -509,7 +509,7 @@ export function saveNodeEditBackend() {
   
   // Validate assigned stations (at least 1 required)
   if (!Array.isArray(node.assignedStations) || node.assignedStations.length === 0) {
-    showToast('At least 1 station must be selected', 'error')
+    showErrorToast('At least 1 station must be selected')
     return
   }
 
@@ -545,7 +545,7 @@ export function saveNodeEditBackend() {
       rawMaterials.push(base)
     }
   }
-  if (!name || !Number.isFinite(time) || time < 1) { showToast('Please fill all required fields', 'error'); return }
+  if (!name || !Number.isFinite(time) || time < 1) { showErrorToast('Please fill all required fields'); return }
 
   node.name = name
   node.time = time
@@ -618,7 +618,7 @@ export function saveNodeEditBackend() {
       try { window.removeEventListener('nodeMaterialsChanged', materialChangeHandler) } catch {}
       materialChangeHandler = null
     }
-    showToast('Operation updated', 'success')
+    showSuccessToast('Operation updated')
   }
 }
 
@@ -990,7 +990,7 @@ export function handleStationChangeInEdit() {
 window.addSelectedStation = function() {
   const selectedStation = window.selectedStationValue || null
   if (!selectedStation || !selectedStation.id || !selectedStation.name) {
-    showToast('Please select a station first', 'warning')
+    showWarningToast('Please select a station first')
     return
   }
 
@@ -1004,7 +1004,7 @@ window.addSelectedStation = function() {
 
   // Check if already selected (by ID)
   if (node.assignedStations.find(s => s.id === selectedStation.id)) {
-    showToast('Station already selected', 'warning')
+    showWarningToast('Station already selected')
     return
   }
 
@@ -1031,7 +1031,7 @@ window.addSelectedStation = function() {
   // Refresh UI
   refreshStationSelector()
   handleStationChangeInEdit()
-  showToast('Station added', 'success')
+  showSuccessToast('Station added')
 }
 
 // Custom dropdown functions
@@ -1090,7 +1090,7 @@ window.removeSelectedStationById = function(stationId) {
   // Refresh UI
   refreshStationSelector()
   handleStationChangeInEdit()
-  showToast('Station removed', 'success')
+  showSuccessToast('Station removed')
 }
 
 window.removeSelectedStation = function(stationName) {
@@ -1108,7 +1108,7 @@ window.removeSelectedStation = function(stationName) {
   // Refresh UI
   refreshStationSelector()
   handleStationChangeInEdit()
-  showToast('Station removed', 'success')
+  showSuccessToast('Station removed')
 }
 
 function refreshStationSelector() {

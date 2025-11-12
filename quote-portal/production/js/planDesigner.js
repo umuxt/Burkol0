@@ -1,5 +1,5 @@
 // Plan Designer logic and state
-import { showToast } from './ui.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
 import { computeAndAssignSemiCode, getSemiCodePreviewForNode, getPrefixForNode, collectPendingSemiCodes } from './semiCode.js';
 import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments, getMaterials, checkMesMaterialAvailability, getGeneralMaterials, activateWorkerAssignments, commitSemiCodes } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
@@ -844,7 +844,7 @@ export function handleCanvasDrop(event) {
   }
   
   planDesignerState.draggedOperation = null;
-  showToast(operation.name + ' operasyonu eklendi', 'success');
+  showSuccessToast(operation.name + ' operasyonu eklendi');
 }
 
 export function renderCanvas() {
@@ -1181,7 +1181,7 @@ export function updateConnectionsForNode(nodeId) {
 }
 
 export function deleteConnection(fromNodeId, toNodeId) {
-  if (planDesignerState.readOnly) { showToast('Read-only mode', 'info'); return; }
+  if (planDesignerState.readOnly) { showInfoToast('Read-only mode'); return; }
   const fromNode = planDesignerState.nodes.find(n => n.id === fromNodeId);
   const toNode = planDesignerState.nodes.find(n => n.id === toNodeId);
   if (fromNode) {
@@ -1208,7 +1208,7 @@ export function deleteConnection(fromNodeId, toNodeId) {
     renderCanvas();
   }
   
-  showToast('Connection deleted', 'success');
+  showSuccessToast('Connection deleted');
 }
 
 export function handleNodeClick(nodeId) {
@@ -1218,7 +1218,7 @@ export function handleNodeClick(nodeId) {
       planDesignerState.connectingFrom = nodeId;
       // Set source for hover/highlight feedback in connect mode
       planDesignerState.connectionSource = planDesignerState.nodes.find(n => n.id === nodeId) || null;
-      showToast('Select target operation to connect', 'info');
+      showInfoToast('Select target operation to connect');
     } else if (planDesignerState.connectingFrom !== nodeId) {
       connectNodes(planDesignerState.connectingFrom, nodeId);
       // Keep connect mode active for chaining? If desired, comment next line to keep mode.
@@ -1234,7 +1234,7 @@ export function handleNodeClick(nodeId) {
 }
 
 export function connectNodes(fromId, toId) {
-  if (planDesignerState.readOnly) { showToast('Read-only mode', 'info'); return; }
+  if (planDesignerState.readOnly) { showInfoToast('Read-only mode'); return; }
   const fromNode = planDesignerState.nodes.find(n => n.id === fromId);
   const toNode = planDesignerState.nodes.find(n => n.id === toId);
   if (fromNode && toNode && !fromNode.connections.includes(toId)) {
@@ -1281,12 +1281,12 @@ export function connectNodes(fromId, toId) {
       renderCanvas();
     }
     
-    showToast('Operations connected', 'success');
+    showSuccessToast('Operations connected');
   }
 }
 
 export function toggleConnectMode() {
-  if (planDesignerState.readOnly) { showToast('Read-only mode', 'info'); return; }
+  if (planDesignerState.readOnly) { showInfoToast('Read-only mode'); return; }
   planDesignerState.connectMode = !planDesignerState.connectMode;
   planDesignerState.connectingFrom = null;
   // Clear any pending target highlight
@@ -1297,7 +1297,7 @@ export function toggleConnectMode() {
   updateConnectButton();
   updateCanvasCursor();
   if (planDesignerState.connectMode) {
-    showToast('Connect mode active. Click source operation, then target operation.', 'info');
+    showInfoToast('Connect mode active. Click source operation, then target operation.');
   }
 }
 
@@ -1333,9 +1333,9 @@ export function updateConnectButton() {
 }
 
 export function clearCanvas() {
-  if (planDesignerState.readOnly) { showToast('Read-only mode', 'info'); return; }
+  if (planDesignerState.readOnly) { showInfoToast('Read-only mode'); return; }
   if (planDesignerState.nodes.length === 0) { 
-    showToast('Canvas is already empty', 'info'); 
+    showInfoToast('Canvas is already empty'); 
     return; 
   }
   if (confirm('Are you sure you want to clear all operations?')) {
@@ -1353,7 +1353,7 @@ export function clearCanvas() {
       renderCanvas();
     }
     
-    showToast('Canvas cleared', 'success');
+    showSuccessToast('Canvas cleared');
   }
 }
 
@@ -1686,7 +1686,7 @@ function getScrollbarWidth() {
 }
 
 export function saveNodeEdit() {
-  if (planDesignerState.readOnly) { showToast('Read-only mode', 'info'); return; }
+  if (planDesignerState.readOnly) { showInfoToast('Read-only mode'); return; }
   if (!planDesignerState.selectedNode) return;
   
   const name = document.getElementById('edit-name').value;
@@ -1700,7 +1700,7 @@ export function saveNodeEdit() {
   const outUnit = document.getElementById('edit-output-unit')?.value || '';
   
   if (!name || !time || time < 1) { 
-    showToast('Please fill all required fields', 'error'); 
+    showErrorToast('Please fill all required fields'); 
     return; 
   }
   
@@ -1708,7 +1708,7 @@ export function saveNodeEdit() {
   if (allocationType === 'manual') {
     const selectedWorkerId = workerSelect?.value || '';
     if (!selectedWorkerId) {
-      showToast('Manual allocation requires a worker selection', 'error');
+      showErrorToast('Manual allocation requires a worker selection');
       // Highlight the worker select field
       if (workerSelect) {
         workerSelect.style.border = '2px solid #ef4444';
@@ -1779,7 +1779,7 @@ export function saveNodeEdit() {
   
   renderCanvas();
   closeNodeEditModal();
-  showToast('Operation updated', 'success');
+  showSuccessToast('Operation updated');
 }
 
 export function closeNodeEditModal(event) {
@@ -1940,7 +1940,7 @@ export function deleteNode(nodeId) {
       renderCanvas();
     }
     
-    showToast('Operation deleted', 'success');
+    showSuccessToast('Operation deleted');
   }
 }
 
@@ -1952,7 +1952,7 @@ export function handleOrderChange() {
     const orderData = {};
     const order = orderData[selectedOrder];
     if (order) {
-      showToast(`Selected: ${order.product} (${order.quantity} units, due ${order.dueDate})`, 'info');
+      showInfoToast(`Selected: ${order.product} (${order.quantity} units, due ${order.dueDate})`);
     } else {
       console.warn('Order data not found for:', selectedOrder);
     }
@@ -2010,7 +2010,7 @@ export function handlePeriodicFrequencyChange() {
 }
 
 export function savePlanAsTemplate() {
-  if (planDesignerState.nodes.length === 0) { showToast('Cannot save empty plan as template', 'error'); return; }
+  if (planDesignerState.nodes.length === 0) { showErrorToast('Cannot save empty plan as template'); return; }
   const planNameInput = document.getElementById('plan-name');
   const planDescInput = document.getElementById('plan-description');
   const orderSelect = document.getElementById('order-select');
@@ -2031,7 +2031,7 @@ export function savePlanAsTemplate() {
     // Copying from a production plan: clear order linkage for the template
     orderCode = '';
   }
-  if (!planName) { showToast('Please enter a plan name', 'error'); return; }
+  if (!planName) { showErrorToast('Please enter a plan name'); return; }
   
   // If editing from an existing template, keep the same id to update and track lastModifiedBy
   const existingTplId = planDesignerState.currentPlanMeta?.sourceTemplateId || null;
@@ -2083,7 +2083,7 @@ export function savePlanAsTemplate() {
           });
         } catch (error) {
           console.error('Failed to commit semi codes:', error);
-          showToast('Warning: Semi codes may not be persisted', 'warning');
+          showWarningToast('Warning: Semi codes may not be persisted');
         }
       }
       
@@ -2098,7 +2098,7 @@ export function savePlanAsTemplate() {
       const msg = existingTplId
         ? `Template updated: ${template.name}`
         : (planDesignerState.readOnly ? `Copied to template: ${template.name}` : `Template saved: ${template.name}`);
-      showToast(msg, 'success');
+      showSuccessToast(msg);
       // Exit to list and reload strictly from backend to avoid stale DOM
       // Reset graph only when not in view-copy flow (optional)
       if (!planDesignerState.readOnly) {
@@ -2111,14 +2111,14 @@ export function savePlanAsTemplate() {
     })
     .catch(e => {
       console.error('Template save failed', e);
-      showToast('Template save failed', 'error');
+      showErrorToast('Template save failed');
     });
 }
 
 // DEPRECATED: Material check modal removed from Plan Designer
 // Material warnings now appear at launch time in Approved Quotes
 export async function showMaterialCheckModal() {
-  showToast('Material checks are now performed at launch time', 'info');
+  showInfoToast('Material checks are now performed at launch time');
 }
 
 export function closeMaterialCheckModal() {
@@ -2130,7 +2130,7 @@ window.showMaterialCheckModal = showMaterialCheckModal;
 window.closeMaterialCheckModal = closeMaterialCheckModal;
 
 export async function savePlanDraft() {
-  if (planDesignerState.nodes.length === 0) { showToast('Cannot save empty plan', 'error'); return; }
+  if (planDesignerState.nodes.length === 0) { showErrorToast('Cannot save empty plan'); return; }
   const planName = document.getElementById('plan-name')?.value || 'Untitled';
   const planDesc = document.getElementById('plan-description')?.value || '';
   const orderCode = document.getElementById('order-select')?.value || '';
@@ -2138,7 +2138,7 @@ export async function savePlanDraft() {
   
   // Ensure an order is selected before saving production plan
   if (!orderCode) {
-    showToast('Select a work order before saving this plan', 'warning');
+    showWarningToast('Select a work order before saving this plan');
     return;
   }
   
@@ -2244,13 +2244,13 @@ export async function savePlanDraft() {
         });
       } catch (error) {
         console.error('Failed to commit semi codes:', error);
-        showToast('Warning: Semi codes may not be persisted', 'warning');
+        showWarningToast('Warning: Semi codes may not be persisted');
       }
     }
     
     updateProductionPlan(id, updates)
       .then(() => {
-        showToast(`Plan converted to production: ${planName}`, 'success');
+        showSuccessToast(`Plan converted to production: ${planName}`);
         planDesignerState.nodes = [];
         renderCanvas();
         cancelPlanCreation();
@@ -2259,7 +2259,7 @@ export async function savePlanDraft() {
       })
       .catch(e => {
         console.error('Plan conversion failed', e);
-        showToast('Plan conversion failed', 'error');
+        showErrorToast('Plan conversion failed');
       });
     return;
   }
@@ -2369,7 +2369,7 @@ export async function savePlanDraft() {
           });
         } catch (error) {
           console.error('Failed to commit semi codes:', error);
-          showToast('Warning: Semi codes may not be persisted', 'warning');
+          showWarningToast('Warning: Semi codes may not be persisted');
         }
       }
       
@@ -2380,7 +2380,7 @@ export async function savePlanDraft() {
       return createProductionPlan(plan)
     })
     .then(() => {
-      showToast(`Plan saved: ${plan.name}`, 'success');
+      showSuccessToast(`Plan saved: ${plan.name}`);
       planDesignerState.nodes = [];
       renderCanvas();
       cancelPlanCreation();
@@ -2389,20 +2389,20 @@ export async function savePlanDraft() {
     })
     .catch(e => {
       console.error('Plan save failed', e);
-      showToast('Plan save failed', 'error');
+      showErrorToast('Plan save failed');
     });
 }
 
 export function deployWorkOrder() {
-  if (planDesignerState.nodes.length === 0) { showToast('Cannot deploy empty plan', 'error'); return; }
+  if (planDesignerState.nodes.length === 0) { showErrorToast('Cannot deploy empty plan'); return; }
   const planName = document.getElementById('plan-name').value;
   const selectedOrder = document.getElementById('order-select').value;
-  if (!planName) { showToast('Please enter a plan name', 'error'); return; }
-  if (!selectedOrder) { showToast('Please select an order', 'error'); return; }
+  if (!planName) { showErrorToast('Please enter a plan name'); return; }
+  if (!selectedOrder) { showErrorToast('Please select an order'); return; }
   
   // Note: Worker/station assignment is now done at launch time, not during plan creation
   const totalTime = planDesignerState.nodes.reduce((sum, n) => sum + n.time, 0);
-  showToast(`Work Order deployed successfully! Total estimated time: ${totalTime} minutes`, 'success');
+  showSuccessToast(`Work Order deployed successfully! Total estimated time: ${totalTime} minutes`);
   planDesignerState.nodes = [];
   const pn = document.getElementById('plan-name'); if (pn) pn.value = '';
   const pd = document.getElementById('plan-description'); if (pd) pd.value = '';
@@ -2415,7 +2415,7 @@ export async function releasePlanToProduction() {
   // Validation: Plan must be saved
   const currentPlanMeta = planDesignerState.currentPlanMeta;
   if (!currentPlanMeta || !currentPlanMeta.id) {
-    showToast('Plan must be saved before releasing to production', 'warning');
+    showWarningToast('Plan must be saved before releasing to production');
     return;
   }
   
@@ -2425,7 +2425,7 @@ export async function releasePlanToProduction() {
   console.log('✓ Releasing plan without material checks (validation at launch)');
   
   try {
-    showToast('Releasing plan to production...', 'info');
+    showInfoToast('Releasing plan to production...');
     
     // Step 1: Update plan status to 'released'
     // The backend auto-assignment engine will handle worker/station assignment at launch
@@ -2438,7 +2438,7 @@ export async function releasePlanToProduction() {
     console.log(`✓ Plan ${planId} released - backend will handle resource assignment`);
     
     // Show success message
-    showToast('Plan marked as production-ready! Use "Başlat" button in Approved Quotes to launch with auto-assignment.', 'success');
+    showSuccessToast('Plan marked as production-ready! Use "Başlat" button in Approved Quotes to launch with auto-assignment.');
     
     // Dispatch event to refresh workers view
     window.dispatchEvent(new CustomEvent('assignments:updated'));
@@ -2459,13 +2459,13 @@ export async function releasePlanToProduction() {
     
   } catch (error) {
     console.error('Failed to release plan:', error);
-    showToast(`Failed to release plan: ${error.message}`, 'error');
+    showErrorToast(`Failed to release plan: ${error.message}`);
   }
 }
 
 export function handleCanvasClick(event) {
   if (planDesignerState.connectMode && (event.target.id === 'plan-canvas' || event.target.id === 'fullscreen-plan-canvas')) {
-    planDesignerState.connectMode = false; planDesignerState.connectingFrom = null; updateConnectButton(); showToast('Connect mode cancelled', 'info');
+    planDesignerState.connectMode = false; planDesignerState.connectingFrom = null; updateConnectButton(); showInfoToast('Connect mode cancelled');
     // Clear any target highlight
     if (planDesignerState.connectionTarget) {
       removeConnectionTargetHighlight(planDesignerState.connectionTarget);

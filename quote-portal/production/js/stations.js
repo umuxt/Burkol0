@@ -1,6 +1,6 @@
 // Station management backed by backend API using mesApi
 import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill, invalidateStationsCache, getStationWorkers } from './mesApi.js'
-import { showToast } from './ui.js'
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
 
 let stationsState = []
 let operationsCache = []
@@ -72,7 +72,7 @@ async function loadStationsAndRender() {
   } catch (e) {
     console.error('Stations load error:', e)
     if (list) list.innerHTML = '<div style="padding:12px;color:#ef4444;">Stations yüklenemedi.</div>'
-    showToast('Stations yüklenemedi', 'error')
+    showErrorToast('Stations yüklenemedi')
   }
 }
 
@@ -915,7 +915,7 @@ export async function duplicateStationFromDetail() {
   
   const originalStation = stationsState.find(s => s.id === editingStationId)
   if (!originalStation) {
-    showToast('Station not found', 'error')
+    showErrorToast('Station not found')
     return
   }
   
@@ -980,11 +980,11 @@ export async function confirmStationDuplicate() {
     closeStationDetail()
     
     // Show success message
-    showToast(`İstasyon başarıyla "${newName}" adıyla kopyalandı`, 'success')
+    showSuccessToast(`İstasyon başarıyla "${newName}" adıyla kopyalandı`)
     
   } catch (e) {
     console.error('Station duplication error:', e)
-    showToast(e.message || 'İstasyon kopyalanamadı', 'error')
+    showErrorToast(e.message || 'İstasyon kopyalanamadı')
   }
 }
 
@@ -1348,7 +1348,7 @@ function updateSubStationTotalCount(stationId, total) {
 async function addSubStationsToStation(stationId, count) {
   const idx = findStationIndexById(stationId)
   if (idx < 0) {
-    showToast('Station not found', 'error')
+    showErrorToast('Station not found')
     return
   }
 
@@ -1370,7 +1370,7 @@ async function addSubStationsToStation(stationId, count) {
   }
 
   if (!newEntries.length) {
-    showToast('Yeni sub istasyon için uygun numara bulunamadı', 'warning')
+    showWarningToast('Yeni sub istasyon için uygun numara bulunamadı')
     return
   }
 
@@ -1385,13 +1385,13 @@ async function addSubStationsToStation(stationId, count) {
 
   try {
     await saveStations(stationsState)
-    showToast(`${newEntries.length} sub istasyon eklendi`, 'success')
+    showSuccessToast(`${newEntries.length} sub istasyon eklendi`)
     renderStations()
     await showStationDetail(stationId)
   } catch (error) {
     console.error('Sub station add error:', error)
     stationsState[idx] = previousStation
-    showToast('Sub istasyon eklenemedi', 'error')
+    showErrorToast('Sub istasyon eklenemedi')
   }
 }
 
@@ -1426,7 +1426,7 @@ export function handleSubStationAddInputChange(stationId) {
 export async function toggleSubStationStatus(stationId, subStationCode) {
   const idx = findStationIndexById(stationId)
   if (idx < 0) {
-    showToast('Station not found', 'error')
+    showErrorToast('Station not found')
     return
   }
 
@@ -1436,7 +1436,7 @@ export async function toggleSubStationStatus(stationId, subStationCode) {
   const subStations = [...(normalizedStation.subStations || [])]
   const targetIndex = subStations.findIndex(sub => sub.code === subStationCode)
   if (targetIndex < 0) {
-    showToast('Sub istasyon bulunamadı', 'warning')
+    showWarningToast('Sub istasyon bulunamadı')
     return
   }
 
@@ -1460,12 +1460,12 @@ export async function toggleSubStationStatus(stationId, subStationCode) {
 
   try {
     await saveStations(stationsState)
-    showToast('Sub istasyon durumu güncellendi', 'success')
+    showSuccessToast('Sub istasyon durumu güncellendi')
     updateSubStationDomElements(subStationCode, nextStatus)
   } catch (error) {
     console.error('Sub station status update error:', error)
     stationsState[idx] = previousStation
-    showToast('Sub istasyon durumu güncellenemedi', 'error')
+    showErrorToast('Sub istasyon durumu güncellenemedi')
     updateSubStationDomElements(subStationCode, currentStatus)
   } finally {
     if (toggleButton) toggleButton.disabled = false
@@ -1475,7 +1475,7 @@ export async function toggleSubStationStatus(stationId, subStationCode) {
 export async function deleteSubStation(stationId, subStationCode) {
   const idx = findStationIndexById(stationId)
   if (idx < 0) {
-    showToast('Station not found', 'error')
+    showErrorToast('Station not found')
     return
   }
 
@@ -1483,14 +1483,14 @@ export async function deleteSubStation(stationId, subStationCode) {
   stationsState[idx] = normalizedStation
 
   if ((normalizedStation.subStations || []).length <= 1) {
-    showToast('Bir istasyonun en az 1 sub istasyonu olmalı', 'warning')
+    showWarningToast('Bir istasyonun en az 1 sub istasyonu olmalı')
     return
   }
 
   if (!confirm('Bu sub istasyonu silmek istediğinize emin misiniz?')) return
 
   if (!(normalizedStation.subStations || []).some(sub => sub.code === subStationCode)) {
-    showToast('Sub istasyon bulunamadı', 'warning')
+    showWarningToast('Sub istasyon bulunamadı')
     return
   }
 
@@ -1507,13 +1507,13 @@ export async function deleteSubStation(stationId, subStationCode) {
 
   try {
     await saveStations(stationsState)
-    showToast('Sub istasyon silindi', 'success')
+    showSuccessToast('Sub istasyon silindi')
     removeSubStationDomElement(subStationCode)
     updateSubStationTotalCount(stationId, remaining.length)
   } catch (error) {
     console.error('Sub station delete error:', error)
     stationsState[idx] = previousStation
-    showToast('Sub istasyon silinemedi', 'error')
+    showErrorToast('Sub istasyon silinemedi')
   }
 }
 
@@ -1542,8 +1542,8 @@ export async function saveStation() {
   const subStationCountInput = document.getElementById('station-substation-count')
   const requestedSubStationCount = subStationCountInput ? Math.max(1, Math.min(50, parseInt(subStationCountInput.value) || 1)) : 1
 
-  if (!name) { showToast('Please enter a station name', 'error'); return }
-  if (operationIds.length < 1) { showToast('Select at least one operation for this station', 'warning'); return }
+  if (!name) { showErrorToast('Please enter a station name'); return }
+  if (operationIds.length < 1) { showWarningToast('Select at least one operation for this station'); return }
 
   try {
     let stationId = editingStationId
@@ -1582,7 +1582,7 @@ export async function saveStation() {
     await saveStations(stationsState)
     document.getElementById('station-modal').style.display = 'none'
     renderStations()
-    showToast(editingStationId ? 'Station updated' : 'Station added', 'success')
+    showSuccessToast(editingStationId ? 'Station updated' : 'Station added')
     
     // If detail panel was open before modal, reopen it
     if (wasDetailPanelOpen && editingStationId) {
@@ -1593,7 +1593,7 @@ export async function saveStation() {
     wasDetailPanelOpen = false
   } catch (e) {
     console.error('Station save error:', e)
-    showToast(e.message || 'Station could not be saved', 'error')
+    showErrorToast(e.message || 'Station could not be saved')
   }
 }
 
@@ -1606,10 +1606,10 @@ export async function toggleStationStatus(stationId) {
   try {
     await saveStations(stationsState)
     renderStations()
-    showToast('Station status updated', 'success')
+    showSuccessToast('Station status updated')
   } catch (e) {
     console.error('Station status save error:', e)
-    showToast('Station status update failed', 'error')
+    showErrorToast('Station status update failed')
   }
 }
 
@@ -1624,10 +1624,10 @@ export async function deleteStation(stationId) {
     invalidateStationsCache()
     stationsState = (await getStations()).map(station => normalizeStationForState(station))
     renderStations()
-    showToast('Station deleted', 'success')
+    showSuccessToast('Station deleted')
   } catch (e) {
     console.error('Station delete error:', e)
-    showToast('Station could not be deleted', 'error')
+    showErrorToast('Station could not be deleted')
   }
 }
 
