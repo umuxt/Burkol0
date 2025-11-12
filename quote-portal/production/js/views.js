@@ -21,28 +21,28 @@ export function generateModernDashboard() {
       <div class="grid grid-cols-4" style="gap: 16px;">
         <div class="card" style="cursor: pointer; transition: all 0.2s;" onclick="window.location.href='/pages/worker-selection.html'" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
           <div class="card-content" style="text-align: center; padding: 24px;">
-            <div style="font-size: 48px; margin-bottom: 12px;">👷</div>
+            <div style="font-size: 48px; margin-bottom: 12px;"><i class="fa-solid fa-hard-hat"></i></div>
             <div style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 4px;">İşçi Portalı</div>
             <div style="font-size: 13px; color: var(--muted-foreground);">Görev yönetimi ve takip</div>
           </div>
         </div>
         <div class="card" style="cursor: pointer; transition: all 0.2s;" onclick="navigateToView('plan-designer')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
           <div class="card-content" style="text-align: center; padding: 24px;">
-            <div style="font-size: 48px; margin-bottom: 12px;">🎨</div>
+            <div style="font-size: 48px; margin-bottom: 12px;"><i class="fa-solid fa-route"></i></div>
             <div style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 4px;">Plan Tasarlayıcı</div>
             <div style="font-size: 13px; color: var(--muted-foreground);">Üretim planı oluştur</div>
           </div>
         </div>
         <div class="card" style="cursor: pointer; transition: all 0.2s;" onclick="navigateToView('approved-quotes')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
           <div class="card-content" style="text-align: center; padding: 24px;">
-            <div style="font-size: 48px; margin-bottom: 12px;">✅</div>
+            <div style="font-size: 48px; margin-bottom: 12px;"><i class="fa-solid fa-clipboard-check"></i></div>
             <div style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 4px;">Onaylı Siparişler</div>
             <div style="font-size: 13px; color: var(--muted-foreground);">Sipariş takibi</div>
           </div>
         </div>
         <div class="card" style="cursor: pointer; transition: all 0.2s;" onclick="navigateToView('settings')" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
           <div class="card-content" style="text-align: center; padding: 24px;">
-            <div style="font-size: 48px; margin-bottom: 12px;">⚙️</div>
+            <div style="font-size: 48px; margin-bottom: 12px;"><i class="fa-solid fa-cogs"></i></div>
             <div style="font-size: 16px; font-weight: 600; color: var(--foreground); margin-bottom: 4px;">Master Data</div>
             <div style="font-size: 13px; color: var(--muted-foreground);">Operasyonlar, istasyonlar, işçiler</div>
           </div>
@@ -68,7 +68,7 @@ export function generateModernDashboard() {
       <!-- Production Plans Widget -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">📋 Üretim Planları</div>
+          <div class="card-title"><i class="fa-solid fa-clipboard-list"></i> Üretim Planları</div>
           <div class="card-description">Aktif ve taslak planlar</div>
         </div>
         <div class="card-content">
@@ -81,7 +81,7 @@ export function generateModernDashboard() {
       <!-- Station Alerts Widget -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">⚠️ İstasyon Uyarıları</div>
+          <div class="card-title"><i class="fa-solid fa-exclamation-triangle" style="color: #f59e0b;"></i> İstasyon Uyarıları</div>
           <div class="card-description">Son bildirilen hatalar</div>
         </div>
         <div class="card-content">
@@ -109,7 +109,7 @@ export function generateModernDashboard() {
       <!-- Work Stations Overview -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">🏭 İş İstasyonları</div>
+          <div class="card-title"><i class="fa-solid fa-industry"></i> İş İstasyonları</div>
         </div>
         <div class="card-content">
           <div id="stations-overview-widget" style="padding: 16px;">
@@ -121,7 +121,7 @@ export function generateModernDashboard() {
       <!-- Production Personnel Overview -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">👷 Üretim Personeli</div>
+          <div class="card-title"><i class="fa-solid fa-users"></i> Üretim Personeli</div>
         </div>
         <div class="card-content">
           <div id="workers-overview-widget" style="padding: 16px;">
@@ -134,7 +134,7 @@ export function generateModernDashboard() {
     <!-- Active Tasks Widget (Full Width) -->
     <div class="card">
       <div class="card-header">
-        <div class="card-title">📋 Aktif Görevler</div>
+        <div class="card-title"><i class="fa-solid fa-clipboard-list"></i> Aktif Görevler</div>
         <div class="card-description">Tüm işçilerin görev durumları</div>
       </div>
       <div class="card-content">
@@ -249,7 +249,7 @@ export function generateWorkerPanel() {
           <div style="flex: 1 1 0%; overflow: auto; padding: 20px;">
             <div id="work-package-detail-content">
               <div style="text-align: center; color: var(--muted-foreground); padding: 64px;">
-                <div style="font-size: 48px; margin-bottom: 16px;">📦</div>
+                <div style="font-size: 48px; margin-bottom: 16px;"><i class="fa-solid fa-boxes-stacked"></i></div>
                 <p>Bir work package seçin</p>
               </div>
             </div>
@@ -564,8 +564,8 @@ export function generateWorkers() {
                   <h3 style="margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);">Çalışan Detayları</h3>
                 </div>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                  <button onclick="editWorkerFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">✏️ Düzenle</button>
-                  <button onclick="deleteWorkerFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;">🗑️ Sil</button>
+                  <button onclick="editWorkerFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;"><i class="fa-solid fa-edit"></i> Düzenle</button>
+                  <button onclick="deleteWorkerFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;"><i class="fa-solid fa-trash"></i> Sil</button>
                 </div>
               </div>
               <div style="flex: 1 1 0%; overflow: auto; padding: 20px;">
@@ -816,8 +816,8 @@ export function generateOperations() {
                   <h3 style="margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);">Operasyon Detayları</h3>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <button onclick="editOperationFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;">✏️ Düzenle</button>
-                  <button onclick="deleteOperationFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;">🗑️ Sil</button>
+                  <button onclick="editOperationFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;"><i class="fa-solid fa-edit"></i> Düzenle</button>
+                  <button onclick="deleteOperationFromDetail()" style="padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;"><i class="fa-solid fa-trash"></i> Sil</button>
                 </div>
               </div>
               <div style="flex: 1 1 0%; overflow: auto; padding: 20px;">
@@ -1020,9 +1020,9 @@ export function generateStations() {
                   <h3 style=\"margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);\">Station Detayları</h3>
                 </div>
                 <div style=\"display:flex; align-items:center; gap:8px;\">
-                  <button onclick=\"editStationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;\">✏️ Düzenle</button>
-                  <button onclick=\"duplicateStationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(34, 197, 94); border-radius: 4px; background: white; color: rgb(34, 197, 94); cursor: pointer; font-size: 12px;\">📋 Kopyala</button>
-                  <button onclick=\"deleteStationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;\">🗑️ Sil</button>
+                  <button onclick=\"editStationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;\"><i class="fa-solid fa-edit"></i> Düzenle</button>
+                  <button onclick=\"duplicateStationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(34, 197, 94); border-radius: 4px; background: white; color: rgb(34, 197, 94); cursor: pointer; font-size: 12px;\"><i class="fa-solid fa-copy"></i> Kopyala</button>
+                  <button onclick=\"deleteStationFromDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(220, 38, 38); border-radius: 4px; background: white; color: rgb(220, 38, 38); cursor: pointer; font-size: 12px;\"><i class="fa-solid fa-trash"></i> Sil</button>
                 </div>
               </div>
               <div style=\"flex: 1 1 0%; overflow: auto; padding: 20px;\">
@@ -1424,7 +1424,7 @@ export function generatePlanDesigner() {
             <div style="display: flex; gap: 6px;">
               <button id="fullscreen-canvas-btn" onclick="toggleCanvasFullscreen()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">⛶ Fullscreen</button>
               <button id="connect-mode-btn" onclick="toggleConnectMode()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">🔗 Connect</button>
-              <button onclick="clearCanvas()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;">🗑️ Clear</button>
+              <button onclick="clearCanvas()" style="padding: 3px 6px; background: white; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; font-size: 11px;"><i class="fa-solid fa-trash"></i> Clear</button>
             </div>
           </div>
           <div class="card-content" style="padding: 0; max-height: 400px; position: relative; overflow: hidden;">
@@ -1488,16 +1488,16 @@ export function generatePlanDesigner() {
             <div style="display: flex; gap: 6px; align-items: center;">
               <!-- Zoom Controls (Left Side) -->
               <div style="display: flex; gap: 4px; align-items: center; margin-right: 12px;">
-                <button id="zoom-out-btn" onclick="adjustCanvasZoom(-0.1)" style="padding: 6px 8px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">🔍<span style="font-size: 10px; margin-left: -2px;">-</span></button>
+                <button id="zoom-out-btn" onclick="adjustCanvasZoom(-0.1)" style="padding: 6px 8px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-search-minus"></i></button>
                 <input type="range" id="zoom-slider" min="30" max="150" value="100" step="10" oninput="setCanvasZoom(this.value)" style="width: 80px; height: 4px; background: #ddd; outline: none; border-radius: 2px; cursor: pointer;">
-                <button id="zoom-in-btn" onclick="adjustCanvasZoom(0.1)" style="padding: 6px 8px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">🔍<span style="font-size: 10px; margin-left: -2px;">+</span></button>
+                <button id="zoom-in-btn" onclick="adjustCanvasZoom(0.1)" style="padding: 6px 8px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 14px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="fa-solid fa-search-plus"></i></button>
                 <span id="zoom-percentage" style="font-size: 11px; color: var(--muted-foreground); min-width: 35px;">100%</span>
                 <button onclick="resetCanvasPan()" title="Reset Pan" style="padding: 6px 8px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 12px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; margin-left: 8px;">⌂</button>
               </div>
               
               <!-- Main Controls -->
               <button id="fullscreen-connect-mode-btn" onclick="toggleConnectMode()" style="padding: 6px 12px; background: white; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">🔗 Connect</button>
-              <button onclick="clearCanvas()" style="padding: 6px 12px; background: white; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">🗑️ Clear</button>
+              <button onclick="clearCanvas()" style="padding: 6px 12px; background: white; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;"><i class="fa-solid fa-trash"></i> Clear</button>
               <button onclick="toggleCanvasFullscreen()" style="padding: 6px 12px; background: var(--muted); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 12px;">✕ Exit Fullscreen</button>
             </div>
           </div>
@@ -1630,7 +1630,7 @@ export function generateApprovedQuotes() {
               <div style="display: grid; gap: 4px;">
                 <label style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 2px;">Hızlı Seçimler:</label>
                 <button type="button" class="quick-select-btn" data-days="1" style="width: 100%; height: 24px; padding: 2px 6px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: left;">
-                  ⚡ 1 Gün Kaldı
+                  <i class="fa-solid fa-bolt" style="color: #f59e0b;"></i> 1 Gün Kaldı
                 </button>
                 <button type="button" class="quick-select-btn" data-days="3" style="width: 100%; height: 24px; padding: 2px 6px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 10px; text-align: left;">
                   ⏰ 3 Gün Kaldı
@@ -1807,7 +1807,7 @@ export async function initActiveTasksWidget() {
     if (!workers || workers.length === 0) {
       container.innerHTML = `
         <div style="text-align: center; padding: 24px; color: var(--muted-foreground);">
-          <div style="font-size: 32px; margin-bottom: 8px;">👷</div>
+          <div style="font-size: 32px; margin-bottom: 8px;"><i class="fa-solid fa-hard-hat"></i></div>
           <div style="font-size: 14px;">Henüz işçi kaydı yok</div>
           <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">Workers sekmesinden işçi ekleyebilirsiniz</div>
         </div>
@@ -1842,7 +1842,7 @@ export async function initActiveTasksWidget() {
     const warningHtml = failedWorkers.length > 0 ? `
       <div style="margin-top: 12px; padding: 10px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
         <div style="font-size: 12px; color: #92400e; font-weight: 600; margin-bottom: 4px;">
-          ⚠️ ${failedWorkers.length} işçi için görevler yüklenemedi
+          <i class="fa-solid fa-exclamation-triangle" style="color: #f59e0b;"></i> ${failedWorkers.length} işçi için görevler yüklenemedi
         </div>
         <div style="font-size: 11px; color: #78350f;">
           ${failedWorkers.map(w => `${w.name || w.id}: ${w.error}`).join('<br>')}
@@ -1866,7 +1866,7 @@ export async function initActiveTasksWidget() {
             <div style="font-size: 13px; color: #065f46; font-weight: 500;">Hazır</div>
             <div style="font-size: 24px; font-weight: 700; color: #064e3b;">${totalReady}</div>
           </div>
-          <div style="font-size: 32px;">✅</div>
+          <div style="font-size: 32px;"><i class="fa-solid fa-check-circle" style="color: #10b981;"></i></div>
         </div>
         
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: #fed7aa; border-radius: 8px;">
@@ -1882,7 +1882,7 @@ export async function initActiveTasksWidget() {
             <div style="font-size: 13px; color: #6b7280; font-weight: 500;">Bekliyor</div>
             <div style="font-size: 24px; font-weight: 700; color: #374151;">${totalPending}</div>
           </div>
-          <div style="font-size: 32px;">⏳</div>
+          <div style="font-size: 32px;"><i class="fa-solid fa-clock" style="color: #f59e0b;"></i></div>
         </div>
         ${warningHtml}
       </div>
@@ -1892,7 +1892,7 @@ export async function initActiveTasksWidget() {
     const errorMessage = err.message || 'Bilinmeyen hata';
     container.innerHTML = `
       <div style="padding: 16px; text-align: center; color: #ef4444; background: #fee; border-radius: 8px;">
-        <div style="font-size: 32px; margin-bottom: 8px;">⚠️</div>
+        <div style="font-size: 32px; margin-bottom: 8px;"><i class="fa-solid fa-exclamation-triangle" style="color: #f59e0b;"></i></div>
         <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">Görevler yüklenemedi</div>
         <div style="font-size: 12px; color: #991b1b;">${errorMessage}</div>
       </div>
@@ -2027,7 +2027,7 @@ async function refreshWorkPackagesData(showButtonState = true) {
     // Show refreshing state
     if (showButtonState && refreshBtn) {
       refreshBtn.disabled = true;
-      refreshBtn.innerHTML = '<span>⏳</span> Loading...';
+      refreshBtn.innerHTML = '<span><i class="fa-solid fa-spinner fa-spin"></i></span> Loading...';
     }
     
     // Import API functions
@@ -2561,7 +2561,7 @@ export async function initProductionPlansWidget() {
     if (!plans || plans.length === 0) {
       container.innerHTML = `
         <div style="text-align: center; padding: 24px; color: var(--muted-foreground);">
-          <div style="font-size: 32px; margin-bottom: 8px;">📋</div>
+          <div style="font-size: 32px; margin-bottom: 8px;"><i class="fa-solid fa-clipboard-list"></i></div>
           <div style="font-size: 14px;">Henüz üretim planı oluşturulmamış</div>
           <div style="font-size: 11px; color: #9ca3af; margin-top: 4px;">Route Designer'dan yeni plan oluşturabilirsiniz</div>
         </div>

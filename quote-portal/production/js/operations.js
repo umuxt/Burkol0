@@ -709,8 +709,8 @@ async function loadOperationTypes() {
       <div style="display: flex; align-items: center; padding: 12px; border-bottom: 1px solid var(--border); background: white;">
         <div style="flex: 1; font-weight: 500;">${escapeHtml(ot.name)}</div>
         <div style="display: flex; gap: 8px;">
-          <button onclick="editOperationType('${ot.id}', '${escapeHtml(ot.name)}')" style="padding: 4px 8px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 12px;">✏️ Düzenle</button>
-          <button onclick="deleteOperationTypeConfirm('${ot.id}', '${escapeHtml(ot.name)}')" style="padding: 4px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️ Sil</button>
+          <button onclick="editOperationType('${ot.id}', '${escapeHtml(ot.name)}')" style="padding: 4px 8px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 12px;"><i class="fa-solid fa-edit"></i> Düzenle</button>
+          <button onclick="deleteOperationTypeConfirm('${ot.id}', '${escapeHtml(ot.name)}')" style="padding: 4px 8px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 4px; cursor: pointer; font-size: 12px;"><i class="fa-solid fa-trash"></i> Sil</button>
         </div>
       </div>
     `).join('')

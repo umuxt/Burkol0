@@ -803,8 +803,8 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
         <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
           <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Genel Durum:</span>
           <select id="worker-status-select" onchange="handleWorkerStatusChange()" style="flex: 1; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;">
-            <option value="available" ${uiStatus === 'available' ? 'selected' : ''}>✅ Çalışıyor</option>
-            <option value="inactive" ${uiStatus === 'inactive' ? 'selected' : ''}>❌ İşten ayrıldı</option>
+            <option value="available" ${uiStatus === 'available' ? 'selected' : ''}><i class="fa-solid fa-check-circle"></i> Çalışıyor</option>
+            <option value="inactive" ${uiStatus === 'inactive' ? 'selected' : ''}><i class="fa-solid fa-times-circle"></i> İşten ayrıldı</option>
             <option value="leave-sick" ${uiStatus === 'leave-sick' ? 'selected' : ''}>🤒 Hasta</option>
             <option value="leave-vacation" ${uiStatus === 'leave-vacation' ? 'selected' : ''}>🏖️ İzinli</option>
           </select>
@@ -814,13 +814,13 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
         <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
           <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Mesai Durumu:</span>
           <span id="worker-schedule-status" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: rgb(243, 244, 246); color: rgb(107, 114, 128);">
-            ⏳ Hesaplanıyor...
+            <i class="fa-solid fa-spinner fa-spin"></i> Hesaplanıyor...
           </span>
         </div>
         
         <!-- Leave Date Fields (shown only for Hasta/İzinli) -->
         <div id="leave-dates-container" style="display: ${['leave-sick', 'leave-vacation'].includes(uiStatus) ? 'block' : 'none'}; margin-top: 12px; padding: 12px; background: rgb(254, 242, 242); border: 1px solid rgb(254, 202, 202); border-radius: 6px;">
-          <div style="margin-bottom: 8px; font-size: 11px; font-weight: 600; color: rgb(153, 27, 27);">⚠️ İzin Tarihleri - Bu tarihler arasında görev atanamaz</div>
+          <div style="margin-bottom: 8px; font-size: 11px; font-weight: 600; color: rgb(153, 27, 27);"><i class="fa-solid fa-exclamation-triangle"></i> İzin Tarihleri - Bu tarihler arasında görev atanamaz</div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
             <div>
               <label style="display: block; font-size: 11px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">Başlangıç:</label>
@@ -836,7 +836,7 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
         <!-- Save Button -->
         <div style="margin-top: 12px;">
           <button type="button" onclick="saveWorkerStatus()" id="save-worker-status-btn" style="width: 100%; padding: 8px; background: rgb(37, 99, 235); color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
-            💾 Durumu Kaydet
+            <i class="fa-solid fa-save"></i> Durumu Kaydet
           </button>
         </div>
       </div>
@@ -946,7 +946,7 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
           <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Aktif Görevler</h3>
-          <a href="/pages/worker-portal.html?workerId=${worker.id}" target="_blank" style="padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px; text-decoration: none; color: rgb(17, 24, 39);">👷 Portala Git</a>
+          <a href="/pages/worker-portal.html?workerId=${worker.id}" target="_blank" style="padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px; text-decoration: none; color: rgb(17, 24, 39);"><i class="fa-solid fa-hard-hat"></i> Portala Git</a>
         </div>
         ${activeTasksHtml}
       </div>
@@ -1047,7 +1047,7 @@ function generateAssignmentsTimeline(assignments) {
         
         return `
           <div style="padding: 8px; margin-bottom: 6px; border-radius: 4px; border: 1px solid ${hasConflict ? '#fecaca' : '#e5e7eb'}; background: ${hasConflict ? '#fef2f2' : '#f9fafb'};">
-            ${hasConflict ? '<div style="font-size: 10px; color: #dc2626; margin-bottom: 4px; font-weight: 600;">⚠️ ÇAKIŞMA</div>' : ''}
+            ${hasConflict ? '<div style="font-size: 10px; color: #dc2626; margin-bottom: 4px; font-weight: 600;"><i class="fa-solid fa-exclamation-triangle"></i> ÇAKIŞMA</div>' : ''}
             
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
               <div style="font-weight: 600; font-size: 12px; color: rgb(17, 24, 39);">
@@ -1071,7 +1071,7 @@ function generateAssignmentsTimeline(assignments) {
             </div>
             
             <div style="display: flex; align-items: center; gap: 8px; font-size: 10px; color: rgb(107, 114, 128);">
-              ${assignment.stationId ? `<span>🏭 ${assignment.stationId}</span>` : ''}
+              ${assignment.stationId ? `<span><i class="fa-solid fa-industry"></i> ${assignment.stationId}</span>` : ''}
               ${assignment.subStationCode ? `<span>📍 ${assignment.subStationCode}</span>` : ''}
               <span style="margin-left: auto; background: ${getStatusColor(assignment.status)}; color: white; padding: 1px 4px; border-radius: 3px;">
                 ${getStatusLabel(assignment.status)}
@@ -2196,23 +2196,23 @@ function generatePrerequisitesIcons(prerequisites) {
   const icons = [];
   
   if (prerequisites.predecessorsDone === false) {
-    icons.push('<span style="font-size: 14px;" title="Önceki görevler bitmedi">⏳</span>');
+    icons.push('<i class="fa-solid fa-clock" style="font-size: 14px; color: #f59e0b;" title="Önceki görevler bitmedi"></i>');
   }
   
   if (prerequisites.workerAvailable === false) {
-    icons.push('<span style="font-size: 14px;" title="İşçi meşgul">👷</span>');
+    icons.push('<i class="fa-solid fa-hard-hat" style="font-size: 14px; color: #ef4444;" title="İşçi meşgul"></i>');
   }
   
   if (prerequisites.stationAvailable === false) {
-    icons.push('<span style="font-size: 14px;" title="İstasyon meşgul">🏭</span>');
+    icons.push('<i class="fa-solid fa-industry" style="font-size: 14px; color: #ef4444;" title="İstasyon meşgul"></i>');
   }
   
   if (prerequisites.materialsReady === false) {
-    icons.push('<span style="font-size: 14px;" title="Malzeme eksik">📦</span>');
+    icons.push('<i class="fa-solid fa-boxes-stacked" style="font-size: 14px; color: #ef4444;" title="Malzeme eksik"></i>');
   }
   
   if (icons.length === 0) {
-    return '<span style="color: #10b981; font-size: 14px;" title="Hazır">✅</span>';
+    return '<i class="fa-solid fa-check-circle" style="color: #10b981; font-size: 14px;" title="Hazır"></i>';
   }
   
   return icons.join(' ');

@@ -8,6 +8,7 @@
   <script type="module" src="../components/AuthGuard.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
   <link rel="stylesheet" href="./styles/production.css">
 </head>
 <body>
@@ -35,26 +36,26 @@
         <div class="nav-group">
           <div class="nav-group-header">Monitoring & Tracking</div>
           <div class="nav-group-content">
-            <button class="nav-item" onclick="navigateToView('dashboard')"><div class="nav-item-icon">📊</div><span>Dashboard</span></button>
-            <button class="nav-item" onclick="navigateToView('approved-quotes')"><div class="nav-item-icon">✅</div><span>Work Orders</span></button>
-            <button class="nav-item" onclick="navigateToView('worker-panel')"><div class="nav-item-icon">📦</div><span>Work Packages</span></button>
+            <button class="nav-item" onclick="navigateToView('dashboard')"><div class="nav-item-icon"><i class="fa-solid fa-chart-line"></i></div><span>Dashboard</span></button>
+            <button class="nav-item" onclick="navigateToView('approved-quotes')"><div class="nav-item-icon"><i class="fa-solid fa-clipboard-check"></i></div><span>Work Orders</span></button>
+            <button class="nav-item" onclick="navigateToView('worker-panel')"><div class="nav-item-icon"><i class="fa-solid fa-tasks"></i></div><span>Work Packages</span></button>
           </div>
         </div>
 
         <div class="nav-group">
           <div class="nav-group-header">Production Planning</div>
           <div class="nav-group-content">
-            <button class="nav-item" onclick="navigateToView('plan-designer')"><div class="nav-item-icon">🎨</div><span>Route Designer</span></button>
+            <button class="nav-item" onclick="navigateToView('plan-designer')"><div class="nav-item-icon"><i class="fa-solid fa-route"></i></div><span>Route Designer</span></button>
           </div>
         </div>
 
         <div class="nav-group">
           <div class="nav-group-header">Setup & Configuration</div>
           <div class="nav-group-content">
-            <button class="nav-item" onclick="navigateToView('settings')"><div class="nav-item-icon">⚡</div><span>Master Data</span><span class="nav-item-badge">Start here</span></button>
-            <button class="nav-item" onclick="navigateToView('stations')"><div class="nav-item-icon">🏭</div><span>Work Stations</span></button>
-            <button class="nav-item" onclick="navigateToView('operations')"><div class="nav-item-icon">⚙️</div><span>Operations</span></button>
-            <button class="nav-item" onclick="navigateToView('workers')"><div class="nav-item-icon">👥</div><span>Production Personnel</span></button>
+            <button class="nav-item" onclick="navigateToView('settings')"><div class="nav-item-icon"><i class="fa-solid fa-database"></i></div><span>Master Data</span><span class="nav-item-badge">Start here</span></button>
+            <button class="nav-item" onclick="navigateToView('stations')"><div class="nav-item-icon"><i class="fa-solid fa-industry"></i></div><span>Work Stations</span></button>
+            <button class="nav-item" onclick="navigateToView('operations')"><div class="nav-item-icon"><i class="fa-solid fa-list-check"></i></div><span>Operations</span></button>
+            <button class="nav-item" onclick="navigateToView('workers')"><div class="nav-item-icon"><i class="fa-solid fa-users"></i></div><span>Production Personnel</span></button>
           </div>
         </div>
 

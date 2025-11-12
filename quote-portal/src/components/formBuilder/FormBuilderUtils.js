@@ -9,7 +9,7 @@ export const FormBuilderUtils = {
   fieldTypes: {
     text: {
       label: 'Metin',
-      icon: '📝',
+      icon: '<i class="fa-solid fa-font"></i>',
       hasOptions: false,
       hasPlaceholder: true,
       hasValidation: true,
@@ -22,7 +22,7 @@ export const FormBuilderUtils = {
     },
     textarea: {
       label: 'Uzun Metin',
-      icon: '📄',
+      icon: '<i class="fa-solid fa-align-left"></i>',
       hasOptions: false,
       hasPlaceholder: true,
       hasValidation: true,
@@ -35,7 +35,7 @@ export const FormBuilderUtils = {
     },
     number: {
       label: 'Sayı',
-      icon: '🔢',
+      icon: '<i class="fa-solid fa-hashtag"></i>',
       hasOptions: false,
       hasPlaceholder: true,
       hasValidation: true,
@@ -48,7 +48,7 @@ export const FormBuilderUtils = {
     },
     email: {
       label: 'E-posta',
-      icon: '📧',
+      icon: '<i class="fa-solid fa-envelope"></i>',
       hasOptions: false,
       hasPlaceholder: true,
       hasValidation: false,
@@ -60,7 +60,7 @@ export const FormBuilderUtils = {
     },
     phone: {
       label: 'Telefon',
-      icon: '📞',
+      icon: '<i class="fa-solid fa-phone"></i>',
       hasOptions: false,
       hasPlaceholder: true,
       hasValidation: true,

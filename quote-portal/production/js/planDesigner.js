@@ -993,7 +993,7 @@ export function renderNode(node, targetCanvas = null) {
     '<span style="background: #dc2626; color: white; font-size: 10px; padding: 1px 4px; border-radius: 8px; margin-left: 4px;">!</span>' : '';
   const actionsHtml = planDesignerState.readOnly ? '' : [
     '<div style="display: flex; gap: 2px;">',
-    `<button onclick="event.stopPropagation(); editNode('${node.id}')" style="width: 20px; height: 20px; border: none; background: #f3f4f6; border-radius: 3px; cursor: pointer; font-size: 10px;">✏️</button>`,
+    `<button onclick="event.stopPropagation(); editNode('${node.id}')" style="width: 20px; height: 20px; border: none; background: #f3f4f6; border-radius: 3px; cursor: pointer; font-size: 10px;"><i class="fa-solid fa-edit" style="font-size: 8px;"></i></button>`,
     `<button onclick="event.stopPropagation(); deleteNode('${node.id}')" style="width: 20px; height: 20px; border: none; background: #fee2e2; border-radius: 3px; cursor: pointer; font-size: 10px;">🗑️</button>`,
     '</div>'
   ].join('');

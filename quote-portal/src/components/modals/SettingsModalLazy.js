@@ -1,14 +1,9 @@
-// Settings Modal - Using static imports to avoid module loading errors// Settings Modal - Using static imports to avoid module loading errors
+// Settings Modal - Using static imports to avoid module loading errors
 
-import SettingsModal from './SettingsModal.js'import SettingsModal from './SettingsModal.js'
+import SettingsModal from './SettingsModal.js';
 
-
-
-// Use static import instead of lazy loading to avoid console errors// Use static import instead of lazy loading to avoid console errors
-
-export default SettingsModalconst LazySettingsModal = SettingsModal
-
-export default LazySettingsModal
+// Use static import instead of lazy loading to avoid console errors
+const LazySettingsModal = SettingsModal;
 export function SettingsModalLazy({ isOpen, onClose, t }) {
   const { useState, useEffect } = React
   const [activeTab, setActiveTab] = useState('pricing')
@@ -34,9 +29,9 @@ export function SettingsModalLazy({ isOpen, onClose, t }) {
   if (!isOpen) return null
 
   const tabs = [
-    { id: 'pricing', label: t.tab_pricing || 'Fiyatlandırma', icon: '💰' },
-    { id: 'form', label: t.tab_form || 'Form Ayarları', icon: '📝' },
-    { id: 'mail', label: t.tab_mail || 'Mail Ayarları', icon: '📧' }
+    { id: 'pricing', label: t.tab_pricing || 'Fiyatlandırma', icon: '<i class="fa-solid fa-dollar-sign"></i>' },
+    { id: 'form', label: t.tab_form || 'Form Ayarları', icon: '<i class="fa-solid fa-wpforms"></i>' },
+    { id: 'mail', label: t.tab_mail || 'Mail Ayarları', icon: '<i class="fa-solid fa-envelope"></i>' }
   ]
 
   const handleTabChange = (tabId) => {
@@ -89,7 +84,7 @@ export function SettingsModalLazy({ isOpen, onClose, t }) {
         React.createElement('h2', { 
           key: 'title',
           style: { margin: 0, color: 'var(--text)' }
-        }, '⚙️ ' + (t.settings || 'Ayarlar')),
+        }, React.createElement('span', { dangerouslySetInnerHTML: { __html: '<i class="fa-solid fa-cogs"></i> ' + (t.settings || 'Ayarlar') } })),
         
         React.createElement('button', {
           key: 'close',
@@ -154,7 +149,7 @@ export function SettingsModalLazy({ isOpen, onClose, t }) {
 }
 
 // Export wrapper that handles loading state
-export default function SettingsModalWrapper(props) {
+function SettingsModalWrapper(props) {
   const { useState, useEffect } = React
   const [moduleReady, setModuleReady] = useState(false)
 
@@ -208,3 +203,6 @@ export function preloadSettingsModal(triggerElement) {
     ], 'low')
   }
 }
+
+// Export the main component
+export default LazySettingsModal;

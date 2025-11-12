@@ -1782,3 +1782,153 @@ select.mes-filter-input.is-compact {
   background: #94a3b8;
 }
 
+/* Font Awesome Icon Styles for MES System */
+.nav-item-icon i {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  display: inline-block;
+}
+
+.nav-item-icon i.fa-chart-line {
+  color: #3b82f6;
+}
+
+.nav-item-icon i.fa-clipboard-check {
+  color: #10b981;
+}
+
+.nav-item-icon i.fa-tasks {
+  color: #8b5cf6;
+}
+
+.nav-item-icon i.fa-route {
+  color: #f59e0b;
+}
+
+.nav-item-icon i.fa-database {
+  color: #ef4444;
+}
+
+.nav-item-icon i.fa-industry {
+  color: #6b7280;
+}
+
+.nav-item-icon i.fa-list-check {
+  color: #7c3aed;
+}
+
+.nav-item-icon i.fa-users {
+  color: #059669;
+}
+
+/* Help system icons */
+.help-title i {
+  color: #3b82f6;
+  margin-right: 8px;
+}
+
+.help-tab i {
+  margin-right: 6px;
+  font-size: 14px;
+}
+
+.help-step-number i {
+  font-size: 14px;
+}
+
+/* Prerequisites icons in work packages */
+.prerequisites-icons i {
+  margin: 0 2px;
+}
+
+.prerequisites-icons i.fa-clock {
+  color: #f59e0b;
+}
+
+.prerequisites-icons i.fa-hard-hat {
+  color: #ef4444;
+}
+
+.prerequisites-icons i.fa-industry {
+  color: #ef4444;
+}
+
+.prerequisites-icons i.fa-boxes-stacked {
+  color: #ef4444;
+}
+
+.prerequisites-icons i.fa-check-circle {
+  color: #10b981;
+}
+
+/* Form builder icons */
+.form-field-type i {
+  margin-right: 8px;
+  width: 16px;
+  text-align: center;
+}
+
+/* Settings modal icons */
+.settings-tab i {
+  margin-right: 6px;
+}
+
+/* Additional Font Awesome icons styling */
+.fa-spinner {
+  animation: fa-spin 1s infinite linear;
+}
+
+.fa-times-circle {
+  color: #ef4444;
+}
+
+.fa-exclamation-triangle {
+  color: #f59e0b;
+}
+
+.fa-save {
+  color: #10b981;
+}
+
+.fa-lightbulb {
+  color: #f59e0b;
+}
+
+.fa-clipboard-list {
+  color: #3b82f6;
+}
+
+.fa-copy {
+  color: #10b981;
+}
+
+.fa-search-plus,
+.fa-search-minus {
+  color: #6b7280;
+}
+
+.fa-edit {
+  color: #3b82f6;
+}
+
+.fa-eye {
+  color: #6b7280;
+}
+
+/* Card title icons */
+.card-title i {
+  margin-right: 8px;
+}
+
+/* Button icons */
+button i {
+  margin-right: 4px;
+}
+
+/* Status icons in tables */
+td i,
+span i {
+  margin-right: 4px;
+}
+

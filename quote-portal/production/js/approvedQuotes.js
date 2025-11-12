@@ -533,7 +533,7 @@ function showCancelProgressModal(plan) {
         <div class="modal-body">
           <div style="margin-bottom: 20px; padding: 16px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px;">
             <div style="font-size: 14px; color: #92400e; font-weight: 600; margin-bottom: 8px;">
-              📋 Plan: ${plan.name}
+              <i class="fa-solid fa-clipboard-list"></i> Plan: ${plan.name}
             </div>
             <div style="font-size: 13px; color: #78350f;">
               İş Emri: ${plan.orderCode || '-'}<br>
@@ -588,7 +588,7 @@ function showCancelProgressModal(plan) {
           
           <div style="margin-top: 20px; padding: 12px; background: #dbeafe; border-left: 4px solid #3b82f6; border-radius: 4px;">
             <div style="font-size: 12px; color: #1e40af; line-height: 1.5;">
-              <strong>💡 Not:</strong> Bu değerler, tüm görevlerin toplamı olmalıdır. 
+              <strong><i class="fa-solid fa-lightbulb" style="color: #f59e0b;"></i> Not:</strong> Bu değerler, tüm görevlerin toplamı olmalıdır. 
               Sistem bu bilgilere göre malzeme stoklarını otomatik olarak düzeltecektir.
             </div>
           </div>
@@ -918,8 +918,8 @@ function renderApprovedQuotesTable() {
       const shortPlanId = fullPlanId.startsWith('PPL-') ? fullPlanId : 
                          (fullPlanId.length > 10 ? fullPlanId.slice(-10) : fullPlanId)
       const planName = plan.name || ''
-      const typeIcon = plan.type === 'production' ? '✅' : '☑️'
-      const actionIcon = plan.type === 'production' ? '👁️' : '✏️'
+      const typeIcon = plan.type === 'production' ? '<i class="fa-solid fa-check-circle" style="color: #10b981;"></i>' : '<i class="fa-solid fa-square-check" style="color: #6b7280;"></i>'
+      const actionIcon = plan.type === 'production' ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-edit"></i>'
       const actionMode = plan.type === 'production' ? 'view' : 'edit'
       const planUrl = `../pages/production.html?${actionMode}PlanId=${encodeURIComponent(fullPlanId)}&orderCode=${encodeURIComponent(idForRow)}`
       planCell = `<span style=\\"display:inline-flex; align-items:center; gap:4px;\\">${shortPlanId} ${typeIcon}<button onclick="event.stopPropagation(); window.open('${planUrl}', '_blank')" style="border:none; background:transparent; cursor:pointer; font-size:12px; line-height:1; padding:0 2px; vertical-align:baseline;" title="${actionMode === 'view' ? 'View Plan' : 'Edit Plan'}">${actionIcon}</button></span>`
@@ -991,16 +991,16 @@ function renderApprovedQuotesTable() {
       } else if (currentState === PRODUCTION_STATES.PAUSED) {
         actionsCell += `<button onclick=\"event.stopPropagation(); resumeProduction('${esc(idForRow)}')\" style=\"${buttonStyle} background: #dbeafe; color: #1d4ed8;\" title=\"Üretime Devam Et\">▶️ Devam Et</button>`
       } else if (currentState === PRODUCTION_STATES.COMPLETED) {
-        actionsCell += `<span style=\"color: #3b82f6; font-size: 11px;\">✅ Tamamlandı</span>`
+        actionsCell += `<span style=\"color: #3b82f6; font-size: 11px;\"><i class="fa-solid fa-check-circle"></i> Tamamlandı</span>`
       } else if (currentState === PRODUCTION_STATES.CANCELLED) {
-        actionsCell = `<span style=\"color: #6b7280; font-size: 11px;\">❌ İptal Edildi</span>`
+        actionsCell = `<span style=\"color: #6b7280; font-size: 11px;\"><i class="fa-solid fa-times-circle"></i> İptal Edildi</span>`
       } else if (currentState === 'Plan Hazırlanıyor') {
         actionsCell += `<span style=\"color: #9ca3af; font-size: 10px;\">Plan henüz hazır değil</span>`
       }
 
       // Show cancel button for all states except cancelled and completed
       if (currentState !== PRODUCTION_STATES.CANCELLED && currentState !== PRODUCTION_STATES.COMPLETED && currentState !== 'Plan Hazırlanıyor') {
-        actionsCell += ` <button onclick=\"event.stopPropagation(); cancelProduction('${esc(idForRow)}')\" style=\"${buttonStyle} background: #fee2e2; color: #dc2626;\" title=\"İptal Et\">❌ İptal Et</button>`
+        actionsCell += ` <button onclick=\"event.stopPropagation(); cancelProduction('${esc(idForRow)}')\" style=\"${buttonStyle} background: #fee2e2; color: #dc2626;\" title=\"İptal Et\"><i class="fa-solid fa-times-circle"></i> İptal Et</button>`
       }
     }
 
