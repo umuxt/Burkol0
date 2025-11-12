@@ -2657,8 +2657,10 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
       throw e;
     }
     
-    const assignment = assignmentDoc.data();
-    const { planId, nodeId, workerId, stationId } = assignment;
+  const assignment = assignmentDoc.data();
+  const { planId, nodeId, workerId, stationId } = assignment;
+  // Ensure we have the workOrderCode from the assignment for post-transaction checks
+  let workOrderCode = assignment.workOrderCode || assignment.workOrder || null;
     
     // Execute action in atomic transaction
     const result = await db.runTransaction(async (transaction) => {
@@ -3490,6 +3492,66 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
         updatedAt: now.toISOString()
       };
     });
+    
+    // ========================================================================
+    // POST-TRANSACTION: Check if all work packages are completed
+    // ========================================================================
+    if (action === 'complete') {
+      try {
+        // If we don't have workOrderCode on assignment, try to derive it from the plan
+        if (!workOrderCode && planId) {
+          try {
+            const planSnap = await db.collection('mes-production-plans').doc(planId).get();
+            if (planSnap.exists) {
+              const planD = planSnap.data();
+              workOrderCode = planD.orderCode || planId;
+              console.log(`Derived workOrderCode from plan: ${workOrderCode}`);
+            }
+          } catch (err) {
+            console.warn('Failed to derive workOrderCode from plan:', err.message || err);
+          }
+        }
+
+        if (workOrderCode) {
+          // Query all assignments for this work order
+          const allAssignmentsSnapshot = await db.collection('mes-worker-assignments')
+            .where('workOrderCode', '==', workOrderCode)
+            .get();
+          
+          if (!allAssignmentsSnapshot.empty) {
+            const allAssignments = allAssignmentsSnapshot.docs.map(doc => doc.data());
+            
+            // Check if all assignments are completed
+            const allCompleted = allAssignments.every(a => a.status === 'completed');
+            
+            if (allCompleted) {
+              console.log(`✅ All work packages completed for ${workOrderCode}. Updating production state to 'Üretim Tamamlandı'`);
+              
+              // Update approved quote production state
+              await updateApprovedQuoteProductionState(
+                workOrderCode,
+                'Üretim Tamamlandı',
+                req.user?.email || 'system'
+              );
+              
+              result.allWorkPackagesCompleted = true;
+              result.productionStateUpdated = true;
+            } else {
+              const completedCount = allAssignments.filter(a => a.status === 'completed').length;
+              console.log(`📊 Work order ${workOrderCode}: ${completedCount}/${allAssignments.length} work packages completed`);
+              result.allWorkPackagesCompleted = false;
+              result.workPackageProgress = {
+                completed: completedCount,
+                total: allAssignments.length
+              };
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Error checking work order completion for ${workOrderCode}:`, error);
+        // Don't throw - the work package was completed successfully
+      }
+    }
     
     return result;
   }, res);

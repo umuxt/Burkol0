@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 import { MESService } from '../lib/mes-service.js';
+import { updateProductionState } from '../../production/js/mesApi.js';
 
 /**
  * ============================================================================
@@ -77,6 +78,7 @@ export interface WorkOrder {
   id: string;
   title: string;
   description: string;
+  workOrderCode?: string; // Optional work order code for production state tracking
   priority: "low" | "medium" | "high";
   status: "draft" | "active" | "completed" | "on-hold";
   operations: WorkOrderOperation[];
@@ -374,13 +376,29 @@ export const MESProvider: React.FC<MESProviderProps> = ({ children }) => {
       const completedOps = updatedOperations.filter(op => op.status === 'completed');
       const progress = Math.round((completedOps.length / updatedOperations.length) * 100);
       
+      // Check if all operations are completed
+      const allOperationsCompleted = updatedOperations.length > 0 && 
+                                   updatedOperations.every(op => op.status === 'completed');
+      
       const updates = {
         operations: updatedOperations,
         progress,
+        ...(allOperationsCompleted && { status: 'completed' as const }),
         updatedAt: new Date()
       };
       
       await updateWorkOrder(workOrderId, updates);
+      
+      // If all operations are completed and we have a workOrderCode, update production state
+      if (allOperationsCompleted && workOrder.workOrderCode) {
+        try {
+          await updateProductionState(workOrder.workOrderCode, 'Üretim Tamamlandı');
+          console.log(`Production state updated to 'Üretim Tamamlandı' for ${workOrder.workOrderCode}`);
+        } catch (error) {
+          console.error('❌ Error updating production state:', error);
+          // Don't throw - the work order update was successful even if production state update failed
+        }
+      }
     } catch (error) {
       console.error('❌ Error updating operation status:', error);
       throw error;

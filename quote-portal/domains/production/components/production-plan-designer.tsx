@@ -312,6 +312,7 @@ export function ProductionPlanDesigner() {
       id: `WO-${Date.now()}`,
       name: planName || `Plan-${Date.now()}`,
       description: planDescription || `Work order for ${orderData.product}`,
+      workOrderCode: selectedOrder, // Add work order code for production state tracking
       productName: orderData.product,
       quantity: orderData.quantity,
       packageSize: pkgSize,
@@ -367,6 +368,7 @@ export function ProductionPlanDesigner() {
       id: `WO-${Date.now()}`,
       name: planName || `Plan-${Date.now()}`,
       description: planDescription || `Work order for ${orderData.product}`,
+      workOrderCode: selectedOrder, // Add work order code for production state tracking
       productName: orderData.product,
       quantity: orderData.quantity,
       packageSize: pkgSize,
