@@ -1,6 +1,6 @@
 // Backend-powered overrides for Plan Designer
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
-import { getOperations, getStations, getApprovedQuotes, getMaterials, getProductionPlans } from './mesApi.js'
+import { getOperations, getStations, getSubstations, getApprovedQuotes, getMaterials, getProductionPlans } from './mesApi.js'
 import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate, aggregatePlanMaterials, checkMaterialAvailability, computeNodeEffectiveDuration } from './planDesigner.js'
 import { computeAndAssignSemiCode, getSemiCodePreviewForNode, getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
@@ -83,6 +83,7 @@ let _opsCache = []
 let _approvedOrders = []
 let _ordersByCode = new Map()
 let _stationsCacheFull = []
+let _substationsCacheFull = []
 let _materialsCacheFull = []
 
 // Global escape handler for modal
@@ -267,8 +268,9 @@ export function handleCanvasDropBackend(event) {
     x: Math.max(0, x),
     y: Math.max(0, y),
     connections: [],
-    assignedWorker: null,
-    assignedStation: null
+    assignedWorkerId: null,
+    assignedWorkerName: null,
+    assignedStations: []  // Multiple stations in priority order: [{ id, name, priority }]
   }
   planDesignerState.nodes.push(newNode)
   
@@ -293,49 +295,17 @@ export async function editNodeBackend(nodeId) {
   if (!node) return
   planDesignerState.selectedNode = node
   
-  // Legacy migration: convert assignedStation to assignedStations array with ID lookup
-  if (node.assignedStation && !Array.isArray(node.assignedStations)) {
-    // Try to find station by name or ID
-    let stationData = null;
-    try {
-      const allStations = await getStations(true);
-      stationData = allStations.find(s => s.name === node.assignedStation || s.id === node.assignedStation);
-    } catch (e) {
-      console.warn('Could not load stations for migration:', e);
-    }
-    
-    if (stationData) {
-      node.assignedStations = [{ id: stationData.id, name: stationData.name, priority: 1 }];
-    } else {
-      // Fallback: assume it's a name and create entry without ID
-      node.assignedStations = [{ id: null, name: node.assignedStation, priority: 1 }];
-    }
-  } else if (!Array.isArray(node.assignedStations)) {
+  // Initialize assignedStations array if missing (backward compatibility)
+  if (!Array.isArray(node.assignedStations)) {
     node.assignedStations = [];
-  }
-  
-  // Ensure all stations in assignedStations have both id and name
-  if (Array.isArray(node.assignedStations)) {
-    try {
-      const allStations = await getStations(true);
-      node.assignedStations = node.assignedStations.map(station => {
-        if (!station.id && station.name) {
-          // Try to find ID by name
-          const found = allStations.find(s => s.name === station.name);
-          if (found) {
-            return { ...station, id: found.id, name: found.name };
-          }
-        } else if (station.id && !station.name) {
-          // Try to find name by ID
-          const found = allStations.find(s => s.id === station.id);
-          if (found) {
-            return { ...station, id: found.id, name: found.name };
-          }
-        }
-        return station;
-      });
-    } catch (e) {
-      console.warn('Could not complete station migration:', e);
+    
+    // Migrate from old single station structure
+    if (node.assignedStationId && node.assignedStationName) {
+      node.assignedStations = [{
+        id: node.assignedStationId,
+        name: node.assignedStationName,
+        priority: 1
+      }];
     }
   }
   
@@ -356,13 +326,9 @@ export async function editNodeBackend(nodeId) {
   _materialsCacheFull = (materials || []).filter(isRawMaterial)
   console.log(`Filtered to ${_materialsCacheFull.length} active raw materials (Ham madde)`)
 
-  const stationByName = new Map(_stationsCacheFull.map(s => [s.name, s]))
-  const selectedStation = stationByName.get(node.assignedStation || '') || null
-  const stationSkills = selectedStation ? computeStationEffectiveSkills(selectedStation) : []
-  const requiredSkills = Array.from(new Set([ ...((node.skills)||[]), ...stationSkills ]))
-  const manualEnabled = !!selectedStation
   const compatibleStations = _stationsCacheFull.filter(s => Array.isArray(s.operationIds) && s.operationIds.includes(node.operationId))
   const selectedAssignMode = node.assignmentMode === 'manual' ? 'manual' : 'auto'
+  const manualEnabled = node.assignedStations && node.assignedStations.length > 0
 
   // Calculate effective time for display
   const nominalTime = parseFloat(node.time) || 0;
@@ -428,7 +394,7 @@ export async function editNodeBackend(nodeId) {
       '</div>'
     })() +
     '</div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div id="required-skills-display" style="font-size: 12px; color: var(--muted-foreground);">' + requiredSkills.map(escapeHtml).join(', ') + '</div></div>'
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div id="required-skills-display" style="font-size: 12px; color: var(--muted-foreground);">' + (Array.isArray(node.skills) ? node.skills.map(escapeHtml).join(', ') : 'None') + '</div></div>'
 
   const formEl = document.getElementById('node-edit-form')
   if (formEl) formEl.innerHTML = formContent
@@ -545,29 +511,24 @@ export function saveNodeEditBackend() {
       rawMaterials.push(base)
     }
   }
-  if (!name || !Number.isFinite(time) || time < 1) { showErrorToast('Please fill all required fields'); return }
+  if (!name || !Number.isFinite(time) || time < 1) { 
+    showErrorToast('Please fill all required fields'); 
+    return 
+  }
+
+  // Validate station selection
+  if (!node.assignedStations || node.assignedStations.length === 0) {
+    showErrorToast('Please select at least one work station');
+    return;
+  }
 
   node.name = name
   node.time = time
   
-  // Keep assignedStations as is (already managed by UI)
-  // For backward compatibility, set assignedStation to primary station
-  const primaryStation = node.assignedStations.length > 0 
-    ? node.assignedStations.sort((a, b) => (a.priority || 0) - (b.priority || 0))[0]
-    : null
+  // Stations are already set by UI handlers
+  // assignedStations[] is already updated with priority order
   
-  // Update both legacy and new station fields
-  if (primaryStation) {
-    node.assignedStationId = primaryStation.id;
-    node.assignedStationName = primaryStation.name;
-    node.assignedStation = primaryStation.id; // Legacy field now stores ID
-  } else {
-    node.assignedStationId = null;
-    node.assignedStationName = null;
-    node.assignedStation = null; // Legacy field
-  }
-  
-  node.assignmentMode = primaryStation ? (assignMode || 'auto') : null
+  node.assignmentMode = assignMode || 'auto'
   const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal)
   node.outputQty = Number.isFinite(outQtyNum) ? outQtyNum : null
   node.outputUnit = (outUnit || '').trim()
@@ -584,6 +545,13 @@ export function saveNodeEditBackend() {
     // Support multi materials; keep legacy rawMaterial as first for compatibility
     node.rawMaterials = rawMaterials
     node.rawMaterial = rawMaterials.length ? { ...rawMaterials[0] } : null
+    
+    console.log('🔍 STEP 1 - saveNodeEdit applyMaterial:', {
+      nodeId: node.id,
+      rawMaterialsCount: rawMaterials.length,
+      rawMaterials: rawMaterials,
+      nodeRawMaterials: node.rawMaterials
+    });
     
     // Compute/update semi-finished product code preview (not committed yet)
     // Actual commit happens when the plan is saved
@@ -898,90 +866,78 @@ function formatMaterialLabel(m) {
   return [code, name].filter(Boolean).join(' — ')
 }
 
-// Multi-station selector generator
+// Multi-station priority selector (substations assigned automatically at launch)
 function generateMultiStationSelector(node, compatibleStations) {
-  // Get current assigned stations or convert legacy assignedStation
-  let assignedStations = []
-  if (Array.isArray(node.assignedStations)) {
-    assignedStations = [...node.assignedStations]
-  } else if (node.assignedStation) {
-    // Convert legacy single station to array format - try to find ID
-    const stationDetails = compatibleStations.find(s => s.name === node.assignedStation || s.id === node.assignedStation)
-    if (stationDetails) {
-      assignedStations = [{ id: stationDetails.id, name: stationDetails.name, priority: 1 }]
-    } else {
-      assignedStations = [{ id: null, name: node.assignedStation, priority: 1 }]
-    }
+  // Ensure assignedStations array exists
+  if (!Array.isArray(node.assignedStations)) {
+    node.assignedStations = [];
   }
-
-  const selectedStationIds = new Set(assignedStations.map(s => s.id).filter(Boolean))
-  const availableStations = compatibleStations.filter(s => !selectedStationIds.has(s.id))
+  
+  const selectedStations = node.assignedStations || [];
+  
+  // Build selected stations list
+  const selectedStationsHtml = selectedStations.length > 0 
+    ? '<div style="margin-bottom: 12px; border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: #f9fafb;">' +
+        '<div style="font-size: 11px; color: #6b7280; margin-bottom: 6px; font-weight: 500; text-transform: uppercase;">Selected Stations (Priority Order)</div>' +
+        selectedStations
+          .sort((a, b) => a.priority - b.priority)
+          .map(station => {
+            return '<div style="display: flex; align-items: center; padding: 8px; background: white; border-radius: 4px; margin-bottom: 4px; border: 1px solid #e5e7eb;">' +
+              '<span style="display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #3b82f6; color: white; border-radius: 50%; font-size: 12px; font-weight: 600; margin-right: 8px;">' + station.priority + '</span>' +
+              '<span style="flex: 1; font-weight: 500; font-size: 13px;">' + escapeHtml(station.id) + ' – ' + escapeHtml(station.name) + '</span>' +
+              '<button type="button" onclick="removeSelectedStationById(\'' + escapeHtml(station.id) + '\')" ' +
+                'style="padding: 4px 8px; background: #fee; color: #c00; border: 1px solid #fcc; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500;">' +
+                'Remove' +
+              '</button>' +
+            '</div>';
+          }).join('') +
+      '</div>'
+    : '<div style="margin-bottom: 12px; padding: 12px; background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; font-size: 13px; color: #92400e;">' +
+        '⚠️ No stations selected. Please add at least one station below.' +
+      '</div>';
 
   return '<div style="margin-bottom: 16px;">' +
-    '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Stations (Priority Order)</label>' +
-    '<div id="selected-stations-list" style="margin-bottom: 8px; min-height: 40px; border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: #f9fafb;">' +
-    generateSelectedStationsList(assignedStations) +
+    '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Work Stations * <span style="font-size: 11px; color: #6b7280; font-weight: 400;">(Priority order)</span></label>' +
+    selectedStationsHtml +
+    '<div class="custom-dropdown" style="position: relative;">' +
+      '<div id="station-selector-button" onclick="toggleStationDropdown()" ' +
+        'style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: white; cursor: pointer; ' +
+        'display: flex; align-items: center; justify-content: space-between; min-height: 40px;">' +
+        '<span id="station-selector-text" style="color: #6b7280;">Select station to add...</span>' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M6 9l6 6 6-6"></path>' +
+        '</svg>' +
+      '</div>' +
+      '<div id="station-dropdown-list" style="position: absolute; top: 100%; left: 0; right: 0; background: white; ' +
+        'border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); ' +
+        'max-height: 250px; overflow-y: auto; z-index: 1000; display: none;">' +
+        (compatibleStations.length === 0 ? 
+          '<div style="padding: 12px; color: #6b7280; text-align: center; font-style: italic;">No compatible stations</div>' :
+          compatibleStations.map(s => {
+            const displayName = `${s.id} – ${s.name}`;
+            const alreadySelected = selectedStations.some(ss => ss.id === s.id);
+            return '<div class="station-dropdown-item" data-station-id="' + escapeHtml(s.id) + '" ' +
+              'onclick="selectStationFromDropdown(\'' + escapeHtml(s.id) + '\', \'' + escapeHtml(s.name) + '\')" ' +
+              'style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 8px; ' +
+              'background: white; transition: all 0.2s; ' + (alreadySelected ? 'opacity: 0.4; pointer-events: none;' : '') + '">' +
+              '<div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; flex-shrink: 0;"></div>' +
+              '<span style="flex: 1; font-weight: 500;">' + escapeHtml(displayName) + '</span>' +
+              (alreadySelected ? '<span style="font-size: 11px; color: #10b981;">✓</span>' : '') +
+              '</div>';
+          }).join('')
+        ) +
+      '</div>' +
     '</div>' +
-    '<div style="display: flex; gap: 8px; align-items: center;">' +
-    '<div class="custom-dropdown" style="flex: 1; position: relative;">' +
-    '<div id="station-selector-button" onclick="toggleStationDropdown()" ' +
-    'style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; background: white; cursor: pointer; ' +
-    'display: flex; align-items: center; justify-content: space-between; min-height: 40px;">' +
-    '<span id="station-selector-text" style="color: #6b7280;">Select station to add...</span>' +
-    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-    '<path d="M6 9l6 6 6-6"></path>' +
-    '</svg>' +
-    '</div>' +
-    '<div id="station-dropdown-list" style="position: absolute; top: 100%; left: 0; right: 0; background: white; ' +
-    'border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); ' +
-    'max-height: 200px; overflow-y: auto; z-index: 1000; display: none;">' +
-    (availableStations.length === 0 ? 
-      '<div style="padding: 12px; color: #6b7280; text-align: center; font-style: italic;">No available stations</div>' :
-      availableStations.map(s => {
-        const displayName = s.id ? `${s.id} – ${s.name}` : s.name
-        return '<div class="station-dropdown-item" data-station-id="' + escapeHtml(s.id || '') + '" data-station-name="' + escapeHtml(s.name || '') + '" onclick="selectStationFromDropdown(\'' + escapeHtml(s.id || '') + '\', \'' + escapeHtml(s.name || '') + '\')" ' +
-        'style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 8px; transition: all 0.2s;">' +
-        '<div style="width: 8px; height: 8px; background: #10b981; border-radius: 50%; flex-shrink: 0;"></div>' +
-        '<span style="flex: 1; font-weight: 500;">' + escapeHtml(displayName) + '</span>' +
-        '<span style="font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 2px 6px; border-radius: 10px;">' + escapeHtml(s.type || 'Station') + '</span>' +
-        '</div>'
-      }).join('')
-    ) +
-    '</div>' +
-    '</div>' +
-    '<button type="button" onclick="addSelectedStation()" style="padding: 8px 16px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; white-space: nowrap;">Add</button>' +
-    '</div>' +
-    '<div style="color:#6b7280; font-size: 12px; margin-top: 4px;">Select stations in priority order. At least 1 station required. Drag to reorder.</div>' +
-    '</div>'
+    '<button type="button" onclick="addSelectedStation()" ' +
+      'style="margin-top: 8px; padding: 6px 12px; background: #3b82f6; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 500; width: 100%;">' +
+      '+ Add Selected Station' +
+    '</button>' +
+    '</div>';
 }
 
-function generateSelectedStationsList(assignedStations) {
-  if (!assignedStations || assignedStations.length === 0) {
-    return '<div style="color: #6b7280; font-style: italic; text-align: center; padding: 8px;">No stations selected</div>'
-  }
-
-  return assignedStations
-    .sort((a, b) => (a.priority || 0) - (b.priority || 0))
-    .map((station, index) => {
-      // Use ID and name from the station object
-      const stationId = station.id || '';
-      const stationName = station.name || '';
-      const displayText = stationId ? `${stationId} – ${stationName}` : stationName;
-      
-      return '<div class="selected-station-item" data-station-id="' + escapeHtml(stationId) + '" data-station-name="' + escapeHtml(stationName) + '" draggable="true" ' +
-        'style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; padding: 6px 8px; ' +
-        'background: white; border: 1px solid #e5e7eb; border-radius: 4px; cursor: move;">' +
-        '<span style="flex: 1; font-weight: 500;">' + (index + 1) + '. ' + escapeHtml(displayText) + '</span>' +
-        '<button type="button" onclick="removeSelectedStationById(\'' + escapeHtml(stationId) + '\')" ' +
-        'style="margin-left: 8px; padding: 2px 6px; background: #ef4444; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 11px;">×</button>' +
-        '</div>'
-    }).join('')
-}
-
-  // Station change handler inside edit modal
+// Station change handler inside edit modal
 export function handleStationChangeInEdit() {
   try {
-    updateWorkerAssignmentFromStations()
     updateOutputCodePreviewBackend()
   } catch (e) { console.warn('handleStationChangeInEdit failed', e) }
 }
@@ -1120,15 +1076,28 @@ function refreshStationSelector() {
     Array.isArray(s.operationIds) && s.operationIds.includes(node.operationId)
   )
 
-  // Update the entire multi-station selector
-  const container = document.querySelector('#selected-stations-list').parentElement
-  container.outerHTML = generateMultiStationSelector(node, compatibleStations)
+  // Find the station selector container
+  const listElement = document.querySelector('#station-selector-button');
+  if (!listElement) {
+    console.warn('Station selector not found in DOM, cannot refresh');
+    return;
+  }
+  
+  // Find the parent container (the entire station selector section)
+  const container = listElement.closest('[style*="margin-bottom"]');
+  if (!container) {
+    console.warn('Station selector container not found');
+    return;
+  }
+
+  // Replace the entire station selector HTML
+  const newHtml = generateMultiStationSelector(node, compatibleStations);
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = newHtml;
+  container.replaceWith(tempDiv.firstElementChild);
 
   // Reset selected value
-  window.selectedStationValue = null
-
-  // Set up drag and drop
-  setupStationDragAndDrop()
+  window.selectedStationValue = null;
 }
 
 function setupStationDragAndDrop() {

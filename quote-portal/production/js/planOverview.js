@@ -2,7 +2,7 @@
 
 import { getProductionPlans, getPlanTemplates, deleteProductionPlan, clearTemplateFromApprovedQuotes } from './mesApi.js'
 import { API_BASE, withAuth } from '../../shared/lib/api.js'
-import { loadPlanNodes, setReadOnly, setPlanMeta, resetPlanDesignerState } from './planDesigner.js'
+import { loadPlanNodes, setReadOnly, setPlanMeta, resetPlanDesignerState, planDesignerState } from './planDesigner.js'
 import { loadApprovedOrdersToSelect } from './planDesignerBackend.js'
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
 
@@ -174,6 +174,8 @@ async function loadAndRenderPlans() {
 try { Object.assign(window, { loadAndRenderPlans }) } catch {}
 
 export async function viewProductionPlan(id) {
+  console.log('👁️ Opening View Production Plan mode for:', id);
+  
   try {
     let p = (_plansCache || []).find(x => x.id === id)
     if (!p) {
@@ -184,26 +186,47 @@ export async function viewProductionPlan(id) {
         p = (_plansCache || []).find(x => x.id === id)
       } catch {}
     }
-    if (!p) return
+    if (!p) {
+      console.error('❌ Plan not found:', id);
+      return;
+    }
+    
     // Open designer in read-only view
     if (typeof window.openCreatePlan === 'function') window.openCreatePlan()
+    
     // Title should reflect view mode
     try {
       const title = document.getElementById('plans-title');
       if (title) title.textContent = 'Production Route Management / Overview';
     } catch {}
+    
     // Show plan ID in configuration header
     try {
       const planIdElement = document.getElementById('plan-config-id');
       if (planIdElement && id) {
-        // Display full ID for new format (PPL-MMYY-XXX), keep slice for old format
         const displayId = id.startsWith('PPL-') ? id : id.slice(-10);
         planIdElement.textContent = displayId;
         planIdElement.style.display = 'inline';
       }
     } catch {}
+    
     setReadOnly(true)
-    setPlanMeta({ name: p.name, description: p.description, orderCode: p.orderCode, scheduleType: p.scheduleType, quantity: p.quantity || 1 })
+    setPlanMeta({ 
+      name: p.name, 
+      description: p.description, 
+      orderCode: p.orderCode, 
+      scheduleType: p.scheduleType, 
+      quantity: p.quantity || 1,
+      mode: 'view',
+      status: p.status || 'production',
+      id: p.id
+    })
+    
+    console.log('✅ View Plan mode initialized:', {
+      mode: planDesignerState.currentPlanMeta?.mode,
+      readOnly: planDesignerState.readOnly
+    });
+    
     // Ensure the order dropdown reflects this plan's order even if it's taken
     try { await loadApprovedOrdersToSelect(); } catch {}
     const nodes = Array.isArray(p.nodes) ? p.nodes : (Array.isArray(p.steps) ? p.steps : (p.graph && Array.isArray(p.graph.nodes) ? p.graph.nodes : []))
@@ -244,9 +267,15 @@ export async function releasePlanFromOverview(planId, planName) {
 }
 
 export function editTemplateById(id) {
+  console.log('📝 Opening Edit Template mode for:', id);
+  
   try {
     const openTpl = (tpl) => {
-      if (!tpl) return
+      if (!tpl) {
+        console.error('❌ Template not found:', id);
+        return;
+      }
+      
       if (typeof window.openCreatePlan === 'function') window.openCreatePlan()
       setReadOnly(false)
       
@@ -254,34 +283,38 @@ export function editTemplateById(id) {
       try {
         const planIdElement = document.getElementById('plan-config-id');
         if (planIdElement && tpl.id) {
-          // Display full ID for new format (PPL-MMYY-XXX), keep slice for old format
           const displayId = tpl.id.startsWith('PPL-') ? tpl.id : tpl.id.slice(-10);
           planIdElement.textContent = displayId;
           planIdElement.style.display = 'inline';
         }
       } catch {}
       
-      // Debug: Log template data being loaded
-      console.log('🔍 TEMPLATE BEING LOADED:', {
+      console.log('📋 Template loaded:', {
         id: tpl.id,
+        name: tpl.name,
         orderCode: tpl.orderCode,
         scheduleType: tpl.scheduleType,
-        name: tpl.name,
-        description: tpl.description,
-        fullTemplate: tpl
+        quantity: tpl.quantity
       });
       
-      // Mark that we're editing from a template so UI can adapt (e.g., Save button label)
-      // Use actual template data instead of hard-coded values
+      // Set mode to 'edit' with template status
       setPlanMeta({ 
         name: tpl.name, 
         description: tpl.description || '', 
         orderCode: tpl.orderCode || '', 
         scheduleType: tpl.scheduleType || 'one-time',
         quantity: tpl.quantity || 1,
+        mode: 'edit',
         status: 'template', 
         sourceTemplateId: tpl.id 
       });
+      
+      console.log('✅ Edit Template mode initialized:', {
+        mode: planDesignerState.currentPlanMeta?.mode,
+        status: planDesignerState.currentPlanMeta?.status,
+        sourceTemplateId: planDesignerState.currentPlanMeta?.sourceTemplateId
+      });
+      
       try { loadApprovedOrdersToSelect(); } catch {}
       loadPlanNodes(tpl.steps || [])
     }
@@ -374,9 +407,40 @@ export function filterProductionPlans() {
 }
 
 export function openCreatePlan() {
-  try { resetPlanDesignerState(); } catch (e) { console.warn('Failed to reset designer state before opening', e); }
-  try { setReadOnly(false); } catch (e) { console.warn('Failed to set designer editable mode', e); }
-  try { setPlanMeta({ name: '', description: '', orderCode: '', scheduleType: 'one-time' }); } catch (e) { console.warn('Failed to clear plan configuration inputs', e); }
+  console.log('🆕 Opening Create Plan mode');
+  
+  try { 
+    resetPlanDesignerState(); 
+  } catch (e) { 
+    console.warn('Failed to reset designer state before opening', e); 
+  }
+  
+  try { 
+    setReadOnly(false); 
+  } catch (e) { 
+    console.warn('Failed to set designer editable mode', e); 
+  }
+  
+  try { 
+    setPlanMeta({ 
+      name: '', 
+      description: '', 
+      orderCode: '', 
+      scheduleType: 'one-time',
+      quantity: 1,
+      mode: 'create',
+      status: null,
+      sourceTemplateId: null
+    }); 
+  } catch (e) { 
+    console.warn('Failed to clear plan configuration inputs', e); 
+  }
+  
+  console.log('✅ Create Plan mode initialized:', {
+    mode: planDesignerState.currentPlanMeta?.mode,
+    readOnly: planDesignerState.readOnly
+  });
+  
   const section = document.getElementById('plan-designer-section');
   if (!section) return;
   // Hide list-related UI

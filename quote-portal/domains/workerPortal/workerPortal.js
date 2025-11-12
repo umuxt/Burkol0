@@ -841,7 +841,7 @@ function renderTaskRow(task, isNextTask) {
           <div class="task-details">
             Plan: ${task.planId} | Node: ${task.nodeId}
           </div>
-          ${renderPrerequisites(task.prerequisites)}
+          ${renderPrerequisites(task.prerequisites, task)}
           ${pausedBannerHtml}
           ${blockReasonsHtml}
         </div>
@@ -873,13 +873,31 @@ function renderMaterialStatus(prerequisites) {
   return '<span style="font-size: 14px; color: #9ca3af;" title="Malzeme durumu bilinmiyor">?</span>';
 }
 
-function renderPrerequisites(prerequisites) {
+function renderPrerequisites(prerequisites, task) {
   if (!prerequisites) return '';
   
   const items = [];
   if (!prerequisites.predecessorsDone) items.push('⏳ Önceki görevler');
   if (!prerequisites.workerAvailable) items.push('👷 İşçi meşgul');
-  if (!prerequisites.stationAvailable) items.push('🏭 İstasyon meşgul');
+  
+  // Enhanced substation/station busy message
+  if (!prerequisites.stationAvailable || !prerequisites.substationAvailable) {
+    // Check if we have substation workload details
+    if (task && task.substationCurrentWorkPackageId && task.substationCurrentExpectedEnd) {
+      const expectedEnd = new Date(task.substationCurrentExpectedEnd);
+      const now = new Date();
+      const minutesRemaining = Math.max(0, Math.round((expectedEnd - now) / 60000));
+      
+      const timeStr = minutesRemaining > 60 
+        ? `${Math.floor(minutesRemaining / 60)}s ${minutesRemaining % 60}dk`
+        : `${minutesRemaining}dk`;
+      
+      items.push(`🏭 Makine meşgul (${task.substationCurrentWorkPackageId}, ~${timeStr})`);
+    } else {
+      items.push('🏭 Makine meşgul');
+    }
+  }
+  
   if (!prerequisites.materialsReady) items.push('📦 Malzeme eksik');
   
   if (items.length === 0) return '';
@@ -904,7 +922,7 @@ function renderTaskActions(task) {
   const isBlocked = task.prerequisites && (
     !task.prerequisites.predecessorsDone ||
     !task.prerequisites.workerAvailable ||
-    !task.prerequisites.stationAvailable ||
+    !task.prerequisites.substationAvailable ||
     !task.prerequisites.materialsReady
   );
   
@@ -918,7 +936,7 @@ function renderTaskActions(task) {
     const reasons = [];
     if (!task.prerequisites.predecessorsDone) reasons.push('Önceki görevler tamamlanmadı');
     if (!task.prerequisites.workerAvailable) reasons.push('İşçi meşgul');
-    if (!task.prerequisites.stationAvailable) reasons.push('İstasyon meşgul');
+    if (!task.prerequisites.substationAvailable) reasons.push('İstasyon meşgul');
     if (!task.prerequisites.materialsReady) reasons.push('Malzeme eksik');
     blockTooltip = `title="${reasons.join(', ')}"`;
   }

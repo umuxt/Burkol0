@@ -907,6 +907,7 @@ export function generateStations() {
 
     <div class="mes-filter-bar" style="margin-bottom: 24px;">
       <button onclick="openAddStationModal()" class="mes-primary-action is-compact">+ Add Work Station</button>
+      <button onclick="resetAllStations()" class="mes-secondary-action is-compact" style="background: #f59e0b; color: white; margin-left: 8px;" title="TEST: Tüm alt istasyonların currentOperation'ını temizle">🔧 Reset Substations (TEST)</button>
       <div class="mes-filter-controls">
         <input id="station-filter-search" type="text" placeholder="Search work stations..." class="mes-filter-input is-compact">
 

@@ -2130,163 +2130,53 @@ window.showMaterialCheckModal = showMaterialCheckModal;
 window.closeMaterialCheckModal = closeMaterialCheckModal;
 
 export async function savePlanDraft() {
-  if (planDesignerState.nodes.length === 0) { showErrorToast('Cannot save empty plan'); return; }
+  console.log('🔵 savePlanDraft called');
+  console.log('🔍 Current state:', {
+    nodesCount: planDesignerState.nodes.length,
+    mode: planDesignerState.currentPlanMeta?.mode,
+    status: planDesignerState.currentPlanMeta?.status,
+    sourceTemplateId: planDesignerState.currentPlanMeta?.sourceTemplateId
+  });
+  
+  // Validation
+  if (planDesignerState.nodes.length === 0) { 
+    showErrorToast('Cannot save empty plan'); 
+    return; 
+  }
+  
   const planName = document.getElementById('plan-name')?.value || 'Untitled';
   const planDesc = document.getElementById('plan-description')?.value || '';
   const orderCode = document.getElementById('order-select')?.value || '';
   const scheduleType = document.getElementById('schedule-type')?.value || 'one-time';
   
-  // Ensure an order is selected before saving production plan
   if (!orderCode) {
     showWarningToast('Select a work order before saving this plan');
     return;
   }
   
-  // Get quantity from modal input if available, fallback to state
   const quantityInput = document.getElementById('modal-plan-quantity');
   const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
   
-  // Material checks are now disabled in Plan Designer - warnings appear at launch time
-  console.log('✓ Material checks disabled - will be validated at launch');
+  console.log('📝 Plan data:', { planName, orderCode, planQuantity });
   
   const meta = planDesignerState.currentPlanMeta || {};
-  const isFromTemplate = (meta.status === 'template' && meta.sourceTemplateId);
-  if (isFromTemplate) {
-    const id = meta.sourceTemplateId;
-    
-    // Prepare material summary for the plan document (unchecked)
-    // Material consumption validation happens at launch time in Approved Quotes
-    
-    // Build material summary from aggregatePlanMaterials
-    const aggregatedMaterials = aggregatePlanMaterials(planDesignerState.nodes, planQuantity);
-    
-    // Mark all materials as unchecked (no stock validation in designer)
-    const enrichedMaterials = aggregatedMaterials.map(mat => {
-      return {
-        id: mat.id,
-        code: mat.code,
-        name: mat.name,
-        required: mat.required,
-        unit: mat.unit,
-        isDerived: mat.isDerived || false,
-        stock: 0, // Not checked
-        shortage: 0, // Not checked
-        isOk: true // Assume OK - will be validated at launch
-      };
-    });
-    
-    const wipOutputs = [];
-    planDesignerState.nodes.forEach(node => {
-      if (node.semiCode) {
-        wipOutputs.push({
-          code: node.semiCode,
-          name: node.semiCode,
-          quantity: (node.outputQty || 1) * planQuantity,
-          unit: node.outputUnit || 'pcs',
-          nodeId: node.id,
-          operationId: node.operationId
-        });
-      }
-    });
-    
-    const materialSummary = {
-      checkedAt: null, // Not checked in designer
-      totalItems: enrichedMaterials.length,
-      allAvailable: false, // Unknown until launch
-      hasShortages: false, // Unknown until launch
-      items: enrichedMaterials,
-      shortages: [],
-      // Separated for stock management during release:
-      rawMaterials: enrichedMaterials.map(item => ({
-        id: item.id,
-        code: item.code,
-        name: item.name,
-        required: item.required,
-        unit: item.unit,
-        isDerived: item.isDerived // Properly flagged from node.rawMaterials.derivedFrom
-      })),
-      wipOutputs // WIP materials produced by this plan
-    };
-    
-    // Prepare timing summary for the plan document
-    const timingSummary = planDesignerState.timingSummary || summarizePlanTiming(planDesignerState.nodes, planQuantity);
-    
-    // Prepare execution graph for task management and prerequisite tracking
-    const executionGraph = buildExecutionGraph(planDesignerState.nodes);
-    
-    const updates = {
-      name: planName,
-      description: planDesc,
-      orderCode,
-      scheduleType,
-      quantity: planQuantity,
-      nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
-      status: 'production',
-      autoAssign: true, // Enable backend auto-assignment at launch
-      materialSummary, // Add material summary for reporting
-      timingSummary, // Add timing summary for reporting
-      executionGraph // Add execution graph for task prerequisite tracking
-    };
-    
-    // Commit pending semi codes before updating plan
-    const pendingCodes = collectPendingSemiCodes(planDesignerState.nodes);
-    if (pendingCodes.length > 0) {
-      try {
-        console.log(`Committing ${pendingCodes.length} semi codes...`);
-        const result = await commitSemiCodes(pendingCodes);
-        console.log(`Semi codes committed: ${result.committed}, skipped: ${result.skipped}`);
-        
-        // Clear pending flags
-        planDesignerState.nodes.forEach(node => {
-          if (node._semiCodePending) {
-            node._semiCodePending = false;
-          }
-        });
-      } catch (error) {
-        console.error('Failed to commit semi codes:', error);
-        showWarningToast('Warning: Semi codes may not be persisted');
-      }
-    }
-    
-    updateProductionPlan(id, updates)
-      .then(() => {
-        showSuccessToast(`Plan converted to production: ${planName}`);
-        planDesignerState.nodes = [];
-        renderCanvas();
-        cancelPlanCreation();
-        setActivePlanTab('production');
-        try { if (typeof window.loadAndRenderPlans === 'function') window.loadAndRenderPlans(); } catch {}
-      })
-      .catch(e => {
-        console.error('Plan conversion failed', e);
-        showErrorToast('Plan conversion failed');
-      });
-    return;
-  }
-
-  // Prepare material summary for the plan document
-  // NOTE: Material consumption happens automatically during plan release.
-  // rawMaterials includes both base materials and derived WIP materials consumed.
-  // wipOutputs includes all semi-finished products produced by nodes.
+  const isTemplateConversion = (meta.mode === 'edit' && meta.status === 'template' && meta.sourceTemplateId);
   
-  // Build material summary from aggregatePlanMaterials (not just materialCheck.items)
+  console.log('🔀 Operation mode:', isTemplateConversion ? 'Template → Plan Conversion' : 'New Plan Creation');
+  
+  // Build common data structures
   const aggregatedMaterials = aggregatePlanMaterials(planDesignerState.nodes, planQuantity);
-  
-  // Merge with materialCheck data for availability info
-  const enrichedMaterials = aggregatedMaterials.map(mat => {
-    const checkItem = materialCheck.items?.find(c => c.id === mat.id || c.code === mat.code) || {};
-    return {
-      id: mat.id,
-      code: mat.code,
-      name: mat.name,
-      required: mat.required,
-      unit: mat.unit,
-      isDerived: mat.isDerived || false, // From aggregatePlanMaterials
-      stock: checkItem.stock || 0,
-      shortage: checkItem.shortage || 0,
-      isOk: checkItem.isOk !== false
-    };
-  });
+  const enrichedMaterials = aggregatedMaterials.map(mat => ({
+    id: mat.id,
+    code: mat.code,
+    name: mat.name,
+    required: mat.required,
+    unit: mat.unit,
+    isDerived: mat.isDerived || false,
+    stock: 0,
+    shortage: 0,
+    isOk: true
+  }));
   
   const wipOutputs = [];
   planDesignerState.nodes.forEach(node => {
@@ -2303,30 +2193,111 @@ export async function savePlanDraft() {
   });
   
   const materialSummary = {
-    checkedAt: materialCheck.checkedAt || new Date().toISOString(),
+    checkedAt: new Date().toISOString(),
     totalItems: enrichedMaterials.length,
-    allAvailable: materialCheck.allAvailable,
-    hasShortages: materialCheck.hasShortages,
-    items: enrichedMaterials, // All materials with availability info
-    shortages: materialCheck.shortageDetails || [],
-    // Separated for stock management during release:
+    allAvailable: false,
+    hasShortages: false,
+    items: enrichedMaterials,
+    shortages: [],
     rawMaterials: enrichedMaterials.map(item => ({
       id: item.id,
       code: item.code,
       name: item.name,
       required: item.required,
       unit: item.unit,
-      isDerived: item.isDerived // Properly flagged from node.rawMaterials.derivedFrom
+      isDerived: item.isDerived
     })),
-    wipOutputs // WIP materials produced by this plan
+    wipOutputs
   };
   
-  // Prepare timing summary for the plan document
   const timingSummary = planDesignerState.timingSummary || summarizePlanTiming(planDesignerState.nodes, planQuantity);
   
-  // Prepare execution graph for task management and prerequisite tracking
+  console.log('🔍 DEBUG - Nodes before buildExecutionGraph:');
+  planDesignerState.nodes.forEach((node, idx) => {
+    console.log(`  Node ${idx} (${node.id}):`, {
+      hasRawMaterials: !!node.rawMaterials,
+      rawMaterialsCount: node.rawMaterials?.length || 0,
+      rawMaterials: node.rawMaterials
+    });
+  });
+  
   const executionGraph = buildExecutionGraph(planDesignerState.nodes);
-
+  
+  console.log('🔍 DEBUG - executionGraph after build:');
+  executionGraph.forEach((graphNode, idx) => {
+    console.log(`  Graph Node ${idx} (${graphNode.nodeId}):`, {
+      hasMaterialInputs: !!graphNode.materialInputs,
+      materialInputsCount: graphNode.materialInputs?.length || 0,
+      materialInputs: graphNode.materialInputs
+    });
+  });
+  
+  // Commit semi codes before saving
+  const pendingCodes = collectPendingSemiCodes(planDesignerState.nodes);
+  if (pendingCodes.length > 0) {
+    try {
+      console.log(`Committing ${pendingCodes.length} semi codes...`);
+      const result = await commitSemiCodes(pendingCodes);
+      console.log(`Semi codes committed: ${result.committed}, skipped: ${result.skipped}`);
+      
+      planDesignerState.nodes.forEach(node => {
+        if (node._semiCodePending) {
+          node._semiCodePending = false;
+        }
+      });
+    } catch (error) {
+      console.error('Failed to commit semi codes:', error);
+      showWarningToast('Warning: Semi codes may not be persisted');
+    }
+  }
+  
+  // TEMPLATE CONVERSION PATH
+  if (isTemplateConversion) {
+    console.log('📦 Converting template to production plan...');
+    const templateId = meta.sourceTemplateId;
+    
+    const updates = {
+      name: planName,
+      description: planDesc,
+      orderCode,
+      scheduleType,
+      quantity: planQuantity,
+      nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
+      status: 'production',
+      autoAssign: true,
+      materialSummary,
+      timingSummary,
+      executionGraph
+    };
+    
+    try {
+      await updateProductionPlan(templateId, updates);
+      showSuccessToast(`Plan converted to production: ${planName}`);
+      planDesignerState.nodes = [];
+      renderCanvas();
+      cancelPlanCreation();
+      setActivePlanTab('production');
+      try { if (typeof window.loadAndRenderPlans === 'function') window.loadAndRenderPlans(); } catch {}
+    } catch (e) {
+      console.error('❌ Plan conversion failed', e);
+      showErrorToast('Plan conversion failed');
+    }
+    return;
+  }
+  
+  // NEW PLAN CREATION PATH
+  console.log('✨ Creating new production plan...');
+  
+  console.log('🔍 STEP 2 - Before saving plan, checking nodes:');
+  planDesignerState.nodes.forEach((node, idx) => {
+    console.log(`  Node ${idx} (${node.id}):`, {
+      name: node.name,
+      hasRawMaterials: !!node.rawMaterials,
+      rawMaterialsCount: node.rawMaterials?.length || 0,
+      rawMaterials: node.rawMaterials
+    });
+  });
+  
   const plan = {
     id: undefined,
     name: planName,
@@ -2337,60 +2308,32 @@ export async function savePlanDraft() {
     nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
     createdAt: new Date().toISOString(),
     status: 'production',
-    autoAssign: true, // Enable backend auto-assignment at launch
-    materialSummary, // Add material summary for reporting
-    timingSummary, // Add timing summary for reporting
-    executionGraph // Add execution graph for task prerequisite tracking
+    autoAssign: true,
+    materialSummary,
+    timingSummary,
+    executionGraph
   };
   
-  console.log('🔍 SAVING PLAN WITH QUANTITY:', {
-    planQuantity,
-    stateQuantity: planDesignerState.planQuantity,
-    metaQuantity: planDesignerState.currentPlanMeta?.quantity,
-    fullPlan: plan
-  });
+  console.log('📤 Saving plan:', plan);
   
-  getNextProductionPlanId()
-    .then((newId) => { plan.id = newId || genId('plan-'); return plan.id; })
-    .then(async (planId) => {
-      // Commit pending semi codes before saving plan
-      const pendingCodes = collectPendingSemiCodes(planDesignerState.nodes);
-      if (pendingCodes.length > 0) {
-        try {
-          console.log(`Committing ${pendingCodes.length} semi codes...`);
-          const result = await commitSemiCodes(pendingCodes);
-          console.log(`Semi codes committed: ${result.committed}, skipped: ${result.skipped}`);
-          
-          // Clear pending flags
-          planDesignerState.nodes.forEach(node => {
-            if (node._semiCodePending) {
-              node._semiCodePending = false;
-            }
-          });
-        } catch (error) {
-          console.error('Failed to commit semi codes:', error);
-          showWarningToast('Warning: Semi codes may not be persisted');
-        }
-      }
-      
-      return createProductionPlan(plan);
-    })
-    .catch(() => {
-      plan.id = plan.id || genId('plan-');
-      return createProductionPlan(plan)
-    })
-    .then(() => {
-      showSuccessToast(`Plan saved: ${plan.name}`);
-      planDesignerState.nodes = [];
-      renderCanvas();
-      cancelPlanCreation();
-      setActivePlanTab('production');
-      try { if (typeof window.loadAndRenderPlans === 'function') window.loadAndRenderPlans(); } catch {}
-    })
-    .catch(e => {
-      console.error('Plan save failed', e);
-      showErrorToast('Plan save failed');
-    });
+  try {
+    const newId = await getNextProductionPlanId();
+    plan.id = newId || genId('plan-');
+    console.log('🆔 Generated plan ID:', plan.id);
+    
+    await createProductionPlan(plan);
+    console.log('✅ Plan created successfully');
+    
+    showSuccessToast(`Plan saved: ${plan.name}`);
+    planDesignerState.nodes = [];
+    renderCanvas();
+    cancelPlanCreation();
+    setActivePlanTab('production');
+    try { if (typeof window.loadAndRenderPlans === 'function') window.loadAndRenderPlans(); } catch {}
+  } catch (e) {
+    console.error('❌ Plan save failed', e);
+    showErrorToast(`Plan save failed: ${e.message || 'Unknown error'}`);
+  }
 }
 
 export function deployWorkOrder() {
@@ -2921,12 +2864,21 @@ export function resetPlanDesignerState({ preserveMeta = false } = {}) {
   planDesignerState.isFullscreen = false;
   planDesignerState.fullscreenZoom = 100;
   planDesignerState.readOnly = false;
+  planDesignerState.timingSummary = null;
+  planDesignerState.executionGraph = null;
+  
   resetConnectionState();
   updateConnectButton();
   updateCanvasCursor();
 
   if (!preserveMeta) {
-    planDesignerState.currentPlanMeta = {};
+    planDesignerState.currentPlanMeta = {
+      mode: 'create', // create | edit | view
+      status: null,
+      sourceTemplateId: null,
+      id: null
+    };
+    planDesignerState.planQuantity = 1;
   }
 
   renderCanvas();
@@ -2950,6 +2902,11 @@ export function resetPlanDesignerState({ preserveMeta = false } = {}) {
       planIdElement.style.display = 'none';
     }
   }
+  
+  console.log('🔄 Plan Designer State Reset', { 
+    mode: planDesignerState.currentPlanMeta?.mode,
+    preserveMeta 
+  });
 }
 
 // Public helpers to open plans/templates in designer
@@ -3269,16 +3226,24 @@ export function buildExecutionGraph(nodes) {
     // Handle material inputs
     const materialInputs = [];
     if (Array.isArray(node.rawMaterials) && node.rawMaterials.length > 0) {
+      console.log(`🔍 DEBUG buildExecutionGraph - Processing node ${node.id} rawMaterials:`, node.rawMaterials);
       node.rawMaterials.forEach(mat => {
-        if (mat && mat.code) {
+        const matCode = mat.id || mat.code; // Support both id and code fields
+        console.log(`  - Material: code=${matCode}, qty=${mat.qty}, unit=${mat.unit}, isDerived=${!!mat.derivedFrom}`);
+        if (mat && matCode) {
           materialInputs.push({
-            code: mat.code,
+            code: matCode,
             qty: mat.qty || 0,
             unit: mat.unit || '',
             isDerived: !!mat.derivedFrom // Flag for WIP materials
           });
+        } else {
+          console.warn(`  ⚠️ Material missing code/id:`, mat);
         }
       });
+      console.log(`  ✓ Built ${materialInputs.length} materialInputs for node ${node.id}`);
+    } else {
+      console.log(`🔍 DEBUG buildExecutionGraph - Node ${node.id} has no rawMaterials (length: ${node.rawMaterials?.length})`);
     }
     
     return {
@@ -3296,6 +3261,9 @@ export function buildExecutionGraph(nodes) {
       allocationType: node.allocationType || 'auto',
       workerHint: node.workerHint || null,
       priorityTag: node.priorityTag || null,
+      
+      // Station assignments (priority-based multi-station selection)
+      assignedStations: Array.isArray(node.assignedStations) ? node.assignedStations : [],
       
       // Timing information (nominal only)
       estimatedNominalTime: nominalTime,

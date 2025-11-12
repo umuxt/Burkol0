@@ -45,31 +45,54 @@ function formatDateParts(d) {
   }
 }
 
-// Generate work package ID based on work order code
-async function generateWorkPackageId(workOrderCode, db) {
-  if (!workOrderCode) {
-    throw new Error('workOrderCode is required for generating work package ID');
-  }
-  
-  // Use counter for this work order to ensure sequential numbering
-  const counterRef = db.collection('mes-counters').doc(`workpackage-${workOrderCode}`);
+// Generate next Work Order code (WO-001, WO-002, etc.)
+// Uses a single counter document: mes-counters/work-orders
+async function generateWorkOrderCode(db) {
+  const counterRef = db.collection('mes-counters').doc('work-orders');
   
   return await db.runTransaction(async (tx) => {
     const snap = await tx.get(counterRef);
     let next = 1;
+    
     if (snap.exists) {
       const data = snap.data() || {};
       next = Number.isFinite(data.next) ? data.next : 1;
     }
     
-    // Format: WO-001-01, WO-001-02, etc.
-    const workPackageId = `${workOrderCode}-${String(next).padStart(2, '0')}`;
+    // Format: WO-001, WO-002, WO-003...
+    const workOrderCode = `WO-${String(next).padStart(3, '0')}`;
     
     // Update counter
-    tx.set(counterRef, { next: next + 1, updatedAt: new Date() }, { merge: true });
+    tx.set(counterRef, { 
+      next: next + 1, 
+      updatedAt: new Date(),
+      lastGenerated: workOrderCode
+    }, { merge: true });
     
-    return workPackageId;
+    console.log(`🔢 Generated Work Order Code: ${workOrderCode}`);
+    
+    return workOrderCode;
   });
+}
+
+// Generate work package IDs for all assignments in a plan
+// Uses simple in-memory counter (01, 02, 03...) - no Firebase counter needed for nodes
+// Format: WO-001-01, WO-001-02, WO-001-03...
+function generateWorkPackageIds(workOrderCode, assignmentsCount) {
+  if (!workOrderCode) {
+    throw new Error('workOrderCode is required for generating work package IDs');
+  }
+  
+  console.log(`🔢 Generating ${assignmentsCount} work package IDs for order: ${workOrderCode}`);
+  
+  const ids = [];
+  for (let i = 1; i <= assignmentsCount; i++) {
+    const workPackageId = `${workOrderCode}-${String(i).padStart(2, '0')}`;
+    ids.push(workPackageId);
+  }
+  
+  console.log(`  ✅ Generated IDs: ${ids.join(', ')}`);
+  return ids;
 }
 
 // Helper function to handle Firestore operations
@@ -97,12 +120,22 @@ async function handleFirestoreOperation(operation, res) {
 
 /**
  * Calculate pre-production reserved amounts for a work package
- * Takes into account the expected defect rate from the operation
+ * Takes into account the expected defect rate and input/output ratio
  * 
- * Formula: rehinMiktari = gerekliInputMiktari / (1 - (expectedDefectRate / 100))
- * Example: For 200 units needed with 2% defect rate: 200 / (1 - 0.02) = 204.08 ≈ 204
+ * NEW LOGIC:
+ * 1. Calculate input/output ratio for each material
+ * 2. Calculate expected defects in output units
+ * 3. Convert to input units using the ratio
  * 
- * @param {Object} node - Execution graph node with materialInputs
+ * Example:
+ * - Output: 100 units, Defect Rate: 1%
+ * - Expected defects: 100 * 0.01 = 1 unit (in output)
+ * - Material M-008: 2 units input → 1 unit output (ratio = 2)
+ * - Required input for 100 output: 100 * 2 = 200 units
+ * - Defect input: 1 * 2 = 2 units
+ * - Total reserved: 200 + 2 = 202 units
+ * 
+ * @param {Object} node - Execution graph node with materialInputs and outputQty
  * @param {number} expectedDefectRate - Expected defect rate from operation (percentage)
  * @param {number} planQuantity - Production plan quantity multiplier
  * @returns {Object} Object with materialCode as key and reserved quantity as value
@@ -114,20 +147,63 @@ function calculatePreProductionReservedAmount(node, expectedDefectRate = 0, plan
     return preProductionReservedAmount;
   }
   
+  // Get output quantity (planned output for this operation)
+  const outputQty = parseFloat(node.outputQty) || 0;
+  
+  if (outputQty <= 0) {
+    console.warn(`Node ${node.id} has no outputQty, cannot calculate input/output ratio. Using direct input quantities.`);
+    // Fallback: use input quantities directly
+    node.materialInputs.forEach(material => {
+      const materialCode = material.code;
+      const requiredQty = (material.qty || material.required || 0) * planQuantity;
+      if (materialCode && requiredQty > 0) {
+        preProductionReservedAmount[materialCode] = 
+          (preProductionReservedAmount[materialCode] || 0) + requiredQty;
+      }
+    });
+    return preProductionReservedAmount;
+  }
+  
+  // Calculate scaled output based on plan quantity
+  const scaledOutputQty = outputQty * planQuantity;
+  
   // Ensure defect rate is a valid number between 0 and 100
   const defectRate = Math.max(0, Math.min(100, parseFloat(expectedDefectRate) || 0));
-  const defectMultiplier = defectRate >= 100 ? 1 : (1 - (defectRate / 100));
   
+  // Calculate expected defects in OUTPUT units
+  const expectedDefectsInOutput = scaledOutputQty * (defectRate / 100);
+  
+  console.log(`📊 Rehin Calculation for node ${node.id}:`);
+  console.log(`   Output: ${scaledOutputQty}, Defect Rate: ${defectRate}%, Expected Defects: ${expectedDefectsInOutput}`);
+  
+  // Process each input material
   node.materialInputs.forEach(material => {
     const materialCode = material.code;
-    const requiredQty = (material.qty || material.required || 0) * planQuantity;
+    const inputQtyPerOperation = material.qty || material.required || 0;
     
-    if (!materialCode || requiredQty <= 0) return;
+    if (!materialCode || inputQtyPerOperation <= 0) return;
     
-    // Calculate reserved amount with defect rate adjustment
-    const reservedQty = defectRate > 0 
-      ? Math.ceil(requiredQty / defectMultiplier) 
-      : requiredQty;
+    // Calculate input/output ratio for THIS material
+    // Example: If 2 units of M-008 produces 1 unit of output, ratio = 2
+    const inputOutputRatio = inputQtyPerOperation / outputQty;
+    
+    // Required input for planned good output
+    const requiredInputForGoodOutput = scaledOutputQty * inputOutputRatio;
+    
+    // Additional input needed for expected defects
+    const additionalInputForDefects = expectedDefectsInOutput * inputOutputRatio;
+    
+    // Total reserved = normal requirement + defect buffer
+    const totalReserved = requiredInputForGoodOutput + additionalInputForDefects;
+    
+    // Round up to avoid fractional units
+    const reservedQty = Math.ceil(totalReserved);
+    
+    console.log(`   Material ${materialCode}:`);
+    console.log(`      Input/Output Ratio: ${inputOutputRatio.toFixed(4)} (${inputQtyPerOperation}/${outputQty})`);
+    console.log(`      Required for good output: ${requiredInputForGoodOutput.toFixed(2)}`);
+    console.log(`      Additional for defects: ${additionalInputForDefects.toFixed(2)}`);
+    console.log(`      Total reserved: ${reservedQty}`);
     
     // Accumulate if material appears multiple times
     preProductionReservedAmount[materialCode] = 
@@ -197,9 +273,10 @@ async function getPlanExecutionState(planId) {
   });
   
   // Fetch workers and stations for availability check
-  const [workersSnapshot, stationsSnapshot] = await Promise.all([
+  const [workersSnapshot, stationsSnapshot, substationsSnapshot] = await Promise.all([
     db.collection('mes-workers').get(),
-    db.collection('mes-stations').get()
+    db.collection('mes-stations').get(),
+    db.collection('mes-substations').get()
   ]);
   
   const workers = new Map();
@@ -210,6 +287,11 @@ async function getPlanExecutionState(planId) {
   const stations = new Map();
   stationsSnapshot.docs.forEach(doc => {
     stations.set(doc.id, { id: doc.id, ...doc.data() });
+  });
+  
+  const substations = new Map();
+  substationsSnapshot.docs.forEach(doc => {
+    substations.set(doc.id, { id: doc.id, ...doc.data() });
   });
   
   // Build completion status map for predecessor checks
@@ -236,13 +318,35 @@ async function getPlanExecutionState(planId) {
       ? true // No worker assigned yet, or worker doesn't exist
       : !worker.currentTask || worker.currentTask.planId === planId && worker.currentTask.nodeId === node.nodeId;
     
-    const station = stationId ? stations.get(stationId) : null;
-    const stationAvailable = !stationId || !station
-      ? true // No station assigned yet, or station doesn't exist
-      : !station.currentOperation || station.currentOperation === node.nodeId;
+    // Check substation availability (instead of station)
+    // Substations track actual machine workload, not the general station category
+    const substationId = assignment?.substationId || null;
+    const substation = substationId ? substations.get(substationId) : null;
+    const substationAvailable = !substationId || !substation
+      ? true // No substation assigned yet, or substation doesn't exist
+      : !substation.currentOperation || substation.currentOperation === node.nodeId;
+    
+    // DEBUG: Substation check details
+    if (substationId) {
+      console.log(`   🔧 Substation ${substationId} check:`);
+      console.log(`      Substation exists: ${!!substation}`);
+      console.log(`      Substation currentOperation: ${substation?.currentOperation}`);
+      console.log(`      Node ID: ${node.nodeId}`);
+      console.log(`      Match: ${substation?.currentOperation === node.nodeId}`);
+      console.log(`      Available: ${substationAvailable}`);
+    }
     
     // Global material check (per plan, not per node yet)
     const materialsReady = !materialSummary.hasShortages;
+    
+    // DEBUG: Log prerequisite checks for this node
+    console.log(`🔍 getPlanExecutionState - Node ${node.nodeId}:`);
+    console.log(`   Predecessors: ${JSON.stringify(node.predecessors || [])}`);
+    console.log(`   predecessorsDone: ${predecessorsDone}, completedNodes: [${Array.from(completedNodes).join(', ')}]`);
+    console.log(`   workerAvailable: ${workerAvailable}, workerId: ${workerId}`);
+    console.log(`   substationAvailable: ${substationAvailable}, substationId: ${substationId}`);
+    console.log(`   materialsReady: ${materialsReady}`);
+    console.log(`   assignment status: ${assignment?.status || 'no assignment'}`);
     
     // Determine task status
     let status = 'pending';
@@ -257,7 +361,7 @@ async function getPlanExecutionState(planId) {
         status = 'paused';
       } else if (assignment.status === 'pending') {
         // Check if ready or blocked
-        if (predecessorsDone && workerAvailable && stationAvailable && materialsReady) {
+        if (predecessorsDone && workerAvailable && substationAvailable && materialsReady) {
           status = 'ready';
         } else {
           status = 'blocked';
@@ -265,7 +369,7 @@ async function getPlanExecutionState(planId) {
       }
     } else {
       // No assignment yet - check if can be started
-      if (predecessorsDone && workerAvailable && stationAvailable && materialsReady) {
+      if (predecessorsDone && workerAvailable && substationAvailable && materialsReady) {
         status = 'ready';
       } else {
         status = 'blocked';
@@ -284,13 +388,21 @@ async function getPlanExecutionState(planId) {
       workerName: node.workerName,
       stationId,
       stationName: node.stationName,
+      substationId,
+      substationCode: substation?.code || null,
+      
+      // Substation workload info (for busy status display)
+      substationCurrentOperation: substation?.currentOperation || null,
+      substationCurrentWorkPackageId: substation?.currentWorkPackageId || null,
+      substationCurrentExpectedEnd: substation?.currentExpectedEnd || null,
       
       // Status and prerequisites
       status,
       prerequisites: {
         predecessorsDone,
         workerAvailable,
-        stationAvailable,
+        substationAvailable, // Changed from stationAvailable
+        stationAvailable: substationAvailable, // Keep for backward compatibility
         materialsReady
       },
       
@@ -769,6 +881,11 @@ router.post('/stations', withAuth, async (req, res) => {
           code: subStation.code,
           stationId: stationId,
           status: subStation.status || 'active',
+          // Workload tracking fields (initialized as null)
+          currentOperation: null,
+          currentWorkPackageId: null,
+          currentPlanId: null,
+          currentExpectedEnd: null,
           createdAt: new Date(),
           updatedAt: new Date()
         });
@@ -1008,20 +1125,8 @@ router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
       return { success: false, error: 'delivery_date_required' }
     }
 
-    // Generate next WO code
-    const snap = await col.get()
-    let maxIdx = 0
-    snap.forEach(doc => {
-      const data = doc.data() || {}
-      const code = data.workOrderCode || doc.id || ''
-      const m = /^WO-(\d+)$/.exec(String(code))
-      if (m) {
-        const n = parseInt(m[1], 10)
-        if (Number.isFinite(n)) maxIdx = Math.max(maxIdx, n)
-      }
-    })
-    const nextIdx = maxIdx + 1
-    const code = `WO-${String(nextIdx).padStart(3, '0')}`
+    // Generate next WO code using centralized counter
+    const code = await generateWorkOrderCode(db);
 
     const approvedDoc = {
       workOrderCode: code,
@@ -1210,13 +1315,9 @@ router.post('/production-plans', withAuth, async (req, res) => {
           updatedByName: actorName || createdBy || null
         }, { merge: true });
 
-        // Generate assignment IDs before transaction
+        // Generate assignment IDs (simple sequential numbering within plan)
         const workOrderCode = productionPlan.orderCode || productionPlan.id;
-        const assignmentIds = [];
-        for (let i = 0; i < assignments.length; i++) {
-          const assignmentId = await generateWorkPackageId(workOrderCode, db);
-          assignmentIds.push(assignmentId);
-        }
+        const assignmentIds = generateWorkPackageIds(workOrderCode, assignments.length);
 
         // Create assignments with work order-based IDs
         assignments.forEach((assignment, index) => {
@@ -1334,13 +1435,9 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
           transaction.delete(doc.ref);
         });
 
-        // Generate assignment IDs before transaction
+        // Generate assignment IDs (simple sequential numbering within plan)
         const workOrderCode = updates.orderCode || planUpdates.orderCode || id;
-        const assignmentIds = [];
-        for (let i = 0; i < assignments.length; i++) {
-          const assignmentId = await generateWorkPackageId(workOrderCode, db);
-          assignmentIds.push(assignmentId);
-        }
+        const assignmentIds = generateWorkPackageIds(workOrderCode, assignments.length);
 
         // Create new assignments with work order-based IDs
         assignments.forEach((assignment, index) => {
@@ -2104,13 +2201,9 @@ router.post('/worker-assignments/batch', withAuth, async (req, res) => {
         });
       }
 
-      // Generate assignment IDs before transaction
+      // Generate assignment IDs (simple sequential numbering within plan)
       const workOrderCode = planData?.orderCode || planId;
-      const assignmentIds = [];
-      for (let i = 0; i < assignments.length; i++) {
-        const assignmentId = await generateWorkPackageId(workOrderCode, db);
-        assignmentIds.push(assignmentId);
-      }
+      const assignmentIds = generateWorkPackageIds(workOrderCode, assignments.length);
 
       // Create new assignments with material reservation calculations
       const now = new Date();
@@ -2353,6 +2446,17 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
     const planIds = [...new Set(assignmentsSnapshot.docs.map(doc => doc.data().planId))];
     const stationIds = [...new Set(assignmentsSnapshot.docs.map(doc => doc.data().stationId).filter(Boolean))];
     
+    // Fetch execution states for all plans (to get accurate prerequisites)
+    const planStatesMap = new Map();
+    for (const planId of planIds) {
+      try {
+        const planState = await getPlanExecutionState(planId);
+        planStatesMap.set(planId, planState);
+      } catch (err) {
+        console.error(`Failed to fetch plan state ${planId}:`, err);
+      }
+    }
+    
     // Fetch plans
     const plansMap = new Map();
     for (const planId of planIds) {
@@ -2389,7 +2493,16 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
       const plan = plansMap.get(assignment.planId);
       const station = assignment.stationId ? stationsMap.get(assignment.stationId) : null;
       
-      // Find node info from plan's execution graph
+      // Get execution state for this plan
+      const planState = planStatesMap.get(assignment.planId);
+      
+      // Find node state from plan execution state
+      let nodeState = null;
+      if (planState && planState.taskStates) {
+        nodeState = planState.taskStates.find(ts => ts.nodeId === assignment.nodeId);
+      }
+      
+      // Find node info from plan's execution graph (fallback)
       let nodeInfo = null;
       if (plan && plan.executionGraph && assignment.nodeId) {
         nodeInfo = plan.executionGraph.find(node => node.nodeId === assignment.nodeId);
@@ -2410,7 +2523,13 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         // Station info
         stationId: assignment.stationId,
         stationName: station?.name || 'Belirsiz',
-        subStationCode: assignment.subStationCode,
+        substationId: nodeState?.substationId || assignment.substationId || null,
+        substationCode: nodeState?.substationCode || assignment.substationCode || null,
+        
+        // Substation workload info (for busy status display)
+        substationCurrentOperation: nodeState?.substationCurrentOperation || null,
+        substationCurrentWorkPackageId: nodeState?.substationCurrentWorkPackageId || null,
+        substationCurrentExpectedEnd: nodeState?.substationCurrentExpectedEnd || null,
         
         // Task details from node
         name: nodeInfo?.name || 'İsimsiz Görev',
@@ -2432,13 +2551,17 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         pausedByName: assignment.pausedByName || null,
         pausedAt: assignment.pausedAt || null,
         
-        // Prerequisites (simplified for worker view)
-        prerequisites: {
-          predecessorsDone: true, // Worker doesn't need to worry about this
-          workerAvailable: true,  // If assigned, worker is available
-          stationAvailable: true, // If assigned, station is available
+        // Prerequisites from execution state (accurate real-time check)
+        prerequisites: nodeState?.prerequisites || {
+          predecessorsDone: true,
+          workerAvailable: true,
+          substationAvailable: true,
+          stationAvailable: true,
           materialsReady: !plan?.materialSummary?.hasShortages
         },
+        
+        // Predecessor info for UI
+        predecessors: nodeInfo?.predecessors || [],
         
         // Material output info
         hasOutputs: nodeInfo?.hasOutputs || false,
@@ -2625,6 +2748,11 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
     const { id: assignmentId } = req.params;
     const { action, scrapQty, stationNote, actualOutputQuantity, defectQuantity } = req.body;
     
+    // DEBUG: Log incoming request
+    console.log(`🔍 DEBUG - PATCH /work-packages/${assignmentId}`);
+    console.log(`   Action: ${action}`);
+    console.log(`   Body:`, { action, scrapQty, stationNote, actualOutputQuantity, defectQuantity });
+    
     if (!assignmentId) {
       const e = new Error('work_package_id_required');
       e.status = 400;
@@ -2666,7 +2794,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
     const result = await db.runTransaction(async (transaction) => {
       const assignmentRef = db.collection('mes-worker-assignments').doc(assignmentId);
       const workerRef = workerId ? db.collection('mes-workers').doc(workerId) : null;
-      const stationRef = stationId ? db.collection('mes-stations').doc(stationId) : null;
+      let stationRef = stationId ? db.collection('mes-stations').doc(stationId) : null; // Changed to let for reassignment
       
       let updateData = { updatedAt: now };
       let workerUpdate = null;
@@ -2689,6 +2817,13 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
               throw e;
             }
             
+            // DEBUG: Log task status and prerequisites
+            console.log(`🔍 DEBUG START - Task ${assignmentId}:`);
+            console.log(`   Status: ${currentTask.status}`);
+            console.log(`   Prerequisites:`, currentTask.prerequisites);
+            console.log(`   Node ID: ${currentTask.nodeId}`);
+            console.log(`   Predecessors:`, currentTask.predecessors);
+            
             // Check if task status is ready, pending, or paused (but only if not plan-paused)
             if (currentTask.status === 'paused' && currentTask.pauseContext === 'plan') {
               const e = new Error('Task cannot be started: paused by admin');
@@ -2698,6 +2833,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             }
             
             if (currentTask.status !== 'ready' && currentTask.status !== 'pending' && currentTask.status !== 'paused') {
+              console.error(`❌ Task ${assignmentId} has invalid status for starting: ${currentTask.status}`);
               const e = new Error(`Task cannot be started: current status is ${currentTask.status}`);
               e.status = 400;
               e.code = 'precondition_failed';
@@ -2710,7 +2846,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             
             if (!prereqs.predecessorsDone) failedPrereqs.push('Önceki görevler tamamlanmadı');
             if (!prereqs.workerAvailable) failedPrereqs.push('İşçi meşgul');
-            if (!prereqs.stationAvailable) failedPrereqs.push('İstasyon meşgul');
+            if (!prereqs.substationAvailable) failedPrereqs.push('Alt istasyon meşgul'); // Changed from stationAvailable
             if (!prereqs.materialsReady) failedPrereqs.push('Malzeme eksik');
             
             if (failedPrereqs.length > 0) {
@@ -2761,6 +2897,13 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           // 2. Adds to material.wipReserved (in-production inventory)
           // ========================================================================
           
+          // DEBUG: Log assignment details
+          console.log(`🔍 DEBUG - Assignment ${assignmentId}:`);
+          console.log(`   materialReservationStatus: ${assignment.materialReservationStatus}`);
+          console.log(`   preProductionReservedAmount:`, assignment.preProductionReservedAmount);
+          console.log(`   Has preProductionReservedAmount: ${!!assignment.preProductionReservedAmount}`);
+          console.log(`   Keys count: ${assignment.preProductionReservedAmount ? Object.keys(assignment.preProductionReservedAmount).length : 0}`);
+          
           // Only process if this assignment hasn't already reserved materials
           if (assignment.materialReservationStatus !== 'reserved' && 
               assignment.preProductionReservedAmount && 
@@ -2791,22 +2934,48 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                 const currentStock = parseFloat(materialData.stock) || 0;
                 const currentWipReserved = parseFloat(materialData.wipReserved) || 0;
                 
-                // Validate sufficient stock
+                // ========================================================================
+                // SAFETY: Prevent negative stock
+                // ========================================================================
+                // If reserved quantity exceeds available stock, use available stock instead
+                // This prevents stock from going negative
+                let actualReservedQty = reservedQty;
+                let stockWarning = null;
+                
                 if (currentStock < reservedQty) {
+                  actualReservedQty = currentStock;
+                  stockWarning = `Rehin miktarı (${reservedQty}) mevcut stoktan (${currentStock}) fazla. Stok miktarı kadar (${actualReservedQty}) rezerve edildi.`;
+                  console.warn(`⚠️ ${materialCode}: ${stockWarning}`);
+                }
+                
+                // Check if we have any stock to reserve
+                if (actualReservedQty <= 0) {
                   reservationErrors.push({
                     materialCode,
-                    error: 'Insufficient stock',
+                    error: 'No stock available',
                     required: reservedQty,
                     available: currentStock,
-                    shortage: reservedQty - currentStock
+                    shortage: reservedQty
                   });
-                  console.error(`❌ Insufficient stock for ${materialCode}: required ${reservedQty}, available ${currentStock}`);
+                  console.error(`❌ No stock available for ${materialCode}: required ${reservedQty}, available ${currentStock}`);
                   continue;
                 }
                 
                 // Atomic update: deduct from stock, add to wipReserved
-                const newStock = currentStock - reservedQty;
-                const newWipReserved = currentWipReserved + reservedQty;
+                const newStock = currentStock - actualReservedQty;
+                const newWipReserved = currentWipReserved + actualReservedQty;
+                
+                // Double-check: ensure stock doesn't go negative
+                if (newStock < 0) {
+                  console.error(`❌ CRITICAL: Stock would go negative for ${materialCode}. This should not happen!`);
+                  reservationErrors.push({
+                    materialCode,
+                    error: 'Stock calculation error',
+                    required: reservedQty,
+                    available: currentStock
+                  });
+                  continue;
+                }
                 
                 transaction.update(materialRef, {
                   stock: newStock,
@@ -2818,32 +2987,40 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                 reservationResults.push({
                   materialCode,
                   materialName: materialData.name,
-                  reservedQty,
+                  requestedQty: reservedQty,              // Requested amount
+                  actualReservedQty: actualReservedQty,   // Actually reserved amount
                   previousStock: currentStock,
                   newStock,
                   previousWipReserved: currentWipReserved,
                   newWipReserved,
-                  unit: materialData.unit
+                  unit: materialData.unit,
+                  warning: stockWarning                   // Warning if partial reservation
                 });
                 
                 // ========================================================================
                 // STOCK MOVEMENTS: Record material transfer to WIP
                 // ========================================================================
                 const stockMovementRef = db.collection('stockMovements').doc();
+                const movementNotes = stockWarning 
+                  ? `Görev başlatıldı - Malzeme üretime alındı (UYARI: ${stockWarning})`
+                  : `Görev başlatıldı - Malzeme üretime alındı`;
+                
                 transaction.set(stockMovementRef, {
                   materialId: materialCode,
                   materialCode: materialCode,
                   materialName: materialData.name || '',
                   type: 'out', // Stock'tan çıkış
                   subType: 'wip_reservation', // Üretim rezervasyonu
-                  quantity: reservedQty,
+                  quantity: actualReservedQty,           // Use actual reserved quantity
+                  requestedQuantity: reservedQty,        // Store requested for reference
+                  partialReservation: actualReservedQty < reservedQty, // Flag if partial
                   unit: materialData.unit || 'Adet',
                   stockBefore: currentStock,
                   stockAfter: newStock,
                   wipReservedBefore: currentWipReserved,
                   wipReservedAfter: newWipReserved,
                   unitCost: materialData.costPrice || null,
-                  totalCost: materialData.costPrice ? materialData.costPrice * reservedQty : null,
+                  totalCost: materialData.costPrice ? materialData.costPrice * actualReservedQty : null,
                   currency: 'TRY',
                   reference: assignmentId,
                   referenceType: 'mes_task_start',
@@ -2851,7 +3028,8 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                   relatedNodeId: nodeId,
                   warehouse: null,
                   location: 'WIP',
-                  notes: `Görev başlatıldı - Malzeme üretime alındı`,
+                  notes: movementNotes,
+                  warning: stockWarning || null,         // Store warning if any
                   reason: 'MES görev başlatma - WIP rezervasyonu',
                   movementDate: now,
                   createdAt: now,
@@ -2862,7 +3040,11 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                   approvedAt: now
                 });
                 
-                console.log(`✅ Reserved ${reservedQty} ${materialData.unit} of ${materialCode}: stock ${currentStock} → ${newStock}, wipReserved ${currentWipReserved} → ${newWipReserved}`);
+                const logMessage = stockWarning
+                  ? `⚠️ Partially reserved ${actualReservedQty}/${reservedQty} ${materialData.unit} of ${materialCode}: stock ${currentStock} → ${newStock}, wipReserved ${currentWipReserved} → ${newWipReserved}`
+                  : `✅ Reserved ${actualReservedQty} ${materialData.unit} of ${materialCode}: stock ${currentStock} → ${newStock}, wipReserved ${currentWipReserved} → ${newWipReserved}`;
+                
+                console.log(logMessage);
                 
               } catch (err) {
                 reservationErrors.push({
@@ -2891,13 +3073,27 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             updateData.materialReservationTimestamp = now;
             updateData.materialReservationResults = reservationResults;
             
+            // Store actual reserved amounts (may differ from preProductionReservedAmount if stock was insufficient)
+            const actualReservedAmounts = {};
+            reservationResults.forEach(result => {
+              actualReservedAmounts[result.materialCode] = result.actualReservedQty;
+            });
+            updateData.actualReservedAmounts = actualReservedAmounts;
+            
             materialReservationResult = {
               success: true,
               materialsReserved: reservationResults.length,
-              details: reservationResults
+              details: reservationResults,
+              hasWarnings: reservationResults.some(r => r.warning)
             };
             
             console.log(`✅ Material reservation completed for work package ${assignmentId}: ${reservationResults.length} material(s) reserved`);
+            
+            // Log any warnings
+            const warnings = reservationResults.filter(r => r.warning);
+            if (warnings.length > 0) {
+              console.warn(`⚠️ Reservation warnings:`, warnings.map(w => `${w.materialCode}: ${w.warning}`));
+            }
           }
           
           // ========================================================================
@@ -2930,12 +3126,30 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             };
           }
           
-          // Set station currentOperation
-          if (stationRef) {
+          // Set substation currentOperation (instead of station)
+          // Track workload at substation level, not station level
+          const substationId = assignment.substationId || null;
+          if (substationId) {
+            const substationRef = db.collection('mes-substations').doc(substationId);
+            
+            // Calculate expected end time based on planned duration
+            const effectiveTime = assignment.effectiveTime || assignment.nominalTime || 60; // minutes
+            const expectedEnd = new Date(now.getTime() + effectiveTime * 60000);
+            
             stationUpdate = {
               currentOperation: nodeId,
+              currentWorkPackageId: assignmentId, // WO-001-02 format
+              currentPlanId: planId,
+              currentExpectedEnd: expectedEnd.toISOString(),
+              currentOperationUpdatedAt: now,
               updatedAt: now
             };
+            // Update stationRef to point to substation
+            stationRef = substationRef;
+            console.log(`✅ Setting substation ${substationId} workload: operation=${nodeId}, workPackage=${assignmentId}, expectedEnd=${expectedEnd.toISOString()}`);
+          } else {
+            console.warn(`⚠️ No substationId in assignment ${assignmentId}, cannot track currentOperation`);
+            stationRef = null; // Don't update any station
           }
           break;
           
@@ -3017,6 +3231,13 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           const actualOutput = parseFloat(actualOutputQuantity) || 0;
           const defects = parseFloat(defectQuantity) || 0;
           
+          // DEBUG: Log received quantities
+          console.log(`🔍 DEBUG - COMPLETE received parameters:`);
+          console.log(`   actualOutputQuantity (raw): ${actualOutputQuantity}`);
+          console.log(`   actualOutput (parsed): ${actualOutput}`);
+          console.log(`   defectQuantity (raw): ${defectQuantity}`);
+          console.log(`   defects (parsed): ${defects}`);
+          
           updateData.actualOutputQuantity = actualOutput;
           updateData.defectQuantity = defects;
           
@@ -3030,9 +3251,11 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           // ========================================================================
           
           const preProductionReservedAmount = assignment.preProductionReservedAmount || {};
+          const actualReservedAmounts = assignment.actualReservedAmounts || preProductionReservedAmount;
           const plannedOutput = assignment.plannedOutput || {};
           
-          console.log(`📦 Reserved materials:`, preProductionReservedAmount);
+          console.log(`📦 Planned reserved materials:`, preProductionReservedAmount);
+          console.log(`📦 Actually reserved materials:`, actualReservedAmounts);
           console.log(`🎯 Planned output:`, plannedOutput);
           console.log(`✅ Actual output: ${actualOutput}, ❌ Defects: ${defects}`);
           
@@ -3084,8 +3307,8 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
               // Calculate actual consumption based on total consumed output
               const actualConsumption = totalConsumedOutput * inputOutputRatio;
               
-              // Get reserved amount for this material
-              const reservedAmount = preProductionReservedAmount[inputCode] || 0;
+              // Get ACTUAL reserved amount (may differ from planned if stock was insufficient)
+              const reservedAmount = actualReservedAmounts[inputCode] || 0;
               
               // Calculate stock adjustment (reserved - actual consumption)
               const stockAdjustment = reservedAmount - actualConsumption;
@@ -3095,7 +3318,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
    Required per unit: ${requiredInputQty}
    Planned output: ${plannedOutputQty}
    Input-output ratio: ${inputOutputRatio.toFixed(4)}
-   Reserved amount: ${reservedAmount}
+   Actually reserved: ${reservedAmount}
    Actual consumption: ${actualConsumption.toFixed(2)}
    Stock adjustment: ${stockAdjustment >= 0 ? '+' : ''}${stockAdjustment.toFixed(2)}
               `);
@@ -3459,12 +3682,23 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             };
           }
           
-          // Clear station currentOperation
-          if (stationRef) {
+          // Clear substation currentOperation (instead of station)
+          const substationIdComplete = assignment.substationId || null;
+          if (substationIdComplete) {
+            const substationRef = db.collection('mes-substations').doc(substationIdComplete);
             stationUpdate = {
               currentOperation: null,
+              currentWorkPackageId: null,
+              currentPlanId: null,
+              currentExpectedEnd: null,
+              currentOperationUpdatedAt: now,
               updatedAt: now
             };
+            stationRef = substationRef;
+            console.log(`✅ Clearing substation ${substationIdComplete} workload (currentOperation, workPackageId, planId, expectedEnd)`);
+          } else {
+            console.warn(`⚠️ No substationId in assignment ${assignmentId} for clearing currentOperation`);
+            stationRef = null;
           }
           break;
       }
@@ -3657,6 +3891,128 @@ router.get('/substations', withAuth, async (req, res) => {
   }, res);
 });
 
+// POST /api/mes/substations/reset-all - TEST ONLY: Reset all substation currentOperation fields
+router.post('/substations/reset-all', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const db = getFirestore();
+    const now = new Date();
+    
+    console.log('🔧 TEST: Comprehensive reset - clearing substations, workers, and resetting assignments...');
+    
+    // Step 1: Get all substations with current workload
+    const substationsSnapshot = await db.collection('mes-substations').get();
+    const busySubstationIds = [];
+    
+    substationsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.currentOperation || data.currentWorkPackageId || data.currentPlanId || data.currentExpectedEnd) {
+        busySubstationIds.push(doc.id);
+      }
+    });
+    
+    console.log(`  Found ${busySubstationIds.length} busy substation(s) to reset`);
+    
+    // Step 2: Get all workers with currentTask
+    const workersSnapshot = await db.collection('mes-workers').get();
+    const busyWorkerIds = [];
+    
+    workersSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.currentTask) {
+        busyWorkerIds.push(doc.id);
+      }
+    });
+    
+    console.log(`  Found ${busyWorkerIds.length} busy worker(s) to reset`);
+    
+    // Step 3: Get all in-progress assignments
+    const assignmentsSnapshot = await db.collection('mes-worker-assignments')
+      .where('status', 'in', ['in_progress', 'paused'])
+      .get();
+    
+    console.log(`  Found ${assignmentsSnapshot.size} active assignment(s) to reset`);
+    
+    // Step 4: Perform batch updates
+    const batch = db.batch();
+    let substationsCleared = 0;
+    let workersCleared = 0;
+    let assignmentsReset = 0;
+    
+    // Clear substations
+    substationsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.currentOperation || data.currentWorkPackageId || data.currentPlanId || data.currentExpectedEnd) {
+        batch.update(doc.ref, {
+          currentOperation: admin.firestore.FieldValue.delete(),
+          currentWorkPackageId: admin.firestore.FieldValue.delete(),
+          currentPlanId: admin.firestore.FieldValue.delete(),
+          currentExpectedEnd: admin.firestore.FieldValue.delete(),
+          currentOperationUpdatedAt: now,
+          updatedAt: now
+        });
+        substationsCleared++;
+        console.log(`  - Clearing substation ${doc.id} (workPackage: ${data.currentWorkPackageId})`);
+      }
+    });
+    
+    // Clear workers
+    workersSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (data.currentTask) {
+        batch.update(doc.ref, {
+          currentTask: admin.firestore.FieldValue.delete(),
+          updatedAt: now
+        });
+        workersCleared++;
+        console.log(`  - Clearing worker ${doc.id} (task: ${data.currentTask?.nodeId})`);
+      }
+    });
+    
+    // Reset assignments to 'pending' status
+    assignmentsSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      batch.update(doc.ref, {
+        status: 'pending',
+        actualStart: admin.firestore.FieldValue.delete(),
+        pausedAt: admin.firestore.FieldValue.delete(),
+        pausedBy: admin.firestore.FieldValue.delete(),
+        pausedByName: admin.firestore.FieldValue.delete(),
+        pauseContext: admin.firestore.FieldValue.delete(),
+        pauseReason: admin.firestore.FieldValue.delete(),
+        materialReservationStatus: 'pending',
+        materialReservationTimestamp: admin.firestore.FieldValue.delete(),
+        materialReservationResults: admin.firestore.FieldValue.delete(),
+        actualReservedAmounts: admin.firestore.FieldValue.delete(),
+        updatedAt: now,
+        resetAt: now,
+        resetBy: req.user?.email || 'system',
+        resetReason: 'TEST: Manual reset via substations reset button'
+      });
+      assignmentsReset++;
+      console.log(`  - Resetting assignment ${doc.id} to pending (was: ${data.status})`);
+    });
+    
+    // Commit all changes
+    if (substationsCleared > 0 || workersCleared > 0 || assignmentsReset > 0) {
+      await batch.commit();
+      console.log(`✅ Reset complete:`);
+      console.log(`   - ${substationsCleared} substation(s) cleared`);
+      console.log(`   - ${workersCleared} worker(s) freed`);
+      console.log(`   - ${assignmentsReset} assignment(s) reset to pending`);
+    } else {
+      console.log('ℹ️ Nothing to reset - all clean');
+    }
+    
+    return {
+      success: true,
+      clearedCount: substationsCleared,
+      workersCleared,
+      assignmentsReset,
+      message: `Test sıfırlama: ${substationsCleared} alt istasyon, ${workersCleared} işçi, ${assignmentsReset} görev sıfırlandı`
+    };
+  }, res);
+});
+
 // PATCH /api/mes/substations/:id - Update substation status
 router.patch('/substations/:id', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
@@ -3777,7 +4133,23 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     // 2. LOAD PLAN NODES AND BUILD EXECUTION GRAPH
     // ========================================================================
     
-    const nodes = planData.nodes || [];
+    // Try executionGraph first (enriched with materialInputs), fallback to nodes
+    const executionGraph = planData.executionGraph || [];
+    const nodes = executionGraph.length > 0 ? executionGraph : (planData.nodes || []);
+    
+    console.log(`📊 DEBUG - Launch using data source: ${executionGraph.length > 0 ? 'executionGraph' : 'nodes'}`);
+    console.log(`📊 Total nodes to process: ${nodes.length}`);
+    if (nodes.length > 0) {
+      const sampleNode = nodes[0];
+      console.log(`📊 Sample node structure:`, {
+        id: sampleNode.id || sampleNode.nodeId,
+        hasNodeId: !!sampleNode.nodeId,
+        hasMaterialInputs: !!(sampleNode.materialInputs && sampleNode.materialInputs.length > 0),
+        hasOutputQty: !!sampleNode.outputQty,
+        materialInputsCount: sampleNode.materialInputs ? sampleNode.materialInputs.length : 0
+      });
+    }
+    
     if (nodes.length === 0) {
       return res.status(422).json({
         error: 'empty_plan',
@@ -3909,7 +4281,8 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     
     // Process nodes in topological order
     for (const nodeId of executionOrder.order) {
-      const node = nodes.find(n => n.id === nodeId);
+      // Try to find node by nodeId (executionGraph) or id (nodes)
+      const node = nodes.find(n => n.nodeId === nodeId || n.id === nodeId);
       if (!node) {
         assignmentErrors.push({
           nodeId,
@@ -3917,6 +4290,11 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
           message: `Node ${nodeId} referenced in execution order but not found in plan`
         });
         continue;
+      }
+      
+      // Normalize node structure - ensure nodeId exists
+      if (!node.nodeId && node.id) {
+        node.nodeId = node.id;
       }
       
       try {
@@ -3928,7 +4306,8 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
           workerSchedule,
           stationSchedule,
           planData,
-          nodeEndTimes // Pass predecessor tracking map
+          nodeEndTimes, // Pass predecessor tracking map
+          db // Pass db for fetching operations
         );
         
         if (assignment.error) {
@@ -4000,7 +4379,6 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     
     const batch = db.batch();
     const now = new Date();
-    const assignmentIds = [];
     
     // Delete any stray assignments for this plan/WO (cleanup)
     const existingAssignments = await db.collection('mes-worker-assignments')
@@ -4012,11 +4390,20 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       batch.delete(doc.ref);
     });
     
+    // Generate all work package IDs at once (simple sequential numbering)
+    const assignmentIds = generateWorkPackageIds(workOrderCode, assignments.length);
+    
     // Create new assignments with work order-based IDs
-    for (const assignment of assignments) {
-      const workPackageId = await generateWorkPackageId(workOrderCode, db);
+    for (let i = 0; i < assignments.length; i++) {
+      const assignment = assignments[i];
+      const workPackageId = assignmentIds[i];
       const assignmentRef = db.collection('mes-worker-assignments').doc(workPackageId);
-      assignmentIds.push(workPackageId);
+      
+      // DEBUG: Log assignment data being saved
+      console.log(`🔍 DEBUG - Creating assignment ${workPackageId}:`);
+      console.log(`   preProductionReservedAmount:`, assignment.preProductionReservedAmount);
+      console.log(`   plannedOutput:`, assignment.plannedOutput);
+      console.log(`   materialReservationStatus:`, assignment.materialReservationStatus);
       
       batch.set(assignmentRef, {
         ...assignment,
@@ -4109,34 +4496,41 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
 /**
  * Build topological order from node predecessors
  * Detects cycles and validates prerequisites
+ * Supports both node.id and node.nodeId
  */
 function buildTopologicalOrder(nodes) {
-  const nodeMap = new Map(nodes.map(n => [n.id, n]));
+  // Normalize nodes - use nodeId if exists, otherwise id
+  const normalizedNodes = nodes.map(n => ({
+    ...n,
+    _id: n.nodeId || n.id
+  }));
+  
+  const nodeMap = new Map(normalizedNodes.map(n => [n._id, n]));
   const inDegree = new Map();
   const adjacencyList = new Map();
   
   // Initialize
-  nodes.forEach(node => {
-    inDegree.set(node.id, 0);
-    adjacencyList.set(node.id, []);
+  normalizedNodes.forEach(node => {
+    inDegree.set(node._id, 0);
+    adjacencyList.set(node._id, []);
   });
   
   // Build graph
-  nodes.forEach(node => {
+  normalizedNodes.forEach(node => {
     const predecessors = node.predecessors || [];
     
     // Validate all predecessors exist
     for (const predId of predecessors) {
       if (!nodeMap.has(predId)) {
         return {
-          error: `Invalid predecessor: Node ${node.id} references non-existent predecessor ${predId}`,
-          details: { nodeId: node.id, missingPredecessor: predId }
+          error: `Invalid predecessor: Node ${node._id} references non-existent predecessor ${predId}`,
+          details: { nodeId: node._id, missingPredecessor: predId }
         };
       }
       
       // Add edge from predecessor to this node
-      adjacencyList.get(predId).push(node.id);
-      inDegree.set(node.id, inDegree.get(node.id) + 1);
+      adjacencyList.get(predId).push(node._id);
+      inDegree.set(node._id, inDegree.get(node._id) + 1);
     }
   });
   
@@ -4168,8 +4562,8 @@ function buildTopologicalOrder(nodes) {
   }
   
   // Check for cycles
-  if (order.length !== nodes.length) {
-    const remaining = nodes.filter(n => !order.includes(n.id)).map(n => n.id);
+  if (order.length !== normalizedNodes.length) {
+    const remaining = normalizedNodes.filter(n => !order.includes(n._id)).map(n => n._id);
     return {
       error: 'Cycle detected in execution graph',
       details: { remainingNodes: remaining }
@@ -4423,29 +4817,163 @@ async function assignNodeResources(
   workerSchedule,
   stationSchedule,
   planData,
-  nodeEndTimes = new Map() // Track when predecessor nodes finish
+  nodeEndTimes = new Map(), // Track when predecessor nodes finish
+  db = null // Database instance for fetching operations
 ) {
   const requiredSkills = node.requiredSkills || [];
-  const preferredStationIds = node.preferredStationIds || [];
-  const preferredStationTags = node.preferredStationTags || [];
-  const legacyPreferredStations = node.preferredStations || []; // For backward compatibility
-  const allocationType = node.allocationType || 'auto';
-  const workerHint = node.workerHint || null;
   const nominalTime = parseFloat(node.time) || 60; // minutes
   
+  // ========================================================================
+  // STATION & SUBSTATION SELECTION (Priority-based with smart allocation)
+  // ========================================================================
+  
+  let selectedStation = null;
+  let selectedSubstation = null;
+  
+  // Get assigned stations array (priority order)
+  const assignedStations = Array.isArray(node.assignedStations) ? node.assignedStations : [];
+  
+  if (assignedStations.length > 0) {
+    // Sort by priority (1 = highest priority)
+    const sortedStations = [...assignedStations].sort((a, b) => a.priority - b.priority);
+    
+    console.log(`Node ${node.id}: Checking ${sortedStations.length} stations in priority order`);
+    
+    // Try each station in priority order
+    for (const stationInfo of sortedStations) {
+      const station = stations.find(s => s.id === stationInfo.id);
+      if (!station) {
+        console.warn(`Station ${stationInfo.id} not found, skipping`);
+        continue;
+      }
+      
+      // Get substations for this station
+      const stationSubstations = substations.filter(ss => ss.stationId === station.id);
+      
+      if (stationSubstations.length === 0) {
+        console.warn(`Station ${station.id} has no substations, skipping`);
+        continue;
+      }
+      
+      // Check for available substation (currentOperation == null)
+      const availableSubstation = stationSubstations.find(ss => !ss.currentOperation);
+      
+      if (availableSubstation) {
+        // Found available substation!
+        selectedStation = station;
+        selectedSubstation = availableSubstation;
+        console.log(`✅ Selected available substation: ${availableSubstation.code} at station ${station.name} (priority ${stationInfo.priority})`);
+        break;
+      }
+    }
+    
+    // If no available substations found, queue to earliest finishing substation
+    if (!selectedStation || !selectedSubstation) {
+      console.log(`All substations busy, finding earliest available...`);
+      
+      let earliestSubstation = null;
+      let earliestEnd = null;
+      
+      for (const stationInfo of sortedStations) {
+        const station = stations.find(s => s.id === stationInfo.id);
+        if (!station) continue;
+        
+        const stationSubstations = substations.filter(ss => ss.stationId === station.id);
+        
+        for (const ss of stationSubstations) {
+          if (ss.currentExpectedEnd) {
+            const endTime = new Date(ss.currentExpectedEnd);
+            if (!earliestEnd || endTime < earliestEnd) {
+              earliestEnd = endTime;
+              earliestSubstation = ss;
+              selectedStation = station;
+            }
+          }
+        }
+      }
+      
+      if (earliestSubstation) {
+        selectedSubstation = earliestSubstation;
+        console.log(`⏳ Queued to substation ${earliestSubstation.code} at station ${selectedStation.name} (earliest finish: ${earliestEnd?.toISOString()})`);
+      } else {
+        console.warn(`No substations with expected end times found, using first substation of first station`);
+        const firstStation = stations.find(s => s.id === sortedStations[0].id);
+        if (firstStation) {
+          selectedStation = firstStation;
+          const firstSubstation = substations.find(ss => ss.stationId === firstStation.id);
+          if (firstSubstation) {
+            selectedSubstation = firstSubstation;
+          }
+        }
+      }
+    }
+  } else {
+    // No stations assigned - fallback to old behavior for backward compatibility
+    console.warn(`Node ${node.id} has no assignedStations, using fallback logic`);
+    
+    if (node.assignedStationId) {
+      selectedStation = stations.find(s => s.id === node.assignedStationId);
+      if (selectedStation) {
+        console.log(`Using legacy assigned station: ${selectedStation.name} (${selectedStation.id})`);
+      }
+    }
+    
+    // Fallback: Pick station with least load
+    if (!selectedStation) {
+      const stationsWithLoad = stations.map(s => ({
+        station: s,
+        load: (stationSchedule.get(s.id) || []).length
+      }));
+      
+      stationsWithLoad.sort((a, b) => a.load - b.load);
+      selectedStation = stationsWithLoad[0]?.station;
+      
+      if (selectedStation) {
+        console.log(`Auto-selected station by least load: ${selectedStation.name} (${selectedStation.id})`);
+      }
+    }
+  }
+  
+  if (!selectedStation) {
+    return {
+      error: 'no_station_available',
+      message: 'No station available for assignment'
+    };
+  }
+  
+  // If no substation selected yet and using legacy assignment, try to get one
+  if (!selectedSubstation) {
+    const assignedSubstations = Array.isArray(node.assignedSubstations) ? node.assignedSubstations : [];
+    
+    if (assignedSubstations.length > 0) {
+      // Use first assigned substation (legacy behavior)
+      for (const substationId of assignedSubstations) {
+        const sub = substations.find(s => s.id === substationId && s.stationId === selectedStation.id);
+        if (sub) {
+          selectedSubstation = sub;
+          console.log(`Using legacy assigned substation: ${sub.code} (${sub.id})`);
+          break;
+        }
+      }
+    }
+  }
+  
+  // ========================================================================
+  // WORKER SELECTION
   // ========================================================================
   // WORKER SELECTION
   // ========================================================================
   
   let selectedWorker = null;
+  const assignmentMode = node.assignmentMode || 'auto';
   
-  if (allocationType === 'manual' && workerHint && workerHint.workerId) {
-    // Manual allocation with worker ID hint
-    selectedWorker = workers.find(w => w.id === workerHint.workerId);
+  if (assignmentMode === 'manual' && node.assignedWorkerId) {
+    // Manual allocation with worker ID from plan design
+    selectedWorker = workers.find(w => w.id === node.assignedWorkerId);
     
     if (!selectedWorker) {
       // Fallback to auto if hint not found
-      console.warn(`Worker hint ${workerHint.workerId} not found, falling back to auto`);
+      console.warn(`Assigned worker ${node.assignedWorkerId} not found, falling back to auto`);
     }
   }
   
@@ -4487,7 +5015,7 @@ async function assignNodeResources(
     }));
     
     candidatesWithLoad.sort((a, b) => a.load - b.load);
-    selectedWorker = candidatesWithLoad[0].worker;
+    selectedWorker = candidatesWithLoad[0]?.worker;
   }
   
   if (!selectedWorker) {
@@ -4495,96 +5023,6 @@ async function assignNodeResources(
       error: 'no_worker_available',
       message: 'No worker available for assignment'
     };
-  }
-  
-  // ========================================================================
-  // STATION SELECTION
-  // ========================================================================
-  
-  let selectedStation = null;
-  
-  // Priority 1: Try to match preferred station IDs (exact match)
-  if (preferredStationIds.length > 0) {
-    for (const stationId of preferredStationIds) {
-      const station = stations.find(s => s.id === stationId);
-      if (station) {
-        selectedStation = station;
-        console.log(`Matched station by ID: ${station.name} (${station.id})`);
-        break;
-      }
-    }
-  }
-  
-  // Priority 2: Try to match capability tags (tag-based matching)
-  if (!selectedStation && preferredStationTags.length > 0) {
-    for (const tag of preferredStationTags) {
-      const station = stations.find(s => 
-        s.tags && s.tags.some(t => t.toLowerCase() === tag.toLowerCase())
-      );
-      if (station) {
-        selectedStation = station;
-        console.log(`Matched station by tag "${tag}": ${station.name} (${station.id})`);
-        break;
-      }
-    }
-  }
-  
-  // Priority 3: Legacy fallback - try to match by ID, name, or tag from legacy field
-  if (!selectedStation && legacyPreferredStations.length > 0) {
-    for (const pref of legacyPreferredStations) {
-      const station = stations.find(s => 
-        s.id === pref || 
-        s.name === pref || 
-        (s.tags && s.tags.includes(pref))
-      );
-      if (station) {
-        selectedStation = station;
-        console.log(`Matched station by legacy preference: ${station.name} (${station.id})`);
-        break;
-      }
-    }
-  }
-  
-  // Priority 4: Try to match by operation type
-  if (!selectedStation && node.type) {
-    selectedStation = stations.find(s => s.type === node.type);
-    if (selectedStation) {
-      console.log(`Matched station by operation type "${node.type}": ${selectedStation.name}`);
-    }
-  }
-  
-  // Priority 5: Pick station with least load
-  if (!selectedStation) {
-    const stationsWithLoad = stations.map(s => ({
-      station: s,
-      load: (stationSchedule.get(s.id) || []).length
-    }));
-    
-    stationsWithLoad.sort((a, b) => a.load - b.load);
-    selectedStation = stationsWithLoad[0].station;
-    
-    if (selectedStation) {
-      console.log(`Matched station by least load: ${selectedStation.name} (${selectedStation.id})`);
-    }
-  }
-  
-  if (!selectedStation) {
-    return {
-      error: 'no_station_available',
-      message: 'No station available for assignment'
-    };
-  }
-  
-  // ========================================================================
-  // SUBSTATION SELECTION
-  // ========================================================================
-  
-  let selectedSubstation = null;
-  const stationSubstations = substations.filter(sub => sub.stationId === selectedStation.id);
-  
-  if (stationSubstations.length > 0) {
-    // Pick first available substation
-    selectedSubstation = stationSubstations[0];
   }
   
   // ========================================================================
@@ -4675,20 +5113,71 @@ async function assignNodeResources(
     }
   }
   
+  // ========================================================================
+  // MATERIAL RESERVATION CALCULATIONS
+  // ========================================================================
+  
+  // Fetch operation to get expectedDefectRate if db is available
+  let expectedDefectRate = 0;
+  if (db && node.operationId) {
+    try {
+      const operationDoc = await db.collection('mes-operations').doc(node.operationId).get();
+      if (operationDoc.exists) {
+        const operationData = operationDoc.data();
+        expectedDefectRate = operationData.expectedDefectRate || 0;
+      }
+    } catch (err) {
+      console.warn(`Failed to fetch operation ${node.operationId}:`, err.message);
+    }
+  }
+  
+  // Calculate pre-production reserved amounts (rehin miktarı)
+  const planQuantity = planData.quantity || 1;
+  const preProductionReservedAmount = calculatePreProductionReservedAmount(
+    node,
+    expectedDefectRate,
+    planQuantity
+  );
+  
+  // Calculate planned output
+  const plannedOutput = calculatePlannedOutput(node, planQuantity);
+  
+  // Normalize node ID - use nodeId if exists, otherwise id
+  const normalizedNodeId = node.nodeId || node.id;
+  
+  // DEBUG: Log calculated values
+  console.log(`🔍 DEBUG - assignNodeResources for node ${normalizedNodeId}:`);
+  console.log(`   Node structure: id=${node.id}, nodeId=${node.nodeId}`);
+  console.log(`   Expected Defect Rate: ${expectedDefectRate}%`);
+  console.log(`   Plan Quantity: ${planQuantity}`);
+  console.log(`   Material Inputs Count: ${node.materialInputs ? node.materialInputs.length : 0}`);
+  console.log(`   Output Qty: ${node.outputQty}`);
+  console.log(`   preProductionReservedAmount:`, preProductionReservedAmount);
+  console.log(`   plannedOutput:`, plannedOutput);
+  
   return {
-    nodeId: node.id,
+    nodeId: normalizedNodeId,
     nodeName: node.name,
     operationId: node.operationId,
     workerId: selectedWorker.id,
     workerName: selectedWorker.name,
     stationId: selectedStation.id,
     stationName: selectedStation.name,
-    subStationCode: selectedSubstation ? selectedSubstation.id : null,
+    substationId: selectedSubstation ? selectedSubstation.id : null,
+    substationCode: selectedSubstation ? selectedSubstation.code : null,
     plannedStart: startTime.toISOString(),
     plannedEnd: endTime.toISOString(),
     nominalTime,
     effectiveTime,
     status: 'pending',
+    // Material reservation fields
+    preProductionReservedAmount: Object.keys(preProductionReservedAmount).length > 0 
+      ? preProductionReservedAmount 
+      : null,
+    plannedOutput: Object.keys(plannedOutput).length > 0 
+      ? plannedOutput 
+      : null,
+    materialReservationStatus: 'pending', // pending, reserved, consumed
     warnings: warnings.length > 0 ? warnings : undefined
   };
 }

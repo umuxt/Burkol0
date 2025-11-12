@@ -1,6 +1,7 @@
 // Station management backed by backend API using mesApi
 import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill, invalidateStationsCache, getStationWorkers } from './mesApi.js'
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
+import { API_BASE, withAuth } from '../../shared/lib/api.js';
 
 let stationsState = []
 let operationsCache = []
@@ -672,6 +673,41 @@ export function openAddStationModal() {
   document.getElementById('station-modal-title').textContent = 'Add New Station'
   document.getElementById('station-delete-btn').style.display = 'none'
   document.getElementById('station-modal').style.display = 'block'
+}
+
+// TEST ONLY: Reset all substation currentOperation fields
+export async function resetAllStations() {
+  if (!confirm('⚠️ TEST SIFIRLAMA\n\nTüm aktif üretim görevlerini sıfırlamak istediğinizden emin misiniz?\n\nBu işlem:\n- Alt istasyonları boşaltır\n- İşçileri serbest bırakır\n- Tüm görevleri "beklemede" durumuna getirir\n- Malzeme rezervasyonlarını iptal eder\n\nSadece test amaçlı kullanın!')) {
+    return;
+  }
+
+  try {
+    console.log('🔧 TEST: Resetting all substations and tasks...');
+    
+    const response = await fetch(`${API_BASE}/api/mes/substations/reset-all`, {
+      method: 'POST',
+      headers: withAuth({ 'Content-Type': 'application/json' })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      console.log(`✅ Reset complete:`, data);
+      showSuccessToast(data.message || `Sıfırlama tamamlandı: ${data.clearedCount} alt istasyon, ${data.workersCleared} işçi, ${data.assignmentsReset} görev`);
+      
+      // Reload stations view to reflect changes
+      await loadStationsAndRender();
+    } else {
+      throw new Error(data.message || 'Reset failed');
+    }
+  } catch (error) {
+    console.error('❌ Substation reset error:', error);
+    showErrorToast(`Sıfırlama başarısız: ${error.message}`);
+  }
 }
 
 export async function showStationDetail(stationId) {
