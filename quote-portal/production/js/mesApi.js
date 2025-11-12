@@ -333,7 +333,7 @@ export async function getPlanTemplates() {
   return Array.isArray(data?.templates) ? data.templates : []
 }
 
-// Generate next plan id: prod-plan-YYYY-xxxxx
+// Generate next plan id: PPL-MMYY-XXX
 export async function getNextProductionPlanId(year) {
   try {
     const res = await fetch(`${API_BASE}/api/mes/production-plans/next-id`, {
@@ -346,12 +346,13 @@ export async function getNextProductionPlanId(year) {
     if (data?.id) return data.id
     throw new Error('no_id')
   } catch (e) {
-    // Fallback: generate client-side unique id with same format
+    // Fallback: generate client-side unique id with new format PPL-MMYY-XXX
     const now = new Date()
-    const y = (year || now.getFullYear())
-    const pad = (n) => String(n).padStart(5, '0')
-    const pseudo = Number(String(now.getTime()).slice(-5)) // last 5 digits
-    return `prod-plan-${y}-${pad(pseudo)}`
+    const month = String(now.getMonth() + 1).padStart(2, '0') // 01-12
+    const yearShort = String(now.getFullYear()).slice(-2) // Last 2 digits
+    const pad = (n) => String(n).padStart(3, '0') // XXX format
+    const pseudo = Number(String(now.getTime()).slice(-3)) // last 3 digits
+    return `PPL-${month}${yearShort}-${pad(pseudo)}`
   }
 }
 

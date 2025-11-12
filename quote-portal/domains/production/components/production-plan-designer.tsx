@@ -456,7 +456,7 @@ export function ProductionPlanDesigner() {
               id="plan-name"
               value={planName}
               onChange={(e) => setPlanName(e.target.value)}
-              placeholder="e.g., WO-2024-001"
+              placeholder="e.g., PPL-1125-001"
             />
           </div>
 

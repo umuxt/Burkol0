@@ -2515,7 +2515,7 @@ export async function initStationAlertsWidget() {
             ${alert.note || 'Hata açıklaması yok'}
           </div>
           <div style="font-size: 11px; color: #9ca3af;">
-            Plan: ${alert.planId || '-'} | İşçi: ${alert.workerId || '-'}
+            Plan: ${alert.planId ? (alert.planId.startsWith('PPL-') ? alert.planId : alert.planId.slice(-10)) : '-'} | İşçi: ${alert.workerId || '-'}
           </div>
         </div>
       `;

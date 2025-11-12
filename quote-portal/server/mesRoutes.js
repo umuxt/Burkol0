@@ -1121,14 +1121,16 @@ router.post('/master-data', withAuth, async (req, res) => {
 // PRODUCTION PLANS ROUTES  
 // ============================================================================
 
-// POST /api/mes/production-plans/next-id - Generate next sequential plan id (prod-plan-YYYY-xxxxx)
+// POST /api/mes/production-plans/next-id - Generate next sequential plan id (PPL-MMYY-XXX)
 router.post('/production-plans/next-id', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const db = getFirestore();
     const now = new Date();
-    const year = (req.body && req.body.year) || now.getFullYear();
-    const pad = (n) => String(n).padStart(5, '0');
-    const counterRef = db.collection('mes-counters').doc(`prod-plan-${year}`);
+    const month = String(now.getMonth() + 1).padStart(2, '0'); // 01-12
+    const year = String(now.getFullYear()).slice(-2); // Last 2 digits of year (25 for 2025)
+    const monthYear = `${month}${year}`;
+    const pad = (n) => String(n).padStart(3, '0'); // Changed to 3 digits for XXX format
+    const counterRef = db.collection('mes-counters').doc(`plan-${monthYear}`);
 
     const id = await db.runTransaction(async (tx) => {
       const snap = await tx.get(counterRef);
@@ -1137,7 +1139,7 @@ router.post('/production-plans/next-id', withAuth, async (req, res) => {
         const data = snap.data() || {};
         next = Number.isFinite(data.next) ? data.next : 1;
       }
-      const newId = `prod-plan-${year}-${pad(next)}`;
+      const newId = `PPL-${monthYear}-${pad(next)}`;
       tx.set(counterRef, { next: next + 1, updatedAt: new Date() }, { merge: true });
       return newId;
     });

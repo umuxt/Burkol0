@@ -44,7 +44,9 @@ function renderProductionPlans(plans) {
   } else {
     body.innerHTML = plans.map(p => {
       const fullPlanId = (p.id || '—').toString()
-      const planId = fullPlanId === '—' ? '—' : fullPlanId.slice(-10)
+      // Display full plan ID for new format (PPL-MMYY-XXX), keep slice for old format
+      const planId = fullPlanId === '—' ? '—' : 
+                    fullPlanId.startsWith('PPL-') ? fullPlanId : fullPlanId.slice(-10)
       const name = (p.name || p.id || '').toString()
       const order = (p.orderCode || '—')
       const steps = Array.isArray(p.nodes) ? p.nodes.length : (Array.isArray(p.steps) ? p.steps.length : (p.stepsCount || 0))
@@ -109,7 +111,9 @@ function renderTemplatesList(templates) {
   } else {
     body.innerHTML = templates.map(t => {
       const fullTemplateId = (t.id || '—').toString()
-      const templateId = fullTemplateId === '—' ? '—' : fullTemplateId.slice(-10)
+      // Display full template ID for new format (PPL-MMYY-XXX), keep slice for old format
+      const templateId = fullTemplateId === '—' ? '—' : 
+                         fullTemplateId.startsWith('PPL-') ? fullTemplateId : fullTemplateId.slice(-10)
       const name = (t.name || t.id || '').toString()
       const order = (t.orderCode || '—')
       const steps = Array.isArray(t.steps) ? t.steps.length : (t.stepsCount || 0)
@@ -191,7 +195,8 @@ export async function viewProductionPlan(id) {
     try {
       const planIdElement = document.getElementById('plan-config-id');
       if (planIdElement && id) {
-        const displayId = id.slice(-10); // Show last 10 characters like in table
+        // Display full ID for new format (PPL-MMYY-XXX), keep slice for old format
+        const displayId = id.startsWith('PPL-') ? id : id.slice(-10);
         planIdElement.textContent = displayId;
         planIdElement.style.display = 'inline';
       }
@@ -248,7 +253,8 @@ export function editTemplateById(id) {
       try {
         const planIdElement = document.getElementById('plan-config-id');
         if (planIdElement && tpl.id) {
-          const displayId = tpl.id.slice(-10); // Show last 10 characters like in table
+          // Display full ID for new format (PPL-MMYY-XXX), keep slice for old format
+          const displayId = tpl.id.startsWith('PPL-') ? tpl.id : tpl.id.slice(-10);
           planIdElement.textContent = displayId;
           planIdElement.style.display = 'inline';
         }

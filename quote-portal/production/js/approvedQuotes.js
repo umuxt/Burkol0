@@ -914,7 +914,9 @@ function renderApprovedQuotesTable() {
     const plan = productionPlansMap[idForRow]
     if (plan) {
       const fullPlanId = plan.id || ''
-      const shortPlanId = fullPlanId.length > 10 ? fullPlanId.slice(-10) : fullPlanId
+      // Display full plan ID for new format (PPL-MMYY-XXX), keep slice for old format
+      const shortPlanId = fullPlanId.startsWith('PPL-') ? fullPlanId : 
+                         (fullPlanId.length > 10 ? fullPlanId.slice(-10) : fullPlanId)
       const planName = plan.name || ''
       const typeIcon = plan.type === 'production' ? '✅' : '☑️'
       const actionIcon = plan.type === 'production' ? '👁️' : '✏️'

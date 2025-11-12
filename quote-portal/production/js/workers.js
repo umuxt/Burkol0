@@ -752,7 +752,7 @@ function generateCurrentTaskSection(worker) {
           <span style="font-size: 11px; padding: 2px 8px; background: ${statusConfig.text}; color: white; border-radius: 12px; font-weight: 500;">${escapeHtml(statusConfig.label)}</span>
         </div>
         <div style="font-size: 11px; color: rgb(75, 85, 99); margin-bottom: 4px;">
-          Plan ID: <span style="font-family: monospace; background: white; padding: 2px 4px; border-radius: 2px;">${escapeHtml(planId.slice(-10))}</span>
+          Plan ID: <span style="font-family: monospace; background: white; padding: 2px 4px; border-radius: 2px;">${escapeHtml(planId.startsWith('PPL-') ? planId : planId.slice(-10))}</span>
         </div>
         ${stationName ? `
           <div style="font-size: 11px; color: rgb(75, 85, 99); margin-bottom: 4px;">
