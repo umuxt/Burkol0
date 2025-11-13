@@ -891,9 +891,9 @@ router.post('/stations', withAuth, async (req, res) => {
         });
       });
       
-      // Step 1c: Save station document WITHOUT embedded subStations array
+      // Step 1c: Save station document WITHOUT embedded subStations array and WITHOUT status field
       const stationRef = db.collection('mes-stations').doc(stationId);
-      const { subStations: _, ...stationDataWithoutSubStations } = station;
+      const { subStations: _, status: __, ...stationDataWithoutSubStations } = station;
       
       batch.set(stationRef, {
         ...stationDataWithoutSubStations,
@@ -1231,6 +1231,150 @@ router.post('/master-data', withAuth, async (req, res) => {
 // ============================================================================
 
 /**
+ * Enrich production plan nodes with estimated start/end times
+ * Calculates timing based on dependencies, worker schedules, and durations
+ * 
+ * @param {Array} nodes - Array of plan nodes
+ * @param {Array} executionGraph - Optional execution graph
+ * @param {Object} planData - Plan data with quantity, status, etc.
+ * @param {Object} db - Firestore database instance
+ * @returns {Promise<Array>} Enriched nodes with estimatedStartTime and estimatedEndTime
+ */
+async function enrichNodesWithEstimatedTimes(nodes, executionGraph, planData, db) {
+  const nodesToProcess = executionGraph && executionGraph.length > 0 ? executionGraph : nodes;
+  
+  if (!Array.isArray(nodesToProcess) || nodesToProcess.length === 0) {
+    return nodes; // Return original nodes if nothing to process
+  }
+  
+  // Fetch workers, stations, substations for estimation
+  const [workersSnap, stationsSnap, substationsSnap] = await Promise.all([
+    db.collection('mes-workers').where('status', '==', 'active').get(),
+    db.collection('mes-work-stations').get(),
+    db.collection('mes-substations').get()
+  ]);
+  
+  const workers = workersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const stations = stationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const substations = substationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  
+  // Initialize schedule tracking
+  const workerSchedule = new Map(); // workerId -> [{nodeId, start, end}]
+  const stationSchedule = new Map(); // stationId -> [{nodeId, start, end}]
+  const nodeEndTimes = new Map(); // nodeId -> Date (for dependency tracking)
+  
+  console.log('🕐 Starting node time enrichment...');
+  
+  // Build dependency graph to process in order
+  const processed = new Set();
+  const enrichedNodesMap = new Map();
+  
+  // Process nodes in dependency order
+  async function processNode(node) {
+    const nodeId = node.id || node.nodeId;
+    
+    if (processed.has(nodeId)) {
+      return enrichedNodesMap.get(nodeId);
+    }
+    
+    // Process predecessors first
+    const predecessors = node.predecessors || [];
+    for (const predId of predecessors) {
+      const predNode = nodesToProcess.find(n => (n.id || n.nodeId) === predId);
+      if (predNode && !processed.has(predId)) {
+        await processNode(predNode);
+      }
+    }
+    
+    // Use assignNodeResources to calculate timing
+    const assignment = await assignNodeResources(
+      node,
+      workers,
+      stations,
+      substations,
+      workerSchedule,
+      stationSchedule,
+      planData,
+      nodeEndTimes,
+      db
+    );
+    
+    if (assignment.error) {
+      // If assignment fails, use simple time estimation
+      console.warn(`⚠️ Could not auto-assign node ${nodeId}: ${assignment.message}`);
+      
+      // Simple fallback: use current time + duration
+      // Support multiple field names: time (nodes), estimatedNominalTime (executionGraph)
+      const duration = node.time || node.estimatedNominalTime || node.duration || 60;
+      const startTime = new Date();
+      const endTime = new Date(startTime.getTime() + duration * 60000);
+      
+      enrichedNodesMap.set(nodeId, {
+        ...node,
+        estimatedStartTime: startTime.toISOString(),
+        estimatedEndTime: endTime.toISOString(),
+        estimatedDuration: duration
+      });
+      
+      nodeEndTimes.set(nodeId, endTime);
+    } else {
+      // Success - add estimated times to node
+      const startTime = new Date(assignment.plannedStart);
+      const endTime = new Date(assignment.plannedEnd);
+      
+      enrichedNodesMap.set(nodeId, {
+        ...node,
+        estimatedStartTime: assignment.plannedStart,
+        estimatedEndTime: assignment.plannedEnd,
+        estimatedDuration: assignment.effectiveTime,
+        estimatedWorkerId: assignment.workerId,
+        estimatedWorkerName: assignment.workerName,
+        estimatedStationId: assignment.stationId,
+        estimatedStationName: assignment.stationName
+      });
+      
+      // Track end time for dependency resolution
+      nodeEndTimes.set(nodeId, endTime);
+      
+      // Update schedules for next iterations
+      if (!workerSchedule.has(assignment.workerId)) {
+        workerSchedule.set(assignment.workerId, []);
+      }
+      workerSchedule.get(assignment.workerId).push({
+        nodeId,
+        start: startTime,
+        end: endTime
+      });
+      
+      if (!stationSchedule.has(assignment.stationId)) {
+        stationSchedule.set(assignment.stationId, []);
+      }
+      stationSchedule.get(assignment.stationId).push({
+        nodeId,
+        start: startTime,
+        end: endTime
+      });
+      
+      console.log(`✅ Node ${nodeId}: ${assignment.plannedStart} → ${assignment.plannedEnd} (${assignment.effectiveTime} min)`);
+    }
+    
+    processed.add(nodeId);
+    return enrichedNodesMap.get(nodeId);
+  }
+  
+  // Process all nodes
+  for (const node of nodesToProcess) {
+    await processNode(node);
+  }
+  
+  // Return enriched nodes in original order
+  return nodesToProcess.map(node => {
+    const nodeId = node.id || node.nodeId;
+    return enrichedNodesMap.get(nodeId) || node;
+  });
+}
+
+/**
  * Validate production plan nodes for completeness and data integrity
  * Ensures all nodes have required fields before plan can be saved
  * 
@@ -1264,9 +1408,11 @@ function validateProductionPlanNodes(nodes, executionGraph = null) {
       errors.push(`${nodeLabel}: Operation name is required`);
     }
     
-    // 2. Validate estimated time
-    if (!Number.isFinite(node.time) || node.time < 1) {
-      errors.push(`${nodeLabel}: Estimated time must be a number >= 1`);
+    // 2. Validate estimated time (duration in minutes)
+    // Support multiple field names: time (nodes), estimatedNominalTime (executionGraph), duration, estimatedTime
+    const duration = node.time || node.estimatedNominalTime || node.duration || node.estimatedTime;
+    if (!Number.isFinite(duration) || duration < 1) {
+      errors.push(`${nodeLabel}: Operation duration must be a number >= 1 minute`);
     }
     
     // 3. Validate station assignments
@@ -1275,15 +1421,10 @@ function validateProductionPlanNodes(nodes, executionGraph = null) {
       errors.push(`${nodeLabel}: At least one work station must be assigned`);
     }
     
-    // 4. Validate output quantity and unit
-    const outputQty = node.outputQty;
+    // 4. Validate output quantity (unit is not required for executionGraph)
+    const outputQty = node.outputQty || node.outputQuantity;
     if (!Number.isFinite(outputQty) || outputQty <= 0) {
       errors.push(`${nodeLabel}: Output quantity must be a number greater than 0`);
-    }
-    
-    const outputUnit = node.outputUnit;
-    if (!outputUnit || typeof outputUnit !== 'string' || outputUnit.trim() === '') {
-      errors.push(`${nodeLabel}: Output unit must be specified`);
     }
     
     // 5. Validate material inputs
@@ -1371,6 +1512,12 @@ router.post('/production-plans', withAuth, async (req, res) => {
     // ========================================================================
     // VALIDATE PRODUCTION PLAN NODES
     // ========================================================================
+    
+    // Debug: Log first node to see what's received
+    if (productionPlan.nodes && productionPlan.nodes.length > 0) {
+      console.log('🔍 Backend received node 0:', JSON.stringify(productionPlan.nodes[0], null, 2));
+    }
+    
     const validation = validateProductionPlanNodes(
       productionPlan.nodes || [],
       productionPlan.executionGraph || null
@@ -1392,8 +1539,24 @@ router.post('/production-plans', withAuth, async (req, res) => {
     const actorName = (req.user && (req.user.name || req.user.userName)) || null;
     const createdBy = actorEmail || actorName || null;
 
+    // ========================================================================
+    // ENRICH NODES WITH ESTIMATED START/END TIMES
+    // ========================================================================
+    // Add estimated timing information to nodes based on:
+    // 1. Node duration (time field)
+    // 2. Predecessor dependencies
+    // 3. Worker schedule constraints (if available)
+    
+    const enrichedNodes = await enrichNodesWithEstimatedTimes(
+      productionPlan.nodes || [],
+      productionPlan.executionGraph || null,
+      productionPlan,
+      db
+    );
+    
     // Remove assignments from plan data to avoid storing in plan document
     const planData = { ...productionPlan };
+    planData.nodes = enrichedNodes; // Use enriched nodes with estimated times
     delete planData.assignments;
     
     // Handle 'released' status - add release metadata
@@ -4935,6 +5098,172 @@ async function validateMaterialAvailability(planData, planQuantity, db) {
 }
 
 /**
+ * Helper function: Adjust start time to next valid work block
+ * If startTime falls within a break or outside schedule, move it to next work block
+ * 
+ * @param {Date} startTime - Proposed start time
+ * @param {Array} scheduleBlocks - Array of { type: 'work'|'break', start: 'HH:MM', end: 'HH:MM' }
+ * @returns {Date} - Adjusted start time
+ */
+function adjustStartTimeForSchedule(startTime, scheduleBlocks) {
+  if (!scheduleBlocks || scheduleBlocks.length === 0) {
+    return startTime; // No schedule constraints
+  }
+  
+  const hour = startTime.getHours();
+  const minute = startTime.getMinutes();
+  const timeInMinutes = hour * 60 + minute;
+  
+  // Find if current time is within a work block
+  for (const block of scheduleBlocks) {
+    if (block.type !== 'work' || !block.start || !block.end) continue;
+    
+    const [startHour, startMin] = block.start.split(':').map(Number);
+    const [endHour, endMin] = block.end.split(':').map(Number);
+    const blockStart = startHour * 60 + startMin;
+    const blockEnd = endHour * 60 + endMin;
+    
+    // If within work block, use as-is
+    if (timeInMinutes >= blockStart && timeInMinutes < blockEnd) {
+      return startTime;
+    }
+  }
+  
+  // Not in a work block - find next work block
+  const workBlocks = scheduleBlocks
+    .filter(b => b.type === 'work' && b.start && b.end)
+    .map(b => {
+      const [startHour, startMin] = b.start.split(':').map(Number);
+      return {
+        startMinutes: startHour * 60 + startMin,
+        startHour,
+        startMin
+      };
+    })
+    .sort((a, b) => a.startMinutes - b.startMinutes);
+  
+  // Find first work block after current time
+  for (const wb of workBlocks) {
+    if (wb.startMinutes > timeInMinutes) {
+      const adjusted = new Date(startTime);
+      adjusted.setHours(wb.startHour, wb.startMin, 0, 0);
+      return adjusted;
+    }
+  }
+  
+  // All work blocks are before current time - move to next day's first work block
+  if (workBlocks.length > 0) {
+    const nextDay = new Date(startTime);
+    nextDay.setDate(nextDay.getDate() + 1);
+    nextDay.setHours(workBlocks[0].startHour, workBlocks[0].startMin, 0, 0);
+    return nextDay;
+  }
+  
+  // No work blocks defined - return original time
+  return startTime;
+}
+
+/**
+ * Helper function: Calculate end time considering breaks and work schedule
+ * Skips break periods and non-work hours when calculating task duration
+ * 
+ * @param {Date} startTime - Task start time (must be in a work block)
+ * @param {number} durationInMinutes - Net work time required
+ * @param {Array} scheduleBlocks - Array of { type: 'work'|'break', start: 'HH:MM', end: 'HH:MM' }
+ * @returns {Date} - Actual end time considering breaks
+ */
+function calculateEndTimeWithBreaks(startTime, durationInMinutes, scheduleBlocks) {
+  if (!scheduleBlocks || scheduleBlocks.length === 0) {
+    // No schedule constraints - simple addition
+    return new Date(startTime.getTime() + durationInMinutes * 60000);
+  }
+  
+  let remainingDuration = durationInMinutes;
+  let currentTime = new Date(startTime);
+  
+  // Get work blocks sorted by start time
+  const workBlocks = scheduleBlocks
+    .filter(b => b.type === 'work' && b.start && b.end)
+    .map(b => {
+      const [startHour, startMin] = b.start.split(':').map(Number);
+      const [endHour, endMin] = b.end.split(':').map(Number);
+      return {
+        startHour,
+        startMin,
+        endHour,
+        endMin,
+        startMinutes: startHour * 60 + startMin,
+        endMinutes: endHour * 60 + endMin
+      };
+    })
+    .sort((a, b) => a.startMinutes - b.startMinutes);
+  
+  if (workBlocks.length === 0) {
+    // No work blocks - simple addition
+    return new Date(startTime.getTime() + durationInMinutes * 60000);
+  }
+  
+  // Iterate through work blocks until duration is consumed
+  while (remainingDuration > 0) {
+    const hour = currentTime.getHours();
+    const minute = currentTime.getMinutes();
+    const currentMinutes = hour * 60 + minute;
+    
+    // Find current or next work block
+    let currentBlock = null;
+    let nextBlock = null;
+    
+    for (const wb of workBlocks) {
+      if (currentMinutes >= wb.startMinutes && currentMinutes < wb.endMinutes) {
+        currentBlock = wb;
+        break;
+      } else if (currentMinutes < wb.startMinutes) {
+        nextBlock = wb;
+        break;
+      }
+    }
+    
+    if (currentBlock) {
+      // We're in a work block - calculate how much time we can work here
+      const blockEndMinutes = currentBlock.endMinutes;
+      const workableMinutes = blockEndMinutes - currentMinutes;
+      
+      if (remainingDuration <= workableMinutes) {
+        // Task finishes in this block
+        currentTime = new Date(currentTime.getTime() + remainingDuration * 60000);
+        remainingDuration = 0;
+      } else {
+        // Task continues beyond this block
+        remainingDuration -= workableMinutes;
+        // Move to end of this block
+        currentTime.setHours(currentBlock.endHour, currentBlock.endMin, 0, 0);
+        
+        // Find next work block
+        const nextBlockIndex = workBlocks.findIndex(wb => wb.startMinutes > currentBlock.endMinutes);
+        if (nextBlockIndex === -1) {
+          // No more work blocks today - move to next day's first block
+          currentTime.setDate(currentTime.getDate() + 1);
+          currentTime.setHours(workBlocks[0].startHour, workBlocks[0].startMin, 0, 0);
+        } else {
+          // Move to next work block
+          const nextWb = workBlocks[nextBlockIndex];
+          currentTime.setHours(nextWb.startHour, nextWb.startMin, 0, 0);
+        }
+      }
+    } else if (nextBlock) {
+      // We're in a break or before schedule - jump to next work block
+      currentTime.setHours(nextBlock.startHour, nextBlock.startMin, 0, 0);
+    } else {
+      // Past all work blocks today - move to next day's first block
+      currentTime.setDate(currentTime.getDate() + 1);
+      currentTime.setHours(workBlocks[0].startHour, workBlocks[0].startMin, 0, 0);
+    }
+  }
+  
+  return currentTime;
+}
+
+/**
  * Assign worker, station, and substation to a node using auto-assignment rules
  * Now respects predecessor dependencies for scheduling
  */
@@ -4949,8 +5278,10 @@ async function assignNodeResources(
   nodeEndTimes = new Map(), // Track when predecessor nodes finish
   db = null // Database instance for fetching operations
 ) {
-  const requiredSkills = node.requiredSkills || [];
-  const nominalTime = parseFloat(node.time) || 60; // minutes
+  // Support multiple field names: requiredSkills (executionGraph), skills (nodes)
+  const requiredSkills = node.requiredSkills || node.skills || [];
+  // Support multiple field names: time (nodes), estimatedNominalTime (executionGraph)
+  const nominalTime = parseFloat(node.time || node.estimatedNominalTime || node.duration) || 60; // minutes
   
   // ========================================================================
   // STATION & SUBSTATION SELECTION (Priority-based with smart allocation)
@@ -5010,13 +5341,30 @@ async function assignNodeResources(
         const stationSubstations = substations.filter(ss => ss.stationId === station.id);
         
         for (const ss of stationSubstations) {
+          // Calculate the last end time considering both current operation and queued tasks
+          let lastEndTime = new Date();
+          
+          // Check physical current operation
           if (ss.currentExpectedEnd) {
-            const endTime = new Date(ss.currentExpectedEnd);
-            if (!earliestEnd || endTime < earliestEnd) {
-              earliestEnd = endTime;
-              earliestSubstation = ss;
-              selectedStation = station;
+            const currentEnd = new Date(ss.currentExpectedEnd);
+            if (currentEnd > lastEndTime) {
+              lastEndTime = currentEnd;
             }
+          }
+          
+          // Check queued tasks in stationSchedule for this substation
+          const substationQueue = stationSchedule.get(ss.id) || [];
+          if (substationQueue.length > 0) {
+            const lastQueued = substationQueue[substationQueue.length - 1];
+            if (lastQueued.end > lastEndTime) {
+              lastEndTime = lastQueued.end;
+            }
+          }
+          
+          if (!earliestEnd || lastEndTime < earliestEnd) {
+            earliestEnd = lastEndTime;
+            earliestSubstation = ss;
+            selectedStation = station;
           }
         }
       }
@@ -5064,9 +5412,21 @@ async function assignNodeResources(
   }
   
   if (!selectedStation) {
+    const compatibleStations = assignedStations.map(s => s.id).join(', ');
+    const stationDetails = assignedStations.map(s => {
+      const st = stations.find(st => st.id === s.id);
+      const subs = substations.filter(ss => ss.stationId === s.id);
+      return `${s.id} (${subs.length} substations)`;
+    }).join(', ');
+    
     return {
       error: 'no_station_available',
-      message: 'No station available for assignment'
+      message: `No station available for node '${node.name || node.id}'. All compatible stations [${stationDetails}] are fully booked or have no available substations.`,
+      details: {
+        assignedStations: assignedStations.map(s => s.id),
+        totalStations: stations.length,
+        totalSubstations: substations.length
+      }
     };
   }
   
@@ -5094,15 +5454,19 @@ async function assignNodeResources(
   // ========================================================================
   
   let selectedWorker = null;
-  const assignmentMode = node.assignmentMode || 'auto';
+  // Support multiple field names: assignmentMode (nodes), allocationType (executionGraph)
+  const assignmentMode = node.assignmentMode || node.allocationType || 'auto';
   
-  if (assignmentMode === 'manual' && node.assignedWorkerId) {
+  // Support multiple field names: assignedWorkerId (nodes), workerHint.workerId (executionGraph)
+  const manualWorkerId = node.assignedWorkerId || node.workerHint?.workerId;
+  
+  if (assignmentMode === 'manual' && manualWorkerId) {
     // Manual allocation with worker ID from plan design
-    selectedWorker = workers.find(w => w.id === node.assignedWorkerId);
+    selectedWorker = workers.find(w => w.id === manualWorkerId);
     
     if (!selectedWorker) {
       // Fallback to auto if hint not found
-      console.warn(`Assigned worker ${node.assignedWorkerId} not found, falling back to auto`);
+      console.warn(`Assigned worker ${manualWorkerId} not found, falling back to auto`);
     }
   }
   
@@ -5114,24 +5478,38 @@ async function assignNodeResources(
     });
     
     if (candidates.length === 0) {
+      // Gather available worker skills for debugging
+      const availableSkills = new Set();
+      workers.forEach(w => {
+        const skills = w.skills || [];
+        skills.forEach(skill => availableSkills.add(skill));
+      });
+      
       return {
         error: 'no_qualified_workers',
-        message: `No workers found with required skills: ${requiredSkills.join(', ')}`,
-        details: { requiredSkills }
+        message: `No eligible workers found for node '${node.name || node.id}'. Reason: Required skills [${requiredSkills.join(', ')}] not found in any available worker.`,
+        details: { 
+          requiredSkills,
+          availableSkills: Array.from(availableSkills),
+          totalWorkers: workers.length
+        }
       };
     }
     
-    // Sort by workload (fewest assignments first) and efficiency
+    // Sort by skill count (least skills first), workload, then efficiency
     const candidatesWithLoad = candidates.map(w => ({
       worker: w,
+      skillCount: (w.skills || []).length,
       load: (workerSchedule.get(w.id) || []).length,
       efficiency: w.efficiency || 1.0
     }));
     
     candidatesWithLoad.sort((a, b) => {
-      // Prefer less loaded workers
+      // 1. Prefer workers with fewer total skills (avoid wasting versatile workers)
+      if (a.skillCount !== b.skillCount) return a.skillCount - b.skillCount;
+      // 2. Prefer less loaded workers
       if (a.load !== b.load) return a.load - b.load;
-      // Then prefer higher efficiency
+      // 3. Then prefer higher efficiency
       return b.efficiency - a.efficiency;
     });
     
@@ -5203,13 +5581,45 @@ async function assignNodeResources(
   }
   
   // Start time is the maximum of all constraints
-  const startTime = new Date(Math.max(
+  let startTime = new Date(Math.max(
     earliestWorkerStart.getTime(),
     earliestStationStart.getTime(),
     earliestPredecessorEnd.getTime()
   ));
   
-  const endTime = new Date(startTime.getTime() + effectiveTime * 60000);
+  // ========================================================================
+  // ADJUST START TIME FOR WORKER SCHEDULE (Madde 6)
+  // ========================================================================
+  
+  // Get worker's schedule blocks for the start day
+  let scheduleBlocks = [];
+  if (selectedWorker.personalSchedule && selectedWorker.personalSchedule.blocks) {
+    const dayName = startTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+    scheduleBlocks = selectedWorker.personalSchedule.blocks[dayName] || [];
+  }
+  
+  // Adjust start time to next valid work block if needed
+  if (scheduleBlocks.length > 0) {
+    const adjustedStart = adjustStartTimeForSchedule(startTime, scheduleBlocks);
+    if (adjustedStart.getTime() !== startTime.getTime()) {
+      console.log(`⏰ Adjusted start time from ${startTime.toISOString()} to ${adjustedStart.toISOString()} to fit worker schedule`);
+      startTime = adjustedStart;
+    }
+  }
+  
+  // ========================================================================
+  // CALCULATE END TIME WITH BREAKS (Madde 6)
+  // ========================================================================
+  
+  // Calculate end time considering breaks and work schedule
+  let endTime;
+  if (scheduleBlocks.length > 0) {
+    endTime = calculateEndTimeWithBreaks(startTime, effectiveTime, scheduleBlocks);
+    console.log(`⏰ Calculated end time with breaks: ${endTime.toISOString()} (effective time: ${effectiveTime} min)`);
+  } else {
+    // No schedule constraints - simple addition
+    endTime = new Date(startTime.getTime() + effectiveTime * 60000);
+  }
   
   // ========================================================================
   // BUILD ASSIGNMENT
@@ -5217,28 +5627,12 @@ async function assignNodeResources(
   
   const warnings = [];
   
-  // Check if outside worker schedule (if defined)
-  if (selectedWorker.personalSchedule && selectedWorker.personalSchedule.blocks) {
-    const dayName = startTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    const dayBlocks = selectedWorker.personalSchedule.blocks[dayName] || [];
-    
-    if (dayBlocks.length > 0) {
-      const hour = startTime.getHours();
-      const minute = startTime.getMinutes();
-      const timeMinutes = hour * 60 + minute;
-      
-      const withinSchedule = dayBlocks.some(block => {
-        if (!block.start || !block.end) return false;
-        const [startHour, startMin] = block.start.split(':').map(Number);
-        const [endHour, endMin] = block.end.split(':').map(Number);
-        const blockStart = startHour * 60 + startMin;
-        const blockEnd = endHour * 60 + endMin;
-        return timeMinutes >= blockStart && timeMinutes <= blockEnd;
-      });
-      
-      if (!withinSchedule) {
-        warnings.push('Assignment is outside worker\'s scheduled hours');
-      }
+  // Note: We no longer need the old schedule validation since we've adjusted times
+  // But we can add a warning if the task spans multiple days due to breaks
+  if (scheduleBlocks.length > 0) {
+    const daysDiff = Math.floor((endTime.getTime() - startTime.getTime()) / (24 * 60 * 60 * 1000));
+    if (daysDiff > 0) {
+      warnings.push(`Task spans ${daysDiff + 1} days due to work schedule constraints`);
     }
   }
   

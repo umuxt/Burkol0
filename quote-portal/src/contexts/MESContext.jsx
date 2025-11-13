@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 import { MESService } from '../lib/mes-service.js';
-import { updateProductionState } from '../../production/js/mesApi.js';
+import { updateProductionState } from '../../domains/production/js/mesApi.js';
 
 /**
  * ============================================================================

@@ -1,11 +1,11 @@
 // Plan Designer logic and state
-import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
 import { computeAndAssignSemiCode, getSemiCodePreviewForNode, getPrefixForNode, collectPendingSemiCodes } from './semiCode.js';
 import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments, getMaterials, checkMesMaterialAvailability, getGeneralMaterials, activateWorkerAssignments, commitSemiCodes } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
-import { API_BASE, withAuth } from '../../shared/lib/api.js';
-import { renderMaterialFlow } from '../../domains/production/components/materialFlowView.js';
+import { API_BASE, withAuth } from '../../../shared/lib/api.js';
+import { renderMaterialFlow } from '../components/materialFlowView.js';
 
 export const planDesignerState = {
   nodes: [],
@@ -813,7 +813,7 @@ export function handleCanvasDrop(event) {
     operationId: operation.id,
     name: operation.name,
     type: operation.type,
-    time: operation.time,
+    time: operation.time || 30, // Ensure time is always a valid number
     // Rule-based fields for auto-assignment at launch
     requiredSkills: operation.skills || [], // Skills required for this operation
     preferredStations: [], // Preferred station IDs or tags (multi-select)
@@ -825,6 +825,8 @@ export function handleCanvasDrop(event) {
     // Material inputs/outputs
     rawMaterials: [], // List of materials consumed
     semiCode: null, // Output semi-finished product code
+    outputQty: 1, // Default output quantity (will be updated when user configures)
+    outputUnit: 'pcs', // Default output unit (will be updated when user configures)
     // Canvas positioning
     x: Math.max(0, x),
     y: Math.max(0, y),
@@ -1552,25 +1554,45 @@ export async function editNode(nodeId) {
   const allocationType = node.allocationType || 'auto';
   const workerHint = node.workerHint || {};
   
-  // Build worker select options
+  // Build worker select options with skill filtering
   const availableWorkers = planDesignerState.availableWorkers || [];
   const selectedWorkerId = workerHint.workerId || '';
+  
+  // Filter workers by required skills
+  const matchingWorkers = availableWorkers.filter(worker => {
+    const workerSkills = worker.skills || [];
+    // If no required skills, show all workers
+    if (requiredSkills.length === 0) return true;
+    // Worker must have ALL required skills
+    return requiredSkills.every(skill => workerSkills.includes(skill));
+  });
   
   let workerOptions = '<option value="">-- Select a worker --</option>';
   let workerNotFoundWarning = '';
   
-  availableWorkers.forEach(worker => {
-    const skills = (worker.skills || []).join(', ') || 'No skills';
-    const shift = worker.shift || 'Day';
-    const label = `${worker.name} (${shift} shift, Skills: ${skills})`;
-    const selected = worker.id === selectedWorkerId ? 'selected' : '';
-    workerOptions += `<option value="${escapeHtml(worker.id)}" ${selected}>${escapeHtml(label)}</option>`;
-  });
+  // If no matching workers, show warning
+  if (matchingWorkers.length === 0 && requiredSkills.length > 0) {
+    workerOptions += '<option value="" disabled>⚠️ No workers with required skills found</option>';
+    workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ No workers have all required skills (${requiredSkills.join(', ')}). Please use auto-assignment or add skills to workers.</div>`;
+  } else {
+    matchingWorkers.forEach(worker => {
+      const skills = (worker.skills || []).join(', ') || 'No skills';
+      const shift = worker.shift || 'Day';
+      const label = `${worker.name} (${shift} shift, Skills: ${skills})`;
+      const selected = worker.id === selectedWorkerId ? 'selected' : '';
+      workerOptions += `<option value="${escapeHtml(worker.id)}" ${selected}>${escapeHtml(label)}</option>`;
+    });
+  }
   
-  // Check if saved worker no longer exists
-  if (selectedWorkerId && !availableWorkers.find(w => w.id === selectedWorkerId)) {
-    const savedName = workerHint.workerNameHint || selectedWorkerId;
-    workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Previously selected worker "${escapeHtml(savedName)}" no longer exists. Please select another worker.</div>`;
+  // Check if saved worker no longer exists or doesn't have required skills
+  if (selectedWorkerId) {
+    const savedWorker = availableWorkers.find(w => w.id === selectedWorkerId);
+    if (!savedWorker) {
+      const savedName = workerHint.workerNameHint || selectedWorkerId;
+      workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Previously selected worker "${escapeHtml(savedName)}" no longer exists. Please select another worker.</div>`;
+    } else if (!matchingWorkers.find(w => w.id === selectedWorkerId)) {
+      workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Previously selected worker "${escapeHtml(savedWorker.name)}" no longer has required skills (${requiredSkills.join(', ')}). Please select another worker.</div>`;
+    }
   }
   
   // Build station selection UI
@@ -2256,13 +2278,23 @@ export async function savePlanDraft() {
     console.log('📦 Converting template to production plan...');
     const templateId = meta.sourceTemplateId;
     
+    // Sanitize nodes before saving
+    const sanitizedNodes = planDesignerState.nodes.map(node => {
+      const sanitized = { ...node };
+      if (!Number.isFinite(sanitized.time) || sanitized.time < 1) sanitized.time = 30;
+      if (!sanitized.outputUnit || sanitized.outputUnit.trim() === '') sanitized.outputUnit = 'pcs';
+      if (!Number.isFinite(sanitized.outputQty) || sanitized.outputQty <= 0) sanitized.outputQty = 1;
+      if (!Array.isArray(sanitized.assignedStations)) sanitized.assignedStations = [];
+      return sanitized;
+    });
+    
     const updates = {
       name: planName,
       description: planDesc,
       orderCode,
       scheduleType,
       quantity: planQuantity,
-      nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
+      nodes: JSON.parse(JSON.stringify(sanitizedNodes)),
       status: 'production',
       autoAssign: true,
       materialSummary,
@@ -2298,6 +2330,50 @@ export async function savePlanDraft() {
     });
   });
   
+  // Sanitize nodes before saving - ensure all required fields are present
+  const sanitizedNodes = planDesignerState.nodes.map(node => {
+    const sanitized = { ...node };
+    
+    // Ensure time is a valid number >= 1
+    if (!Number.isFinite(sanitized.time) || sanitized.time < 1) {
+      sanitized.time = 30; // Default to 30 minutes
+      console.warn(`⚠️ Node ${node.id} (${node.name}): Invalid time, defaulting to 30 minutes`);
+    }
+    
+    // Ensure outputUnit is specified
+    if (!sanitized.outputUnit || typeof sanitized.outputUnit !== 'string' || sanitized.outputUnit.trim() === '') {
+      sanitized.outputUnit = 'pcs'; // Default unit
+      console.warn(`⚠️ Node ${node.id} (${node.name}): Missing outputUnit, defaulting to 'pcs'`);
+    }
+    
+    // Ensure outputQty is a valid number > 0
+    if (!Number.isFinite(sanitized.outputQty) || sanitized.outputQty <= 0) {
+      sanitized.outputQty = 1; // Default quantity
+      console.warn(`⚠️ Node ${node.id} (${node.name}): Invalid outputQty, defaulting to 1`);
+    }
+    
+    // Ensure assignedStations is an array (even if empty)
+    if (!Array.isArray(sanitized.assignedStations)) {
+      sanitized.assignedStations = [];
+    }
+    
+    // ========================================================================
+    // BACKEND FIELD MAPPING: Convert frontend fields to backend format
+    // ========================================================================
+    
+    // Frontend uses 'allocationType', backend expects 'assignmentMode'
+    if (sanitized.allocationType) {
+      sanitized.assignmentMode = sanitized.allocationType;
+    }
+    
+    // Frontend uses 'workerHint.workerId', backend expects 'assignedWorkerId'
+    if (sanitized.workerHint && sanitized.workerHint.workerId) {
+      sanitized.assignedWorkerId = sanitized.workerHint.workerId;
+    }
+    
+    return sanitized;
+  });
+  
   const plan = {
     id: undefined,
     name: planName,
@@ -2305,7 +2381,7 @@ export async function savePlanDraft() {
     orderCode,
     scheduleType,
     quantity: planQuantity,
-    nodes: JSON.parse(JSON.stringify(planDesignerState.nodes)),
+    nodes: JSON.parse(JSON.stringify(sanitizedNodes)),
     createdAt: new Date().toISOString(),
     status: 'production',
     autoAssign: true,
@@ -2314,7 +2390,15 @@ export async function savePlanDraft() {
     executionGraph
   };
   
-  console.log('📤 Saving plan:', plan);
+  console.log('📤 Saving plan with sanitized nodes:');
+  console.log('  📊 Sanitized nodes count:', sanitizedNodes.length);
+  if (sanitizedNodes.length > 0) {
+    console.log('  📦 Sanitized Node 0 (FULL):', JSON.stringify(sanitizedNodes[0], null, 2));
+  }
+  console.log('  📊 Plan nodes after stringify:', plan.nodes.length);
+  if (plan.nodes.length > 0) {
+    console.log('  📦 Plan Node 0 (FULL):', JSON.stringify(plan.nodes[0], null, 2));
+  }
   
   try {
     const newId = await getNextProductionPlanId();

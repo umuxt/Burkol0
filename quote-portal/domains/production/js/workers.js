@@ -1,7 +1,7 @@
 // Workers management backed by backend API (no direct Firebase client)
-import { API_BASE, withAuth } from '../../shared/lib/api.js'
+import { API_BASE, withAuth } from '../../../shared/lib/api.js'
 import { getMasterData, getWorkerStations, getWorkerAssignments } from './mesApi.js'
-import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
 import { generateWeeklyTimeline } from './views.js'
 
 let workersState = []

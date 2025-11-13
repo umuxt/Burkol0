@@ -1,6 +1,6 @@
 // Entry point: wire modules to global for inline handlers to keep working
 import { MESData, loadData, saveData, currentView, setCurrentView, getSavedView } from './state.js';
-import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
 import { generateModernDashboard, generateWorkerPanel, generateSettings, generateOperations, generateWorkers, generateStations, generateStationDuplicateModal, generatePlanDesigner, generateTemplates, generateApprovedQuotes, injectMetadataToggleStyles, toggleMetadataColumns, initDashboardWidgets, initWorkPackagesWidget, showWorkPackageDetail, closeWorkPackageDetail } from './views.js';
 import { initPlanOverviewUI, setActivePlanTab, openCreatePlan, filterProductionPlans, togglePlanFilterPanel, hidePlanFilterPanel, onPlanFilterChange, clearPlanFilter, clearAllPlanFilters, cancelPlanCreation, viewProductionPlan, releasePlanFromOverview, editTemplateById, deleteTemplateById } from './planOverview.js';
 import { initializeWorkersUI, openAddWorkerModal, editWorker, deleteWorker as deleteWorkerAction, saveWorker, closeWorkerModal, showWorkerDetail, closeWorkerDetail, editWorkerFromDetail, deleteWorkerFromDetail, openWorkerScheduleModal, closeWorkerScheduleModal, handleWorkerScheduleModeChange, saveWorkerSchedule } from './workers.js';
@@ -12,7 +12,7 @@ import { openHelp, closeHelp, switchHelpTab, toggleFAQ, initHelp } from './help.
 import { initializeApprovedQuotesUI, showApprovedQuoteDetail, closeApprovedQuoteDetail, toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter, toggleAQPlanType, applyOverdueFilter, applyQuickDateFilter, sortApprovedQuotes } from './approvedQuotes.js';
 import { initMasterDataUI, addSkillFromSettings, renameSkill, deleteSkill, activateSkillRow, onSkillNameInput, cancelSkillEdit, onSkillsSearchInput, onOperationsSearchInput, activateOperationRow, onOperationDefectRateInput, cancelOperationEdit, saveOperationEdit, deleteOperationFromMaster } from './masterData.js';
 import { toggleMobileNav, closeMobileNav } from './mobile.js';
-import { API_BASE, withAuth } from '../../shared/lib/api.js';
+import { API_BASE, withAuth } from '../../../shared/lib/api.js';
 import { getMasterData, invalidateMasterDataCache } from './mesApi.js';
 
 function renderView(viewId) {

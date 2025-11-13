@@ -1,7 +1,7 @@
 // Station management backed by backend API using mesApi
 import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill, invalidateStationsCache, getStationWorkers } from './mesApi.js'
-import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
-import { API_BASE, withAuth } from '../../shared/lib/api.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
+import { API_BASE, withAuth } from '../../../shared/lib/api.js';
 
 let stationsState = []
 let operationsCache = []
@@ -1653,7 +1653,7 @@ export async function deleteStation(stationId) {
   if (!confirm('Are you sure you want to delete this station?')) return
   try {
     // Prefer backend delete to avoid failing batch validations
-    const { API_BASE, withAuth } = await import('../../shared/lib/api.js')
+    const { API_BASE, withAuth } = await import('../../../shared/lib/api.js')
     const res = await fetch(`${API_BASE}/api/mes/stations/${encodeURIComponent(stationId)}`, { method: 'DELETE', headers: withAuth() })
     if (!res.ok) throw new Error(`delete_failed ${res.status}`)
     // Invalidate stations cache and refetch fresh list post-change

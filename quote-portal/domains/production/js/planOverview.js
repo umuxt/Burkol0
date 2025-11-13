@@ -1,10 +1,10 @@
 // Plan Overview UI: tabs, filter, and create action
 
 import { getProductionPlans, getPlanTemplates, deleteProductionPlan, clearTemplateFromApprovedQuotes } from './mesApi.js'
-import { API_BASE, withAuth } from '../../shared/lib/api.js'
+import { API_BASE, withAuth } from '../../../shared/lib/api.js'
 import { loadPlanNodes, setReadOnly, setPlanMeta, resetPlanDesignerState, planDesignerState } from './planDesigner.js'
 import { loadApprovedOrdersToSelect } from './planDesignerBackend.js'
-import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
 
 export function initPlanOverviewUI() {
   // Default active tab

@@ -1,6 +1,6 @@
 // Backend-powered overrides for Plan Designer
-import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
-import { getOperations, getStations, getSubstations, getApprovedQuotes, getMaterials, getProductionPlans } from './mesApi.js'
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
+import { getOperations, getStations, getSubstations, getApprovedQuotes, getMaterials, getProductionPlans, getWorkers } from './mesApi.js'
 import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate, aggregatePlanMaterials, checkMaterialAvailability, computeNodeEffectiveDuration } from './planDesigner.js'
 import { computeAndAssignSemiCode, getSemiCodePreviewForNode, getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
@@ -85,6 +85,7 @@ let _ordersByCode = new Map()
 let _stationsCacheFull = []
 let _substationsCacheFull = []
 let _materialsCacheFull = []
+let _workersCacheFull = [] // Add workers cache
 
 // Global escape handler for modal
 let modalEscapeHandler = null;
@@ -311,24 +312,28 @@ export async function editNodeBackend(nodeId) {
   
   let stations = []
   let materials = []
+  let workers = []
   try {
     stations = await getStations(true)
     materials = await getMaterials()
-    console.log(`Loaded data: ${stations.length} stations, ${materials.length} materials`)
+    workers = await getWorkers()
+    console.log(`Loaded data: ${stations.length} stations, ${materials.length} materials, ${workers.length} workers`)
     
     // Update planDesignerState caches for efficiency calculations
     planDesignerState.stationsCache = stations;
+    planDesignerState.availableWorkers = workers; // Add workers to state
   } catch (e) {
     console.error('editNodeBackend data load failed', e)
     // Continue with empty arrays to prevent UI breaking
   }
   _stationsCacheFull = stations || []
+  _workersCacheFull = workers || []
   _materialsCacheFull = (materials || []).filter(isRawMaterial)
   console.log(`Filtered to ${_materialsCacheFull.length} active raw materials (Ham madde)`)
 
   const compatibleStations = _stationsCacheFull.filter(s => Array.isArray(s.operationIds) && s.operationIds.includes(node.operationId))
   const selectedAssignMode = node.assignmentMode === 'manual' ? 'manual' : 'auto'
-  const manualEnabled = node.assignedStations && node.assignedStations.length > 0
+  const manualEnabled = true // Always allow manual assignment
 
   // Calculate effective time for display
   const nominalTime = parseFloat(node.time) || 0;
@@ -346,9 +351,14 @@ export async function editNodeBackend(nodeId) {
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + Number(node.time || 0) + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" />' + effectiveTimeDisplay + '</div>' +
     generateMultiStationSelector(node, compatibleStations) +
     '<div style="margin-bottom: 16px;"><label style="display:block; margin-bottom: 6px; font-weight: 500;">Worker Assignment</label>' +
-      '<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">Worker assignment will be determined when production starts</div>' +
-      `<label style="margin-right:12px; font-size:13px; opacity:${manualEnabled?1:0.5}"><input type="radio" name="edit-assign-mode" value="auto" ${selectedAssignMode==='auto'?'checked':''} ${manualEnabled?'':'disabled'}> Auto-assign</label>` +
-      `<label style="font-size:13px; opacity:${manualEnabled?1:0.5}"><input type="radio" name="edit-assign-mode" value="manual" ${selectedAssignMode==='manual'?'checked':''} ${manualEnabled?'':'disabled'}> Manual-assign</label>` +
+      '<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">Select how worker will be assigned to this operation</div>' +
+      `<label style="margin-right:12px; font-size:13px;"><input type="radio" name="edit-assign-mode" value="auto" ${selectedAssignMode==='auto'?'checked':''} onchange="toggleWorkerDropdown()"> Auto-assign (at launch)</label>` +
+      `<label style="font-size:13px;"><input type="radio" name="edit-assign-mode" value="manual" ${selectedAssignMode==='manual'?'checked':''} onchange="toggleWorkerDropdown()"> Manual-assign (select now)</label>` +
+      `<div id="manual-worker-select" style="margin-top: 12px; display: ${selectedAssignMode==='manual'?'block':'none'};">` +
+        '<label style="display: block; margin-bottom: 4px; font-weight: 500;">Select Worker <span style="color: #ef4444;">*</span></label>' +
+        '<select id="edit-worker" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: white;"><option value="">-- Select a worker --</option></select>' +
+        '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Only workers with matching skills are shown</div>' +
+      '</div>' +
     '</div>' +
     (function(){
       const rows = Array.isArray(node.rawMaterials) ? node.rawMaterials : (node.rawMaterial ? [node.rawMaterial] : [])
@@ -446,6 +456,7 @@ export async function editNodeBackend(nodeId) {
     setTimeout(() => {
       setupStationDragAndDrop()
       setupGlobalDropdownHandlers()
+      updateWorkerAssignmentFromStations() // Initialize worker dropdown
     }, 100)
     
     // Add escape key listener
@@ -470,6 +481,7 @@ export function saveNodeEditBackend() {
   const name = document.getElementById('edit-name')?.value?.trim()
   const time = parseInt(document.getElementById('edit-time')?.value, 10)
   const assignMode = (document.querySelector('input[name="edit-assign-mode"]:checked')?.value || null)
+  const workerChoice = document.getElementById('edit-worker')?.value || null // Get selected worker
   const outQtyVal = document.getElementById('edit-output-qty')?.value
   const outUnit = document.getElementById('edit-output-unit')?.value || ''
   
@@ -513,6 +525,12 @@ export function saveNodeEditBackend() {
   // 1. Validate operation name and estimated time
   if (!name || !Number.isFinite(time) || time < 1) { 
     showErrorToast('Please fill in the operation name and estimated time.');
+    return;
+  }
+  
+  // 1b. Validate manual worker assignment (if manual mode selected)
+  if (assignMode === 'manual' && !workerChoice) {
+    showErrorToast('Manual assignment requires a worker selection.');
     return;
   }
 
@@ -565,11 +583,44 @@ export function saveNodeEditBackend() {
   node.outputQty = outQtyNum // Already validated as finite number > 0
   node.outputUnit = outUnit.trim() // Already validated as non-empty
 
-  // Worker assignment will happen when production starts
-  // Clear any previous worker assignments from the plan
-  node.assignedWorkerId = null;
-  node.assignedWorkerName = null;
-  node.assignedWorker = null;
+  // Worker assignment based on mode
+  if (assignMode === 'manual') {
+    // Manual mode: keep worker selection from dropdown
+    node.assignedWorkerId = workerChoice || null;
+    if (node.assignedWorkerId) {
+      const selectedWorker = _workersCacheFull.find(w => w.id === node.assignedWorkerId);
+      node.assignedWorkerName = selectedWorker ? selectedWorker.name : null;
+    } else {
+      node.assignedWorkerName = null;
+    }
+  } else {
+    // Auto mode: clear worker assignment (backend will assign at launch)
+    node.assignedWorkerId = null;
+    node.assignedWorkerName = null;
+  }
+  node.assignedWorker = null; // Legacy field, not used
+  
+  console.log('🔍 Node saved with assignment data:', {
+    nodeId: node.id,
+    nodeName: node.name,
+    assignmentMode: node.assignmentMode,
+    assignedWorkerId: node.assignedWorkerId,
+    assignedWorkerName: node.assignedWorkerName,
+    time: node.time,
+    outputQty: node.outputQty,
+    outputUnit: node.outputUnit
+  });
+  
+  // Summary log for easier debugging
+  if (node.assignmentMode === 'manual') {
+    if (node.assignedWorkerId) {
+      console.log(`✅ Manual worker assignment: ${node.assignedWorkerName} (${node.assignedWorkerId})`);
+    } else {
+      console.warn('⚠️ Manual mode selected but no worker assigned!');
+    }
+  } else {
+    console.log('✅ Auto worker assignment mode (backend will assign at launch)');
+  }
 
   applyMaterial();
 
@@ -1253,27 +1304,34 @@ function updateWorkerAssignmentFromStations() {
   const reqEl = document.getElementById('required-skills-display')
   if (reqEl) reqEl.textContent = req.join(', ')
 
-  // Enable/disable assignment controls based on station selection
+  // Assignment controls are always enabled (no dependency on station selection)
   const radios = document.querySelectorAll('input[name="edit-assign-mode"]')
-  radios.forEach(r => { r.disabled = !hasStations })
+  radios.forEach(r => { r.disabled = false }) // Always enabled
   
   const labelInputs = document.querySelectorAll('label input[name="edit-assign-mode"]')
   labelInputs.forEach(inp => {
     const lbl = inp.closest('label')
-    if (lbl) lbl.style.opacity = hasStations ? '1' : '0.5'
+    if (lbl) lbl.style.opacity = '1' // Always visible
   })
 
-  // Rebuild manual worker options
+  // Rebuild manual worker options (show when manual mode is selected)
   const select = document.getElementById('edit-worker')
   const box = document.getElementById('manual-worker-select')
-  if (box) box.style.display = (document.querySelector('input[name="edit-assign-mode"][value="manual"]')?.checked && hasStations) ? '' : 'none'
+  if (box) box.style.display = (document.querySelector('input[name="edit-assign-mode"][value="manual"]')?.checked) ? '' : 'none'
   
   if (select) {
-    select.disabled = !hasStations
-    const opts = ['<option value="">Not assigned</option>']
+    const opts = ['<option value="">-- Select a worker --</option>']
     const compatible = getWorkersMatchingAllSkills(req)
-    for (const w of compatible) {
-      opts.push(`<option value="${escapeHtml(w.id)}">${escapeHtml(w.name)}</option>`)
+    
+    if (compatible.length === 0) {
+      opts.push(`<option value="" disabled>⚠️ No workers with required skills (${req.join(', ')})</option>`)
+    } else {
+      for (const w of compatible) {
+        const skills = (w.skills || []).join(', ') || 'No skills';
+        const shift = w.shift || 'Day';
+        const selected = w.id === node.assignedWorkerId ? 'selected' : '';
+        opts.push(`<option value="${escapeHtml(w.id)}" ${selected}>${escapeHtml(w.name)} (${shift} shift, Skills: ${skills})</option>`)
+      }
     }
     select.innerHTML = opts.join('')
   }
@@ -1293,6 +1351,15 @@ function computeStationEffectiveSkills(station) {
     if (op && Array.isArray(op.skills)) inherited.push(...op.skills)
   }
   return Array.from(new Set([ ...inherited, ...sub ]))
+}
+
+function getWorkersMatchingAllSkills(requiredSkills) {
+  // Filter workers who have ALL required skills
+  return (_workersCacheFull || []).filter(worker => {
+    const workerSkills = worker.skills || [];
+    if (requiredSkills.length === 0) return true; // No skills required, show all
+    return requiredSkills.every(skill => workerSkills.includes(skill));
+  });
 }
 
 function isRawMaterial(m) {
@@ -1389,3 +1456,12 @@ export async function debugShowAllMaterials() {
     console.error('Failed to show all materials:', error)
   }
 }
+
+// Global function for worker assignment mode toggle
+window.toggleWorkerDropdown = function() {
+  const box = document.getElementById('manual-worker-select');
+  const isManual = document.querySelector('input[name="edit-assign-mode"][value="manual"]')?.checked;
+  if (box) {
+    box.style.display = isManual ? 'block' : 'none';
+  }
+};

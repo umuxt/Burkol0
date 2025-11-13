@@ -14,7 +14,7 @@
  *   Each row tokens are ordered raw-first then intermediate
  */
 
-import { planDesignerState } from '../../../production/js/planDesigner.js';
+import { planDesignerState } from '../js/planDesigner.js';
 
 const FONT_STACK = `'Inter', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif`;
 const TEXT_STYLE = `font-size: 12px; font-weight: 400; font-family: ${FONT_STACK}; color: #111827`;

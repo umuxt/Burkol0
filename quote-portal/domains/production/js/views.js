@@ -2463,7 +2463,7 @@ export async function initStationAlertsWidget() {
   
   try {
     // Import API dependencies
-    const { API_BASE, withAuth } = await import('../../shared/lib/api.js');
+    const { API_BASE, withAuth } = await import('../../../shared/lib/api.js');
     
     // Fetch alerts from mes-alerts collection
     const res = await fetch(`${API_BASE}/api/mes/alerts?type=station_error&limit=5`, {
@@ -2730,7 +2730,7 @@ export async function initWorkersOverviewWidget() {
 
   try {
     const { getWorkers } = await import('./mesApi.js');
-    const { aggregateWorkersByStatus, getStatusLabel } = await import('../../shared/utils/workerStatus.js');
+    const { aggregateWorkersByStatus, getStatusLabel } = await import('../../../shared/utils/workerStatus.js');
     
     const workers = await getWorkers();
     const statusCounts = aggregateWorkersByStatus(workers);

@@ -1,6 +1,6 @@
 // Skills and Operations master-data UI for Settings view
 import { getMasterData, saveMasterData, addSkill, getOperations, saveOperations } from './mesApi.js'
-import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../shared/components/Toast.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
 
 let skillsState = []
 let activeSkillId = null
