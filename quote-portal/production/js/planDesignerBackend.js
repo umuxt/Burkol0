@@ -473,12 +473,6 @@ export function saveNodeEditBackend() {
   const outQtyVal = document.getElementById('edit-output-qty')?.value
   const outUnit = document.getElementById('edit-output-unit')?.value || ''
   
-  // Validate assigned stations (at least 1 required)
-  if (!Array.isArray(node.assignedStations) || node.assignedStations.length === 0) {
-    showErrorToast('At least 1 station must be selected')
-    return
-  }
-
   // collect materials rows
   const rowsContainer = document.getElementById('edit-materials-rows')
   const rows = rowsContainer ? Array.from(rowsContainer.querySelectorAll('.material-row')) : []
@@ -511,17 +505,56 @@ export function saveNodeEditBackend() {
       rawMaterials.push(base)
     }
   }
-  if (!name || !Number.isFinite(time) || time < 1) { 
-    showErrorToast('Please fill all required fields'); 
-    return 
-  }
 
-  // Validate station selection
-  if (!node.assignedStations || node.assignedStations.length === 0) {
-    showErrorToast('Please select at least one work station');
+  // ============================================================================
+  // STRICT VALIDATION RULES FOR NODE SAVE
+  // ============================================================================
+  
+  // 1. Validate operation name and estimated time
+  if (!name || !Number.isFinite(time) || time < 1) { 
+    showErrorToast('Please fill in the operation name and estimated time.');
     return;
   }
 
+  // 2. Validate station selection (at least 1 required)
+  if (!Array.isArray(node.assignedStations) || node.assignedStations.length === 0) {
+    showErrorToast('At least one work station must be selected.');
+    return;
+  }
+
+  // 3. Validate material inputs (PRIORITY: Check materials first)
+  // Check if starting operations (no predecessors) have at least one material input
+  const hasPredecessors = Array.isArray(node.predecessors) && node.predecessors.length > 0;
+  const hasNonDerivedMaterial = rawMaterials.some(m => !m.derivedFrom);
+  
+  if (!hasPredecessors && !hasNonDerivedMaterial && rawMaterials.length === 0) {
+    showErrorToast('Starting operations must have at least one material input.');
+    return;
+  }
+
+  // Check if each selected material has a valid quantity
+  for (const material of rawMaterials) {
+    if (!Number.isFinite(material.qty) || material.qty < 0) {
+      showErrorToast('Please enter a valid quantity for each selected material.');
+      return;
+    }
+  }
+
+  // 4. Validate output quantity and unit
+  const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal);
+  if (!Number.isFinite(outQtyNum) || outQtyNum <= 0) {
+    showErrorToast('Output quantity must be a number greater than 0.');
+    return;
+  }
+  if (!outUnit || outUnit.trim() === '') {
+    showErrorToast('An output unit must be selected.');
+    return;
+  }
+
+  // ============================================================================
+  // APPLY VALIDATED VALUES TO NODE
+  // ============================================================================
+  
   node.name = name
   node.time = time
   
@@ -529,9 +562,8 @@ export function saveNodeEditBackend() {
   // assignedStations[] is already updated with priority order
   
   node.assignmentMode = assignMode || 'auto'
-  const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal)
-  node.outputQty = Number.isFinite(outQtyNum) ? outQtyNum : null
-  node.outputUnit = (outUnit || '').trim()
+  node.outputQty = outQtyNum // Already validated as finite number > 0
+  node.outputUnit = outUnit.trim() // Already validated as non-empty
 
   // Worker assignment will happen when production starts
   // Clear any previous worker assignments from the plan

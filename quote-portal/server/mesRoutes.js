@@ -1226,6 +1226,99 @@ router.post('/master-data', withAuth, async (req, res) => {
 // PRODUCTION PLANS ROUTES  
 // ============================================================================
 
+// ============================================================================
+// PRODUCTION PLAN VALIDATION HELPER
+// ============================================================================
+
+/**
+ * Validate production plan nodes for completeness and data integrity
+ * Ensures all nodes have required fields before plan can be saved
+ * 
+ * @param {Array} nodes - Array of plan nodes or executionGraph nodes
+ * @param {Array} executionGraph - Optional execution graph (if provided separately)
+ * @returns {Object} { valid: boolean, errors: Array<string> }
+ */
+function validateProductionPlanNodes(nodes, executionGraph = null) {
+  const errors = [];
+  const nodesToValidate = executionGraph && executionGraph.length > 0 ? executionGraph : nodes;
+  
+  if (!Array.isArray(nodesToValidate) || nodesToValidate.length === 0) {
+    errors.push('Production plan must have at least one operation node');
+    return { valid: false, errors };
+  }
+  
+  // Build predecessor map for starting node detection
+  const predecessorMap = new Map();
+  nodesToValidate.forEach(node => {
+    const nodeId = node.id || node.nodeId;
+    const preds = node.predecessors || [];
+    predecessorMap.set(nodeId, preds);
+  });
+  
+  nodesToValidate.forEach((node, index) => {
+    const nodeId = node.id || node.nodeId;
+    const nodeLabel = `Node ${index + 1} (${nodeId || 'unknown'})`;
+    
+    // 1. Validate operation name
+    if (!node.name || typeof node.name !== 'string' || node.name.trim() === '') {
+      errors.push(`${nodeLabel}: Operation name is required`);
+    }
+    
+    // 2. Validate estimated time
+    if (!Number.isFinite(node.time) || node.time < 1) {
+      errors.push(`${nodeLabel}: Estimated time must be a number >= 1`);
+    }
+    
+    // 3. Validate station assignments
+    const stations = node.assignedStations || [];
+    if (!Array.isArray(stations) || stations.length === 0) {
+      errors.push(`${nodeLabel}: At least one work station must be assigned`);
+    }
+    
+    // 4. Validate output quantity and unit
+    const outputQty = node.outputQty;
+    if (!Number.isFinite(outputQty) || outputQty <= 0) {
+      errors.push(`${nodeLabel}: Output quantity must be a number greater than 0`);
+    }
+    
+    const outputUnit = node.outputUnit;
+    if (!outputUnit || typeof outputUnit !== 'string' || outputUnit.trim() === '') {
+      errors.push(`${nodeLabel}: Output unit must be specified`);
+    }
+    
+    // 5. Validate material inputs
+    const materials = node.rawMaterials || [];
+    const materialInputs = node.materialInputs || []; // For executionGraph nodes
+    const allMaterials = materials.length > 0 ? materials : materialInputs;
+    
+    // Check each material has a valid quantity
+    allMaterials.forEach((material, matIndex) => {
+      const matQty = material.qty || material.quantity;
+      if (!Number.isFinite(matQty) || matQty < 0) {
+        errors.push(`${nodeLabel}, Material ${matIndex + 1}: Quantity must be a valid number >= 0`);
+      }
+    });
+    
+    // Check starting nodes (no predecessors) have at least one material
+    const predecessors = node.predecessors || [];
+    const isStartingNode = !Array.isArray(predecessors) || predecessors.length === 0;
+    
+    if (isStartingNode) {
+      // Starting nodes must have at least one non-derived material
+      const nonDerivedMaterials = allMaterials.filter(m => !m.derivedFrom);
+      
+      if (nonDerivedMaterials.length === 0) {
+        errors.push(`${nodeLabel}: Starting operations must have at least one material input`);
+      }
+    }
+  });
+  
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
 // POST /api/mes/production-plans/next-id - Generate next sequential plan id (PPL-MMYY-XXX)
 router.post('/production-plans/next-id', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
@@ -1273,6 +1366,23 @@ router.post('/production-plans', withAuth, async (req, res) => {
     
     if (!productionPlan.id) {
       throw new Error('Production plan ID is required');
+    }
+
+    // ========================================================================
+    // VALIDATE PRODUCTION PLAN NODES
+    // ========================================================================
+    const validation = validateProductionPlanNodes(
+      productionPlan.nodes || [],
+      productionPlan.executionGraph || null
+    );
+    
+    if (!validation.valid) {
+      const error = new Error('Production plan validation failed');
+      error.status = 400;
+      error.code = 'validation_error';
+      error.validationErrors = validation.errors;
+      error.message = `Validation failed: ${validation.errors.join('; ')}`;
+      throw error;
     }
 
     const db = getFirestore();
@@ -1384,6 +1494,25 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
     const { assignments } = updates; // Extract assignments from updates to avoid storing in plan doc
+
+    // ========================================================================
+    // VALIDATE PRODUCTION PLAN NODES (if nodes or executionGraph are being updated)
+    // ========================================================================
+    if (updates.nodes || updates.executionGraph) {
+      const validation = validateProductionPlanNodes(
+        updates.nodes || [],
+        updates.executionGraph || null
+      );
+      
+      if (!validation.valid) {
+        const error = new Error('Production plan validation failed');
+        error.status = 400;
+        error.code = 'validation_error';
+        error.validationErrors = validation.errors;
+        error.message = `Validation failed: ${validation.errors.join('; ')}`;
+        throw error;
+      }
+    }
 
     const db = getFirestore();
     const updatedByEmail = (req.user && req.user.email) || null;
