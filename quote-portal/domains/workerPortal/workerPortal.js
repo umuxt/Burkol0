@@ -823,6 +823,9 @@ function renderTaskRow(task, isNextTask) {
   // Material status badge
   const materialStatusBadge = renderMaterialStatus(task.prerequisites);
   
+  // Time information banner
+  const timeInfoHtml = renderTimeInfo(task);
+  
   return `
     <tr class="task-row ${task.status === 'paused' ? 'task-paused' : ''}" data-assignment-id="${task.assignmentId}">
       <td>
@@ -842,6 +845,7 @@ function renderTaskRow(task, isNextTask) {
             Plan: ${task.planId} | Node: ${task.nodeId}
           </div>
           ${renderPrerequisites(task.prerequisites, task)}
+          ${timeInfoHtml}
           ${pausedBannerHtml}
           ${blockReasonsHtml}
         </div>
@@ -871,6 +875,63 @@ function renderMaterialStatus(prerequisites) {
   }
   
   return '<span style="font-size: 14px; color: #9ca3af;" title="Malzeme durumu bilinmiyor">?</span>';
+}
+
+function renderTimeInfo(task) {
+  // Show actual times if task has started, otherwise show planned times
+  if (task.actualStart) {
+    let timeHtml = `
+      <div class="time-info" style="margin-top: 8px; padding: 8px; background: #f0f9ff; border-radius: 4px; border-left: 3px solid #3b82f6;">
+        <div style="font-size: 11px; color: #1e40af; display: flex; align-items: center; gap: 6px;">
+          <span>⏰</span>
+          <span><strong>Başlangıç:</strong> ${formatTime(task.actualStart)}</span>
+    `;
+    
+    // Show planned start time for comparison if different
+    if (task.plannedStart) {
+      const actualDate = new Date(task.actualStart);
+      const plannedDate = new Date(task.plannedStart);
+      const diff = Math.abs(actualDate - plannedDate) / 60000; // minutes
+      if (diff > 5) { // Show if difference > 5 minutes
+        timeHtml += ` <span style="color: #9ca3af;">(Plan: ${formatTime(task.plannedStart)})</span>`;
+      }
+    }
+    timeHtml += `</div>`;
+    
+    // Show end time if completed
+    if (task.actualEnd) {
+      timeHtml += `
+        <div style="font-size: 11px; color: #059669; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+          <span>✅</span>
+          <span><strong>Bitiş:</strong> ${formatTime(task.actualEnd)}</span>
+        </div>
+      `;
+    } else if (task.plannedEnd) {
+      // Show expected end time
+      timeHtml += `
+        <div style="font-size: 11px; color: #6b7280; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
+          <span>📅</span>
+          <span><strong>Tahmini Bitiş:</strong> ${formatTime(task.plannedEnd)}</span>
+        </div>
+      `;
+    }
+    
+    timeHtml += `</div>`;
+    return timeHtml;
+  } else if (task.plannedStart) {
+    // Task hasn't started yet, show planned times
+    return `
+      <div class="time-info" style="margin-top: 8px; padding: 6px; background: #f9fafb; border-radius: 4px; border-left: 3px solid #d1d5db;">
+        <div style="font-size: 11px; color: #6b7280; display: flex; align-items: center; gap: 6px;">
+          <span>📅</span>
+          <span><strong>Planlanan:</strong> ${formatTime(task.plannedStart)}</span>
+          ${task.plannedEnd ? ` <span>→</span> <span>${formatTime(task.plannedEnd)}</span>` : ''}
+        </div>
+      </div>
+    `;
+  }
+  
+  return ''; // No time info available
 }
 
 function renderPrerequisites(prerequisites, task) {
@@ -936,7 +997,7 @@ function renderTaskActions(task) {
     const reasons = [];
     if (!task.prerequisites.predecessorsDone) reasons.push('Önceki görevler tamamlanmadı');
     if (!task.prerequisites.workerAvailable) reasons.push('İşçi meşgul');
-    if (!task.prerequisites.substationAvailable) reasons.push('İstasyon meşgul');
+    if (!task.prerequisites.substationAvailable) reasons.push('Makine meşgul');
     if (!task.prerequisites.materialsReady) reasons.push('Malzeme eksik');
     blockTooltip = `title="${reasons.join(', ')}"`;
   }
@@ -1065,6 +1126,21 @@ function formatDuration(minutes) {
   const hours = Math.floor(mins / 60);
   const remainingMins = mins % 60;
   return `${hours}s ${remainingMins}dk`;
+}
+
+function formatTime(isoString) {
+  if (!isoString) return '—';
+  try {
+    const date = new Date(isoString);
+    return date.toLocaleString('tr-TR', { 
+      month: 'short', 
+      day: 'numeric', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  } catch {
+    return '—';
+  }
 }
 
 // ============================================================================

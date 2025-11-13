@@ -422,7 +422,7 @@ async function getPlanExecutionState(planId) {
       assignmentId: assignment?.id || null,
       assignedAt: assignment?.createdAt || null,
       actualStart: assignment?.actualStart || null,
-      actualFinish: assignment?.actualFinish || null,
+      actualEnd: assignment?.actualEnd || null,
       
       // Predecessor info for UI
       predecessors: node.predecessors || [],
@@ -1346,14 +1346,18 @@ async function enrichNodesWithEstimatedTimes(nodes, executionGraph, planData, db
         end: endTime
       });
       
-      if (!stationSchedule.has(assignment.stationId)) {
-        stationSchedule.set(assignment.stationId, []);
+      // CRITICAL FIX: Track substation schedule, not station schedule
+      const substationId = assignment.substationId;
+      if (substationId) {
+        if (!stationSchedule.has(substationId)) {
+          stationSchedule.set(substationId, []);
+        }
+        stationSchedule.get(substationId).push({
+          nodeId,
+          start: startTime,
+          end: endTime
+        });
       }
-      stationSchedule.get(assignment.stationId).push({
-        nodeId,
-        start: startTime,
-        end: endTime
-      });
       
       console.log(`✅ Node ${nodeId}: ${assignment.plannedStart} → ${assignment.plannedEnd} (${assignment.effectiveTime} min)`);
     }
@@ -2834,7 +2838,7 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         // Timing
         assignedAt: assignment.createdAt,
         actualStart: assignment.actualStart || null,
-        actualFinish: assignment.actualFinish || null,
+        actualEnd: assignment.actualEnd || null,
         
         // Pause metadata (to differentiate plan pause vs worker pause)
         pauseContext: assignment.pauseContext || null,
@@ -3399,6 +3403,23 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             updateData.actualStart = now;
           }
           
+          // ========================================================================
+          // PAUSE DURATION TRACKING
+          // ========================================================================
+          // If resuming from pause, calculate and accumulate pause duration
+          if (assignment.pausedAt && assignment.currentPauseStart) {
+            const pauseStartTime = new Date(assignment.currentPauseStart);
+            const pauseDuration = now - pauseStartTime; // milliseconds
+            const previousPausedTime = assignment.totalPausedTime || 0;
+            const newTotalPausedTime = previousPausedTime + pauseDuration;
+            
+            updateData.totalPausedTime = newTotalPausedTime;
+            updateData.lastPauseDuration = pauseDuration;
+            updateData.currentPauseStart = admin.firestore.FieldValue.delete();
+            
+            console.log(`⏱️ Pause duration: ${Math.round(pauseDuration / 60000)} minutes, Total paused: ${Math.round(newTotalPausedTime / 60000)} minutes`);
+          }
+          
           // Clear pause metadata when starting/resuming
           updateData.pauseContext = admin.firestore.FieldValue.delete();
           updateData.pauseReason = admin.firestore.FieldValue.delete();
@@ -3451,6 +3472,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           // ========================================================================
           updateData.status = 'paused';
           updateData.pausedAt = now;
+          updateData.currentPauseStart = now; // Track when this pause started
           updateData.pausedBy = actorEmail;
           updateData.pausedByName = actorName;
           updateData.pauseContext = 'worker'; // Worker-level pause
@@ -3517,7 +3539,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           console.log(`📊 Starting comprehensive completion for work package ${assignmentId}`);
           
           updateData.status = 'completed';
-          updateData.actualFinish = now;
+          updateData.actualEnd = now;
           
           // Store actual output and defect quantities
           const actualOutput = parseFloat(actualOutputQuantity) || 0;
@@ -4627,7 +4649,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
           
           // Update schedules to avoid conflicts
           const workerId = assignment.workerId;
-          const stationId = assignment.stationId;
+          const substationId = assignment.substationId; // Use substation ID, not station ID
           
           if (!workerSchedule.has(workerId)) {
             workerSchedule.set(workerId, []);
@@ -4637,13 +4659,17 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
             end: new Date(assignment.plannedEnd)
           });
           
-          if (!stationSchedule.has(stationId)) {
-            stationSchedule.set(stationId, []);
+          // CRITICAL FIX: Track substation schedule, not station schedule
+          // This allows multiple substations of the same station to work in parallel
+          if (substationId) {
+            if (!stationSchedule.has(substationId)) {
+              stationSchedule.set(substationId, []);
+            }
+            stationSchedule.get(substationId).push({
+              start: new Date(assignment.plannedStart),
+              end: new Date(assignment.plannedEnd)
+            });
           }
-          stationSchedule.get(stationId).push({
-            start: new Date(assignment.plannedStart),
-            end: new Date(assignment.plannedEnd)
-          });
         }
       } catch (error) {
         assignmentErrors.push({
@@ -5544,12 +5570,16 @@ async function assignNodeResources(
   
   // Find next available time slot for this worker
   const workerAssignments = workerSchedule.get(selectedWorker.id) || [];
-  const stationAssignments = stationSchedule.get(selectedStation.id) || [];
+  // CRITICAL FIX: Use substation ID instead of station ID for scheduling
+  // This allows multiple substations of the same station to work in parallel
+  const substationAssignments = selectedSubstation 
+    ? (stationSchedule.get(selectedSubstation.id) || [])
+    : [];
   const now = new Date();
   
   // Calculate earliest start time based on multiple constraints:
   // 1. Worker availability (after their last assignment)
-  // 2. Station availability (after station's last assignment)
+  // 2. Substation availability (after substation's last assignment)
   // 3. Predecessor dependencies (after all predecessors finish)
   
   let earliestWorkerStart = now;
@@ -5560,11 +5590,11 @@ async function assignNodeResources(
     }
   }
   
-  let earliestStationStart = now;
-  if (stationAssignments.length > 0) {
-    const lastStationEnd = stationAssignments[stationAssignments.length - 1].end;
-    if (lastStationEnd > earliestStationStart) {
-      earliestStationStart = lastStationEnd;
+  let earliestSubstationStart = now;
+  if (substationAssignments.length > 0) {
+    const lastSubstationEnd = substationAssignments[substationAssignments.length - 1].end;
+    if (lastSubstationEnd > earliestSubstationStart) {
+      earliestSubstationStart = lastSubstationEnd;
     }
   }
   
@@ -5583,7 +5613,7 @@ async function assignNodeResources(
   // Start time is the maximum of all constraints
   let startTime = new Date(Math.max(
     earliestWorkerStart.getTime(),
-    earliestStationStart.getTime(),
+    earliestSubstationStart.getTime(),
     earliestPredecessorEnd.getTime()
   ));
   
@@ -6049,10 +6079,12 @@ router.post('/production-plans/:planId/cancel', withAuth, async (req, res) => {
       
       if (hasStarted) {
         // Set to cancelled_pending_report to allow scrap reporting
+        // Also set actualEnd to record when cancellation happened
         batch.update(doc.ref, {
           status: 'cancelled_pending_report',
           finishContext: 'cancelled',
           cancelledAt: now,
+          actualEnd: now, // Record cancellation as end time
           cancelledBy: userEmail,
           updatedAt: now
         });
