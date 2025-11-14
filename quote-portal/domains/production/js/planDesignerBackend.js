@@ -313,11 +313,25 @@ export async function editNodeBackend(nodeId) {
   let stations = []
   let materials = []
   let workers = []
+  let operations = []
+  let operationDefaultEfficiency = 1.0 // Default efficiency
+  
   try {
     stations = await getStations(true)
     materials = await getMaterials()
     workers = await getWorkers()
-    console.log(`Loaded data: ${stations.length} stations, ${materials.length} materials, ${workers.length} workers`)
+    operations = await getOperations(true)
+    
+    // Get operation's default efficiency
+    if (node.operationId) {
+      const operation = operations.find(op => op.id === node.operationId)
+      if (operation && operation.defaultEfficiency) {
+        operationDefaultEfficiency = operation.defaultEfficiency
+        console.log(`Operation ${operation.name} defaultEfficiency: ${operationDefaultEfficiency} (${Math.round(operationDefaultEfficiency * 100)}%)`)
+      }
+    }
+    
+    console.log(`Loaded data: ${stations.length} stations, ${materials.length} materials, ${workers.length} workers, ${operations.length} operations`)
     
     // Update planDesignerState caches for efficiency calculations
     planDesignerState.stationsCache = stations;
@@ -337,6 +351,9 @@ export async function editNodeBackend(nodeId) {
 
   // Calculate effective time for display
   const nominalTime = parseFloat(node.time) || 0;
+  // Use node's efficiency override, or fall back to operation's defaultEfficiency
+  const currentEfficiency = node.efficiency || operationDefaultEfficiency;
+  const initialEffectiveTime = nominalTime > 0 ? Math.round(nominalTime / currentEfficiency) : 0;
   const effectiveTime = typeof node.effectiveTime === 'number' ? node.effectiveTime : nominalTime;
   const showEffectiveTime = Math.abs(effectiveTime - nominalTime) > 0.01 && (node.assignedWorkerId || node.assignedStationId);
   const effectiveTimeDisplay = showEffectiveTime
@@ -348,7 +365,8 @@ export async function editNodeBackend(nodeId) {
 
   const formContent =
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + Number(node.time || 0) + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" />' + effectiveTimeDisplay + '</div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + Number(node.time || 0) + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreviewBackend()" />' + effectiveTimeDisplay + '</div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Verimlilik Override (%) <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(opsiyonel)</span></label><input type="number" id="edit-efficiency" value="' + (node.efficiency ? (node.efficiency * 100).toFixed(1) : '') + '" min="1" max="100" step="0.1" placeholder="Boş bırakın (operasyon varsayılanı: ' + Math.round(operationDefaultEfficiency * 100) + '% kullanılır)" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreviewBackend()" data-operation-efficiency="' + operationDefaultEfficiency + '" /><div id="effective-time-preview-backend" style="font-size: 12px; color: #3b82f6; margin-top: 4px; font-weight: 500;">Effective Time: ' + initialEffectiveTime + ' min</div><div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Bu node için özel verimlilik ayarlayın. Boş ise operasyonun varsayılan verimlilik değeri (' + Math.round(operationDefaultEfficiency * 100) + '%) kullanılır.</div></div>' +
     generateMultiStationSelector(node, compatibleStations) +
     '<div style="margin-bottom: 16px;"><label style="display:block; margin-bottom: 6px; font-weight: 500;">Worker Assignment</label>' +
       '<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">Select how worker will be assigned to this operation</div>' +
@@ -480,6 +498,7 @@ export function saveNodeEditBackend() {
   if (!node) return
   const name = document.getElementById('edit-name')?.value?.trim()
   const time = parseInt(document.getElementById('edit-time')?.value, 10)
+  const efficiencyInput = document.getElementById('edit-efficiency')?.value || ''
   const assignMode = (document.querySelector('input[name="edit-assign-mode"]:checked')?.value || null)
   const workerChoice = document.getElementById('edit-worker')?.value || null // Get selected worker
   const outQtyVal = document.getElementById('edit-output-qty')?.value
@@ -575,6 +594,31 @@ export function saveNodeEditBackend() {
   
   node.name = name
   node.time = time
+  
+  // Validate and convert efficiency (percent to decimal)
+  if (efficiencyInput.trim() !== '') {
+    const efficiencyPercent = parseFloat(efficiencyInput);
+    if (!Number.isFinite(efficiencyPercent) || efficiencyPercent <= 0 || efficiencyPercent > 100) {
+      showErrorToast('Verimlilik %0.1 ile %100 arasında olmalıdır');
+      return;
+    }
+    node.efficiency = efficiencyPercent / 100; // Convert to decimal (0.0-1.0)
+    console.log(`Node ${node.id} efficiency override: ${node.efficiency} (${efficiencyPercent}%)`);
+  } else {
+    // Remove efficiency override if input is empty
+    delete node.efficiency;
+    console.log(`Node ${node.id} will use operation default efficiency`);
+  }
+  
+  // Calculate effectiveTime based on efficiency (node override or operation default)
+  let effectiveTimeEfficiency = node.efficiency;
+  if (!effectiveTimeEfficiency) {
+    // Fallback to operation default efficiency
+    const operation = _opsCache?.find(op => op.name === node.name);
+    effectiveTimeEfficiency = operation?.defaultEfficiency || 1.0;
+  }
+  node.effectiveTime = time > 0 ? Math.round(time / effectiveTimeEfficiency) : 0;
+  console.log(`Node ${node.id} effectiveTime calculated: ${node.effectiveTime} min (nominalTime: ${time}, efficiency: ${effectiveTimeEfficiency})`);
   
   // Stations are already set by UI handlers
   // assignedStations[] is already updated with priority order
@@ -1463,5 +1507,37 @@ window.toggleWorkerDropdown = function() {
   const isManual = document.querySelector('input[name="edit-assign-mode"][value="manual"]')?.checked;
   if (box) {
     box.style.display = isManual ? 'block' : 'none';
+  }
+};
+
+// Global function to update effective time preview when nominal time or efficiency changes
+window.updateEffectiveTimePreviewBackend = function() {
+  try {
+    const timeInput = document.getElementById('edit-time');
+    const efficiencyInput = document.getElementById('edit-efficiency');
+    const preview = document.getElementById('effective-time-preview-backend');
+    
+    if (!timeInput || !preview) return;
+    
+    const nominalTime = parseInt(timeInput.value) || 0;
+    const efficiencyValue = efficiencyInput?.value?.trim() || '';
+    
+    // Get operation's default efficiency from data attribute
+    const operationDefaultEfficiency = parseFloat(efficiencyInput?.getAttribute('data-operation-efficiency')) || 1.0;
+    
+    // If user entered a value, use it; otherwise use operation default
+    const efficiencyPercent = efficiencyValue ? parseFloat(efficiencyValue) : (operationDefaultEfficiency * 100);
+    const efficiency = efficiencyPercent / 100;
+    
+    if (nominalTime > 0 && efficiency > 0) {
+      const effectiveTime = Math.round(nominalTime / efficiency);
+      preview.textContent = `Effective Time: ${effectiveTime} min`;
+      preview.style.color = '#3b82f6';
+    } else {
+      preview.textContent = 'Effective Time: —';
+      preview.style.color = '#6b7280';
+    }
+  } catch (e) {
+    console.error('Error updating effective time preview:', e);
   }
 };

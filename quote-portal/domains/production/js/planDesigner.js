@@ -995,6 +995,13 @@ export function renderNode(node, targetCanvas = null) {
   })()
   const warningBadge = node.requiresAttention ? 
     '<span style="background: #dc2626; color: white; font-size: 10px; padding: 1px 4px; border-radius: 8px; margin-left: 4px;">!</span>' : '';
+  
+  // Efficiency badge (show if overridden)
+  const hasEfficiencyOverride = node.efficiency !== undefined && node.efficiency !== null;
+  const efficiencyBadge = hasEfficiencyOverride
+    ? `<span style="margin-left: 4px; padding: 2px 6px; background: #dbeafe; color: #1e40af; border-radius: 3px; font-size: 10px; font-weight: 600;">⚡ ${Math.round(node.efficiency * 100)}%</span>`
+    : '';
+  
   const actionsHtml = planDesignerState.readOnly ? '' : [
     '<div style="display: flex; gap: 2px;">',
     `<button onclick="event.stopPropagation(); editNode('${node.id}')" style="width: 20px; height: 20px; border: none; background: #f3f4f6; border-radius: 3px; cursor: pointer; font-size: 10px;"><i class="fa-solid fa-edit" style="font-size: 8px;"></i></button>`,
@@ -1036,7 +1043,7 @@ export function renderNode(node, targetCanvas = null) {
   
   nodeElement.innerHTML = [
     '<div style="display: flex; justify-content: between; align-items: flex-start; margin-bottom: 4px;">',
-    `<div class="drag-handle" style="font-weight: 600; font-size: 14px; color: ${colors[node.type] || '#6b7280'}; flex: 1; cursor: ${planDesignerState.readOnly ? 'default' : 'move'}; padding: 2px;">🔸 ${node.name}${warningBadge}</div>`,
+    `<div class="drag-handle" style="font-weight: 600; font-size: 14px; color: ${colors[node.type] || '#6b7280'}; flex: 1; cursor: ${planDesignerState.readOnly ? 'default' : 'move'}; padding: 2px;">🔸 ${node.name}${warningBadge}${efficiencyBadge}</div>`,
     actionsHtml,
     '</div>',
     `<div style="font-size: 11px; color: #6b7280; margin-bottom: 2px;">Type: ${node.type}</div>`,
