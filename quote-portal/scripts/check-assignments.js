@@ -53,7 +53,7 @@ async function checkAssignments() {
       
       if (planData.executionGraph && planData.executionGraph.length > 0) {
         console.log('\n  Execution Graph Sample:');
-        const firstNode = planData.executionGraph[0];
+        const firstNode = planData.nodes[0];
         console.log(`    Node ID: ${firstNode.nodeId}`);
         console.log(`    Material Inputs: ${firstNode.materialInputs?.length || 0}`);
         if (firstNode.materialInputs && firstNode.materialInputs.length > 0) {

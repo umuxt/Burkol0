@@ -30,7 +30,6 @@ featureFlags.logStatus();
 // In production, integrate with Prometheus/Datadog/CloudWatch
 const metrics = {
   reservation_mismatch_count: 0,
-  plan_using_executionGraph_count: 0,
   consumption_capped_count: 0,
   validation_error_count: 0,
   
@@ -43,7 +42,6 @@ const metrics = {
   
   reset() {
     this.reservation_mismatch_count = 0;
-    this.plan_using_executionGraph_count = 0;
     this.consumption_capped_count = 0;
     this.validation_error_count = 0;
   },
@@ -51,7 +49,6 @@ const metrics = {
   getAll() {
     return {
       reservation_mismatch_count: this.reservation_mismatch_count,
-      plan_using_executionGraph_count: this.plan_using_executionGraph_count,
       consumption_capped_count: this.consumption_capped_count,
       validation_error_count: this.validation_error_count
     };
@@ -307,7 +304,7 @@ async function getPlanExecutionState(planId) {
   }
   
   const planData = planDoc.data();
-  const executionGraph = planData.executionGraph || [];
+  const nodes = planData.nodes || [];
   const materialSummary = planData.materialSummary || {};
   
   // Fetch all assignments for this plan
@@ -353,8 +350,8 @@ async function getPlanExecutionState(planId) {
     }
   });
   
-  // Process each node in execution graph
-  const tasks = executionGraph.map(node => {
+  // Process each node
+  const tasks = nodes.map(node => {
     const assignment = assignments.get(node.nodeId);
     const workerId = node.assignedWorkerId || assignment?.workerId;
     const stationId = node.assignedStationId || assignment?.stationId;
@@ -1278,62 +1275,6 @@ router.post('/master-data', withAuth, async (req, res) => {
 // ============================================================================
 
 // ============================================================================
-// HELPER: CONVERT EXECUTIONGRAPH TO CANONICAL NODES (FOR BACKWARD COMPATIBILITY)
-// ============================================================================
-
-/**
- * Convert executionGraph array to canonical nodes array
- * Used for on-read fallback when old plans don't have nodes[]
- * @param {Array} executionGraph - array of executionGraph nodes
- * @returns {Array} - array of canonical nodes
- */
-function convertExecutionGraphToNodes(executionGraph) {
-  if (!Array.isArray(executionGraph)) {
-    return [];
-  }
-  
-  return executionGraph.map(node => {
-    const canonical = {
-      id: node.id || node.nodeId,
-      name: node.name,
-      operationId: node.operationId,
-      nominalTime: node.nominalTime || node.time || node.estimatedNominalTime || node.duration || 60,
-      requiredSkills: node.requiredSkills || node.skills || [],
-      assignedStations: node.assignedStationId 
-        ? [{ stationId: node.assignedStationId, priority: 1 }] 
-        : (node.assignedStations || []),
-      assignedSubstations: node.assignedSubstations || [],
-      assignmentMode: node.assignmentMode || node.allocationType || 'auto',
-      assignedWorkerId: node.assignedWorkerId || node.workerHint?.workerId || null,
-      predecessors: node.predecessors || [],
-      materialInputs: node.materialInputs || [],
-      outputCode: node.outputCode || null,
-      outputQty: node.outputQty || 0
-    };
-    
-    // Only include efficiency if present
-    if (node.efficiency !== undefined && node.efficiency !== null) {
-      canonical.efficiency = node.efficiency;
-    }
-    
-    // Preserve additional fields
-    const additionalFields = [
-      'operationName', 'workerName', 'stationName', 'outputName',
-      'estimatedStartTime', 'estimatedEndTime', 'estimatedDuration',
-      'effectiveTime', 'priorityIndex', 'hasOutputs'
-    ];
-    
-    additionalFields.forEach(field => {
-      if (node[field] !== undefined) {
-        canonical[field] = node[field];
-      }
-    });
-    
-    return canonical;
-  });
-}
-
-// ============================================================================
 // PRODUCTION PLAN VALIDATION HELPER
 // ============================================================================
 
@@ -1342,13 +1283,11 @@ function convertExecutionGraphToNodes(executionGraph) {
  * Calculates timing based on dependencies, worker schedules, and durations
  * 
  * @param {Array} nodes - Array of plan nodes
- * @param {Array} executionGraph - Optional execution graph
  * @param {Object} planData - Plan data with quantity, status, etc.
  * @param {Object} db - Firestore database instance
  * @returns {Promise<Array>} Enriched nodes with estimatedStartTime and estimatedEndTime
  */
 async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
-  // Use canonical nodes[] only (executionGraph support removed)
   const nodesToProcess = nodes;
   
   if (!Array.isArray(nodesToProcess) || nodesToProcess.length === 0) {
@@ -1588,7 +1527,7 @@ function validateProductionPlanNodes(nodes) {
     
     // 8. Validate material inputs
     const materials = node.rawMaterials || [];
-    const materialInputs = node.materialInputs || []; // For executionGraph nodes
+    const materialInputs = node.materialInputs || [];
     const allMaterials = materials.length > 0 ? materials : materialInputs;
     
     // Check each material has a valid quantity
@@ -1654,13 +1593,6 @@ router.get('/production-plans', withAuth, async (req, res) => {
     const snapshot = await db.collection('mes-production-plans').orderBy('createdAt', 'desc').get();
     const all = snapshot.docs.map(doc => {
       const plan = { id: doc.id, ...doc.data() };
-      
-      // ON-READ FALLBACK: Convert executionGraph to nodes if nodes missing
-      if (!plan.nodes && plan.executionGraph) {
-        console.warn(`⚠️ Plan ${plan.id} missing nodes[], using executionGraph fallback`);
-        plan.nodes = convertExecutionGraphToNodes(plan.executionGraph);
-      }
-      
       return plan;
     });
     const productionPlans = all.filter(p => (p.status || p.type || '').toString().toLowerCase() !== 'template');
@@ -3858,12 +3790,11 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           }
           
           // Get material inputs and output information
-          // CANONICAL: Prefer nodes[] over executionGraph[] (deprecated)
-          const nodesToUse = planData.nodes || planData.executionGraph || [];
-          const node = nodesToUse.find(n => (n.id === nodeId) || (n.nodeId === nodeId));
+          const nodes = planData.nodes || [];
+          const node = nodes.find(n => n.id === nodeId);
           
           if (!node) {
-            console.error(`Node ${nodeId} not found in plan nodes (searched ${nodesToUse.length} nodes)`);
+            console.error(`Node ${nodeId} not found in plan nodes (searched ${nodes.length} nodes)`);
             throw new Error(`Task node ${nodeId} not found in production plan`);
           }
           
@@ -4693,12 +4624,6 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     
     let planData = planSnap.data();
     
-    // ON-READ FALLBACK: Convert executionGraph to nodes if nodes missing
-    if (!planData.nodes && planData.executionGraph) {
-      console.warn(`⚠️ FALLBACK: Plan ${planId} missing nodes[], converting from executionGraph`);
-      planData.nodes = convertExecutionGraphToNodes(planData.executionGraph);
-    }
-    
     // Check if plan is already launched
     if (planData.launchStatus === 'launched') {
       return res.status(409).json({
@@ -4914,8 +4839,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     
     // Process nodes in topological order
     for (const nodeId of executionOrder.order) {
-      // Try to find node by nodeId (executionGraph) or id (nodes)
-      const node = nodesToUse.find(n => n.nodeId === nodeId || n.id === nodeId);
+      const node = nodesToUse.find(n => n.id === nodeId);
       if (!node) {
         assignmentErrors.push({
           nodeId,
@@ -4923,11 +4847,6 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
           message: `Node ${nodeId} referenced in execution order but not found in plan`
         });
         continue;
-      }
-      
-      // Normalize node structure - ensure nodeId exists
-      if (!node.nodeId && node.id) {
-        node.nodeId = node.id;
       }
       
       try {
