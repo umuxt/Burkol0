@@ -309,6 +309,1366 @@ Frontend (planDesigner)        Backend (mesRoutes)            Firestore
 
 ---
 
+## End-to-End Process Flow (Detailed)
+
+This section provides comprehensive documentation of the complete MES process lifecycle, from plan creation through execution completion. Each flow includes detailed ASCII sequence diagrams, data structures, function calls, and error handling.
+
+---
+
+### 1. Plan Creation Flow
+
+**Overview:** Designer creates a production plan in the frontend, sends canonical nodes to backend, which validates, enriches, and persists to Firestore.
+
+**ASCII Sequence Diagram:**
+```
+┌──────────────┐         ┌──────────────┐         ┌─────────────────┐         ┌───────────┐
+│ Plan Designer│         │  mesApi.js   │         │  mesRoutes.js   │         │ Firestore │
+│   (Frontend) │         │  (Frontend)  │         │   (Backend)     │         │           │
+└──────┬───────┘         └──────┬───────┘         └────────┬────────┘         └─────┬─────┘
+       │                        │                          │                        │
+       │ User designs plan      │                          │                        │
+       │ with nodes             │                          │                        │
+       │────────────────>       │                          │                        │
+       │                        │                          │                        │
+       │ savePlanDraft()        │                          │                        │
+       │────────────────>       │                          │                        │
+       │                        │                          │                        │
+       │                        │ POST /api/mes/          │                        │
+       │                        │  production-plans        │                        │
+       │                        │ Body: {                  │                        │
+       │                        │   orderCode,             │                        │
+       │                        │   quantity,              │                        │
+       │                        │   nodes: [canonical]     │                        │
+       │                        │ }                        │                        │
+       │                        │─────────────────────────>│                        │
+       │                        │                          │                        │
+       │                        │                          │ validateProductionPlan │
+       │                        │                          │ Nodes(req.body.nodes)  │
+       │                        │                          │<────────────           │
+       │                        │                          │                        │
+       │                        │                          │ enrichNodesWithEstimated│
+       │                        │                          │ Times(nodes, planData, │
+       │                        │                          │ db)                    │
+       │                        │                          │<────────────           │
+       │                        │                          │                        │
+       │                        │                          │ Firestore.collection(  │
+       │                        │                          │  'mes-production-plans')│
+       │                        │                          │ .add(plan)             │
+       │                        │                          │───────────────────────>│
+       │                        │                          │                        │
+       │                        │                          │      Plan saved        │
+       │                        │                          │<───────────────────────│
+       │                        │                          │                        │
+       │                        │   Response: {plan}       │                        │
+       │                        │<─────────────────────────│                        │
+       │                        │                          │                        │
+       │   Plan saved success   │                          │                        │
+       │<───────────────        │                          │                        │
+       │                        │                          │                        │
+```
+
+**Input Data Structure:**
+```javascript
+// POST /api/mes/production-plans
+{
+  "orderCode": "WO-2025-001",
+  "quantity": 100,
+  "notes": "Production plan for order 001",
+  "nodes": [
+    {
+      "id": "node-1",
+      "name": "Kesim Operasyonu",
+      "operationId": "OP-001",
+      "nominalTime": 60,              // Canonical: minutes
+      "efficiency": 0.85,              // Optional per-node override
+      "requiredSkills": ["welding"],   // Canonical: array
+      "assignedStations": [            // Canonical: array format
+        {"stationId": "ST-001", "priority": 1}
+      ],
+      "assignedSubstations": ["SUB-001-A"],
+      "assignmentMode": "auto",
+      "assignedWorkerId": null,
+      "predecessors": [],
+      "materialInputs": [
+        {"code": "M-00-001", "qty": 10.5, "required": true}
+      ],
+      "outputCode": "M-10-001",
+      "outputQty": 100
+    }
+  ]
+}
+```
+
+**Functions Called:**
+- **File:** `/quote-portal/domains/production/js/planDesigner.js`
+  - **Function:** `savePlanDraft()`
+  - **Responsibility:** Sanitize nodes, map to canonical schema, call API
+
+- **File:** `/quote-portal/domains/production/js/mesApi.js`
+  - **Function:** `createProductionPlan(planData)`
+  - **Responsibility:** Make HTTP POST request to backend
+
+- **File:** `/quote-portal/server/mesRoutes.js`
+  - **Function:** `validateProductionPlanNodes(nodes)`
+  - **Responsibility:** Validate canonical schema (id, nominalTime > 0, valid predecessors)
+  - **Function:** `enrichNodesWithEstimatedTimes(nodes, planData, db)`
+  - **Responsibility:** Compute effectiveTime, estimatedStart/End for each node
+
+**Key Variables Modified:**
+- `plan.nodes` — Enriched with `effectiveTime`, `estimatedStart`, `estimatedEnd`
+- `plan.status` — Set to `'draft'`
+- `plan.createdAt` — Timestamp
+- `plan.id` — Generated plan ID (e.g., `PLAN-001`)
+
+**Output/Side Effects:**
+- New document written to Firestore: `mes-production-plans/{planId}`
+- Response returned to frontend with saved plan object
+
+**Data Transformation Example:**
+```javascript
+// Frontend sends:
+node.time = 60  // (legacy field)
+
+// Backend sanitizes to canonical:
+node.nominalTime = 60
+
+// Backend enriches:
+node.effectiveTime = Math.round(60 / (node.efficiency || operation.defaultEfficiency || 1.0))
+// If efficiency = 0.85: effectiveTime = Math.round(60 / 0.85) = 71 minutes
+```
+
+**Error Conditions:**
+- **400 Bad Request:** Invalid node schema (missing `id`, `nominalTime <= 0`, invalid `predecessors`)
+  - Rollback: No Firestore write, return validation errors
+- **500 Internal Server Error:** Enrichment fails (operation not found, DB error)
+  - Rollback: No Firestore write, log error
+
+**Backward Compatibility:**
+- If request contains `executionGraph[]`, log deprecation warning and prefer `nodes[]`
+- Backend does NOT save `executionGraph` in new plans
+
+---
+
+### 2. Enrichment Step (Server-Side)
+
+**Overview:** Backend enriches canonical nodes with computed fields (effectiveTime, estimatedStart/End) by loading operation metadata and applying efficiency calculations.
+
+**ASCII Flow:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  enrichNodesWithEstimatedTimes(nodes, planData, db)             │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+        ┌─────────────────────────────────────────┐
+        │ For each node in nodes[]                │
+        └─────────────────┬───────────────────────┘
+                          │
+                          ▼
+        ┌─────────────────────────────────────────┐
+        │ Load operation from mes-operations      │
+        │ operationDoc = await db.collection(     │
+        │   'mes-operations').doc(operationId).get│
+        └─────────────────┬───────────────────────┘
+                          │
+                          ▼
+        ┌─────────────────────────────────────────┐
+        │ Compute effectiveTime:                  │
+        │ efficiency = node.efficiency ||         │
+        │              operation.defaultEfficiency│
+        │              || 1.0                      │
+        │ effectiveTime = Math.round(             │
+        │   node.nominalTime / efficiency         │
+        │ )                                       │
+        └─────────────────┬───────────────────────┘
+                          │
+                          ▼
+        ┌─────────────────────────────────────────┐
+        │ Compute estimatedStart/End:             │
+        │ - Build dependency graph                │
+        │ - For each node in topological order:   │
+        │   estimatedStart = max(predecessors'    │
+        │     estimatedEnd)                       │
+        │   estimatedEnd = estimatedStart +       │
+        │     effectiveTime                       │
+        └─────────────────┬───────────────────────┘
+                          │
+                          ▼
+        ┌─────────────────────────────────────────┐
+        │ Return enrichedNodes[]                  │
+        │ (with effectiveTime, estimatedStart,    │
+        │  estimatedEnd)                          │
+        └─────────────────────────────────────────┘
+```
+
+**Input:**
+```javascript
+nodes = [
+  {
+    id: "node-1",
+    operationId: "OP-001",
+    nominalTime: 60,
+    efficiency: 0.8,  // Optional override
+    predecessors: []
+  }
+]
+planData = { orderCode: "WO-2025-001", quantity: 100 }
+db = FirestoreInstance
+```
+
+**Function Logic:**
+```javascript
+async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
+  const enrichedNodes = [];
+  
+  for (const node of nodes) {
+    // Load operation metadata
+    const operationDoc = await db.collection('mes-operations')
+      .doc(node.operationId).get();
+    const operation = operationDoc.data();
+    
+    // Compute effectiveTime using inverse proportionality
+    const efficiency = node.efficiency 
+      || operation.defaultEfficiency 
+      || 1.0;
+    const effectiveTime = Math.round(node.nominalTime / efficiency);
+    
+    enrichedNodes.push({
+      ...node,
+      effectiveTime,
+      // estimatedStart/End computed in next pass
+    });
+  }
+  
+  // Compute estimated times based on dependencies
+  const sortedNodes = buildTopologicalOrder(enrichedNodes);
+  const times = {};
+  
+  for (const node of sortedNodes) {
+    const predecessorEnds = node.predecessors.map(p => times[p]?.end || 0);
+    const start = Math.max(...predecessorEnds, 0);
+    const end = start + node.effectiveTime;
+    
+    times[node.id] = { start, end };
+    node.estimatedStart = start;
+    node.estimatedEnd = end;
+  }
+  
+  return enrichedNodes;
+}
+```
+
+**Key Variables:**
+- `operation.defaultEfficiency` — Read from `mes-operations` collection
+- `node.effectiveTime` — Computed: `nominalTime / efficiency`
+- `node.estimatedStart` — Computed based on predecessor dependencies
+- `node.estimatedEnd` — Computed: `estimatedStart + effectiveTime`
+
+**Output:**
+```javascript
+enrichedNodes = [
+  {
+    id: "node-1",
+    operationId: "OP-001",
+    nominalTime: 60,
+    efficiency: 0.8,
+    effectiveTime: 75,        // 60 / 0.8 = 75
+    estimatedStart: 0,
+    estimatedEnd: 75,
+    // ... other fields
+  }
+]
+```
+
+**Error Conditions:**
+- Operation not found in `mes-operations` → Log warning, use efficiency = 1.0
+- Invalid predecessors (circular dependency) → Throw error, return 400
+
+---
+
+### 3. Launch Flow
+
+**Overview:** Backend loads plan.nodes, builds topological order, assigns resources (worker/station/substation) to each node, computes planned times, and creates assignments with material pre-reservations.
+
+**ASCII Sequence Diagram:**
+```
+┌──────────────┐         ┌─────────────────┐         ┌───────────┐
+│   Frontend   │         │  mesRoutes.js   │         │ Firestore │
+└──────┬───────┘         └────────┬────────┘         └─────┬─────┘
+       │                          │                        │
+       │ POST /production-plans/  │                        │
+       │   :planId/launch         │                        │
+       │─────────────────────────>│                        │
+       │                          │                        │
+       │                          │ Load plan from DB      │
+       │                          │───────────────────────>│
+       │                          │<───────────────────────│
+       │                          │                        │
+       │                          │ nodesToUse = plan.nodes│
+       │                          │  || plan.executionGraph│
+       │                          │                        │
+       │                          │ buildTopologicalOrder( │
+       │                          │  nodesToUse)           │
+       │                          │<────────────           │
+       │                          │                        │
+       │                          │ Load workers, stations,│
+       │                          │  substations from DB   │
+       │                          │───────────────────────>│
+       │                          │<───────────────────────│
+       │                          │                        │
+       │                          │ For each node (in      │
+       │                          │  topological order):   │
+       │                          │                        │
+       │                          │  assignNodeResources(  │
+       │                          │   node, predecessorTimes│
+       │                          │   workers, substations,│
+       │                          │   workersSchedule,     │
+       │                          │   substationsSchedule) │
+       │                          │<────────────           │
+       │                          │                        │
+       │                          │  → Returns assignment  │
+       │                          │    with:               │
+       │                          │    - workerId          │
+       │                          │    - stationId         │
+       │                          │    - substationId      │
+       │                          │    - plannedStart/End  │
+       │                          │    - preProductionReserved│
+       │                          │      Amount            │
+       │                          │                        │
+       │                          │ Batch write assignments│
+       │                          │  to Firestore          │
+       │                          │───────────────────────>│
+       │                          │<───────────────────────│
+       │                          │                        │
+       │                          │ Update plan.status =   │
+       │                          │  'released'            │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │   Response: {assignments}│                        │
+       │<─────────────────────────│                        │
+       │                          │                        │
+```
+
+**Input:**
+```javascript
+// POST /api/mes/production-plans/:planId/launch
+// No body required, planId in URL
+```
+
+**Functions Called:**
+- **File:** `/quote-portal/server/mesRoutes.js`
+  - **Function:** `buildTopologicalOrder(nodes)`
+    - Returns nodes sorted by dependencies (predecessors first)
+  - **Function:** `assignNodeResources(node, predecessorTimes, workers, substations, stations, workersSchedule, substationsSchedule, db)`
+    - Selects optimal worker/station/substation
+    - Computes plannedStart/plannedEnd based on schedules and predecessor times
+    - Computes `preProductionReservedAmount` from `node.materialInputs`
+
+**assignNodeResources Logic:**
+```javascript
+function assignNodeResources(node, predecessorTimes, workers, substations, stations, workersSchedule, substationsSchedule, db) {
+  // 1. Determine start time
+  const predecessorEnds = node.predecessors.map(p => predecessorTimes[p]);
+  const earliestStart = Math.max(...predecessorEnds, Date.now());
+  
+  // 2. Select worker with required skills
+  const availableWorkers = workers.filter(w => 
+    node.requiredSkills.every(skill => w.skills.includes(skill))
+  );
+  const selectedWorker = availableWorkers[0]; // Simplified selection
+  
+  // 3. Select substation (keyed by substationId, NOT stationId)
+  const substation = substations.find(s => 
+    node.assignedSubstations?.includes(s.id) || 
+    s.stationId === node.assignedStations[0]?.stationId
+  );
+  
+  // 4. Compute planned times based on substation schedule
+  const substationNextAvailable = substationsSchedule[substation.id] || earliestStart;
+  const plannedStart = new Date(Math.max(earliestStart, substationNextAvailable));
+  const plannedEnd = new Date(plannedStart.getTime() + node.effectiveTime * 60000);
+  
+  // 5. Update schedules
+  substationsSchedule[substation.id] = plannedEnd.getTime();
+  workersSchedule[selectedWorker.id] = plannedEnd.getTime();
+  
+  // 6. Compute material pre-reservations
+  const preProductionReservedAmount = {};
+  for (const input of node.materialInputs || []) {
+    preProductionReservedAmount[input.code] = input.qty * planData.quantity / node.outputQty;
+  }
+  
+  // 7. Return assignment object
+  return {
+    id: `WO-${planId}-${assignmentCounter++}`,
+    planId,
+    nodeId: node.id,
+    nodeName: node.name,
+    operationId: node.operationId,
+    workerId: selectedWorker.id,
+    stationId: substation.stationId,
+    substationId: substation.id,  // Canonical: use substationId
+    plannedStart: plannedStart.toISOString(),
+    plannedEnd: plannedEnd.toISOString(),
+    nominalTime: node.nominalTime,
+    effectiveTime: node.effectiveTime,
+    status: 'pending',
+    preProductionReservedAmount,
+    actualReservedAmounts: {},
+    materialReservationStatus: 'pending',
+    actualStart: null,
+    actualEnd: null,
+    pausedAt: null,
+    currentPauseStart: null,
+    totalPausedTime: 0
+  };
+}
+```
+
+**Key Variables Modified:**
+- `substationsSchedule[substationId]` — Updated with planned end time (key is `substationId`, NOT `stationId`)
+- `workersSchedule[workerId]` — Updated with planned end time
+- `plan.status` — Changed from `'draft'` to `'released'`
+
+**Output/Side Effects:**
+- Multiple documents written to Firestore: `mes-worker-assignments/{assignmentId}`
+- Plan document updated: `status = 'released'`, `launchedAt = timestamp`
+
+**Data Transformation Example:**
+```javascript
+// From node:
+node.materialInputs = [
+  { code: "M-00-001", qty: 10.5, required: true }
+]
+node.outputQty = 100
+planData.quantity = 50  // Producing 50 units
+
+// Computed in assignment:
+assignment.preProductionReservedAmount = {
+  "M-00-001": 10.5 * 50 / 100 = 5.25
+}
+```
+
+**Error Conditions:**
+- **404 Not Found:** Plan not found → Return error
+- **400 Bad Request:** Plan already launched (status != 'draft') → Return error
+- **500 Internal Server Error:** No available workers with required skills → Return error with details
+- **Partial assignment failure:** If some nodes fail to assign, rollback transaction
+
+**Backward Compatibility:**
+```javascript
+// Fallback to executionGraph if nodes not present
+const nodesToUse = plan.nodes || plan.executionGraph || [];
+if (!plan.nodes && plan.executionGraph) {
+  console.warn(`Plan ${planId} using deprecated executionGraph, consider migration`);
+}
+```
+
+---
+
+### 4. Start Action Flow
+
+**Overview:** Worker starts an assignment, backend performs material reservation in a transaction, updating material stock and wipReserved, creating stock-movements, and recording actual reserved amounts.
+
+**ASCII Sequence Diagram:**
+```
+┌──────────────┐         ┌─────────────────┐         ┌───────────┐
+│ Worker Portal│         │  mesRoutes.js   │         │ Firestore │
+└──────┬───────┘         └────────┬────────┘         └─────┬─────┘
+       │                          │                        │
+       │ PATCH /worker-assignments│                        │
+       │   /:assignmentId         │                        │
+       │ Body: {action: 'start'}  │                        │
+       │─────────────────────────>│                        │
+       │                          │                        │
+       │                          │ Load assignment from DB│
+       │                          │───────────────────────>│
+       │                          │<───────────────────────│
+       │                          │                        │
+       │                          │ Validate status        │
+       │                          │ (must be pending or    │
+       │                          │  paused)               │
+       │                          │                        │
+       │                          │ BEGIN TRANSACTION      │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ For each material in   │
+       │                          │ preProductionReserved  │
+       │                          │ Amount:                │
+       │                          │                        │
+       │                          │  Load material doc     │
+       │                          │───────────────────────>│
+       │                          │<───────────────────────│
+       │                          │                        │
+       │                          │  actualReserved =      │
+       │                          │   min(material.stock,  │
+       │                          │       requested)       │
+       │                          │                        │
+       │                          │  Update material:      │
+       │                          │   stock -= actualReserved│
+       │                          │   wipReserved +=       │
+       │                          │     actualReserved     │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │  Create stock-movement:│
+       │                          │   type: 'out'          │
+       │                          │   subType: 'wip_       │
+       │                          │     reservation'       │
+       │                          │   requestedQuantity    │
+       │                          │   actualQuantity       │
+       │                          │   partialReservation   │
+       │                          │   warning (if partial) │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ Update assignment:     │
+       │                          │  status = 'in_progress'│
+       │                          │  actualStart = now     │
+       │                          │  actualReservedAmounts │
+       │                          │  materialReservation   │
+       │                          │   Status = 'reserved'  │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ Update worker:         │
+       │                          │  currentTask = assignmentId│
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ Update substation:     │
+       │                          │  currentOperation =    │
+       │                          │    assignmentId        │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ COMMIT TRANSACTION     │
+       │                          │<───────────────────────│
+       │                          │                        │
+       │   Response: {assignment, │                        │
+       │    partialReservations}  │                        │
+       │<─────────────────────────│                        │
+       │                          │                        │
+```
+
+**Input:**
+```javascript
+// PATCH /api/mes/worker-assignments/:assignmentId
+{
+  "action": "start"
+}
+```
+
+**Functions Called:**
+- **File:** `/quote-portal/server/mesRoutes.js`
+  - **Endpoint:** `PATCH /worker-assignments/:assignmentId`
+  - **Transaction Logic:** Material reservation in Firestore transaction
+
+**Material Reservation Transaction Logic:**
+```javascript
+await db.runTransaction(async (transaction) => {
+  // 1. Load assignment
+  const assignmentRef = db.collection('mes-worker-assignments').doc(assignmentId);
+  const assignment = (await transaction.get(assignmentRef)).data();
+  
+  // 2. Validate status
+  if (!['pending', 'paused'].includes(assignment.status)) {
+    throw new Error('Invalid status for start action');
+  }
+  
+  // 3. Reserve materials
+  const actualReservedAmounts = {};
+  const partialReservations = [];
+  
+  for (const [materialCode, requestedQty] of Object.entries(assignment.preProductionReservedAmount)) {
+    const materialRef = db.collection('materials').doc(materialCode);
+    const material = (await transaction.get(materialRef)).data();
+    
+    // Compute actual reservation (capped by available stock)
+    const actualReserved = Math.min(material.stock, requestedQty);
+    actualReservedAmounts[materialCode] = actualReserved;
+    
+    // Check for partial reservation
+    const isPartial = actualReserved < requestedQty;
+    if (isPartial) {
+      partialReservations.push({
+        materialCode,
+        requested: requestedQty,
+        actual: actualReserved
+      });
+      console.warn(`Partial reservation for ${materialCode}: requested ${requestedQty}, reserved ${actualReserved}`);
+    }
+    
+    // Update material stock and wipReserved
+    transaction.update(materialRef, {
+      stock: material.stock - actualReserved,
+      wipReserved: material.wipReserved + actualReserved
+    });
+    
+    // Create stock-movement
+    const movementRef = db.collection('stock-movements').doc();
+    transaction.set(movementRef, {
+      materialCode,
+      type: 'out',
+      subType: 'wip_reservation',
+      quantity: actualReserved,
+      requestedQuantity: requestedQty,
+      partialReservation: isPartial,
+      stockBefore: material.stock,
+      stockAfter: material.stock - actualReserved,
+      wipReservedBefore: material.wipReserved,
+      wipReservedAfter: material.wipReserved + actualReserved,
+      reference: assignmentId,
+      referenceType: 'mes_task_start',
+      relatedPlanId: assignment.planId,
+      relatedNodeId: assignment.nodeId,
+      warning: isPartial ? `Partial reservation: requested ${requestedQty}, reserved ${actualReserved} due to insufficient stock` : null,
+      notes: 'Material reserved for task start',
+      movementDate: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    });
+  }
+  
+  // 4. Update assignment
+  transaction.update(assignmentRef, {
+    status: 'in_progress',
+    actualStart: assignment.actualStart || new Date().toISOString(),
+    actualReservedAmounts,
+    materialReservationStatus: 'reserved'
+  });
+  
+  // 5. Update worker
+  const workerRef = db.collection('mes-workers').doc(assignment.workerId);
+  transaction.update(workerRef, {
+    currentTask: assignmentId,
+    status: 'working'
+  });
+  
+  // 6. Update substation
+  const substationRef = db.collection('mes-substations').doc(assignment.substationId);
+  transaction.update(substationRef, {
+    currentOperation: assignmentId,
+    status: 'occupied'
+  });
+  
+  return { actualReservedAmounts, partialReservations };
+});
+```
+
+**Key Variables Modified:**
+- `material.stock` — Decreased by `actualReserved`
+- `material.wipReserved` — Increased by `actualReserved`
+- `assignment.status` — Changed to `'in_progress'`
+- `assignment.actualStart` — Set to current timestamp (if not already set from previous pause)
+- `assignment.actualReservedAmounts` — Recorded actual amounts reserved
+- `assignment.materialReservationStatus` — Changed to `'reserved'`
+- `worker.currentTask` — Set to `assignmentId`
+- `substation.currentOperation` — Set to `assignmentId`
+
+**Output/Side Effects:**
+- Material documents updated (stock/wipReserved)
+- Stock-movement documents created (one per material)
+- Assignment document updated
+- Worker document updated
+- Substation document updated
+
+**Data Transformation Example:**
+```javascript
+// Assignment has:
+assignment.preProductionReservedAmount = {
+  "M-00-001": 10.5
+}
+
+// Material has:
+material.stock = 8  // Insufficient!
+
+// After transaction:
+assignment.actualReservedAmounts = {
+  "M-00-001": 8  // Capped at available stock
+}
+
+// Stock-movement created:
+{
+  materialCode: "M-00-001",
+  type: "out",
+  subType: "wip_reservation",
+  quantity: 8,
+  requestedQuantity: 10.5,
+  partialReservation: true,
+  warning: "Partial reservation: requested 10.5, reserved 8 due to insufficient stock",
+  // ... other fields
+}
+```
+
+**Invariants Enforced:**
+- `actualReserved <= requestedAmount` (always true by using `Math.min`)
+- `actualReserved <= material.stock` (before reservation)
+- Transaction ensures atomicity: either all materials reserved or none
+
+**Error Conditions:**
+- **400 Bad Request:** Invalid status (assignment not in 'pending' or 'paused')
+- **409 Conflict:** Partial reservation occurred
+  - If `forceStart=false` in request, return 409 with details
+  - If `forceStart=true`, proceed and return warning
+- **500 Internal Server Error:** Transaction fails → Rollback all changes
+
+**Monitoring:**
+- Log metric: `reservation_mismatch_count` when partial reservation occurs
+- Log warning with full context (assignmentId, materialCode, requested, actual)
+
+---
+
+### 5. Pause/Resume Actions Flow
+
+**Overview:** Worker pauses or resumes an assignment, backend updates assignment metadata and tracks pause duration, without modifying material reservations.
+
+**ASCII Sequence Diagram:**
+```
+┌──────────────┐         ┌─────────────────┐         ┌───────────┐
+│ Worker Portal│         │  mesRoutes.js   │         │ Firestore │
+└──────┬───────┘         └────────┬────────┘         └─────┬─────┘
+       │                          │                        │
+       │ ════════ PAUSE ═════════ │                        │
+       │                          │                        │
+       │ PATCH /worker-assignments│                        │
+       │   /:assignmentId         │                        │
+       │ Body: {action: 'pause'}  │                        │
+       │─────────────────────────>│                        │
+       │                          │                        │
+       │                          │ Load assignment        │
+       │                          │───────────────────────>│
+       │                          │<───────────────────────│
+       │                          │                        │
+       │                          │ Validate status        │
+       │                          │ (must be 'in_progress')│
+       │                          │                        │
+       │                          │ Update assignment:     │
+       │                          │  status = 'paused'     │
+       │                          │  pausedAt = now        │
+       │                          │  currentPauseStart =now│
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ Update worker:         │
+       │                          │  status = 'paused'     │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │   Response: {assignment} │                        │
+       │<─────────────────────────│                        │
+       │                          │                        │
+       │                          │                        │
+       │ ════════ RESUME ════════ │                        │
+       │                          │                        │
+       │ PATCH /worker-assignments│                        │
+       │   /:assignmentId         │                        │
+       │ Body: {action: 'resume'} │                        │
+       │─────────────────────────>│                        │
+       │                          │                        │
+       │                          │ Load assignment        │
+       │                          │───────────────────────>│
+       │                          │<───────────────────────│
+       │                          │                        │
+       │                          │ Validate status        │
+       │                          │ (must be 'paused')     │
+       │                          │                        │
+       │                          │ pauseDuration =        │
+       │                          │  now - currentPauseStart│
+       │                          │                        │
+       │                          │ Update assignment:     │
+       │                          │  status = 'in_progress'│
+       │                          │  totalPausedTime +=    │
+       │                          │    pauseDuration       │
+       │                          │  currentPauseStart=null│
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ Update worker:         │
+       │                          │  status = 'working'    │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │   Response: {assignment} │                        │
+       │<─────────────────────────│                        │
+       │                          │                        │
+```
+
+**Input:**
+```javascript
+// Pause:
+// PATCH /api/mes/worker-assignments/:assignmentId
+{ "action": "pause" }
+
+// Resume:
+// PATCH /api/mes/worker-assignments/:assignmentId
+{ "action": "resume" }
+```
+
+**Functions Called:**
+- **File:** `/quote-portal/server/mesRoutes.js`
+  - **Endpoint:** `PATCH /worker-assignments/:assignmentId`
+  - **Logic:** Simple metadata update (no material changes)
+
+**Pause Logic:**
+```javascript
+// Validate status
+if (assignment.status !== 'in_progress') {
+  return res.status(400).json({ error: 'Cannot pause: assignment not in progress' });
+}
+
+// Update assignment
+await assignmentRef.update({
+  status: 'paused',
+  pausedAt: new Date().toISOString(),
+  currentPauseStart: Date.now()
+});
+
+// Update worker
+await workerRef.update({
+  status: 'paused'
+});
+```
+
+**Resume Logic:**
+```javascript
+// Validate status
+if (assignment.status !== 'paused') {
+  return res.status(400).json({ error: 'Cannot resume: assignment not paused' });
+}
+
+// Compute pause duration
+const pauseDuration = Date.now() - assignment.currentPauseStart;
+
+// Update assignment
+await assignmentRef.update({
+  status: 'in_progress',
+  totalPausedTime: (assignment.totalPausedTime || 0) + pauseDuration,
+  currentPauseStart: null
+});
+
+// Update worker
+await workerRef.update({
+  status: 'working'
+});
+```
+
+**Key Variables Modified:**
+- **Pause:**
+  - `assignment.status` — Changed to `'paused'`
+  - `assignment.pausedAt` — Set to current timestamp
+  - `assignment.currentPauseStart` — Set to `Date.now()` (milliseconds)
+  - `worker.status` — Changed to `'paused'`
+
+- **Resume:**
+  - `assignment.status` — Changed back to `'in_progress'`
+  - `assignment.totalPausedTime` — Incremented by pause duration
+  - `assignment.currentPauseStart` — Cleared (set to `null`)
+  - `worker.status` — Changed back to `'working'`
+
+**Output/Side Effects:**
+- Assignment document updated (metadata only)
+- Worker document updated (status only)
+- **No material changes** (reservations remain intact)
+
+**Invariants Enforced:**
+- `totalPausedTime` is monotonically increasing
+- `currentPauseStart` is `null` when status is not `'paused'`
+- Material reservations remain unchanged during pause/resume
+
+**Error Conditions:**
+- **400 Bad Request:** Invalid status for action
+  - Pause when not `in_progress`
+  - Resume when not `paused`
+
+**Monitoring:**
+- Track pause durations for productivity analysis
+- Alert if `totalPausedTime` exceeds thresholds
+
+---
+
+### 6. Complete Action Flow
+
+**Overview:** Worker completes an assignment, backend performs material consumption transaction (capped by actualReservedAmounts), creates output material, releases unused materials back to stock, and creates stock-movements.
+
+**ASCII Sequence Diagram:**
+```
+┌──────────────┐         ┌─────────────────┐         ┌───────────┐
+│ Worker Portal│         │  mesRoutes.js   │         │ Firestore │
+└──────┬───────┘         └────────┬────────┘         └─────┬─────┘
+       │                          │                        │
+       │ PATCH /worker-assignments│                        │
+       │   /:assignmentId         │                        │
+       │ Body: {                  │                        │
+       │   action: 'complete',    │                        │
+       │   actualOutput: 95,      │                        │
+       │   defects: 5             │                        │
+       │ }                        │                        │
+       │─────────────────────────>│                        │
+       │                          │                        │
+       │                          │ Load assignment + node │
+       │                          │───────────────────────>│
+       │                          │<───────────────────────│
+       │                          │                        │
+       │                          │ BEGIN TRANSACTION      │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ totalProduced =        │
+       │                          │  actualOutput + defects│
+       │                          │ = 95 + 5 = 100         │
+       │                          │                        │
+       │                          │ For each input material│
+       │                          │                        │
+       │                          │  theoretical =         │
+       │                          │   totalProduced *      │
+       │                          │   (inputQty / outputQty)│
+       │                          │                        │
+       │                          │  consumed = min(       │
+       │                          │   theoretical,         │
+       │                          │   actualReservedAmounts)│
+       │                          │                        │
+       │                          │  leftover =            │
+       │                          │   actualReserved -     │
+       │                          │   consumed             │
+       │                          │                        │
+       │                          │  Update material:      │
+       │                          │   wipReserved -=       │
+       │                          │     actualReserved     │
+       │                          │   stock += leftover    │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │  Create stock-movement │
+       │                          │   (consumption):       │
+       │                          │   type: 'out'          │
+       │                          │   subType: 'production_│
+       │                          │     consumption'       │
+       │                          │   quantity: consumed   │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ Create output material:│
+       │                          │  stock += actualOutput │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ Create stock-movement  │
+       │                          │  (output):             │
+       │                          │  type: 'in'            │
+       │                          │  subType: 'production_ │
+       │                          │    output'             │
+       │                          │  quantity: actualOutput│
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ Update assignment:     │
+       │                          │  status = 'completed'  │
+       │                          │  actualEnd = now       │
+       │                          │  materialConsumption   │
+       │                          │   Results              │
+       │                          │  materialReservation   │
+       │                          │   Status = 'consumed'  │
+       │                          │  defects (logged)      │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ Clear worker.currentTask│
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ Clear substation.current│
+       │                          │  Operation             │
+       │                          │───────────────────────>│
+       │                          │                        │
+       │                          │ COMMIT TRANSACTION     │
+       │                          │<───────────────────────│
+       │                          │                        │
+       │   Response: {assignment} │                        │
+       │<─────────────────────────│                        │
+       │                          │                        │
+```
+
+**Input:**
+```javascript
+// PATCH /api/mes/worker-assignments/:assignmentId
+{
+  "action": "complete",
+  "actualOutput": 95,
+  "defects": 5
+}
+```
+
+**Functions Called:**
+- **File:** `/quote-portal/server/mesRoutes.js`
+  - **Endpoint:** `PATCH /worker-assignments/:assignmentId`
+  - **Transaction Logic:** Material consumption in Firestore transaction
+
+**Material Consumption Transaction Logic:**
+```javascript
+await db.runTransaction(async (transaction) => {
+  // 1. Load assignment and node
+  const assignmentRef = db.collection('mes-worker-assignments').doc(assignmentId);
+  const assignment = (await transaction.get(assignmentRef)).data();
+  
+  const nodeRef = db.collection('mes-production-plans').doc(assignment.planId);
+  const plan = (await transaction.get(nodeRef)).data();
+  const node = plan.nodes.find(n => n.id === assignment.nodeId);
+  
+  // 2. Validate input
+  if (assignment.status !== 'in_progress') {
+    throw new Error('Cannot complete: assignment not in progress');
+  }
+  const totalProduced = actualOutput + defects;
+  if (totalProduced < 0 || actualOutput < 0 || defects < 0) {
+    throw new Error('Invalid output values');
+  }
+  
+  // 3. Consume input materials
+  const consumptionResults = {};
+  
+  for (const input of node.materialInputs || []) {
+    const materialRef = db.collection('materials').doc(input.code);
+    const material = (await transaction.get(materialRef)).data();
+    
+    // Compute theoretical consumption
+    const theoretical = totalProduced * (input.qty / node.outputQty);
+    
+    // Cap consumption at actualReservedAmounts (INVARIANT)
+    const actualReserved = assignment.actualReservedAmounts[input.code] || 0;
+    const consumed = Math.min(theoretical, actualReserved);
+    
+    // Compute leftover to return to stock
+    const leftover = actualReserved - consumed;
+    
+    // Log if consumption was capped
+    if (consumed < theoretical) {
+      console.warn(`Consumption capped for assignment ${assignmentId}, material ${input.code}, theoretical: ${theoretical}, capped: ${consumed}`);
+    }
+    
+    // Update material: release all reserved, return leftover to stock
+    transaction.update(materialRef, {
+      wipReserved: material.wipReserved - actualReserved,
+      stock: material.stock + leftover
+    });
+    
+    // Create stock-movement for consumption
+    const consumptionMovementRef = db.collection('stock-movements').doc();
+    transaction.set(consumptionMovementRef, {
+      materialCode: input.code,
+      type: 'out',
+      subType: 'production_consumption',
+      quantity: consumed,
+      stockBefore: material.stock,
+      stockAfter: material.stock + leftover,  // Stock increases if leftover
+      wipReservedBefore: material.wipReserved,
+      wipReservedAfter: material.wipReserved - actualReserved,
+      reference: assignmentId,
+      referenceType: 'mes_task_complete',
+      relatedPlanId: assignment.planId,
+      relatedNodeId: assignment.nodeId,
+      notes: `Consumed ${consumed}, returned ${leftover} to stock`,
+      movementDate: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    });
+    
+    consumptionResults[input.code] = { consumed, leftover, theoretical };
+  }
+  
+  // 4. Create output material
+  if (node.outputCode && actualOutput > 0) {
+    const outputRef = db.collection('materials').doc(node.outputCode);
+    const outputMaterial = (await transaction.get(outputRef)).data();
+    
+    transaction.update(outputRef, {
+      stock: outputMaterial.stock + actualOutput
+    });
+    
+    // Create stock-movement for output
+    const outputMovementRef = db.collection('stock-movements').doc();
+    transaction.set(outputMovementRef, {
+      materialCode: node.outputCode,
+      type: 'in',
+      subType: 'production_output',
+      quantity: actualOutput,
+      stockBefore: outputMaterial.stock,
+      stockAfter: outputMaterial.stock + actualOutput,
+      reference: assignmentId,
+      referenceType: 'mes_task_complete',
+      relatedPlanId: assignment.planId,
+      relatedNodeId: assignment.nodeId,
+      notes: `Production output from ${node.name}`,
+      movementDate: new Date().toISOString(),
+      createdAt: new Date().toISOString()
+    });
+  }
+  
+  // 5. Update assignment
+  transaction.update(assignmentRef, {
+    status: 'completed',
+    actualEnd: new Date().toISOString(),
+    actualOutput,
+    defects,
+    materialConsumptionResults: consumptionResults,
+    materialReservationStatus: 'consumed'
+  });
+  
+  // 6. Clear worker and substation
+  const workerRef = db.collection('mes-workers').doc(assignment.workerId);
+  transaction.update(workerRef, {
+    currentTask: null,
+    status: 'available'
+  });
+  
+  const substationRef = db.collection('mes-substations').doc(assignment.substationId);
+  transaction.update(substationRef, {
+    currentOperation: null,
+    status: 'available'
+  });
+  
+  return consumptionResults;
+});
+```
+
+**Key Variables Modified:**
+- **Input materials:**
+  - `material.wipReserved` — Decreased by `actualReservedAmounts[code]` (release all reserved)
+  - `material.stock` — Increased by `leftover` (return unused to stock)
+
+- **Output material:**
+  - `outputMaterial.stock` — Increased by `actualOutput`
+
+- **Assignment:**
+  - `assignment.status` — Changed to `'completed'`
+  - `assignment.actualEnd` — Set to current timestamp (or `actualFinish` for legacy)
+  - `assignment.actualOutput` — Recorded
+  - `assignment.defects` — Recorded (logged, but no stock movement)
+  - `assignment.materialConsumptionResults` — Recorded details (consumed, leftover, theoretical per material)
+  - `assignment.materialReservationStatus` — Changed to `'consumed'`
+
+- **Worker/Substation:**
+  - `worker.currentTask` — Cleared (set to `null`)
+  - `worker.status` — Changed to `'available'`
+  - `substation.currentOperation` — Cleared (set to `null`)
+  - `substation.status` — Changed to `'available'`
+
+**Output/Side Effects:**
+- Material documents updated (stock/wipReserved for inputs and output)
+- Stock-movement documents created:
+  - One per input material (`type='out'`, `subType='production_consumption'`)
+  - One for output material (`type='in'`, `subType='production_output'`)
+- Assignment document updated
+- Worker and substation documents cleared
+
+**Data Transformation Example:**
+```javascript
+// Assignment has:
+assignment.actualReservedAmounts = {
+  "M-00-001": 8  // Reserved 8 units at start
+}
+
+// Node specifies:
+node.materialInputs = [
+  { code: "M-00-001", qty: 10.5 }  // Recipe: 10.5 per 100 output
+]
+node.outputQty = 100
+
+// Worker reports:
+actualOutput = 95
+defects = 5
+totalProduced = 100
+
+// Consumption calculation:
+theoretical = 100 * (10.5 / 100) = 10.5
+actualReserved = 8
+consumed = min(10.5, 8) = 8  // CAPPED by actualReserved (INVARIANT)
+leftover = 8 - 8 = 0  // No leftover
+
+// Material update:
+material.wipReserved -= 8  // Release all reserved
+material.stock += 0  // No leftover to return
+
+// Stock-movement created:
+{
+  materialCode: "M-00-001",
+  type: "out",
+  subType: "production_consumption",
+  quantity: 8,
+  notes: "Consumed 8, returned 0 to stock",
+  // ...
+}
+```
+
+**Example with Leftover:**
+```javascript
+// If actualOutput = 50, defects = 0:
+totalProduced = 50
+theoretical = 50 * (10.5 / 100) = 5.25
+actualReserved = 8
+consumed = min(5.25, 8) = 5.25
+leftover = 8 - 5.25 = 2.75  // Leftover returned to stock
+
+// Material update:
+material.wipReserved -= 8
+material.stock += 2.75  // Leftover returned
+```
+
+**Invariants Enforced:**
+- `consumed <= actualReservedAmounts[materialCode]` (always true by using `Math.min`)
+- All reserved material is released from `wipReserved`
+- Unused material is returned to `stock`
+- Defects are logged but do NOT create stock movement (defects don't go to inventory)
+
+**Error Conditions:**
+- **400 Bad Request:** Invalid status (assignment not in progress)
+- **422 Unprocessable Entity:** Invalid output values (negative numbers)
+- **500 Internal Server Error:** Transaction fails → Rollback all changes
+
+**Legacy Field Handling:**
+```javascript
+// Read actualEnd or fallback to actualFinish for old documents
+const endTime = assignment.actualEnd || assignment.actualFinish;
+```
+
+**Monitoring:**
+- Log metric: `consumption_capped_count` when `consumed < theoretical`
+- Track defect rates per operation
+- Alert if leftover exceeds thresholds (indicates overproduction issues)
+
+---
+
+## Summary of Data Transformations
+
+### Frontend → Backend (Plan Creation)
+```javascript
+// Frontend (UI):
+node.time = 60  // Legacy field
+node.skills = ["welding"]  // Legacy field
+node.assignedStationId = "ST-001"  // Legacy field (single)
+
+// Backend (Canonical):
+node.nominalTime = 60  // Mapped from time
+node.requiredSkills = ["welding"]  // Mapped from skills
+node.assignedStations = [  // Mapped from assignedStationId (array)
+  { stationId: "ST-001", priority: 1 }
+]
+```
+
+### Backend Enrichment (Efficiency)
+```javascript
+// Input:
+node.nominalTime = 60
+node.efficiency = 0.8  // Optional override
+
+// Load operation:
+operation.defaultEfficiency = 0.9  // From mes-operations
+
+// Compute effectiveTime (inverse proportionality):
+efficiency = node.efficiency || operation.defaultEfficiency || 1.0  // = 0.8
+effectiveTime = Math.round(60 / 0.8) = 75 minutes
+
+// Output:
+node.effectiveTime = 75
+```
+
+### Launch → Assignment (Material Pre-Reservation)
+```javascript
+// Node:
+node.materialInputs = [
+  { code: "M-00-001", qty: 10.5 }
+]
+node.outputQty = 100
+
+// Plan:
+planData.quantity = 50  // Producing 50 units
+
+// Assignment:
+assignment.preProductionReservedAmount = {
+  "M-00-001": 10.5 * 50 / 100 = 5.25
+}
+```
+
+### Start → Actual Reservation
+```javascript
+// Assignment:
+assignment.preProductionReservedAmount = {
+  "M-00-001": 10.5
+}
+
+// Material:
+material.stock = 8  // Insufficient
+
+// Transaction:
+actualReserved = min(8, 10.5) = 8
+
+// Assignment updated:
+assignment.actualReservedAmounts = {
+  "M-00-001": 8
+}
+
+// Material updated:
+material.stock = 8 - 8 = 0
+material.wipReserved = previous + 8
+```
+
+### Complete → Consumption (Capped)
+```javascript
+// Assignment:
+assignment.actualReservedAmounts = {
+  "M-00-001": 8
+}
+
+// Reported:
+actualOutput = 95
+defects = 5
+totalProduced = 100
+
+// Node recipe:
+node.materialInputs[0].qty = 10.5
+node.outputQty = 100
+
+// Calculation:
+theoretical = 100 * (10.5 / 100) = 10.5
+consumed = min(10.5, 8) = 8  // CAPPED (INVARIANT)
+leftover = 8 - 8 = 0
+
+// Material updated:
+material.wipReserved -= 8  // Release all
+material.stock += 0  // No leftover
+
+// Output material:
+outputMaterial.stock += 95  // actualOutput only (defects not added to stock)
+```
+
+---
+
+## Error Handling and Rollback Matrix
+
+| Operation | Error Condition | HTTP Status | Rollback Behavior | Monitoring |
+|-----------|----------------|-------------|-------------------|------------|
+| **Plan Creation** | Invalid node schema | 400 | No DB write | `validation_error_count++` |
+| **Plan Creation** | Circular dependencies | 400 | No DB write | Log cycle path |
+| **Plan Creation** | Operation not found | 500 | No DB write | Alert on missing operations |
+| **Launch** | Plan not found | 404 | N/A | Log planId |
+| **Launch** | Plan already launched | 400 | No DB write | N/A |
+| **Launch** | No workers with skills | 500 | No DB write | Alert resource shortage |
+| **Start** | Invalid status | 400 | No DB write | N/A |
+| **Start** | Partial reservation | 409 (or continue) | Transaction commits if `forceStart=true` | `reservation_mismatch_count++` |
+| **Start** | Transaction failure | 500 | Transaction rollback | Alert + investigate |
+| **Pause** | Invalid status | 400 | No DB write | N/A |
+| **Resume** | Invalid status | 400 | No DB write | N/A |
+| **Complete** | Invalid status | 400 | No DB write | N/A |
+| **Complete** | Negative output | 422 | No DB write | Log invalid data |
+| **Complete** | Transaction failure | 500 | Transaction rollback | Alert + investigate |
+
+---
+
+## Performance Considerations
+
+### Transaction Sizes
+- **Start:** Reads/writes per material + assignment + worker + substation
+  - Typical: 3-5 materials = ~15-25 operations
+- **Complete:** Similar to start + output material + stock-movements
+  - Typical: ~20-30 operations
+
+### Firestore Limits
+- Max 500 operations per transaction
+- Max 10 MB per document
+
+### Optimizations
+- Batch assignment creation during launch (use batch write, not individual transactions)
+- Cache operation metadata in memory to reduce reads
+- Use subcollections for stock-movements to avoid document size limits
+
+---
+
+This completes the detailed end-to-end process flow documentation for Prompt 2.
+
+---
+
 ## UI + Master Data Changes Required
 
 To fully support the optimized canonical model (single `nodes[]` source of truth) we need a small set of UI and master-data changes so the frontend can provide the inputs the backend needs (notably operation efficiency values used to compute `effectiveTime`). Below is a prioritized and concrete list of changes, file pointers, migration notes and acceptance criteria.
