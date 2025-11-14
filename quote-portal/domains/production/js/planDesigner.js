@@ -257,9 +257,10 @@ export async function loadOperationsToolbox() {
       if (operations.length === 0) {
         listContainer.innerHTML = '<div style="padding: 8px; color: var(--muted-foreground); font-size: 12px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
       } else {
-        listContainer.innerHTML = operations.map(op =>
-          `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: grab; background: white; margin-bottom: 4px; font-size: 13px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${escapeHtml(op.name)}</div>`
-        ).join('');
+        listContainer.innerHTML = operations.map(op => {
+          const effBadge = op.defaultEfficiency ? `<span style="margin-left: 8px; padding: 2px 6px; background: #dbeafe; color: #1e40af; border-radius: 3px; font-size: 10px; font-weight: 600;">⚡ ${(op.defaultEfficiency * 100).toFixed(0)}%</span>` : '';
+          return `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; cursor: grab; background: white; margin-bottom: 4px; font-size: 13px; font-weight: 500; display: flex; align-items: center; justify-content: space-between;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'"><span>${escapeHtml(op.name)}</span>${effBadge}</div>`;
+        }).join('');
       }
     }
   
@@ -268,9 +269,10 @@ export async function loadOperationsToolbox() {
       if (operations.length === 0) {
         fullscreenListContainer.innerHTML = '<div style="padding: 12px; color: var(--muted-foreground); font-size: 14px; text-align: center;">No operations available<br>Add operations in Master Data</div>';
       } else {
-        fullscreenListContainer.innerHTML = operations.map(op =>
-          `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'">${escapeHtml(op.name)}</div>`
-        ).join('');
+        fullscreenListContainer.innerHTML = operations.map(op => {
+          const effBadge = op.defaultEfficiency ? `<span style="margin-left: 8px; padding: 3px 8px; background: #dbeafe; color: #1e40af; border-radius: 4px; font-size: 11px; font-weight: 600;">⚡ ${(op.defaultEfficiency * 100).toFixed(0)}%</span>` : '';
+          return `<div draggable="true" ondragstart="handleOperationDragStart(event, '${op.id}')" style="padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: grab; background: white; margin-bottom: 8px; font-size: 14px; font-weight: 500; display: flex; align-items: center; justify-content: space-between;" onmouseover="this.style.background='var(--muted)'" onmouseout="this.style.background='white'"><span>${escapeHtml(op.name)}</span>${effBadge}</div>`;
+        }).join('');
       }
     }
     
@@ -1602,9 +1604,16 @@ export async function editNode(nodeId) {
   const preferredStationTags = node.preferredStationTags || [];
   const tagsInputValue = preferredStationTags.join(', ');
   
+  // Compute effectiveTime preview
+  const nominalTime = node.time || 0;
+  const efficiency = node.efficiency || 1.0;
+  const effectiveTime = nominalTime > 0 ? Math.round(nominalTime / efficiency) : 0;
+  const efficiencyPercent = efficiency * 100;
+  
   const formContent =
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + node.time + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Nominal Time (minutes)</label><input type="number" id="edit-time" value="' + node.time + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreview()" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Design-time duration (will be adjusted by efficiency)</div></div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Efficiency Override (%) <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="number" id="edit-efficiency" value="' + (node.efficiency ? (node.efficiency * 100).toFixed(1) : '') + '" min="1" max="100" step="0.1" placeholder="Leave empty for operation default" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreview()" /><div id="effective-time-preview" style="font-size: 12px; color: #3b82f6; margin-top: 4px; font-weight: 500;">Effective Time: ' + effectiveTime + ' min</div><div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Lower efficiency → longer effective time (e.g., 80% = 1.25x time)</div></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div style="font-size: 12px; color: var(--muted-foreground); padding: 8px; background: #f9fafb; border-radius: 4px;">' + (requiredSkills.length > 0 ? requiredSkills.join(', ') : 'None specified') + '</div><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Skills are inherited from the operation definition</div></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Preferred Specific Stations <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span> <span style="cursor: help; color: #3b82f6;" title="Select specific stations by name. At launch, the system will prefer these exact stations.">ℹ️</span></label>' + stationSelectHTML + missingStationsWarning + '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Select specific stations for this operation. System will try to assign one of these first.</div></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Capability Tags <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span> <span style="cursor: help; color: #3b82f6;" title="Enter generic capability tags like \'CNC\', \'Welding\', etc. System will match stations with these tags as fallback.">ℹ️</span></label><input type="text" id="edit-station-tags" value="' + escapeHtml(tagsInputValue) + '" placeholder="e.g., CNC, Welding, Laser" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Generic capabilities (comma-separated). Used if no specific station is available.</div></div>' +
@@ -1661,6 +1670,33 @@ export async function editNode(nodeId) {
   }
 }
 
+// Helper function to update effectiveTime preview in node editor
+window.updateEffectiveTimePreview = function() {
+  try {
+    const timeInput = document.getElementById('edit-time');
+    const efficiencyInput = document.getElementById('edit-efficiency');
+    const preview = document.getElementById('effective-time-preview');
+    
+    if (!timeInput || !preview) return;
+    
+    const nominalTime = parseInt(timeInput.value) || 0;
+    const efficiencyPercent = parseFloat(efficiencyInput?.value || 100);
+    const efficiency = efficiencyPercent / 100;
+    
+    if (nominalTime > 0 && efficiency > 0) {
+      const effectiveTime = Math.round(nominalTime / efficiency);
+      preview.textContent = `Effective Time: ${effectiveTime} min`;
+      preview.style.color = '#3b82f6';
+    } else {
+      preview.textContent = 'Effective Time: —';
+      preview.style.color = '#6b7280';
+    }
+  } catch (e) {
+    console.error('Error updating effective time preview:', e);
+  }
+}
+
+
 function makeEditModalReadOnly() {
   try {
     const form = document.getElementById('node-edit-form');
@@ -1713,6 +1749,7 @@ export function saveNodeEdit() {
   
   const name = document.getElementById('edit-name').value;
   const time = parseInt(document.getElementById('edit-time').value);
+  const efficiencyInput = document.getElementById('edit-efficiency')?.value || '';
   const stationTagsInput = document.getElementById('edit-station-tags')?.value || '';
   const allocationTypeRadio = document.querySelector('input[name="allocation-type"]:checked');
   const allocationType = allocationTypeRadio ? allocationTypeRadio.value : 'auto';
@@ -1738,6 +1775,24 @@ export function saveNodeEdit() {
       }
       return;
     }
+  }
+  
+  // Validate and convert efficiency (percent to decimal)
+  if (efficiencyInput.trim() !== '') {
+    const efficiencyPercent = parseFloat(efficiencyInput);
+    if (!Number.isFinite(efficiencyPercent) || efficiencyPercent <= 0 || efficiencyPercent > 100) {
+      showErrorToast('Efficiency must be between 0.1 and 100');
+      const effInput = document.getElementById('edit-efficiency');
+      if (effInput) {
+        effInput.style.border = '2px solid #ef4444';
+        setTimeout(() => { effInput.style.border = '1px solid var(--border)'; }, 2000);
+      }
+      return;
+    }
+    planDesignerState.selectedNode.efficiency = efficiencyPercent / 100; // Convert to decimal (0.0-1.0)
+  } else {
+    // Remove efficiency override if input is empty
+    delete planDesignerState.selectedNode.efficiency;
   }
   
   // Update node with new values
@@ -2166,6 +2221,42 @@ export async function savePlanDraft() {
     return; 
   }
   
+  // Validate nodes before saving (canonical schema validation)
+  const validationErrors = [];
+  const nodeIds = new Set();
+  
+  planDesignerState.nodes.forEach((node, idx) => {
+    // Check for id
+    if (!node.id || typeof node.id !== 'string' || node.id.trim() === '') {
+      validationErrors.push(`Node ${idx + 1}: Missing or invalid id`);
+    } else if (nodeIds.has(node.id)) {
+      validationErrors.push(`Node ${idx + 1}: Duplicate id "${node.id}"`);
+    } else {
+      nodeIds.add(node.id);
+    }
+    
+    // Check for nominalTime (or time as fallback)
+    const nominalTime = node.nominalTime || node.time;
+    if (!Number.isFinite(nominalTime) || nominalTime <= 0) {
+      validationErrors.push(`Node ${idx + 1} (${node.id || 'unknown'}): nominalTime must be > 0`);
+    }
+    
+    // Check predecessors reference existing nodes
+    if (Array.isArray(node.predecessors)) {
+      node.predecessors.forEach(predId => {
+        if (!planDesignerState.nodes.find(n => n.id === predId)) {
+          validationErrors.push(`Node ${idx + 1} (${node.id || 'unknown'}): predecessor "${predId}" not found`);
+        }
+      });
+    }
+  });
+  
+  if (validationErrors.length > 0) {
+    console.error('❌ Validation errors:', validationErrors);
+    showErrorToast(`Validation failed: ${validationErrors[0]}`);
+    return;
+  }
+  
   const planName = document.getElementById('plan-name')?.value || 'Untitled';
   const planDesc = document.getElementById('plan-description')?.value || '';
   const orderCode = document.getElementById('order-select')?.value || '';
@@ -2298,8 +2389,8 @@ export async function savePlanDraft() {
       status: 'production',
       autoAssign: true,
       materialSummary,
-      timingSummary,
-      executionGraph
+      timingSummary
+      // executionGraph removed - no longer sent to backend (kept for internal UI use only)
     };
     
     try {
@@ -2330,14 +2421,56 @@ export async function savePlanDraft() {
     });
   });
   
-  // Sanitize nodes before saving - ensure all required fields are present
+  // Sanitize nodes before saving - ensure all required fields are present and map to canonical schema
   const sanitizedNodes = planDesignerState.nodes.map(node => {
     const sanitized = { ...node };
     
-    // Ensure time is a valid number >= 1
-    if (!Number.isFinite(sanitized.time) || sanitized.time < 1) {
-      sanitized.time = 30; // Default to 30 minutes
+    // ========================================================================
+    // CANONICAL FIELD MAPPING: Map frontend fields to canonical backend schema
+    // ========================================================================
+    
+    // Map time → nominalTime (canonical)
+    const nominalTime = sanitized.time || sanitized.nominalTime || 30;
+    if (!Number.isFinite(nominalTime) || nominalTime < 1) {
+      sanitized.nominalTime = 30; // Default to 30 minutes
       console.warn(`⚠️ Node ${node.id} (${node.name}): Invalid time, defaulting to 30 minutes`);
+    } else {
+      sanitized.nominalTime = nominalTime;
+    }
+    
+    // Map skills → requiredSkills (canonical)
+    sanitized.requiredSkills = sanitized.skills || sanitized.requiredSkills || [];
+    
+    // Map assignedStationId (single string) → assignedStations (array) (canonical)
+    if (sanitized.assignedStationId && typeof sanitized.assignedStationId === 'string') {
+      sanitized.assignedStations = [{ stationId: sanitized.assignedStationId, priority: 1 }];
+    } else if (!Array.isArray(sanitized.assignedStations)) {
+      sanitized.assignedStations = [];
+    }
+    
+    // Include efficiency (optional per-node override)
+    if (sanitized.efficiency !== undefined && sanitized.efficiency !== null) {
+      const eff = parseFloat(sanitized.efficiency);
+      if (Number.isFinite(eff) && eff > 0 && eff <= 1) {
+        sanitized.efficiency = eff;
+      } else {
+        delete sanitized.efficiency; // Remove invalid efficiency
+      }
+    }
+    
+    // Map allocationType → assignmentMode (canonical)
+    sanitized.assignmentMode = sanitized.allocationType || sanitized.assignmentMode || 'auto';
+    
+    // Map workerHint.workerId → assignedWorkerId (canonical)
+    if (sanitized.workerHint && sanitized.workerHint.workerId) {
+      sanitized.assignedWorkerId = sanitized.workerHint.workerId;
+    } else if (sanitized.assignmentMode === 'manual') {
+      console.warn(`⚠️ Node ${node.id}: assignmentMode='manual' but no assignedWorkerId`);
+    }
+    
+    // Include assignedSubstations (substation hints) if present
+    if (Array.isArray(sanitized.assignedSubstations)) {
+      sanitized.assignedSubstations = sanitized.assignedSubstations;
     }
     
     // Ensure outputUnit is specified
@@ -2350,25 +2483,6 @@ export async function savePlanDraft() {
     if (!Number.isFinite(sanitized.outputQty) || sanitized.outputQty <= 0) {
       sanitized.outputQty = 1; // Default quantity
       console.warn(`⚠️ Node ${node.id} (${node.name}): Invalid outputQty, defaulting to 1`);
-    }
-    
-    // Ensure assignedStations is an array (even if empty)
-    if (!Array.isArray(sanitized.assignedStations)) {
-      sanitized.assignedStations = [];
-    }
-    
-    // ========================================================================
-    // BACKEND FIELD MAPPING: Convert frontend fields to backend format
-    // ========================================================================
-    
-    // Frontend uses 'allocationType', backend expects 'assignmentMode'
-    if (sanitized.allocationType) {
-      sanitized.assignmentMode = sanitized.allocationType;
-    }
-    
-    // Frontend uses 'workerHint.workerId', backend expects 'assignedWorkerId'
-    if (sanitized.workerHint && sanitized.workerHint.workerId) {
-      sanitized.assignedWorkerId = sanitized.workerHint.workerId;
     }
     
     return sanitized;
@@ -2386,8 +2500,8 @@ export async function savePlanDraft() {
     status: 'production',
     autoAssign: true,
     materialSummary,
-    timingSummary,
-    executionGraph
+    timingSummary
+    // executionGraph removed - no longer sent to backend (kept for internal UI use only)
   };
   
   console.log('📤 Saving plan with sanitized nodes:');
