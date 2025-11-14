@@ -4,6 +4,69 @@ This directory contains utility scripts for database management, testing, and ma
 
 ## Available Scripts
 
+### 📦 migrateExecutionGraphToNodes.js
+**Purpose:** Migrate production plans from legacy executionGraph[] to canonical nodes[]
+
+**Background:**
+Part of the MES data model migration to use nodes[] as the single source of truth for production planning. This script backfills canonical nodes[] from existing executionGraph[] data.
+
+**Usage Modes:**
+
+1. **Dry-run (default)** - Preview what would be migrated:
+```bash
+node quote-portal/scripts/migrateExecutionGraphToNodes.cjs --dry-run
+```
+
+2. **Migrate single plan** - Test on one plan first:
+```bash
+node quote-portal/scripts/migrateExecutionGraphToNodes.cjs --execute --planId=PLAN-001
+```
+
+3. **Migrate all plans** - Full migration:
+```bash
+node quote-portal/scripts/migrateExecutionGraphToNodes.cjs --execute
+```
+
+**Canonical Schema Mapping:**
+- `id` ← node.id || node.nodeId
+- `nominalTime` ← node.nominalTime || node.time || node.estimatedNominalTime || node.duration || 60
+- `requiredSkills` ← node.requiredSkills || node.skills || []
+- `assignedStations` ← [{stationId: node.assignedStationId, priority: 1}] if single, else node.assignedStations
+- `efficiency` ← node.efficiency (omitted if null)
+- Plus all other canonical fields (predecessors, materialInputs, outputCode, etc.)
+
+**Safety Features:**
+- Default dry-run mode (must explicitly use `--execute`)
+- Preserves executionGraph[] for backward compatibility (kept for 2 release cycles)
+- Skips plans already migrated (_migration.executionGraphToNodes === true)
+- Comprehensive error handling and reporting
+- Single-plan testing capability
+- Adds _migration metadata for tracking
+
+**Migration States:**
+- `already_migrated` - Plan has _migration.executionGraphToNodes = true
+- `migrated/would_migrate` - Plan successfully converted
+- `no_execution_graph` - Plan has neither nodes nor executionGraph (skipped)
+- `error` - Migration failed with error details
+
+**Feature Flag:**
+After migration, the system uses canonical nodes[] by default. To rollback if needed:
+```bash
+export FEATURE_USE_CANONICAL_NODES=false
+```
+
+**Testing Procedure:**
+1. Run dry-run to see what will change
+2. Test on single plan: `--execute --planId=<test-plan-id>`
+3. Verify plan in UI and check _migration metadata
+4. If successful, migrate all plans: `--execute`
+5. Monitor for issues; use feature flag to rollback if needed
+
+**On-read Fallback:**
+The backend automatically converts executionGraph to nodes on-read for old plans that haven't been migrated yet. See mesRoutes.js `convertExecutionGraphToNodes()` function.
+
+---
+
 ### 🔄 reset-mes-data.js
 **Purpose:** Reset all MES Firestore collections for clean testing
 

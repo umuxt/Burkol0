@@ -1227,6 +1227,62 @@ router.post('/master-data', withAuth, async (req, res) => {
 // ============================================================================
 
 // ============================================================================
+// HELPER: CONVERT EXECUTIONGRAPH TO CANONICAL NODES (FOR BACKWARD COMPATIBILITY)
+// ============================================================================
+
+/**
+ * Convert executionGraph array to canonical nodes array
+ * Used for on-read fallback when old plans don't have nodes[]
+ * @param {Array} executionGraph - array of executionGraph nodes
+ * @returns {Array} - array of canonical nodes
+ */
+function convertExecutionGraphToNodes(executionGraph) {
+  if (!Array.isArray(executionGraph)) {
+    return [];
+  }
+  
+  return executionGraph.map(node => {
+    const canonical = {
+      id: node.id || node.nodeId,
+      name: node.name,
+      operationId: node.operationId,
+      nominalTime: node.nominalTime || node.time || node.estimatedNominalTime || node.duration || 60,
+      requiredSkills: node.requiredSkills || node.skills || [],
+      assignedStations: node.assignedStationId 
+        ? [{ stationId: node.assignedStationId, priority: 1 }] 
+        : (node.assignedStations || []),
+      assignedSubstations: node.assignedSubstations || [],
+      assignmentMode: node.assignmentMode || node.allocationType || 'auto',
+      assignedWorkerId: node.assignedWorkerId || node.workerHint?.workerId || null,
+      predecessors: node.predecessors || [],
+      materialInputs: node.materialInputs || [],
+      outputCode: node.outputCode || null,
+      outputQty: node.outputQty || 0
+    };
+    
+    // Only include efficiency if present
+    if (node.efficiency !== undefined && node.efficiency !== null) {
+      canonical.efficiency = node.efficiency;
+    }
+    
+    // Preserve additional fields
+    const additionalFields = [
+      'operationName', 'workerName', 'stationName', 'outputName',
+      'estimatedStartTime', 'estimatedEndTime', 'estimatedDuration',
+      'effectiveTime', 'priorityIndex', 'hasOutputs'
+    ];
+    
+    additionalFields.forEach(field => {
+      if (node[field] !== undefined) {
+        canonical[field] = node[field];
+      }
+    });
+    
+    return canonical;
+  });
+}
+
+// ============================================================================
 // PRODUCTION PLAN VALIDATION HELPER
 // ============================================================================
 
@@ -1545,7 +1601,17 @@ router.get('/production-plans', withAuth, async (req, res) => {
     const db = getFirestore();
     // Fetch all then filter out templates to avoid relying on composite indexes
     const snapshot = await db.collection('mes-production-plans').orderBy('createdAt', 'desc').get();
-    const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const all = snapshot.docs.map(doc => {
+      const plan = { id: doc.id, ...doc.data() };
+      
+      // ON-READ FALLBACK: Convert executionGraph to nodes if nodes missing
+      if (!plan.nodes && plan.executionGraph) {
+        console.warn(`⚠️ Plan ${plan.id} missing nodes[], using executionGraph fallback`);
+        plan.nodes = convertExecutionGraphToNodes(plan.executionGraph);
+      }
+      
+      return plan;
+    });
     const productionPlans = all.filter(p => (p.status || p.type || '').toString().toLowerCase() !== 'template');
     return { productionPlans };
   }, res);
@@ -4457,7 +4523,13 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       });
     }
     
-    const planData = planSnap.data();
+    let planData = planSnap.data();
+    
+    // ON-READ FALLBACK: Convert executionGraph to nodes if nodes missing
+    if (!planData.nodes && planData.executionGraph) {
+      console.warn(`⚠️ FALLBACK: Plan ${planId} missing nodes[], converting from executionGraph`);
+      planData.nodes = convertExecutionGraphToNodes(planData.executionGraph);
+    }
     
     // Check if plan is already launched
     if (planData.launchStatus === 'launched') {
