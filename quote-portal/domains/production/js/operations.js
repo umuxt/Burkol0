@@ -127,6 +127,13 @@ function buildOperationsRows(list, emptyText, options = {}) {
     const defectMarkup = legacy
       ? escapeHtml(defectValue)
       : escapeHtml(defectValue)
+    
+    // Efficiency badge
+    const efficiencyPercent = op.defaultEfficiency ? Math.round(op.defaultEfficiency * 100) : 100
+    const efficiencyBadge = efficiencyPercent !== 100
+      ? `<span class="badge badge-info" style="margin-left: 8px;">⚡ ${efficiencyPercent}%</span>`
+      : ''
+    
     const actionMarkup = legacy
       ? `
         <td>
@@ -141,7 +148,7 @@ function buildOperationsRows(list, emptyText, options = {}) {
 
     return `
       <tr${rowAttrs}>
-        <td>${escapeHtml(op.name || 'Unnamed Operation')}</td>
+        <td>${escapeHtml(op.name || 'Unnamed Operation')}${efficiencyBadge}</td>
         <td>${typeMarkup}</td>
   <td class="text-center">${outputMarkup}</td>
         <td class="text-center">${defectMarkup}</td>
@@ -193,6 +200,8 @@ export async function showOperationDetail(id) {
   panel.style.display = 'block'
   highlightSelectedOperationRow()
   const defectRate = formatDefectRate(op.expectedDefectRate)
+  const efficiencyPercent = op.defaultEfficiency ? Math.round(op.defaultEfficiency * 100) : 100
+  const efficiencyDisplay = `${efficiencyPercent}% ${efficiencyPercent < 100 ? '(daha yavaş)' : efficiencyPercent > 100 ? '(daha hızlı)' : '(normal)'}`
   let supervisorHtml = ''
   try {
     if (op.supervisorId) {
@@ -220,6 +229,7 @@ export async function showOperationDetail(id) {
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Tür:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.type||'General')}</span></div>
       <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yarı Mamül Kodu:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(op.semiOutputCode || '-')}</span></div>
   <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Yüzdelik Fire Oranı:</span><span style="font-size:12px; color: rgb(17,24,39);">${defectRate}</span></div>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;"><span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Verimlilik:</span><span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(efficiencyDisplay)}</span></div>
       ${supervisorHtml}
       
     </div>
@@ -270,6 +280,20 @@ export async function saveOperation() {
     expectedDefectRate = parsed
   }
   const supervisorId = document.getElementById('operation-supervisor')?.value || ''
+  
+  // Parse efficiency
+  const efficiencyInput = document.getElementById('operation-efficiency')
+  const efficiencyPercent = parseFloat(efficiencyInput?.value) || 100
+  
+  // Validate range
+  if (efficiencyPercent < 1 || efficiencyPercent > 100) {
+    showWarningToast('Verimlilik %1 ile %100 arasında olmalıdır')
+    return
+  }
+  
+  // Convert percentage to decimal (85 → 0.85)
+  const defaultEfficiency = efficiencyPercent / 100
+  
   // Read skills from modern UI hidden field; fallback to any legacy checkboxes
   let skills = (document.getElementById('operation-skills-selected')?.value || '')
     .split('|')
@@ -299,6 +323,7 @@ export async function saveOperation() {
     supervisorId: supervisorId || null,
     semiOutputCode: semiCode,
     expectedDefectRate,
+    defaultEfficiency,
     skills,
     
     active: true
@@ -346,6 +371,15 @@ function openOperationModal(op = null) {
   const defectRateEl = document.getElementById('operation-defect-rate')
   if (defectRateEl) {
     defectRateEl.value = op?.expectedDefectRate || 0
+  }
+  const efficiencyEl = document.getElementById('operation-efficiency')
+  if (efficiencyEl) {
+    if (op && op.defaultEfficiency !== undefined) {
+      // Convert decimal to percentage (0.85 → 85)
+      efficiencyEl.value = Math.round(op.defaultEfficiency * 100)
+    } else {
+      efficiencyEl.value = 100 // Default
+    }
   }
   // Removed time input - duration will be station-specific
   

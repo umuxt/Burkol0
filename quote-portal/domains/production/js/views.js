@@ -859,11 +859,18 @@ export function generateOperations() {
                 <div style=\"margin-top: 4px; font-size: 11px; color: var(--muted-foreground);\">1-2 harf: İlk büyük, ikinci küçük. 'M' tek başına kullanılamaz; örn. Mq.</div>
               </div>
             </div>
-            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 0;\">
+            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 8px;\">
               <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px; margin-top: 6px;\">Fire Oranı (%):</span>
               <div style=\"flex: 1 1 0%;\">
                 <input id=\"operation-defect-rate\" type=\"number\" min=\"0\" step=\"0.1\" placeholder=\"0\" style=\"width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\" />
                 <div style=\"margin-top: 4px; font-size: 11px; color: var(--muted-foreground);\">Beklenen hata/fire oranı (örn: 1.5 = %1.5). Malzeme rezervasyonu hesaplamalarında kullanılır.</div>
+              </div>
+            </div>
+            <div class=\"detail-item\" style=\"display: flex; align-items: flex-start; margin-bottom: 0;\">
+              <span class=\"detail-label\" style=\"font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px; margin-top: 6px;\">Varsayılan Verimlilik (%):</span>
+              <div style=\"flex: 1 1 0%;\">
+                <input id=\"operation-efficiency\" type=\"number\" min=\"1\" max=\"100\" step=\"1\" value=\"100\" placeholder=\"100\" style=\"width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;\" />
+                <div style=\"margin-top: 4px; font-size: 11px; color: var(--muted-foreground);\">Bu operasyonun varsayılan verimlilik oranı (100% = normal, 80% = daha yavaş)</div>
               </div>
             </div>
           </div>
