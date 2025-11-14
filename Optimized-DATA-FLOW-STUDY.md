@@ -3421,3 +3421,1279 @@ docs: add staged rollout plan and feature flags for canonical model deployment
 
 **Important:** These prompts are designed to be self-contained. You can work on them in any order (though some have dependencies, e.g., backend changes should come before integration tests). Always test after each implementation before moving to the next prompt.
 
+---
+
+## Appendix D — Completion Roadmap (Based on Migration Analysis Report)
+
+**Document Purpose:** This appendix provides a detailed implementation plan to achieve 100% migration completion based on the findings from the MES Migration Analysis Report (14 Kasım 2025).
+
+**Current Status:** ~85% Complete
+
+### D.1 Overview of Remaining Work
+
+The migration analysis identified three critical gaps blocking 100% completion:
+
+1. **Efficiency Input Fields Missing** (Priority: HIGH, Effort: 4-6 hours)
+   - `operation.defaultEfficiency` input field missing in Operations form
+   - `node.efficiency` override capability not exposed in Plan Designer
+   - Backend correctly computes `effectiveTime = nominalTime / efficiency` but frontend cannot set these values
+
+2. **Frontend Field Mapping Unverified** (Priority: HIGH, Effort: 2-4 hours)
+   - Need to verify planDesigner.js sends canonical field names (time → nominalTime, skills → requiredSkills)
+   - executionGraph may still be included in save payload (needs removal)
+   - assignedStationId (string) should be mapped to assignedStations (array)
+
+3. **JSON Schema Validation Not Enforced** (Priority: MEDIUM, Effort: 1-2 hours)
+   - Validation infrastructure exists but controlled by feature flag (likely disabled)
+   - Need to enable ENABLE_VALIDATION flag in production
+   - Run dry-run validation on existing plans before enforcement
+
+**Estimated Time to 100%:** 2-3 weeks (including testing and staging validation)
+
+---
+
+### D.2 Implementation Phases
+
+#### Phase 1: Critical UI Fixes (Week 1)
+
+**Goal:** Add missing efficiency input fields to frontend
+
+**Tasks:**
+
+1. **Add defaultEfficiency Input to Operations Form** (2-3 hours)
+   - File: `/quote-portal/domains/production/js/operations.js`
+   - Location: In `openOperationModal()` function (around line 180-250)
+   - Add input field:
+     ```html
+     <div class="form-group">
+       <label for="operation-efficiency">Default Efficiency (%)</label>
+       <input id="operation-efficiency" type="number" min="1" max="100" step="1" value="100" />
+       <small>Default efficiency for this operation (100% = no adjustment)</small>
+     </div>
+     ```
+   - Update `saveOperation()` function (around line 260) to save efficiency:
+     ```javascript
+     const efficiencyPercent = document.getElementById('operation-efficiency')?.value || 100;
+     const defaultEfficiency = parseFloat(efficiencyPercent) / 100; // Convert % to decimal
+     const op = {
+       ...otherFields,
+       defaultEfficiency: Math.max(0.01, Math.min(1.0, defaultEfficiency))
+     };
+     ```
+   - Update operation detail panel (line 195+) to display efficiency
+   - Update table display (line 126+) to show efficiency badge
+
+2. **Add Node Efficiency Override to Plan Designer** (2-3 hours)
+   - File: `/quote-portal/domains/production/js/planDesigner.js`
+   - Location: Node edit panel (search for "node edit" or "properties panel")
+   - Add input field to node properties:
+     ```html
+     <div class="form-group">
+       <label for="node-efficiency">Efficiency Override (%)</label>
+       <input id="node-efficiency" type="number" min="1" max="100" step="1" 
+              placeholder="Leave blank for operation default" />
+       <small>Override operation efficiency for this specific node</small>
+     </div>
+     ```
+   - Update node save logic to include efficiency:
+     ```javascript
+     const efficiencyInput = document.getElementById('node-efficiency')?.value;
+     if (efficiencyInput && efficiencyInput.trim()) {
+       node.efficiency = parseFloat(efficiencyInput) / 100;
+     } else {
+       delete node.efficiency; // Use operation default
+     }
+     ```
+   - Display efficiency in node card (visual indicator if overridden)
+
+**Acceptance Criteria:**
+- Operations form shows defaultEfficiency input (1-100%)
+- Saving operation persists defaultEfficiency value
+- Plan Designer shows per-node efficiency override input
+- Backend receives efficiency values correctly
+- Efficiency badge visible in operation lists
+
+**Testing:**
+```bash
+# Manual test
+1. Open Settings → Operations
+2. Edit an operation
+3. Set Default Efficiency to 85%
+4. Save and verify value persists
+5. Open Production Planning
+6. Create a node with that operation
+7. Override node efficiency to 90%
+8. Save plan
+9. Check backend logs: effectiveTime should be computed with 90% efficiency
+```
+
+---
+
+#### Phase 2: Frontend Field Mapping Verification (Week 1)
+
+**Goal:** Ensure frontend sends canonical field names and remove executionGraph
+
+**Tasks:**
+
+1. **Verify and Fix Field Mapping** (2-3 hours)
+   - File: `/quote-portal/domains/production/js/planDesigner.js`
+   - Function: `savePlanDraft()` or similar (search for "createProductionPlan" call)
+   - Required mappings:
+     ```javascript
+     const sanitizedNodes = planDesignerState.nodes.map(node => ({
+       id: node.id,
+       name: node.name,
+       operationId: node.operationId,
+       nominalTime: node.time || node.nominalTime || 60,  // Map legacy → canonical
+       efficiency: node.efficiency,  // Optional (decimal 0.01-1.0)
+       requiredSkills: node.skills || node.requiredSkills || [],  // Map legacy → canonical
+       assignedStations: node.assignedStationId 
+         ? [{ stationId: node.assignedStationId, priority: 1 }]  // String → Array
+         : (Array.isArray(node.assignedStations) ? node.assignedStations : []),
+       assignedSubstations: node.assignedSubstations || [],
+       assignmentMode: node.assignmentMode || 'auto',
+       assignedWorkerId: node.assignedWorkerId || null,
+       predecessors: Array.isArray(node.predecessors) ? node.predecessors : [],
+       materialInputs: Array.isArray(node.materialInputs) ? node.materialInputs : [],
+       outputCode: node.outputCode || null,
+       outputQty: parseFloat(node.outputQty) || 0
+     }));
+     ```
+   - **CRITICAL:** Remove executionGraph from payload:
+     ```javascript
+     const planPayload = {
+       id: planId,
+       orderCode: orderCode,
+       quantity: planQuantity,
+       nodes: sanitizedNodes,
+       // executionGraph: DO NOT INCLUDE (deprecated)
+       materialSummary: materialSummary,
+       status: status
+     };
+     ```
+
+2. **Search and Remove executionGraph References** (1 hour)
+   - Search entire `/quote-portal/domains/production/` for "executionGraph"
+   - Comment out or add deprecation warnings:
+     ```javascript
+     // DEPRECATED: executionGraph is no longer used
+     // const executionGraph = buildExecutionGraph(nodes);
+     ```
+   - Keep `buildExecutionGraph()` function if used internally for UI rendering
+   - Ensure it's NEVER sent to backend
+
+**Acceptance Criteria:**
+- planDesigner.js sends canonical field names (nominalTime, requiredSkills, assignedStations[])
+- No executionGraph in POST/PUT plan payloads
+- Backend logs show "Using canonical nodes" (not "FALLBACK: converting from executionGraph")
+- All node fields validated by JSON Schema
+
+**Testing:**
+```bash
+# Test 1: Create new plan
+1. Open browser DevTools → Network tab
+2. Create a production plan with 3 nodes
+3. Save plan
+4. Check POST request body:
+   - Should have "nodes": [...]
+   - Should NOT have "executionGraph"
+   - Nodes should have "nominalTime" (not "time")
+   - Nodes should have "requiredSkills" (not "skills")
+
+# Test 2: Backend validation
+5. Check backend logs (npm start terminal)
+6. Should see: "✅ Plan PPL-XXX using canonical nodes"
+7. Should NOT see: "⚠️ FALLBACK: converting from executionGraph"
+```
+
+---
+
+#### Phase 3: Enable Validation and Dry-Run Migration (Week 2)
+
+**Goal:** Enable JSON Schema validation and prepare for migration
+
+**Tasks:**
+
+1. **Enable JSON Schema Validation** (1 hour)
+   - File: `/quote-portal/.env` (or set environment variable)
+   - Set: `FEATURE_ENABLE_VALIDATION=true`
+   - Restart backend: `npm start`
+   - Monitor logs for validation errors
+   - Fix any plans that fail validation
+
+2. **Create Migration Dry-Run Script** (4-6 hours)
+   - File: `/quote-portal/scripts/migrateExecutionGraphToNodes.js` (create)
+   - Functionality:
+     ```javascript
+     const { getFirestore } = require('../server/firebaseAdmin');
+     const { convertExecutionGraphToNodes, validateProductionPlanNodes } = require('../server/mesRoutes');
+     
+     async function migratePlan(planId, dryRun = true) {
+       const db = getFirestore();
+       const planRef = db.collection('mes-production-plans').doc(planId);
+       const planDoc = await planRef.get();
+       
+       if (!planDoc.exists) {
+         return { status: 'not_found' };
+       }
+       
+       const data = planDoc.data();
+       
+       // Already migrated
+       if (data.nodes && data.nodes.length > 0) {
+         return { status: 'already_migrated', nodeCount: data.nodes.length };
+       }
+       
+       // No executionGraph to migrate
+       if (!data.executionGraph || data.executionGraph.length === 0) {
+         return { status: 'no_data', reason: 'Missing both nodes and executionGraph' };
+       }
+       
+       // Convert
+       const nodes = convertExecutionGraphToNodes(data.executionGraph);
+       const validation = validateProductionPlanNodes(nodes);
+       
+       if (!validation.valid) {
+         return { 
+           status: 'validation_failed', 
+           errors: validation.errors,
+           nodeCount: nodes.length
+         };
+       }
+       
+       // Write to database (if not dry-run)
+       if (!dryRun) {
+         await planRef.update({
+           nodes,
+           'meta.migratedAt': new Date().toISOString(),
+           'meta.migratedBy': 'migration-script',
+           'meta.migratedFromExecutionGraph': true
+         });
+       }
+       
+       return { 
+         status: 'migrated', 
+         nodeCount: nodes.length,
+         dryRun
+       };
+     }
+     
+     async function migrateAllPlans(dryRun = true) {
+       const db = getFirestore();
+       const plansSnapshot = await db.collection('mes-production-plans').get();
+       
+       const results = {
+         total: 0,
+         alreadyMigrated: 0,
+         migrated: 0,
+         errors: 0,
+         noData: 0,
+         errorDetails: []
+       };
+       
+       for (const doc of plansSnapshot.docs) {
+         results.total++;
+         const result = await migratePlan(doc.id, dryRun);
+         
+         switch (result.status) {
+           case 'already_migrated':
+             results.alreadyMigrated++;
+             break;
+           case 'migrated':
+             results.migrated++;
+             break;
+           case 'validation_failed':
+             results.errors++;
+             results.errorDetails.push({ planId: doc.id, errors: result.errors });
+             break;
+           case 'no_data':
+             results.noData++;
+             break;
+         }
+       }
+       
+       return results;
+     }
+     
+     // CLI execution
+     const args = process.argv.slice(2);
+     const dryRun = !args.includes('--execute');
+     const planId = args.find(arg => arg.startsWith('--planId='))?.split('=')[1];
+     
+     (async () => {
+       if (planId) {
+         console.log(`Migrating plan ${planId} (dryRun: ${dryRun})`);
+         const result = await migratePlan(planId, dryRun);
+         console.log(result);
+       } else {
+         console.log(`Migrating all plans (dryRun: ${dryRun})`);
+         const results = await migrateAllPlans(dryRun);
+         console.log('Migration Results:', results);
+         
+         if (results.errorDetails.length > 0) {
+           console.error('Plans with errors:');
+           results.errorDetails.forEach(e => {
+             console.error(`  ${e.planId}:`, e.errors);
+           });
+         }
+       }
+       
+       process.exit(0);
+     })();
+     ```
+
+3. **Run Dry-Run on Staging** (2 hours)
+   - Execute: `node scripts/migrateExecutionGraphToNodes.js --dry-run`
+   - Review output:
+     - Count of plans already migrated
+     - Count of plans that will be migrated
+     - Validation errors (fix data issues)
+   - Fix any validation errors in source data
+   - Re-run until 0 errors
+
+**Acceptance Criteria:**
+- ENABLE_VALIDATION=true in production
+- No validation errors in logs for new plan creations
+- Migration script runs successfully in dry-run mode
+- All existing plans validated (or errors documented and fixed)
+
+**Testing:**
+```bash
+# Staging
+1. Deploy to staging with ENABLE_VALIDATION=true
+2. Run migration dry-run: node scripts/migrateExecutionGraphToNodes.js --dry-run
+3. Check output:
+   - Total plans: 150
+   - Already migrated: 0
+   - Will migrate: 150
+   - Errors: 0 (or document errors)
+4. Fix any data issues
+5. Re-run until clean
+```
+
+---
+
+#### Phase 4: Staging Deployment and Testing (Week 2)
+
+**Goal:** Deploy all changes to staging and validate end-to-end
+
+**Tasks:**
+
+1. **Deploy to Staging** (1 hour)
+   - Merge all changes to staging branch
+   - Deploy backend: `git pull && npm install && pm2 restart burkol-backend`
+   - Deploy frontend: `npm run build && deploy`
+   - Set environment: `FEATURE_USE_CANONICAL_NODES=false` (disabled initially)
+   - Set: `FEATURE_ENABLE_VALIDATION=true`
+
+2. **Test Plan Creation Flow** (1 hour)
+   - Create new production plan with efficiency settings
+   - Verify canonical fields sent to backend
+   - Check backend logs for validation success
+   - Verify plan saved correctly
+
+3. **Test Launch and Execution Flow** (1 hour)
+   - Launch a plan
+   - Start an assignment (check material reservation)
+   - Complete assignment (check consumption capping)
+   - Verify effectiveTime computed correctly with efficiency
+
+4. **Enable Canonical Mode** (30 min)
+   - Set: `FEATURE_USE_CANONICAL_NODES=true`
+   - Restart backend
+   - Load old plan with executionGraph → should use fallback
+   - Create new plan → should use canonical nodes
+   - Monitor metrics
+
+**Acceptance Criteria:**
+- All UI changes deployed to staging
+- New plans created with efficiency values
+- Launch and execution work correctly
+- Canonical mode can be toggled without code changes
+- No regressions in existing functionality
+
+---
+
+#### Phase 5: Production Pilot (Week 3)
+
+**Goal:** Test migration with 5-10 real production plans
+
+**Tasks:**
+
+1. **Deploy to Production** (1 hour)
+   - Deploy backend and frontend
+   - Set: `FEATURE_USE_CANONICAL_NODES=false` (disabled initially)
+   - Set: `FEATURE_ENABLE_VALIDATION=true`
+   - Take full database backup before any changes
+
+2. **Select Pilot Plans** (30 min)
+   - Criteria:
+     - Low-risk orders (< 100 units)
+     - Simple workflow (< 5 operations)
+     - Non-urgent deadline
+     - Available materials
+   - Document pilot plan IDs
+
+3. **Migrate Pilot Plans** (1 hour)
+   - Run for each pilot:
+     ```bash
+     node scripts/migrateExecutionGraphToNodes.js --execute --planId=PLAN-XXX-001
+     ```
+   - Verify migration success
+   - Enable canonical mode: `FEATURE_USE_CANONICAL_NODES=true`
+   - Restart backend
+
+4. **Monitor Pilot Plans** (1 week)
+   - Daily checks:
+     - Reservation mismatch rate (target < 5%)
+     - Validation error rate (target < 1%)
+     - API response times (no significant increase)
+     - Worker feedback
+   - Document any issues
+
+**Acceptance Criteria:**
+- 5-10 pilot plans migrated successfully
+- Zero data corruption incidents
+- Metrics within acceptable ranges
+- Positive worker feedback
+- No rollbacks required
+
+**Rollback Plan:**
+If issues detected:
+```bash
+# Immediate rollback (< 5 minutes)
+1. Set FEATURE_USE_CANONICAL_NODES=false
+2. pm2 restart burkol-backend
+3. Verify service restored
+4. Investigate root cause
+```
+
+---
+
+### D.3 Success Metrics
+
+**Key Performance Indicators:**
+
+| Metric | Target | Critical Threshold |
+|--------|--------|-------------------|
+| Reservation Mismatch Rate | < 5% | > 20% (rollback) |
+| Validation Error Rate | < 1% | > 5% (rollback) |
+| API Response Time | < +10% baseline | > +50% (investigate) |
+| Plans Using Fallback | Decreasing | N/A |
+| Worker Satisfaction | > 80% positive | < 50% (rollback) |
+
+**Monitoring Dashboard:**
+- Reservation mismatches: `GET /api/mes/metrics` → `reservation_mismatch_count`
+- Validation errors: `GET /api/mes/metrics` → `validation_error_count`
+- Fallback usage: `GET /api/mes/metrics` → `plan_using_executionGraph_count`
+- API timing: Use APM tool or custom timing logs
+
+---
+
+### D.4 Risk Mitigation
+
+**High-Risk Areas:**
+
+1. **Missing Efficiency Inputs**
+   - Risk: Unexpected behavior if operations have no efficiency set
+   - Mitigation: Default to 1.0 (no adjustment)
+   - Testing: Verify fallback logic works
+
+2. **Frontend Field Mapping**
+   - Risk: Subtle bugs if mapping incomplete
+   - Mitigation: Comprehensive integration tests
+   - Testing: Validate POST payload structure
+
+3. **Data Migration**
+   - Risk: Validation failures on existing plans
+   - Mitigation: Dry-run and fix issues before execution
+   - Testing: Dry-run on staging first
+
+**Rollback Procedures:**
+
+- **Immediate (< 5 min):** Disable feature flag, restart server
+- **Data Restore (< 30 min):** Restore from backup if corruption suspected
+- **Full Rollback (< 2 hours):** Revert code, restore database, redeploy
+
+---
+
+### D.5 Timeline Summary
+
+**Week 1: Critical UI Fixes**
+- Day 1-2: Add efficiency inputs (operations + plan designer)
+- Day 3-4: Verify frontend field mapping
+- Day 5: Testing and fixes
+
+**Week 2: Validation and Migration Prep**
+- Day 1: Enable JSON Schema validation
+- Day 2-3: Create migration script
+- Day 4: Dry-run on staging
+- Day 5: Deploy to staging and test
+
+**Week 3: Production Pilot**
+- Day 1: Deploy to production
+- Day 2: Select and migrate pilot plans
+- Day 3-7: Monitor pilot, collect feedback
+
+**Week 4-5: (If Needed) Full Migration**
+- After successful pilot, schedule full rollout
+- Follow rollout plan (Appendix C, Prompt 9)
+
+**Total Estimated Time:** 3-5 weeks to 100% completion
+
+---
+
+### D.6 Dependencies and Prerequisites
+
+**Before Starting:**
+- ✅ All 9 prompts from Appendix C completed
+- ✅ Unit tests passing (17/17)
+- ✅ Feature flags infrastructure exists
+- ✅ Rollout plan documented
+
+**External Dependencies:**
+- Database backup system configured
+- Monitoring/alerting system in place
+- Staging environment available
+- Team availability for testing and rollback support
+
+---
+
+### D.7 Communication Plan
+
+**Stakeholders:**
+- Engineering team (implementation)
+- QA team (testing)
+- Operations team (end users)
+- Management (approval and oversight)
+
+**Communication Schedule:**
+- **Week 0:** Kickoff meeting, assign tasks
+- **Week 1:** Daily standup, end-of-week demo
+- **Week 2:** Staging deployment announcement, testing invitation
+- **Week 3:** Production pilot announcement, training session
+- **Post-Pilot:** Results presentation, go/no-go decision
+
+**Training Materials:**
+- Operation efficiency guide (how to set defaultEfficiency)
+- Node efficiency override tutorial (when to use)
+- Troubleshooting guide (common issues and fixes)
+
+---
+
+## Appendix E — Detailed Implementation Prompts for Completion
+
+**Document Purpose:** This appendix provides ready-to-use prompts for each remaining task identified in Appendix D. Each prompt is self-contained and can be executed independently by the assistant.
+
+---
+
+### Prompt E.1: Add Efficiency Input to Operations Form
+
+**Task:** Add `operation.defaultEfficiency` input field to the Operations management form.
+
+**Context:**
+The backend already computes `effectiveTime = nominalTime / efficiency` but the frontend has no way to set the efficiency value. Operations currently default to `efficiency = 1.0` (no adjustment). This prompt adds the UI to set efficiency as a percentage (1-100%).
+
+**Requirements:**
+
+1. **Add input field to operation edit modal**
+   - File: `/quote-portal/domains/production/js/operations.js`
+   - Function: `openOperationModal(op)` (around line 180-250)
+   - Location: After `expectedDefectRate` field
+   - Add HTML:
+     ```html
+     <div class="form-group">
+       <label for="operation-efficiency">Varsayılan Verimlilik (%)</label>
+       <input id="operation-efficiency" type="number" min="1" max="100" step="1" value="100" 
+              class="form-control" placeholder="100" />
+       <small class="form-text text-muted">
+         Bu operasyonun varsayılan verimlilik oranı (100% = normal, 80% = daha yavaş)
+       </small>
+     </div>
+     ```
+
+2. **Load efficiency value when editing**
+   - In `openOperationModal(op)`, after loading other fields:
+     ```javascript
+     const efficiencyEl = document.getElementById('operation-efficiency');
+     if (op && op.defaultEfficiency !== undefined) {
+       // Convert decimal to percentage (0.85 → 85)
+       efficiencyEl.value = Math.round(op.defaultEfficiency * 100);
+     } else {
+       efficiencyEl.value = 100; // Default
+     }
+     ```
+
+3. **Save efficiency value**
+   - Function: `saveOperation()` (around line 260)
+   - After reading other fields, add:
+     ```javascript
+     const efficiencyInput = document.getElementById('operation-efficiency');
+     const efficiencyPercent = parseFloat(efficiencyInput?.value) || 100;
+     
+     // Validate range
+     if (efficiencyPercent < 1 || efficiencyPercent > 100) {
+       showWarningToast('Verimlilik %1 ile %100 arasında olmalıdır');
+       return;
+     }
+     
+     // Convert percentage to decimal (85 → 0.85)
+     const defaultEfficiency = efficiencyPercent / 100;
+     
+     const op = normalizeOperation({
+       id: editingOperationId || genId('op-'),
+       name,
+       type,
+       supervisorId: supervisorId || null,
+       semiOutputCode: semiCode,
+       expectedDefectRate,
+       defaultEfficiency,  // NEW: Add to operation object
+       skills
+     });
+     ```
+
+4. **Display efficiency in operation list**
+   - Function: `buildOperationsRows()` (around line 70-120)
+   - Add efficiency badge after operation name or type:
+     ```javascript
+     const efficiencyPercent = op.defaultEfficiency ? Math.round(op.defaultEfficiency * 100) : 100;
+     const efficiencyBadge = efficiencyPercent !== 100
+       ? `<span class="badge badge-info" style="margin-left: 8px;">⚡ ${efficiencyPercent}%</span>`
+       : '';
+     
+     // In row markup:
+     <td>${escapeHtml(op.name || 'Unnamed Operation')} ${efficiencyBadge}</td>
+     ```
+
+5. **Display efficiency in detail panel**
+   - Function: `showOperationDetail(id)` (around line 195)
+   - Add efficiency row:
+     ```javascript
+     const efficiencyPercent = op.defaultEfficiency ? Math.round(op.defaultEfficiency * 100) : 100;
+     const efficiencyDisplay = `${efficiencyPercent}% ${efficiencyPercent < 100 ? '(daha yavaş)' : efficiencyPercent > 100 ? '(daha hızlı)' : '(normal)'}`;
+     
+     // In detail content:
+     <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+       <span style="min-width:120px; font-weight:600; font-size:12px; color: rgb(55,65,81);">Verimlilik:</span>
+       <span style="font-size:12px; color: rgb(17,24,39);">${escapeHtml(efficiencyDisplay)}</span>
+     </div>
+     ```
+
+**Files to modify:**
+- `/quote-portal/domains/production/js/operations.js`
+
+**Testing:**
+```bash
+# Manual test steps:
+1. npm start (in backend terminal)
+2. Open browser: http://localhost:3000/pages/settings.html
+3. Click Operations tab
+4. Click "Add Operation" or edit existing
+5. Verify "Varsayılan Verimlilik (%)" field visible
+6. Enter value: 85
+7. Save operation
+8. Reload page
+9. Edit same operation
+10. Verify efficiency shows 85%
+11. Check operation list: should show "⚡ 85%" badge
+12. Check operation detail panel: should show "85% (daha yavaş)"
+
+# Backend verification:
+13. Create a production plan using this operation
+14. Check backend logs during enrichment:
+    - Should show: effectiveTime = Math.round(nominalTime / 0.85)
+    - Example: nominalTime=60 → effectiveTime=71
+```
+
+**Acceptance Criteria:**
+- [ ] Input field visible in operation edit modal
+- [ ] Value saves correctly (decimal 0.01-1.0 in database)
+- [ ] Value loads correctly when editing (converted to percentage)
+- [ ] Validation prevents values < 1 or > 100
+- [ ] Efficiency badge visible in operation list (if != 100%)
+- [ ] Detail panel shows efficiency with explanation
+- [ ] Backend uses efficiency value in effectiveTime calculation
+
+**Commit Message:**
+```
+feat(operations): add defaultEfficiency input field to operations form
+
+- Add efficiency percentage input (1-100%) in operation modal
+- Save as decimal (0.01-1.0) in operation document
+- Display efficiency badge in operation list
+- Show efficiency in operation detail panel
+- Backend will use this value in effectiveTime calculation
+```
+
+---
+
+### Prompt E.2: Add Node Efficiency Override to Plan Designer
+
+**Task:** Add per-node `efficiency` override capability in the Plan Designer.
+
+**Context:**
+Operations have a `defaultEfficiency`, but sometimes a specific node in a plan needs a different efficiency (e.g., new worker, difficult material). This prompt adds an optional override field to the node edit panel.
+
+**Requirements:**
+
+1. **Add input field to node edit panel**
+   - File: `/quote-portal/domains/production/js/planDesigner.js`
+   - Location: Find the node properties panel (search for "node properties" or similar)
+   - Add after operation selection and time input:
+     ```html
+     <div class="form-group" style="margin-top: 12px;">
+       <label for="node-efficiency-override" style="font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 6px; display: block;">
+         Verimlilik Override (%) - Opsiyonel
+       </label>
+       <input id="node-efficiency-override" type="number" min="1" max="100" step="1" 
+              placeholder="Boş bırakın (operasyon varsayılanı kullanılır)"
+              style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;" />
+       <small style="font-size: 11px; color: #6b7280; display: block; margin-top: 4px;">
+         Bu node için özel verimlilik ayarlayın. Boş ise operasyonun varsayılan verimlilik değeri kullanılır.
+       </small>
+     </div>
+     ```
+
+2. **Load efficiency value when editing node**
+   - Find function that opens node edit panel (e.g., `editNode()` or `showNodeProperties()`)
+   - After loading other node properties:
+     ```javascript
+     const efficiencyInput = document.getElementById('node-efficiency-override');
+     if (node.efficiency !== undefined && node.efficiency !== null) {
+       // Convert decimal to percentage (0.90 → 90)
+       efficiencyInput.value = Math.round(node.efficiency * 100);
+     } else {
+       efficiencyInput.value = ''; // Empty = use operation default
+     }
+     ```
+
+3. **Save efficiency value when updating node**
+   - Find function that saves node changes (e.g., `saveNodeProperties()`)
+   - After saving other fields:
+     ```javascript
+     const efficiencyInput = document.getElementById('node-efficiency-override');
+     const efficiencyValue = efficiencyInput?.value?.trim();
+     
+     if (efficiencyValue && efficiencyValue !== '') {
+       const efficiencyPercent = parseFloat(efficiencyValue);
+       
+       // Validate range
+       if (efficiencyPercent < 1 || efficiencyPercent > 100) {
+         showWarningToast('Verimlilik %1 ile %100 arasında olmalıdır');
+         return;
+       }
+       
+       // Convert percentage to decimal (90 → 0.90)
+       node.efficiency = efficiencyPercent / 100;
+       console.log(`Node ${node.id} efficiency override: ${node.efficiency} (${efficiencyPercent}%)`);
+     } else {
+       // Remove efficiency override (use operation default)
+       delete node.efficiency;
+       console.log(`Node ${node.id} will use operation default efficiency`);
+     }
+     ```
+
+4. **Display efficiency indicator in node card**
+   - Find function that renders node cards (e.g., `renderNode()` or `buildNodeCard()`)
+   - Add visual indicator if efficiency is overridden:
+     ```javascript
+     const hasEfficiencyOverride = node.efficiency !== undefined && node.efficiency !== null;
+     const efficiencyBadge = hasEfficiencyOverride
+       ? `<span style="margin-left: 6px; padding: 2px 6px; background: #dbeafe; color: #1e40af; border-radius: 3px; font-size: 10px; font-weight: 600;">
+            ⚡ ${Math.round(node.efficiency * 100)}%
+          </span>`
+       : '';
+     
+     // In node card HTML:
+     <div class="node-title">${escapeHtml(node.name)} ${efficiencyBadge}</div>
+     ```
+
+5. **Ensure efficiency sent to backend**
+   - Find function that prepares plan payload (e.g., `savePlanDraft()`)
+   - Ensure efficiency is included in sanitized nodes:
+     ```javascript
+     const sanitizedNodes = planDesignerState.nodes.map(node => {
+       const sanitized = {
+         id: node.id,
+         name: node.name,
+         operationId: node.operationId,
+         nominalTime: node.time || node.nominalTime || 60,
+         requiredSkills: node.skills || node.requiredSkills || [],
+         // ... other fields
+       };
+       
+       // Include efficiency if overridden (optional field)
+       if (node.efficiency !== undefined && node.efficiency !== null) {
+         sanitized.efficiency = node.efficiency;
+       }
+       
+       return sanitized;
+     });
+     ```
+
+**Files to modify:**
+- `/quote-portal/domains/production/js/planDesigner.js`
+
+**Testing:**
+```bash
+# Manual test steps:
+1. npm start (backend) & npm run dev (frontend)
+2. Open Plan Designer
+3. Create a new plan
+4. Add a node (select an operation with defaultEfficiency = 85%)
+5. Click to edit node properties
+6. Verify "Verimlilik Override (%)" field visible
+7. Enter value: 95 (faster than operation default)
+8. Save node properties
+9. Verify node card shows "⚡ 95%" badge
+10. Save plan
+11. Check browser DevTools → Network → POST request body:
+    - Node should have: "efficiency": 0.95
+12. Check backend logs:
+    - Should show: effectiveTime = Math.round(nominalTime / 0.95)
+    - Example: nominalTime=60 → effectiveTime=63
+
+# Test operation default (no override):
+13. Edit same node
+14. Clear efficiency input (leave blank)
+15. Save node
+16. Verify badge disappears
+17. Save plan
+18. Check POST body: node should NOT have "efficiency" field
+19. Backend should use operation.defaultEfficiency (0.85)
+```
+
+**Acceptance Criteria:**
+- [ ] Efficiency override input field visible in node edit panel
+- [ ] Value saves correctly (decimal 0.01-1.0)
+- [ ] Value loads correctly when editing (converted to percentage)
+- [ ] Empty input removes override (use operation default)
+- [ ] Validation prevents values < 1 or > 100
+- [ ] Visual badge shows efficiency if overridden
+- [ ] Backend receives efficiency in nodes[] payload
+- [ ] Backend uses override in effectiveTime calculation
+
+**Commit Message:**
+```
+feat(plan-designer): add per-node efficiency override capability
+
+- Add efficiency override input to node edit panel (optional)
+- Save as decimal (0.01-1.0) in node object
+- Display efficiency badge in node card if overridden
+- Send efficiency to backend in canonical nodes[]
+- Backend will use node.efficiency instead of operation.defaultEfficiency
+```
+
+---
+
+### Prompt E.3: Verify and Fix Frontend Field Mapping
+
+**Task:** Verify that planDesigner.js sends canonical field names and remove executionGraph from save payload.
+
+**Context:**
+The backend expects canonical field names (nominalTime, requiredSkills, assignedStations[]). The frontend may still be using legacy names (time, skills, assignedStationId) and potentially sending executionGraph. This prompt ensures correct mapping.
+
+**Requirements:**
+
+1. **Find plan save function**
+   - File: `/quote-portal/domains/production/js/planDesigner.js`
+   - Search for: `createProductionPlan` or `updateProductionPlan` or `savePlanDraft`
+   - Identify where plan payload is constructed
+
+2. **Implement canonical field mapping**
+   - Before calling API, add sanitization:
+     ```javascript
+     function sanitizeNodesForBackend(nodes) {
+       return nodes.map(node => {
+         const sanitized = {
+           id: node.id,
+           name: node.name || 'Unnamed Node',
+           operationId: node.operationId,
+           
+           // CANONICAL: nominalTime (map from legacy 'time')
+           nominalTime: node.nominalTime || node.time || node.estimatedNominalTime || node.duration || 60,
+           
+           // CANONICAL: requiredSkills (map from legacy 'skills')
+           requiredSkills: Array.isArray(node.requiredSkills) 
+             ? node.requiredSkills 
+             : (Array.isArray(node.skills) ? node.skills : []),
+           
+           // CANONICAL: assignedStations (array format, map from legacy 'assignedStationId')
+           assignedStations: node.assignedStationId && typeof node.assignedStationId === 'string'
+             ? [{ stationId: node.assignedStationId, priority: 1 }]  // String → Array
+             : (Array.isArray(node.assignedStations) ? node.assignedStations : []),
+           
+           // Optional fields
+           assignedSubstations: Array.isArray(node.assignedSubstations) ? node.assignedSubstations : [],
+           assignmentMode: node.assignmentMode || node.allocationType || 'auto',
+           assignedWorkerId: node.assignedWorkerId || node.workerHint?.workerId || null,
+           
+           // Dependencies and materials
+           predecessors: Array.isArray(node.predecessors) ? node.predecessors : [],
+           materialInputs: Array.isArray(node.materialInputs) ? node.materialInputs : [],
+           outputCode: node.outputCode || null,
+           outputQty: parseFloat(node.outputQty) || 0
+         };
+         
+         // Optional: efficiency (only if set)
+         if (node.efficiency !== undefined && node.efficiency !== null) {
+           sanitized.efficiency = parseFloat(node.efficiency);
+         }
+         
+         return sanitized;
+       });
+     }
+     ```
+
+3. **Remove executionGraph from payload**
+   - In save function, construct payload WITHOUT executionGraph:
+     ```javascript
+     async function savePlanDraft() {
+       const sanitizedNodes = sanitizeNodesForBackend(planDesignerState.nodes);
+       
+       const planPayload = {
+         id: planDesignerState.currentPlanMeta?.id || generatePlanId(),
+         orderCode: document.getElementById('plan-order-code')?.value || '',
+         quantity: parseInt(document.getElementById('plan-quantity')?.value) || 1,
+         status: 'draft',
+         nodes: sanitizedNodes,  // CANONICAL: Use sanitized nodes
+         // executionGraph: REMOVED - DO NOT SEND (deprecated)
+         materialSummary: computeMaterialSummary(sanitizedNodes),
+         createdAt: new Date().toISOString(),
+         updatedAt: new Date().toISOString()
+       };
+       
+       try {
+         const result = await createProductionPlan(planPayload);
+         showSuccessToast('Plan kaydedildi');
+       } catch (error) {
+         console.error('Plan save error:', error);
+         showErrorToast('Plan kaydedilemedi');
+       }
+     }
+     ```
+
+4. **Add logging for verification**
+   - Before sending:
+     ```javascript
+     console.log('📤 Sending plan to backend:');
+     console.log('  - Nodes count:', planPayload.nodes.length);
+     console.log('  - Has executionGraph:', 'executionGraph' in planPayload ? '⚠️ YES (BAD)' : '✅ NO (GOOD)');
+     console.log('  - First node fields:', Object.keys(planPayload.nodes[0] || {}));
+     console.log('  - Has nominalTime:', planPayload.nodes[0]?.nominalTime ? '✅ YES' : '❌ NO');
+     console.log('  - Has requiredSkills:', planPayload.nodes[0]?.requiredSkills ? '✅ YES' : '❌ NO');
+     ```
+
+5. **Search and comment out buildExecutionGraph calls**
+   - Search file for: `buildExecutionGraph`
+   - Comment out any usage in save flow:
+     ```javascript
+     // DEPRECATED: executionGraph is no longer sent to backend
+     // const executionGraph = buildExecutionGraph(planDesignerState.nodes);
+     ```
+   - Keep function if used internally for UI rendering, but add comment:
+     ```javascript
+     /**
+      * Build execution graph for internal UI use only
+      * WARNING: This is NOT sent to backend (deprecated)
+      * @deprecated Use canonical nodes[] instead
+      */
+     export function buildExecutionGraph(nodes) {
+       // ... keep implementation if needed for UI
+     }
+     ```
+
+**Files to modify:**
+- `/quote-portal/domains/production/js/planDesigner.js`
+
+**Testing:**
+```bash
+# Test 1: New plan with canonical fields
+1. Open Plan Designer
+2. Create plan with 3 nodes
+3. Set node properties (time, skills, station)
+4. Open DevTools → Network tab
+5. Save plan
+6. Check POST /api/mes/production-plans request:
+   Request Body should have:
+   {
+     "nodes": [
+       {
+         "id": "node-1",
+         "nominalTime": 60,        // ✅ Canonical name
+         "requiredSkills": ["welding"],  // ✅ Canonical name (array)
+         "assignedStations": [{"stationId": "ST-001", "priority": 1}],  // ✅ Canonical format (array)
+         ...
+       }
+     ]
+   }
+   
+   Should NOT have:
+   - "executionGraph": ...  // ❌ Should be absent
+   - "time": 60             // ❌ Legacy name
+   - "skills": [...]        // ❌ Legacy name
+   - "assignedStationId": "ST-001"  // ❌ Legacy format
+
+# Test 2: Backend validation
+7. Check backend logs (npm start terminal):
+   - Should see: "✅ Plan PPL-1124-001 using canonical nodes"
+   - Should NOT see: "⚠️ FALLBACK: converting from executionGraph"
+   - Should NOT see: "⚠️ DEPRECATION WARNING: executionGraph is deprecated"
+
+# Test 3: Load and edit existing plan
+8. Reload page
+9. Open saved plan
+10. Edit a node (change time)
+11. Save again
+12. Verify PUT request also sends canonical fields
+
+# Test 4: Efficiency propagation
+13. Create operation with defaultEfficiency = 80%
+14. Create node with that operation
+15. Override node efficiency to 95%
+16. Save plan
+17. Check POST body: node should have "efficiency": 0.95
+18. Launch plan
+19. Check backend logs: effectiveTime should use 0.95 (not 0.80)
+```
+
+**Acceptance Criteria:**
+- [ ] POST/PUT plan requests include "nodes" with canonical field names
+- [ ] No "executionGraph" in request payloads
+- [ ] nominalTime used (not time)
+- [ ] requiredSkills used (not skills)
+- [ ] assignedStations array format (not assignedStationId string)
+- [ ] Backend logs show "using canonical nodes" (not fallback)
+- [ ] No deprecation warnings in logs
+- [ ] Efficiency values propagated correctly
+
+**Commit Message:**
+```
+refactor(plan-designer): ensure canonical field names sent to backend
+
+- Map legacy fields to canonical names before save
+  - time → nominalTime
+  - skills → requiredSkills
+  - assignedStationId → assignedStations[]
+- Remove executionGraph from save payload (deprecated)
+- Add sanitizeNodesForBackend() function
+- Add logging for verification
+- Comment out buildExecutionGraph() usage in save flow
+```
+
+---
+
+### Prompt E.4: Enable JSON Schema Validation in Production
+
+**Task:** Enable and enforce JSON Schema validation for production plan creation/update.
+
+**Context:**
+The validation infrastructure exists but is controlled by feature flag `ENABLE_VALIDATION`. This prompt enables the flag and ensures all new plans are validated.
+
+**Requirements:**
+
+1. **Check current feature flag status**
+   - File: `/quote-portal/config/featureFlags.cjs`
+   - Verify ENABLE_VALIDATION default:
+     ```javascript
+     ENABLE_VALIDATION: process.env.FEATURE_ENABLE_VALIDATION !== 'false', // default true
+     ```
+   - This means validation is ENABLED by default unless explicitly disabled
+
+2. **Set environment variable (if not already set)**
+   - File: `/quote-portal/.env` (create if doesn't exist)
+   - Add or verify:
+     ```
+     # Enable JSON Schema validation for production plans
+     FEATURE_ENABLE_VALIDATION=true
+     ```
+
+3. **Restart backend and verify**
+   - Kill and restart: `npm start`
+   - Check logs for: "🚩 Feature Flags Configuration: ENABLE_VALIDATION: ✅ ENABLED"
+
+4. **Test validation with invalid plan**
+   - Create test script: `/quote-portal/scripts/testValidation.js`
+     ```javascript
+     const axios = require('axios');
+     
+     async function testInvalidPlan() {
+       const invalidPlan = {
+         id: 'TEST-INVALID-001',
+         orderCode: 'WO-TEST-001',
+         quantity: 50,
+         nodes: [
+           {
+             // Missing required field: 'id'
+             name: 'Test Node',
+             operationId: 'OP-001',
+             nominalTime: -5,  // Invalid: must be >= 1
+             requiredSkills: 'not-an-array',  // Invalid: must be array
+             predecessors: []
+           }
+         ]
+       };
+       
+       try {
+         const response = await axios.post('http://localhost:3000/api/mes/production-plans', invalidPlan, {
+           headers: { Authorization: 'Bearer test-token' }
+         });
+         console.log('❌ FAIL: Invalid plan was accepted (should be rejected)');
+       } catch (error) {
+         if (error.response && error.response.status === 400) {
+           console.log('✅ PASS: Invalid plan rejected with 400');
+           console.log('Validation errors:', error.response.data.details);
+         } else {
+           console.log('❌ FAIL: Unexpected error:', error.message);
+         }
+       }
+     }
+     
+     testInvalidPlan();
+     ```
+
+5. **Run validation dry-run on existing plans**
+   - Create script: `/quote-portal/scripts/validateExistingPlans.js`
+     ```javascript
+     const { getFirestore } = require('../server/firebaseAdmin');
+     const { validateProductionPlanNodes } = require('../server/mesRoutes');
+     
+     async function validateExistingPlans() {
+       const db = getFirestore();
+       const plansSnapshot = await db.collection('mes-production-plans').get();
+       
+       const results = {
+         total: 0,
+         valid: 0,
+         invalid: 0,
+         invalidDetails: []
+       };
+       
+       for (const doc of plansSnapshot.docs) {
+         results.total++;
+         const data = doc.data();
+         
+         // Use nodes if available, otherwise convert from executionGraph
+         const nodes = data.nodes || (data.executionGraph ? convertExecutionGraphToNodes(data.executionGraph) : []);
+         
+         if (nodes.length === 0) {
+           console.warn(`⚠️ Plan ${doc.id}: No nodes or executionGraph`);
+           continue;
+         }
+         
+         const validation = validateProductionPlanNodes(nodes);
+         
+         if (validation.valid) {
+           results.valid++;
+           console.log(`✅ Plan ${doc.id}: Valid (${nodes.length} nodes)`);
+         } else {
+           results.invalid++;
+           console.error(`❌ Plan ${doc.id}: Invalid`);
+           console.error(`  Errors:`, validation.errors);
+           results.invalidDetails.push({
+             planId: doc.id,
+             errors: validation.errors
+           });
+         }
+       }
+       
+       console.log('\n=== Validation Summary ===');
+       console.log(`Total plans: ${results.total}`);
+       console.log(`Valid: ${results.valid}`);
+       console.log(`Invalid: ${results.invalid}`);
+       
+       if (results.invalid > 0) {
+         console.log('\n=== Invalid Plans ===');
+         results.invalidDetails.forEach(p => {
+           console.log(`Plan ${p.planId}:`);
+           p.errors.forEach(e => console.log(`  - ${e}`));
+         });
+       }
+       
+       return results;
+     }
+     
+     validateExistingPlans().then(() => process.exit(0));
+     ```
+
+6. **Fix any validation errors found**
+   - If dry-run finds errors, fix data issues in Firestore before enabling enforcement
+   - Common fixes:
+     - Add missing `id` fields
+     - Convert negative or zero `nominalTime` to positive
+     - Convert `requiredSkills` from string to array
+     - Add missing `predecessors` array
+
+7. **Monitor validation errors in production**
+   - Check metrics: `GET /api/mes/metrics`
+   - Watch for: `validation_error_count` (should be 0 or very low)
+   - If errors > 1%, investigate and fix
+
+**Files to create/modify:**
+- `/quote-portal/.env` (set ENABLE_VALIDATION=true)
+- `/quote-portal/scripts/testValidation.js` (create)
+- `/quote-portal/scripts/validateExistingPlans.js` (create)
+
+**Testing:**
+```bash
+# Test 1: Feature flag enabled
+1. Check backend logs on startup:
+   - Should see: "🚩 Feature Flags Configuration: ENABLE_VALIDATION: ✅ ENABLED"
+
+# Test 2: Invalid plan rejected
+2. Run test script:
+   node scripts/testValidation.js
+   - Should see: "✅ PASS: Invalid plan rejected with 400"
+   - Should see validation error details
+
+# Test 3: Dry-run on existing plans
+3. Run validation dry-run:
+   node scripts/validateExistingPlans.js
+   - Should see summary of valid/invalid plans
+   - If invalid > 0, document errors and fix data
+
+# Test 4: New plan creation
+4. Open Plan Designer
+5. Create valid plan
+6. Save → should succeed
+7. Check backend logs: no validation errors
+
+# Test 5: Metrics check
+8. Check metrics: curl http://localhost:3000/api/mes/metrics
+9. Verify validation_error_count = 0 (or very low)
+```
+
+**Acceptance Criteria:**
+- [ ] ENABLE_VALIDATION flag is true in production
+- [ ] Backend logs show "ENABLE_VALIDATION: ✅ ENABLED"
+- [ ] Invalid plans rejected with 400 status
+- [ ] Validation error details returned to client
+- [ ] Existing plans validated (dry-run) with 0 errors
+- [ ] Metrics show validation_error_count < 1%
+
+**Commit Message:**
+```
+feat(validation): enable JSON Schema validation for production plans
+
+- Set FEATURE_ENABLE_VALIDATION=true by default
+- Add testValidation.js script to test invalid plan rejection
+- Add validateExistingPlans.js script for dry-run on existing data
+- Monitor validation_error_count metric
+- Document validation error fixing procedures
+```
+
+---
+
+**End of Appendix E**
+
+These prompts can be executed independently by the assistant. Each prompt is self-contained with:
+- Clear context and requirements
+- Exact file paths and function locations
+- Code examples
+- Testing procedures
+- Acceptance criteria
+- Commit message suggestions
+
+**Usage:**
+Copy the entire prompt (E.1, E.2, E.3, or E.4) and paste it to the assistant. The assistant will implement the changes, test them, and verify acceptance criteria before committing.
+
