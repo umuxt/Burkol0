@@ -72,6 +72,7 @@ export function normalizeOperation(op) {
       return (letters[0].toUpperCase() + (letters[1] ? letters[1].toLowerCase() : '')).slice(0,2)
     })(),
     expectedDefectRate: parseFloat(op.expectedDefectRate) || 0,
+    defaultEfficiency: typeof op.defaultEfficiency === 'number' ? op.defaultEfficiency : 1.0,
     skills: Array.isArray(op.skills)
       ? op.skills
       : (typeof op.skills === 'string' ? op.skills.split(',').map(s=>s.trim()).filter(Boolean) : []),
