@@ -24,8 +24,8 @@ const copyComponents = () => {
       
       // Copy essential JS files
       const jsFiles = [
-        'settings-app.js',
-        'sw.js'
+        'domains/admin/settings-app.js',
+        'public/sw.js'
       ]
       
       jsFiles.forEach(file => {

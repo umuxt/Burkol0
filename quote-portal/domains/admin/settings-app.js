@@ -1,9 +1,9 @@
 // Settings App - Dedicated settings interface
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import PricingTab from './src/components/settings/DynamicPricingTab.js'
-import FormTab from './src/components/settings/FormTab.js'
-import AccountTab from './src/components/settings/AccountTab.jsx'
+import PricingTab from '../../src/components/settings/DynamicPricingTab.js'
+import FormTab from '../../src/components/settings/FormTab.js'
+import AccountTab from '../../src/components/settings/AccountTab.jsx'
 
 // Notification Hook
 function useNotifications() {
