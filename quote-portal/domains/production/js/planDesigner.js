@@ -2387,10 +2387,6 @@ export async function savePlanDraft() {
   
   const timingSummary = planDesignerState.timingSummary || summarizePlanTiming(planDesignerState.nodes, planQuantity);
   
-  // DEPRECATED: executionGraph is no longer sent to backend
-  // Backend computes execution order from canonical nodes[] server-side
-  // const executionGraph = buildExecutionGraph(planDesignerState.nodes);
-  
   // Commit semi codes before saving
   const pendingCodes = collectPendingSemiCodes(planDesignerState.nodes);
   if (pendingCodes.length > 0) {
@@ -2429,7 +2425,6 @@ export async function savePlanDraft() {
       autoAssign: true,
       materialSummary,
       timingSummary
-      // executionGraph: REMOVED - no longer sent to backend (deprecated)
     };
     
     try {
@@ -2466,13 +2461,11 @@ export async function savePlanDraft() {
     autoAssign: true,
     materialSummary,
     timingSummary
-    // executionGraph: REMOVED - DO NOT SEND (deprecated)
   };
   
   // Verification logging
   console.log('📤 Sending plan to backend:');
   console.log('  - Nodes count:', plan.nodes.length);
-  console.log('  - Has executionGraph:', 'executionGraph' in plan ? '⚠️ YES (BAD)' : '✅ NO (GOOD)');
   if (plan.nodes.length > 0) {
     console.log('  - First node fields:', Object.keys(plan.nodes[0]));
     console.log('  - Has nominalTime:', plan.nodes[0]?.nominalTime ? '✅ YES' : '❌ NO');
@@ -3030,7 +3023,6 @@ export function resetPlanDesignerState({ preserveMeta = false } = {}) {
   planDesignerState.fullscreenZoom = 100;
   planDesignerState.readOnly = false;
   planDesignerState.timingSummary = null;
-  planDesignerState.executionGraph = null;
   
   resetConnectionState();
   updateConnectButton();
@@ -3356,100 +3348,6 @@ export function getExecutionOrder() {
     console.warn('Cycle detected in plan graph. Remaining nodes:', Array.from(remaining));
   }
   return order;
-}
-
-/**
- * Build execution graph for internal UI use only
- * WARNING: This is NOT sent to backend (deprecated)
- * Backend computes execution order from canonical nodes[] server-side
- * 
- * @deprecated Use canonical nodes[] instead - executionGraph no longer sent to backend
- * @param {Array} nodes - Plan nodes with rules and predecessors
- * @returns {Array} Execution graph with metadata for each node (UI only)
- */
-export function buildExecutionGraph(nodes) {
-  if (!Array.isArray(nodes) || nodes.length === 0) {
-    return [];
-  }
-  
-  // Get topological execution order
-  const executionOrder = getExecutionOrder();
-  
-  // Create priority index map (execution order position)
-  const priorityMap = new Map();
-  executionOrder.forEach((nodeId, index) => {
-    priorityMap.set(nodeId, index);
-  });
-  
-  // Build execution graph with full metadata
-  const executionGraph = nodes.map((node, originalIndex) => {
-    const priorityIndex = priorityMap.has(node.id) 
-      ? priorityMap.get(node.id) 
-      : executionOrder.length + originalIndex; // Fallback for unreachable nodes
-    
-    // Calculate timing (nominal only - effective calculated at launch)
-    const nominalTime = Number(node.time) || 0;
-    
-    // Handle material inputs
-    const materialInputs = [];
-    if (Array.isArray(node.rawMaterials) && node.rawMaterials.length > 0) {
-      console.log(`🔍 DEBUG buildExecutionGraph - Processing node ${node.id} rawMaterials:`, node.rawMaterials);
-      node.rawMaterials.forEach(mat => {
-        const matCode = mat.id || mat.code; // Support both id and code fields
-        console.log(`  - Material: code=${matCode}, qty=${mat.qty}, unit=${mat.unit}, isDerived=${!!mat.derivedFrom}`);
-        if (mat && matCode) {
-          materialInputs.push({
-            code: matCode,
-            qty: mat.qty || 0,
-            unit: mat.unit || '',
-            isDerived: !!mat.derivedFrom // Flag for WIP materials
-          });
-        } else {
-          console.warn(`  ⚠️ Material missing code/id:`, mat);
-        }
-      });
-      console.log(`  ✓ Built ${materialInputs.length} materialInputs for node ${node.id}`);
-    } else {
-      console.log(`🔍 DEBUG buildExecutionGraph - Node ${node.id} has no rawMaterials (length: ${node.rawMaterials?.length})`);
-    }
-    
-    return {
-      nodeId: node.id,
-      name: node.name || node.id,
-      operationId: node.operationId || null,
-      operationName: node.operationName || '',
-      
-      // Prerequisite relationships
-      predecessors: Array.isArray(node.predecessors) ? [...node.predecessors] : [],
-      
-      // Assignment rules (not actual assignments)
-      requiredSkills: node.requiredSkills || [],
-      preferredStations: node.preferredStations || [],
-      allocationType: node.allocationType || 'auto',
-      workerHint: node.workerHint || null,
-      priorityTag: node.priorityTag || null,
-      
-      // Station assignments (priority-based multi-station selection)
-      assignedStations: Array.isArray(node.assignedStations) ? node.assignedStations : [],
-      
-      // Timing information (nominal only)
-      estimatedNominalTime: nominalTime,
-      
-      // Execution priority
-      priorityIndex,
-      
-      // Material information
-      materialInputs,
-      hasOutputs: !!(node.semiCode || node.outputQty),
-      outputCode: node.semiCode || null,
-      outputQty: node.outputQty || null,
-      
-      // Original node index for reference
-      nodeIndex: originalIndex
-    };
-  });
-  
-  return executionGraph;
 }
 
 // Load approved quotes with WO codes into the order select dropdown

@@ -512,8 +512,8 @@ function showCancelProgressModal(plan) {
     let outputCode = '';
     
     // Try to get from first node in execution graph
-    if (plan.executionGraph && plan.executionGraph.length > 0) {
-      const firstNode = plan.executionGraph[0];
+    if (plan.nodes && plan.nodes.length > 0) {
+      const firstNode = plan.nodes[0];
       outputCode = firstNode.outputCode || '';
       totalPlannedOutput = firstNode.outputQty || 0;
     }

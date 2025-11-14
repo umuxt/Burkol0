@@ -690,10 +690,8 @@ export function saveNodeEditBackend() {
       console.warn('Semi-code computation failed:', e)
     }
     
-    // Invalidate timing summary and execution graph cache when node changes
-    // (predecessors, assignments, or timing changes affect execution order and prerequisites)
+    // Invalidate timing summary cache when node changes
     planDesignerState.timingSummary = null;
-    planDesignerState.executionGraph = null;
     
     renderCanvas()
     const modal = document.getElementById('node-edit-modal')

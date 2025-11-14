@@ -1519,7 +1519,7 @@ function validateProductionPlanNodes(nodes) {
       errors.push(`${nodeLabel}: At least one work station must be assigned`);
     }
     
-    // 7. Validate output quantity (unit is not required for executionGraph)
+    // 7. Validate output quantity
     const outputQty = node.outputQty || node.outputQuantity;
     if (!Number.isFinite(outputQty) || outputQty <= 0) {
       errors.push(`${nodeLabel}: Output quantity must be a number greater than 0`);
@@ -1620,19 +1620,6 @@ router.post('/production-plans', withAuth, async (req, res) => {
       console.warn('⚠️ Validation disabled by feature flag - accepting plan without validation');
     }
     
-    // Cross-validate nodes vs executionGraph if both present
-    if (productionPlan.nodes && productionPlan.executionGraph) {
-      const nodeIds = productionPlan.nodes.map(n => n.id).sort();
-      const graphIds = productionPlan.executionGraph.map(n => n.id || n.nodeId).sort();
-      if (JSON.stringify(nodeIds) !== JSON.stringify(graphIds)) {
-        console.warn('⚠️ nodes[] and executionGraph[] have mismatched IDs', { 
-          planId: productionPlan.id,
-          nodeIds, 
-          graphIds 
-        });
-      }
-    }
-    
     if (!productionPlan.id) {
       throw new Error('Production plan ID is required');
     }
@@ -1640,12 +1627,6 @@ router.post('/production-plans', withAuth, async (req, res) => {
     // ========================================================================
     // VALIDATE PRODUCTION PLAN NODES (CANONICAL SCHEMA)
     // ========================================================================
-    
-    // Log deprecation warning if executionGraph is present
-    if (productionPlan.executionGraph && productionPlan.executionGraph.length > 0) {
-      console.warn('⚠️ DEPRECATION WARNING: executionGraph is deprecated, using nodes[] instead');
-      console.warn(`Plan ${productionPlan.id}: executionGraph will be ignored, please migrate to canonical nodes[] schema`);
-    }
     
     // Debug: Log first node to see what's received
     if (productionPlan.nodes && productionPlan.nodes.length > 0) {
@@ -1688,9 +1669,8 @@ router.post('/production-plans', withAuth, async (req, res) => {
     
     // Remove assignments from plan data to avoid storing in plan document
     const planData = { ...productionPlan };
-    planData.nodes = enrichedNodes; // Use enriched nodes with estimated times and effectiveTime
+    planData.nodes = enrichedNodes;
     delete planData.assignments;
-    delete planData.executionGraph; // DO NOT save executionGraph in new plans
     
     // Handle 'released' status - add release metadata
     if (productionPlan.status === 'released') {
@@ -1809,28 +1789,12 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
         console.warn('⚠️ Validation disabled by feature flag - accepting plan update without validation');
       }
       
-      // Cross-validate nodes vs executionGraph if both present
-      if (updates.nodes && updates.executionGraph) {
-        const nodeIds = updates.nodes.map(n => n.id).sort();
-        const graphIds = updates.executionGraph.map(n => n.id || n.nodeId).sort();
-        if (JSON.stringify(nodeIds) !== JSON.stringify(graphIds)) {
-          console.warn('⚠️ nodes[] and executionGraph[] have mismatched IDs', { 
-            planId: id,
-            nodeIds, 
-            graphIds 
-          });
-        }
-      }
     }
 
     // ========================================================================
     // VALIDATE PRODUCTION PLAN NODES (CANONICAL SCHEMA)
     // ========================================================================
-    if (updates.nodes || updates.executionGraph) {
-      // Log deprecation warning if executionGraph is present
-      if (updates.executionGraph && updates.executionGraph.length > 0) {
-        console.warn('⚠️ DEPRECATION WARNING: executionGraph is deprecated, using nodes[] instead');
-      }
+    if (updates.nodes) {
       
       const validation = validateProductionPlanNodes(
         updates.nodes || []
@@ -1855,7 +1819,6 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     // Remove assignments from updates to avoid storing in plan document
     const planUpdates = { ...updates };
     delete planUpdates.assignments;
-    delete planUpdates.executionGraph; // DO NOT save executionGraph in plans
     
     // Check if status is transitioning to 'released' - add release metadata
     if (updates.status === 'released') {
@@ -2641,18 +2604,18 @@ router.post('/worker-assignments/batch', withAuth, async (req, res) => {
         transaction.delete(doc.ref);
       });
 
-      // Fetch plan to get execution graph and operation details
+      // Fetch plan to get nodes and operation details
       const planRef = db.collection('mes-production-plans').doc(planId);
       const planDoc = await transaction.get(planRef);
       
       let planData = null;
-      let executionGraph = [];
+      let nodes = [];
       let planQuantity = 1;
       let operationsMap = new Map();
       
       if (planDoc.exists) {
         planData = planDoc.data();
-        executionGraph = planData.executionGraph || [];
+        nodes = planData.nodes || [];
         planQuantity = planData.quantity || 1;
         
         // Fetch operations to get expectedDefectRate
@@ -2675,8 +2638,8 @@ router.post('/worker-assignments/batch', withAuth, async (req, res) => {
         const assignmentId = assignmentIds[index];
         const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
         
-        // Find the node in execution graph
-        const node = executionGraph.find(n => n.nodeId === assignment.nodeId);
+        // Find the node in nodes array
+        const node = nodes.find(n => n.id === assignment.nodeId);
         
         // Get operation data for defect rate
         const operation = node && node.operationId ? operationsMap.get(node.operationId) : null;
@@ -2964,10 +2927,10 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         nodeState = planState.taskStates.find(ts => ts.nodeId === assignment.nodeId);
       }
       
-      // Find node info from plan's execution graph (fallback)
+      // Find node info from plan's nodes array
       let nodeInfo = null;
-      if (plan && plan.executionGraph && assignment.nodeId) {
-        nodeInfo = plan.executionGraph.find(node => node.nodeId === assignment.nodeId);
+      if (plan && plan.nodes && assignment.nodeId) {
+        nodeInfo = plan.nodes.find(node => node.id === assignment.nodeId);
       }
       
       // Build task object
@@ -4671,31 +4634,8 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     // 2. LOAD PLAN NODES AND BUILD EXECUTION GRAPH
     // ========================================================================
     
-    // FEATURE FLAG: Control canonical nodes vs executionGraph preference
-    // When USE_CANONICAL_NODES=true (Phase 3-5): prefer nodes[] (canonical model)
-    // When USE_CANONICAL_NODES=false (Phase 1-2 or rollback): prefer executionGraph[] (legacy)
-    let nodesToUse;
+    const nodesToUse = planData.nodes || [];
     
-    if (featureFlags.USE_CANONICAL_NODES) {
-      // Canonical model preferred (new behavior)
-      nodesToUse = planData.nodes || planData.executionGraph || [];
-      
-      if (planData.executionGraph && !planData.nodes) {
-        metrics.increment('plan_using_executionGraph_count');
-        console.warn(`⚠️ DEPRECATION: Plan ${planId} using executionGraph. Migrate to canonical nodes[].`);
-        console.warn(`📊 METRIC: Plan ${planId} loaded with executionGraph fallback`);
-      } else if (planData.nodes) {
-        console.log(`✅ Plan ${planId} using canonical nodes[] (feature flag enabled)`);
-      }
-    } else {
-      // Legacy model preferred (rollback mode)
-      nodesToUse = planData.executionGraph || planData.nodes || [];
-      
-      console.warn(`⚠️ ROLLBACK MODE: Feature flag USE_CANONICAL_NODES=false`);
-      console.warn(`   Plan ${planId} using ${planData.executionGraph ? 'executionGraph (legacy)' : 'nodes (fallback)'}`);
-    }
-    
-    console.log(`📊 DEBUG - Launch using data source: ${planData.nodes ? 'nodes' : 'executionGraph (deprecated)'}`);
     console.log(`📊 Total nodes to process: ${nodesToUse.length}`);
     if (nodesToUse.length > 0) {
       const sampleNode = nodesToUse[0];
@@ -5143,8 +5083,7 @@ function buildTopologicalOrder(nodes) {
  * Returns warnings array instead of throwing errors
  */
 async function validateMaterialAvailabilityForLaunch(planData, planQuantity, db) {
-  const executionGraph = planData.executionGraph || [];
-  const nodes = executionGraph.nodes || [];
+  const nodes = planData.nodes || [];
   const materialSummary = planData.materialSummary || {};
   const rawMaterials = materialSummary.rawMaterials || [];
   
@@ -5733,10 +5672,7 @@ async function assignNodeResources(
   // ========================================================================
   
   let selectedWorker = null;
-  // Support multiple field names: assignmentMode (nodes), allocationType (executionGraph)
   const assignmentMode = node.assignmentMode || node.allocationType || 'auto';
-  
-  // Support multiple field names: assignedWorkerId (nodes), workerHint.workerId (executionGraph)
   const manualWorkerId = node.assignedWorkerId || node.workerHint?.workerId;
   
   if (assignmentMode === 'manual' && manualWorkerId) {
@@ -6501,8 +6437,6 @@ router.post('/production-plans/:planId/cancel-with-progress', withAuth, async (r
         throw new Error('Plan is already cancelled');
       }
       
-      const executionGraph = planData.executionGraph || [];
-      
       // ========================================================================
       // STEP 2: Fetch All Assignments and Aggregate Reserved Materials
       // ========================================================================
@@ -6549,7 +6483,8 @@ router.post('/production-plans/:planId/cancel-with-progress', withAuth, async (r
       // ========================================================================
       
       // Get material inputs and outputs from first node (assuming all nodes produce same output)
-      const firstNode = executionGraph.length > 0 ? executionGraph[0] : null;
+      const nodes = planData?.nodes || [];
+      const firstNode = nodes.length > 0 ? nodes[0] : null;
       const materialInputs = firstNode?.materialInputs || [];
       const outputCode = firstNode?.outputCode || Object.keys(totalPlannedOutput)[0];
       const totalPlannedOutputQty = Object.values(totalPlannedOutput)[0] || 0;

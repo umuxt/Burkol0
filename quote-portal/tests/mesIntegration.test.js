@@ -67,33 +67,6 @@ describe('End-to-End: Create → Launch → Start → Complete', () => {
   });
 });
 
-describe('Backward Compatibility: executionGraph fallback', () => {
-  it('should launch plan with executionGraph (no nodes)', async () => {
-    const mockOldPlan = {
-      id: 'PLAN-OLD-001',
-      orderCode: 'WO-OLD-001',
-      status: 'draft',
-      quantity: 50,
-      executionGraph: [
-        {
-          nodeId: 'node-1',
-          name: 'Kesim',
-          operationId: 'OP-001',
-          time: 60,
-          skills: ['kesim'],
-          predecessors: []
-        }
-      ]
-    };
-
-    const launchResult = await mockLaunchPlanWithFallback(mockOldPlan);
-    
-    assert.strictEqual(launchResult.success, true);
-    assert.ok(launchResult.deprecationWarning, 'Should log deprecation warning');
-    assert.ok(launchResult.assignments, 'Should create assignments from executionGraph');
-  });
-});
-
 describe('Pause/Resume Flow', () => {
   it('should correctly track totalPausedTime', async () => {
     const assignmentId = 'WO-001-01';
@@ -164,21 +137,6 @@ async function mockLaunchPlan(planId) {
           'M-00-001': 200
         },
         materialReservationStatus: 'pending'
-      }
-    ]
-  };
-}
-
-async function mockLaunchPlanWithFallback(plan) {
-  return {
-    success: true,
-    deprecationWarning: 'Plan using deprecated executionGraph, converted to nodes',
-    assignments: [
-      {
-        id: 'WO-OLD-01',
-        planId: plan.id,
-        nodeId: plan.executionGraph[0].nodeId,
-        status: 'pending'
       }
     ]
   };

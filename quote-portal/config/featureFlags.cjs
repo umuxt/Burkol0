@@ -6,42 +6,15 @@
  * 
  * Usage:
  *   const featureFlags = require('../config/featureFlags');
- *   if (featureFlags.USE_CANONICAL_NODES) {
- *     // Use canonical nodes[] model
+ *   if (featureFlags.ENABLE_VALIDATION) {
+ *     // Use validation
  *   }
  * 
  * Environment Variables:
- *   FEATURE_USE_CANONICAL_NODES=true|false - Enable canonical node model (default: false)
  *   FEATURE_ENABLE_VALIDATION=true|false - Enable JSON schema validation (default: true)
  */
 
 module.exports = {
-  /**
-   * USE_CANONICAL_NODES
-   * 
-   * Controls whether the system prefers canonical nodes[] over legacy executionGraph[].
-   * 
-   * When TRUE:
-   * - Backend prefers plan.nodes[] as source of truth
-   * - Launch endpoint uses nodes[] for scheduling and assignment creation
-   * - executionGraph[] is only used as fallback for old plans
-   * - Deprecation warnings logged when executionGraph is used
-   * 
-   * When FALSE:
-   * - Backend prefers plan.executionGraph[] if available
-   * - Falls back to plan.nodes[] if executionGraph missing
-   * - Used for safe rollback during deployment
-   * 
-   * Rollout phases:
-   * - Phase 1-2 (Dev/Staging): false (test both code paths)
-   * - Phase 3 (Pilot): true (enable for pilot plans)
-   * - Phase 4 (Full rollout): true (enable globally)
-   * - Phase 5 (Cleanup): true (fallback code removed)
-   * 
-   * Default: false (safe default during migration)
-   */
-  USE_CANONICAL_NODES: process.env.FEATURE_USE_CANONICAL_NODES === 'true',
-
   /**
    * ENABLE_VALIDATION
    * 

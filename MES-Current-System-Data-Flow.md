@@ -10,17 +10,17 @@
 Bu dokümantasyon Burkol MES (Manufacturing Execution System) sisteminin **mevcut durumunu** yansıtmaktadır. Sistem, Quotes → MES → Materials entegrasyonu ile tam veri akış sağlamaktadır.
 
 ### System Overview
-- **Production Plan Management**: Execution graph based planning
+- **Production Plan Management**: Canonical nodes[] array based planning (DAG structure)
 - **Material Flow Tracking**: WIP (Work-in-Progress) reservation system
 - **Real-time Stock Management**: Atomic transaction-based updates
 - **Worker Assignment**: Dynamic task allocation with prerequisites
 - **Quality Control**: Defect tracking and material consumption adjustment
 
 ### Integration Status
-✅ **MES Migration**: 100% Complete (E.1-E.4)  
-✅ **Quotes-MES Integration**: Production plans with execution graphs  
-✅ **MES-Materials Integration**: **92% Complete** (see assessment report)  
-✅ **Validation System**: Feature flags enabled, schema validation active  
+✅ **Canonical Nodes Migration**: 100% Complete (executionGraph fully removed)  
+✅ **Quotes-MES Integration**: Production plans with nodes[] array  
+✅ **MES-Materials Integration**: 93.75% Complete (15/16 features active)  
+✅ **Validation System**: AJV schema validation, ENABLE_VALIDATION flag active  
 
 ---
 
@@ -28,11 +28,12 @@ Bu dokümantasyon Burkol MES (Manufacturing Execution System) sisteminin **mevcu
 1. [System Architecture](#1-system-architecture)
 2. [Data Flow Phases](#2-data-flow-phases)
 3. [Material Flow Lifecycle](#3-material-flow-lifecycle)
-4. [Quotes-MES Integration](#4-quotes-mes-integration)
-5. [MES-Materials Integration](#5-mes-materials-integration)
-6. [Field Mappings & Transformations](#6-field-mappings--transformations)
-7. [Data Integrity Rules](#7-data-integrity-rules)
-8. [Materials Integration Assessment](#8-materials-integration-assessment)
+4. [API Endpoints](#4-api-endpoints)
+5. [Quotes-MES Integration](#5-quotes-mes-integration)
+6. [MES-Materials Integration](#6-mes-materials-integration)
+7. [Field Mappings & Transformations](#7-field-mappings--transformations)
+8. [Data Integrity Rules](#8-data-integrity-rules)
+9. [Materials Integration Assessment](#9-materials-integration-assessment)
 
 ---
 
@@ -109,45 +110,53 @@ Material Inventory States:
 │  Quote    │ Contains: rawMaterials, operations, outputCode
 │  System   │
 └─────┬─────┘
-      │ POST /api/mes-plans (with nodes array)
+      │ POST /api/mes/production-plans (with nodes array)
       ▼
 ┌───────────────────────────────────────────────────────────┐
 │ MES: Create Production Plan                               │
 │ ─────────────────────────────────────────────────────────│
-│ 1. Validate nodes[] (AJV schema)                          │
-│ 2. Enrich nodes with worker/station assignments           │
-│ 3. Calculate materialSummary                              │
-│ 4. Generate Work Order Code (WO-001, WO-002...)          │
-│ 5. Store in mes-production-plans/                        │
+│ 1. Validate nodes[] (AJV schema validation)               │
+│ 2. Enrich nodes with timing estimates                     │
+│ 3. Calculate materialSummary (rawMaterials + WIP)         │
+│ 4. Generate Work Order Code (WO-YYYY-XXXXX)              │
+│ 5. Store in mes-production-plans/ collection             │
 └─────┬─────────────────────────────────────────────────────┘
       │
       ▼
 ┌───────────────────┐
 │ Production Plan   │  Status: 'draft'
-│ mes-plans/{id}    │  nodes: [node1, node2, ...]
+│ mes-plans/{id}    │  nodes: [{id, materialInputs, predecessors, ...}]
 └───────────────────┘
 ```
 
-**Node Schema:**
+**Node Schema (Canonical):**
 ```typescript
 {
-  id: string,                  // Unique operation ID
-  semiCode?: string,           // Output material code (if producing semi-finished)
-  outputCode?: string,         // Final product code
-  outputQty: number,           // Planned output quantity
-  materialInputs: [            // Raw material inputs
-    { code: string, qty: number, required: number }
+  id: string,                     // Unique node identifier (canonical)
+  name?: string,                  // Human-readable operation name
+  operationId?: string,           // Reference to mes-operations/{id}
+  operationName?: string,         // Operation display name
+  
+  // Material I/O
+  materialInputs: [               // Raw material inputs
+    { code: string, qty: number, unit?: string }
   ],
-  rawMaterials?: [             // Alternative format (backward compatibility)
-    { code: string, qty: number, derivedFrom?: string }
-  ],
-  requiredSkills: string[],    // Worker skills needed
-  nominalTime: number,         // Standard operation time (minutes)
-  efficiency?: number,         // 0-1 multiplier (optional override)
-  assignedWorkerId?: string,   // Pre-assigned worker
-  assignedStationId?: string,  // Pre-assigned station
-  predecessors: string[],      // Dependency list (nodeIds)
-  sequenceNumber: number       // Topological order
+  outputCode?: string,            // Output material code
+  outputQty: number,              // Planned output quantity per run
+  
+  // Worker assignment rules
+  requiredSkills: string[],       // Required worker skills
+  assignmentMode?: string,        // 'auto' | 'manual'
+  assignedWorkerId?: string,      // Pre-assigned worker (manual mode)
+  assignedStations: string[],     // Preferred station IDs (priority order)
+  
+  // Timing
+  nominalTime: number,            // Standard operation time (minutes)
+  efficiency?: number,            // Worker efficiency multiplier (0-1)
+  
+  // Dependencies
+  predecessors: string[],         // Node IDs that must complete first
+  priorityIndex?: number,         // Execution order (computed)
 }
 ```
 
@@ -158,7 +167,7 @@ Material Inventory States:
 │ Production Plan   │  Status: 'draft'
 │ (Ready)           │
 └─────┬─────────────┘
-      │ POST /api/mes-plans/:id/launch
+      │ POST /api/mes/production-plans/:planId/launch
       ▼
 ┌────────────────────────────────────────────────────────────┐
 │ MES: Launch Plan                                           │
@@ -416,7 +425,105 @@ STATE 3: CONSUMPTION & RELEASE (Task Complete)
 
 ---
 
-## 4. Quotes-MES Integration
+## 4. API Endpoints
+
+### 4.1 Production Plans
+
+**Core Endpoints:**
+```
+GET    /api/mes/production-plans              # List all plans
+GET    /api/mes/production-plans/:id/tasks    # Get plan execution state
+POST   /api/mes/production-plans              # Create new plan
+POST   /api/mes/production-plans/next-id      # Get next available plan ID
+PUT    /api/mes/production-plans/:id          # Update plan (draft only)
+DELETE /api/mes/production-plans/:id          # Delete plan (draft only)
+```
+
+**Lifecycle Endpoints:**
+```
+POST   /api/mes/production-plans/:planId/launch                # Launch plan (create assignments)
+POST   /api/mes/production-plans/:planId/pause                 # Pause active plan
+POST   /api/mes/production-plans/:planId/resume                # Resume paused plan
+POST   /api/mes/production-plans/:planId/cancel                # Cancel without consuming materials
+POST   /api/mes/production-plans/:planId/cancel-with-progress  # Cancel and consume materials
+```
+
+### 4.2 Worker Assignments
+
+```
+GET    /api/mes/workers/:id/assignments          # Get worker's assignments
+GET    /api/mes/worker-portal/tasks              # Get tasks for worker portal
+POST   /api/mes/worker-assignments/batch         # Batch create assignments
+POST   /api/mes/worker-assignments/activate      # Activate assignments for released plan
+PATCH  /api/mes/work-packages/:id                # Update assignment (START, PAUSE, RESUME, COMPLETE)
+```
+
+**Work Package Actions (via PATCH):**
+- `action: "start"` - Start task, reserve WIP materials
+- `action: "pause"` - Pause task
+- `action: "resume"` - Resume paused task
+- `action: "complete"` - Complete task, consume materials, add output
+
+### 4.3 Master Data
+
+```
+GET    /api/mes/operations                      # List operations
+POST   /api/mes/operations                      # Create operation
+GET    /api/mes/workers                         # List workers
+POST   /api/mes/workers                         # Create worker
+GET    /api/mes/workers/:id/stations            # Get worker's stations
+GET    /api/mes/stations                        # List stations
+POST   /api/mes/stations                        # Create station
+GET    /api/mes/stations/:id/workers            # Get station's workers
+DELETE /api/mes/stations/:id                    # Delete station
+GET    /api/mes/substations                     # List substations
+POST   /api/mes/substations/reset-all           # Reset all substations
+PATCH  /api/mes/substations/:id                 # Update substation
+```
+
+### 4.4 Materials & Orders
+
+```
+GET    /api/mes/materials                       # List materials (proxy to materials/)
+POST   /api/mes/materials                       # Create material (proxy to materials/)
+POST   /api/mes/materials/check-availability    # Check material availability
+GET    /api/mes/orders                          # List orders with production status
+PATCH  /api/mes/approved-quotes/:workOrderCode/production-state  # Update production state
+```
+
+### 4.5 Semi-Finished Products (Output Codes)
+
+```
+POST   /api/mes/output-codes/preview            # Preview generated semi-codes
+POST   /api/mes/output-codes/commit             # Commit semi-codes to materials
+```
+
+### 4.6 Templates & Work Orders
+
+```
+GET    /api/mes/templates                       # List plan templates
+POST   /api/mes/templates                       # Create template
+DELETE /api/mes/templates/:id                   # Delete template
+GET    /api/mes/work-orders                     # List work orders
+POST   /api/mes/work-orders                     # Create work order
+PUT    /api/mes/work-orders/:id                 # Update work order
+DELETE /api/mes/work-orders/:id                 # Delete work order
+```
+
+### 4.7 Monitoring & Utilities
+
+```
+GET    /api/mes/work-packages                   # List all work packages (admin view)
+GET    /api/mes/alerts                          # Get system alerts
+GET    /api/mes/metrics                         # Get performance metrics
+POST   /api/mes/metrics/reset                   # Reset metrics
+GET    /api/mes/master-data                     # Get all master data (combined)
+POST   /api/mes/master-data                     # Batch import master data
+```
+
+---
+
+## 5. Quotes-MES Integration
 
 ### 4.1 Data Transformation: Quotes → MES
 
@@ -513,7 +620,7 @@ assert(quoteTotal * planQuantity === mesTotal)  // Must match
 
 ---
 
-## 5. MES-Materials Integration
+## 6. MES-Materials Integration
 
 ### 5.1 Integration Points
 
@@ -661,7 +768,7 @@ stockMovements.create({
 
 ---
 
-## 6. Field Mappings & Transformations
+## 7. Field Mappings & Transformations
 
 ### 6.1 Node Field Mappings (Quotes → MES)
 
@@ -720,7 +827,7 @@ function getMaterialQty(material) {
 
 ---
 
-## 7. Data Integrity Rules
+## 8. Data Integrity Rules
 
 ### 7.1 Stock Invariants
 
@@ -783,7 +890,7 @@ if (featureFlags.FEATURE_ENABLE_VALIDATION) {
 
 ---
 
-## 8. Materials Integration Assessment
+## 9. Materials Integration Assessment
 
 ### 8.1 Integration Completeness Analysis
 
@@ -931,32 +1038,47 @@ if (featureFlags.FEATURE_ENABLE_VALIDATION) {
 ## Appendix A: Key File Locations
 
 **Backend:**
-- `quote-portal/server/mesRoutes.js` (7,418 lines)
-  - Material reservation: Lines 3400-3600
-  - Consumption logic: Lines 3800-4150
-  - Plan launch: Lines 1900-2100
+- `quote-portal/server/mesRoutes.js` (7,300+ lines)
+  - Production plan launch: Lines 4558-5943
+  - Material reservation (START): Lines 3200-3600
+  - Material consumption (COMPLETE): Lines 3700-4250
+  - Plan cancellation with material return: Lines 6396-6772
+  - 52 API endpoints total
 
 - `quote-portal/server/materialsRoutes.js` (1,267 lines)
   - `consumeMaterials()`: Line 328
   - `adjustMaterialStock()`: Line 240
+  - Stock movement audit trail
 
 **Frontend:**
-- `quote-portal/domains/production/js/planDesignerBackend.js`
+- `quote-portal/domains/production/js/planDesigner.js` (3,760+ lines)
+  - Plan designer UI with canvas-based editor
+  - Nodes[] array management (canonical model)
+  - Material flow visualization
+
+- `quote-portal/domains/production/js/planDesignerBackend.js` (1,544 lines)
   - Material code extraction: Lines 41, 267, 382, 510
+  - Multi-format material handling
 
-- `quote-portal/domains/production/components/materialFlowView.js`
-  - Flow visualization: Line 191
+- `quote-portal/domains/production/js/mesApi.js`
+  - API client functions
+  - Worker portal integration
 
-- `quote-portal/domains/materials/hooks/useMaterials.js`
-  - Stock event listeners: Line 70
+**Configuration:**
+- `quote-portal/config/featureFlags.cjs`
+  - ENABLE_VALIDATION flag (active)
+  - Removed: USE_CANONICAL_NODES (migration complete)
+
+**Scripts:**
+- `quote-portal/scripts/check-assignments.js` - Assignment diagnostics
+- `quote-portal/scripts/check-counters.cjs` - Counter validation
 
 **Tests:**
-- `quote-portal/scripts/testIntegration.cjs` (passing)
-- `quote-portal/tests/TEST-SCENARIOS.md` (5 test scenarios)
+- `quote-portal/tests/mesIntegration.test.js` - Integration tests
 
 **Documentation:**
 - `MES-MIGRATION-ANALYSIS-REPORT.md` (v2.0, E.1-E.4 complete)
-- `Optimized-DATA-FLOW-STUDY.md` (4,700 lines, canonical model)
+- `Optimized-DATA-FLOW-STUDY.md` (4,700 lines, canonical design)
 - `MES-DATA-FLOW-ANALYSIS.md` (918 lines, legacy analysis)
 
 ---
@@ -965,7 +1087,8 @@ if (featureFlags.FEATURE_ENABLE_VALIDATION) {
 
 | Term | Definition |
 |------|------------|
-| **Nodes Array** | Array of operation nodes with dependencies (DAG structure) |
+| **Canonical Nodes Array** | Standard nodes[] array format (executionGraph removed) |
+| **Node** | Single operation in production plan with id, materialInputs, predecessors |
 | **WIP (Work-in-Progress)** | Materials currently in production (wipReserved field) |
 | **preProductionReservedAmount** | Calculated required materials before task starts |
 | **actualReservedAmounts** | Actually reserved materials (may be less due to shortages) |
@@ -973,9 +1096,12 @@ if (featureFlags.FEATURE_ENABLE_VALIDATION) {
 | **Consumption Capping** | Limiting consumption to actualReservedAmount (invariant) |
 | **Leftover** | Unused reserved material returned to stock |
 | **Input-Output Ratio** | Material units per output unit (e.g., 2:1) |
-| **Stock Movement** | Audit trail entry for stock changes |
-| **Semi-Finished Product** | Intermediate material (outputCode, semiCode) |
+| **Stock Movement** | Audit trail entry for stock changes (stockMovements collection) |
+| **Semi-Finished Product** | Intermediate material (outputCode field) |
 | **Defect Rate** | Expected waste percentage (included in reservation buffer) |
+| **Assignment** | Worker task allocation (mes-worker-assignments collection) |
+| **Substation** | Physical work location within a station |
+| **Topological Order** | DAG-based execution sequence respecting predecessors |
 
 ---
 
@@ -987,6 +1113,7 @@ if (featureFlags.FEATURE_ENABLE_VALIDATION) {
 | 2.0 | 2024-01-12 | Optimized design (Optimized-DATA-FLOW-STUDY.md) | System |
 | 2.5 | 2024-01-14 | Migration report (MES-MIGRATION-ANALYSIS-REPORT.md v2.0) | System |
 | 3.0 | 2024-01-15 | Current system documentation with materials assessment | GitHub Copilot |
+| 3.1 | 2024-11-14 | ✅ executionGraph removal complete, API endpoints added, glossary updated | GitHub Copilot |
 
 ---
 

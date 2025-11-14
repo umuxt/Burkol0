@@ -49,12 +49,11 @@ async function checkAssignments() {
       console.log(`  Order Code: ${planData.orderCode}`);
       console.log(`  Status: ${planData.status}`);
       console.log(`  Nodes Count: ${planData.nodes?.length || 0}`);
-      console.log(`  Execution Graph Count: ${planData.executionGraph?.length || 0}`);
       
-      if (planData.executionGraph && planData.executionGraph.length > 0) {
-        console.log('\n  Execution Graph Sample:');
+      if (planData.nodes && planData.nodes.length > 0) {
+        console.log('\n  Nodes Sample:');
         const firstNode = planData.nodes[0];
-        console.log(`    Node ID: ${firstNode.nodeId}`);
+        console.log(`    Node ID: ${firstNode.id}`);
         console.log(`    Material Inputs: ${firstNode.materialInputs?.length || 0}`);
         if (firstNode.materialInputs && firstNode.materialInputs.length > 0) {
           console.log(`    First Material: ${JSON.stringify(firstNode.materialInputs[0])}`);

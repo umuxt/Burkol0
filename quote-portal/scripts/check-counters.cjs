@@ -61,19 +61,11 @@ async function checkCounters() {
       console.log(`Plan Name: ${planData.name}`);
       console.log(`Order Code: ${planData.orderCode}`);
       console.log(`Nodes Count: ${planData.nodes?.length || 0}`);
-      console.log(`Execution Graph Count: ${planData.executionGraph?.length || 0}`);
       
       if (planData.nodes && planData.nodes.length > 0) {
         console.log('\nNodes:');
         planData.nodes.forEach((node, i) => {
           console.log(`  ${i + 1}. Node ID: ${node.id}, Name: ${node.name}`);
-        });
-      }
-      
-      if (planData.executionGraph && planData.executionGraph.length > 0) {
-        console.log('\nExecution Graph:');
-        planData.executionGraph.forEach((node, i) => {
-          console.log(`  ${i + 1}. Node ID: ${node.nodeId}, Name: ${node.name}`);
           console.log(`     Material Inputs: ${node.materialInputs?.length || 0}`);
           if (node.materialInputs && node.materialInputs.length > 0) {
             node.materialInputs.forEach(mat => {
