@@ -1240,27 +1240,30 @@ router.post('/master-data', withAuth, async (req, res) => {
  * @param {Object} db - Firestore database instance
  * @returns {Promise<Array>} Enriched nodes with estimatedStartTime and estimatedEndTime
  */
-async function enrichNodesWithEstimatedTimes(nodes, executionGraph, planData, db) {
-  const nodesToProcess = executionGraph && executionGraph.length > 0 ? executionGraph : nodes;
+async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
+  // Use canonical nodes[] only (executionGraph support removed)
+  const nodesToProcess = nodes;
   
   if (!Array.isArray(nodesToProcess) || nodesToProcess.length === 0) {
     return nodes; // Return original nodes if nothing to process
   }
   
-  // Fetch workers, stations, substations for estimation
-  const [workersSnap, stationsSnap, substationsSnap] = await Promise.all([
+  // Fetch workers, stations, substations, and operations for estimation
+  const [workersSnap, stationsSnap, substationsSnap, operationsSnap] = await Promise.all([
     db.collection('mes-workers').where('status', '==', 'active').get(),
     db.collection('mes-work-stations').get(),
-    db.collection('mes-substations').get()
+    db.collection('mes-substations').get(),
+    db.collection('mes-operations').get()
   ]);
   
   const workers = workersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   const stations = stationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   const substations = substationsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  const operations = new Map(operationsSnap.docs.map(doc => [doc.id, { id: doc.id, ...doc.data() }]));
   
   // Initialize schedule tracking
   const workerSchedule = new Map(); // workerId -> [{nodeId, start, end}]
-  const stationSchedule = new Map(); // stationId -> [{nodeId, start, end}]
+  const stationSchedule = new Map(); // substationId -> [{nodeId, start, end}] (CANONICAL: uses substationId)
   const nodeEndTimes = new Map(); // nodeId -> Date (for dependency tracking)
   
   console.log('🕐 Starting node time enrichment...');
@@ -1276,6 +1279,29 @@ async function enrichNodesWithEstimatedTimes(nodes, executionGraph, planData, db
     if (processed.has(nodeId)) {
       return enrichedNodesMap.get(nodeId);
     }
+    
+    // ========================================================================
+    // COMPUTE EFFECTIVE TIME WITH EFFICIENCY (CANONICAL)
+    // ========================================================================
+    // Load operation to get defaultEfficiency
+    const operation = operations.get(node.operationId);
+    const defaultEfficiency = operation?.defaultEfficiency || 1.0;
+    
+    // Use node efficiency override if present, otherwise use operation default
+    const efficiency = node.efficiency || defaultEfficiency;
+    
+    // Support both canonical (nominalTime) and legacy (time) field names
+    const nominalTime = node.nominalTime || node.time || node.estimatedNominalTime || node.duration || 60;
+    
+    // Compute effectiveTime using inverse proportionality: effectiveTime = nominalTime / efficiency
+    // Example: nominalTime=60, efficiency=0.8 → effectiveTime=75 (takes longer with lower efficiency)
+    const effectiveTime = Math.round(nominalTime / efficiency);
+    
+    // Enrich node with effectiveTime
+    node.effectiveTime = effectiveTime;
+    node.nominalTime = nominalTime; // Ensure canonical field is set
+    
+    console.log(`Node ${nodeId}: nominalTime=${nominalTime}, efficiency=${efficiency.toFixed(2)}, effectiveTime=${effectiveTime}`);
     
     // Process predecessors first
     const predecessors = node.predecessors || [];
@@ -1303,22 +1329,22 @@ async function enrichNodesWithEstimatedTimes(nodes, executionGraph, planData, db
       // If assignment fails, use simple time estimation
       console.warn(`⚠️ Could not auto-assign node ${nodeId}: ${assignment.message}`);
       
-      // Simple fallback: use current time + duration
-      // Support multiple field names: time (nodes), estimatedNominalTime (executionGraph)
-      const duration = node.time || node.estimatedNominalTime || node.duration || 60;
+      // Simple fallback: use effectiveTime (already computed above)
       const startTime = new Date();
-      const endTime = new Date(startTime.getTime() + duration * 60000);
+      const endTime = new Date(startTime.getTime() + effectiveTime * 60000);
       
       enrichedNodesMap.set(nodeId, {
         ...node,
         estimatedStartTime: startTime.toISOString(),
         estimatedEndTime: endTime.toISOString(),
-        estimatedDuration: duration
+        estimatedDuration: effectiveTime,
+        effectiveTime: effectiveTime,
+        nominalTime: nominalTime
       });
       
       nodeEndTimes.set(nodeId, endTime);
     } else {
-      // Success - add estimated times to node
+      // Success - add estimated times to node (CANONICAL FIELDS)
       const startTime = new Date(assignment.plannedStart);
       const endTime = new Date(assignment.plannedEnd);
       
@@ -1327,10 +1353,13 @@ async function enrichNodesWithEstimatedTimes(nodes, executionGraph, planData, db
         estimatedStartTime: assignment.plannedStart,
         estimatedEndTime: assignment.plannedEnd,
         estimatedDuration: assignment.effectiveTime,
+        effectiveTime: assignment.effectiveTime, // CANONICAL
+        nominalTime: nominalTime, // CANONICAL
         estimatedWorkerId: assignment.workerId,
         estimatedWorkerName: assignment.workerName,
         estimatedStationId: assignment.stationId,
-        estimatedStationName: assignment.stationName
+        estimatedStationName: assignment.stationName,
+        estimatedSubstationId: assignment.substationId // CANONICAL
       });
       
       // Track end time for dependency resolution
@@ -1379,16 +1408,15 @@ async function enrichNodesWithEstimatedTimes(nodes, executionGraph, planData, db
 }
 
 /**
- * Validate production plan nodes for completeness and data integrity
+ * Validate production plan nodes for completeness and data integrity (CANONICAL SCHEMA)
  * Ensures all nodes have required fields before plan can be saved
  * 
- * @param {Array} nodes - Array of plan nodes or executionGraph nodes
- * @param {Array} executionGraph - Optional execution graph (if provided separately)
+ * @param {Array} nodes - Array of plan nodes (canonical schema)
  * @returns {Object} { valid: boolean, errors: Array<string> }
  */
-function validateProductionPlanNodes(nodes, executionGraph = null) {
+function validateProductionPlanNodes(nodes) {
   const errors = [];
-  const nodesToValidate = executionGraph && executionGraph.length > 0 ? executionGraph : nodes;
+  const nodesToValidate = nodes;
   
   if (!Array.isArray(nodesToValidate) || nodesToValidate.length === 0) {
     errors.push('Production plan must have at least one operation node');
@@ -1407,31 +1435,51 @@ function validateProductionPlanNodes(nodes, executionGraph = null) {
     const nodeId = node.id || node.nodeId;
     const nodeLabel = `Node ${index + 1} (${nodeId || 'unknown'})`;
     
-    // 1. Validate operation name
+    // 1. Validate node ID (CANONICAL - required)
+    if (!node.id || typeof node.id !== 'string' || node.id.trim() === '') {
+      errors.push(`${nodeLabel}: Node id is required and must be a non-empty string`);
+    }
+    
+    // 2. Validate operation name
     if (!node.name || typeof node.name !== 'string' || node.name.trim() === '') {
       errors.push(`${nodeLabel}: Operation name is required`);
     }
     
-    // 2. Validate estimated time (duration in minutes)
-    // Support multiple field names: time (nodes), estimatedNominalTime (executionGraph), duration, estimatedTime
-    const duration = node.time || node.estimatedNominalTime || node.duration || node.estimatedTime;
-    if (!Number.isFinite(duration) || duration < 1) {
-      errors.push(`${nodeLabel}: Operation duration must be a number >= 1 minute`);
+    // 3. Validate nominalTime (CANONICAL - required)
+    // Support fallback to legacy field names for backward compatibility
+    const nominalTime = node.nominalTime || node.time || node.estimatedNominalTime || node.duration;
+    if (!Number.isFinite(nominalTime) || nominalTime < 1) {
+      errors.push(`${nodeLabel}: nominalTime must be a number >= 1 minute`);
     }
     
-    // 3. Validate station assignments
+    // 4. Validate efficiency (CANONICAL - optional)
+    if (node.efficiency !== undefined && node.efficiency !== null) {
+      const eff = parseFloat(node.efficiency);
+      if (!Number.isFinite(eff) || eff <= 0 || eff > 1) {
+        errors.push(`${nodeLabel}: efficiency must be between 0.01 and 1.0`);
+      }
+    }
+    
+    // 5. Validate assignmentMode and assignedWorkerId (CANONICAL)
+    if (node.assignmentMode === 'manual') {
+      if (!node.assignedWorkerId || typeof node.assignedWorkerId !== 'string' || node.assignedWorkerId.trim() === '') {
+        errors.push(`${nodeLabel}: assignmentMode='manual' requires assignedWorkerId to be present and non-empty`);
+      }
+    }
+    
+    // 6. Validate station assignments
     const stations = node.assignedStations || [];
     if (!Array.isArray(stations) || stations.length === 0) {
       errors.push(`${nodeLabel}: At least one work station must be assigned`);
     }
     
-    // 4. Validate output quantity (unit is not required for executionGraph)
+    // 7. Validate output quantity (unit is not required for executionGraph)
     const outputQty = node.outputQty || node.outputQuantity;
     if (!Number.isFinite(outputQty) || outputQty <= 0) {
       errors.push(`${nodeLabel}: Output quantity must be a number greater than 0`);
     }
     
-    // 5. Validate material inputs
+    // 8. Validate material inputs
     const materials = node.rawMaterials || [];
     const materialInputs = node.materialInputs || []; // For executionGraph nodes
     const allMaterials = materials.length > 0 ? materials : materialInputs;
@@ -1514,8 +1562,14 @@ router.post('/production-plans', withAuth, async (req, res) => {
     }
 
     // ========================================================================
-    // VALIDATE PRODUCTION PLAN NODES
+    // VALIDATE PRODUCTION PLAN NODES (CANONICAL SCHEMA)
     // ========================================================================
+    
+    // Log deprecation warning if executionGraph is present
+    if (productionPlan.executionGraph && productionPlan.executionGraph.length > 0) {
+      console.warn('⚠️ DEPRECATION WARNING: executionGraph is deprecated, using nodes[] instead');
+      console.warn(`Plan ${productionPlan.id}: executionGraph will be ignored, please migrate to canonical nodes[] schema`);
+    }
     
     // Debug: Log first node to see what's received
     if (productionPlan.nodes && productionPlan.nodes.length > 0) {
@@ -1523,8 +1577,7 @@ router.post('/production-plans', withAuth, async (req, res) => {
     }
     
     const validation = validateProductionPlanNodes(
-      productionPlan.nodes || [],
-      productionPlan.executionGraph || null
+      productionPlan.nodes || []
     );
     
     if (!validation.valid) {
@@ -1544,24 +1597,24 @@ router.post('/production-plans', withAuth, async (req, res) => {
     const createdBy = actorEmail || actorName || null;
 
     // ========================================================================
-    // ENRICH NODES WITH ESTIMATED START/END TIMES
+    // ENRICH NODES WITH ESTIMATED START/END TIMES (CANONICAL)
     // ========================================================================
     // Add estimated timing information to nodes based on:
-    // 1. Node duration (time field)
+    // 1. Node nominalTime and efficiency → effectiveTime
     // 2. Predecessor dependencies
     // 3. Worker schedule constraints (if available)
     
     const enrichedNodes = await enrichNodesWithEstimatedTimes(
       productionPlan.nodes || [],
-      productionPlan.executionGraph || null,
       productionPlan,
       db
     );
     
     // Remove assignments from plan data to avoid storing in plan document
     const planData = { ...productionPlan };
-    planData.nodes = enrichedNodes; // Use enriched nodes with estimated times
+    planData.nodes = enrichedNodes; // Use enriched nodes with estimated times and effectiveTime
     delete planData.assignments;
+    delete planData.executionGraph; // DO NOT save executionGraph in new plans
     
     // Handle 'released' status - add release metadata
     if (productionPlan.status === 'released') {
@@ -1663,12 +1716,16 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     const { assignments } = updates; // Extract assignments from updates to avoid storing in plan doc
 
     // ========================================================================
-    // VALIDATE PRODUCTION PLAN NODES (if nodes or executionGraph are being updated)
+    // VALIDATE PRODUCTION PLAN NODES (CANONICAL SCHEMA)
     // ========================================================================
     if (updates.nodes || updates.executionGraph) {
+      // Log deprecation warning if executionGraph is present
+      if (updates.executionGraph && updates.executionGraph.length > 0) {
+        console.warn('⚠️ DEPRECATION WARNING: executionGraph is deprecated, using nodes[] instead');
+      }
+      
       const validation = validateProductionPlanNodes(
-        updates.nodes || [],
-        updates.executionGraph || null
+        updates.nodes || []
       );
       
       if (!validation.valid) {
@@ -1690,6 +1747,7 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     // Remove assignments from updates to avoid storing in plan document
     const planUpdates = { ...updates };
     delete planUpdates.assignments;
+    delete planUpdates.executionGraph; // DO NOT save executionGraph in plans
     
     // Check if status is transitioning to 'released' - add release metadata
     if (updates.status === 'released') {
@@ -3580,12 +3638,13 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             throw new Error(`Production plan ${planId} not found`);
           }
           
-          const planData = planDoc.data();
-          const executionGraph = planData.executionGraph || [];
-          const node = executionGraph.find(n => n.nodeId === nodeId);
+          // Get material inputs and output information
+          // CANONICAL: Prefer nodes[] over executionGraph[] (deprecated)
+          const nodesToUse = planData.nodes || planData.executionGraph || [];
+          const node = nodesToUse.find(n => (n.id === nodeId) || (n.nodeId === nodeId));
           
           if (!node) {
-            console.error(`Node ${nodeId} not found in execution graph`);
+            console.error(`Node ${nodeId} not found in plan nodes (searched ${nodesToUse.length} nodes)`);
             throw new Error(`Task node ${nodeId} not found in production plan`);
           }
           
@@ -4447,14 +4506,17 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     // 2. LOAD PLAN NODES AND BUILD EXECUTION GRAPH
     // ========================================================================
     
-    // Try executionGraph first (enriched with materialInputs), fallback to nodes
-    const executionGraph = planData.executionGraph || [];
-    const nodes = executionGraph.length > 0 ? executionGraph : (planData.nodes || []);
+    // CANONICAL: Prefer nodes[] over executionGraph[] (executionGraph deprecated)
+    const nodesToUse = planData.nodes || planData.executionGraph || [];
     
-    console.log(`📊 DEBUG - Launch using data source: ${executionGraph.length > 0 ? 'executionGraph' : 'nodes'}`);
-    console.log(`📊 Total nodes to process: ${nodes.length}`);
-    if (nodes.length > 0) {
-      const sampleNode = nodes[0];
+    if (planData.executionGraph && !planData.nodes) {
+      console.warn(`⚠️ DEPRECATION: Plan ${planId} using executionGraph. Migrate to canonical nodes[].`);
+    }
+    
+    console.log(`📊 DEBUG - Launch using data source: ${planData.nodes ? 'nodes' : 'executionGraph (deprecated)'}`);
+    console.log(`📊 Total nodes to process: ${nodesToUse.length}`);
+    if (nodesToUse.length > 0) {
+      const sampleNode = nodesToUse[0];
       console.log(`📊 Sample node structure:`, {
         id: sampleNode.id || sampleNode.nodeId,
         hasNodeId: !!sampleNode.nodeId,
@@ -4464,7 +4526,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       });
     }
     
-    if (nodes.length === 0) {
+    if (nodesToUse.length === 0) {
       return res.status(422).json({
         error: 'empty_plan',
         message: 'Cannot launch plan with no operations'
@@ -4472,7 +4534,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     }
     
     // Build execution order using topological sort
-    const executionOrder = buildTopologicalOrder(nodes);
+    const executionOrder = buildTopologicalOrder(nodesToUse);
     
     if (executionOrder.error) {
       return res.status(400).json({
@@ -4596,7 +4658,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     // Process nodes in topological order
     for (const nodeId of executionOrder.order) {
       // Try to find node by nodeId (executionGraph) or id (nodes)
-      const node = nodes.find(n => n.nodeId === nodeId || n.id === nodeId);
+      const node = nodesToUse.find(n => n.nodeId === nodeId || n.id === nodeId);
       if (!node) {
         assignmentErrors.push({
           nodeId,
@@ -5304,10 +5366,19 @@ async function assignNodeResources(
   nodeEndTimes = new Map(), // Track when predecessor nodes finish
   db = null // Database instance for fetching operations
 ) {
-  // Support multiple field names: requiredSkills (executionGraph), skills (nodes)
+  // CANONICAL: Support multiple field names for backward compatibility
+  // Canonical: requiredSkills, Legacy: skills
   const requiredSkills = node.requiredSkills || node.skills || [];
-  // Support multiple field names: time (nodes), estimatedNominalTime (executionGraph)
-  const nominalTime = parseFloat(node.time || node.estimatedNominalTime || node.duration) || 60; // minutes
+  
+  // CANONICAL: effectiveTime (computed with efficiency) > nominalTime > legacy fields
+  // effectiveTime = nominalTime / efficiency (inverse proportionality)
+  const effectiveTime = node.effectiveTime 
+    ? parseFloat(node.effectiveTime)
+    : (node.nominalTime ? parseFloat(node.nominalTime) : parseFloat(node.time || node.estimatedNominalTime || node.duration || 60));
+  
+  const nominalTime = node.nominalTime 
+    ? parseFloat(node.nominalTime)
+    : parseFloat(node.time || node.estimatedNominalTime || node.duration || 60); // minutes
   
   // ========================================================================
   // STATION & SUBSTATION SELECTION (Priority-based with smart allocation)
@@ -5562,11 +5633,17 @@ async function assignNodeResources(
   // TIME CALCULATION WITH DEPENDENCY TRACKING
   // ========================================================================
   
-  // Calculate effective time based on worker and station efficiency
-  const workerEfficiency = selectedWorker.efficiency || 1.0;
-  const stationEfficiency = selectedStation.efficiency || 1.0;
-  const combinedEfficiency = workerEfficiency * stationEfficiency;
-  const effectiveTime = combinedEfficiency > 0 ? nominalTime / combinedEfficiency : nominalTime;
+  // CANONICAL: Use effectiveTime from node (already efficiency-adjusted) for scheduling
+  // Only apply worker/station efficiency if effectiveTime not already computed
+  let schedulingTime = effectiveTime; // Use the effectiveTime computed at top of function
+  
+  if (!node.effectiveTime) {
+    // Fallback: If node doesn't have pre-computed effectiveTime, apply efficiencies now
+    const workerEfficiency = selectedWorker.efficiency || 1.0;
+    const stationEfficiency = selectedStation.efficiency || 1.0;
+    const combinedEfficiency = workerEfficiency * stationEfficiency;
+    schedulingTime = combinedEfficiency > 0 ? nominalTime / combinedEfficiency : nominalTime;
+  }
   
   // Find next available time slot for this worker
   const workerAssignments = workerSchedule.get(selectedWorker.id) || [];
@@ -5641,14 +5718,14 @@ async function assignNodeResources(
   // CALCULATE END TIME WITH BREAKS (Madde 6)
   // ========================================================================
   
-  // Calculate end time considering breaks and work schedule
+  // CANONICAL: Use schedulingTime (effectiveTime from node or computed with efficiency)
   let endTime;
   if (scheduleBlocks.length > 0) {
-    endTime = calculateEndTimeWithBreaks(startTime, effectiveTime, scheduleBlocks);
-    console.log(`⏰ Calculated end time with breaks: ${endTime.toISOString()} (effective time: ${effectiveTime} min)`);
+    endTime = calculateEndTimeWithBreaks(startTime, schedulingTime, scheduleBlocks);
+    console.log(`⏰ Calculated end time with breaks: ${endTime.toISOString()} (scheduling time: ${schedulingTime} min)`);
   } else {
     // No schedule constraints - simple addition
-    endTime = new Date(startTime.getTime() + effectiveTime * 60000);
+    endTime = new Date(startTime.getTime() + schedulingTime * 60000);
   }
   
   // ========================================================================
@@ -5720,8 +5797,8 @@ async function assignNodeResources(
     substationCode: selectedSubstation ? selectedSubstation.code : null,
     plannedStart: startTime.toISOString(),
     plannedEnd: endTime.toISOString(),
-    nominalTime,
-    effectiveTime,
+    nominalTime, // CANONICAL: nominalTime (base time without efficiency)
+    effectiveTime: schedulingTime, // CANONICAL: effectiveTime (efficiency-adjusted time)
     status: 'pending',
     // Material reservation fields
     preProductionReservedAmount: Object.keys(preProductionReservedAmount).length > 0 
