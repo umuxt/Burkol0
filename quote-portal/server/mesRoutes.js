@@ -11,6 +11,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const planSchema = require('./models/ProductionPlanSchema.json');
 const assignmentSchema = require('./models/AssignmentSchema.json');
+const featureFlags = require('../config/featureFlags.cjs');
 
 const ajv = new Ajv({ allErrors: true });
 addFormats(ajv);
@@ -18,6 +19,9 @@ const validatePlan = ajv.compile(planSchema);
 const validateAssignment = ajv.compile(assignmentSchema);
 
 const router = express.Router();
+
+// Log feature flag status on module load
+featureFlags.logStatus();
 
 // ============================================================================
 // METRICS COLLECTION
@@ -1670,14 +1674,18 @@ router.post('/production-plans', withAuth, async (req, res) => {
     const productionPlan = req.body;
     const { assignments } = productionPlan; // Extract assignments from plan data
     
-    // Validate plan schema
-    if (!validatePlan(productionPlan)) {
-      metrics.increment('validation_error_count');
-      console.error('❌ Plan validation failed:', validatePlan.errors);
-      return res.status(400).json({ 
-        error: 'Invalid plan schema', 
-        details: validatePlan.errors 
-      });
+    // Validate plan schema (controlled by feature flag)
+    if (featureFlags.ENABLE_VALIDATION) {
+      if (!validatePlan(productionPlan)) {
+        metrics.increment('validation_error_count');
+        console.error('❌ Plan validation failed:', validatePlan.errors);
+        return res.status(400).json({ 
+          error: 'Invalid plan schema', 
+          details: validatePlan.errors 
+        });
+      }
+    } else {
+      console.warn('⚠️ Validation disabled by feature flag - accepting plan without validation');
     }
     
     // Cross-validate nodes vs executionGraph if both present
@@ -1854,15 +1862,19 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     // ========================================================================
     // VALIDATE PRODUCTION PLAN SCHEMA
     // ========================================================================
-    // Validate plan schema if full plan object is provided
+    // Validate plan schema if full plan object is provided (controlled by feature flag)
     if (updates.nodes && updates.id) {
-      if (!validatePlan(updates)) {
-        metrics.increment('validation_error_count');
-        console.error('❌ Plan update validation failed:', validatePlan.errors);
-        return res.status(400).json({ 
-          error: 'Invalid plan schema', 
-          details: validatePlan.errors 
-        });
+      if (featureFlags.ENABLE_VALIDATION) {
+        if (!validatePlan(updates)) {
+          metrics.increment('validation_error_count');
+          console.error('❌ Plan update validation failed:', validatePlan.errors);
+          return res.status(400).json({ 
+            error: 'Invalid plan schema', 
+            details: validatePlan.errors 
+          });
+        }
+      } else {
+        console.warn('⚠️ Validation disabled by feature flag - accepting plan update without validation');
       }
       
       // Cross-validate nodes vs executionGraph if both present
@@ -4734,13 +4746,28 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     // 2. LOAD PLAN NODES AND BUILD EXECUTION GRAPH
     // ========================================================================
     
-    // CANONICAL: Prefer nodes[] over executionGraph[] (executionGraph deprecated)
-    const nodesToUse = planData.nodes || planData.executionGraph || [];
+    // FEATURE FLAG: Control canonical nodes vs executionGraph preference
+    // When USE_CANONICAL_NODES=true (Phase 3-5): prefer nodes[] (canonical model)
+    // When USE_CANONICAL_NODES=false (Phase 1-2 or rollback): prefer executionGraph[] (legacy)
+    let nodesToUse;
     
-    if (planData.executionGraph && !planData.nodes) {
-      metrics.increment('plan_using_executionGraph_count');
-      console.warn(`⚠️ DEPRECATION: Plan ${planId} using executionGraph. Migrate to canonical nodes[].`);
-      console.warn(`📊 METRIC: Plan ${planId} loaded with executionGraph fallback`);
+    if (featureFlags.USE_CANONICAL_NODES) {
+      // Canonical model preferred (new behavior)
+      nodesToUse = planData.nodes || planData.executionGraph || [];
+      
+      if (planData.executionGraph && !planData.nodes) {
+        metrics.increment('plan_using_executionGraph_count');
+        console.warn(`⚠️ DEPRECATION: Plan ${planId} using executionGraph. Migrate to canonical nodes[].`);
+        console.warn(`📊 METRIC: Plan ${planId} loaded with executionGraph fallback`);
+      } else if (planData.nodes) {
+        console.log(`✅ Plan ${planId} using canonical nodes[] (feature flag enabled)`);
+      }
+    } else {
+      // Legacy model preferred (rollback mode)
+      nodesToUse = planData.executionGraph || planData.nodes || [];
+      
+      console.warn(`⚠️ ROLLBACK MODE: Feature flag USE_CANONICAL_NODES=false`);
+      console.warn(`   Plan ${planId} using ${planData.executionGraph ? 'executionGraph (legacy)' : 'nodes (fallback)'}`);
     }
     
     console.log(`📊 DEBUG - Launch using data source: ${planData.nodes ? 'nodes' : 'executionGraph (deprecated)'}`);
