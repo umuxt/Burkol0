@@ -1669,6 +1669,844 @@ This completes the detailed end-to-end process flow documentation for Prompt 2.
 
 ---
 
+## API Contract Changes (Detailed)
+
+This section documents all API endpoint changes required for the canonical model migration. Each endpoint includes old vs new contract specifications, request/response examples, validation rules, error responses, and backward compatibility strategies.
+
+---
+
+### Overview of Changes
+
+The canonical model migration affects the following endpoints:
+1. **POST /api/mes/production-plans** — Create production plan
+2. **PUT /api/mes/production-plans/:id** — Update production plan
+3. **POST /api/mes/production-plans/:planId/launch** — Launch plan
+4. **PATCH /api/mes/worker-assignments/:assignmentId** — Update assignment (start, pause, resume, complete)
+
+**Key Changes:**
+- Accept only `nodes[]` with canonical field names (prefer over `executionGraph[]`)
+- Server-side validation with JSON Schema
+- Server-side enrichment (compute `effectiveTime`)
+- Enhanced error responses with detailed validation feedback
+
+---
+
+### 1. POST /api/mes/production-plans
+
+**Endpoint:** `POST /api/mes/production-plans`
+
+**Purpose:** Create a new production plan with canonical nodes.
+
+#### Old Contract (Pre-Migration)
+
+**Request Body:**
+```json
+{
+  "orderCode": "WO-2025-001",
+  "quantity": 100,
+  "nodes": [...],
+  "executionGraph": [...]  // DEPRECATED: dual structure
+}
+```
+
+**Accepted Fields (nodes):**
+- `time` or `estimatedNominalTime` (minutes) — inconsistent naming
+- `skills` (array) — should be `requiredSkills`
+- `assignedStationId` (string) — should be array format
+- Mixed field names across frontend/backend
+
+**Backend Behavior:**
+- Accept both `nodes[]` and `executionGraph[]`
+- Use `executionGraph[]` as source of truth if present
+- No strict validation on field names
+
+---
+
+#### New Contract (Post-Migration)
+
+**Request Body:**
+```json
+{
+  "orderCode": "WO-2025-001",
+  "quantity": 100,
+  "notes": "Production plan for customer order",
+  "nodes": [
+    {
+      "id": "node-1",
+      "name": "Kesim Operasyonu",
+      "operationId": "OP-001",
+      "nominalTime": 60,
+      "efficiency": 0.85,
+      "requiredSkills": ["welding", "assembly"],
+      "assignedStations": [
+        {
+          "stationId": "ST-001",
+          "priority": 1
+        }
+      ],
+      "assignedSubstations": ["SUB-001-A"],
+      "assignmentMode": "auto",
+      "assignedWorkerId": null,
+      "predecessors": [],
+      "materialInputs": [
+        {
+          "code": "M-00-001",
+          "qty": 10.5,
+          "required": true
+        }
+      ],
+      "outputCode": "M-10-001",
+      "outputQty": 100
+    }
+  ]
+}
+```
+
+**Required Fields (nodes):**
+- `id` (string) — unique node identifier
+- `name` (string) — operation name
+- `operationId` (string) — reference to mes-operations
+- `nominalTime` (integer > 0) — design-time duration in minutes
+- `predecessors` (array) — valid node IDs
+
+**Optional Fields (nodes):**
+- `efficiency` (number, 0.01-1.0) — per-node efficiency override
+- `requiredSkills` (array of strings) — worker skills needed
+- `assignedStations` (array of objects) — station assignment hints
+- `assignedSubstations` (array of strings) — substation hints
+- `assignmentMode` (enum: 'auto' | 'manual') — worker allocation mode
+- `assignedWorkerId` (string) — if assignmentMode='manual'
+- `materialInputs` (array) — input materials
+- `outputCode` (string) — output material code
+- `outputQty` (number) — expected output quantity
+
+**Backend Behavior:**
+1. Validate `nodes[]` using `validateProductionPlanNodes(nodes)`
+2. If `executionGraph[]` present, log deprecation warning
+3. Enrich nodes using `enrichNodesWithEstimatedTimes(nodes, planData, db)`
+4. Save plan with enriched `nodes[]` only (do NOT save `executionGraph[]`)
+
+**Response:**
+```json
+{
+  "success": true,
+  "plan": {
+    "id": "PLAN-001",
+    "orderCode": "WO-2025-001",
+    "quantity": 100,
+    "status": "draft",
+    "nodes": [
+      {
+        "id": "node-1",
+        "name": "Kesim Operasyonu",
+        "operationId": "OP-001",
+        "nominalTime": 60,
+        "efficiency": 0.85,
+        "effectiveTime": 71,  // Server-computed: 60 / 0.85 = 70.6 → 71
+        "estimatedStart": 0,
+        "estimatedEnd": 71,
+        "requiredSkills": ["welding", "assembly"],
+        "assignedStations": [{"stationId": "ST-001", "priority": 1}],
+        "assignedSubstations": ["SUB-001-A"],
+        "assignmentMode": "auto",
+        "assignedWorkerId": null,
+        "predecessors": [],
+        "materialInputs": [{"code": "M-00-001", "qty": 10.5, "required": true}],
+        "outputCode": "M-10-001",
+        "outputQty": 100
+      }
+    ],
+    "createdAt": "2025-11-14T10:00:00Z"
+  }
+}
+```
+
+**Validation Rules:**
+- Each node must have `id`, `name`, `operationId`, `nominalTime` > 0
+- `predecessors` must reference existing node IDs (no circular dependencies)
+- If `assignmentMode='manual'`, `assignedWorkerId` must be present and non-empty
+- `efficiency` must be between 0.01 and 1.0 if specified
+- `nominalTime` must be positive integer
+
+**Backward Compatibility:**
+```javascript
+// Backend logic:
+if (req.body.executionGraph && !req.body.nodes) {
+  console.warn('executionGraph is deprecated, converting to nodes');
+  req.body.nodes = convertExecutionGraphToNodes(req.body.executionGraph);
+}
+
+if (req.body.executionGraph && req.body.nodes) {
+  console.warn('Both nodes and executionGraph present, using nodes');
+}
+```
+
+**Error Responses:**
+
+**400 Bad Request - Invalid Schema:**
+```json
+{
+  "error": "Invalid plan schema",
+  "details": [
+    {
+      "field": "nodes[0].nominalTime",
+      "message": "must be greater than 0",
+      "value": -10
+    },
+    {
+      "field": "nodes[1].id",
+      "message": "is required",
+      "value": null
+    }
+  ]
+}
+```
+
+**400 Bad Request - Circular Dependencies:**
+```json
+{
+  "error": "Invalid node dependencies",
+  "message": "Circular dependency detected: node-1 → node-2 → node-3 → node-1"
+}
+```
+
+**400 Bad Request - Invalid Predecessors:**
+```json
+{
+  "error": "Invalid predecessors",
+  "details": [
+    {
+      "nodeId": "node-2",
+      "invalidPredecessor": "node-99",
+      "message": "Predecessor node-99 does not exist"
+    }
+  ]
+}
+```
+
+**400 Bad Request - Manual Assignment Missing Worker:**
+```json
+{
+  "error": "Invalid assignment mode",
+  "message": "Node node-3 has assignmentMode='manual' but assignedWorkerId is missing"
+}
+```
+
+**500 Internal Server Error - Operation Not Found:**
+```json
+{
+  "error": "Operation not found",
+  "message": "Operation OP-999 referenced by node node-1 does not exist in mes-operations"
+}
+```
+
+**cURL Example:**
+```bash
+curl -X POST https://api.example.com/api/mes/production-plans \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "orderCode": "WO-2025-001",
+    "quantity": 100,
+    "nodes": [
+      {
+        "id": "node-1",
+        "name": "Kesim",
+        "operationId": "OP-001",
+        "nominalTime": 60,
+        "efficiency": 0.85,
+        "requiredSkills": ["welding"],
+        "assignedStations": [{"stationId": "ST-001", "priority": 1}],
+        "assignmentMode": "auto",
+        "predecessors": [],
+        "materialInputs": [{"code": "M-00-001", "qty": 10.5}],
+        "outputCode": "M-10-001",
+        "outputQty": 100
+      }
+    ]
+  }'
+```
+
+---
+
+### 2. PUT /api/mes/production-plans/:id
+
+**Endpoint:** `PUT /api/mes/production-plans/:id`
+
+**Purpose:** Update an existing production plan (draft status only).
+
+#### Contract (Same as POST)
+
+**Request Body:** Same structure as POST (see above)
+
+**Validation:** Same rules as POST
+
+**Additional Validation:**
+- Plan must exist (404 if not found)
+- Plan must be in `draft` status (cannot update released/in-progress plans)
+
+**Error Responses:**
+
+**404 Not Found:**
+```json
+{
+  "error": "Plan not found",
+  "planId": "PLAN-999"
+}
+```
+
+**400 Bad Request - Invalid Status:**
+```json
+{
+  "error": "Cannot update plan",
+  "message": "Plan PLAN-001 is in status 'released', only 'draft' plans can be updated"
+}
+```
+
+**cURL Example:**
+```bash
+curl -X PUT https://api.example.com/api/mes/production-plans/PLAN-001 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "orderCode": "WO-2025-001",
+    "quantity": 150,
+    "nodes": [...]
+  }'
+```
+
+---
+
+### 3. POST /api/mes/production-plans/:planId/launch
+
+**Endpoint:** `POST /api/mes/production-plans/:planId/launch`
+
+**Purpose:** Launch a production plan by creating worker assignments.
+
+#### Old Contract (Pre-Migration)
+
+**Input:** No body required
+
+**Backend Behavior:**
+- Load plan (use `executionGraph[]` if available)
+- Generate assignments from `executionGraph[]`
+
+---
+
+#### New Contract (Post-Migration)
+
+**Input:** No body required
+
+**Backend Behavior:**
+1. Load plan from Firestore
+2. Prefer `plan.nodes[]` over `plan.executionGraph[]`:
+   ```javascript
+   const nodesToUse = plan.nodes || plan.executionGraph || [];
+   if (!plan.nodes && plan.executionGraph) {
+     console.warn(`Plan ${planId} using deprecated executionGraph, consider migration`);
+   }
+   ```
+3. Build topological order: `buildTopologicalOrder(nodesToUse)`
+4. For each node in order:
+   - Call `assignNodeResources(node, predecessorTimes, workers, substations, ...)`
+   - Create assignment with canonical fields
+5. Batch write assignments to Firestore
+6. Update plan status to `'released'`
+
+**Function Signature Change:**
+- **Old:** `enrichNodesWithEstimatedTimes(nodes, executionGraph, planData, db)`
+- **New:** `enrichNodesWithEstimatedTimes(nodes, planData, db)` (removed `executionGraph` param)
+
+**Response:**
+```json
+{
+  "success": true,
+  "planId": "PLAN-001",
+  "status": "released",
+  "assignments": [
+    {
+      "id": "WO-2025-001-01",
+      "planId": "PLAN-001",
+      "nodeId": "node-1",
+      "nodeName": "Kesim Operasyonu",
+      "operationId": "OP-001",
+      "workerId": "W-001",
+      "stationId": "ST-001",
+      "substationId": "SUB-001-A",
+      "plannedStart": "2025-11-14T08:00:00Z",
+      "plannedEnd": "2025-11-14T09:11:00Z",
+      "nominalTime": 60,
+      "effectiveTime": 71,
+      "status": "pending",
+      "preProductionReservedAmount": {
+        "M-00-001": 10.5
+      },
+      "actualReservedAmounts": {},
+      "materialReservationStatus": "pending"
+    }
+  ],
+  "launchedAt": "2025-11-14T07:00:00Z"
+}
+```
+
+**Assignment Canonical Fields:**
+- `nodeId` (not `node_id` or `node.id`) — references `node.id`
+- `substationId` (not `stationId` for scheduling) — used as key in schedules
+- `nominalTime` — from node
+- `effectiveTime` — computed from node
+- `preProductionReservedAmount` — computed from `node.materialInputs`
+
+**Error Responses:**
+
+**404 Not Found:**
+```json
+{
+  "error": "Plan not found",
+  "planId": "PLAN-999"
+}
+```
+
+**400 Bad Request - Already Launched:**
+```json
+{
+  "error": "Cannot launch plan",
+  "message": "Plan PLAN-001 is already in status 'released'"
+}
+```
+
+**500 Internal Server Error - Resource Shortage:**
+```json
+{
+  "error": "Resource assignment failed",
+  "message": "No available workers with required skills: ['welding', 'assembly']",
+  "nodeId": "node-3"
+}
+```
+
+**cURL Example:**
+```bash
+curl -X POST https://api.example.com/api/mes/production-plans/PLAN-001/launch \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>"
+```
+
+---
+
+### 4. PATCH /api/mes/worker-assignments/:assignmentId
+
+**Endpoint:** `PATCH /api/mes/worker-assignments/:assignmentId`
+
+**Purpose:** Update assignment status (start, pause, resume, complete).
+
+**No API Contract Changes** (external interface unchanged), but internal behavior updated to use canonical fields.
+
+---
+
+#### 4.1 Start Action
+
+**Request Body:**
+```json
+{
+  "action": "start",
+  "forceStart": false
+}
+```
+
+**Parameters:**
+- `action` (required): `"start"`
+- `forceStart` (optional, default `false`): If `true`, proceed even with partial material reservation
+
+**Internal Behavior Changes:**
+1. Use `assignment.preProductionReservedAmount` (canonical)
+2. Create stock-movements with **both** `requestedQuantity` and `actualQuantity`:
+   ```javascript
+   {
+     "requestedQuantity": 10.5,  // From preProductionReservedAmount
+     "actualQuantity": 8,         // min(stock, requested)
+     "partialReservation": true,  // true if actualQuantity < requestedQuantity
+     "warning": "Partial reservation: requested 10.5, reserved 8 due to insufficient stock"
+   }
+   ```
+3. Record `assignment.actualReservedAmounts`
+
+**Response (Success - Full Reservation):**
+```json
+{
+  "success": true,
+  "assignment": {
+    "id": "WO-2025-001-01",
+    "status": "in_progress",
+    "actualStart": "2025-11-14T08:00:00Z",
+    "actualReservedAmounts": {
+      "M-00-001": 10.5
+    },
+    "materialReservationStatus": "reserved"
+  },
+  "partialReservations": []
+}
+```
+
+**Response (Partial Reservation - forceStart=false):**
+```json
+{
+  "error": "Partial material reservation",
+  "code": "PARTIAL_RESERVATION",
+  "message": "Insufficient stock for some materials",
+  "partialReservations": [
+    {
+      "materialCode": "M-00-001",
+      "requested": 10.5,
+      "actual": 8,
+      "shortfall": 2.5
+    }
+  ],
+  "hint": "Use forceStart=true to proceed anyway"
+}
+```
+**HTTP Status:** 409 Conflict
+
+**Response (Partial Reservation - forceStart=true):**
+```json
+{
+  "success": true,
+  "warning": "Started with partial material reservation",
+  "assignment": {
+    "id": "WO-2025-001-01",
+    "status": "in_progress",
+    "actualStart": "2025-11-14T08:00:00Z",
+    "actualReservedAmounts": {
+      "M-00-001": 8
+    },
+    "materialReservationStatus": "reserved"
+  },
+  "partialReservations": [
+    {
+      "materialCode": "M-00-001",
+      "requested": 10.5,
+      "actual": 8,
+      "shortfall": 2.5
+    }
+  ]
+}
+```
+**HTTP Status:** 200 OK
+
+**Error Responses:**
+
+**400 Bad Request - Invalid Status:**
+```json
+{
+  "error": "Invalid action",
+  "message": "Cannot start assignment WO-001-01: current status is 'completed', expected 'pending' or 'paused'"
+}
+```
+
+**cURL Example:**
+```bash
+# Start with forceStart=false (fail on partial)
+curl -X PATCH https://api.example.com/api/mes/worker-assignments/WO-2025-001-01 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"action": "start", "forceStart": false}'
+
+# Start with forceStart=true (proceed with partial)
+curl -X PATCH https://api.example.com/api/mes/worker-assignments/WO-2025-001-01 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"action": "start", "forceStart": true}'
+```
+
+---
+
+#### 4.2 Pause Action
+
+**Request Body:**
+```json
+{
+  "action": "pause"
+}
+```
+
+**No internal changes** (already uses canonical fields).
+
+**Response:**
+```json
+{
+  "success": true,
+  "assignment": {
+    "id": "WO-2025-001-01",
+    "status": "paused",
+    "pausedAt": "2025-11-14T08:30:00Z",
+    "currentPauseStart": 1731571800000
+  }
+}
+```
+
+---
+
+#### 4.3 Resume Action
+
+**Request Body:**
+```json
+{
+  "action": "resume"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "assignment": {
+    "id": "WO-2025-001-01",
+    "status": "in_progress",
+    "totalPausedTime": 300000,
+    "currentPauseStart": null
+  }
+}
+```
+
+---
+
+#### 4.4 Complete Action
+
+**Request Body:**
+```json
+{
+  "action": "complete",
+  "actualOutput": 95,
+  "defects": 5
+}
+```
+
+**Parameters:**
+- `action` (required): `"complete"`
+- `actualOutput` (required, integer >= 0): Units produced successfully
+- `defects` (required, integer >= 0): Defective units
+
+**Internal Behavior Changes:**
+1. Cap consumption at `assignment.actualReservedAmounts[materialCode]` (INVARIANT)
+2. Return leftover material to stock: `stock += (actualReserved - consumed)`
+3. Create stock-movements:
+   - Per input: `type='out'`, `subType='production_consumption'`, `quantity=consumed`
+   - For output: `type='in'`, `subType='production_output'`, `quantity=actualOutput`
+4. Log defects in assignment (NO stock movement for defects)
+5. Handle legacy `actualFinish` field (fallback to `actualEnd`)
+
+**Response:**
+```json
+{
+  "success": true,
+  "assignment": {
+    "id": "WO-2025-001-01",
+    "status": "completed",
+    "actualEnd": "2025-11-14T09:30:00Z",
+    "actualOutput": 95,
+    "defects": 5,
+    "materialConsumptionResults": {
+      "M-00-001": {
+        "consumed": 8,
+        "leftover": 0,
+        "theoretical": 10.5
+      }
+    },
+    "materialReservationStatus": "consumed"
+  },
+  "warnings": [
+    "Consumption capped: material M-00-001 theoretical=10.5, consumed=8 (limited by reservation)"
+  ]
+}
+```
+
+**Error Responses:**
+
+**400 Bad Request - Invalid Status:**
+```json
+{
+  "error": "Invalid action",
+  "message": "Cannot complete assignment: status is 'pending', expected 'in_progress'"
+}
+```
+
+**422 Unprocessable Entity - Invalid Output:**
+```json
+{
+  "error": "Invalid output values",
+  "message": "actualOutput and defects must be non-negative",
+  "values": {
+    "actualOutput": -5,
+    "defects": 2
+  }
+}
+```
+
+**422 Unprocessable Entity - Consumption Exceeds Reserved (Should Never Happen):**
+```json
+{
+  "error": "Consumption invariant violated",
+  "message": "Attempted to consume more than reserved (this is a bug)",
+  "materialCode": "M-00-001",
+  "consumed": 12,
+  "reserved": 8
+}
+```
+
+**cURL Example:**
+```bash
+curl -X PATCH https://api.example.com/api/mes/worker-assignments/WO-2025-001-01 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{
+    "action": "complete",
+    "actualOutput": 95,
+    "defects": 5
+  }'
+```
+
+---
+
+## Deprecated Field Mappings
+
+This table documents all deprecated fields and their canonical replacements for migration purposes.
+
+| Deprecated Field | Canonical Field | Type Change | Migration Strategy |
+|------------------|-----------------|-------------|-------------------|
+| **Node Fields** |
+| `node.time` | `node.nominalTime` | Same (integer minutes) | Map on frontend save, backend reads both |
+| `node.estimatedNominalTime` | `node.nominalTime` | Same | Backend fallback chain |
+| `node.duration` | `node.nominalTime` | Same | Backend fallback chain |
+| `node.skills` | `node.requiredSkills` | Same (array) | Map on frontend save |
+| `node.nodeId` | `node.id` | Same (string) | Backend reads both |
+| `node.assignedStationId` | `node.assignedStations` | String → Array of objects | Wrap in array: `[{stationId, priority: 1}]` |
+| `node.allocationType` | `node.assignmentMode` | Rename only | Direct map |
+| `node.workerHint.workerId` | `node.assignedWorkerId` | Flatten structure | Extract from nested object |
+| **Assignment Fields** |
+| `assignment.actualFinish` | `assignment.actualEnd` | Same (ISO timestamp) | Backend reads both (fallback) |
+| **Plan Fields** |
+| `plan.executionGraph[]` | `plan.nodes[]` | Structure change | Convert with migration script |
+
+**Backend Fallback Example (nominalTime):**
+```javascript
+// In enrichNodesWithEstimatedTimes
+const nominalTime = node.nominalTime 
+  || node.time 
+  || node.estimatedNominalTime 
+  || node.duration 
+  || 60;  // Default fallback
+```
+
+**Frontend Mapping Example (save flow):**
+```javascript
+// In planDesigner.js savePlanDraft()
+const sanitizedNode = {
+  id: node.id || node.nodeId,
+  name: node.name,
+  operationId: node.operationId,
+  nominalTime: node.time || node.nominalTime,  // Map time → nominalTime
+  requiredSkills: node.skills || node.requiredSkills || [],  // Map skills → requiredSkills
+  assignedStations: node.assignedStationId 
+    ? [{ stationId: node.assignedStationId, priority: 1 }]  // Wrap single → array
+    : (node.assignedStations || []),
+  assignmentMode: node.allocationType || node.assignmentMode || 'auto',
+  assignedWorkerId: node.workerHint?.workerId || node.assignedWorkerId || null,
+  efficiency: node.efficiency || null,
+  // ... other fields
+};
+```
+
+---
+
+## Summary of API Changes
+
+### Breaking Changes (with backward compatibility)
+1. **`nodes[]` required** — Must send canonical `nodes[]`, `executionGraph[]` deprecated
+2. **Field name changes** — `time` → `nominalTime`, `skills` → `requiredSkills`, etc.
+3. **Structure changes** — `assignedStationId` (string) → `assignedStations` (array)
+4. **Signature changes** — `enrichNodesWithEstimatedTimes` removed `executionGraph` param
+
+### Non-Breaking Changes (internal only)
+1. **Stock-movements enhanced** — Added `requestedQuantity`, `actualQuantity`, `partialReservation`, `warning`
+2. **Assignment fields** — Added `actualReservedAmounts`, enhanced `materialReservationStatus`
+3. **Error responses** — More detailed validation errors
+4. **Consumption capping** — Enforced invariant (internal logic, not API change)
+
+### Backward Compatibility Strategy
+1. **Accept both formats during migration** — Backend reads `executionGraph[]` as fallback
+2. **Deprecation warnings** — Log when old format is used
+3. **On-read conversion** — Convert `executionGraph[]` to `nodes[]` in memory if needed
+4. **Legacy field support** — Backend reads both `actualFinish` and `actualEnd`
+5. **Feature flag** — `FEATURE_USE_CANONICAL_NODES` controls preference
+
+### Migration Timeline
+- **Phase 1 (Week 1-2):** Backend accepts both formats, logs deprecation warnings
+- **Phase 2 (Week 3-4):** Frontend stops sending `executionGraph[]`
+- **Phase 3 (Week 5-6):** Run migration script to backfill existing plans
+- **Phase 4 (Week 7-8):** Remove fallback code after 2 release cycles
+
+---
+
+## Testing API Changes
+
+### Test Scenarios
+
+**1. Create Plan with Canonical Nodes**
+```bash
+# Should succeed
+curl -X POST /api/mes/production-plans \
+  -d '{"orderCode":"WO-001", "quantity":100, "nodes":[{"id":"node-1", "nominalTime":60, ...}]}'
+```
+
+**2. Create Plan with executionGraph (Deprecated)**
+```bash
+# Should succeed but log warning
+curl -X POST /api/mes/production-plans \
+  -d '{"orderCode":"WO-002", "quantity":50, "executionGraph":[{"nodeId":"node-1", "time":30, ...}]}'
+```
+
+**3. Validation Errors**
+```bash
+# Should fail with 400: nominalTime <= 0
+curl -X POST /api/mes/production-plans \
+  -d '{"nodes":[{"id":"node-1", "nominalTime":-10}]}'
+
+# Should fail with 400: circular dependency
+curl -X POST /api/mes/production-plans \
+  -d '{"nodes":[{"id":"node-1","predecessors":["node-2"]}, {"id":"node-2","predecessors":["node-1"]}]}'
+```
+
+**4. Launch with nodes vs executionGraph Fallback**
+```bash
+# Launch plan with nodes (preferred)
+curl -X POST /api/mes/production-plans/PLAN-001/launch
+
+# Launch old plan with executionGraph (fallback)
+curl -X POST /api/mes/production-plans/OLD-PLAN/launch
+```
+
+**5. Start with Partial Reservation**
+```bash
+# Should return 409 when forceStart=false
+curl -X PATCH /api/mes/worker-assignments/WO-001-01 \
+  -d '{"action":"start", "forceStart":false}'
+
+# Should succeed with warning when forceStart=true
+curl -X PATCH /api/mes/worker-assignments/WO-001-01 \
+  -d '{"action":"start", "forceStart":true}'
+```
+
+**6. Complete with Consumption Capping**
+```bash
+# Should cap consumption at actualReservedAmounts
+curl -X PATCH /api/mes/worker-assignments/WO-001-01 \
+  -d '{"action":"complete", "actualOutput":100, "defects":0}'
+```
+
+---
+
+This completes the detailed API contract changes documentation for Prompt 3.
+
+---
+
 ## UI + Master Data Changes Required
 
 To fully support the optimized canonical model (single `nodes[]` source of truth) we need a small set of UI and master-data changes so the frontend can provide the inputs the backend needs (notably operation efficiency values used to compute `effectiveTime`). Below is a prioritized and concrete list of changes, file pointers, migration notes and acceptance criteria.
