@@ -2213,6 +2213,61 @@ export function closeMaterialCheckModal() {
 window.showMaterialCheckModal = showMaterialCheckModal;
 window.closeMaterialCheckModal = closeMaterialCheckModal;
 
+/**
+ * Sanitize nodes to canonical backend schema
+ * Maps legacy field names to canonical names expected by backend
+ * @param {Array} nodes - Frontend node objects
+ * @returns {Array} Sanitized nodes with canonical field names
+ */
+function sanitizeNodesForBackend(nodes) {
+  return nodes.map(node => {
+    const sanitized = {
+      id: node.id,
+      name: node.name || 'Unnamed Node',
+      operationId: node.operationId,
+      
+      // CANONICAL: nominalTime (map from legacy 'time')
+      nominalTime: node.nominalTime || node.time || node.estimatedNominalTime || node.duration || 60,
+      
+      // CANONICAL: requiredSkills (map from legacy 'skills')
+      requiredSkills: Array.isArray(node.requiredSkills) 
+        ? node.requiredSkills 
+        : (Array.isArray(node.skills) ? node.skills : []),
+      
+      // CANONICAL: assignedStations (array format, map from legacy 'assignedStationId')
+      assignedStations: node.assignedStationId && typeof node.assignedStationId === 'string'
+        ? [{ stationId: node.assignedStationId, priority: 1 }]  // String → Array
+        : (Array.isArray(node.assignedStations) ? node.assignedStations : []),
+      
+      // Optional fields
+      assignedSubstations: Array.isArray(node.assignedSubstations) ? node.assignedSubstations : [],
+      assignmentMode: node.assignmentMode || node.allocationType || 'auto',
+      assignedWorkerId: node.assignedWorkerId || node.workerHint?.workerId || null,
+      
+      // Dependencies and materials
+      predecessors: Array.isArray(node.predecessors) ? node.predecessors : [],
+      rawMaterials: Array.isArray(node.rawMaterials) ? node.rawMaterials : [],
+      materialInputs: Array.isArray(node.materialInputs) ? node.materialInputs : [],
+      semiCode: node.semiCode || node.outputCode || null,
+      outputCode: node.semiCode || node.outputCode || null,
+      outputQty: parseFloat(node.outputQty) || 0,
+      outputUnit: node.outputUnit || 'pcs'
+    };
+    
+    // Optional: efficiency (only if set)
+    if (node.efficiency !== undefined && node.efficiency !== null) {
+      sanitized.efficiency = parseFloat(node.efficiency);
+    }
+    
+    // Optional: effectiveTime (if pre-calculated)
+    if (node.effectiveTime !== undefined && node.effectiveTime !== null) {
+      sanitized.effectiveTime = parseFloat(node.effectiveTime);
+    }
+    
+    return sanitized;
+  });
+}
+
 export async function savePlanDraft() {
   console.log('🔵 savePlanDraft called');
   console.log('🔍 Current state:', {
@@ -2332,25 +2387,9 @@ export async function savePlanDraft() {
   
   const timingSummary = planDesignerState.timingSummary || summarizePlanTiming(planDesignerState.nodes, planQuantity);
   
-  console.log('🔍 DEBUG - Nodes before buildExecutionGraph:');
-  planDesignerState.nodes.forEach((node, idx) => {
-    console.log(`  Node ${idx} (${node.id}):`, {
-      hasRawMaterials: !!node.rawMaterials,
-      rawMaterialsCount: node.rawMaterials?.length || 0,
-      rawMaterials: node.rawMaterials
-    });
-  });
-  
-  const executionGraph = buildExecutionGraph(planDesignerState.nodes);
-  
-  console.log('🔍 DEBUG - executionGraph after build:');
-  executionGraph.forEach((graphNode, idx) => {
-    console.log(`  Graph Node ${idx} (${graphNode.nodeId}):`, {
-      hasMaterialInputs: !!graphNode.materialInputs,
-      materialInputsCount: graphNode.materialInputs?.length || 0,
-      materialInputs: graphNode.materialInputs
-    });
-  });
+  // DEPRECATED: executionGraph is no longer sent to backend
+  // Backend computes execution order from canonical nodes[] server-side
+  // const executionGraph = buildExecutionGraph(planDesignerState.nodes);
   
   // Commit semi codes before saving
   const pendingCodes = collectPendingSemiCodes(planDesignerState.nodes);
@@ -2376,15 +2415,8 @@ export async function savePlanDraft() {
     console.log('📦 Converting template to production plan...');
     const templateId = meta.sourceTemplateId;
     
-    // Sanitize nodes before saving
-    const sanitizedNodes = planDesignerState.nodes.map(node => {
-      const sanitized = { ...node };
-      if (!Number.isFinite(sanitized.time) || sanitized.time < 1) sanitized.time = 30;
-      if (!sanitized.outputUnit || sanitized.outputUnit.trim() === '') sanitized.outputUnit = 'pcs';
-      if (!Number.isFinite(sanitized.outputQty) || sanitized.outputQty <= 0) sanitized.outputQty = 1;
-      if (!Array.isArray(sanitized.assignedStations)) sanitized.assignedStations = [];
-      return sanitized;
-    });
+    // Sanitize nodes to canonical schema
+    const sanitizedNodes = sanitizeNodesForBackend(planDesignerState.nodes);
     
     const updates = {
       name: planName,
@@ -2392,12 +2424,12 @@ export async function savePlanDraft() {
       orderCode,
       scheduleType,
       quantity: planQuantity,
-      nodes: JSON.parse(JSON.stringify(sanitizedNodes)),
+      nodes: sanitizedNodes,  // CANONICAL: Sanitized nodes with canonical field names
       status: 'production',
       autoAssign: true,
       materialSummary,
       timingSummary
-      // executionGraph removed - no longer sent to backend (kept for internal UI use only)
+      // executionGraph: REMOVED - no longer sent to backend (deprecated)
     };
     
     try {
@@ -2418,82 +2450,8 @@ export async function savePlanDraft() {
   // NEW PLAN CREATION PATH
   console.log('✨ Creating new production plan...');
   
-  console.log('🔍 STEP 2 - Before saving plan, checking nodes:');
-  planDesignerState.nodes.forEach((node, idx) => {
-    console.log(`  Node ${idx} (${node.id}):`, {
-      name: node.name,
-      hasRawMaterials: !!node.rawMaterials,
-      rawMaterialsCount: node.rawMaterials?.length || 0,
-      rawMaterials: node.rawMaterials
-    });
-  });
-  
-  // Sanitize nodes before saving - ensure all required fields are present and map to canonical schema
-  const sanitizedNodes = planDesignerState.nodes.map(node => {
-    const sanitized = { ...node };
-    
-    // ========================================================================
-    // CANONICAL FIELD MAPPING: Map frontend fields to canonical backend schema
-    // ========================================================================
-    
-    // Map time → nominalTime (canonical)
-    const nominalTime = sanitized.time || sanitized.nominalTime || 30;
-    if (!Number.isFinite(nominalTime) || nominalTime < 1) {
-      sanitized.nominalTime = 30; // Default to 30 minutes
-      console.warn(`⚠️ Node ${node.id} (${node.name}): Invalid time, defaulting to 30 minutes`);
-    } else {
-      sanitized.nominalTime = nominalTime;
-    }
-    
-    // Map skills → requiredSkills (canonical)
-    sanitized.requiredSkills = sanitized.skills || sanitized.requiredSkills || [];
-    
-    // Map assignedStationId (single string) → assignedStations (array) (canonical)
-    if (sanitized.assignedStationId && typeof sanitized.assignedStationId === 'string') {
-      sanitized.assignedStations = [{ stationId: sanitized.assignedStationId, priority: 1 }];
-    } else if (!Array.isArray(sanitized.assignedStations)) {
-      sanitized.assignedStations = [];
-    }
-    
-    // Include efficiency (optional per-node override)
-    if (sanitized.efficiency !== undefined && sanitized.efficiency !== null) {
-      const eff = parseFloat(sanitized.efficiency);
-      if (Number.isFinite(eff) && eff > 0 && eff <= 1) {
-        sanitized.efficiency = eff;
-      } else {
-        delete sanitized.efficiency; // Remove invalid efficiency
-      }
-    }
-    
-    // Map allocationType → assignmentMode (canonical)
-    sanitized.assignmentMode = sanitized.allocationType || sanitized.assignmentMode || 'auto';
-    
-    // Map workerHint.workerId → assignedWorkerId (canonical)
-    if (sanitized.workerHint && sanitized.workerHint.workerId) {
-      sanitized.assignedWorkerId = sanitized.workerHint.workerId;
-    } else if (sanitized.assignmentMode === 'manual') {
-      console.warn(`⚠️ Node ${node.id}: assignmentMode='manual' but no assignedWorkerId`);
-    }
-    
-    // Include assignedSubstations (substation hints) if present
-    if (Array.isArray(sanitized.assignedSubstations)) {
-      sanitized.assignedSubstations = sanitized.assignedSubstations;
-    }
-    
-    // Ensure outputUnit is specified
-    if (!sanitized.outputUnit || typeof sanitized.outputUnit !== 'string' || sanitized.outputUnit.trim() === '') {
-      sanitized.outputUnit = 'pcs'; // Default unit
-      console.warn(`⚠️ Node ${node.id} (${node.name}): Missing outputUnit, defaulting to 'pcs'`);
-    }
-    
-    // Ensure outputQty is a valid number > 0
-    if (!Number.isFinite(sanitized.outputQty) || sanitized.outputQty <= 0) {
-      sanitized.outputQty = 1; // Default quantity
-      console.warn(`⚠️ Node ${node.id} (${node.name}): Invalid outputQty, defaulting to 1`);
-    }
-    
-    return sanitized;
-  });
+  // Sanitize nodes to canonical schema
+  const sanitizedNodes = sanitizeNodesForBackend(planDesignerState.nodes);
   
   const plan = {
     id: undefined,
@@ -2502,23 +2460,25 @@ export async function savePlanDraft() {
     orderCode,
     scheduleType,
     quantity: planQuantity,
-    nodes: JSON.parse(JSON.stringify(sanitizedNodes)),
+    nodes: sanitizedNodes,  // CANONICAL: Use sanitized nodes
     createdAt: new Date().toISOString(),
     status: 'production',
     autoAssign: true,
     materialSummary,
     timingSummary
-    // executionGraph removed - no longer sent to backend (kept for internal UI use only)
+    // executionGraph: REMOVED - DO NOT SEND (deprecated)
   };
   
-  console.log('📤 Saving plan with sanitized nodes:');
-  console.log('  📊 Sanitized nodes count:', sanitizedNodes.length);
-  if (sanitizedNodes.length > 0) {
-    console.log('  📦 Sanitized Node 0 (FULL):', JSON.stringify(sanitizedNodes[0], null, 2));
-  }
-  console.log('  📊 Plan nodes after stringify:', plan.nodes.length);
+  // Verification logging
+  console.log('📤 Sending plan to backend:');
+  console.log('  - Nodes count:', plan.nodes.length);
+  console.log('  - Has executionGraph:', 'executionGraph' in plan ? '⚠️ YES (BAD)' : '✅ NO (GOOD)');
   if (plan.nodes.length > 0) {
-    console.log('  📦 Plan Node 0 (FULL):', JSON.stringify(plan.nodes[0], null, 2));
+    console.log('  - First node fields:', Object.keys(plan.nodes[0]));
+    console.log('  - Has nominalTime:', plan.nodes[0]?.nominalTime ? '✅ YES' : '❌ NO');
+    console.log('  - Has requiredSkills:', plan.nodes[0]?.requiredSkills ? '✅ YES' : '❌ NO');
+    console.log('  - Has assignedStations:', Array.isArray(plan.nodes[0]?.assignedStations) ? '✅ YES (array)' : '❌ NO');
+    console.log('  - Has efficiency:', plan.nodes[0]?.efficiency !== undefined ? `✅ YES (${plan.nodes[0].efficiency})` : 'ℹ️ NO (will use operation default)');
   }
   
   try {
@@ -3399,11 +3359,13 @@ export function getExecutionOrder() {
 }
 
 /**
- * Build execution graph metadata for production plan
- * Calculates execution order, priority indices, and prerequisite relationships
- * Note: Worker/station assignment happens at launch, not in Plan Designer
+ * Build execution graph for internal UI use only
+ * WARNING: This is NOT sent to backend (deprecated)
+ * Backend computes execution order from canonical nodes[] server-side
+ * 
+ * @deprecated Use canonical nodes[] instead - executionGraph no longer sent to backend
  * @param {Array} nodes - Plan nodes with rules and predecessors
- * @returns {Array} Execution graph with metadata for each node
+ * @returns {Array} Execution graph with metadata for each node (UI only)
  */
 export function buildExecutionGraph(nodes) {
   if (!Array.isArray(nodes) || nodes.length === 0) {
