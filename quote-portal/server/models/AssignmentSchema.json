@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["id", "planId", "nodeId", "workerId", "stationId", "substationId", "status", "nominalTime"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^WO-"
+    },
+    "planId": {
+      "type": "string"
+    },
+    "nodeId": {
+      "type": "string"
+    },
+    "workerId": {
+      "type": "string"
+    },
+    "stationId": {
+      "type": "string"
+    },
+    "substationId": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "in_progress", "paused", "completed", "cancelled"]
+    },
+    "nominalTime": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "effectiveTime": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "plannedStart": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "plannedEnd": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "actualStart": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "actualEnd": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "preProductionReservedAmount": {
+      "type": "object",
+      "patternProperties": {
+        "^M-": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "actualReservedAmounts": {
+      "type": "object",
+      "patternProperties": {
+        "^M-": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "materialReservationStatus": {
+      "type": "string",
+      "enum": ["pending", "reserved", "consumed"]
+    },
+    "totalPausedTime": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "currentPauseStart": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    }
+  }
+}

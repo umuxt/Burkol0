@@ -4,6 +4,18 @@ import admin from 'firebase-admin';
 import { getSession } from './auth.js'
 import jsondb from '../src/lib/jsondb.js'
 import { adjustMaterialStock, consumeMaterials } from './materialsRoutes.js'
+import Ajv from 'ajv';
+import addFormats from 'ajv-formats';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const planSchema = require('./models/ProductionPlanSchema.json');
+const assignmentSchema = require('./models/AssignmentSchema.json');
+
+const ajv = new Ajv({ allErrors: true });
+addFormats(ajv);
+const validatePlan = ajv.compile(planSchema);
+const validateAssignment = ajv.compile(assignmentSchema);
 
 const router = express.Router();
 
@@ -1623,6 +1635,27 @@ router.post('/production-plans', withAuth, async (req, res) => {
     const productionPlan = req.body;
     const { assignments } = productionPlan; // Extract assignments from plan data
     
+    // Validate plan schema
+    if (!validatePlan(productionPlan)) {
+      return res.status(400).json({ 
+        error: 'Invalid plan schema', 
+        details: validatePlan.errors 
+      });
+    }
+    
+    // Cross-validate nodes vs executionGraph if both present
+    if (productionPlan.nodes && productionPlan.executionGraph) {
+      const nodeIds = productionPlan.nodes.map(n => n.id).sort();
+      const graphIds = productionPlan.executionGraph.map(n => n.id || n.nodeId).sort();
+      if (JSON.stringify(nodeIds) !== JSON.stringify(graphIds)) {
+        console.warn('⚠️ nodes[] and executionGraph[] have mismatched IDs', { 
+          planId: productionPlan.id,
+          nodeIds, 
+          graphIds 
+        });
+      }
+    }
+    
     if (!productionPlan.id) {
       throw new Error('Production plan ID is required');
     }
@@ -1780,6 +1813,32 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     const { id } = req.params;
     const updates = req.body;
     const { assignments } = updates; // Extract assignments from updates to avoid storing in plan doc
+
+    // ========================================================================
+    // VALIDATE PRODUCTION PLAN SCHEMA
+    // ========================================================================
+    // Validate plan schema if full plan object is provided
+    if (updates.nodes && updates.id) {
+      if (!validatePlan(updates)) {
+        return res.status(400).json({ 
+          error: 'Invalid plan schema', 
+          details: validatePlan.errors 
+        });
+      }
+      
+      // Cross-validate nodes vs executionGraph if both present
+      if (updates.nodes && updates.executionGraph) {
+        const nodeIds = updates.nodes.map(n => n.id).sort();
+        const graphIds = updates.executionGraph.map(n => n.id || n.nodeId).sort();
+        if (JSON.stringify(nodeIds) !== JSON.stringify(graphIds)) {
+          console.warn('⚠️ nodes[] and executionGraph[] have mismatched IDs', { 
+            planId: id,
+            nodeIds, 
+            graphIds 
+          });
+        }
+      }
+    }
 
     // ========================================================================
     // VALIDATE PRODUCTION PLAN NODES (CANONICAL SCHEMA)
@@ -3362,10 +3421,28 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                 let actualReservedQty = reservedQty;
                 let stockWarning = null;
                 
+                // INVARIANT CHECK: actualReservedAmounts <= preProductionReservedAmount
+                if (reservedQty < 0) {
+                  throw new Error(`Reservation invariant violated: negative requested amount for ${materialCode}`);
+                }
+                
+                // INVARIANT CHECK: actualReservedAmounts must not exceed preProductionReservedAmount
+                // This check happens after actual reservation is recorded
+                const preProductionAmount = assignment.preProductionReservedAmount?.[materialCode] || 0;
+                if (reservedQty > preProductionAmount) {
+                  throw new Error(
+                    `Invariant violated: actualReserved ${reservedQty} > requestedAmount ${preProductionAmount} ` +
+                    `for material ${materialCode} in assignment ${assignment.id}`
+                  );
+                }
+                
+                // INVARIANT CHECK: actualReservedAmounts <= material.stock (before reservation)
                 if (currentStock < reservedQty) {
                   actualReservedQty = currentStock;
                   stockWarning = `Rehin miktarı (${reservedQty}) mevcut stoktan (${currentStock}) fazla. Stok miktarı kadar (${actualReservedQty}) rezerve edildi.`;
                   console.warn(`⚠️ ${materialCode}: ${stockWarning}`);
+                  console.warn(`📊 Partial reservation for ${materialCode}: requested ${reservedQty}, reserved ${actualReservedQty}`);
+                  // TODO: Increment metric: reservation_mismatch_count
                 }
                 
                 // Check if we have any stock to reserve
@@ -3537,11 +3614,26 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             const previousPausedTime = assignment.totalPausedTime || 0;
             const newTotalPausedTime = previousPausedTime + pauseDuration;
             
+            // INVARIANT CHECK: totalPausedTime must be monotonically increasing
+            if (newTotalPausedTime < previousPausedTime) {
+              throw new Error(`Pause time accounting invariant violated: new totalPausedTime (${newTotalPausedTime}) < previous (${previousPausedTime})`);
+            }
+            
             updateData.totalPausedTime = newTotalPausedTime;
             updateData.lastPauseDuration = pauseDuration;
             updateData.currentPauseStart = admin.firestore.FieldValue.delete();
             
             console.log(`⏱️ Pause duration: ${Math.round(pauseDuration / 60000)} minutes, Total paused: ${Math.round(newTotalPausedTime / 60000)} minutes`);
+          }
+          
+          // INVARIANT CHECK: currentPauseStart must be null when not paused
+          if (updateData.status !== 'paused') {
+            // Ensure currentPauseStart is cleared
+            if (!updateData.currentPauseStart || updateData.currentPauseStart === admin.firestore.FieldValue.delete()) {
+              // Good - already cleared or being cleared
+            } else {
+              console.warn(`⚠️ Invariant warning: currentPauseStart should be null when status is not 'paused'`);
+            }
           }
           
           // Clear pause metadata when starting/resuming
@@ -3594,6 +3686,12 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           // ========================================================================
           // PAUSE: No material changes, only status update
           // ========================================================================
+          
+          // INVARIANT CHECK: currentPauseStart must be null before pausing
+          if (assignment.currentPauseStart) {
+            console.warn(`⚠️ Task ${assignmentId} already has currentPauseStart set: ${assignment.currentPauseStart}`);
+          }
+          
           updateData.status = 'paused';
           updateData.pausedAt = now;
           updateData.currentPauseStart = now; // Track when this pause started
@@ -3749,8 +3847,19 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
               // Get ACTUAL reserved amount (may differ from planned if stock was insufficient)
               const reservedAmount = actualReservedAmounts[inputCode] || 0;
               
-              // Calculate stock adjustment (reserved - actual consumption)
-              const stockAdjustment = reservedAmount - actualConsumption;
+              // INVARIANT CHECK: consumedAmount <= actualReservedAmounts
+              const cappedConsumption = Math.min(actualConsumption, reservedAmount);
+              
+              if (actualConsumption > reservedAmount) {
+                console.error(`❌ INVARIANT VIOLATION: Consumption exceeds reserved for ${inputCode}!`);
+                console.error(`   Consumed: ${actualConsumption}, Reserved: ${reservedAmount}`);
+                console.error(`   Capping consumption at reserved amount.`);
+                // This should not happen in normal operation
+                // Log for monitoring/alerting
+              }
+              
+              // Calculate stock adjustment (reserved - capped consumption)
+              const stockAdjustment = reservedAmount - cappedConsumption;
               
               console.log(`
 📊 Material: ${inputCode}
@@ -3758,7 +3867,8 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
    Planned output: ${plannedOutputQty}
    Input-output ratio: ${inputOutputRatio.toFixed(4)}
    Actually reserved: ${reservedAmount}
-   Actual consumption: ${actualConsumption.toFixed(2)}
+   Theoretical consumption: ${actualConsumption.toFixed(2)}
+   Capped consumption: ${cappedConsumption.toFixed(2)}
    Stock adjustment: ${stockAdjustment >= 0 ? '+' : ''}${stockAdjustment.toFixed(2)}
               `);
               
@@ -3768,7 +3878,8 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                 plannedOutputQty,
                 inputOutputRatio,
                 reservedAmount,
-                actualConsumption,
+                theoreticalConsumption: actualConsumption,
+                actualConsumption: cappedConsumption,
                 stockAdjustment
               });
             }
@@ -4850,6 +4961,12 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       const assignment = assignments[i];
       const workPackageId = assignmentIds[i];
       const assignmentRef = db.collection('mes-worker-assignments').doc(workPackageId);
+      
+      // Validate assignment schema
+      if (!validateAssignment(assignment)) {
+        console.error(`❌ Invalid assignment schema for ${workPackageId}:`, validateAssignment.errors);
+        // Continue anyway but log for monitoring
+      }
       
       // DEBUG: Log assignment data being saved
       console.log(`🔍 DEBUG - Creating assignment ${workPackageId}:`);

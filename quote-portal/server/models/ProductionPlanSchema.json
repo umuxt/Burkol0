@@ -1,0 +1,133 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["id", "orderCode", "status", "quantity", "nodes"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^PLAN-"
+    },
+    "orderCode": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "released", "production", "completed", "cancelled"]
+    },
+    "quantity": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Node"
+      }
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "workOrderCode": {
+      "type": "string"
+    },
+    "launchStatus": {
+      "type": "string",
+      "enum": ["pending", "launched", "cancelled"]
+    }
+  },
+  "definitions": {
+    "Node": {
+      "type": "object",
+      "required": ["id", "name", "operationId", "nominalTime"],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "operationId": {
+          "type": "string"
+        },
+        "nominalTime": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "efficiency": {
+          "type": "number",
+          "minimum": 0.01,
+          "maximum": 1.0
+        },
+        "requiredSkills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assignedStations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["stationId"],
+            "properties": {
+              "stationId": {
+                "type": "string"
+              },
+              "priority": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "assignedSubstations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "assignmentMode": {
+          "type": "string",
+          "enum": ["auto", "manual"]
+        },
+        "assignedWorkerId": {
+          "type": ["string", "null"]
+        },
+        "predecessors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "materialInputs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["materialCode", "requiredQuantity"],
+            "properties": {
+              "materialCode": {
+                "type": "string"
+              },
+              "requiredQuantity": {
+                "type": "number",
+                "minimum": 0
+              },
+              "unitRatio": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "outputCode": {
+          "type": ["string", "null"]
+        },
+        "outputQty": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}
