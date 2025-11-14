@@ -19,6 +19,41 @@ const validateAssignment = ajv.compile(assignmentSchema);
 
 const router = express.Router();
 
+// ============================================================================
+// METRICS COLLECTION
+// ============================================================================
+// Simple in-memory counters for monitoring key events
+// In production, integrate with Prometheus/Datadog/CloudWatch
+const metrics = {
+  reservation_mismatch_count: 0,
+  plan_using_executionGraph_count: 0,
+  consumption_capped_count: 0,
+  validation_error_count: 0,
+  
+  increment(metricName) {
+    if (this.hasOwnProperty(metricName)) {
+      this[metricName]++;
+      console.log(`📊 METRIC: ${metricName} = ${this[metricName]}`);
+    }
+  },
+  
+  reset() {
+    this.reservation_mismatch_count = 0;
+    this.plan_using_executionGraph_count = 0;
+    this.consumption_capped_count = 0;
+    this.validation_error_count = 0;
+  },
+  
+  getAll() {
+    return {
+      reservation_mismatch_count: this.reservation_mismatch_count,
+      plan_using_executionGraph_count: this.plan_using_executionGraph_count,
+      consumption_capped_count: this.consumption_capped_count,
+      validation_error_count: this.validation_error_count
+    };
+  }
+};
+
 console.log('✅ MES Routes module loaded - including semi-code endpoints');
 
 // Middleware to authenticate requests (reuse existing auth)
@@ -1637,6 +1672,8 @@ router.post('/production-plans', withAuth, async (req, res) => {
     
     // Validate plan schema
     if (!validatePlan(productionPlan)) {
+      metrics.increment('validation_error_count');
+      console.error('❌ Plan validation failed:', validatePlan.errors);
       return res.status(400).json({ 
         error: 'Invalid plan schema', 
         details: validatePlan.errors 
@@ -1820,6 +1857,8 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     // Validate plan schema if full plan object is provided
     if (updates.nodes && updates.id) {
       if (!validatePlan(updates)) {
+        metrics.increment('validation_error_count');
+        console.error('❌ Plan update validation failed:', validatePlan.errors);
         return res.status(400).json({ 
           error: 'Invalid plan schema', 
           details: validatePlan.errors 
@@ -3440,7 +3479,11 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                 if (currentStock < reservedQty) {
                   actualReservedQty = currentStock;
                   stockWarning = `Rehin miktarı (${reservedQty}) mevcut stoktan (${currentStock}) fazla. Stok miktarı kadar (${actualReservedQty}) rezerve edildi.`;
+                  
+                  // METRICS: Track reservation mismatches
+                  metrics.increment('reservation_mismatch_count');
                   console.warn(`⚠️ ${materialCode}: ${stockWarning}`);
+                  console.warn(`📊 Reservation mismatch for assignment ${assignmentId}, material ${materialCode}, requested: ${reservedQty}, actual: ${actualReservedQty}`);
                   console.warn(`📊 Partial reservation for ${materialCode}: requested ${reservedQty}, reserved ${actualReservedQty}`);
                   // TODO: Increment metric: reservation_mismatch_count
                 }
@@ -3851,9 +3894,11 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
               const cappedConsumption = Math.min(actualConsumption, reservedAmount);
               
               if (actualConsumption > reservedAmount) {
+                metrics.increment('consumption_capped_count');
                 console.error(`❌ INVARIANT VIOLATION: Consumption exceeds reserved for ${inputCode}!`);
                 console.error(`   Consumed: ${actualConsumption}, Reserved: ${reservedAmount}`);
                 console.error(`   Capping consumption at reserved amount.`);
+                console.warn(`📊 Consumption capped for assignment ${assignmentId}, material ${inputCode}, theoretical: ${actualConsumption.toFixed(2)}, capped: ${cappedConsumption.toFixed(2)}`);
                 // This should not happen in normal operation
                 // Log for monitoring/alerting
               }
@@ -4693,7 +4738,9 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     const nodesToUse = planData.nodes || planData.executionGraph || [];
     
     if (planData.executionGraph && !planData.nodes) {
+      metrics.increment('plan_using_executionGraph_count');
       console.warn(`⚠️ DEPRECATION: Plan ${planId} using executionGraph. Migrate to canonical nodes[].`);
+      console.warn(`📊 METRIC: Plan ${planId} loaded with executionGraph fallback`);
     }
     
     console.log(`📊 DEBUG - Launch using data source: ${planData.nodes ? 'nodes' : 'executionGraph (deprecated)'}`);
@@ -7303,6 +7350,39 @@ router.post('/output-codes/commit', withAuth, async (req, res) => {
   } catch (error) {
     console.error('Output code commit error:', error);
     res.status(500).json({ error: 'output_code_commit_failed', message: error.message });
+  }
+});
+
+// ============================================================================
+// METRICS ENDPOINT
+// ============================================================================
+
+// GET /api/mes/metrics - Get current metrics
+router.get('/metrics', withAuth, async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      metrics: metrics.getAll(),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Metrics retrieval error:', error);
+    res.status(500).json({ error: 'metrics_retrieval_failed', message: error.message });
+  }
+});
+
+// POST /api/mes/metrics/reset - Reset all metrics (for testing)
+router.post('/metrics/reset', withAuth, async (req, res) => {
+  try {
+    metrics.reset();
+    res.json({
+      success: true,
+      message: 'Metrics reset successfully',
+      metrics: metrics.getAll()
+    });
+  } catch (error) {
+    console.error('Metrics reset error:', error);
+    res.status(500).json({ error: 'metrics_reset_failed', message: error.message });
   }
 });
 
