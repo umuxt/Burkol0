@@ -336,6 +336,10 @@ export async function saveOperation() {
     await saveOperations(operationsState)
     closeOperationModal(true)
     renderOperations()
+    // If detail panel is open for this operation, refresh it
+    if (selectedOperationId === op.id) {
+      await showOperationDetail(op.id)
+    }
     showSuccessToast('Operation saved')
   } catch (e) {
     console.error('Operation save error:', e)
