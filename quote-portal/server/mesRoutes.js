@@ -3768,6 +3768,31 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           console.log(`🎯 Planned output:`, plannedOutput);
           console.log(`✅ Actual output: ${actualOutput}, ❌ Defects: ${defects}`);
           
+          // ========================================================================
+          // STEP 1.5: Process Input and Production Scrap
+          // ========================================================================
+          
+          const inputScrapLog = assignment.inputScrapLog || [];
+          const productionScrapLog = assignment.productionScrapLog || [];
+          
+          // Aggregate scrap by material code
+          const inputScrapTotals = {};
+          inputScrapLog.forEach(entry => {
+            const code = entry.materialCode;
+            inputScrapTotals[code] = (inputScrapTotals[code] || 0) + (entry.quantity || 0);
+          });
+          
+          const productionScrapTotals = {};
+          productionScrapLog.forEach(entry => {
+            const code = entry.materialCode;
+            productionScrapTotals[code] = (productionScrapTotals[code] || 0) + (entry.quantity || 0);
+          });
+          
+          console.log(`📊 Scrap Summary for assignment ${assignmentId}:`);
+          console.log(`   Input scrap:`, inputScrapTotals);
+          console.log(`   Production scrap:`, productionScrapTotals);
+          console.log(`   Output defects: ${defects}`);
+          
           // Get plan and node information
           const planDoc = await transaction.get(db.collection('mes-production-plans').doc(planId));
           if (!planDoc.exists) {
@@ -3815,21 +3840,30 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
               // Calculate input-output ratio
               const inputOutputRatio = requiredInputQty / plannedOutputQty;
               
-              // Calculate actual consumption based on total consumed output
-              const actualConsumption = totalConsumedOutput * inputOutputRatio;
+              // Calculate base consumption (for successful output + output defects)
+              const baseConsumption = totalConsumedOutput * inputOutputRatio;
+              
+              // Add input scrap (direct 1:1, no ratio calculation)
+              const inputScrap = inputScrapTotals[inputCode] || 0;
+              
+              // Add production scrap (direct 1:1, no ratio calculation)
+              const productionScrap = productionScrapTotals[inputCode] || 0;
+              
+              // Total theoretical consumption
+              const theoreticalConsumption = baseConsumption + inputScrap + productionScrap;
               
               // Get ACTUAL reserved amount (may differ from planned if stock was insufficient)
               const reservedAmount = actualReservedAmounts[inputCode] || 0;
               
               // INVARIANT CHECK: consumedAmount <= actualReservedAmounts
-              const cappedConsumption = Math.min(actualConsumption, reservedAmount);
+              const cappedConsumption = Math.min(theoreticalConsumption, reservedAmount);
               
-              if (actualConsumption > reservedAmount) {
+              if (theoreticalConsumption > reservedAmount) {
                 metrics.increment('consumption_capped_count');
                 console.error(`❌ INVARIANT VIOLATION: Consumption exceeds reserved for ${inputCode}!`);
-                console.error(`   Consumed: ${actualConsumption}, Reserved: ${reservedAmount}`);
+                console.error(`   Consumed: ${theoreticalConsumption}, Reserved: ${reservedAmount}`);
                 console.error(`   Capping consumption at reserved amount.`);
-                console.warn(`📊 Consumption capped for assignment ${assignmentId}, material ${inputCode}, theoretical: ${actualConsumption.toFixed(2)}, capped: ${cappedConsumption.toFixed(2)}`);
+                console.warn(`📊 Consumption capped for assignment ${assignmentId}, material ${inputCode}, theoretical: ${theoreticalConsumption.toFixed(2)}, capped: ${cappedConsumption.toFixed(2)}`);
                 // This should not happen in normal operation
                 // Log for monitoring/alerting
               }
@@ -3843,7 +3877,10 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
    Planned output: ${plannedOutputQty}
    Input-output ratio: ${inputOutputRatio.toFixed(4)}
    Actually reserved: ${reservedAmount}
-   Theoretical consumption: ${actualConsumption.toFixed(2)}
+   Base consumption (output-based): ${baseConsumption.toFixed(2)}
+   Input scrap: ${inputScrap}
+   Production scrap: ${productionScrap}
+   Theoretical total: ${theoreticalConsumption.toFixed(2)}
    Capped consumption: ${cappedConsumption.toFixed(2)}
    Stock adjustment: ${stockAdjustment >= 0 ? '+' : ''}${stockAdjustment.toFixed(2)}
               `);
@@ -3854,7 +3891,10 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                 plannedOutputQty,
                 inputOutputRatio,
                 reservedAmount,
-                theoreticalConsumption: actualConsumption,
+                baseConsumption,
+                inputScrap,
+                productionScrap,
+                theoreticalConsumption,
                 actualConsumption: cappedConsumption,
                 stockAdjustment
               });
@@ -4195,6 +4235,297 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           }
           
           // ========================================================================
+          // STEP 4.5: Create Scrap Materials in Inventory
+          // ========================================================================
+          
+          const scrapMaterialsCreated = [];
+          
+          // Process input scrap
+          for (const [materialCode, scrapQty] of Object.entries(inputScrapTotals)) {
+            if (scrapQty <= 0) continue;
+            
+            try {
+              const scrapMaterialCode = `${materialCode}-SCRAP-INPUT`;
+              const scrapMaterialRef = db.collection('materials').doc(scrapMaterialCode);
+              const scrapMaterialDoc = await transaction.get(scrapMaterialRef);
+              
+              const scrapMaterialExists = scrapMaterialDoc.exists;
+              const previousScrapStock = scrapMaterialExists ? (parseFloat(scrapMaterialDoc.data().stock) || 0) : 0;
+              const newScrapStock = previousScrapStock + scrapQty;
+              
+              // Get original material info for naming
+              let originalMaterialName = materialCode;
+              try {
+                const originalMaterialDoc = await transaction.get(db.collection('materials').doc(materialCode));
+                if (originalMaterialDoc.exists) {
+                  originalMaterialName = originalMaterialDoc.data().name || materialCode;
+                }
+              } catch (err) {
+                console.warn(`Could not fetch original material ${materialCode} for naming:`, err.message);
+              }
+              
+              transaction.set(scrapMaterialRef, {
+                code: scrapMaterialCode,
+                name: `${originalMaterialName} (Gelen Hasarlı)`,
+                type: 'scrap',
+                category: 'SCRAP',
+                scrapType: 'input_damaged',
+                parentMaterial: materialCode,
+                stock: newScrapStock,
+                reserved: 0,
+                wipReserved: 0,
+                unit: 'adet',
+                status: 'Aktif',
+                isActive: true,
+                reorderPoint: 0,
+                createdAt: scrapMaterialExists ? scrapMaterialDoc.data().createdAt : now,
+                updatedAt: now,
+                createdBy: scrapMaterialExists ? scrapMaterialDoc.data().createdBy : actorEmail,
+                updatedBy: actorEmail
+              }, { merge: true });
+              
+              // Create stock movement for audit trail
+              const scrapMovementRef = db.collection('stockMovements').doc();
+              transaction.set(scrapMovementRef, {
+                materialId: scrapMaterialCode,
+                materialCode: scrapMaterialCode,
+                materialName: `${originalMaterialName} (Gelen Hasarlı)`,
+                type: 'in',
+                subType: 'scrap_input_damaged',
+                quantity: scrapQty,
+                unit: 'adet',
+                stockBefore: previousScrapStock,
+                stockAfter: newScrapStock,
+                unitCost: null,
+                totalCost: null,
+                currency: 'TRY',
+                reference: assignmentId,
+                referenceType: 'mes_task_complete_scrap',
+                relatedPlanId: planId,
+                relatedNodeId: nodeId,
+                parentMaterial: materialCode,
+                warehouse: null,
+                location: 'Scrap Yard',
+                notes: `Gelen malzeme hasarlı/kusurlu tespit edildi - ${scrapQty} adet hurda kaydı`,
+                reason: 'MES görev tamamlama - Gelen hasarlı malzeme',
+                movementDate: now,
+                createdAt: now,
+                userId: actorEmail,
+                userName: actorName || actorEmail,
+                approved: true,
+                approvedBy: actorEmail,
+                approvedAt: now
+              });
+              
+              scrapMaterialsCreated.push({
+                scrapType: 'input_damaged',
+                scrapMaterialCode,
+                originalMaterialCode: materialCode,
+                quantity: scrapQty,
+                previousStock: previousScrapStock,
+                newStock: newScrapStock,
+                created: !scrapMaterialExists
+              });
+              
+              console.log(`✅ Input scrap material ${scrapMaterialCode}: ${previousScrapStock} → ${newScrapStock} (+${scrapQty})`);
+              
+            } catch (err) {
+              console.error(`❌ Failed to create/update input scrap material for ${materialCode}:`, err);
+            }
+          }
+          
+          // Process production scrap
+          for (const [materialCode, scrapQty] of Object.entries(productionScrapTotals)) {
+            if (scrapQty <= 0) continue;
+            
+            try {
+              const scrapMaterialCode = `${materialCode}-SCRAP-PRODUCTION`;
+              const scrapMaterialRef = db.collection('materials').doc(scrapMaterialCode);
+              const scrapMaterialDoc = await transaction.get(scrapMaterialRef);
+              
+              const scrapMaterialExists = scrapMaterialDoc.exists;
+              const previousScrapStock = scrapMaterialExists ? (parseFloat(scrapMaterialDoc.data().stock) || 0) : 0;
+              const newScrapStock = previousScrapStock + scrapQty;
+              
+              // Get original material info for naming
+              let originalMaterialName = materialCode;
+              try {
+                const originalMaterialDoc = await transaction.get(db.collection('materials').doc(materialCode));
+                if (originalMaterialDoc.exists) {
+                  originalMaterialName = originalMaterialDoc.data().name || materialCode;
+                }
+              } catch (err) {
+                console.warn(`Could not fetch original material ${materialCode} for naming:`, err.message);
+              }
+              
+              transaction.set(scrapMaterialRef, {
+                code: scrapMaterialCode,
+                name: `${originalMaterialName} (Üretim Hurdası)`,
+                type: 'scrap',
+                category: 'SCRAP',
+                scrapType: 'production_scrap',
+                parentMaterial: materialCode,
+                stock: newScrapStock,
+                reserved: 0,
+                wipReserved: 0,
+                unit: 'adet',
+                status: 'Aktif',
+                isActive: true,
+                reorderPoint: 0,
+                createdAt: scrapMaterialExists ? scrapMaterialDoc.data().createdAt : now,
+                updatedAt: now,
+                createdBy: scrapMaterialExists ? scrapMaterialDoc.data().createdBy : actorEmail,
+                updatedBy: actorEmail
+              }, { merge: true });
+              
+              // Create stock movement for audit trail
+              const scrapMovementRef = db.collection('stockMovements').doc();
+              transaction.set(scrapMovementRef, {
+                materialId: scrapMaterialCode,
+                materialCode: scrapMaterialCode,
+                materialName: `${originalMaterialName} (Üretim Hurdası)`,
+                type: 'in',
+                subType: 'scrap_production',
+                quantity: scrapQty,
+                unit: 'adet',
+                stockBefore: previousScrapStock,
+                stockAfter: newScrapStock,
+                unitCost: null,
+                totalCost: null,
+                currency: 'TRY',
+                reference: assignmentId,
+                referenceType: 'mes_task_complete_scrap',
+                relatedPlanId: planId,
+                relatedNodeId: nodeId,
+                parentMaterial: materialCode,
+                warehouse: null,
+                location: 'Scrap Yard',
+                notes: `Üretim sırasında hurda oluştu (düştü, hasar gördü, vb.) - ${scrapQty} adet hurda kaydı`,
+                reason: 'MES görev tamamlama - Üretim sırasında hurda',
+                movementDate: now,
+                createdAt: now,
+                userId: actorEmail,
+                userName: actorName || actorEmail,
+                approved: true,
+                approvedBy: actorEmail,
+                approvedAt: now
+              });
+              
+              scrapMaterialsCreated.push({
+                scrapType: 'production_scrap',
+                scrapMaterialCode,
+                originalMaterialCode: materialCode,
+                quantity: scrapQty,
+                previousStock: previousScrapStock,
+                newStock: newScrapStock,
+                created: !scrapMaterialExists
+              });
+              
+              console.log(`✅ Production scrap material ${scrapMaterialCode}: ${previousScrapStock} → ${newScrapStock} (+${scrapQty})`);
+              
+            } catch (err) {
+              console.error(`❌ Failed to create/update production scrap material for ${materialCode}:`, err);
+            }
+          }
+          
+          // Process output scrap (defects)
+          if (defects > 0 && outputCode) {
+            try {
+              const scrapMaterialCode = `${outputCode}-SCRAP-OUTPUT`;
+              const scrapMaterialRef = db.collection('materials').doc(scrapMaterialCode);
+              const scrapMaterialDoc = await transaction.get(scrapMaterialRef);
+              
+              const scrapMaterialExists = scrapMaterialDoc.exists;
+              const previousScrapStock = scrapMaterialExists ? (parseFloat(scrapMaterialDoc.data().stock) || 0) : 0;
+              const newScrapStock = previousScrapStock + defects;
+              
+              // Get original material info for naming
+              let originalMaterialName = outputCode;
+              try {
+                const originalMaterialDoc = await transaction.get(db.collection('materials').doc(outputCode));
+                if (originalMaterialDoc.exists) {
+                  originalMaterialName = originalMaterialDoc.data().name || outputCode;
+                } else if (node && node.name) {
+                  originalMaterialName = node.name;
+                }
+              } catch (err) {
+                console.warn(`Could not fetch output material ${outputCode} for naming:`, err.message);
+                if (node && node.name) {
+                  originalMaterialName = node.name;
+                }
+              }
+              
+              transaction.set(scrapMaterialRef, {
+                code: scrapMaterialCode,
+                name: `${originalMaterialName} (Çıktı Hurdası/Fire)`,
+                type: 'scrap',
+                category: 'SCRAP',
+                scrapType: 'output_scrap',
+                parentMaterial: outputCode,
+                stock: newScrapStock,
+                reserved: 0,
+                wipReserved: 0,
+                unit: 'adet',
+                status: 'Aktif',
+                isActive: true,
+                reorderPoint: 0,
+                createdAt: scrapMaterialExists ? scrapMaterialDoc.data().createdAt : now,
+                updatedAt: now,
+                createdBy: scrapMaterialExists ? scrapMaterialDoc.data().createdBy : actorEmail,
+                updatedBy: actorEmail
+              }, { merge: true });
+              
+              // Create stock movement for audit trail
+              const scrapMovementRef = db.collection('stockMovements').doc();
+              transaction.set(scrapMovementRef, {
+                materialId: scrapMaterialCode,
+                materialCode: scrapMaterialCode,
+                materialName: `${originalMaterialName} (Çıktı Hurdası/Fire)`,
+                type: 'in',
+                subType: 'scrap_output_defect',
+                quantity: defects,
+                unit: 'adet',
+                stockBefore: previousScrapStock,
+                stockAfter: newScrapStock,
+                unitCost: null,
+                totalCost: null,
+                currency: 'TRY',
+                reference: assignmentId,
+                referenceType: 'mes_task_complete_scrap',
+                relatedPlanId: planId,
+                relatedNodeId: nodeId,
+                parentMaterial: outputCode,
+                warehouse: null,
+                location: 'Scrap Yard',
+                notes: `Üretim çıktısı kusurlu/fire - ${defects} adet hurda kaydı`,
+                reason: 'MES görev tamamlama - Çıktı fire/hurda',
+                movementDate: now,
+                createdAt: now,
+                userId: actorEmail,
+                userName: actorName || actorEmail,
+                approved: true,
+                approvedBy: actorEmail,
+                approvedAt: now
+              });
+              
+              scrapMaterialsCreated.push({
+                scrapType: 'output_scrap',
+                scrapMaterialCode,
+                originalMaterialCode: outputCode,
+                quantity: defects,
+                previousStock: previousScrapStock,
+                newStock: newScrapStock,
+                created: !scrapMaterialExists
+              });
+              
+              console.log(`✅ Output scrap material ${scrapMaterialCode}: ${previousScrapStock} → ${newScrapStock} (+${defects})`);
+              
+            } catch (err) {
+              console.error(`❌ Failed to create/update output scrap material for ${outputCode}:`, err);
+            }
+          }
+          
+          // ========================================================================
           // STEP 5: Record Material Movements in Assignment
           // ========================================================================
           
@@ -4202,6 +4533,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             inputConsumption: consumptionResults,
             inputStockAdjustments: stockAdjustmentResults,
             outputStockUpdate: outputStockResult,
+            scrapMaterialsCreated: scrapMaterialsCreated,
             timestamp: now,
             completedBy: actorEmail
           };
@@ -4209,6 +4541,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           console.log(`✅ Comprehensive completion processing finished for ${assignmentId}`);
           console.log(`   - Input materials adjusted: ${stockAdjustmentResults.length}`);
           console.log(`   - Output material updated: ${outputStockResult ? 'Yes' : 'No'}`);
+          console.log(`   - Scrap materials created/updated: ${scrapMaterialsCreated.length}`);
           console.log(`   - Total output: ${actualOutput}, Defects: ${defects}`);
           
           // Clear worker currentTask
