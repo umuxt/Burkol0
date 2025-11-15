@@ -109,6 +109,15 @@ function buildOperationsRows(list, emptyText, options = {}) {
       : (legacy
         ? '-'
         : '<span class="mes-muted-text">-</span>')
+    
+    // Efficiency badge (separate column)
+    const efficiencyPercent = op.defaultEfficiency ? Math.round(op.defaultEfficiency * 100) : 100
+    const efficiencyBadge = efficiencyPercent !== 100
+      ? `<span class="badge badge-info" style="margin-left: 8px;">${efficiencyPercent}%</span>`
+      : ''
+    const efficiencyMarkup = efficiencyPercent !== 100
+      ? (legacy ? `${efficiencyPercent}%` : `<span class="badge badge-info">${efficiencyPercent}%</span>`)
+      : (legacy ? '100%' : '<span class="mes-muted-text">100%</span>')
 
     const skills = Array.isArray(op.skills)
       ? op.skills
@@ -122,17 +131,11 @@ function buildOperationsRows(list, emptyText, options = {}) {
       : (legacy
         ? '-'
         : '<span class="mes-muted-text">-</span>')
-
+    
     const defectValue = formatDefectRate(op.expectedDefectRate)
     const defectMarkup = legacy
       ? escapeHtml(defectValue)
       : escapeHtml(defectValue)
-    
-    // Efficiency badge
-    const efficiencyPercent = op.defaultEfficiency ? Math.round(op.defaultEfficiency * 100) : 100
-    const efficiencyBadge = efficiencyPercent !== 100
-      ? `<span class="badge badge-info" style="margin-left: 8px;">⚡ ${efficiencyPercent}%</span>`
-      : ''
     
     const actionMarkup = legacy
       ? `
@@ -148,9 +151,10 @@ function buildOperationsRows(list, emptyText, options = {}) {
 
     return `
       <tr${rowAttrs}>
-        <td>${escapeHtml(op.name || 'Unnamed Operation')}${efficiencyBadge}</td>
+        <td>${escapeHtml(op.name || 'Unnamed Operation')}</td>
         <td>${typeMarkup}</td>
-  <td class="text-center">${outputMarkup}</td>
+        <td class="text-center">${outputMarkup}</td>
+        <td class="text-center">${efficiencyMarkup}</td>
         <td class="text-center">${defectMarkup}</td>
         <td>${skillsMarkup}</td>
         ${actionMarkup}

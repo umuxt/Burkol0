@@ -1396,6 +1396,9 @@ function renderTaskRow(task, isNextTask) {
   // Material status badge
   const materialStatusBadge = renderMaterialStatus(task.prerequisites);
   
+  // Material preview (inputs → outputs)
+  const materialPreviewHtml = renderMaterialPreview(task);
+  
   // Time information banner
   const timeInfoHtml = renderTimeInfo(task);
   
@@ -1417,6 +1420,7 @@ function renderTaskRow(task, isNextTask) {
           <div class="task-details">
             Plan: ${task.planId} | Node: ${task.nodeId}
           </div>
+          ${materialPreviewHtml}
           ${renderPrerequisites(task.prerequisites, task)}
           ${timeInfoHtml}
           ${pausedBannerHtml}
@@ -1449,6 +1453,60 @@ function renderMaterialStatus(prerequisites) {
   
   return '<span style="font-size: 14px; color: #9ca3af;" title="Malzeme durumu bilinmiyor">?</span>';
 }
+
+function renderMaterialPreview(task) {
+  const inputMaterials = task.preProductionReservedAmount || task.materialInputs || {};
+  const outputMaterials = task.plannedOutput || {};
+  
+  // Get output code if plannedOutput is empty
+  let outputCode = '';
+  let outputQty = 0;
+  if (Object.keys(outputMaterials).length === 0 && task.outputCode) {
+    outputCode = task.outputCode;
+    outputQty = task.outputQty || 0;
+  }
+  
+  // Build compact material preview
+  const inputEntries = Object.entries(inputMaterials);
+  const outputEntries = Object.entries(outputMaterials);
+  
+  if (inputEntries.length === 0 && outputEntries.length === 0 && !outputCode) {
+    return ''; // No materials to show
+  }
+  
+  let materialsHtml = '<div class="material-preview" style="margin-top: 6px; padding: 6px 8px; background: #f9fafb; border-radius: 4px; font-size: 11px; color: #6b7280; border-left: 3px solid #d1d5db;">';
+  materialsHtml += '<span style="font-weight: 600; color: #374151;">📦 Malzemeler:</span> ';
+  
+  // Input materials (compact format)
+  if (inputEntries.length > 0) {
+    const inputStrs = inputEntries.slice(0, 3).map(([code, qty]) => `${code} (${qty})`);
+    if (inputEntries.length > 3) {
+      inputStrs.push(`+${inputEntries.length - 3} daha`);
+    }
+    materialsHtml += `<span style="color: #3b82f6;">${inputStrs.join(', ')}</span>`;
+  }
+  
+  // Arrow separator
+  if ((inputEntries.length > 0 || outputCode) && (outputEntries.length > 0 || outputCode)) {
+    materialsHtml += ' <span style="color: #9ca3af;">→</span> ';
+  }
+  
+  // Output materials (compact format)
+  if (outputEntries.length > 0) {
+    const outputStrs = outputEntries.slice(0, 2).map(([code, qty]) => `${code} (${qty})`);
+    if (outputEntries.length > 2) {
+      outputStrs.push(`+${outputEntries.length - 2} daha`);
+    }
+    materialsHtml += `<span style="color: #10b981;">${outputStrs.join(', ')}</span>`;
+  } else if (outputCode) {
+    materialsHtml += `<span style="color: #10b981;">${outputCode}${outputQty > 0 ? ` (${outputQty})` : ''}</span>`;
+  }
+  
+  materialsHtml += '</div>';
+  
+  return materialsHtml;
+}
+
 
 function renderTimeInfo(task) {
   // Show actual times if task has started, otherwise show planned times

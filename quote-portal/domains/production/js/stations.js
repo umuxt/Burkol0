@@ -1,5 +1,5 @@
 // Station management backed by backend API using mesApi
-import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill, invalidateStationsCache, getStationWorkers } from './mesApi.js'
+import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill, invalidateStationsCache, getStationWorkers, getSubstationDetails } from './mesApi.js'
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
 import { API_BASE, withAuth } from '../../../shared/lib/api.js';
 
@@ -722,8 +722,12 @@ export async function showStationDetail(stationId) {
   
   if (!detailPanel || !detailContent) return
   
-  // Show detail panel
+  // Show detail panel and hide table
   detailPanel.style.display = 'block'
+  const tableContainer = document.querySelector('.mes-table-container')
+  if (tableContainer && tableContainer.closest('.mes-card-content')) {
+    tableContainer.closest('.mes-card-content').style.display = 'none'
+  }
   try { renderStations() } catch {}
   
   // Show loading state first
@@ -930,8 +934,238 @@ export function closeStationDetail() {
   if (detailPanel) {
     detailPanel.style.display = 'none'
   }
+  // Also close substation detail if open
+  closeSubStationDetail()
+  // Show table again
+  const tableContainer = document.querySelector('.mes-table-container')
+  if (tableContainer && tableContainer.closest('.mes-card-content')) {
+    tableContainer.closest('.mes-card-content').style.display = 'block'
+  }
   editingStationId = null
   try { renderStations() } catch {}
+}
+
+export function closeSubStationDetail() {
+  const substationPanel = document.getElementById('substation-detail-panel')
+  if (substationPanel) {
+    substationPanel.style.display = 'none'
+  }
+}
+
+// Show substation detail panel
+export async function showSubStationDetail(substationId) {
+  const detailPanel = document.getElementById('substation-detail-panel')
+  const detailContent = document.getElementById('substation-detail-content')
+  
+  if (!detailPanel || !detailContent) return
+  
+  // Show substation detail panel (station detail stays visible)
+  detailPanel.style.display = 'block'
+  
+  // Show loading state
+  detailContent.innerHTML = `
+    <div style="padding: 20px; text-align: center;">
+      <div style="font-size: 14px; color: rgb(107, 114, 128);">Alt istasyon detayları yükleniyor...</div>
+    </div>
+  `
+  
+  try {
+    // Fetch substation details from API
+    const data = await getSubstationDetails(substationId)
+    const { substation, currentTask, upcomingTasks, performance } = data
+    
+    // Helper function to format time
+    const formatTime = (isoString) => {
+      if (!isoString) return '-'
+      try {
+        return new Date(isoString).toLocaleString('tr-TR', { 
+          day: '2-digit', 
+          month: '2-digit', 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        })
+      } catch {
+        return '-'
+      }
+    }
+    
+    // Helper function to format duration
+    const formatDuration = (minutes) => {
+      if (!minutes) return '-'
+      const hours = Math.floor(minutes / 60)
+      const mins = minutes % 60
+      return hours > 0 ? `${hours}s ${mins}dk` : `${mins}dk`
+    }
+    
+    // Helper function to format materials
+    const formatMaterials = (materialsObj) => {
+      if (!materialsObj || Object.keys(materialsObj).length === 0) return '-'
+      return Object.entries(materialsObj).map(([code, qty]) => `${code} (${qty})`).join(', ')
+    }
+    
+    // Get substation status badge
+    const getStatusBadge = (status) => {
+      const badges = {
+        active: '<span class="badge badge-success">Active</span>',
+        maintenance: '<span class="badge badge-warning">Maintenance</span>',
+        inactive: '<span class="badge badge-default">Inactive</span>'
+      }
+      return badges[status] || badges.inactive
+    }
+    
+    // Render detail panel
+    detailContent.innerHTML = `
+      <!-- Temel Bilgiler -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Alt İstasyon Bilgileri</h3>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Kod:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39); font-family: monospace;">${escapeHtml(substation.code)}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ana İstasyon:</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(substation.stationId)}</span>
+        </div>
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 0;">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Durum:</span>
+          <span class="detail-value" style="font-size: 12px;">${getStatusBadge(substation.status)}</span>
+        </div>
+      </div>
+      
+      <!-- Mevcut Görev -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Mevcut Görev</h3>
+        ${currentTask ? `
+          <div style="padding: 12px; background: rgb(254, 249, 195); border-left: 3px solid rgb(245, 158, 11); border-radius: 4px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <div style="font-weight: 600; font-size: 13px; color: rgb(17, 24, 39);">
+                🏭 ${escapeHtml(currentTask.operationName)}
+              </div>
+              ${currentTask.timeRemaining ? `
+                <div style="background: rgb(254, 226, 226); color: rgb(153, 27, 27); padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">
+                  ⏱️ ${formatDuration(currentTask.timeRemaining)} kaldı
+                </div>
+              ` : ''}
+            </div>
+            <div style="font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 6px;">
+              <div style="margin-bottom: 3px;">
+                <span style="font-weight: 500;">İş Paketi:</span> ${escapeHtml(currentTask.workPackageId)}
+              </div>
+              <div style="margin-bottom: 3px;">
+                <span style="font-weight: 500;">İşçi:</span> ${escapeHtml(currentTask.workerName)}
+              </div>
+              <div style="margin-bottom: 3px;">
+                <span style="font-weight: 500;">Başlangıç:</span> ${formatTime(currentTask.actualStart)}
+              </div>
+              ${currentTask.plannedEnd ? `
+                <div style="margin-bottom: 3px;">
+                  <span style="font-weight: 500;">Tahmini Bitiş:</span> ${formatTime(currentTask.plannedEnd)}
+                </div>
+              ` : ''}
+            </div>
+            ${Object.keys(currentTask.materialInputs || {}).length > 0 ? `
+              <div style="margin-top: 8px; padding: 8px; background: white; border-radius: 4px;">
+                <div style="font-size: 11px; font-weight: 600; color: rgb(17, 24, 39); margin-bottom: 4px;">📦 Girdi Malzemeler:</div>
+                <div style="font-size: 11px; color: rgb(55, 65, 81);">${formatMaterials(currentTask.materialInputs)}</div>
+              </div>
+            ` : ''}
+            ${Object.keys(currentTask.materialOutputs || {}).length > 0 ? `
+              <div style="margin-top: 6px; padding: 8px; background: white; border-radius: 4px;">
+                <div style="font-size: 11px; font-weight: 600; color: rgb(17, 24, 39); margin-bottom: 4px;">📦 Çıktı Malzemeler:</div>
+                <div style="font-size: 11px; color: rgb(55, 65, 81);">${formatMaterials(currentTask.materialOutputs)}</div>
+              </div>
+            ` : ''}
+          </div>
+        ` : `
+          <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+            💤 Şu anda atanmış bir görev bulunmuyor
+          </div>
+        `}
+      </div>
+      
+      <!-- Yaklaşan Görevler -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Yaklaşan Görevler (${upcomingTasks.length})</h3>
+          <button type="button" onclick="showSubStationDetail('${escapeHtml(substationId)}')" style="padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px;">🔄 Yenile</button>
+        </div>
+        ${upcomingTasks.length > 0 ? `
+          <div style="display: grid; gap: 8px;">
+            ${upcomingTasks.map(task => `
+              <div style="padding: 10px; background: rgb(249, 250, 251); border-left: 3px solid rgb(59, 130, 246); border-radius: 4px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                  <div style="font-weight: 600; font-size: 12px; color: rgb(17, 24, 39);">
+                    ${escapeHtml(task.operationName)}
+                  </div>
+                  <span style="background: rgb(219, 234, 254); color: rgb(30, 64, 175); padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">
+                    ${escapeHtml(task.status)}
+                  </span>
+                </div>
+                <div style="font-size: 10px; color: rgb(107, 114, 128); margin-bottom: 3px;">
+                  <span style="font-weight: 500;">İş Paketi:</span> ${escapeHtml(task.workPackageId)} | 
+                  <span style="font-weight: 500;">İşçi:</span> ${escapeHtml(task.workerName)}
+                </div>
+                <div style="font-size: 10px; color: rgb(107, 114, 128);">
+                  <span style="font-weight: 500;">Planlanan:</span> ${formatTime(task.plannedStart)}
+                  ${task.estimatedTime ? ` | <span style="font-weight: 500;">Süre:</span> ${formatDuration(task.estimatedTime)}` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
+            Yaklaşan görev bulunmuyor
+          </div>
+        `}
+      </div>
+      
+      <!-- Performans Bilgileri -->
+      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">
+          Performans Özeti
+          <span style="font-size: 11px; font-weight: 400; color: rgb(107, 114, 128); margin-left: 8px;">(${performance.period})</span>
+        </h3>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
+          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tamamlanan Görev:</span>
+            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${performance.totalCompleted || 0}</span>
+          </div>
+          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ortalama Süre:</span>
+            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${formatDuration(performance.avgDuration)}</span>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Toplam Üretim:</span>
+            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${performance.totalOutputQuantity || 0}</span>
+          </div>
+          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
+            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Kalite Oranı:</span>
+            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">
+              ${performance.qualityRate ? `<span style="color: ${parseFloat(performance.qualityRate) >= 95 ? 'rgb(22, 163, 74)' : parseFloat(performance.qualityRate) >= 90 ? 'rgb(202, 138, 4)' : 'rgb(220, 38, 38)'}; font-weight: 600;">%${performance.qualityRate}</span>` : '-'}
+            </span>
+          </div>
+        </div>
+        ${performance.totalDefects > 0 ? `
+          <div style="margin-top: 12px; padding: 8px; background: rgb(254, 226, 226); border-left: 3px solid rgb(220, 38, 38); border-radius: 4px;">
+            <div style="font-size: 11px; color: rgb(127, 29, 29);">
+              <span style="font-weight: 600;">⚠️ Toplam Kusur:</span> ${performance.totalDefects}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `
+  } catch (error) {
+    console.error('Error loading substation details:', error)
+    detailContent.innerHTML = `
+      <div style="padding: 20px; text-align: center;">
+        <div style="font-size: 14px; color: rgb(220, 38, 38); margin-bottom: 8px;">⚠️ Detaylar yüklenirken hata oluştu</div>
+        <div style="font-size: 12px; color: rgb(107, 114, 128);">${escapeHtml(error.message)}</div>
+        <button onclick="closeStationDetail()" style="margin-top: 12px; padding: 6px 16px; border: 1px solid rgb(209, 213, 219); background: white; border-radius: 4px; cursor: pointer; font-size: 12px;">Kapat</button>
+      </div>
+    `
+  }
 }
 
 export function editStationFromDetail() {
@@ -1287,12 +1521,17 @@ function buildSubStationsSection(station) {
     const { bg, color, border } = getSubStationStatusStyles(status)
     const subCode = escapeHtml(sub.code)
     const subCodeJs = escapeJsString(sub.code)
+    // Use subCode as substationId since they are the same
+    const substationIdJs = escapeJsString(sub.code)
     return `
-      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: white;" data-substation-code="${subCode}">
-        <span style="font-family: monospace; font-size: 12px;">${subCode}</span>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px; border: 1px solid var(--border); border-radius: 6px; background: white; cursor: pointer;" data-substation-code="${subCode}" onclick="showSubStationDetail('${substationIdJs}')" title="Detayları görmek için tıklayın">
+        <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+          <span style="font-family: monospace; font-size: 12px; font-weight: 500;">${subCode}</span>
+          <span style="font-size: 10px; color: rgb(156, 163, 175); font-style: italic;">Detayları görmek için tıkla</span>
+        </div>
         <div style="display: flex; gap: 8px;">
-          <button type="button" data-role="status-toggle" style="padding: 1px 2px; border: 1px solid ${border}; background: ${bg}; color: ${color}; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 500;" onclick="toggleSubStationStatus('${stationIdJs}', '${subCodeJs}')">${escapeHtml(status)}</button>
-          <button type="button" style="padding: 1px 2px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="deleteSubStation('${stationIdJs}', '${subCodeJs}')">Sil</button>
+          <button type="button" data-role="status-toggle" style="padding: 1px 2px; border: 1px solid ${border}; background: ${bg}; color: ${color}; border-radius: 4px; font-size: 11px; cursor: pointer; font-weight: 500;" onclick="event.stopPropagation(); toggleSubStationStatus('${stationIdJs}', '${subCodeJs}')">${escapeHtml(status)}</button>
+          <button type="button" style="padding: 1px 2px; border: 1px solid #ef4444; background: white; color: #ef4444; border-radius: 4px; font-size: 11px; cursor: pointer;" onclick="event.stopPropagation(); deleteSubStation('${stationIdJs}', '${subCodeJs}')">Sil</button>
         </div>
       </div>
     `

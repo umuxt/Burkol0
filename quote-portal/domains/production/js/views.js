@@ -787,6 +787,11 @@ export function generateOperations() {
                           Output Code <span class="mes-sort-icon">↕</span>
                         </button>
                       </th>
+                      <th style="min-width: 85px; text-align: center;">
+                        <button type="button" class="mes-sort-button">
+                          Verimlilik <span class="mes-sort-icon">↕</span>
+                        </button>
+                      </th>
                       <th style="min-width: 85px; text-align: center;" class="text-center">
                         <button type="button" class="mes-sort-button">
                           Fire (%) <span class="mes-sort-icon">↕</span>
@@ -1035,6 +1040,19 @@ export function generateStations() {
               </div>
               <div style=\"flex: 1 1 0%; overflow: auto; padding: 20px;\">
                 <div id=\"station-detail-content\"></div>
+              </div>
+            </div>
+          </div>
+          <div class=\"worker-detail-panel\" id=\"substation-detail-panel\" style=\"flex: 1 1 0%; min-width: 400px; height: auto; display: none;\">
+            <div style=\"background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235); height: 100%; display: flex; flex-direction: column;\">
+              <div style=\"padding: 16px 20px; border-bottom: 1px solid rgb(229, 231, 235); display: flex; justify-content: space-between; align-items: center;\">
+                <div style=\"display: flex; align-items: center; gap: 12px;\">
+                  <button title=\"Detayları Kapat\" onclick=\"closeSubStationDetail()\" style=\"padding: 6px 12px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; color: rgb(55, 65, 81); cursor: pointer; font-size: 12px;\">←</button>
+                  <h3 style=\"margin: 0px; font-size: 16px; font-weight: 600; color: rgb(17, 24, 39);\">Alt İstasyon Detayları</h3>
+                </div>
+              </div>
+              <div style=\"flex: 1 1 0%; overflow: auto; padding: 20px;\">
+                <div id=\"substation-detail-content\"></div>
               </div>
             </div>
           </div>
@@ -2382,6 +2400,7 @@ function renderWorkPackagesTable() {
     if (!iso) return '—';
     try {
       const date = new Date(iso);
+      if (isNaN(date.getTime())) return '—';
       return date.toLocaleString('tr-TR', { 
         month: 'short', 
         day: 'numeric', 
@@ -2955,6 +2974,7 @@ function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
     if (!iso) return '—';
     try {
       const date = new Date(iso);
+      if (isNaN(date.getTime())) return '—';
       return date.toLocaleString('tr-TR', { 
         day: 'numeric',
         month: 'long', 
@@ -3170,19 +3190,93 @@ function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
         <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">İstasyon:</span>
         <span style="flex: 1 1 0%; font-size: 12px;">
           ${esc(workPackage.stationName || '—')}
-          ${workPackage.subStationCode ? `<br><span style="font-size: 11px; color: var(--muted-foreground); font-family: monospace;">${esc(workPackage.subStationCode)}</span>` : ''}
+          ${(workPackage.substationCode || workPackage.subStationCode) ? `<br><span style="font-size: 11px; color: #6b7280; font-weight: 500;">🔧 ${esc(workPackage.substationCode || workPackage.subStationCode)}</span>` : ''}
         </span>
       </div>
     </div>
 
     <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Durum & Malzemeler</h3>
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">📦 Malzeme Detayları</h3>
+      
+      <!-- Material Inputs -->
+      <div style="margin-bottom: 12px; padding: 10px; background: #f9fafb; border-radius: 4px; border-left: 3px solid #3b82f6;">
+        <div style="font-weight: 600; font-size: 11px; color: #1e40af; margin-bottom: 6px;">Giriş Malzemeleri:</div>
+        ${(() => {
+          const inputs = workPackage.preProductionReservedAmount || workPackage.materialInputs || {};
+          const inputEntries = Object.entries(inputs);
+          if (inputEntries.length === 0) {
+            return '<div style="font-size: 11px; color: #6b7280;">Giriş malzemesi yok</div>';
+          }
+          return inputEntries.map(([code, qty]) => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #e5e7eb; font-size: 11px;">
+              <span style="font-family: monospace; color: #374151;">${esc(code)}</span>
+              <span style="font-weight: 600; color: #1e40af;">${qty} ${workPackage.unit || 'adet'}</span>
+            </div>
+          `).join('');
+        })()}
+      </div>
+
+      <!-- Material Outputs -->
+      <div style="margin-bottom: 0; padding: 10px; background: #f0fdf4; border-radius: 4px; border-left: 3px solid #10b981;">
+        <div style="font-weight: 600; font-size: 11px; color: #065f46; margin-bottom: 6px;">Çıkış Ürünleri:</div>
+        ${(() => {
+          const outputs = workPackage.plannedOutput || {};
+          const outputEntries = Object.entries(outputs);
+          
+          // If no plannedOutput but has outputCode, use it
+          if (outputEntries.length === 0 && workPackage.outputCode) {
+            const outputQty = workPackage.outputQty || workPackage.plannedOutputQty || 0;
+            if (outputQty > 0) {
+              return `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 11px;">
+                  <span style="font-family: monospace; color: #374151;">${esc(workPackage.outputCode)}</span>
+                  <span style="font-weight: 600; color: #065f46;">${outputQty} ${workPackage.unit || 'adet'}</span>
+                </div>
+              `;
+            }
+          }
+          
+          if (outputEntries.length === 0) {
+            return '<div style="font-size: 11px; color: #6b7280;">Çıkış ürünü yok</div>';
+          }
+          
+          return outputEntries.map(([code, qty]) => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #d1fae5; font-size: 11px;">
+              <span style="font-family: monospace; color: #374151;">${esc(code)}</span>
+              <span style="font-weight: 600; color: #065f46;">${qty} ${workPackage.unit || 'adet'}</span>
+            </div>
+          `).join('');
+        })()}
+      </div>
+
+      ${workPackage.actualOutputQuantity || workPackage.defectQuantity ? `
+      <!-- Production Results (if completed) -->
+      <div style="margin-top: 12px; padding: 10px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b;">
+        <div style="font-weight: 600; font-size: 11px; color: #92400e; margin-bottom: 6px;">Üretim Sonuçları:</div>
+        ${workPackage.actualOutputQuantity ? `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 11px;">
+          <span style="color: #78350f;">✅ Üretilen:</span>
+          <span style="font-weight: 600; color: #92400e;">${workPackage.actualOutputQuantity} ${workPackage.unit || 'adet'}</span>
+        </div>
+        ` : ''}
+        ${workPackage.defectQuantity ? `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 11px;">
+          <span style="color: #78350f;">❌ Fire:</span>
+          <span style="font-weight: 600; color: #dc2626;">${workPackage.defectQuantity} ${workPackage.unit || 'adet'}</span>
+        </div>
+        ` : ''}
+      </div>
+      ` : ''}
+    </div>
+
+    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
+      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Durum & Malzeme Hazırlığı</h3>
       <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
         <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Status:</span>
         <span style="flex: 1 1 0%; font-size: 12px;">${getStatusBadge(workPackage.status)}</span>
       </div>
       <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Malzemeler:</span>
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Malzeme Hazırlığı:</span>
         <span style="flex: 1 1 0%; font-size: 12px;">${getMaterialBadge(workPackage.materialStatus)}</span>
       </div>
     </div>

@@ -1,6 +1,6 @@
 // Approved Quotes listing (read-only). Uses backend API only.
 import { API_BASE, withAuth } from '../../../shared/lib/api.js'
-import { updateProductionState, launchProductionPlan, pauseProductionPlan, resumeProductionPlan, cancelProductionPlan, cancelProductionPlanWithProgress } from './mesApi.js'
+import { updateProductionState, launchProductionPlan, pauseProductionPlan, resumeProductionPlan, cancelProductionPlan, cancelProductionPlanWithProgress, getWorkPackages } from './mesApi.js'
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js'
 
 let quotesState = []
@@ -1197,7 +1197,7 @@ function updateAQFilterBadges() {
 //   Object.assign(window, { toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter, toggleAQPlanType })
 // } catch {}
 
-export function showApprovedQuoteDetail(id) {
+export async function showApprovedQuoteDetail(id) {
   selectedQuoteId = id
   // Find by any of identifiers (WO code used as id)
   const q = quotesState.find(x => x.id === id || x.workOrderCode === id || x.quoteId === id)
@@ -1218,6 +1218,7 @@ export function showApprovedQuoteDetail(id) {
     ? `<ul style="margin:0; padding-left:18px;">${files.map(f => `<li><a href="${esc(f.url || f.path || '#')}" target="_blank" rel="noopener">${esc(f.name || f.fileName || 'file')}</a></li>`).join('')}</ul>`
     : '<span style="font-size:12px; color:#6b7280;">Dosya yok</span>'
 
+  // Show initial content with loading state for assignments
   content.innerHTML = `
     <div style="margin-bottom: 12px;">
       <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Temel Bilgiler</div>
@@ -1245,10 +1246,185 @@ export function showApprovedQuoteDetail(id) {
       <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Dosyalar</div>
       ${filesHtml}
     </div>
+    <div id="assignments-section" style="margin-top: 16px; padding: 12px; background: #f9fafb; border-radius: 6px;">
+      <div style="font-weight:600; font-size:14px; margin-bottom:8px;">Work Packages</div>
+      <div style="text-align: center; padding: 20px; color: #6b7280;">
+        <i class="fa-solid fa-spinner fa-spin"></i> Yükleniyor...
+      </div>
+    </div>
   `
 
   // Hide extra columns while details are open
   setTableDetailMode(true)
+
+  // Fetch assignments asynchronously
+  try {
+    const workOrderCode = q?.workOrderCode || q?.id
+    if (!workOrderCode) {
+      throw new Error('Work Order Code bulunamadı')
+    }
+
+    const { workPackages } = await getWorkPackages({ limit: 1000 })
+    
+    // Filter assignments for this work order
+    const relatedAssignments = workPackages.filter(pkg => pkg.workOrderCode === workOrderCode)
+    
+    // DEBUG: Log first assignment to see structure
+    if (relatedAssignments.length > 0) {
+      console.log('🔍 DEBUG - First assignment structure:', relatedAssignments[0])
+      console.log('   preProductionReservedAmount:', relatedAssignments[0].preProductionReservedAmount)
+      console.log('   materialInputs:', relatedAssignments[0].materialInputs)
+      console.log('   plannedOutput:', relatedAssignments[0].plannedOutput)
+      console.log('   substationCode:', relatedAssignments[0].substationCode)
+      console.log('   substationId:', relatedAssignments[0].substationId)
+    }
+    
+    // Aggregate materials
+    const materialInputs = {}
+    const materialOutputs = {}
+    
+    relatedAssignments.forEach(assignment => {
+      // Aggregate inputs (try multiple field names)
+      const inputs = assignment.preProductionReservedAmount || assignment.materialInputs || assignment.inputs || {}
+      Object.entries(inputs).forEach(([code, qty]) => {
+        materialInputs[code] = (materialInputs[code] || 0) + Number(qty || 0)
+      })
+      
+      // Aggregate outputs
+      const outputs = assignment.plannedOutput || {}
+      Object.entries(outputs).forEach(([code, qty]) => {
+        materialOutputs[code] = (materialOutputs[code] || 0) + Number(qty || 0)
+      })
+      
+      // If no plannedOutput but has outputCode, add it
+      if (!Object.keys(outputs).length && assignment.outputCode) {
+        const outputQty = assignment.outputQty || assignment.plannedOutputQty || 0
+        if (outputQty > 0) {
+          materialOutputs[assignment.outputCode] = (materialOutputs[assignment.outputCode] || 0) + outputQty
+        }
+      }
+    })
+    
+    console.log('📊 Aggregated materials:')
+    console.log('   Inputs:', materialInputs)
+    console.log('   Outputs:', materialOutputs)
+
+    // Generate assignments HTML
+    const assignmentsSection = document.getElementById('assignments-section')
+    if (assignmentsSection) {
+      assignmentsSection.innerHTML = generateAssignmentsHTML(relatedAssignments, materialInputs, materialOutputs, esc)
+    }
+  } catch (error) {
+    console.error('Failed to load assignments:', error)
+    const assignmentsSection = document.getElementById('assignments-section')
+    if (assignmentsSection) {
+      assignmentsSection.innerHTML = `
+        <div style="font-weight:600; font-size:14px; margin-bottom:8px;">Work Packages</div>
+        <div style="text-align: center; padding: 20px; color: #ef4444;">
+          <i class="fa-solid fa-exclamation-triangle"></i> Yüklenemedi: ${esc(error.message)}
+        </div>
+      `
+    }
+  }
+}
+
+function generateAssignmentsHTML(assignments, materialInputs, materialOutputs, esc) {
+  const getStatusBadge = (status) => {
+    const statusMap = {
+      'pending': { label: 'Beklemede', bg: '#f3f4f6', color: '#374151' },
+      'ready': { label: 'Hazır', bg: '#fef3c7', color: '#92400e' },
+      'in-progress': { label: 'Devam Ediyor', bg: '#dbeafe', color: '#1e40af' },
+      'paused': { label: 'Duraklatıldı', bg: '#fee2e2', color: '#991b1b' },
+      'completed': { label: 'Tamamlandı', bg: '#d1fae5', color: '#065f46' },
+      'cancelled': { label: 'İptal', bg: '#f3f4f6', color: '#6b7280' }
+    }
+    const s = statusMap[status] || { label: status, bg: '#f3f4f6', color: '#374151' }
+    return `<span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: ${s.bg}; color: ${s.color};">${s.label}</span>`
+  }
+
+  const formatMaterials = (materials) => {
+    const entries = Object.entries(materials || {})
+    if (entries.length === 0) return '<span style="color: #9ca3af;">-</span>'
+    return entries.map(([code, qty]) => `${esc(code)}: ${qty}`).join(', ')
+  }
+
+  if (assignments.length === 0) {
+    return `
+      <div style="font-weight:600; font-size:14px; margin-bottom:8px;">Work Packages</div>
+      <div style="text-align: center; padding: 20px; color: #6b7280;">
+        <i class="fa-solid fa-info-circle"></i> Bu work order için henüz assignment oluşturulmamış
+      </div>
+    `
+  }
+
+  return `
+    <div style="font-weight:600; font-size:14px; margin-bottom:12px;">Work Packages (${assignments.length})</div>
+    
+    <!-- Material Summary -->
+    <div style="margin-bottom: 16px; padding: 10px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
+      <div style="font-weight: 600; font-size: 12px; margin-bottom: 8px; color: #374151;">📦 Malzeme Özeti</div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+        <div>
+          <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Giriş Malzemeleri:</div>
+          <div style="font-size: 11px; color: #111827;">
+            ${Object.entries(materialInputs).length > 0 
+              ? Object.entries(materialInputs).map(([code, qty]) => 
+                  `<div>• ${esc(code)}: <strong>${qty}</strong></div>`
+                ).join('')
+              : '<span style="color: #9ca3af;">Yok</span>'}
+          </div>
+        </div>
+        <div>
+          <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Çıkış Ürünleri:</div>
+          <div style="font-size: 11px; color: #111827;">
+            ${Object.entries(materialOutputs).length > 0
+              ? Object.entries(materialOutputs).map(([code, qty]) => 
+                  `<div>• ${esc(code)}: <strong>${qty}</strong></div>`
+                ).join('')
+              : '<span style="color: #9ca3af;">Yok</span>'}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Assignments Table -->
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+        <thead>
+          <tr style="background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Package ID</th>
+            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Operasyon</th>
+            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">İşçi</th>
+            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">İstasyon</th>
+            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Durum</th>
+            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Malzemeler</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${assignments.map(a => `
+            <tr style="border-bottom: 1px solid #f3f4f6;">
+              <td style="padding: 6px 8px; font-family: monospace; font-size: 10px;">${esc(a.assignmentId || a.id)}</td>
+              <td style="padding: 6px 8px;">${esc(a.operationName || a.nodeName || '-')}</td>
+              <td style="padding: 6px 8px;">${esc(a.workerName || '-')}</td>
+              <td style="padding: 6px 8px;">
+                ${esc(a.stationName || '-')}
+                ${(a.substationCode || a.subStationCode) ? `<br><span style="font-size: 10px; color: #6b7280; font-weight: 500;">🔧 ${esc(a.substationCode || a.subStationCode)}</span>` : ''}
+              </td>
+              <td style="padding: 6px 8px;">${getStatusBadge(a.status)}</td>
+              <td style="padding: 6px 8px; font-size: 10px; color: #6b7280;">
+                <div style="margin-bottom: 2px;">
+                  <strong>In:</strong> ${formatMaterials(a.preProductionReservedAmount || a.materialInputs)}
+                </div>
+                <div>
+                  <strong>Out:</strong> ${formatMaterials(a.plannedOutput)}
+                </div>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `
 }
 
 export function closeApprovedQuoteDetail() {

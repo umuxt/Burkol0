@@ -5087,6 +5087,190 @@ router.patch('/substations/:id', withAuth, async (req, res) => {
   }, res);
 });
 
+// GET /api/mes/substations/:id/details - Get detailed info about a substation
+router.get('/substations/:id/details', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id } = req.params;
+    const db = getFirestore();
+    
+    // Get substation data
+    const substationDoc = await db.collection('mes-substations').doc(id).get();
+    if (!substationDoc.exists) {
+      throw new Error('Substation not found');
+    }
+    
+    const substation = { id: substationDoc.id, ...substationDoc.data() };
+    const now = new Date();
+    
+    // Get current active assignment (in_progress status)
+    const activeAssignmentsQuery = await db.collection('mes-worker-assignments')
+      .where('substationId', '==', id)
+      .where('status', '==', 'in_progress')
+      .limit(1)
+      .get();
+    
+    let currentTask = null;
+    if (!activeAssignmentsQuery.empty) {
+      const assignmentData = activeAssignmentsQuery.docs[0].data();
+      const assignmentId = activeAssignmentsQuery.docs[0].id;
+      
+      // Get worker name
+      let workerName = assignmentData.workerName || 'Belirsiz';
+      if (assignmentData.workerId && !assignmentData.workerName) {
+        const workerDoc = await db.collection('mes-workers').doc(assignmentData.workerId).get();
+        if (workerDoc.exists) {
+          workerName = workerDoc.data().name || assignmentData.workerId;
+        }
+      }
+      
+      // Calculate remaining time
+      let timeRemaining = null;
+      let expectedEnd = null;
+      if (assignmentData.plannedEnd) {
+        const endTime = assignmentData.plannedEnd?.toDate ? assignmentData.plannedEnd.toDate() : new Date(assignmentData.plannedEnd);
+        expectedEnd = endTime.toISOString();
+        const diffMs = endTime - now;
+        if (diffMs > 0) {
+          timeRemaining = Math.round(diffMs / 60000); // minutes
+        }
+      }
+      
+      currentTask = {
+        assignmentId,
+        workPackageId: assignmentData.workPackageId || assignmentId,
+        nodeId: assignmentData.nodeId,
+        operationName: assignmentData.operationName || assignmentData.name || 'İsimsiz Operasyon',
+        workerId: assignmentData.workerId,
+        workerName,
+        planId: assignmentData.planId,
+        workOrderCode: assignmentData.workOrderCode,
+        actualStart: assignmentData.actualStart?.toDate?.()?.toISOString() || assignmentData.actualStart,
+        plannedEnd: expectedEnd,
+        timeRemaining, // in minutes
+        materialInputs: assignmentData.preProductionReservedAmount || assignmentData.materialInputs || {},
+        materialOutputs: assignmentData.plannedOutput || {}
+      };
+    }
+    
+    // Get upcoming assignments (pending, ready, or paused status)
+    // Note: Don't use orderBy with where('status', 'in', [...]) to avoid index issues
+    const upcomingAssignmentsQuery = await db.collection('mes-worker-assignments')
+      .where('substationId', '==', id)
+      .where('status', 'in', ['pending', 'ready', 'paused'])
+      .limit(20)
+      .get();
+    
+    // Sort in memory by plannedStart
+    const upcomingTasks = upcomingAssignmentsQuery.docs
+      .map(doc => {
+        const data = doc.data();
+        return {
+          assignmentId: doc.id,
+          workPackageId: data.workPackageId || doc.id,
+          nodeId: data.nodeId,
+          operationName: data.operationName || data.name || 'İsimsiz Operasyon',
+          workerId: data.workerId,
+          workerName: data.workerName || 'Belirsiz',
+          planId: data.planId,
+          workOrderCode: data.workOrderCode,
+          status: data.status,
+          plannedStart: data.plannedStart?.toDate?.()?.toISOString() || data.plannedStart,
+          plannedEnd: data.plannedEnd?.toDate?.()?.toISOString() || data.plannedEnd,
+          estimatedTime: data.estimatedEffectiveTime || data.effectiveTime || null
+        };
+      })
+      .sort((a, b) => {
+        const dateA = a.plannedStart ? new Date(a.plannedStart) : new Date(0);
+        const dateB = b.plannedStart ? new Date(b.plannedStart) : new Date(0);
+        return dateA - dateB;
+      })
+      .slice(0, 10); // Take first 10 after sorting
+    
+    // Get completed tasks for performance metrics (last 30 days)
+    // Note: Filtering by date in memory to avoid composite index requirement
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const completedAssignmentsQuery = await db.collection('mes-worker-assignments')
+      .where('substationId', '==', id)
+      .where('status', '==', 'completed')
+      .limit(100) // Get last 100 completed tasks
+      .get();
+    
+    // Filter by date in memory
+    const completedDocs = completedAssignmentsQuery.docs.filter(doc => {
+      const actualEnd = doc.data().actualEnd;
+      if (!actualEnd) return false;
+      const endDate = actualEnd?.toDate ? actualEnd.toDate() : new Date(actualEnd);
+      return endDate >= thirtyDaysAgo;
+    });
+    
+    // Calculate performance metrics
+    let totalCompleted = completedDocs.length;
+    let avgDuration = null;
+    let totalOutputQuantity = 0;
+    let totalDefects = 0;
+    
+    if (totalCompleted > 0) {
+      let totalDurationMs = 0;
+      let validDurationCount = 0;
+      
+      completedDocs.forEach(doc => {
+        const data = doc.data();
+        
+        // Calculate duration
+        if (data.actualStart && data.actualEnd) {
+          const start = data.actualStart?.toDate ? data.actualStart.toDate() : new Date(data.actualStart);
+          const end = data.actualEnd?.toDate ? data.actualEnd.toDate() : new Date(data.actualEnd);
+          const durationMs = end - start;
+          if (durationMs > 0) {
+            totalDurationMs += durationMs;
+            validDurationCount++;
+          }
+        }
+        
+        // Accumulate output and defects
+        if (typeof data.actualOutputQuantity === 'number') {
+          totalOutputQuantity += data.actualOutputQuantity;
+        }
+        if (typeof data.defectQuantity === 'number') {
+          totalDefects += data.defectQuantity;
+        }
+      });
+      
+      if (validDurationCount > 0) {
+        avgDuration = Math.round(totalDurationMs / validDurationCount / 60000); // minutes
+      }
+    }
+    
+    // Calculate quality rate
+    let qualityRate = null;
+    if (totalOutputQuantity > 0) {
+      qualityRate = ((totalOutputQuantity - totalDefects) / totalOutputQuantity * 100).toFixed(1);
+    }
+    
+    return {
+      substation: {
+        id: substation.id,
+        code: substation.code,
+        stationId: substation.stationId,
+        status: substation.status,
+        currentOperation: substation.currentOperation,
+        currentWorkPackageId: substation.currentWorkPackageId,
+        currentExpectedEnd: substation.currentExpectedEnd
+      },
+      currentTask,
+      upcomingTasks,
+      performance: {
+        totalCompleted,
+        avgDuration, // in minutes
+        totalOutputQuantity,
+        totalDefects,
+        qualityRate, // percentage string
+        period: 'Son 30 gün'
+      }
+    };
+  }, res);
+});
+
 // ============================================================================
 // PRODUCTION PLAN LAUNCH ENDPOINT
 // ============================================================================
@@ -7399,8 +7583,10 @@ router.get('/work-packages', withAuth, async (req, res) => {
       return {
         // Assignment core data
         id: assignment.id,
+        assignmentId: assignment.id, // For compatibility with frontend code
         nodeId: assignment.nodeId,
         nodeName: assignment.nodeName,
+        operationName: assignment.nodeName, // For compatibility
         operationId: assignment.operationId,
         status: assignment.status,
         priority: assignment.priority || 0,
@@ -7424,13 +7610,23 @@ router.get('/work-packages', withAuth, async (req, res) => {
         // Station data
         stationId: assignment.stationId,
         stationName: assignment.stationName || station.name || '',
-        subStationCode: assignment.subStationCode || null,
+        subStationCode: assignment.subStationCode || assignment.substationCode || null,
+        substationId: assignment.substationId || null,
+        substationCode: assignment.substationCode || assignment.subStationCode || null,
+        
+        // Material data - ADDED
+        preProductionReservedAmount: assignment.preProductionReservedAmount || {},
+        materialInputs: assignment.materialInputs || {},
+        plannedOutput: assignment.plannedOutput || {},
+        outputCode: assignment.outputCode || null,
+        actualReservedAmounts: assignment.actualReservedAmounts || {},
+        materialReservationStatus: assignment.materialReservationStatus || null,
         
         // Timing data
-        plannedStart: assignment.plannedStart,
-        plannedEnd: assignment.plannedEnd,
-        actualStart: assignment.actualStart || null,
-        actualEnd: assignment.actualEnd || null,
+        plannedStart: assignment.plannedStart ? (assignment.plannedStart.toDate ? assignment.plannedStart.toDate().toISOString() : assignment.plannedStart) : null,
+        plannedEnd: assignment.plannedEnd ? (assignment.plannedEnd.toDate ? assignment.plannedEnd.toDate().toISOString() : assignment.plannedEnd) : null,
+        actualStart: assignment.actualStart ? (assignment.actualStart.toDate ? assignment.actualStart.toDate().toISOString() : assignment.actualStart) : null,
+        actualEnd: assignment.actualEnd ? (assignment.actualEnd.toDate ? assignment.actualEnd.toDate().toISOString() : assignment.actualEnd) : null,
         nominalTime: assignment.nominalTime || 0,
         effectiveTime: assignment.effectiveTime || 0,
         

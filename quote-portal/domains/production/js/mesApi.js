@@ -449,6 +449,13 @@ export async function getSubstations(stationId = null) {
   return data.substations || [];
 }
 
+export async function getSubstationDetails(substationId) {
+  const response = await authorizedFetch(`${API_BASE}/api/mes/substations/${substationId}/details`);
+  if (!response.ok) throw new Error(`Failed to fetch substation details: ${response.statusText}`);
+  
+  return await response.json();
+}
+
 // Batch worker assignments API
 export async function batchWorkerAssignments(planId, assignments) {
   const response = await authorizedFetch(`${API_BASE}/api/mes/worker-assignments/batch`, {
