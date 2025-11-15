@@ -1297,5 +1297,57 @@ export function setupMaterialsRoutes(app) {
     }
   })
 
+  // Stock Movements endpoint - fetch production history for a material
+  app.get('/api/stockMovements', requireAuth, async (req, res) => {
+    try {
+      const { materialCode } = req.query
+      
+      if (!materialCode) {
+        return res.status(400).json({ error: 'materialCode parametresi gerekli' })
+      }
+
+      console.log(`📊 Fetching stock movements for material: ${materialCode}`)
+
+      const db = getDb()
+      const movementsRef = db.collection('stockMovements')
+      
+      // Fetch movements where this material is involved
+      // Note: orderBy requires a Firestore index, so we'll sort client-side
+      const snapshot = await movementsRef
+        .where('materialCode', '==', materialCode)
+        .limit(100)
+        .get()
+
+      const movements = []
+      snapshot.forEach(doc => {
+        const data = doc.data()
+        movements.push({
+          id: doc.id,
+          ...data,
+          timestamp: data.timestamp?.toMillis ? data.timestamp.toMillis() : data.timestamp,
+          movementDate: data.movementDate?.toMillis ? data.movementDate.toMillis() : data.movementDate,
+          createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : data.createdAt
+        })
+      })
+
+      // Sort by timestamp client-side (newest first)
+      movements.sort((a, b) => {
+        const timeA = a.timestamp || a.movementDate || a.createdAt || 0
+        const timeB = b.timestamp || b.movementDate || b.createdAt || 0
+        return timeB - timeA
+      })
+
+      console.log(`✅ Found ${movements.length} stock movements for ${materialCode}`)
+      res.json({ movements, count: movements.length })
+
+    } catch (error) {
+      console.error('❌ Error fetching stock movements:', error)
+      res.status(500).json({ 
+        error: 'Stok hareketleri yüklenemedi', 
+        details: error.message 
+      })
+    }
+  })
+
   console.log('✅ Materials API routes kuruldu')
 }

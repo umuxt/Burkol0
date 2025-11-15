@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import useMaterialProcurementHistory from '../hooks/useMaterialProcurementHistory.js'
+import useMaterialProductionHistory from '../hooks/useMaterialProductionHistory.js'
 import { useSuppliers } from '../hooks/useSuppliers'
 import { 
   getEffectiveMaterialStatus, 
@@ -230,6 +231,9 @@ export default function EditMaterialModal({
   // Procurement history: load on modal open
   // Lazy-load via backend orders API; show independent from other content
   const { items: procurementItems, loading: procurementLoading, error: procurementError, loadHistory, isLoadedForMaterial } = useMaterialProcurementHistory(material)
+
+  // Production history: load on demand for all materials
+  const { items: productionItems, loading: productionLoading, error: productionError, loadHistory: loadProductionHistory, isLoadedForMaterial: isProductionLoaded } = useMaterialProductionHistory(material)
 
   // useEffect kaldırıldı - tedarik geçmişi sadece butona tıklandığında yüklenecek
 
@@ -1080,6 +1084,106 @@ export default function EditMaterialModal({
               </div>
             </div>
           )}
+          
+          {/* Üretim geçmişi tablosu */}
+          <div className="production-history-section" style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h3 style={{ margin: 0 }}>Üretim Geçmişi</h3>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (!isProductionLoaded) {
+                    console.log('🔄 Üretim geçmişi yükleniyor...', material.code);
+                    loadProductionHistory();
+                  } else {
+                    console.log('✅ Üretim geçmişi zaten yüklü, yeniden yükleniyor...');
+                    loadProductionHistory();
+                  }
+                }}
+                disabled={productionLoading}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  background: productionLoading ? '#e5e7eb' : '#f9fafb',
+                  cursor: productionLoading ? 'not-allowed' : 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: productionLoading ? '#9ca3af' : '#374151'
+                }}
+              >
+                {productionLoading ? '⏳ Yükleniyor...' : '🔄 Üretim Geçmişini Yükle'}
+              </button>
+            </div>
+            
+            <div className="supply-history-table">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tarih</th>
+                    <th>Work Order</th>
+                    <th>Operasyon</th>
+                    <th>Tip</th>
+                    <th>Miktar</th>
+                    <th>İşlem Yapan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productionLoading ? (
+                    <tr>
+                      <td colSpan="6" className="no-data">Üretim geçmişi yükleniyor...</td>
+                    </tr>
+                  ) : productionError ? (
+                    <tr>
+                      <td colSpan="6" className="error">Hata: {productionError}</td>
+                    </tr>
+                  ) : productionItems.length === 0 ? (
+                    <tr>
+                      <td colSpan="6" className="no-data">Henüz üretim geçmişi bulunmuyor</td>
+                    </tr>
+                  ) : (
+                    productionItems.slice(0, 10).map((item, index) => {
+                      const date = new Date(item.timestamp);
+                      const formattedDate = date.toLocaleDateString('tr-TR');
+                      const formattedTime = date.toLocaleTimeString('tr-TR');
+                      
+                      const typeLabel = item.type === 'consumption' ? 'Sarf' : 
+                                       item.type === 'production' ? 'Üretim' : 'WIP';
+                      const typeColor = item.type === 'consumption' ? '#ef4444' : 
+                                       item.type === 'production' ? '#10b981' : '#3b82f6';
+                      
+                      // Show adjustment info if available
+                      const quantityDisplay = item.type === 'consumption' && item.adjustedQuantity !== undefined
+                        ? `${item.quantity} (Rez: ${item.reservedQuantity}, ${item.adjustedQuantity > 0 ? '+' : ''}${item.adjustedQuantity})`
+                        : item.quantity;
+                      
+                      return (
+                        <tr key={item.id || index}>
+                          <td>{formattedDate} {formattedTime}</td>
+                          <td>{item.workOrderCode}</td>
+                          <td>{item.nodeId}</td>
+                          <td>
+                            <span style={{
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              backgroundColor: typeColor + '20',
+                              color: typeColor
+                            }}>
+                              {typeLabel}
+                            </span>
+                          </td>
+                          <td>{quantityDisplay}</td>
+                          <td>{item.producedBy}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
           
           {/* Tedarik geçmişi tablosu */}
           <div className="supply-history-section">
