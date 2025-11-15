@@ -13,7 +13,7 @@ describe('End-to-End: Create → Launch → Start → Complete', () => {
     // In production, this would make HTTP requests to the API
     
     const mockPlan = {
-      id: 'PLAN-TEST-001',
+      id: 'PPL-0125-001',  // Format: PPL-MMYY-XXX
       orderCode: 'WO-TEST-001',
       status: 'draft',
       quantity: 100,

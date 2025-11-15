@@ -131,8 +131,9 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
   }) // Dynamic next code
   const [materialTypes] = useState([
     { id: 'raw_material', label: 'Ham Madde' },
-    { id: 'wip', label: 'Yarı Mamül' },
-    { id: 'final_product', label: 'Bitmiş Ürün' }
+    { id: 'semi_finished', label: 'Yarı Mamül' },
+    { id: 'finished_product', label: 'Bitmiş Ürün' },
+    { id: 'scrap', label: 'Hurda' }
   ])
   const [showNewCategory, setShowNewCategory] = useState(false) // Show new category input
   const [newCategory, setNewCategory] = useState('') // New category name

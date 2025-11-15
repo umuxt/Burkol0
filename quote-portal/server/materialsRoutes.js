@@ -270,10 +270,12 @@ export async function adjustMaterialStock(materialIdOrCode, delta, options = {})
         }
       };
       
-      // For WIP materials (type: 'wip' or category: 'WIP'), track consumption history
-      const isWIP = currentData.type === 'wip' || currentData.category === 'WIP' || currentData.produced === true;
+      // For semi-finished materials (type: 'semi_finished' or category: 'SEMI_FINISHED'), track consumption history
+      // Backward compatibility: Also check for old 'wip' type
+      const isSemiFinished = currentData.type === 'semi_finished' || currentData.category === 'SEMI_FINISHED' || 
+                             currentData.type === 'wip' || currentData.category === 'WIP' || currentData.produced === true;
       
-      if (isWIP && delta < 0 && options.planId) {
+      if (isSemiFinished && delta < 0 && options.planId) {
         // Add consumption record to consumedBy array
         const consumedByEntry = {
           planId: options.planId,
@@ -287,6 +289,21 @@ export async function adjustMaterialStock(materialIdOrCode, delta, options = {})
         updateData.consumedBy = admin.firestore.FieldValue.arrayUnion(consumedByEntry);
       }
       
+      // Track production history for semi_finished and finished_product (when stock increases)
+      if ((isSemiFinished || currentData.type === 'finished_product') && delta > 0 && options.planId) {
+        const productionEntry = {
+          planId: options.planId,
+          workOrderCode: options.workOrderCode || null,
+          nodeId: options.nodeId || null,
+          assignmentId: options.assignmentId || null,
+          quantity: delta,
+          timestamp: new Date().toISOString(),
+          producedBy: options.userId || 'system'
+        };
+        
+        updateData.productionHistory = admin.firestore.FieldValue.arrayUnion(productionEntry);
+      }
+      
       // Update stock
       transaction.update(materialDoc.ref, updateData);
       
@@ -295,7 +312,7 @@ export async function adjustMaterialStock(materialIdOrCode, delta, options = {})
         materialCode: currentData.code || materialDoc.id,
         materialName: currentData.name || '',
         materialType: currentData.type || currentData.category || 'unknown',
-        isWIP,
+        isSemiFinished,
         previousStock: currentStock,
         newStock,
         delta
@@ -429,10 +446,16 @@ export function setupMaterialsRoutes(app) {
         const cached = getCachedData('materialsActive')
         if (cached) {
           if (ifNoneMatch && ifNoneMatch === cached.etag) {
+            res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+            res.set('Pragma', 'no-cache')
+            res.set('Expires', '0')
             return res.status(304).end()
           }
           res.set('ETag', cached.etag)
           res.set('X-Cache', 'HIT')
+          res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+          res.set('Pragma', 'no-cache')
+          res.set('Expires', '0')
           return res.json(cached.data)
         }
       }
@@ -474,6 +497,9 @@ export function setupMaterialsRoutes(app) {
       
       res.set('ETag', etag)
       res.set('X-Cache', 'MISS')
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+      res.set('Pragma', 'no-cache')
+      res.set('Expires', '0')
       console.log(`✅ API: ${materials.length} malzeme döndürüldü (kaldırılanlar hariç)`)
       res.json(materials)
     } catch (error) {
@@ -525,10 +551,16 @@ export function setupMaterialsRoutes(app) {
         const cached = getCachedData('materialsAll')
         if (cached) {
           if (ifNoneMatch && ifNoneMatch === cached.etag) {
+            res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+            res.set('Pragma', 'no-cache')
+            res.set('Expires', '0')
             return res.status(304).end()
           }
           res.set('ETag', cached.etag)
           res.set('X-Cache', 'HIT')
+          res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+          res.set('Pragma', 'no-cache')
+          res.set('Expires', '0')
           return res.json(cached.data)
         }
       }
@@ -566,6 +598,9 @@ export function setupMaterialsRoutes(app) {
       
       res.set('ETag', etag)
       res.set('X-Cache', 'MISS')
+      res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
+      res.set('Pragma', 'no-cache')
+      res.set('Expires', '0')
       console.log(`✅ API: ${materials.length} malzeme döndürüldü (tümü)`)
       res.json(materials)
     } catch (error) {

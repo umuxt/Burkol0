@@ -1470,7 +1470,18 @@ export function generatePlanDesigner() {
           </div>
           <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <div id="node-output-code-label" style="font-size: 12px; color: var(--muted-foreground);">Output: —</div>
+              <div style="position: relative; display: flex; align-items: center; gap: 4px;">
+                <div id="node-output-code-label" style="font-size: 12px; color: var(--muted-foreground);">Output: —</div>
+                <button id="output-template-btn" onclick="openOutputTemplateDropdown()" title="Load from template" style="padding: 2px 6px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; display: flex; align-items: center; font-size: 10px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                </button>
+                <div id="output-template-dropdown" style="display: none; position: absolute; left: 0; bottom: 32px; min-width: 300px; max-height: 300px; overflow-y: auto; background: white; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000;">
+                  <div style="padding: 8px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; color: var(--muted-foreground);">Select Template</div>
+                  <div id="output-template-list"></div>
+                </div>
+              </div>
               <input id="edit-output-qty" type="number" min="0" step="0.01" placeholder="Qty" title="Output quantity" style="width: 90px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;" />
               <select id="edit-output-unit" title="Output unit" style="width: 110px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; background: white;">
                 <option value="">Birim seçin</option>

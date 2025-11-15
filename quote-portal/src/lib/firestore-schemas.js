@@ -46,8 +46,8 @@ export const MaterialSchema = {
   type: {
     type: 'string',
     required: true,
-    enum: ['raw_material', 'wip', 'final_product'],
-    description: 'Malzeme tipi'
+    enum: ['raw_material', 'semi_finished', 'finished_product', 'scrap', 'wip'], // 'wip' kept for backward compatibility
+    description: 'Malzeme tipi (wip deprecated, use semi_finished instead)'
   },
   
   category: {
@@ -249,6 +249,35 @@ export const MaterialSchema = {
     type: 'string',
     required: true,
     description: 'Son güncelleyen kullanıcı ID'
+  },
+  
+  // Production History (for semi_finished and finished_product)
+  productionHistory: {
+    type: 'array',
+    items: {
+      planId: { type: 'string' },
+      workOrderCode: { type: 'string' },
+      nodeId: { type: 'string' },
+      assignmentId: { type: 'string' },
+      quantity: { type: 'number' },
+      timestamp: { type: 'string' }, // ISO 8601 string
+      producedBy: { type: 'string' } // User ID or 'system'
+    },
+    description: 'Üretim geçmişi - Yarı mamül ve bitmiş ürünler için üretim kayıtları'
+  },
+  
+  // Scrap Material Fields
+  scrapType: {
+    type: 'string',
+    enum: ['input_damaged', 'production_scrap', 'output_scrap'],
+    required: false,
+    description: 'Hurda tipi - Sadece type=scrap olan malzemeler için'
+  },
+  
+  parentMaterial: {
+    type: 'string',
+    required: false,
+    description: 'Ana malzeme kodu - Hurda malzemeler için orijinal malzeme referansı'
   },
   
   // Son Hareket Bilgileri

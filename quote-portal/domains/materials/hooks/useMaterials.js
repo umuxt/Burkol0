@@ -66,6 +66,14 @@ export function useMaterials(autoLoad = false) {
           }
           return [material, ...prevMaterials];
         });
+      } else if (action === 'update' && material) {
+        // Update action - force refresh to get latest data
+        console.log('🔄 useMaterials: Material updated, force refreshing...');
+        try {
+          await loadMaterials(true); // Force refresh to bypass cache
+        } catch (error) {
+          console.error('❌ useMaterials: Failed to refresh materials:', error);
+        }
       }
       // Don't auto-refresh for other actions to avoid loops
     };
@@ -74,7 +82,7 @@ export function useMaterials(autoLoad = false) {
       window.addEventListener('materialsUpdated', handleMaterialsUpdate);
       return () => window.removeEventListener('materialsUpdated', handleMaterialsUpdate);
     }
-  }, []); // No dependencies to avoid loops
+  }, [loadMaterials]); // Add loadMaterials to dependencies
 
   // Global stock update event listener
   useEffect(() => {

@@ -42,12 +42,13 @@ const TEST_PLAN = {
       requiredSkills: ['cutting_basic'],
       assignedStations: [{ stationId: 'WS-001' }], // Required by business logic
       outputQty: 10, // Required by business logic
-      rawMaterials: [ // Required for starting operations
+      materialInputs: [ // Required for starting operations
         {
-          materialId: 'MAT-STEEL-001',
-          materialName: 'Steel Sheet',
-          qty: 5,
-          unit: 'kg'
+          materialCode: 'MAT-STEEL-001',
+          name: 'Steel Sheet',
+          requiredQuantity: 5,
+          unit: 'kg',
+          unitRatio: 1
         }
       ],
       predecessors: [], // Starting node (no predecessors)
@@ -63,7 +64,7 @@ const TEST_PLAN = {
       requiredSkills: ['welding_basic'],
       assignedStations: [{ stationId: 'WS-002' }], // Required by business logic
       outputQty: 10, // Required by business logic
-      rawMaterials: [], // Not a starting operation
+      materialInputs: [], // Not a starting operation
       predecessors: ['NODE-1'], // Has predecessor
       resources: []
     },
@@ -77,7 +78,7 @@ const TEST_PLAN = {
       requiredSkills: ['quality_control'],
       assignedStations: [{ stationId: 'WS-003' }], // Required by business logic
       outputQty: 10, // Required by business logic
-      rawMaterials: [], // Not a starting operation
+      materialInputs: [], // Not a starting operation
       predecessors: ['NODE-2'], // Has predecessor
       resources: []
     }

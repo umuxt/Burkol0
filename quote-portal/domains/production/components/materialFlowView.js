@@ -133,7 +133,7 @@ function composeNodeInputs(nodeId, graph) {
   }
 
   // raw materials consumed at this node
-  const rms = Array.isArray(node.rawMaterials) ? node.rawMaterials : [];
+  const rms = Array.isArray(node.materialInputs) ? node.materialInputs : [];
   for (const rm of rms) {
     if (rm && rm.derivedFrom) continue; // auto
     const code = codeFromMaterial(rm);
@@ -148,7 +148,7 @@ function composeChainStepTokens(prevNode, node) {
   const interInputs = [];
   if (prevNode && prevNode.semiCode) interInputs.push(String(prevNode.semiCode));
   const rawInputs = [];
-  const rms = Array.isArray(node.rawMaterials) ? node.rawMaterials : [];
+  const rms = Array.isArray(node.materialInputs) ? node.materialInputs : [];
   for (const rm of rms) {
     if (rm && rm.derivedFrom) continue;
     const code = codeFromMaterial(rm);
@@ -193,7 +193,7 @@ function analyzeFlow(nodes) {
           const prev = i === 0 ? null : chain[i - 1];
           if (i === 0) {
             // start box uses only its raw inputs
-            const rms = Array.isArray(curr.rawMaterials) ? curr.rawMaterials : [];
+            const rms = Array.isArray(curr.materialInputs) ? curr.materialInputs : [];
             const rawOnly = [];
             for (const rm of rms) {
               if (rm && rm.derivedFrom) continue;

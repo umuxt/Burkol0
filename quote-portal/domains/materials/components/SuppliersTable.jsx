@@ -56,8 +56,9 @@ export default function SuppliersTable({
   const categoriesRefreshTimerRef = useRef(null)
   const [materialTypes] = useState([
     { id: 'raw_material', label: 'Ham Madde' },
-    { id: 'wip', label: 'Yarı Mamül' },
-    { id: 'final_product', label: 'Bitmiş Ürün' }
+    { id: 'semi_finished', label: 'Yarı Mamül' },
+    { id: 'finished_product', label: 'Bitmiş Ürün' },
+    { id: 'scrap', label: 'Hurda' }
   ])
   const [showNewCategory, setShowNewCategory] = useState(false)
   const [newCategory, setNewCategory] = useState('')
@@ -3122,11 +3123,52 @@ export default function SuppliersTable({
             setLoadingMaterialDetail(false)
             console.log('🚪 Modal states cleaned up')
           }}
-          onSave={() => {
-            // Material saved, you might want to refresh data
-            setShowMaterialDetailModal(false)
-            setSelectedMaterialForDetail(null)
-            setLoadingMaterialDetail(false)
+          onSave={async (materialData, newCategoryName) => {
+            try {
+              console.log('💾 Saving material:', selectedMaterialForDetail?.id, materialData);
+              
+              // Import service if needed
+              const materialsService = (await import('../services/materials-service.js')).default;
+              
+              // Update material via API
+              const updated = await materialsService.updateMaterial(selectedMaterialForDetail.id, materialData);
+              
+              console.log('✅ Material updated successfully:', updated);
+              
+              // If new category was added, you might want to refresh categories
+              if (newCategoryName) {
+                console.log('📁 New category added:', newCategoryName);
+                // Reload categories
+                const freshCategories = await categoriesService.getCategories();
+                setMaterialCategories(freshCategories);
+              }
+              
+              // Refresh the material lists with forceRefresh flag to bypass cache
+              await loadMaterials(true);  // ✅ Force refresh
+              await loadAllMaterials(true);  // ✅ Force refresh
+              
+              // Dispatch global update event for other components
+              try {
+                const evt = new CustomEvent('materialsUpdated', { 
+                  detail: { 
+                    action: 'update', 
+                    material: updated 
+                  } 
+                });
+                window.dispatchEvent(evt);
+                console.log('📢 Dispatched materialsUpdated event');
+              } catch (e) {
+                console.warn('Failed to dispatch event:', e);
+              }
+              
+              // Update selected material with fresh data
+              setSelectedMaterialForDetail(updated);
+              
+              showNotification('✅ Malzeme başarıyla güncellendi!', 'success');
+            } catch (error) {
+              console.error('❌ Material update failed:', error);
+              showNotification('❌ Hata: ' + error.message, 'error');
+            }
           }}
           onDelete={handleDeleteMaterial ? (materialId) => {
             // Call the delete handler from main.jsx
@@ -3139,8 +3181,9 @@ export default function SuppliersTable({
           categories={materialCategories}
           types={[
             { id: 'raw_material', label: 'Ham Madde' },
-            { id: 'wip', label: 'Yarı Mamül' },
-            { id: 'final_product', label: 'Bitmiş Ürün' }
+            { id: 'semi_finished', label: 'Yarı Mamül' },
+            { id: 'finished_product', label: 'Bitmiş Ürün' },
+            { id: 'scrap', label: 'Hurda' }
           ]}
           material={selectedMaterialForDetail}
           isRemoved={selectedMaterialForDetail?.status === 'Kaldırıldı'}

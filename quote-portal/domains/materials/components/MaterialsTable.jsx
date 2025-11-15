@@ -90,9 +90,7 @@ export default function MaterialsTable({
 
   const filteredMaterials = activeTab === 'all' 
     ? materials 
-    : (activeTab === 'wip' 
-        ? materials.filter(material => material.type === 'wip' || material.type === 'wip_produced')
-        : materials.filter(material => material.type === activeTab));
+    : materials.filter(material => material.type === activeTab);
 
   // Sıralama işlemi
   const sortedMaterials = [...filteredMaterials].sort((a, b) => {
@@ -141,9 +139,7 @@ export default function MaterialsTable({
             {tab.label}
             {tab.id !== 'all' && (
               <span className="tab-count">
-                ({tab.id === 'wip' 
-                  ? materials.filter(m => m.type === 'wip' || m.type === 'wip_produced').length
-                  : materials.filter(m => m.type === tab.id).length})
+                ({materials.filter(m => m.type === tab.id).length})
               </span>
             )}
             {tab.id === 'all' && (

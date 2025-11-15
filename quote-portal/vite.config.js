@@ -30,8 +30,16 @@ const copyComponents = () => {
       
       jsFiles.forEach(file => {
         const sourcePath = resolve(__dirname, file)
+        const destPath = resolve(__dirname, `dist/${file}`)
+        
         if (existsSync(sourcePath)) {
-          copyFileSync(sourcePath, resolve(__dirname, `dist/${file}`))
+          // Create directory if it doesn't exist
+          const destDir = destPath.substring(0, destPath.lastIndexOf('/'))
+          if (!existsSync(destDir)) {
+            mkdirSync(destDir, { recursive: true })
+          }
+          
+          copyFileSync(sourcePath, destPath)
         }
       })
       

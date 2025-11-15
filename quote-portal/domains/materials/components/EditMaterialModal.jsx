@@ -643,50 +643,8 @@ export default function EditMaterialModal({
               </div>
             </div>
             
-            {/* Sağ kolon - Üretim Bilgisi + Tedarikçiler */}
+            {/* Sağ kolon - Tedarikçiler */}
             <div className="details-right-section">
-              {material?.type === 'wip_produced' && (
-                <div style={{ marginBottom: '12px', border: '1px solid #e5e7eb', borderRadius: '6px', background: '#fff' }}>
-                  <div style={{ padding: '8px 12px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '14px' }}>🏭</span>
-                    <h3 style={{ margin: 0 }}>Üretilmiş Yarı Mamül Bilgisi</h3>
-                  </div>
-                  <div style={{ padding: '8px 12px', fontSize: '12px', color: '#374151' }}>
-                    <div style={{ display: 'flex', gap: '6px', marginBottom: '4px' }}>
-                      <span style={{ minWidth: 120, color: '#6b7280' }}>İstasyon:</span>
-                      <span>{material?.producedInfo?.stationName || material?.producedInfo?.stationId || '-'}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', marginBottom: '4px' }}>
-                      <span style={{ minWidth: 120, color: '#6b7280' }}>Operasyon:</span>
-                      <span>{material?.producedInfo?.operationName || material?.producedInfo?.operationId || '-'}</span>
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', marginBottom: '4px' }}>
-                      <span style={{ minWidth: 120, color: '#6b7280' }}>Çıkış:</span>
-                      <span>{(material?.producedInfo?.outputQty ?? '') + (material?.producedInfo?.outputUnit ? ' ' + material.producedInfo.outputUnit : '') || '-'}</span>
-                    </div>
-                    <div style={{ marginTop: '8px' }}>
-                      <div style={{ fontWeight: 600, marginBottom: '6px' }}>Kullanılan Girdiler</div>
-                      <div style={{ border: '1px solid #e5e7eb', borderRadius: 4 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', padding: '6px 8px', background: '#f9fafb', color: '#6b7280', fontWeight: 600 }}>
-                          <div>Malzeme</div>
-                          <div>Adet</div>
-                          <div>Birim</div>
-                        </div>
-                        {(material?.producedInfo?.inputs || []).map((inp, i) => (
-                          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px', padding: '6px 8px', borderTop: '1px solid #e5e7eb' }}>
-                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{inp.id || '-'}</div>
-                            <div>{inp.qty ?? '-'}</div>
-                            <div>{inp.unit || '-'}</div>
-                          </div>
-                        ))}
-                        {(!material?.producedInfo?.inputs || material.producedInfo.inputs.length === 0) && (
-                          <div style={{ padding: '8px', color: '#6b7280' }}>Girdi bilgisi yok</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
               <div className="suppliers-section" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                 <h3 style={{ 
                   fontSize: '14px', 
@@ -1047,6 +1005,81 @@ export default function EditMaterialModal({
               </div>
             </div>
           </div>
+          
+          {/* Üretim Geçmişi - Yarı Mamül ve Bitmiş Ürün için */}
+          {(material?.type === 'semi_finished' || material?.type === 'finished_product') && material?.productionHistory && material.productionHistory.length > 0 && (
+            <div className="production-history-section">
+              <h3>Üretim Geçmişi</h3>
+              <div className="table-container">
+                <table className="custom-table">
+                  <thead>
+                    <tr>
+                      <th>Tarih</th>
+                      <th>İş Emri</th>
+                      <th>Operasyon</th>
+                      <th>Miktar</th>
+                      <th>Tür</th>
+                      <th>Üretim Yapan</th>
+                      <th>Durum</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {material.productionHistory
+                      .sort((a, b) => {
+                        // Tarihsel sıralama - en yeni üstte
+                        const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+                        const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+                        return dateB - dateA;
+                      })
+                      .map((record, index) => {
+                        const recordDate = record.timestamp?.toDate ? record.timestamp.toDate() : new Date(record.timestamp || 0);
+                        const isScrap = record.type === 'scrap' || record.isScrap;
+                        
+                        return (
+                          <tr key={index} style={isScrap ? { backgroundColor: '#fef2f2' } : {}}>
+                            <td>{recordDate.toLocaleDateString('tr-TR')} {recordDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</td>
+                            <td>{record.workOrderCode || record.workOrderId || '-'}</td>
+                            <td>{record.operationName || record.operationId || '-'}</td>
+                            <td>
+                              {isScrap ? (
+                                <span style={{ color: '#dc2626', fontWeight: 600 }}>
+                                  {record.actualQuantity || record.quantity || 0} {material.unit}
+                                </span>
+                              ) : (
+                                <span>
+                                  {record.actualQuantity || record.quantity || 0} {material.unit}
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              {isScrap ? (
+                                <span className="badge badge-danger">🗑️ Hurda</span>
+                              ) : record.type === 'production' ? (
+                                <span className="badge badge-success">✅ Üretim</span>
+                              ) : record.type === 'consumption' ? (
+                                <span className="badge badge-info">📦 Tüketim</span>
+                              ) : (
+                                <span className="badge badge-secondary">-</span>
+                              )}
+                            </td>
+                            <td>{record.workerName || record.workerId || '-'}</td>
+                            <td>
+                              {record.status === 'completed' ? (
+                                <span className="badge badge-success">Tamamlandı</span>
+                              ) : record.status === 'pending' ? (
+                                <span className="badge badge-warning">Bekliyor</span>
+                              ) : (
+                                <span className="badge badge-secondary">{record.status || '-'}</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           
           {/* Tedarik geçmişi tablosu */}
           <div className="supply-history-section">

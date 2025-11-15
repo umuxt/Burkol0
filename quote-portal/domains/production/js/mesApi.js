@@ -387,11 +387,11 @@ export async function upsertProducedWipFromNode(node, ops = [], stations = []) {
   const operation = Array.isArray(ops) ? ops.find(o => o.id === node.operationId) : null
   
   // Build input materials list with quantities for consumption tracking
-  const inputs = Array.isArray(node.rawMaterials) 
-    ? node.rawMaterials.map(m => ({ 
-        id: m.id, 
-        code: m.code || m.id,
-        qty: m.qty ?? null, 
+  const inputs = Array.isArray(node.materialInputs) 
+    ? node.materialInputs.map(m => ({ 
+        id: m.materialCode, 
+        code: m.materialCode,
+        qty: m.requiredQuantity ?? null, 
         unit: m.unit || '' 
       })) 
     : []
@@ -399,13 +399,14 @@ export async function upsertProducedWipFromNode(node, ops = [], stations = []) {
   const body = {
     code: node.semiCode,
     name: node.semiCode,
-    type: 'wip_produced',
+    type: 'semi_finished',
     unit: node.outputUnit || '',
     stock: 0, // Initial stock is 0; updated during production
-    category: 'WIP',
+    category: 'SEMI_FINISHED',
     description: `Produced via Plan Canvas${station ? ` @ ${station.name || station.id}` : ''}`,
     status: 'Aktif',
     produced: true,
+    productionHistory: [],
     producedInfo: {
       nodeId: node.id,
       operationId: node.operationId,

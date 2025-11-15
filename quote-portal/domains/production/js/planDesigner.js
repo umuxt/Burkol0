@@ -88,18 +88,16 @@ export function aggregatePlanMaterials(nodes, planQuantity = 1) {
   
   // Collect all materials from all nodes
   nodes.forEach(node => {
-    const materials = Array.isArray(node.rawMaterials) 
-      ? node.rawMaterials 
-      : (node.rawMaterial ? [node.rawMaterial] : []);
+    const materials = Array.isArray(node.materialInputs) ? node.materialInputs : [];
     
     materials.forEach(mat => {
-      if (!mat || !mat.id) return;
+      if (!mat || !mat.materialCode) return;
       
-      const qty = parseFloat(mat.qty);
+      const qty = parseFloat(mat.requiredQuantity);
       // Skip items without quantity
       if (!Number.isFinite(qty) || qty <= 0) return;
       
-      const key = mat.id;
+      const key = mat.materialCode;
       const required = qty * planQuantity;
       
       if (materialMap.has(key)) {
@@ -107,10 +105,10 @@ export function aggregatePlanMaterials(nodes, planQuantity = 1) {
         existing.required += required;
       } else {
         materialMap.set(key, {
-          id: mat.id,
-          code: mat.code || mat.id,
-          name: mat.name || mat.id,
-          unit: mat.unit || '',
+          id: mat.materialCode,
+          code: mat.materialCode,
+          name: mat.name || mat.materialCode,
+          unit: 'pcs', // Default unit
           required: required,
           stock: 0, // Will be populated from API
           isDerived: !!mat.derivedFrom
@@ -151,8 +149,9 @@ export function summarizePlanTiming(nodes, planQuantity = 1) {
     totalEffectiveTime += effectiveTime;
     
     // Track station load
-    if (node.assignedStationId) {
-      const stationId = node.assignedStationId;
+    // Station info (from assignedStations array)
+    if (Array.isArray(node.assignedStations) && node.assignedStations[0]?.stationId) {
+      const stationId = node.assignedStations[0].stationId;
       const currentLoad = stationLoadMap.get(stationId) || 0;
       stationLoadMap.set(stationId, currentLoad + effectiveTime);
     }
@@ -819,13 +818,13 @@ export function handleCanvasDrop(event) {
     // Rule-based fields for auto-assignment at launch
     requiredSkills: operation.skills || [], // Skills required for this operation
     preferredStations: [], // Preferred station IDs or tags (multi-select)
-    allocationType: 'auto', // 'auto' (default) or 'manual'
+    assignmentMode: 'auto', // 'auto' (default) or 'manual' - SCHEMA-COMPLIANT
     workerHint: null, // Optional hint for manual allocation: { workerId?, workerNameHint? }
     priorityTag: null, // Optional priority or lane identifier
     // Scheduling dependencies
     predecessors: [], // Explicit list of predecessor node IDs
-    // Material inputs/outputs
-    rawMaterials: [], // List of materials consumed
+    // Material inputs/outputs (SCHEMA-COMPLIANT)
+    materialInputs: [], // List of materials consumed: [{ materialCode, requiredQuantity, unitRatio }]
     semiCode: null, // Output semi-finished product code
     outputQty: 1, // Default output quantity (will be updated when user configures)
     outputUnit: 'pcs', // Default output unit (will be updated when user configures)
@@ -983,14 +982,14 @@ export function renderNode(node, targetCanvas = null) {
   ].join('');
   // Material summary for display
   const matSummary = (() => {
-    const rms = Array.isArray(node.rawMaterials) ? node.rawMaterials : (node.rawMaterial ? [node.rawMaterial] : [])
-    if (!rms.length) return 'Not selected'
-    const parts = rms.slice(0,2).map(m => {
-      const nm = m.name || m.id
-      const qty = m.qty != null && m.qty !== '' ? ` (${m.qty}${m.unit?(' '+m.unit):''})` : ''
+    const materials = Array.isArray(node.materialInputs) ? node.materialInputs : []
+    if (!materials.length) return 'Not selected'
+    const parts = materials.slice(0,2).map(m => {
+      const nm = m.name || m.materialCode
+      const qty = m.requiredQuantity != null && m.requiredQuantity !== '' ? ` (${m.requiredQuantity})` : ''
       return (nm||'').toString() + qty
     })
-    const extra = rms.length > 2 ? ` +${rms.length-2} more` : ''
+    const extra = materials.length > 2 ? ` +${materials.length-2} more` : ''
     return parts.join(', ') + extra
   })()
   const warningBadge = node.requiresAttention ? 
@@ -1017,7 +1016,7 @@ export function renderNode(node, targetCanvas = null) {
     const effectiveTime = typeof node.effectiveTime === 'number' ? node.effectiveTime : nominalTime;
     
     // If effective time differs from nominal, show both
-    if (Math.abs(effectiveTime - nominalTime) > 0.01 && (node.assignedWorkerId || node.assignedStationId)) {
+    if (Math.abs(effectiveTime - nominalTime) > 0.01 && (node.assignedWorkerId || (Array.isArray(node.assignedStations) && node.assignedStations.length > 0))) {
       return `⏱️ ${nominalTime} min → ${effectiveTime.toFixed(1)} min effective`;
     }
     return `⏱️ ${nominalTime} min`;
@@ -1030,12 +1029,12 @@ export function renderNode(node, targetCanvas = null) {
       return node.assignedWorkerName || node.assignedWorker;
     }
     
-    // Check for manual allocation hint
-    if (node.allocationType === 'manual' && node.workerHint && node.workerHint.workerId) {
-      const workerName = node.workerHint.workerNameHint || node.workerHint.workerId;
-      // Extract just the name part (before parentheses if present)
-      const shortName = workerName.split('(')[0].trim();
-      return `📌 ${shortName}`;
+    // Check for manual assignment with worker ID
+    if (node.assignmentMode === 'manual' && node.assignedWorkerId) {
+      // Try to find worker name from availableWorkers
+      const worker = (planDesignerState.availableWorkers || []).find(w => w.id === node.assignedWorkerId);
+      const workerName = worker ? worker.name : node.assignedWorkerId;
+      return `📌 ${workerName}`;
     }
     
     return 'Auto-assign at launch';
@@ -1204,9 +1203,8 @@ export function deleteConnection(fromNodeId, toNodeId) {
       toNode.predecessors = toNode.predecessors.filter(pid => pid !== fromNodeId);
     }
     // Remove auto-propagated material
-    if (Array.isArray(toNode.rawMaterials)) {
-      toNode.rawMaterials = toNode.rawMaterials.filter(m => !(m && m.derivedFrom === fromNodeId));
-      toNode.rawMaterial = toNode.rawMaterials.length ? { ...toNode.rawMaterials[0] } : null;
+    if (Array.isArray(toNode.materialInputs)) {
+      toNode.materialInputs = toNode.materialInputs.filter(m => !(m && m.derivedFrom === fromNodeId));
     }
     try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toNodeId } })) } catch {}
   }
@@ -1255,31 +1253,28 @@ export function connectNodes(fromId, toId) {
     if (!Array.isArray(toNode.predecessors)) toNode.predecessors = [];
     if (!toNode.predecessors.includes(fromId)) toNode.predecessors.push(fromId);
 
-    // Material propagation: from's output becomes default raw material of to
-    if (!Array.isArray(toNode.rawMaterials)) toNode.rawMaterials = [];
-    const existingIdx = toNode.rawMaterials.findIndex(m => m && (m.derivedFrom === fromId || m.id === `node-${fromId}-output`));
+    // Material propagation: from's output becomes input material of to (SCHEMA-COMPLIANT)
+    if (!Array.isArray(toNode.materialInputs)) toNode.materialInputs = [];
+    const existingIdx = toNode.materialInputs.findIndex(m => m && (m.derivedFrom === fromId || m.materialCode === (fromNode.semiCode || `node-${fromId}-output`)));
     if (existingIdx === -1) {
       const autoMat = {
-        id: fromNode.semiCode || `node-${fromId}-output`,
-        name: fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`,
-        qty: (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : null,
-        unit: fromNode.outputUnit || '',
-        derivedFrom: fromId
+        materialCode: fromNode.semiCode || `node-${fromId}-output`,  // SCHEMA: materialCode
+        name: fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`,  // Display only
+        requiredQuantity: (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : 0,  // SCHEMA: requiredQuantity
+        unitRatio: 1,  // SCHEMA: unitRatio
+        derivedFrom: fromId  // Tracking only
       };
-      toNode.rawMaterials.push(autoMat);
-      // Keep legacy rawMaterial for compatibility with older summaries
-      toNode.rawMaterial = toNode.rawMaterials.length ? { ...toNode.rawMaterials[0] } : null;
+      toNode.materialInputs.push(autoMat);
       try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toId } })) } catch {}
     } else {
-      // If a matching row exists, convert it into a derived material coming from this node
-      const m = toNode.rawMaterials[existingIdx]
+      // If a matching row exists, update it with new values
+      const m = toNode.materialInputs[existingIdx]
       if (m) {
         m.derivedFrom = fromId
-        m.id = fromNode.semiCode || `node-${fromId}-output`
+        m.materialCode = fromNode.semiCode || `node-${fromId}-output`  // SCHEMA
         m.name = fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`
-        m.qty = (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : null
-        m.unit = fromNode.outputUnit || ''
-        toNode.rawMaterial = toNode.rawMaterials.length ? { ...toNode.rawMaterials[0] } : null
+        m.requiredQuantity = (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : 0  // SCHEMA
+        m.unitRatio = 1  // SCHEMA
         try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toId } })) } catch {}
       }
     }
@@ -1560,12 +1555,11 @@ export async function editNode(nodeId) {
   
   // Build form content with rules-based fields only
   const requiredSkills = node.requiredSkills || [];
-  const allocationType = node.allocationType || 'auto';
-  const workerHint = node.workerHint || {};
+  const assignmentMode = node.assignmentMode || 'auto';  // SCHEMA-COMPLIANT
   
   // Build worker select options with skill filtering
   const availableWorkers = planDesignerState.availableWorkers || [];
-  const selectedWorkerId = workerHint.workerId || '';
+  const selectedWorkerId = node.assignedWorkerId || '';
   
   // Filter workers by required skills
   const matchingWorkers = availableWorkers.filter(worker => {
@@ -1597,8 +1591,7 @@ export async function editNode(nodeId) {
   if (selectedWorkerId) {
     const savedWorker = availableWorkers.find(w => w.id === selectedWorkerId);
     if (!savedWorker) {
-      const savedName = workerHint.workerNameHint || selectedWorkerId;
-      workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Previously selected worker "${escapeHtml(savedName)}" no longer exists. Please select another worker.</div>`;
+      workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Previously selected worker "${escapeHtml(selectedWorkerId)}" no longer exists. Please select another worker.</div>`;
     } else if (!matchingWorkers.find(w => w.id === selectedWorkerId)) {
       workerNotFoundWarning = `<div style="padding: 8px; background: #fef3c7; border: 1px solid #fbbf24; border-radius: 4px; font-size: 12px; color: #92400e; margin-top: 8px;">⚠️ Previously selected worker "${escapeHtml(savedWorker.name)}" no longer has required skills (${requiredSkills.join(', ')}). Please select another worker.</div>`;
     }
@@ -1624,16 +1617,16 @@ export async function editNode(nodeId) {
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div style="font-size: 12px; color: var(--muted-foreground); padding: 8px; background: #f9fafb; border-radius: 4px;">' + (requiredSkills.length > 0 ? requiredSkills.join(', ') : 'None specified') + '</div><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Skills are inherited from the operation definition</div></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Preferred Specific Stations <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span> <span style="cursor: help; color: #3b82f6;" title="Select specific stations by name. At launch, the system will prefer these exact stations.">ℹ️</span></label>' + stationSelectHTML + missingStationsWarning + '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Select specific stations for this operation. System will try to assign one of these first.</div></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Capability Tags <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span> <span style="cursor: help; color: #3b82f6;" title="Enter generic capability tags like \'CNC\', \'Welding\', etc. System will match stations with these tags as fallback.">ℹ️</span></label><input type="text" id="edit-station-tags" value="' + escapeHtml(tagsInputValue) + '" placeholder="e.g., CNC, Welding, Laser" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Generic capabilities (comma-separated). Used if no specific station is available.</div></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Allocation Type</label><div style="display: flex; gap: 16px;"><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="allocation-type" value="auto" ' + (allocationType === 'auto' ? 'checked' : '') + ' style="cursor: pointer;" />Auto (System assigns at launch)</label><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="allocation-type" value="manual" ' + (allocationType === 'manual' ? 'checked' : '') + ' style="cursor: pointer;" />Manual (Assign specific worker)</label></div></div>' +
-    '<div id="worker-hint-section" style="margin-bottom: 16px; display: ' + (allocationType === 'manual' ? 'block' : 'none') + ';"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Worker <span style="color: #ef4444;">*</span></label><select id="edit-worker-select" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: white;">' + workerOptions + '</select>' + workerNotFoundWarning + '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Backend will assign this worker at launch (if available).</div><label style="display: block; margin-top: 12px; margin-bottom: 4px; font-weight: 500;">Notes <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="text" id="edit-worker-notes" value="' + escapeHtml(workerHint.notes || '') + '" placeholder="e.g., Has experience with this product" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Optional notes for documentation purposes.</div></div>';
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assignment Mode</label><div style="display: flex; gap: 16px;"><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="assignment-mode" value="auto" ' + (assignmentMode === 'auto' ? 'checked' : '') + ' style="cursor: pointer;" />Auto (System assigns at launch)</label><label style="display: flex; align-items: center; gap: 6px;"><input type="radio" name="assignment-mode" value="manual" ' + (assignmentMode === 'manual' ? 'checked' : '') + ' style="cursor: pointer;" />Manual (Assign specific worker)</label></div></div>' +
+    '<div id="worker-hint-section" style="margin-bottom: 16px; display: ' + (assignmentMode === 'manual' ? 'block' : 'none') + ';"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Assigned Worker <span style="color: #ef4444;">*</span></label><select id="edit-worker-select" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: white;">' + workerOptions + '</select>' + workerNotFoundWarning + '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Backend will assign this worker at launch (if available).</div></div>';
     
   document.getElementById('node-edit-form').innerHTML = formContent;
   
   // Setup station search dropdown
   setupStationSearch();
   
-  // Add event listener for allocation type radio buttons
-  const radioButtons = document.querySelectorAll('input[name="allocation-type"]');
+  // Add event listener for assignment mode radio buttons
+  const radioButtons = document.querySelectorAll('input[name="assignment-mode"]');
   radioButtons.forEach(radio => {
     radio.addEventListener('change', (e) => {
       const workerHintSection = document.getElementById('worker-hint-section');
@@ -1653,11 +1646,11 @@ export async function editNode(nodeId) {
     try {
       const label = document.getElementById('node-output-code-label');
       if (label) {
-        const preview = node.semiCode || await getSemiCodePreviewForNode(node, planDesignerState.availableOperations || [], []).catch(() => null);
+        const preview = node.semiCode || await getSemiCodePreviewForNode(node, planDesignerState.availableOperations || [], planDesignerState.availableStations || []).catch(() => null);
         if (preview) {
           label.textContent = `Output: ${preview}`;
         } else {
-          const prefix = getPrefixForNode(node, planDesignerState.availableOperations || [], []);
+          const prefix = getPrefixForNode(node, planDesignerState.availableOperations || [], planDesignerState.availableStations || []);
           label.textContent = prefix ? `Output: ${prefix}-` : 'Output: —';
         }
       }
@@ -1758,10 +1751,9 @@ export function saveNodeEdit() {
   const time = parseInt(document.getElementById('edit-time').value);
   const efficiencyInput = document.getElementById('edit-efficiency')?.value || '';
   const stationTagsInput = document.getElementById('edit-station-tags')?.value || '';
-  const allocationTypeRadio = document.querySelector('input[name="allocation-type"]:checked');
-  const allocationType = allocationTypeRadio ? allocationTypeRadio.value : 'auto';
+  const assignmentModeRadio = document.querySelector('input[name="assignment-mode"]:checked');
+  const assignmentMode = assignmentModeRadio ? assignmentModeRadio.value : 'auto';
   const workerSelect = document.getElementById('edit-worker-select');
-  const workerNotesInput = document.getElementById('edit-worker-notes')?.value || '';
   const outQtyVal = document.getElementById('edit-output-qty')?.value;
   const outUnit = document.getElementById('edit-output-unit')?.value || '';
   
@@ -1771,7 +1763,7 @@ export function saveNodeEdit() {
   }
   
   // Validate manual allocation has worker selected
-  if (allocationType === 'manual') {
+  if (assignmentMode === 'manual') {
     const selectedWorkerId = workerSelect?.value || '';
     if (!selectedWorkerId) {
       showErrorToast('Manual allocation requires a worker selection');
@@ -1826,22 +1818,14 @@ export function saveNodeEdit() {
   const legacyStations = [...selectedStationIds];
   planDesignerState.selectedNode.preferredStations = legacyStations;
   
-  // Update allocation type
-  planDesignerState.selectedNode.allocationType = allocationType;
+  // Update assignment mode (SCHEMA-COMPLIANT)
+  planDesignerState.selectedNode.assignmentMode = assignmentMode;
   
-  // Update worker hint (only if manual allocation)
-  if (allocationType === 'manual' && workerSelect) {
-    const selectedWorkerId = workerSelect.value;
-    const selectedOption = workerSelect.options[workerSelect.selectedIndex];
-    const workerNameHint = selectedOption ? selectedOption.text : '';
-    
-    planDesignerState.selectedNode.workerHint = {
-      workerId: selectedWorkerId,
-      workerNameHint: workerNameHint,
-      notes: workerNotesInput || null
-    };
+  // Update assigned worker (only if manual assignment)
+  if (assignmentMode === 'manual' && workerSelect) {
+    planDesignerState.selectedNode.assignedWorkerId = workerSelect.value;
   } else {
-    planDesignerState.selectedNode.workerHint = null;
+    planDesignerState.selectedNode.assignedWorkerId = null;
   }
   
   // Update output qty/unit
@@ -1851,7 +1835,11 @@ export function saveNodeEdit() {
   
   // Update semi-code
   try { 
-    computeAndAssignSemiCode(planDesignerState.selectedNode, planDesignerState.availableOperations || [], []); 
+    computeAndAssignSemiCode(
+      planDesignerState.selectedNode, 
+      planDesignerState.availableOperations || [], 
+      planDesignerState.availableStations || []
+    ); 
   } catch {}
   
   // Upsert WIP material
@@ -1875,6 +1863,34 @@ export function closeNodeEditModal(event) {
     document.body.style.overflow = '';
     document.body.style.paddingRight = '';
   }
+  
+  // Restore node to original state (cancel changes)
+  if (planDesignerState.selectedNode && planDesignerState.nodeEditSnapshot) {
+    const node = planDesignerState.selectedNode;
+    const snapshot = planDesignerState.nodeEditSnapshot;
+    
+    // Restore all editable properties from snapshot
+    node.name = snapshot.name;
+    node.time = snapshot.time;
+    node.efficiency = snapshot.efficiency;
+    node.assignedStations = snapshot.assignedStations;
+    node.assignmentMode = snapshot.assignmentMode;
+    node.assignedWorkerId = snapshot.assignedWorkerId;
+    node.assignedWorkerName = snapshot.assignedWorkerName;
+    node.materialInputs = snapshot.materialInputs;
+    node.outputQty = snapshot.outputQty;
+    node.outputUnit = snapshot.outputUnit;
+    node._isTemplateApplied = snapshot._isTemplateApplied;
+    node._templateCode = snapshot._templateCode;
+    node._templateRatios = snapshot._templateRatios;
+    
+    // Re-render canvas to show restored state
+    renderCanvas();
+  }
+  
+  // Clear temporary state
+  planDesignerState.tempMaterialSelections = [];
+  planDesignerState.nodeEditSnapshot = null;
   planDesignerState.selectedNode = null;
   
   // Remove escape key listener
@@ -1884,31 +1900,29 @@ export function closeNodeEditModal(event) {
   }
 }
 
-// Update downstream nodes' auto-derived raw materials when a node's output changes
+// Update downstream nodes' materialInputs when a node's output changes (SCHEMA-COMPLIANT)
 export function propagateDerivedMaterialUpdate(fromNodeId) {
   const fromId = asIdString(fromNodeId)
   if (!fromId) return
   const fromNode = planDesignerState.nodes.find(n => asIdString(n.id) === fromId)
   if (!fromNode) return
+  const updatedMaterialCode = fromNode.semiCode || `node-${fromId}-output`  // SCHEMA: materialCode
   const updatedLabel = fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`
-  const updatedId = fromNode.semiCode || `node-${fromId}-output`
-  const updatedQty = (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : null
-  const updatedUnit = fromNode.outputUnit || ''
+  const updatedQty = (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : 0  // SCHEMA: requiredQuantity
 
   planDesignerState.nodes.forEach(n => {
-    if (!Array.isArray(n.rawMaterials)) return
+    if (!Array.isArray(n.materialInputs)) return
     let changed = false
-    n.rawMaterials.forEach(m => {
+    n.materialInputs.forEach(m => {
       if (m && asIdString(m.derivedFrom) === fromId) {
-        m.id = updatedId
-        m.name = updatedLabel
-        m.qty = updatedQty
-        m.unit = updatedUnit
+        m.materialCode = updatedMaterialCode     // SCHEMA: materialCode
+        m.name = updatedLabel                    // Display only
+        m.requiredQuantity = updatedQty          // SCHEMA: requiredQuantity
+        m.unitRatio = 1                          // SCHEMA: unitRatio
         changed = true
       }
     })
     if (changed) {
-      n.rawMaterial = n.rawMaterials.length ? { ...n.rawMaterials[0] } : null
       try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: n.id } })) } catch {}
     }
   })
@@ -2010,9 +2024,8 @@ export function deleteNode(nodeId) {
         node.predecessors = node.predecessors.filter(pid => pid !== nodeId);
       }
       // Auto-propagated materials that originated from the deleted node
-      if (Array.isArray(node.rawMaterials)) {
-        node.rawMaterials = node.rawMaterials.filter(m => !(m && m.derivedFrom === nodeId));
-        node.rawMaterial = node.rawMaterials.length ? { ...node.rawMaterials[0] } : null;
+      if (Array.isArray(node.materialInputs)) {
+        node.materialInputs = node.materialInputs.filter(m => !(m && m.derivedFrom === nodeId));
       }
     });
     
@@ -2235,19 +2248,34 @@ function sanitizeNodesForBackend(nodes) {
         : (Array.isArray(node.skills) ? node.skills : []),
       
       // CANONICAL: assignedStations (array format, map from legacy 'assignedStationId')
+      // Schema requires: [{ stationId: string, priority?: number }]
       assignedStations: node.assignedStationId && typeof node.assignedStationId === 'string'
         ? [{ stationId: node.assignedStationId, priority: 1 }]  // String → Array
-        : (Array.isArray(node.assignedStations) ? node.assignedStations : []),
+        : (Array.isArray(node.assignedStations) 
+          ? node.assignedStations.map(s => 
+              typeof s === 'string' 
+                ? { stationId: s, priority: 1 }  // String → Object
+                : (s && s.stationId ? s : null)  // Object with stationId or null
+            ).filter(Boolean)  // Remove nulls
+          : []),
       
       // Optional fields
       assignedSubstations: Array.isArray(node.assignedSubstations) ? node.assignedSubstations : [],
-      assignmentMode: node.assignmentMode || node.allocationType || 'auto',
-      assignedWorkerId: node.assignedWorkerId || node.workerHint?.workerId || null,
+      assignmentMode: node.assignmentMode || 'auto',  // SCHEMA-COMPLIANT (no legacy fallback)
+      assignedWorkerId: node.assignedWorkerId || null,
       
-      // Dependencies and materials
+      // Dependencies and materials (SCHEMA-COMPLIANT)
       predecessors: Array.isArray(node.predecessors) ? node.predecessors : [],
-      rawMaterials: Array.isArray(node.rawMaterials) ? node.rawMaterials : [],
-      materialInputs: Array.isArray(node.materialInputs) ? node.materialInputs : [],
+      
+      // Material inputs: Clean structure, already schema-compliant
+      materialInputs: Array.isArray(node.materialInputs) 
+        ? node.materialInputs.map(m => ({
+            materialCode: m.materialCode,        // SCHEMA: materialCode
+            requiredQuantity: m.requiredQuantity || 0, // SCHEMA: requiredQuantity
+            unitRatio: m.unitRatio || 1          // SCHEMA: unitRatio
+          }))
+        : [],
+      
       semiCode: node.semiCode || node.outputCode || null,
       outputCode: node.semiCode || node.outputCode || null,
       outputQty: parseFloat(node.outputQty) || 0,
@@ -2374,12 +2402,10 @@ export async function savePlanDraft() {
     hasShortages: false,
     items: enrichedMaterials,
     shortages: [],
-    rawMaterials: enrichedMaterials.map(item => ({
-      id: item.id,
-      code: item.code,
+    materialInputs: enrichedMaterials.map(item => ({
+      materialCode: item.code,
       name: item.name,
-      required: item.required,
-      unit: item.unit,
+      requiredQuantity: item.required,
       isDerived: item.isDerived
     })),
     wipOutputs
@@ -2472,6 +2498,8 @@ export async function savePlanDraft() {
     console.log('  - Has requiredSkills:', plan.nodes[0]?.requiredSkills ? '✅ YES' : '❌ NO');
     console.log('  - Has assignedStations:', Array.isArray(plan.nodes[0]?.assignedStations) ? '✅ YES (array)' : '❌ NO');
     console.log('  - Has efficiency:', plan.nodes[0]?.efficiency !== undefined ? `✅ YES (${plan.nodes[0].efficiency})` : 'ℹ️ NO (will use operation default)');
+    console.log('  - First node materialInputs:', JSON.stringify(plan.nodes[0]?.materialInputs, null, 2));
+    console.log('  - First node assignedStations:', JSON.stringify(plan.nodes[0]?.assignedStations, null, 2));
   }
   
   try {
@@ -3130,11 +3158,8 @@ function normalizeIncomingNodes(rawNodes = []) {
       ? node.predecessors.filter(Boolean).map(val => String(val).trim())
       : [];
 
-    const materials = Array.isArray(node?.rawMaterials)
-      ? node.rawMaterials
-      : (node?.rawMaterial ? [node.rawMaterial] : []);
-    node.rawMaterials = materials.map(mat => ({ ...mat }));
-    node.rawMaterial = node.rawMaterials.length ? { ...node.rawMaterials[0] } : null;
+    const materials = Array.isArray(node?.materialInputs) ? node.materialInputs : [];
+    node.materialInputs = materials.map(mat => ({ ...mat }));
 
     if (!Number.isFinite(node?.x)) {
       node.x = 80 + (index % 6) * 180;
@@ -3169,8 +3194,8 @@ function normalizeIncomingNodes(rawNodes = []) {
     if (!node.preferredStations) {
       node.preferredStations = [];
     }
-    if (!node.allocationType) {
-      node.allocationType = 'auto';
+    if (!node.assignmentMode) {
+      node.assignmentMode = 'auto';
     }
     if (!node.workerHint) {
       node.workerHint = null;
@@ -3194,11 +3219,10 @@ function normalizeIncomingNodes(rawNodes = []) {
   cloned.forEach(node => {
     node.connections = node.connections.map(resolveId).filter(Boolean);
     node.predecessors = node.predecessors.map(resolveId).filter(Boolean);
-    node.rawMaterials = node.rawMaterials.map(mat => ({
+    node.materialInputs = (node.materialInputs || []).map(mat => ({
       ...mat,
       derivedFrom: resolveId(mat?.derivedFrom)
     }));
-    node.rawMaterial = node.rawMaterials.length ? { ...node.rawMaterials[0] } : null;
   });
 
   let maxNumeric = 0;

@@ -155,10 +155,18 @@ async function handleFirestoreOperation(operation, res) {
     const status = error.status || 500;
     const errorCode = error.code || 'internal_server_error';
     
-    res.status(status).json({ 
+    // Build response object (avoid circular references)
+    const errorResponse = { 
       error: errorCode,
-      message: error.message 
-    });
+      message: error.message
+    };
+    
+    // Add validation errors if available (but avoid circular refs)
+    if (error.validationErrors && Array.isArray(error.validationErrors)) {
+      errorResponse.details = error.validationErrors;
+    }
+    
+    res.status(status).json(errorResponse);
   }
 }
 
@@ -192,6 +200,8 @@ function calculatePreProductionReservedAmount(node, expectedDefectRate = 0, plan
   const preProductionReservedAmount = {};
   
   if (!node || !node.materialInputs || !Array.isArray(node.materialInputs)) {
+    console.warn(`⚠️ calculatePreProductionReservedAmount: node ${node?.id} has no materialInputs!`);
+    console.warn(`   node.materialInputs:`, node?.materialInputs);
     return preProductionReservedAmount;
   }
   
@@ -202,8 +212,9 @@ function calculatePreProductionReservedAmount(node, expectedDefectRate = 0, plan
     console.warn(`Node ${node.id} has no outputQty, cannot calculate input/output ratio. Using direct input quantities.`);
     // Fallback: use input quantities directly
     node.materialInputs.forEach(material => {
-      const materialCode = material.code;
-      const requiredQty = (material.qty || material.required || 0) * planQuantity;
+      // Schema-compliant: materialCode, requiredQuantity (also support legacy: code, qty)
+      const materialCode = material.materialCode || material.code;
+      const requiredQty = (material.requiredQuantity || material.qty || material.required || 0) * planQuantity;
       if (materialCode && requiredQty > 0) {
         preProductionReservedAmount[materialCode] = 
           (preProductionReservedAmount[materialCode] || 0) + requiredQty;
@@ -226,8 +237,9 @@ function calculatePreProductionReservedAmount(node, expectedDefectRate = 0, plan
   
   // Process each input material
   node.materialInputs.forEach(material => {
-    const materialCode = material.code;
-    const inputQtyPerOperation = material.qty || material.required || 0;
+    // Schema-compliant: materialCode, requiredQuantity (also support legacy: code, qty)
+    const materialCode = material.materialCode || material.code;
+    const inputQtyPerOperation = material.requiredQuantity || material.qty || material.required || 0;
     
     if (!materialCode || inputQtyPerOperation <= 0) return;
     
@@ -354,7 +366,10 @@ async function getPlanExecutionState(planId) {
   const tasks = nodes.map(node => {
     const assignment = assignments.get(node.nodeId);
     const workerId = node.assignedWorkerId || assignment?.workerId;
-    const stationId = node.assignedStationId || assignment?.stationId;
+    
+    // Get stationId from assignedStations array (schema-compliant: stationId or id)
+    const stationId = (Array.isArray(node.assignedStations) && (node.assignedStations[0]?.stationId || node.assignedStations[0]?.id)) 
+      || assignment?.stationId;
     
     // Check prerequisites
     const predecessorsDone = Array.isArray(node.predecessors)
@@ -1526,13 +1541,19 @@ function validateProductionPlanNodes(nodes) {
     }
     
     // 8. Validate material inputs
-    const materials = node.rawMaterials || [];
+    const materials = node.materialInputs || [];
     const materialInputs = node.materialInputs || [];
     const allMaterials = materials.length > 0 ? materials : materialInputs;
     
-    // Check each material has a valid quantity
+    // Debug log for material validation
+    if (allMaterials.length > 0) {
+      console.log(`🔍 ${nodeLabel} materials:`, JSON.stringify(allMaterials, null, 2));
+    }
+    
+    // Check each material has a valid quantity (CANONICAL: requiredQuantity)
     allMaterials.forEach((material, matIndex) => {
-      const matQty = material.qty || material.quantity;
+      const matQty = material.requiredQuantity || material.qty || material.quantity;
+      console.log(`   Material ${matIndex + 1}: requiredQuantity=${material.requiredQuantity}, qty=${material.qty}, quantity=${material.quantity}, resolved=${matQty}`);
       if (!Number.isFinite(matQty) || matQty < 0) {
         errors.push(`${nodeLabel}, Material ${matIndex + 1}: Quantity must be a valid number >= 0`);
       }
@@ -1611,10 +1632,11 @@ router.post('/production-plans', withAuth, async (req, res) => {
       if (!validatePlan(productionPlan)) {
         metrics.increment('validation_error_count');
         console.error('❌ Plan validation failed:', validatePlan.errors);
-        return res.status(400).json({ 
-          error: 'Invalid plan schema', 
-          details: validatePlan.errors 
-        });
+        // Return error and stop execution (prevents circular JSON error)
+        throw Object.assign(
+          new Error('Invalid plan schema'),
+          { status: 400, code: 'validation_error', validationErrors: validatePlan.errors }
+        );
       }
     } else {
       console.warn('⚠️ Validation disabled by feature flag - accepting plan without validation');
@@ -1921,8 +1943,8 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
       // stored in the plan document.
       //
       // MATERIAL SUMMARY STRUCTURE:
-      // - materialSummary.rawMaterials: All input materials (raw + derived WIP)
-      //   Each item: { id, code, name, required, unit, isDerived }
+      // - materialSummary.materialInputs: All input materials (raw + derived WIP)
+      //   Each item: { materialCode, name, requiredQuantity, unit, isDerived }
       // - materialSummary.wipOutputs: All WIP materials produced by plan nodes
       //   Each item: { code, name, quantity, unit, nodeId, operationId }
       //
@@ -1955,20 +1977,20 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
             console.log(`🏭 Processing material movements for plan ${id}...`);
             
             const materialSummary = planData.materialSummary;
-            const stockResults = { rawMaterials: null, wipOutputs: null };
+            const stockResults = { materialInputs: null, wipOutputs: null };
             
-            // 1. Consume raw materials (negative delta)
+            // 1. Consume material inputs (negative delta)
             // NOTE: This includes both base raw materials and derived WIP materials
             // consumed as inputs. WIP materials will be tracked in their consumedBy array.
-            if (Array.isArray(materialSummary.rawMaterials) && materialSummary.rawMaterials.length > 0) {
-              const consumptionList = materialSummary.rawMaterials.map(mat => ({
-                code: mat.code || mat.id,
-                qty: mat.required || 0,
+            if (Array.isArray(materialSummary.materialInputs) && materialSummary.materialInputs.length > 0) {
+              const consumptionList = materialSummary.materialInputs.map(mat => ({
+                code: mat.materialCode || mat.code,
+                qty: mat.requiredQuantity || mat.qty || 0,
                 reason: `production_plan_${id}`,
                 nodeId: null // Could be enhanced to track per-node consumption
               }));
               
-              stockResults.rawMaterials = await consumeMaterials(consumptionList, {
+              stockResults.materialInputs = await consumeMaterials(consumptionList, {
                 userId: updatedByEmail || 'system',
                 orderId: planData.orderCode || id,
                 planId: id, // Pass planId for WIP consumption tracking
@@ -1976,12 +1998,12 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
               });
               
               console.log(
-                `✓ Raw materials: ${stockResults.rawMaterials.consumed.length} consumed, ` +
-                `${stockResults.rawMaterials.failed.length} failed`
+                `✓ Material inputs: ${stockResults.materialInputs.consumed.length} consumed, ` +
+                `${stockResults.materialInputs.failed.length} failed`
               );
               
               // Log WIP consumption separately for visibility
-              const wipConsumed = stockResults.rawMaterials.consumed.filter(m => m.isWIP);
+              const wipConsumed = stockResults.materialInputs.consumed.filter(m => m.isWIP);
               if (wipConsumed.length > 0) {
                 console.log(`  └─ WIP materials consumed: ${wipConsumed.map(w => w.material).join(', ')}`);
               }
@@ -2017,14 +2039,14 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
                   // If WIP doesn't exist, create it
                   if (error.message.includes('not found')) {
                     try {
-                      console.log(`📦 Creating new WIP material: ${wipCode}`);
+                      console.log(`📦 Creating new semi-finished material: ${wipCode}`);
                       
                       const newWipRef = db.collection('materials').doc(wipCode);
                       await newWipRef.set({
                         code: wipCode,
                         name: wip.name || wipCode,
-                        type: 'wip', // Explicit WIP type
-                        category: 'WIP',
+                        type: 'semi_finished', // Semi-finished product type
+                        category: 'SEMI_FINISHED',
                         stock: wipQty,
                         unit: wip.unit || 'pcs',
                         status: 'Aktif',
@@ -2036,7 +2058,8 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
                         sourcePlanId: id,
                         sourceNodeId: wip.nodeId || null,
                         sourceOperationId: wip.operationId || null,
-                        consumedBy: [] // Initialize empty array for consumption tracking
+                        consumedBy: [], // Initialize empty array for consumption tracking
+                        productionHistory: [] // Initialize empty array for production history
                       });
                       
                       wipResults.produced.push({
@@ -2074,14 +2097,14 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
             }
             
             // Log summary
-            if (stockResults.rawMaterials || stockResults.wipOutputs) {
+            if (stockResults.materialInputs || stockResults.wipOutputs) {
               console.log(`✅ Material movements completed for plan ${id}`);
               
               // Optionally store the stock movement results in the plan document for audit
               await planRef.update({
                 stockMovements: {
                   timestamp: now,
-                  rawMaterials: stockResults.rawMaterials,
+                  materialInputs: stockResults.materialInputs,
                   wipOutputs: stockResults.wipOutputs
                 }
               });
@@ -3752,6 +3775,8 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             throw new Error(`Production plan ${planId} not found`);
           }
           
+          const planData = planDoc.data();
+          
           // Get material inputs and output information
           const nodes = planData.nodes || [];
           const node = nodes.find(n => n.id === nodeId);
@@ -3888,16 +3913,16 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                 });
                 
                 // ========================================================================
-                // STOCK MOVEMENTS: Record WIP release and consumption
+                // STOCK MOVEMENTS: Record WIP release and stock adjustment
                 // ========================================================================
                 
-                // 1. WIP Release (always happens)
+                // 1. WIP Release (always release FULL reserved amount)
                 const wipReleaseMovementRef = db.collection('stockMovements').doc();
                 transaction.set(wipReleaseMovementRef, {
                   materialId: materialCode,
                   materialCode: materialCode,
                   materialName: materialData.name || '',
-                  type: 'in', // WIP'ten serbest bırakma (conceptually "in" to available pool)
+                  type: 'out', // ✅ WIP'ten çıkış (reserved malzeme WIP'den çıkıyor)
                   subType: 'wip_release',
                   quantity: reservedAmount,
                   unit: materialData.unit || 'Adet',
@@ -3914,7 +3939,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                   relatedNodeId: nodeId,
                   warehouse: null,
                   location: 'WIP Release',
-                  notes: `Görev tamamlandı - WIP rezervi serbest bırakıldı`,
+                  notes: `Görev tamamlandı - ${reservedAmount} ${materialData.unit} WIP rezervinden serbest bırakıldı`,
                   reason: 'MES görev tamamlama - WIP serbest bırakma',
                   movementDate: now,
                   createdAt: now,
@@ -3925,15 +3950,15 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                   approvedAt: now
                 });
                 
-                // 2. Actual Consumption (production usage)
+                // 2. Production Consumption (actual consumption)
                 const consumptionMovementRef = db.collection('stockMovements').doc();
                 transaction.set(consumptionMovementRef, {
                   materialId: materialCode,
                   materialCode: materialCode,
                   materialName: materialData.name || '',
-                  type: actualConsumption > 0 ? 'out' : 'in', // Consumption is 'out', over-reservation return is 'in'
+                  type: 'out', // ✅ Tüketim - malzeme yok oldu
                   subType: 'production_consumption',
-                  quantity: Math.abs(actualConsumption),
+                  quantity: actualConsumption,
                   unit: materialData.unit || 'Adet',
                   stockBefore: currentStock,
                   stockAfter: Math.max(0, newStock),
@@ -3941,7 +3966,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                   defectQuantity: defects,
                   plannedOutput: plannedOutputQty,
                   unitCost: materialData.costPrice || null,
-                  totalCost: materialData.costPrice ? materialData.costPrice * Math.abs(actualConsumption) : null,
+                  totalCost: materialData.costPrice ? materialData.costPrice * actualConsumption : null,
                   currency: 'TRY',
                   reference: assignmentId,
                   referenceType: 'mes_task_complete',
@@ -4082,12 +4107,22 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
               } else {
                 console.warn(`⚠️ Output material ${outputCode} not found in database. Creating it...`);
                 
-                // Create output material if it doesn't exist (WIP material)
+                // Detect if this is a finished product (no other nodes use this as input)
+                const isFinishedProduct = !planData.nodes.some(n => 
+                  Array.isArray(n.predecessors) && n.predecessors.includes(nodeId)
+                );
+                
+                const materialType = isFinishedProduct ? 'finished_product' : 'semi_finished';
+                const materialCategory = isFinishedProduct ? 'FINISHED_PRODUCT' : 'SEMI_FINISHED';
+                
+                console.log(`🏭 Material type determination: ${materialType} (isFinishedProduct: ${isFinishedProduct})`);
+                
+                // Create output material if it doesn't exist (Semi-finished or Finished Product)
                 transaction.set(outputMaterialRef, {
                   code: outputCode,
                   name: node.name || outputCode,
-                  type: 'wip',
-                  category: 'WIP',
+                  type: materialType,
+                  category: materialCategory,
                   stock: actualOutput,
                   reserved: 0,
                   wipReserved: 0,
@@ -4098,7 +4133,8 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                   createdAt: now,
                   updatedAt: now,
                   createdBy: actorEmail,
-                  updatedBy: actorEmail
+                  updatedBy: actorEmail,
+                  productionHistory: [] // Initialize production history array
                 });
                 
                 outputStockResult = {
@@ -4137,8 +4173,8 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                   relatedNodeId: nodeId,
                   warehouse: null,
                   location: 'Production Output',
-                  notes: `Yeni WIP malzemesi oluşturuldu ve ${actualOutput} adet üretildi${defects > 0 ? ` (Fire: ${defects})` : ''}`,
-                  reason: 'MES görev tamamlama - Yeni WIP malzeme + Üretim çıktısı',
+                  notes: `Yeni ${materialType === 'finished_product' ? 'bitmiş ürün' : 'yarı mamül'} malzemesi oluşturuldu ve ${actualOutput} adet üretildi${defects > 0 ? ` (Fire: ${defects})` : ''}`,
+                  reason: `MES görev tamamlama - Yeni ${materialType === 'finished_product' ? 'bitmiş ürün' : 'yarı mamül'} malzeme + Üretim çıktısı`,
                   movementDate: now,
                   createdAt: now,
                   userId: actorEmail,
@@ -4212,7 +4248,8 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
       }
       
       if (stationRef && stationUpdate) {
-        transaction.update(stationRef, stationUpdate);
+        // Use set with merge for substation updates (in case document structure is incomplete)
+        transaction.set(stationRef, stationUpdate, { merge: true });
       }
       
       return {
@@ -4895,8 +4932,19 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       const workPackageId = assignmentIds[i];
       const assignmentRef = db.collection('mes-worker-assignments').doc(workPackageId);
       
-      // Validate assignment schema
-      if (!validateAssignment(assignment)) {
+      // Prepare complete assignment document with required fields
+      const completeAssignment = {
+        ...assignment,
+        id: workPackageId,
+        planId,
+        workOrderCode,
+        createdAt: now,
+        createdBy: userEmail,
+        updatedAt: now
+      };
+      
+      // Validate assignment schema (now with id and planId)
+      if (!validateAssignment(completeAssignment)) {
         console.error(`❌ Invalid assignment schema for ${workPackageId}:`, validateAssignment.errors);
         // Continue anyway but log for monitoring
       }
@@ -4907,15 +4955,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       console.log(`   plannedOutput:`, assignment.plannedOutput);
       console.log(`   materialReservationStatus:`, assignment.materialReservationStatus);
       
-      batch.set(assignmentRef, {
-        ...assignment,
-        id: workPackageId,
-        planId,
-        workOrderCode,
-        createdAt: now,
-        createdBy: userEmail,
-        updatedAt: now
-      });
+      batch.set(assignmentRef, completeAssignment);
     }
     
     // Update plan document with launch status
@@ -5085,9 +5125,9 @@ function buildTopologicalOrder(nodes) {
 async function validateMaterialAvailabilityForLaunch(planData, planQuantity, db) {
   const nodes = planData.nodes || [];
   const materialSummary = planData.materialSummary || {};
-  const rawMaterials = materialSummary.rawMaterials || [];
+  const materialInputs = materialSummary.materialInputs || [];
   
-  if (rawMaterials.length === 0 || nodes.length === 0) {
+  if (materialInputs.length === 0 || nodes.length === 0) {
     return { warnings: [] };
   }
   
@@ -5107,21 +5147,21 @@ async function validateMaterialAvailabilityForLaunch(planData, planQuantity, db)
   // 2. Materials with code starting with M-00 (critical raw materials)
   const materialsToCheck = new Map();
   
-  rawMaterials.forEach(mat => {
+  materialInputs.forEach(mat => {
     if (mat.isDerived) return; // Skip WIP materials
     
     const shouldCheck = 
       (mat.nodeId && startNodeIds.has(mat.nodeId)) || // From start node
-      (mat.code && mat.code.startsWith('M-00')); // Critical raw material
+      (mat.materialCode && mat.materialCode.startsWith('M-00')); // Critical raw material
     
     if (shouldCheck) {
-      const key = mat.code;
+      const key = mat.materialCode;
       const existing = materialsToCheck.get(key) || { 
         ...mat, 
-        required: 0,
+        requiredQuantity: 0,
         nodeNames: new Set()
       };
-      existing.required += (mat.required || 0) * planQuantity;
+      existing.requiredQuantity += (mat.requiredQuantity || 0) * planQuantity;
       if (mat.nodeName) existing.nodeNames.add(mat.nodeName);
       materialsToCheck.set(key, existing);
     }
@@ -5182,21 +5222,21 @@ async function validateMaterialAvailabilityForLaunch(planData, planQuantity, db)
  */
 async function validateMaterialAvailability(planData, planQuantity, db) {
   const materialSummary = planData.materialSummary || {};
-  const rawMaterials = materialSummary.rawMaterials || [];
+  const materialInputs = materialSummary.materialInputs || [];
   
-  if (rawMaterials.length === 0) {
+  if (materialInputs.length === 0) {
     return { allAvailable: true, shortages: [], details: [] };
   }
   
   // Aggregate materials by code to avoid duplicate lookups
   const aggregated = new Map();
   
-  rawMaterials.forEach(mat => {
-    if (!mat.code || mat.isDerived) return; // Skip WIP materials (they're produced in the plan)
+  materialInputs.forEach(mat => {
+    if (!mat.materialCode || mat.isDerived) return; // Skip WIP materials (they're produced in the plan)
     
-    const key = mat.code;
-    const existing = aggregated.get(key) || { ...mat, required: 0 };
-    existing.required += (mat.required || 0) * planQuantity;
+    const key = mat.materialCode;
+    const existing = aggregated.get(key) || { ...mat, requiredQuantity: 0 };
+    existing.requiredQuantity += (mat.requiredQuantity || 0) * planQuantity;
     aggregated.set(key, existing);
   });
   
@@ -5519,9 +5559,11 @@ async function assignNodeResources(
     
     // Try each station in priority order
     for (const stationInfo of sortedStations) {
-      const station = stations.find(s => s.id === stationInfo.id);
+      // SCHEMA: Support both stationId (new) and id (legacy)
+      const stationId = stationInfo.stationId || stationInfo.id;
+      const station = stations.find(s => s.id === stationId);
       if (!station) {
-        console.warn(`Station ${stationInfo.id} not found, skipping`);
+        console.warn(`Station ${stationId} not found, skipping`);
         continue;
       }
       
@@ -5553,7 +5595,9 @@ async function assignNodeResources(
       let earliestEnd = null;
       
       for (const stationInfo of sortedStations) {
-        const station = stations.find(s => s.id === stationInfo.id);
+        // SCHEMA: Support both stationId (new) and id (legacy)
+        const stationId = stationInfo.stationId || stationInfo.id;
+        const station = stations.find(s => s.id === stationId);
         if (!station) continue;
         
         const stationSubstations = substations.filter(ss => ss.stationId === station.id);
@@ -5603,15 +5647,8 @@ async function assignNodeResources(
       }
     }
   } else {
-    // No stations assigned - fallback to old behavior for backward compatibility
+    // No stations assigned - use fallback logic
     console.warn(`Node ${node.id} has no assignedStations, using fallback logic`);
-    
-    if (node.assignedStationId) {
-      selectedStation = stations.find(s => s.id === node.assignedStationId);
-      if (selectedStation) {
-        console.log(`Using legacy assigned station: ${selectedStation.name} (${selectedStation.id})`);
-      }
-    }
     
     // Fallback: Pick station with least load
     if (!selectedStation) {
@@ -5630,18 +5667,19 @@ async function assignNodeResources(
   }
   
   if (!selectedStation) {
-    const compatibleStations = assignedStations.map(s => s.id).join(', ');
+    const compatibleStations = assignedStations.map(s => s.stationId || s.id).join(', ');
     const stationDetails = assignedStations.map(s => {
-      const st = stations.find(st => st.id === s.id);
-      const subs = substations.filter(ss => ss.stationId === s.id);
-      return `${s.id} (${subs.length} substations)`;
+      const stId = s.stationId || s.id;
+      const st = stations.find(st => st.id === stId);
+      const subs = substations.filter(ss => ss.stationId === stId);
+      return `${stId} (${subs.length} substations)`;
     }).join(', ');
     
     return {
       error: 'no_station_available',
       message: `No station available for node '${node.name || node.id}'. All compatible stations [${stationDetails}] are fully booked or have no available substations.`,
       details: {
-        assignedStations: assignedStations.map(s => s.id),
+        assignedStations: assignedStations.map(s => s.stationId || s.id),
         totalStations: stations.length,
         totalSubstations: substations.length
       }
@@ -5672,15 +5710,15 @@ async function assignNodeResources(
   // ========================================================================
   
   let selectedWorker = null;
-  const assignmentMode = node.assignmentMode || node.allocationType || 'auto';
-  const manualWorkerId = node.assignedWorkerId || node.workerHint?.workerId;
+  const assignmentMode = node.assignmentMode || 'auto'; // Schema-compliant field
+  const manualWorkerId = node.assignedWorkerId;
   
   if (assignmentMode === 'manual' && manualWorkerId) {
     // Manual allocation with worker ID from plan design
     selectedWorker = workers.find(w => w.id === manualWorkerId);
     
     if (!selectedWorker) {
-      // Fallback to auto if hint not found
+      // Fallback to auto if assigned worker not found
       console.warn(`Assigned worker ${manualWorkerId} not found, falling back to auto`);
     }
   }
@@ -5881,11 +5919,17 @@ async function assignNodeResources(
   
   // Calculate pre-production reserved amounts (rehin miktarı)
   const planQuantity = planData.quantity || 1;
+  
+  console.log(`🔍 DEBUG - assignNodeResources for node ${node.id}:`);
+  console.log(`   node.materialInputs:`, node.materialInputs);
+  
   const preProductionReservedAmount = calculatePreProductionReservedAmount(
     node,
     expectedDefectRate,
     planQuantity
   );
+  
+  console.log(`   preProductionReservedAmount:`, preProductionReservedAmount);
   
   // Calculate planned output
   const plannedOutput = calculatePlannedOutput(node, planQuantity);
@@ -7024,10 +7068,53 @@ function normalizeMaterialsForSignature(mats = []) {
 }
 
 // Helper: build signature matching frontend logic
-function buildSemiCodeSignature(operationId, operationCode, stationId, materials) {
+// Unique factors: station + operation + materials (types & quantities) + output quantity
+// CRITICAL: Uses ratio normalization - 40kg→80pcs and 30kg→60pcs produce same signature
+function buildSemiCodeSignature(operationId, operationCode, stationId, materials, outputQty = '', outputUnit = '') {
   const mats = normalizeMaterialsForSignature(materials);
-  const matsStr = mats.map(m => `${m.id}:${m.qty != null ? m.qty : ''}${m.unit || ''}`).join(',');
-  return `op:${operationId || ''}|code:${operationCode || ''}|st:${stationId || ''}|mats:${matsStr}`;
+  
+  // Normalize to ratios using GCD (Greatest Common Divisor)
+  const quantities = mats.map(m => m.qty).filter(q => q != null && q > 0);
+  const parsedOutputQty = parseFloat(outputQty);
+  
+  if (quantities.length > 0 && parsedOutputQty > 0) {
+    // GCD calculation for ratio normalization
+    const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+    const allValues = [...quantities, parsedOutputQty];
+    let commonDivisor = allValues[0];
+    for (let i = 1; i < allValues.length; i++) {
+      commonDivisor = gcd(commonDivisor, allValues[i]);
+    }
+    
+    console.log('🔢 GCD Normalization:', {
+      materials: mats.map(m => `${m.id}:${m.qty}${m.unit}`),
+      outputQty: parsedOutputQty,
+      outputUnit,
+      gcd: commonDivisor,
+      normalizedMaterials: mats.map(m => `${m.id}:${(m.qty / commonDivisor).toFixed(3)}${m.unit}`),
+      normalizedOutput: (parsedOutputQty / commonDivisor).toFixed(3)
+    });
+    
+    // Build ratio-based signature
+    const matsRatio = mats.map(m => {
+      const normalizedQty = m.qty != null && m.qty > 0 ? (m.qty / commonDivisor).toFixed(3) : '';
+      return `${m.id}:${normalizedQty}${m.unit || ''}`;
+    }).join(',');
+    
+    const outRatio = (parsedOutputQty / commonDivisor).toFixed(3);
+    const outStr = `${outRatio}${outputUnit}`;
+    
+    const signature = `op:${operationId || ''}|code:${operationCode || ''}|st:${stationId || ''}|mats:${matsRatio}|out:${outStr}`;
+    console.log('✅ Generated signature:', signature);
+    return signature;
+  } else {
+    // Fallback to absolute values
+    const matsStr = mats.map(m => `${m.id}:${m.qty != null ? m.qty : ''}${m.unit || ''}`).join(',');
+    const outStr = `${outputQty}${outputUnit}`;
+    const signature = `op:${operationId || ''}|code:${operationCode || ''}|st:${stationId || ''}|mats:${matsStr}|out:${outStr}`;
+    console.log('⚠️  Fallback signature (no GCD):', signature);
+    return signature;
+  }
 }
 
 // Helper: generate prefix from operation code (matches frontend logic)
@@ -7049,7 +7136,7 @@ function pad3(n) {
 router.post('/output-codes/preview', withAuth, async (req, res) => {
   console.log('📋 Semi-code preview request:', { operationId: req.body?.operationId, stationId: req.body?.stationId });
   try {
-    const { operationId, operationCode, stationId, materials } = req.body;
+    const { operationId, operationCode, stationId, materials, outputQty, outputUnit } = req.body;
     
     // Validation
     if (!operationId) {
@@ -7070,54 +7157,167 @@ router.post('/output-codes/preview', withAuth, async (req, res) => {
     
     const db = getFirestore();
     const prefix = generatePrefix(operationCode);
-    const signature = buildSemiCodeSignature(operationId, operationCode, stationId, materials);
+    const signature = buildSemiCodeSignature(operationId, operationCode, stationId, materials, outputQty, outputUnit);
     
-    // Hash materials for storage (simple concatenation)
-    const matsNorm = normalizeMaterialsForSignature(materials);
-    const materialsHash = matsNorm.map(m => `${m.id}:${m.qty}${m.unit}`).join(',');
+    // Get all codes from index (no WHERE clause to avoid index requirements)
+    // Filter in memory - this is fine for small datasets
+    const allSnapshot = await db.collection('mes-outputCodes-index').get();
     
-    // Run transaction to check if code exists or preview next
-    const result = await db.runTransaction(async (transaction) => {
-      const docRef = db.collection('mes-outputCodes').doc(prefix);
-      const doc = await transaction.get(docRef);
+    // Check if signature already exists and find max counter for this prefix
+    let existingCode = null;
+    let maxCounter = 0;
+    
+    allSnapshot.forEach(doc => {
+      const data = doc.data();
       
-      if (doc.exists) {
-        const data = doc.data();
-        const codes = data.codes || {};
-        
-        // Check if signature already has a code
-        if (codes[signature]) {
-          return { 
-            code: codes[signature].code, 
-            reserved: true,
-            existingEntry: codes[signature]
-          };
-        }
-        
-        // Preview next code without incrementing
-        const nextCounter = data.nextCounter || 1;
-        const previewCode = `${prefix}-${pad3(nextCounter)}`;
-        return { 
-          code: previewCode, 
-          reserved: false,
-          nextCounter
-        };
-      } else {
-        // New prefix - would start at 001
-        return { 
-          code: `${prefix}-001`, 
-          reserved: false,
-          nextCounter: 1
-        };
+      // Only process docs with matching prefix
+      if (data.prefix !== prefix) return;
+      
+      // Check for exact signature match
+      if (data.signature === signature) {
+        existingCode = data;
+      }
+      
+      // Track highest counter for this prefix
+      if (data.counter > maxCounter) {
+        maxCounter = data.counter;
       }
     });
     
-    res.json(result);
+    // If signature already exists, return existing code
+    if (existingCode) {
+      return res.json({ 
+        code: existingCode.code, 
+        reserved: true,
+        existingEntry: existingCode
+      });
+    }
+    
+    // Generate next code
+    const nextCounter = maxCounter + 1;
+    const previewCode = `${prefix}-${pad3(nextCounter)}`;
+    
+    res.json({ 
+      code: previewCode, 
+      reserved: false,
+      nextCounter
+    });
   } catch (error) {
     console.error('Output code preview error:', error);
     res.status(500).json({ error: 'output_code_preview_failed', message: error.message });
   }
 });
+
+// GET /api/mes/output-codes/list
+// List available output codes for template selection
+router.get('/output-codes/list', withAuth, async (req, res) => {
+  try {
+    const { operationId } = req.query;
+    
+    if (!operationId) {
+      return res.status(400).json({ error: 'operationId required' });
+    }
+    
+    const db = getFirestore();
+    
+    // Query index collection (queryable by operationId)
+    // Note: Using single orderBy to avoid composite index requirement
+    const snapshot = await db.collection('mes-outputCodes-index')
+      .where('operationId', '==', operationId)
+      .get();
+    
+    const codes = [];
+    
+    for (const doc of snapshot.docs) {
+      const data = doc.data();
+      
+      codes.push({
+        code: data.code,
+        prefix: data.prefix,
+        counter: data.counter,
+        signature: data.signature,
+        operationId: data.operationId,
+        stationId: data.stationId,
+        materials: data.materials || [],
+        outputRatio: data.outputRatio,
+        outputUnit: data.outputUnit,
+        createdAt: data.createdAt,
+        lastUsed: data.lastUsed || null,
+        usageCount: data.usageCount || 0
+      });
+    }
+    
+    // Sort in memory (no index needed)
+    codes.sort((a, b) => {
+      // Sort by usageCount desc, then createdAt desc
+      if (b.usageCount !== a.usageCount) {
+        return b.usageCount - a.usageCount;
+      }
+      const aTime = a.createdAt?.toMillis?.() || 0;
+      const bTime = b.createdAt?.toMillis?.() || 0;
+      return bTime - aTime;
+    });
+    
+    res.json({ codes });
+  } catch (error) {
+    console.error('Output codes list error:', error);
+    res.status(500).json({ error: 'output_codes_list_failed', message: error.message });
+  }
+});
+
+// Helper: Decode signature to extract template data
+function decodeSignatureForTemplate(signature, code) {
+  const result = {
+    operationId: null,
+    operationCode: null,
+    stationId: null,
+    materials: [],
+    outputRatio: null,
+    outputUnit: null
+  };
+  
+  try {
+    // Signature format: "op:{id}|code:{code}|st:{stationId}|mats:{materialCode}:{ratio}{unit},...|out:{ratio}{unit}"
+    const parts = signature.split('|');
+    
+    for (const part of parts) {
+      if (part.startsWith('op:')) {
+        result.operationId = part.substring(3);
+      } else if (part.startsWith('code:')) {
+        result.operationCode = part.substring(5);
+      } else if (part.startsWith('st:')) {
+        result.stationId = part.substring(3);
+      } else if (part.startsWith('mats:')) {
+        const matsStr = part.substring(5);
+        const matParts = matsStr.split(',');
+        
+        for (const matPart of matParts) {
+          // Format: "M-001:1.000kg"
+          const match = matPart.match(/^([^:]+):([0-9.]+)([a-zA-Z]+)$/);
+          if (match) {
+            result.materials.push({
+              materialCode: match[1],
+              ratio: parseFloat(match[2]),
+              unit: match[3]
+            });
+          }
+        }
+      } else if (part.startsWith('out:')) {
+        const outStr = part.substring(4);
+        // Format: "2.000adet"
+        const match = outStr.match(/^([0-9.]+)([a-zA-Z]+)$/);
+        if (match) {
+          result.outputRatio = parseFloat(match[1]);
+          result.outputUnit = match[2];
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error decoding signature:', signature, error);
+  }
+  
+  return result;
+}
 
 // POST /api/mes/output-codes/commit
 // Commit codes when plan/template is saved
@@ -7134,8 +7334,7 @@ router.post('/output-codes/commit', withAuth, async (req, res) => {
     let skipped = 0;
     const errors = [];
     
-    // Group assignments by prefix to batch transactions
-    const byPrefix = new Map();
+    // Process each assignment
     for (const assignment of assignments) {
       const { prefix, signature, code, operationId, stationId, materialsHash } = assignment;
       
@@ -7144,82 +7343,56 @@ router.post('/output-codes/commit', withAuth, async (req, res) => {
         continue;
       }
       
-      if (!byPrefix.has(prefix)) {
-        byPrefix.set(prefix, []);
-      }
-      byPrefix.get(prefix).push(assignment);
-    }
-    
-    // Process each prefix group in a transaction
-    for (const [prefix, prefixAssignments] of byPrefix.entries()) {
       try {
-        await db.runTransaction(async (transaction) => {
-          const docRef = db.collection('mes-outputCodes').doc(prefix);
-          const doc = await transaction.get(docRef);
+        const docRef = db.collection('mes-outputCodes-index').doc(code);
+        const doc = await docRef.get();
+        
+        // Skip if already exists
+        if (doc.exists) {
+          console.log(`⏭️  Code ${code} already exists, skipping`);
+          skipped++;
+          continue;
+        }
+        
+        // Decode signature for template metadata
+        const decoded = decodeSignatureForTemplate(signature, code);
+        
+        // Extract counter from code
+        const counterMatch = code.match(/-(\d+)$/);
+        const counter = counterMatch ? parseInt(counterMatch[1], 10) : 0;
+        
+        // Write to index collection using CODE as document ID
+        await docRef.set({
+          code,
+          signature,
+          prefix,
+          counter,
           
-          let data;
-          if (doc.exists) {
-            data = doc.data();
-          } else {
-            // Initialize new prefix document
-            data = {
-              prefix,
-              nextCounter: 1,
-              codes: {}
-            };
-          }
+          // Queryable fields
+          operationId: decoded.operationId || operationId || null,
+          operationCode: decoded.operationCode || null,
+          stationId: decoded.stationId || stationId || null,
           
-          const codes = data.codes || {};
-          let nextCounter = data.nextCounter || 1;
-          let modified = false;
+          // Template metadata
+          materials: decoded.materials || [],
+          outputRatio: decoded.outputRatio || 0,
+          outputUnit: decoded.outputUnit || 'adet',
           
-          for (const assignment of prefixAssignments) {
-            const { signature, code, operationId, stationId, materialsHash } = assignment;
-            
-            // Skip if already exists
-            if (codes[signature]) {
-              skipped++;
-              continue;
-            }
-            
-            // Validate code format matches expected next value
-            const expectedCode = `${prefix}-${pad3(nextCounter)}`;
-            if (code !== expectedCode) {
-              errors.push({ 
-                assignment, 
-                error: 'code_mismatch', 
-                expected: expectedCode, 
-                received: code 
-              });
-              continue;
-            }
-            
-            // Commit the code
-            codes[signature] = {
-              code,
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              operationId,
-              stationId,
-              materialsHash
-            };
-            
-            nextCounter++;
-            committed++;
-            modified = true;
-          }
+          // Timestamps
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastUsed: null,
+          usageCount: 0,
           
-          // Update document if modified
-          if (modified) {
-            transaction.set(docRef, {
-              prefix,
-              nextCounter,
-              codes
-            }, { merge: true });
-          }
+          // Legacy compatibility
+          materialsHash: materialsHash || null
         });
+        
+        console.log(`✅ Code committed: ${code} to mes-outputCodes-index`);
+        committed++;
+        
       } catch (error) {
-        console.error(`Transaction failed for prefix ${prefix}:`, error);
-        errors.push({ prefix, error: error.message });
+        console.error(`❌ Failed to commit ${code}:`, error.message);
+        errors.push({ code, error: error.message });
       }
     }
     

@@ -1,7 +1,7 @@
 // Service Worker for Burkol Quote Portal PWA
-const CACHE_NAME = 'burkol-quote-portal-v1.3'
-const STATIC_CACHE = 'burkol-static-v1.3'
-const DYNAMIC_CACHE = 'burkol-dynamic-v1.3'
+const CACHE_NAME = 'burkol-quote-portal-v1.4'
+const STATIC_CACHE = 'burkol-static-v1.4'
+const DYNAMIC_CACHE = 'burkol-dynamic-v1.4'
 
 // Files to cache immediately
 const STATIC_ASSETS = [
@@ -33,6 +33,12 @@ const NETWORK_FIRST = [
   '/api/quotes',
   '/api/settings',
   '/api/upload'
+]
+
+// URLs that should NEVER be cached (always fresh from server)
+const NO_CACHE = [
+  '/api/materials',
+  '/api/materials/all'
 ]
 
 // URLs that can be cached with stale-while-revalidate
@@ -97,7 +103,10 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Handle different caching strategies
-  if (isNetworkFirst(request.url)) {
+  if (isNoCache(request.url)) {
+    // Never cache - always fetch fresh from network
+    event.respondWith(fetch(request))
+  } else if (isNetworkFirst(request.url)) {
     event.respondWith(networkFirst(request))
   } else if (isStaleWhileRevalidate(request.url)) {
     event.respondWith(staleWhileRevalidate(request))
@@ -195,6 +204,10 @@ async function staleWhileRevalidate(request) {
 }
 
 // Helper functions
+function isNoCache(url) {
+  return NO_CACHE.some(pattern => url.includes(pattern))
+}
+
 function isNetworkFirst(url) {
   return NETWORK_FIRST.some(pattern => url.includes(pattern))
 }

@@ -1,6 +1,41 @@
 // Semi-finished product code generation and registry
-// Code format: <prefix>-NNN where prefix comes primarily from the selected station's operations
-// Registry: now stored in Firestore (mes-outputCodes collection) instead of localStorage
+// 
+// CODE UNIQUENESS FACTORS (What makes a product unique):
+// 1. Station (stationId) - Where it's made
+// 2. Operation (operationId + operationCode) - What process is applied
+// 3. Material Types (materialCode) - What raw materials are used
+// 4. Material Ratios (requiredQuantity normalized) - Ratio between materials
+// 5. Output Ratio (outputQty normalized) - Input:Output ratio
+//
+// RATIO NORMALIZATION (GCD-based):
+// Instead of absolute quantities, we use ratios to identify same products at different scales
+//
+// EXAMPLES:
+// Case 1: 40kg Steel → 80 pcs
+//   GCD(40, 80) = 40
+//   Normalized: 1.000:2.000 → Signature: ...mats:M-STEEL:1.000kg|out:2.000adet
+//
+// Case 2: 30kg Steel → 60 pcs  
+//   GCD(30, 60) = 30
+//   Normalized: 1.000:2.000 → Signature: ...mats:M-STEEL:1.000kg|out:2.000adet
+//   SAME SIGNATURE = SAME CODE! ✓
+//
+// Case 3: 40kg Steel → 90 pcs (different ratio!)
+//   GCD(40, 90) = 10
+//   Normalized: 4.000:9.000 → Signature: ...mats:M-STEEL:4.000kg|out:9.000adet
+//   DIFFERENT SIGNATURE = DIFFERENT CODE! ✓
+//
+// Multiple materials example:
+// 10kg Steel + 5kg Aluminum → 30 pcs
+//   GCD(10, 5, 30) = 5
+//   Normalized: 2.000:1.000:6.000
+//   Signature: ...mats:M-ALU:1.000kg,M-STEEL:2.000kg|out:6.000adet
+//
+// SIGNATURE FORMAT:
+// op:{operationId}|code:{operationCode}|st:{stationId}|mats:{materialCode}:{ratio}{unit},...|out:{ratio}{unit}
+//
+// Registry: Stored in Firestore (mes-outputCodes collection)
+// Format: <prefix>-NNN where prefix comes from station's operations
 
 import { getSemiCodePreview } from './mesApi.js';
 
@@ -8,8 +43,12 @@ function pad3(n) { return String(n).padStart(3, '0'); }
 
 export function getPrefixForNode(node, ops = [], stations = []) {
   // Prefer station-based combined operation codes (e.g., KAs) if station is selected
-  const station = Array.isArray(stations)
-    ? stations.find(s => (s.id && s.id === node.assignedStation) || (s.name && s.name === node.assignedStation))
+  // Get first assigned station from assignedStations array
+  const firstStationId = Array.isArray(node.assignedStations) && node.assignedStations.length > 0
+    ? (node.assignedStations[0].stationId || node.assignedStations[0].id)  // SCHEMA: stationId with fallback
+    : null;
+  const station = firstStationId && Array.isArray(stations)
+    ? stations.find(s => s.id === firstStationId)
     : null;
   if (station && Array.isArray(station.operationIds)) {
     const opMap = new Map((Array.isArray(ops) ? ops : []).map(o => [o.id, o]));
@@ -37,8 +76,12 @@ export function getPrefixForNode(node, ops = [], stations = []) {
 function normalizeMaterials(mats = []) {
   const arr = Array.isArray(mats) ? mats : [];
   return arr
-    .filter(m => !!m && !!m.id)
-    .map(m => ({ id: String(m.id), qty: (m.qty == null || m.qty === '') ? null : Number(m.qty), unit: m.unit || '' }))
+    .filter(m => !!m && m.materialCode)
+    .map(m => ({ 
+      id: String(m.materialCode),  // Backend API expects 'id'
+      qty: m.requiredQuantity != null ? m.requiredQuantity : null,  // Backend API expects 'qty'
+      unit: m.unit || '' 
+    }))
     .sort((a,b) => a.id.localeCompare(b.id));
 }
 
@@ -46,12 +89,47 @@ export function buildSignature(node, ops = [], stations = []) {
   const op = Array.isArray(ops) ? ops.find(o => o.id === node.operationId) : null;
   const opId = op ? op.id : (node.operationId || '');
   const opCode = op ? (op.semiOutputCode || '') : '';
-  // Station identity by id if available, else by name
-  const st = Array.isArray(stations) ? stations.find(s => s.name === node.assignedStation || s.id === node.assignedStation) : null;
-  const stId = st ? (st.id || st.name || '') : (node.assignedStation || '');
-  const mats = normalizeMaterials(node.rawMaterials);
-  const matsStr = mats.map(m => `${m.id}:${m.qty != null ? m.qty : ''}${m.unit ? (m.unit) : ''}`).join(',');
-  return `op:${opId}|code:${opCode}|st:${stId}|mats:${matsStr}`;
+  // Get first assigned station from assignedStations array
+  const firstStationId = Array.isArray(node.assignedStations) && node.assignedStations.length > 0
+    ? (node.assignedStations[0].stationId || node.assignedStations[0].id)  // SCHEMA: stationId with fallback
+    : null;
+  const st = firstStationId && Array.isArray(stations)
+    ? stations.find(s => s.id === firstStationId)
+    : null;
+  const stId = st ? st.id : '';
+  const mats = normalizeMaterials(node.materialInputs);
+  
+  // CRITICAL: Normalize to ratios instead of absolute quantities
+  // Example: 40kg→80pcs and 30kg→60pcs should produce same signature (ratio 1:2)
+  const quantities = mats.map(m => m.qty).filter(q => q != null && q > 0);
+  const outputQty = node.outputQty != null && node.outputQty > 0 ? node.outputQty : null;
+  
+  if (quantities.length > 0 && outputQty != null) {
+    // Find GCD (Greatest Common Divisor) to normalize ratios
+    const gcd = (a, b) => b === 0 ? a : gcd(b, a % b);
+    const allValues = [...quantities, outputQty];
+    let commonDivisor = allValues[0];
+    for (let i = 1; i < allValues.length; i++) {
+      commonDivisor = gcd(commonDivisor, allValues[i]);
+    }
+    
+    // Normalize materials and output to ratios
+    const matsRatio = mats.map(m => {
+      const normalizedQty = m.qty != null && m.qty > 0 ? (m.qty / commonDivisor).toFixed(3) : '';
+      return `${m.id}:${normalizedQty}${m.unit || ''}`;
+    }).join(',');
+    
+    const outRatio = (outputQty / commonDivisor).toFixed(3);
+    const outUnit = node.outputUnit || '';
+    
+    return `op:${opId}|code:${opCode}|st:${stId}|mats:${matsRatio}|out:${outRatio}${outUnit}`;
+  } else {
+    // Fallback to absolute values if normalization not possible
+    const matsStr = mats.map(m => `${m.id}:${m.qty != null ? m.qty : ''}${m.unit || ''}`).join(',');
+    const outQty = node.outputQty != null ? node.outputQty : '';
+    const outUnit = node.outputUnit || '';
+    return `op:${opId}|code:${opCode}|st:${stId}|mats:${matsStr}|out:${outQty}${outUnit}`;
+  }
 }
 
 // Fetch semi code from API and assign to node
@@ -59,8 +137,11 @@ export async function computeAndAssignSemiCode(node, ops = [], stations = []) {
   if (!node) return null;
   
   // Require station and materials with quantities to generate definitive code
-  const stPresent = !!(node.assignedStation);
-  const mats = normalizeMaterials(node.rawMaterials);
+  const firstStationId = Array.isArray(node.assignedStations) && node.assignedStations.length > 0
+    ? (node.assignedStations[0].stationId || node.assignedStations[0].id)  // SCHEMA: stationId with fallback
+    : null;
+  const stPresent = !!firstStationId;
+  const mats = normalizeMaterials(node.materialInputs);
   const allQtyKnown = mats.length > 0 && mats.every(m => m.qty != null && Number.isFinite(m.qty));
   
   if (!stPresent || !allQtyKnown) {
@@ -71,13 +152,15 @@ export async function computeAndAssignSemiCode(node, ops = [], stations = []) {
   
   try {
     const op = Array.isArray(ops) ? ops.find(o => o.id === node.operationId) : null;
-    const st = Array.isArray(stations) ? stations.find(s => s.name === node.assignedStation || s.id === node.assignedStation) : null;
+    const st = Array.isArray(stations) ? stations.find(s => s.id === firstStationId) : null;
     
     const payload = {
       operationId: node.operationId || '',
       operationCode: op?.semiOutputCode || '',
-      stationId: st ? (st.id || st.name || '') : (node.assignedStation || ''),
-      materials: mats.map(m => ({ id: m.id, qty: m.qty, unit: m.unit }))
+      stationId: st ? st.id : firstStationId,
+      materials: mats.map(m => ({ id: m.id, qty: m.qty, unit: m.unit })),
+      outputQty: node.outputQty != null ? node.outputQty : 0,
+      outputUnit: node.outputUnit || 'adet'
     };
     
     const result = await getSemiCodePreview(payload);
@@ -116,27 +199,58 @@ export async function computeAndAssignSemiCode(node, ops = [], stations = []) {
 export async function getSemiCodePreviewForNode(node, ops = [], stations = []) {
   if (!node) return null;
   
-  const stPresent = !!(node.assignedStation);
-  const mats = normalizeMaterials(node.rawMaterials);
+  const firstStationId = Array.isArray(node.assignedStations) && node.assignedStations.length > 0
+    ? (node.assignedStations[0].stationId || node.assignedStations[0].id)  // SCHEMA: stationId with fallback
+    : null;
+  const stPresent = !!firstStationId;
+  const mats = normalizeMaterials(node.materialInputs);
   const allQtyKnown = mats.length > 0 && mats.every(m => m.qty != null && Number.isFinite(m.qty));
   
-  if (!stPresent || !allQtyKnown) return null;
+  console.log('🔍 getSemiCodePreviewForNode debug:', {
+    nodeId: node.id,
+    operationId: node.operationId,
+    assignedStations: node.assignedStations,
+    firstStationId,
+    stPresent,
+    materialInputs: node.materialInputs,
+    normalizedMats: mats,
+    allQtyKnown,
+    opsLength: ops.length,
+    stationsLength: stations.length
+  });
+  
+  if (!stPresent || !allQtyKnown) {
+    console.warn('⚠️ Output code preview skipped:', { stPresent, allQtyKnown });
+    return null;
+  }
   
   try {
     const op = Array.isArray(ops) ? ops.find(o => o.id === node.operationId) : null;
-    const st = Array.isArray(stations) ? stations.find(s => s.name === node.assignedStation || s.id === node.assignedStation) : null;
+    const st = Array.isArray(stations) ? stations.find(s => s.id === firstStationId) : null;
+    
+    console.log('🔍 Operation and station lookup:', {
+      foundOp: !!op,
+      opCode: op?.semiOutputCode,
+      foundStation: !!st,
+      stationId: st?.id
+    });
     
     const payload = {
       operationId: node.operationId || '',
       operationCode: op?.semiOutputCode || '',
-      stationId: st ? (st.id || st.name || '') : (node.assignedStation || ''),
-      materials: mats.map(m => ({ id: m.id, qty: m.qty, unit: m.unit }))
+      stationId: st ? st.id : firstStationId,
+      materials: mats.map(m => ({ id: m.id, qty: m.qty, unit: m.unit })),
+      outputQty: node.outputQty != null ? node.outputQty : 0,
+      outputUnit: node.outputUnit || 'adet'
     };
     
+    console.log('📤 Sending preview request:', payload);
+    
     const result = await getSemiCodePreview(payload);
+    console.log('📥 Preview result:', result);
     return result.code || null;
   } catch (error) {
-    console.error('Error fetching semi code preview:', error);
+    console.error('❌ Error fetching semi code preview:', error);
     return null;
   }
 }

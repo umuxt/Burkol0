@@ -5,7 +5,8 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^PLAN-"
+      "pattern": "^PPL-\\d{4}-\\d{3}$",
+      "description": "Production plan ID format: PPL-MMYY-XXX (e.g., PPL-1125-001)"
     },
     "orderCode": {
       "type": "string"
@@ -126,6 +127,9 @@
         "outputQty": {
           "type": "number",
           "minimum": 0
+        },
+        "outputUnit": {
+          "type": "string"
         }
       }
     }

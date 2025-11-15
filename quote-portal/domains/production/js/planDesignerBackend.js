@@ -38,7 +38,7 @@ function rebuildMaterialRowsFromNode(node) {
   try {
     const container = document.getElementById('edit-materials-rows')
     if (!container || !node) return
-    const rows = Array.isArray(node.rawMaterials) ? node.rawMaterials : (node.rawMaterial ? [node.rawMaterial] : [])
+    const rows = Array.isArray(node.materialInputs) ? node.materialInputs : []
     const buildRow = (rm, idx) => {
       const isDerived = !!(rm && rm.derivedFrom)
       const badge = isDerived ? '<span style="margin-left:6px; font-size:11px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:8px;">auto</span>' : ''
@@ -50,12 +50,12 @@ function rebuildMaterialRowsFromNode(node) {
            <div style=\"padding:6px; border-bottom:1px solid var(--border);\"><input id=\"edit-material-search-${idx}\" type=\"text\" placeholder=\"Ara: kod, isim, tedarikçi\" oninput=\"filterMaterialDropdown(${idx})\" style=\"width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;\" /></div>
            <div id=\"edit-material-list-${idx}\" style=\"max-height:220px; overflow:auto; font-size:13px;\"></div>
          </div>`)
-      const qtyInput = `<input id="edit-material-qty-${idx}" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;${isDerived ? ' background:#f3f4f6; color:#6b7280;' : ''}" value="${rm?.qty ?? ''}" ${isDerived ? 'disabled' : 'oninput="updateOutputCodePreviewBackend()"'} />`
+      const qtyInput = `<input id="edit-material-qty-${idx}" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;${isDerived ? ' background:#f3f4f6; color:#6b7280;' : ''}" value="${rm?.requiredQuantity ?? ''}" ${isDerived ? 'disabled' : 'oninput="updateOutputCodePreviewBackend()"'} />`
       const removeBtn = isDerived ? '' : `<button type=\"button\" onclick=\"removeMaterialRow(${idx})\" title=\"Kaldır\" style=\"width:28px; height:32px; border:1px solid var(--border); background:#fee2e2; color:#ef4444; border-radius:6px;\">-</button>`
       return (
         `<div class=\"material-row\" data-row-index=\"${idx}\" ${isDerived?'data-derived=\"1\"':''} style=\"display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;\">` +
           '<div style=\"position:relative; flex: 3;\">' +
-            `<input type=\"hidden\" id=\"edit-material-id-${idx}\" value=\"${escapeHtml(rm?.id ?? '')}\" />` +
+            `<input type=\"hidden\" id=\"edit-material-id-${idx}\" value=\"${escapeHtml(rm?.materialCode ?? '')}\" />` +
             `<input type=\"hidden\" id=\"edit-material-name-${idx}\" value=\"${escapeHtml(rm?.name ?? '')}\" />` +
             displayInput +
             dropdown +
@@ -264,7 +264,7 @@ export function handleCanvasDropBackend(event) {
     time: 30, // Default planning time, will be overridden by station assignment
     skills: Array.isArray(op.skills) ? op.skills : [],
     predecessors: [],
-    rawMaterials: [],
+    materialInputs: [],
     semiCode: null,
     x: Math.max(0, x),
     y: Math.max(0, y),
@@ -294,16 +294,34 @@ export function handleCanvasDropBackend(event) {
 export async function editNodeBackend(nodeId) {
   const node = planDesignerState.nodes.find(n => n.id === nodeId)
   if (!node) return
+  
+  // Create a deep copy snapshot of the node before editing (for cancel functionality)
+  planDesignerState.nodeEditSnapshot = JSON.parse(JSON.stringify({
+    name: node.name,
+    time: node.time,
+    efficiency: node.efficiency,
+    assignedStations: node.assignedStations,
+    assignmentMode: node.assignmentMode,
+    assignedWorkerId: node.assignedWorkerId,
+    assignedWorkerName: node.assignedWorkerName,
+    materialInputs: node.materialInputs,
+    outputQty: node.outputQty,
+    outputUnit: node.outputUnit,
+    _isTemplateApplied: node._isTemplateApplied,
+    _templateCode: node._templateCode,
+    _templateRatios: node._templateRatios
+  }));
+  
   planDesignerState.selectedNode = node
   
   // Initialize assignedStations array if missing (backward compatibility)
   if (!Array.isArray(node.assignedStations)) {
     node.assignedStations = [];
     
-    // Migrate from old single station structure
+    // Migrate from old single station structure (legacy format)
     if (node.assignedStationId && node.assignedStationName) {
       node.assignedStations = [{
-        id: node.assignedStationId,
+        stationId: node.assignedStationId,  // SCHEMA-COMPLIANT: stationId
         name: node.assignedStationName,
         priority: 1
       }];
@@ -355,7 +373,7 @@ export async function editNodeBackend(nodeId) {
   const currentEfficiency = node.efficiency || operationDefaultEfficiency;
   const initialEffectiveTime = nominalTime > 0 ? Math.round(nominalTime / currentEfficiency) : 0;
   const effectiveTime = typeof node.effectiveTime === 'number' ? node.effectiveTime : nominalTime;
-  const showEffectiveTime = Math.abs(effectiveTime - nominalTime) > 0.01 && (node.assignedWorkerId || node.assignedStationId);
+  const showEffectiveTime = Math.abs(effectiveTime - nominalTime) > 0.01 && (node.assignedWorkerId || (Array.isArray(node.assignedStations) && node.assignedStations.length > 0));
   const effectiveTimeDisplay = showEffectiveTime
     ? `<div style="font-size: 12px; color: ${effectiveTime < nominalTime ? '#059669' : '#dc2626'}; margin-top: 4px;">
         Effective time: ${effectiveTime.toFixed(1)} min 
@@ -379,7 +397,7 @@ export async function editNodeBackend(nodeId) {
       '</div>' +
     '</div>' +
     (function(){
-      const rows = Array.isArray(node.rawMaterials) ? node.rawMaterials : (node.rawMaterial ? [node.rawMaterial] : [])
+      const rows = Array.isArray(node.materialInputs) ? node.materialInputs : []
       const buildRow = (rm, idx) => {
         const isDerived = !!(rm && rm.derivedFrom)
         const badge = isDerived ? '<span style="margin-left:6px; font-size:11px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:8px;">auto</span>' : ''
@@ -392,12 +410,12 @@ export async function editNodeBackend(nodeId) {
               <div style="padding:6px; border-bottom:1px solid var(--border);"><input id="edit-material-search-${idx}" type="text" placeholder="Ara: kod, isim, tedarikçi" oninput="filterMaterialDropdown(${idx})" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;" /></div>
               <div id="edit-material-list-${idx}" style="max-height:220px; overflow:auto; font-size:13px;"></div>
             </div>`
-        const qtyInput = `<input id="edit-material-qty-${idx}" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;${isDerived ? ' background:#f3f4f6; color:#6b7280;' : ''}" value="${rm?.qty ?? ''}" ${isDerived ? 'disabled' : 'oninput="updateOutputCodePreviewBackend()"'} />`
+        const qtyInput = `<input id="edit-material-qty-${idx}" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;${isDerived ? ' background:#f3f4f6; color:#6b7280;' : ''}" value="${rm?.requiredQuantity ?? ''}" ${isDerived ? 'disabled' : 'oninput="updateOutputCodePreviewBackend()"'} />`
         const removeBtn = isDerived ? '' : `<button type="button" onclick="removeMaterialRow(${idx})" title="Kaldır" style="width:28px; height:32px; border:1px solid var(--border); background:#fee2e2; color:#ef4444; border-radius:6px;">-</button>`
         return (
           `<div class="material-row" data-row-index="${idx}" ${isDerived?'data-derived="1"':''} style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">` +
             '<div style="position:relative; flex: 3;">' +
-              `<input type="hidden" id="edit-material-id-${idx}" value="${rm?.id ?? ''}" />` +
+              `<input type="hidden" id="edit-material-id-${idx}" value="${rm?.materialCode ?? ''}" />` +
               `<input type="hidden" id="edit-material-name-${idx}" value="${escapeHtml(rm?.name ?? '')}" />` +
               displayInput +
               dropdown +
@@ -507,13 +525,13 @@ export function saveNodeEditBackend() {
   // collect materials rows
   const rowsContainer = document.getElementById('edit-materials-rows')
   const rows = rowsContainer ? Array.from(rowsContainer.querySelectorAll('.material-row')) : []
-  const rawMaterials = []
+  const materialInputs = []
   // Map previous derived relations to preserve derivedFrom on save
-  const prev = Array.isArray(node.rawMaterials) ? node.rawMaterials : (node.rawMaterial ? [node.rawMaterial] : [])
+  const prev = Array.isArray(node.materialInputs) ? node.materialInputs : []
   const derivedMap = new Map()
   prev.forEach(pm => {
     if (pm && pm.derivedFrom) {
-      const keyA = (pm.id || '').toString()
+      const keyA = (pm.materialCode || '').toString()
       const keyB = (pm.name || '').toString()
       if (keyA) derivedMap.set(keyA, pm.derivedFrom)
       if (keyB) derivedMap.set(keyB, pm.derivedFrom)
@@ -521,19 +539,19 @@ export function saveNodeEditBackend() {
   })
   for (const row of rows) {
     const idx = row.getAttribute('data-row-index')
-    const id = document.getElementById('edit-material-id-'+idx)?.value || ''
+    const materialCode = document.getElementById('edit-material-id-'+idx)?.value || ''
     const name = document.getElementById('edit-material-name-'+idx)?.value || ''
     const qtyVal = document.getElementById('edit-material-qty-'+idx)?.value
-    const qty = qtyVal === '' ? null : (parseFloat(qtyVal))
+    const requiredQuantity = qtyVal === '' ? null : (parseFloat(qtyVal))
     const unit = document.getElementById('edit-material-unit-'+idx)?.value || ''
     const isDerived = row.getAttribute('data-derived') === '1'
-    if (id) {
-      const base = { id, name: name || id, qty: Number.isFinite(qty)?qty:null, unit }
+    if (materialCode) {
+      const base = { materialCode, name: name || materialCode, requiredQuantity: Number.isFinite(requiredQuantity)?requiredQuantity:null, unit }
       if (isDerived) {
-        const df = derivedMap.get(id) || derivedMap.get(name)
+        const df = derivedMap.get(materialCode) || derivedMap.get(name)
         if (df) base.derivedFrom = df
       }
-      rawMaterials.push(base)
+      materialInputs.push(base)
     }
   }
 
@@ -562,16 +580,17 @@ export function saveNodeEditBackend() {
   // 3. Validate material inputs (PRIORITY: Check materials first)
   // Check if starting operations (no predecessors) have at least one material input
   const hasPredecessors = Array.isArray(node.predecessors) && node.predecessors.length > 0;
-  const hasNonDerivedMaterial = rawMaterials.some(m => !m.derivedFrom);
-  
-  if (!hasPredecessors && !hasNonDerivedMaterial && rawMaterials.length === 0) {
+  const hasNonDerivedMaterial = materialInputs.some(m => !m.derivedFrom);
+
+  if (!hasPredecessors && !hasNonDerivedMaterial && materialInputs.length === 0) {
     showErrorToast('Starting operations must have at least one material input.');
     return;
   }
 
   // Check if each selected material has a valid quantity
-  for (const material of rawMaterials) {
-    if (!Number.isFinite(material.qty) || material.qty < 0) {
+  for (const material of materialInputs) {
+    console.log('🔍 Validating material:', material);
+    if (!Number.isFinite(material.requiredQuantity) || material.requiredQuantity < 0) {
       showErrorToast('Please enter a valid quantity for each selected material.');
       return;
     }
@@ -669,21 +688,27 @@ export function saveNodeEditBackend() {
   applyMaterial();
 
   function applyMaterial() {
-    // Support multi materials; keep legacy rawMaterial as first for compatibility
-    node.rawMaterials = rawMaterials
-    node.rawMaterial = rawMaterials.length ? { ...rawMaterials[0] } : null
+    // Support multi materials
+    node.materialInputs = materialInputs.map(m => ({
+      materialCode: m.materialCode,
+      name: m.name,
+      requiredQuantity: m.requiredQuantity,
+      unit: m.unit,
+      unitRatio: 1,
+      ...(m.derivedFrom ? { derivedFrom: m.derivedFrom } : {})
+    }))
     
     console.log('🔍 STEP 1 - saveNodeEdit applyMaterial:', {
       nodeId: node.id,
-      rawMaterialsCount: rawMaterials.length,
-      rawMaterials: rawMaterials,
-      nodeRawMaterials: node.rawMaterials
+      materialInputsCount: materialInputs.length,
+      materialInputs: materialInputs,
+      nodeMaterialInputs: node.materialInputs
     });
     
     // Compute/update semi-finished product code preview (not committed yet)
     // Actual commit happens when the plan is saved
     try {
-      computeAndAssignSemiCode(node, _opsCache, _stationsCacheFull)
+      computeAndAssignSemiCode(node, _opsCache, planDesignerState.availableStations || [])
       // Propagate changes to downstream nodes (derived materials)
       try { propagateDerivedMaterialUpdate(node.id) } catch {}
     } catch (e) {
@@ -692,6 +717,9 @@ export function saveNodeEditBackend() {
     
     // Invalidate timing summary cache when node changes
     planDesignerState.timingSummary = null;
+    
+    // Clear edit snapshot (changes are saved, no need to restore)
+    planDesignerState.nodeEditSnapshot = null;
     
     renderCanvas()
     const modal = document.getElementById('node-edit-modal')
@@ -859,6 +887,34 @@ export function selectMaterialFromDropdown(id, rowIdx) {
     const unitEl = document.getElementById('edit-material-unit-' + rowIdx)
     const dd = document.getElementById('edit-material-dropdown-' + rowIdx)
     if (!m || !disp || !idEl || !nameEl || !dd) return
+    
+    const node = planDesignerState.selectedNode;
+    
+    // Check if material code changed (breaks template lock)
+    if (node && node._isTemplateApplied) {
+      const oldMaterialCode = idEl.value;
+      const newMaterialCode = m.id || m.code || '';
+      
+      if (oldMaterialCode && oldMaterialCode !== newMaterialCode) {
+        const confirmChange = confirm(
+          `⚠️ UYARI: Malzemeyi değiştiriyorsunuz!\n\n` +
+          `Eski: ${oldMaterialCode}\n` +
+          `Yeni: ${newMaterialCode}\n\n` +
+          `Malzeme değiştiği için template lock kaldırılacak ve yeni bir ürün kodu (Output Code) oluşturulacaktır.\n\n` +
+          `Devam etmek istediğinizden emin misiniz?`
+        );
+        
+        if (!confirmChange) {
+          dd.style.display = 'none';
+          return;
+        }
+        
+        // Unlock template
+        node._isTemplateApplied = false;
+        console.log('🔓 Template unlocked - material code changed');
+      }
+    }
+    
     idEl.value = m.id || m.code || ''
     nameEl.value = m.name || m.title || ''
     disp.value = formatMaterialLabel(m)
@@ -920,30 +976,50 @@ export async function updateOutputCodePreviewBackend() {
     const node = planDesignerState.selectedNode
     if (!node) return
     
-    // Get primary station name for preview
-    let primaryStationName = null
-    if (Array.isArray(node.assignedStations) && node.assignedStations.length > 0) {
-      const primaryStation = node.assignedStations.sort((a, b) => (a.priority || 0) - (b.priority || 0))[0]
-      primaryStationName = primaryStation.name
+    // If template is locked, don't recalculate code - show template code
+    if (node._isTemplateApplied && node._templateCode) {
+      const label = document.getElementById('node-output-code-label')
+      if (label) {
+        label.textContent = `Output: ${node._templateCode}`
+        label.style.color = '#10b981'; // Green = locked
+      }
+      console.log('🔒 Template locked - showing template code:', node._templateCode);
+      return;
     }
     
+    // Collect material inputs from form
     const rowsContainer = document.getElementById('edit-materials-rows')
     const rows = rowsContainer ? Array.from(rowsContainer.querySelectorAll('.material-row')) : []
-    const mats = []
+    const materialInputs = []
     for (const row of rows) {
       const idx = row.getAttribute('data-row-index')
-      const id = document.getElementById('edit-material-id-'+idx)?.value || ''
+      const materialCode = document.getElementById('edit-material-id-'+idx)?.value || ''
       const qtyVal = document.getElementById('edit-material-qty-'+idx)?.value
-      const qty = qtyVal === '' ? null : parseFloat(qtyVal)
+      const requiredQuantity = qtyVal === '' ? null : parseFloat(qtyVal)
       const unit = document.getElementById('edit-material-unit-'+idx)?.value || ''
-      if (id) mats.push({ id, qty: Number.isFinite(qty) ? qty : null, unit })
+      if (materialCode) {
+        materialInputs.push({ 
+          materialCode, 
+          requiredQuantity: Number.isFinite(requiredQuantity) ? requiredQuantity : null,
+          unit,
+          unitRatio: 1
+        })
+      }
     }
-    const temp = { ...node, assignedStation: primaryStationName, rawMaterials: mats }
+    
+    // Create temp node with current form values (schema-compliant)
+    const temp = { 
+      ...node, 
+      materialInputs,
+      assignedStations: node.assignedStations || []
+    }
+    
     const code = await getSemiCodePreviewForNode(temp, _opsCache, _stationsCacheFull).catch(() => null)
     const label = document.getElementById('node-output-code-label')
     if (label) {
       if (code) {
         label.textContent = `Output: ${code}`
+        label.style.color = ''; // Default color = unlocked
       } else {
         const prefix = getPrefixForNode(temp, _opsCache, _stationsCacheFull)
         label.textContent = prefix ? `Output: ${prefix}-` : 'Output: —'
@@ -986,8 +1062,8 @@ export function removeMaterialRow(idx) {
 
 function formatMaterialLabel(m) {
   if (!m) return ''
-  const code = m.code || ''
-  const name = m.name || m.title || ''
+  const code = m.code || m.materialCode || ''
+  const name = m.name || m.materialName || m.title || ''
   return [code, name].filter(Boolean).join(' — ')
 }
 
@@ -1007,10 +1083,11 @@ function generateMultiStationSelector(node, compatibleStations) {
         selectedStations
           .sort((a, b) => a.priority - b.priority)
           .map(station => {
+            const stId = station.stationId || station.id;  // Support both for backward compatibility
             return '<div style="display: flex; align-items: center; padding: 8px; background: white; border-radius: 4px; margin-bottom: 4px; border: 1px solid #e5e7eb;">' +
               '<span style="display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; background: #3b82f6; color: white; border-radius: 50%; font-size: 12px; font-weight: 600; margin-right: 8px;">' + station.priority + '</span>' +
-              '<span style="flex: 1; font-weight: 500; font-size: 13px;">' + escapeHtml(station.id) + ' – ' + escapeHtml(station.name) + '</span>' +
-              '<button type="button" onclick="removeSelectedStationById(\'' + escapeHtml(station.id) + '\')" ' +
+              '<span style="flex: 1; font-weight: 500; font-size: 13px;">' + escapeHtml(stId) + ' – ' + escapeHtml(station.name) + '</span>' +
+              '<button type="button" onclick="removeSelectedStationById(\'' + escapeHtml(stId) + '\')" ' +
                 'style="padding: 4px 8px; background: #fee; color: #c00; border: 1px solid #fcc; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: 500;">' +
                 'Remove' +
               '</button>' +
@@ -1040,7 +1117,7 @@ function generateMultiStationSelector(node, compatibleStations) {
           '<div style="padding: 12px; color: #6b7280; text-align: center; font-style: italic;">No compatible stations</div>' :
           compatibleStations.map(s => {
             const displayName = `${s.id} – ${s.name}`;
-            const alreadySelected = selectedStations.some(ss => ss.id === s.id);
+            const alreadySelected = selectedStations.some(ss => (ss.stationId || ss.id) === s.id);
             return '<div class="station-dropdown-item" data-station-id="' + escapeHtml(s.id) + '" ' +
               'onclick="selectStationFromDropdown(\'' + escapeHtml(s.id) + '\', \'' + escapeHtml(s.name) + '\')" ' +
               'style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 8px; ' +
@@ -1078,13 +1155,32 @@ window.addSelectedStation = function() {
   const node = planDesignerState.selectedNode
   if (!node) return
 
+  // Check template lock before modifying stations
+  if (node._isTemplateApplied && node._templateCode) {
+    const confirmChange = confirm(
+      "⚠️ UYARI: Tezgah ekliyorsunuz!\n\n" +
+      "Mevcut template lock kaldırılacak ve yeni bir ürün kodu oluşturulacaktır.\n\n" +
+      "Devam etmek istediğinizden emin misiniz?"
+    );
+    if (!confirmChange) return;
+    
+    // Unlock template
+    node._isTemplateApplied = false;
+    node._templateCode = null;
+    node._templateRatios = null;
+    console.log('🔓 Template unlocked - station added');
+    
+    // Update code preview immediately
+    updateOutputCodePreviewBackend();
+  }
+
   // Initialize assignedStations if not exists
   if (!Array.isArray(node.assignedStations)) {
     node.assignedStations = []
   }
 
-  // Check if already selected (by ID)
-  if (node.assignedStations.find(s => s.id === selectedStation.id)) {
+  // Check if already selected (by stationId)
+  if (node.assignedStations.find(s => (s.stationId || s.id) === selectedStation.id)) {
     showWarningToast('Station already selected')
     return
   }
@@ -1092,7 +1188,7 @@ window.addSelectedStation = function() {
   // Add with next priority
   const maxPriority = Math.max(0, ...node.assignedStations.map(s => s.priority || 0))
   node.assignedStations.push({
-    id: selectedStation.id,
+    stationId: selectedStation.id,  // SCHEMA: stationId (not id)
     name: selectedStation.name,
     priority: maxPriority + 1
   })
@@ -1160,8 +1256,27 @@ window.removeSelectedStationById = function(stationId) {
   const node = planDesignerState.selectedNode
   if (!node || !Array.isArray(node.assignedStations)) return
 
-  // Remove station by ID
-  node.assignedStations = node.assignedStations.filter(s => s.id !== stationId)
+  // Check template lock before modifying stations
+  if (node._isTemplateApplied && node._templateCode) {
+    const confirmChange = confirm(
+      "⚠️ UYARI: Tezgah kaldırıyorsunuz!\n\n" +
+      "Mevcut template lock kaldırılacak ve yeni bir ürün kodu oluşturulacaktır.\n\n" +
+      "Devam etmek istediğinizden emin misiniz?"
+    );
+    if (!confirmChange) return;
+    
+    // Unlock template
+    node._isTemplateApplied = false;
+    node._templateCode = null;
+    node._templateRatios = null;
+    console.log('🔓 Template unlocked - station removed');
+    
+    // Update code preview immediately
+    updateOutputCodePreviewBackend();
+  }
+
+  // Remove station by stationId (with fallback to id for backward compatibility)
+  node.assignedStations = node.assignedStations.filter(s => (s.stationId || s.id) !== stationId)
 
   // Renumber priorities
   node.assignedStations.forEach((station, index) => {
@@ -1539,3 +1654,515 @@ window.updateEffectiveTimePreviewBackend = function() {
     console.error('Error updating effective time preview:', e);
   }
 };
+
+/* ============================================================
+   OUTPUT TEMPLATE SELECTION
+   ============================================================ */
+
+let currentTemplateDropdownVisible = false;
+let availableOutputTemplates = [];
+
+window.openOutputTemplateDropdown = async function() {
+  const dropdown = document.getElementById('output-template-dropdown');
+  const listContainer = document.getElementById('output-template-list');
+  
+  if (!dropdown || !listContainer) return;
+  
+  if (currentTemplateDropdownVisible) {
+    dropdown.style.display = 'none';
+    currentTemplateDropdownVisible = false;
+    return;
+  }
+  
+  const node = planDesignerState.selectedNode;
+  if (!node || !node.operationId) {
+    alert('Please select an operation first');
+    return;
+  }
+  
+  try {
+    // Show loading
+    listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted-foreground); font-size: 11px;">Loading templates...</div>';
+    dropdown.style.display = 'block';
+    currentTemplateDropdownVisible = true;
+    
+    // Fetch available output codes for this operation
+    const response = await fetch(`/api/mes/output-codes/list?operationId=${encodeURIComponent(node.operationId)}`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch output codes');
+    }
+    
+    const data = await response.json();
+    let availableTemplates = data.codes || [];
+    
+    // FILTER: Only show templates that contain predecessor materials
+    const predecessorMaterials = getPredecessorMaterialCodes(node);
+    
+    if (predecessorMaterials.length > 0) {
+      const originalCount = availableTemplates.length;
+      availableTemplates = availableTemplates.filter(template => {
+        // Check if template contains at least one predecessor material
+        return template.materials.some(mat => 
+          predecessorMaterials.includes(mat.materialCode)
+        );
+      });
+      
+      console.log(`Filtered templates: ${availableTemplates.length} of ${originalCount} match predecessor materials:`, predecessorMaterials);
+      
+      if (availableTemplates.length === 0) {
+        listContainer.innerHTML = `
+          <div style="padding: 16px 12px; text-align: center;">
+            <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 8px;">No matching templates</div>
+            <div style="font-size: 10px; color: var(--muted-foreground); line-height: 1.4;">
+              No output codes found that use the predecessor material(s):<br/>
+              <strong>${predecessorMaterials.join(', ')}</strong>
+            </div>
+          </div>
+        `;
+        return;
+      }
+    }
+    
+    availableOutputTemplates = availableTemplates;
+    
+    if (availableOutputTemplates.length === 0) {
+      listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted-foreground); font-size: 11px;">No templates available for this operation</div>';
+      return;
+    }
+    
+    // Render template list
+    listContainer.innerHTML = availableOutputTemplates.map((template, idx) => {
+      const materials = template.materials || [];
+      const materialsText = materials.map(m => `${m.materialCode} (${m.ratio}${m.unit})`).join(' + ');
+      const outputText = `→ ${template.outputRatio}${template.outputUnit}`;
+      
+      return `
+        <div class="output-template-item" onclick="applyOutputTemplate(${idx})" style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.15s;">
+          <div style="font-size: 12px; font-weight: 600; color: var(--foreground); margin-bottom: 4px;">${template.code}</div>
+          <div style="font-size: 10px; color: var(--muted-foreground);">${materialsText} ${outputText}</div>
+        </div>
+      `;
+    }).join('');
+    
+    // Add hover styles
+    const style = document.createElement('style');
+    style.textContent = '.output-template-item:hover { background: var(--accent) !important; }';
+    if (!document.getElementById('output-template-styles')) {
+      style.id = 'output-template-styles';
+      document.head.appendChild(style);
+    }
+    
+  } catch (error) {
+    console.error('Error loading output templates:', error);
+    listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #ef4444; font-size: 11px;">Error loading templates</div>';
+  }
+};
+
+window.applyOutputTemplate = function(templateIndex) {
+  const template = availableOutputTemplates[templateIndex];
+  if (!template) return;
+  
+  const node = planDesignerState.selectedNode;
+  if (!node) return;
+  
+  console.log('Applying template:', template);
+  
+  // Close dropdown
+  const dropdown = document.getElementById('output-template-dropdown');
+  if (dropdown) {
+    dropdown.style.display = 'none';
+    currentTemplateDropdownVisible = false;
+  }
+  
+  // 1. Apply station(s) - update assignedStations array
+  if (template.stationId) {
+    // Find station details from cache
+    const stationDetails = _stationsCacheFull.find(s => s.id === template.stationId || s.name === template.stationId);
+    
+    // Update node's assignedStations (SCHEMA: stationId, not id)
+    node.assignedStations = [{
+      stationId: template.stationId,  // SCHEMA-COMPLIANT: stationId
+      name: stationDetails?.name || template.stationId,
+      priority: 1
+    }];
+    
+    console.log(`✅ Station set from template:`, node.assignedStations);
+    
+    // Refresh station UI using the same pattern as refreshStationSelector()
+    const compatibleStations = _stationsCacheFull.filter(s => 
+      Array.isArray(s.operationIds) && s.operationIds.includes(node.operationId)
+    );
+    
+    const listElement = document.querySelector('#station-selector-button');
+    if (listElement) {
+      const container = listElement.closest('[style*="margin-bottom"]');
+      if (container) {
+        const newHtml = generateMultiStationSelector(node, compatibleStations);
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = newHtml;
+        container.replaceWith(tempDiv.firstElementChild);
+      }
+    }
+  }
+  
+  // Get predecessor materials and their quantities
+  const predecessorMaterials = getPredecessorMaterialsWithQuantities(node);
+  
+  // 2. Apply materials from template
+  if (template.materials && template.materials.length > 0) {
+    // Clear existing manual material selections
+    planDesignerState.tempMaterialSelections = [];
+    
+    let autoCalculatedOutputQty = null;
+    
+    // Fetch actual material names from cache
+    const materialNamesMap = {};
+    template.materials.forEach(templateMat => {
+      const cachedMaterial = _materialsCacheFull.find(m => 
+        m.materialCode === templateMat.materialCode || m.code === templateMat.materialCode
+      );
+      if (cachedMaterial) {
+        materialNamesMap[templateMat.materialCode] = cachedMaterial.name || cachedMaterial.title || templateMat.materialCode;
+      } else {
+        materialNamesMap[templateMat.materialCode] = templateMat.materialName || templateMat.materialCode;
+      }
+    });
+    
+    // Add template materials with full metadata
+    template.materials.forEach(templateMat => {
+      const predecessorMat = predecessorMaterials.find(p => p.materialCode === templateMat.materialCode);
+      
+      let calculatedQuantity = 0;
+      
+      if (predecessorMat) {
+        // This material comes from predecessor - use its quantity and calculate output
+        calculatedQuantity = predecessorMat.requiredQuantity;
+        
+        // Calculate output quantity from this material's ratio
+        // Example: Template has 1.000kg → 2.000pcs, predecessor gives 50kg
+        // Output = 50 / 1.000 * 2.000 = 100 pcs
+        const calculatedOutput = (predecessorMat.requiredQuantity / templateMat.ratio) * template.outputRatio;
+        
+        if (autoCalculatedOutputQty === null) {
+          autoCalculatedOutputQty = calculatedOutput;
+        }
+        
+        console.log(`✅ Auto-calculated from predecessor ${templateMat.materialCode}: ${predecessorMat.requiredQuantity}${predecessorMat.unit} → ${calculatedOutput}${template.outputUnit}`);
+      }
+      
+      const materialName = materialNamesMap[templateMat.materialCode];
+      
+      planDesignerState.tempMaterialSelections.push({
+        materialCode: templateMat.materialCode,
+        code: templateMat.materialCode, // For formatMaterialLabel compatibility
+        materialName: materialName,
+        name: materialName, // For display in UI
+        title: materialName, // For formatMaterialLabel fallback
+        requiredQuantity: calculatedQuantity,
+        unit: templateMat.unit,
+        ratio: templateMat.ratio,
+        unitRatio: 1,
+        derivedFrom: predecessorMat ? predecessorMat.derivedFrom : null,
+        _fromTemplate: true // Mark as template-applied material
+      });
+    });
+    
+    // Store template ratios and application state
+    node._templateRatios = {
+      materials: template.materials,
+      outputRatio: template.outputRatio,
+      outputUnit: template.outputUnit
+    };
+    node._isTemplateApplied = true;
+    node._templateCode = template.code;
+    
+    // If we calculated output quantity from predecessor, set it and calculate remaining materials
+    if (autoCalculatedOutputQty !== null) {
+      const qtyInput = document.getElementById('edit-output-qty');
+      const unitSelect = document.getElementById('edit-output-unit');
+      
+      // Set in node object
+      node.outputQty = autoCalculatedOutputQty;
+      node.outputUnit = template.outputUnit || 'adet';
+      
+      if (qtyInput) {
+        qtyInput.value = autoCalculatedOutputQty.toFixed(3);
+      }
+      if (unitSelect && template.outputUnit) {
+        // Use populateUnitSelect to properly set the unit
+        populateUnitSelect(unitSelect, template.outputUnit);
+      }
+      
+      // Calculate quantities for non-predecessor materials
+      planDesignerState.tempMaterialSelections.forEach(tempMat => {
+        if (tempMat.requiredQuantity === 0) {
+          const calculatedQty = (autoCalculatedOutputQty / template.outputRatio) * tempMat.ratio;
+          tempMat.requiredQuantity = parseFloat(calculatedQty.toFixed(3));
+        }
+      });
+    } else {
+      // No predecessor - set output quantity from template ratio (default to ratio value)
+      node.outputQty = template.outputRatio || 1;
+      node.outputUnit = template.outputUnit || 'adet';
+      
+      const qtyInput = document.getElementById('edit-output-qty');
+      const unitSelect = document.getElementById('edit-output-unit');
+      
+      if (qtyInput) {
+        qtyInput.value = node.outputQty;
+      }
+      if (unitSelect && template.outputUnit) {
+        populateUnitSelect(unitSelect, template.outputUnit);
+      }
+    }
+    
+    // Update node's materialInputs with template selections
+    node.materialInputs = planDesignerState.tempMaterialSelections.map(tempMat => ({
+      materialCode: tempMat.materialCode,
+      materialName: tempMat.materialName,
+      name: tempMat.name,
+      requiredQuantity: tempMat.requiredQuantity,
+      unit: tempMat.unit,
+      unitRatio: tempMat.unitRatio || 1,
+      derivedFrom: tempMat.derivedFrom || null,
+      _fromTemplate: tempMat._fromTemplate || false,
+      _templateRatio: tempMat.ratio // Store original template ratio for validation
+    }));
+    
+    // Re-render material list in modal
+    rebuildMaterialRowsFromNode(node);
+    
+    // Attach template material listeners
+    attachTemplateMaterialListeners(node);
+  }
+  
+  // 3. Update output code display
+  const codeLabel = document.getElementById('node-output-code-label');
+  if (codeLabel) {
+    codeLabel.textContent = `Output: ${template.code}`;
+    codeLabel.style.color = '#10b981';
+  }
+  
+  // Add listener to calculate material quantities when user manually enters output qty
+  const qtyInput = document.getElementById('edit-output-qty');
+  if (qtyInput && !qtyInput.hasAttribute('data-template-listener')) {
+    qtyInput.setAttribute('data-template-listener', 'true');
+    qtyInput.addEventListener('input', calculateMaterialsFromTemplate);
+  }
+};
+
+// Helper: Attach bidirectional proportional update listeners to material quantity inputs
+function attachTemplateMaterialListeners(node) {
+  if (!node || !node._isTemplateApplied || !node._templateRatios) return;
+  
+  setTimeout(() => {
+    let attached = 0;
+    node.materialInputs.forEach((materialInput, materialIndex) => {
+      if (materialInput._fromTemplate && !materialInput.derivedFrom) { // Only template materials (not predecessor-derived)
+        const materialQtyInput = document.getElementById(`edit-material-qty-${materialIndex}`);
+        if (materialQtyInput) {
+          attached++;
+          
+          // Remove old listeners to avoid duplicates
+          const newInput = materialQtyInput.cloneNode(true);
+          materialQtyInput.parentNode.replaceChild(newInput, materialQtyInput);
+          
+          // Store original quantity value
+          newInput.dataset.originalQty = newInput.value;
+            
+          // Add INPUT listener for bidirectional proportional update
+          newInput.addEventListener('input', function() {
+            if (!node._isTemplateApplied || !node._templateRatios) return;
+            
+            const newMaterialQty = parseFloat(this.value);
+            if (!newMaterialQty || newMaterialQty <= 0) return;
+            
+            const materialCode = materialInput.materialCode;
+            const templateMaterial = node._templateRatios.materials.find(m => m.materialCode === materialCode);
+            if (!templateMaterial) return;
+            
+            // Calculate scale factor from this material's change
+            // Example: Template ratio = 1.000kg, new value = 50kg, scale = 50
+            const scaleFactor = newMaterialQty / templateMaterial.ratio;
+            
+            // Update output quantity proportionally
+            const newOutputQty = scaleFactor * node._templateRatios.outputRatio;
+            node.outputQty = newOutputQty;
+            
+            const outputQtyInput = document.getElementById('edit-output-qty');
+            if (outputQtyInput) {
+              outputQtyInput.value = newOutputQty.toFixed(3);
+            }
+            
+            // Update other material quantities proportionally (both data and UI)
+            node.materialInputs.forEach((matInput, idx) => {
+              if (matInput.materialCode !== materialCode && !matInput.derivedFrom && matInput._fromTemplate) {
+                const otherTemplateMat = node._templateRatios.materials.find(m => m.materialCode === matInput.materialCode);
+                if (otherTemplateMat) {
+                  const newQty = parseFloat((scaleFactor * otherTemplateMat.ratio).toFixed(3));
+                  
+                  // Update data
+                  matInput.requiredQuantity = newQty;
+                  
+                  // Update UI field directly (don't rebuild!)
+                  const otherInput = document.getElementById(`edit-material-qty-${idx}`);
+                  if (otherInput && otherInput !== this) {
+                    otherInput.value = newQty.toFixed(3);
+                  }
+                }
+              } else if (matInput.materialCode === materialCode) {
+                // Update current material's data
+                matInput.requiredQuantity = newMaterialQty;
+              }
+            });
+            
+            // Sync tempMaterialSelections with updated materialInputs
+            planDesignerState.tempMaterialSelections = node.materialInputs.map(mi => ({
+              materialCode: mi.materialCode,
+              materialName: mi.materialName,
+              name: mi.name,
+              requiredQuantity: mi.requiredQuantity,
+              unit: mi.unit,
+              unitRatio: mi.unitRatio || 1,
+              derivedFrom: mi.derivedFrom || null,
+              _fromTemplate: mi._fromTemplate || false,
+              ratio: mi._templateRatio
+            }));
+            
+            // console.log('🔒 Template locked - material input → output/materials updated');
+          });
+          
+          // Update baseline after proportional change (no unlock needed since ratios are preserved)
+          newInput.addEventListener('blur', function() {
+            if (node._isTemplateApplied && this.value) {
+              this.dataset.originalQty = this.value;
+            }
+          });
+        }
+      }
+    });
+    if (attached > 0) {
+      console.log(`🔧 Attached ${attached} bidirectional template listeners`);
+    }
+  }, 100);
+}
+
+function calculateMaterialsFromTemplate() {
+  const node = planDesignerState.selectedNode;
+  if (!node || !node._templateRatios) return;
+  
+  const qtyInput = document.getElementById('edit-output-qty');
+  const userOutputQty = qtyInput ? parseFloat(qtyInput.value) : 0;
+  
+  if (!userOutputQty || userOutputQty <= 0) return;
+  
+  const { materials, outputRatio } = node._templateRatios;
+  
+  // Update node's output quantity (preserves template lock)
+  node.outputQty = userOutputQty;
+  
+  // Calculate input material quantities based on template ratios
+  // Example: Template has 1.000kg → 2.000pcs
+  // User enters 100 pcs
+  // Calculate: 100 / 2.000 * 1.000 = 50 kg
+  
+  node.materialInputs.forEach((materialInput, materialIndex) => {
+    const templateMaterial = materials.find(m => m.materialCode === materialInput.materialCode);
+    if (templateMaterial && !materialInput.derivedFrom) { // Don't recalculate predecessor-derived materials
+      const calculatedQuantity = (userOutputQty / outputRatio) * templateMaterial.ratio;
+      materialInput.requiredQuantity = parseFloat(calculatedQuantity.toFixed(3));
+      
+      // Update UI field directly (don't rebuild!)
+      const materialQtyInput = document.getElementById(`edit-material-qty-${materialIndex}`);
+      if (materialQtyInput) {
+        materialQtyInput.value = materialInput.requiredQuantity.toFixed(3);
+        materialQtyInput.dataset.originalQty = materialInput.requiredQuantity.toFixed(3);
+      }
+    }
+  });
+  
+  // Sync tempMaterialSelections with updated materialInputs
+  planDesignerState.tempMaterialSelections = node.materialInputs.map(mi => ({
+    materialCode: mi.materialCode,
+    materialName: mi.materialName,
+    name: mi.name,
+    requiredQuantity: mi.requiredQuantity,
+    unit: mi.unit,
+    unitRatio: mi.unitRatio || 1,
+    derivedFrom: mi.derivedFrom || null,
+    _fromTemplate: mi._fromTemplate || false,
+    ratio: mi._templateRatio
+  }));
+  
+  console.log('🔒 Template locked - output quantity changed, materials recalculated proportionally');
+}
+
+// Helper: Get material codes from predecessor nodes
+function getPredecessorMaterialCodes(node) {
+  const codes = [];
+  
+  if (!node || !node.id) return codes;
+  
+  // Check if node has materialInputs with derivedFrom
+  if (node.materialInputs && Array.isArray(node.materialInputs)) {
+    node.materialInputs.forEach(mat => {
+      if (mat.derivedFrom && mat.materialCode) {
+        codes.push(mat.materialCode);
+      }
+    });
+  }
+  
+  // Also check connections in the graph
+  const connections = planDesignerState?.connections || [];
+  const incomingConnections = connections.filter(conn => conn.to === node.id);
+  
+  incomingConnections.forEach(conn => {
+    const fromNode = planDesignerState?.nodes?.find(n => n.id === conn.from);
+    if (fromNode && fromNode.materialCode) {
+      codes.push(fromNode.materialCode);
+    }
+  });
+  
+  return [...new Set(codes)]; // Remove duplicates
+}
+
+// Helper: Get predecessor materials with their quantities
+function getPredecessorMaterialsWithQuantities(node) {
+  const materials = [];
+  
+  if (!node || !node.id) return materials;
+  
+  // Get materials from node's materialInputs that have derivedFrom
+  if (node.materialInputs && Array.isArray(node.materialInputs)) {
+    node.materialInputs.forEach(mat => {
+      if (mat.derivedFrom) {
+        materials.push({
+          materialCode: mat.materialCode,
+          materialName: mat.materialName || mat.materialCode,
+          requiredQuantity: mat.requiredQuantity || 0,
+          unit: mat.unit,
+          derivedFrom: mat.derivedFrom
+        });
+      }
+    });
+  }
+  
+  return materials;
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const dropdown = document.getElementById('output-template-dropdown');
+  const btn = document.getElementById('output-template-btn');
+  
+  if (dropdown && btn && currentTemplateDropdownVisible) {
+    if (!dropdown.contains(e.target) && !btn.contains(e.target)) {
+      dropdown.style.display = 'none';
+      currentTemplateDropdownVisible = false;
+    }
+  }
+});
+

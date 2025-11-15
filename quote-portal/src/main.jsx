@@ -32,12 +32,12 @@ const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin'
   : window.location.pathname.includes('materials.html') ? 'materials'
   : 'quote';
 
-// Material types - Bu sabit kalabilir
+// Material types - New type system
 const materialTypes = [
   { id: 'raw_material', label: 'Ham Madde' },
-  { id: 'wip', label: 'Yarı Mamül' },
-  { id: 'wip_produced', label: 'Üretilmiş Yarı Mamül' },
-  { id: 'final_product', label: 'Bitmiş Ürün' }
+  { id: 'semi_finished', label: 'Yarı Mamül' },
+  { id: 'finished_product', label: 'Bitmiş Ürün' },
+  { id: 'scrap', label: 'Hurda' }
 ];
 
 function MaterialsApp() {
