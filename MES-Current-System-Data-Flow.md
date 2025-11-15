@@ -2794,62 +2794,98 @@ Provide complete code changes for mesRoutes.js COMPLETE action.
 TASK: Add Real-Time Scrap Counter UI to Worker Portal
 
 CONTEXT:
-Worker portal task actions need a new "Defects" button with REAL-TIME counter functionality using atomic backend counters. Workers should be able to:
+Worker portal (domains/workerPortal/workerPortal.js) needs a new "🗑️ Fire" button with REAL-TIME counter functionality using atomic backend counters. Workers should be able to:
 1. During task execution: Click material buttons to increment scrap counters (syncs immediately to backend)
 2. Before complete: Review all counters, make final adjustments
 3. On complete: Backend reads counters, processes scrap, resets counters
 
 IMPORTANT: This uses the NEW counter-based architecture (inputScrapCount_{code}, productionScrapCount_{code}) with FieldValue.increment() for race-condition-free updates.
 
+BACKEND ENDPOINTS (Already Implemented in mesRoutes.js):
+- POST /api/mes/work-packages/:id/scrap - Atomic increment (FieldValue.increment)
+- GET /api/mes/work-packages/:id/scrap - Get current counters
+- DELETE /api/mes/work-packages/:id/scrap/:scrapType/:materialCode/:quantity - Atomic decrement (undo)
+
 REQUIREMENTS:
 
-1. Locate Worker Portal Action Buttons:
-   Find the action buttons section (Duraklat, Tamamla, Hata):
-   ```html
-   <div class="action-buttons">
-     <button class="action-btn action-pause">⏸️ Duraklat</button>
-     <button class="action-btn action-complete">✅ Tamamla</button>
-     <button class="action-btn action-error">⚠️ Hata</button>
-   </div>
+1. Locate Worker Portal Action Buttons in workerPortal.js:
+   Find the renderTaskActions() function (around line 993-1070) where action buttons are rendered:
+   ```javascript
+   function renderTaskActions(task) {
+     const actions = [];
+     
+     // ... existing button logic ...
+     
+     actions.push(`
+       <button class="action-btn action-error" data-action="error" data-id="${task.assignmentId}">
+         ⚠️ Hata
+       </button>
+     `);
+   }
    ```
 
-2. Add Defects Button:
-   Insert new button next to Hata:
-   ```html
-   <button class="action-btn action-defects" data-action="defects" data-id="{assignmentId}">
-     🗑️ Defects
-   </button>
+2. Add Fire/Defects Button Logic:
+   Add this to the renderTaskActions() function after the error button logic:
+   
+   ```javascript
+   // Fire button - only if in progress (and worker available)
+   if (task.status === 'in_progress') {
+     const disabled = workerUnavailable ? 'disabled' : '';
+     actions.push(`
+       <button class="action-btn action-fire" data-action="fire" data-id="${task.assignmentId}" ${disabled}>
+         🗑️ Fire
+       </button>
+     `);
+   }
    ```
    
    This button opens a modal showing ALL materials (inputs + output) as clickable buttons for quick counter increment.
 
-3. Create Defects Quick-Entry Modal:
+3. Add Fire Button Styling in workerPortal.css:
+   Add after the .action-error style (around line 320):
+   
+   ```css
+   .action-fire {
+     background: #f97316;
+     color: white;
+     border-color: #ea580c;
+   }
+   
+   .action-fire:hover {
+     background: #ea580c;
+   }
+   ```
+
+4. Create Defects Quick-Entry Modal:
+   Add this modal HTML structure to be dynamically created:
    
    ```html
-   <div id="defectsModal" class="modal" style="display: none;">
-     <div class="modal-content">
+   <div class="modal-overlay" id="fireModal">
+     <div class="modal-content" style="max-width: 700px;">
        <div class="modal-header">
-         <h3>🗑️ Defect Counter</h3>
-         <button class="modal-close">&times;</button>
+         <h2 class="modal-title">🗑️ Fire Sayacı</h2>
+         <button class="modal-close" onclick="closeFireModal()">&times;</button>
+       </div>
+       <div class="modal-header">
+         <h2 class="modal-title">🗑️ Fire Sayacı</h2>
+         <button class="modal-close" onclick="closeFireModal()">&times;</button>
        </div>
        
        <div class="modal-body">
-         <p class="info-text">Click material buttons to increment defect counters. Changes sync immediately to backend.</p>
+         <p class="info-text">Malzeme butonlarına tıklayarak fire sayaçlarını artırın. Değişiklikler anında backend'e senkronize edilir.</p>
          
          <!-- Input Materials Section -->
          <div class="material-section">
-           <h4>Input Materials</h4>
+           <h4 style="color: #111827; margin-bottom: 12px; font-size: 14px; font-weight: 600;">Giriş Malzemeleri</h4>
            <div class="material-buttons-grid" id="inputMaterialsGrid">
              <!-- Dynamically populated from assignment.preProductionReservedAmount -->
-             <!-- Example:
+             <!-- Example button structure:
              <div class="material-button-wrapper">
                <button class="material-btn" 
                        data-material-code="M-001" 
-                       data-scrap-type="input_damaged"
                        onclick="showScrapTypeSelector('M-001')">
                  <div class="material-info">
                    <span class="material-code">M-001</span>
-                   <span class="material-name">Çelik Sac</span>
                  </div>
                  <div class="counter-badge" id="counter-input-M-001">0</div>
                </button>
@@ -2860,16 +2896,14 @@ REQUIREMENTS:
          
          <!-- Output Material Section -->
          <div class="material-section">
-           <h4>Output Product</h4>
+           <h4 style="color: #111827; margin-bottom: 12px; font-size: 14px; font-weight: 600;">Çıktı Ürün</h4>
            <div class="material-buttons-grid" id="outputMaterialGrid">
              <!-- Example:
              <button class="material-btn material-btn-output" 
                      data-material-code="M-002" 
-                     data-scrap-type="output_scrap"
                      onclick="incrementScrap('M-002', 'output_scrap', 1)">
                <div class="material-info">
                  <span class="material-code">M-002</span>
-                 <span class="material-name">Kesilmiş Parça</span>
                </div>
                <div class="counter-badge counter-badge-output" id="counter-output-M-002">0</div>
              </button>
@@ -2879,7 +2913,7 @@ REQUIREMENTS:
          
          <!-- Current Session Totals -->
          <div class="totals-summary">
-           <h4>Session Totals</h4>
+           <h4 style="margin-bottom: 12px; font-size: 14px; color: #111827;">Oturum Toplamları</h4>
            <div id="totalsSummary" class="totals-list">
              <!-- Dynamically updated -->
            </div>
@@ -2887,45 +2921,50 @@ REQUIREMENTS:
        </div>
        
        <div class="modal-footer">
-         <button class="btn btn-secondary" id="closeDefectsModal">Close</button>
+         <button class="btn-secondary" onclick="closeFireModal()">Kapat</button>
        </div>
      </div>
    </div>
    
    <!-- Scrap Type Selector Modal (for input materials only) -->
-   <div id="scrapTypeModal" class="modal modal-small" style="display: none;">
-     <div class="modal-content">
+   <div class="modal-overlay" id="scrapTypeModal" style="display: none; z-index: 10000;">
+     <div class="modal-content" style="max-width: 400px;">
        <div class="modal-header">
-         <h3>Select Defect Type</h3>
+         <h2 class="modal-title">Fire Tipi Seçin</h2>
        </div>
        <div class="modal-body">
-         <p>Material: <strong id="selectedMaterialCode"></strong></p>
+         <p style="margin-bottom: 16px;">Malzeme: <strong id="selectedMaterialCode"></strong></p>
          <div class="scrap-type-buttons">
            <button class="scrap-type-btn" 
                    data-type="input_damaged"
                    onclick="incrementScrapWithType('input_damaged')">
-             📦 Incoming Damaged
-             <small>Material arrived defective</small>
+             <span style="font-size: 16px; font-weight: 600;">📦 Hasarlı Gelen</span>
+             <small style="color: #6b7280; font-size: 12px; margin-top: 4px;">Malzeme hasarlı geldi</small>
            </button>
            <button class="scrap-type-btn" 
                    data-type="production_scrap"
                    onclick="incrementScrapWithType('production_scrap')">
-             🔧 Production Scrap
-             <small>Damaged during production (e.g., dropped)</small>
+             <span style="font-size: 16px; font-weight: 600;">🔧 Üretimde Hurda</span>
+             <small style="color: #6b7280; font-size: 12px; margin-top: 4px;">Üretim sırasında hasar gördü (düştü vs.)</small>
            </button>
          </div>
        </div>
        <div class="modal-footer">
-         <button class="btn btn-secondary" onclick="closeScrapTypeModal()">Cancel</button>
+         <button class="btn-secondary" onclick="closeScrapTypeModal()">İptal</button>
        </div>
      </div>
    </div>
    ```
 
-4. Add JavaScript Logic (Real-Time Counter Sync):
+5. Add JavaScript Logic (Real-Time Counter Sync):
+   Add these functions to workerPortal.js (after existing modal functions, around line 520):
    
    ```javascript
-   let currentAssignment = null;
+   // ============================================================================
+   // FIRE COUNTER SYSTEM (Real-time with atomic backend sync)
+   // ============================================================================
+   
+   let currentFireAssignment = null;
    let scrapCounters = {
      inputScrapCounters: {},      // { 'M-001': 5, 'M-002': 3 }
      productionScrapCounters: {}, // { 'M-001': 2 }
@@ -2933,34 +2972,131 @@ REQUIREMENTS:
    };
    let pendingMaterialCode = null; // For scrap type selection
    
-   // Load current assignment data and counters
-   async function loadAssignmentForScrap(assignmentId) {
-     const response = await fetch(`/api/mes/work-packages/${assignmentId}`);
-     const data = await response.json();
-     currentAssignment = data.assignment;
+   // Open fire modal for an assignment
+   async function openFireModal(assignmentId) {
+     // Find assignment from current tasks
+     const task = state.tasks.find(t => t.assignmentId === assignmentId);
+     if (!task) {
+       showNotification('Görev bulunamadı', 'error');
+       return;
+     }
      
-     // Load existing scrap counters from backend
-     const scrapResponse = await fetch(`/api/mes/work-packages/${assignmentId}/scrap`);
-     const scrapData = await scrapResponse.json();
-     scrapCounters = {
-       inputScrapCounters: scrapData.inputScrapCounters || {},
-       productionScrapCounters: scrapData.productionScrapCounters || {},
-       defectQuantity: scrapData.defectQuantity || 0
-     };
+     currentFireAssignment = task;
      
-     updateCounterDisplay();
+     // Load current scrap counters from backend
+     try {
+       const response = await fetch(`/api/mes/work-packages/${assignmentId}/scrap`);
+       if (!response.ok) throw new Error('Failed to fetch scrap counters');
+       
+       const data = await response.json();
+       scrapCounters = {
+         inputScrapCounters: data.inputScrapCounters || {},
+         productionScrapCounters: data.productionScrapCounters || {},
+         defectQuantity: data.defectQuantity || 0
+       };
+     } catch (error) {
+       console.error('Failed to load scrap counters:', error);
+       showNotification('Fire sayaçları yüklenemedi', 'error');
+       return;
+     }
+     
+     // Create modal
+     const modal = document.createElement('div');
+     modal.className = 'modal-overlay';
+     modal.id = 'fireModal';
+     modal.innerHTML = `
+       <div class="modal-content" style="max-width: 700px;">
+         <div class="modal-header">
+           <h2 class="modal-title">🗑️ Fire Sayacı - ${task.name || task.operationName}</h2>
+           <button class="modal-close" onclick="closeFireModal()">&times;</button>
+         </div>
+         
+         <div class="modal-body">
+           <p class="info-text">Malzeme butonlarına tıklayarak fire sayaçlarını artırın. Değişiklikler anında backend'e senkronize edilir.</p>
+           
+           <div class="material-section">
+             <h4 style="color: #111827; margin-bottom: 12px; font-size: 14px; font-weight: 600;">Giriş Malzemeleri</h4>
+             <div class="material-buttons-grid" id="inputMaterialsGrid"></div>
+           </div>
+           
+           <div class="material-section">
+             <h4 style="color: #111827; margin-bottom: 12px; font-size: 14px; font-weight: 600;">Çıktı Ürün</h4>
+             <div class="material-buttons-grid" id="outputMaterialGrid"></div>
+           </div>
+           
+           <div class="totals-summary">
+             <h4 style="margin-bottom: 12px; font-size: 14px; color: #111827;">Oturum Toplamları</h4>
+             <div id="totalsSummary" class="totals-list"></div>
+           </div>
+         </div>
+         
+         <div class="modal-footer">
+           <button class="btn-secondary" onclick="closeFireModal()">Kapat</button>
+         </div>
+       </div>
+     `;
+     
+     document.body.appendChild(modal);
+     
+     // Populate material buttons
      populateMaterialButtons();
+     updateCounterDisplay();
+   }
+   
+   function closeFireModal() {
+     const modal = document.getElementById('fireModal');
+     if (modal) modal.remove();
+     currentFireAssignment = null;
    }
    
    // Show scrap type selector for input materials
    function showScrapTypeSelector(materialCode) {
      pendingMaterialCode = materialCode;
+     
+     // Check if modal already exists
+     let modal = document.getElementById('scrapTypeModal');
+     if (!modal) {
+       modal = document.createElement('div');
+       modal.className = 'modal-overlay';
+       modal.id = 'scrapTypeModal';
+       modal.style.zIndex = '10000';
+       modal.innerHTML = `
+         <div class="modal-content" style="max-width: 400px;">
+           <div class="modal-header">
+             <h2 class="modal-title">Fire Tipi Seçin</h2>
+           </div>
+           <div class="modal-body">
+             <p style="margin-bottom: 16px;">Malzeme: <strong id="selectedMaterialCode"></strong></p>
+             <div class="scrap-type-buttons">
+               <button class="scrap-type-btn" 
+                       data-type="input_damaged"
+                       onclick="incrementScrapWithType('input_damaged')">
+                 <span style="font-size: 16px; font-weight: 600;">📦 Hasarlı Gelen</span>
+                 <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Malzeme hasarlı geldi</small>
+               </button>
+               <button class="scrap-type-btn" 
+                       data-type="production_scrap"
+                       onclick="incrementScrapWithType('production_scrap')">
+                 <span style="font-size: 16px; font-weight: 600;">🔧 Üretimde Hurda</span>
+                 <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Üretim sırasında hasar gördü</small>
+               </button>
+             </div>
+           </div>
+           <div class="modal-footer">
+             <button class="btn-secondary" onclick="closeScrapTypeModal()">İptal</button>
+           </div>
+         </div>
+       `;
+       document.body.appendChild(modal);
+     }
+     
      document.getElementById('selectedMaterialCode').textContent = materialCode;
-     document.getElementById('scrapTypeModal').style.display = 'block';
+     modal.style.display = 'flex';
    }
    
    function closeScrapTypeModal() {
-     document.getElementById('scrapTypeModal').style.display = 'none';
+     const modal = document.getElementById('scrapTypeModal');
+     if (modal) modal.style.display = 'none';
      pendingMaterialCode = null;
    }
    
@@ -2974,6 +3110,8 @@ REQUIREMENTS:
    
    // Real-time counter increment (syncs to backend immediately)
    async function incrementScrap(materialCode, scrapType, quantity) {
+     if (!currentFireAssignment) return;
+     
      try {
        // Optimistic UI update
        if (scrapType === 'input_damaged') {
@@ -2989,7 +3127,7 @@ REQUIREMENTS:
        updateCounterDisplay();
        
        // Sync to backend (atomic increment)
-       const response = await fetch(`/api/mes/work-packages/${currentAssignment.id}/scrap`, {
+       const response = await fetch(`/api/mes/work-packages/${currentFireAssignment.assignmentId}/scrap`, {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({
@@ -3005,7 +3143,7 @@ REQUIREMENTS:
          throw new Error('Failed to sync counter');
        }
        
-       // Show success feedback
+       // Show success feedback (brief toast)
        showToast(`✅ ${materialCode}: +${quantity}`, 'success');
        
      } catch (error) {
@@ -3019,17 +3157,21 @@ REQUIREMENTS:
          scrapCounters.defectQuantity -= quantity;
        }
        updateCounterDisplay();
-       showToast('❌ Failed to update counter', 'error');
+       showNotification('Fire sayacı güncellenemedi: ' + error.message, 'error');
      }
    }
    
    // Populate material buttons from assignment data
    function populateMaterialButtons() {
+     if (!currentFireAssignment) return;
+     
      const inputGrid = document.getElementById('inputMaterialsGrid');
      const outputGrid = document.getElementById('outputMaterialGrid');
      
-     // Input materials
-     const inputMaterials = currentAssignment.preProductionReservedAmount || {};
+     if (!inputGrid || !outputGrid) return;
+     
+     // Input materials (from preProductionReservedAmount)
+     const inputMaterials = currentFireAssignment.preProductionReservedAmount || {};
      inputGrid.innerHTML = Object.keys(inputMaterials).map(materialCode => {
        const totalCount = 
          (scrapCounters.inputScrapCounters[materialCode] || 0) + 
@@ -3050,13 +3192,12 @@ REQUIREMENTS:
        `;
      }).join('');
      
-     // Output material
-     const outputCode = currentAssignment.outputCode || Object.keys(currentAssignment.plannedOutput || {})[0];
+     // Output material (from outputCode)
+     const outputCode = currentFireAssignment.outputCode;
      if (outputCode) {
        outputGrid.innerHTML = `
          <button class="material-btn material-btn-output" 
                  data-material-code="${outputCode}" 
-                 data-scrap-type="output_scrap"
                  onclick="incrementScrap('${outputCode}', 'output_scrap', 1)">
            <div class="material-info">
              <span class="material-code">${outputCode}</span>
@@ -3065,6 +3206,8 @@ REQUIREMENTS:
                 id="counter-output-${outputCode}">${scrapCounters.defectQuantity}</div>
          </button>
        `;
+     } else {
+       outputGrid.innerHTML = '<p style="color: #9ca3af; font-size: 13px;">Çıktı ürün tanımlı değil</p>';
      }
    }
    
@@ -3094,7 +3237,7 @@ REQUIREMENTS:
      });
      
      // Update output badge
-     const outputCode = currentAssignment?.outputCode;
+     const outputCode = currentFireAssignment?.outputCode;
      if (outputCode) {
        const outputBadgeEl = document.getElementById(`counter-output-${outputCode}`);
        if (outputBadgeEl) {
@@ -3110,144 +3253,104 @@ REQUIREMENTS:
    // Update totals summary display
    function updateTotalsSummary() {
      const summaryEl = document.getElementById('totalsSummary');
+     if (!summaryEl) return;
+     
      const entries = [];
      
      // Input damaged
      Object.entries(scrapCounters.inputScrapCounters).forEach(([code, qty]) => {
        if (qty > 0) {
-         entries.push(`<div class="total-item"><span class="badge badge-red">Input Damaged</span> ${code}: ${qty}</div>`);
+         entries.push(`<div class="total-item"><span class="badge badge-red">Hasarlı Gelen</span> ${code}: ${qty}</div>`);
        }
      });
      
      // Production scrap
      Object.entries(scrapCounters.productionScrapCounters).forEach(([code, qty]) => {
        if (qty > 0) {
-         entries.push(`<div class="total-item"><span class="badge badge-orange">Production Scrap</span> ${code}: ${qty}</div>`);
+         entries.push(`<div class="total-item"><span class="badge badge-orange">Üretimde Hurda</span> ${code}: ${qty}</div>`);
        }
      });
      
      // Output defects
      if (scrapCounters.defectQuantity > 0) {
-       entries.push(`<div class="total-item"><span class="badge badge-yellow">Output Defects</span> ${currentAssignment.outputCode}: ${scrapCounters.defectQuantity}</div>`);
+       entries.push(`<div class="total-item"><span class="badge badge-yellow">Çıktı Fire</span> ${currentFireAssignment.outputCode}: ${scrapCounters.defectQuantity}</div>`);
      }
      
      summaryEl.innerHTML = entries.length > 0 
        ? entries.join('') 
-       : '<p class="no-data">No defects recorded</p>';
+       : '<p class="no-data">Henüz fire kaydı yok</p>';
    }
    
-   // Show toast notification
+   // Show toast notification (brief feedback)
    function showToast(message, type = 'info') {
      const toast = document.createElement('div');
      toast.className = `toast toast-${type}`;
      toast.textContent = message;
-     document.body.appendChild(toast);
-     
-     setTimeout(() => {
-       toast.classList.add('show');
-     }, 10);
-     
-     setTimeout(() => {
-       toast.classList.remove('show');
-       setTimeout(() => toast.remove(), 300);
-     }, 2000);
-   }
-   
-   // On Complete button click - Show review modal first
-   document.querySelector('.action-complete').addEventListener('click', async () => {
-     // Load latest counters from backend
-     await loadAssignmentForScrap(currentAssignment.id);
-     
-     // Show review modal with all counters
-     showCompleteReviewModal();
-   });
-   
-   // Show complete review modal
-   function showCompleteReviewModal() {
-     const modalHTML = `
-       <div id="completeReviewModal" class="modal">
-         <div class="modal-content">
-           <div class="modal-header">
-             <h3>⚠️ Complete Task - Final Review</h3>
-           </div>
-           <div class="modal-body">
-             <p><strong>Output Quantity:</strong> <input type="number" id="finalOutputQty" value="${currentAssignment.plannedOutput}" /></p>
-             
-             <h4>Defect Summary:</h4>
-             <div id="finalDefectSummary"></div>
-             
-             <p class="warning-text">⚠️ After confirming, counters will be reset and stock movements will be finalized.</p>
-           </div>
-           <div class="modal-footer">
-             <button class="btn btn-secondary" onclick="closeCompleteReviewModal()">Cancel</button>
-             <button class="btn btn-primary" onclick="confirmComplete()">Confirm Complete</button>
-           </div>
-         </div>
-       </div>
+     toast.style.cssText = `
+       position: fixed;
+       bottom: 20px;
+       right: 20px;
+       padding: 12px 20px;
+       background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+       color: white;
+       border-radius: 6px;
+       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+       z-index: 10001;
+       font-size: 13px;
+       font-weight: 500;
      `;
      
-     document.body.insertAdjacentHTML('beforeend', modalHTML);
-     document.getElementById('finalDefectSummary').innerHTML = document.getElementById('totalsSummary').innerHTML;
-   }
-   
-   function closeCompleteReviewModal() {
-     document.getElementById('completeReviewModal')?.remove();
-   }
-   
-   // Confirm complete (backend reads counters automatically)
-   async function confirmComplete() {
-     const actualOutput = parseFloat(document.getElementById('finalOutputQty').value) || 0;
+     document.body.appendChild(toast);
      
-     // Backend will:
-     // 1. Read inputScrapCount_{code} and productionScrapCount_{code} counters
-     // 2. Calculate consumption
-     // 3. Create scrap materials
-     // 4. Reset all counters to 0
-     const completeData = {
-       action: 'complete',
-       actualOutputQuantity: actualOutput,
-       defectQuantity: scrapCounters.defectQuantity
-       // NO NEED to send counters - backend reads them from assignment document!
-     };
-     
-     try {
-       const response = await fetch(`/api/mes/work-packages/${currentAssignment.id}`, {
-         method: 'PATCH',
-         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify(completeData)
-       });
-       
-       if (!response.ok) throw new Error('Failed to complete task');
-       
-       showToast('✅ Task completed successfully', 'success');
-       closeCompleteReviewModal();
-       
-       // Reload page or update UI
-       setTimeout(() => location.reload(), 1500);
-       
-     } catch (error) {
-       console.error('Failed to complete task:', error);
-       showToast('❌ Failed to complete task', 'error');
-     }
+     setTimeout(() => toast.remove(), 2000);
    }
    ```
 
-5. Add CSS Styling:
-   ```css
-   /* Defects Modal */
-   .modal-small {
-     z-index: 1001;
+6. Update Event Listener in attachEventListeners():
+   Add fire button handler in the attachEventListeners() function (around line 1075):
+   
+   ```javascript
+   function attachEventListeners() {
+     // Action buttons
+     document.querySelectorAll('.action-btn').forEach(btn => {
+       btn.addEventListener('click', async (e) => {
+         const action = e.target.dataset.action;
+         const assignmentId = e.target.dataset.id;
+         
+         if (!assignmentId) return;
+         
+         switch (action) {
+           case 'start':
+             await startTask(assignmentId);
+             break;
+           case 'pause':
+             await pauseTask(assignmentId);
+             break;
+           case 'complete':
+             await completeTask(assignmentId);
+             break;
+           case 'error':
+             await reportStationError(assignmentId);
+             break;
+           case 'fire':
+             await openFireModal(assignmentId);
+             break;
+         }
+       });
+     });
    }
+   ```
+
+7. Add CSS Styling to workerPortal.css:
+   Add these styles after the existing modal styles (around line 450):
+   
+   ```css
+   /* ============================================================================
+      FIRE COUNTER MODAL STYLES
+      ============================================================================ */
    
    .material-section {
      margin: 20px 0;
-   }
-   
-   .material-section h4 {
-     color: #333;
-     margin-bottom: 12px;
-     font-size: 14px;
-     font-weight: 600;
    }
    
    .material-buttons-grid {
@@ -3273,7 +3376,7 @@ REQUIREMENTS:
    
    .material-btn:hover {
      background: #f8f9fa;
-     border-color: #007bff;
+     border-color: #3b82f6;
      transform: translateY(-2px);
      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
    }
@@ -3284,12 +3387,12 @@ REQUIREMENTS:
    }
    
    .material-btn-output {
-     border-color: #28a745;
+     border-color: #10b981;
    }
    
    .material-btn-output:hover {
-     border-color: #218838;
-     background: #f0fff4;
+     border-color: #059669;
+     background: #f0fdf4;
    }
    
    .material-info {
@@ -3302,21 +3405,15 @@ REQUIREMENTS:
    .material-code {
      font-weight: 600;
      font-size: 13px;
-     color: #333;
-   }
-   
-   .material-name {
-     font-size: 11px;
-     color: #666;
-     text-align: center;
+     color: #111827;
    }
    
    .counter-badge {
      position: absolute;
      top: -8px;
      right: -8px;
-     background: #e0e0e0;
-     color: #666;
+     background: #e5e7eb;
+     color: #6b7280;
      width: 28px;
      height: 28px;
      border-radius: 50%;
@@ -3330,14 +3427,14 @@ REQUIREMENTS:
    }
    
    .counter-badge.has-count {
-     background: #ff6b6b;
+     background: #ef4444;
      color: white;
      animation: pulse 0.3s ease-in-out;
    }
    
    .counter-badge-output.has-count {
-     background: #ffc107;
-     color: #333;
+     background: #f59e0b;
+     color: white;
    }
    
    @keyframes pulse {
@@ -3368,28 +3465,16 @@ REQUIREMENTS:
    }
    
    .scrap-type-btn:hover {
-     border-color: #007bff;
+     border-color: #3b82f6;
      background: #f8f9fa;
-   }
-   
-   .scrap-type-btn small {
-     color: #666;
-     font-size: 12px;
-     margin-top: 4px;
    }
    
    /* Totals Summary */
    .totals-summary {
      margin-top: 24px;
      padding: 16px;
-     background: #f8f9fa;
+     background: #f9fafb;
      border-radius: 8px;
-   }
-   
-   .totals-summary h4 {
-     margin-bottom: 12px;
-     font-size: 14px;
-     color: #333;
    }
    
    .totals-list {
@@ -3418,97 +3503,69 @@ REQUIREMENTS:
    }
    
    .badge-red {
-     background: #dc3545;
+     background: #ef4444;
    }
    
    .badge-orange {
-     background: #fd7e14;
+     background: #f97316;
    }
    
    .badge-yellow {
-     background: #ffc107;
-     color: #333;
+     background: #f59e0b;
+     color: #111827;
    }
    
    .no-data {
      text-align: center;
-     color: #999;
+     color: #9ca3af;
      font-style: italic;
      padding: 20px;
+     font-size: 13px;
    }
    
    .info-text {
-     background: #e3f2fd;
+     background: #dbeafe;
      padding: 12px;
      border-radius: 6px;
-     border-left: 4px solid #2196f3;
-     color: #0d47a1;
+     border-left: 4px solid #3b82f6;
+     color: #1e40af;
      font-size: 13px;
      margin-bottom: 16px;
    }
-   
-   .warning-text {
-     background: #fff3cd;
-     padding: 12px;
-     border-radius: 6px;
-     border-left: 4px solid #ffc107;
-     color: #856404;
-     font-size: 13px;
-     margin: 16px 0;
-   }
-   
-   /* Toast notifications */
-   .toast {
-     position: fixed;
-     bottom: 20px;
-     right: 20px;
-     padding: 12px 20px;
-     background: #333;
-     color: white;
-     border-radius: 6px;
-     box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-     opacity: 0;
-     transform: translateY(20px);
-     transition: all 0.3s;
-     z-index: 10000;
-   }
-   
-   .toast.show {
-     opacity: 1;
-     transform: translateY(0);
-   }
-   
-   .toast-success {
-     background: #28a745;
-   }
-   
-   .toast-error {
-     background: #dc3545;
-   }
-   
-   .toast-info {
-     background: #17a2b8;
-   }
    ```
 
-VALIDATION:
-- Material buttons should show real-time counter badges
-- Clicking input materials opens scrap type selector (input_damaged vs production_scrap)
-- Clicking output material increments defect counter directly
-- All increments sync to backend immediately using FieldValue.increment() (atomic, race-condition-free)
-- Complete action shows review modal with final adjustments before confirming
-- Backend reads counters from assignment document, processes scrap, resets counters to 0
+VALIDATION CHECKLIST:
+- [ ] Fire button appears only for in_progress tasks
+- [ ] Modal opens and displays input materials from preProductionReservedAmount
+- [ ] Modal displays output material from outputCode field
+- [ ] Clicking input materials opens scrap type selector (hasarlı gelen vs üretimde hurda)
+- [ ] Clicking output material increments defect counter directly
+- [ ] All increments sync to backend immediately using POST /api/mes/work-packages/:id/scrap
+- [ ] Counter badges update in real-time
+- [ ] Totals summary shows breakdown by scrap type
+- [ ] Backend uses FieldValue.increment() (atomic, no race conditions)
+- [ ] Complete action reads counters from backend automatically
+- [ ] Toast notifications appear for successful updates
 
-KEY DIFFERENCES FROM OLD APPROACH:
-1. ❌ OLD: Array-based (inputScrapLog, productionScrapLog) with race condition risk
-2. ✅ NEW: Counter-based (inputScrapCount_{code}) with atomic FieldValue.increment()
-3. ❌ OLD: Save button in modal writes entire array
-4. ✅ NEW: Each click syncs immediately, no save button needed
-5. ❌ OLD: Complete sends log arrays to backend
-6. ✅ NEW: Complete triggers backend to read counters and reset them
+KEY ARCHITECTURAL NOTES:
+1. ✅ Counter-based (NOT array-based) - eliminates race conditions
+2. ✅ Atomic FieldValue.increment() - safe for concurrent updates
+3. ✅ Real-time sync - each click sends POST request immediately
+4. ✅ Optimistic UI - updates UI first, reverts on error
+5. ✅ Backend reads counters on COMPLETE - no need to send in complete request
+6. ✅ Counters persist through worker session changes (girip çıkma güvenli)
+
+INTEGRATION WITH COMPLETE ACTION:
+The existing completeTask() function already sends defectQuantity. Backend (mesRoutes.js line 3770-3809) will:
+1. Read inputScrapCount_{code} and productionScrapCount_{code} counter fields
+2. Calculate consumption adjustments
+3. Create scrap materials in inventory
+4. Reset all counters to 0 after processing
+
+NO CHANGES needed to completeTask() - backend handles everything automatically!
 
 OUTPUT:
-Provide complete HTML, JavaScript, and CSS for this counter-based feature.
+Provide complete code changes for workerPortal.js and workerPortal.css as specified above.
 ```
 
 ---
@@ -3517,242 +3574,43 @@ Provide complete HTML, JavaScript, and CSS for this counter-based feature.
 
 **Hedef**: Üretim sırasında gerçek zamanlı hurda sayacı için atomic API endpoints
 
-**Prompt:**
+**NOT**: ✅ Bu endpoints zaten D3 geliştirmesi sırasında implement edildi (mesRoutes.js lines 4669-4850). Bu prompt sadece referans amaçlıdır.
+
+**Implementation Summary:**
 
 ```
-TASK: Create Real-time Scrap Counter Endpoints (Counter-Based with FieldValue.increment)
+ALREADY IMPLEMENTED - Real-time Scrap Counter Endpoints
 
-CONTEXT:
-Workers need to record scrap during task execution using ATOMIC counters. This replaces the old array-based approach with counter fields that use FieldValue.increment() for race-condition-free updates.
+BACKEND ENDPOINTS (mesRoutes.js):
+1. POST /api/mes/work-packages/:id/scrap (Lines 4669-4767)
+   - Atomic increment using FieldValue.increment()
+   - Counter fields: inputScrapCount_{code}, productionScrapCount_{code}, defectQuantity
+   - Validates scrap type: input_damaged, production_scrap, output_scrap
+   - Only works for in_progress tasks
 
-ARCHITECTURE CHANGE:
-- ❌ OLD: inputScrapLog[] array + totalInputScrap{} object (race condition risk)
-- ✅ NEW: inputScrapCount_{materialCode} counter fields with FieldValue.increment() (atomic, safe)
+2. GET /api/mes/work-packages/:id/scrap (Lines 4769-4803)
+   - Returns parsed counter objects: inputScrapCounters, productionScrapCounters, defectQuantity
+   - Parses all counter fields from assignment document
 
-REQUIREMENTS:
+3. DELETE /api/mes/work-packages/:id/scrap/:scrapType/:materialCode/:quantity (Lines 4805-4850)
+   - Atomic decrement for undo operations
+   - Uses FieldValue.increment(-amount)
 
-1. Add New POST Endpoint in mesRoutes.js (COUNTER INCREMENT):
-   
-   ```javascript
-   // POST /api/mes/work-packages/:id/scrap - Increment scrap counter (atomic)
-   router.post('/work-packages/:id/scrap', withAuth, async (req, res) => {
-     await handleFirestoreOperation(async () => {
-       const { id: assignmentId } = req.params;
-       const { scrapType, entry } = req.body;
-       
-       // Validate scrap type
-       const validTypes = ['input_damaged', 'production_scrap', 'output_scrap'];
-       if (!validTypes.includes(scrapType)) {
-         const e = new Error('Invalid scrap type');
-         e.status = 400;
-         throw e;
-       }
-       
-       // Validate entry
-       if (!entry || !entry.materialCode || !entry.quantity || entry.quantity <= 0) {
-         const e = new Error('Invalid scrap entry');
-         e.status = 400;
-         throw e;
-       }
-       
-       const db = getFirestore();
-       const assignmentRef = db.collection('mes-worker-assignments').doc(assignmentId);
-       
-       // Get current assignment
-       const assignmentDoc = await assignmentRef.get();
-       if (!assignmentDoc.exists) {
-         const e = new Error('Assignment not found');
-         e.status = 404;
-         throw e;
-       }
-       
-       const assignment = assignmentDoc.data();
-       
-       // Check if task is in progress
-       if (assignment.status !== 'in_progress') {
-         const e = new Error('Task must be in progress to record scrap');
-         e.status = 400;
-         throw e;
-       }
-       
-       // Generate counter field name (replace special chars for Firestore compatibility)
-       const safeCode = entry.materialCode.replace(/[^a-zA-Z0-9]/g, '_');
-       
-       // Update appropriate counter using ATOMIC increment
-       const updateData = { updatedAt: new Date() };
-       
-       if (scrapType === 'input_damaged') {
-         const counterField = `inputScrapCount_${safeCode}`;
-         updateData[counterField] = admin.firestore.FieldValue.increment(entry.quantity);
-         
-       } else if (scrapType === 'production_scrap') {
-         const counterField = `productionScrapCount_${safeCode}`;
-         updateData[counterField] = admin.firestore.FieldValue.increment(entry.quantity);
-         
-       } else if (scrapType === 'output_scrap') {
-         // For output scrap, increment defectQuantity
-         updateData.defectQuantity = admin.firestore.FieldValue.increment(entry.quantity);
-       }
-       
-       // Save to database (atomic operation - no race condition!)
-       await assignmentRef.update(updateData);
-       
-       console.log(`✅ Scrap counter updated for assignment ${assignmentId}: ${scrapType}, +${entry.quantity} ${entry.materialCode}`);
-       
-       return {
-         success: true,
-         assignmentId,
-         scrapType,
-         materialCode: entry.materialCode,
-         quantity: entry.quantity,
-         operation: 'increment'
-       };
-       
-     }, res);
-   });
-   
-   // GET /api/mes/work-packages/:id/scrap - Get current scrap counters
-   router.get('/work-packages/:id/scrap', withAuth, async (req, res) => {
-     await handleFirestoreOperation(async () => {
-       const { id: assignmentId } = req.params;
-       
-       const db = getFirestore();
-       const assignmentDoc = await db.collection('mes-worker-assignments').doc(assignmentId).get();
-       
-       if (!assignmentDoc.exists) {
-         const e = new Error('Assignment not found');
-         e.status = 404;
-         throw e;
-       }
-       
-       const assignment = assignmentDoc.data();
-       
-       // Parse counter fields from assignment
-       const inputScrapCounters = {};
-       const productionScrapCounters = {};
-       
-       Object.keys(assignment).forEach(key => {
-         if (key.startsWith('inputScrapCount_')) {
-           const materialCode = key.replace('inputScrapCount_', '').replace(/_/g, '-');
-           inputScrapCounters[materialCode] = assignment[key] || 0;
-         } else if (key.startsWith('productionScrapCount_')) {
-           const materialCode = key.replace('productionScrapCount_', '').replace(/_/g, '-');
-           productionScrapCounters[materialCode] = assignment[key] || 0;
-         }
-       });
-       
-       return {
-         assignmentId,
-         inputScrapCounters,
-         productionScrapCounters,
-         defectQuantity: assignment.defectQuantity || 0,
-         status: assignment.status
-       };
-       
-     }, res);
-   });
-   
-   // DELETE /api/mes/work-packages/:id/scrap/:scrapType/:materialCode/:quantity - Decrement counter (undo)
-   router.delete('/work-packages/:id/scrap/:scrapType/:materialCode/:quantity', withAuth, async (req, res) => {
-     await handleFirestoreOperation(async () => {
-       const { id: assignmentId, scrapType, materialCode, quantity } = req.params;
-       const decrementAmount = parseFloat(quantity);
-       
-       if (isNaN(decrementAmount) || decrementAmount <= 0) {
-         const e = new Error('Invalid quantity');
-         e.status = 400;
-       
-       const validTypes = ['input_damaged', 'production_scrap', 'output_scrap'];
-       if (!validTypes.includes(scrapType)) {
-         const e = new Error('Invalid scrap type');
-         e.status = 400;
-         throw e;
-       }
-       
-       // Generate counter field name
-       const safeCode = materialCode.replace(/[^a-zA-Z0-9]/g, '_');
-       const updateData = { updatedAt: new Date() };
-       
-       if (scrapType === 'input_damaged') {
-         const counterField = `inputScrapCount_${safeCode}`;
-         updateData[counterField] = admin.firestore.FieldValue.increment(-decrementAmount);
-         
-       } else if (scrapType === 'production_scrap') {
-         const counterField = `productionScrapCount_${safeCode}`;
-         updateData[counterField] = admin.firestore.FieldValue.increment(-decrementAmount);
-         
-       } else if (scrapType === 'output_scrap') {
-         updateData.defectQuantity = admin.firestore.FieldValue.increment(-decrementAmount);
-       }
-       
-       // Save (atomic decrement)
-       await assignmentRef.update(updateData);
-       
-       console.log(`✅ Scrap counter decreased for assignment ${assignmentId}: ${scrapType}, -${decrementAmount} ${materialCode}`);
-       
-       return {
-         success: true,
-         assignmentId,
-         scrapType,
-         materialCode,
-         decrementAmount,
-         operation: 'decrement'
-       };
-       
-     }, res);
-   });
-   ```
-
-2. Update COMPLETE Action to Read Scrap Counters:
-   In mesRoutes.js COMPLETE action (see D.3 PROMPT #3), parse counter fields instead of reading from arrays:
-   
-   ```javascript
-   // Parse counter fields from assignment
-   const inputScrapTotals = {};
-   const productionScrapTotals = {};
-   
-   Object.keys(assignment).forEach(key => {
-     if (key.startsWith('inputScrapCount_')) {
-       const materialCode = key.replace('inputScrapCount_', '').replace(/_/g, '-');
-       const quantity = assignment[key] || 0;
-       if (quantity > 0) {
-         inputScrapTotals[materialCode] = quantity;
-       }
-     } else if (key.startsWith('productionScrapCount_')) {
-       const materialCode = key.replace('productionScrapCount_', '').replace(/_/g, '-');
-       const quantity = assignment[key] || 0;
-       if (quantity > 0) {
-         productionScrapTotals[materialCode] = quantity;
-       }
-     }
-   });
-   
-   // At end of COMPLETE transaction: Reset counters to 0
-   const counterResetFields = {};
-   Object.keys(assignment).forEach(key => {
-     if (key.startsWith('inputScrapCount_') || key.startsWith('productionScrapCount_')) {
-       counterResetFields[key] = 0;
-     }
-   });
-   Object.assign(updateData, counterResetFields);
-   ```
-
-VALIDATION:
-- Only in_progress tasks can record scrap
-- POST endpoint uses FieldValue.increment() for atomic counter updates (no race condition!)
-- GET endpoint parses counter fields and returns object map
-- DELETE endpoint uses FieldValue.increment(-qty) for atomic decrement
-- COMPLETE action reads counters, processes scrap, resets all counters to 0
+COMPLETE ACTION INTEGRATION (Lines 3770-3809):
+- Reads all counter fields (inputScrapCount_*, productionScrapCount_*)
+- Parses into aggregate objects
+- Calculates consumption adjustments
+- Creates scrap materials in inventory
+- Resets all counters to 0 after processing (Lines 4590-4596)
 
 KEY ADVANTAGES:
-- ✅ Atomic operations prevent race conditions
-- ✅ No array manipulation needed
-- ✅ Simpler code (just counter increment/decrement)
-- ✅ Counters persist through worker session changes (girip çıkma güvenli)
-- ✅ COMPLETE action automatically resets counters
+✅ Atomic operations (no race conditions)
+✅ No array manipulation
+✅ Persists through worker session changes
+✅ Auto-resets after COMPLETE
+✅ Safe for concurrent updates
 
-OUTPUT:
-Provide complete counter-based endpoint implementations for mesRoutes.js.
+NO ADDITIONAL WORK NEEDED - These endpoints are ready for frontend use!
 ```
 
 ---
