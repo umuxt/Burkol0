@@ -460,18 +460,23 @@ function showCompletionModal(task) {
     actualOutputInput.focus();
     actualOutputInput.select();
     
+    // Store current defect value for delta calculation
+    let currentDefectValue = outputDefectQty;
+    
     // Update output defect counter when defectQty changes
     let updateTimeout;
     defectInput.addEventListener('input', () => {
       clearTimeout(updateTimeout);
       updateTimeout = setTimeout(async () => {
         const newDefectQty = parseFloat(defectInput.value) || 0;
-        if (newDefectQty >= 0 && newDefectQty !== outputDefectQty) {
+        if (newDefectQty >= 0 && newDefectQty !== currentDefectValue) {
           try {
-            // Update backend counter
-            await incrementScrap(outputCode, 'output_scrap', newDefectQty - outputDefectQty);
+            // Calculate delta and update backend counter
+            const delta = newDefectQty - currentDefectValue;
+            await incrementScrap(outputCode, 'output_scrap', delta);
+            currentDefectValue = newDefectQty; // Update tracking value
             counters.defectQuantity = newDefectQty;
-            console.log(`Updated output defect: ${outputDefectQty} → ${newDefectQty}`);
+            console.log(`Updated output defect: ${currentDefectValue - delta} → ${newDefectQty} (delta: ${delta})`);
           } catch (error) {
             console.error('Failed to update output defect counter:', error);
           }
