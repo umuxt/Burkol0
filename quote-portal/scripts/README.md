@@ -4,6 +4,136 @@ This directory contains utility scripts for database management, testing, and ma
 
 ## Available Scripts
 
+### 🆕 migrate-material-types.js
+**Purpose:** Migrate material type system from legacy types to new standardized schema
+
+**Background:**
+The system previously used inconsistent material types (wip, wip_produced, final_product). This migration standardizes to a cleaner type system with better tracking capabilities.
+
+**Type Migrations:**
+- `wip` → `semi_finished` (Yarı Mamül)
+- `wip_produced` → `semi_finished` (Üretilmiş Yarı Mamül → Yarı Mamül)
+- `final_product` → `finished_product` (Bitmiş Ürün)
+- Category: `WIP` → `SEMI_FINISHED`
+
+**New Fields Added:**
+- `productionHistory: []` - Tracks production records for semi_finished and finished_product
+- `consumedBy: []` - Tracks consumption records for semi_finished materials
+- `migratedAt` - Timestamp for rollback capability
+
+**Usage Modes:**
+
+1. **Dry-run (Preview)** - See what will change without modifying database:
+```bash
+npm run migrate:material-types:dry
+# or
+npm run migrate:material-types -- --dry
+```
+
+2. **Execute Migration** - Apply changes to database:
+```bash
+npm run migrate:material-types
+```
+
+3. **Validate Migration** - Check if all materials use new types:
+```bash
+npm run migrate:material-types -- --validate
+```
+
+**Example Output:**
+```
+🚀 Starting material type migration...
+
+📋 Found 156 materials to process
+
+✓ Migrating M-008: type 'wip' → 'semi_finished'
+  └─ category 'WIP' → 'SEMI_FINISHED'
+  └─ Added productionHistory: []
+  └─ Added consumedBy: []
+
+✓ Migrating OUTPUT-001: type 'final_product' → 'finished_product'
+  └─ Added productionHistory: []
+
+📦 Committed batch 1 (145 operations)
+
+============================================================
+📊 Migration Summary
+============================================================
+Total Materials     : 156
+Migrated           : 89
+Skipped            : 67
+Errors             : 0
+
+✅ Successfully migrated 89 materials
+```
+
+**Safety Features:**
+- ✅ Dry-run mode for preview
+- ✅ Batch processing (handles 450 operations per batch)
+- ✅ Idempotent (safe to run multiple times)
+- ✅ Automatic validation after migration
+- ✅ Migration timestamp tracking for rollback
+- ✅ Preserves all existing data
+- ✅ Detailed progress logging
+
+**Compatibility:**
+Backend code includes backward compatibility checks:
+```javascript
+// materialsRoutes.js still recognizes old 'wip' type
+const isSemiFinished = currentData.type === 'semi_finished' || 
+                       currentData.category === 'SEMI_FINISHED' || 
+                       currentData.type === 'wip' ||  // Legacy support
+                       currentData.category === 'WIP' || 
+                       currentData.produced === true;
+```
+
+---
+
+### ⏪ rollback-material-types.js
+**Purpose:** Revert material type migration back to legacy types
+
+⚠️ **WARNING:** Use only if migration needs to be undone. This is a destructive operation.
+
+**Type Rollbacks:**
+- `semi_finished` → `wip`
+- `finished_product` → `final_product`
+- Category: `SEMI_FINISHED` → `WIP`
+- Removes empty `productionHistory` and `consumedBy` arrays
+
+**Usage Modes:**
+
+1. **Dry-run (Preview)** - See what will be rolled back:
+```bash
+npm run rollback:material-types:dry
+# or
+npm run rollback:material-types -- --dry
+```
+
+2. **Rollback Migrated Materials Only** (SAFE):
+```bash
+npm run rollback:material-types
+```
+This only rolls back materials with `migratedAt` timestamp.
+
+3. **Rollback ALL Materials** (DANGEROUS):
+```bash
+npm run rollback:material-types -- --all
+```
+⚠️ This rolls back ALL semi_finished/finished_product materials, even if not migrated by script.
+
+**Safety Features:**
+- ✅ Default mode only rolls back migrated materials
+- ✅ 5-second countdown for --all mode
+- ✅ Dry-run preview capability
+- ✅ Detailed rollback logging
+
+**When to Use:**
+- Migration caused unexpected issues
+- Need to revert for testing purposes
+- Rolling back to previous system version
+
+---
+
 ### 📦 migrateExecutionGraphToNodes.js
 **Purpose:** Migrate production plans from legacy executionGraph[] to canonical nodes[]
 
@@ -126,6 +256,8 @@ RESET_MES=1 node quote-portal/scripts/reset-mes-data.js
 ---
 
 ### 🔄 Migration Scripts
+- `migrate-material-types.js` - **NEW**: Migrate material types from legacy (wip, wip_produced, final_product) to new system (semi_finished, finished_product)
+- `rollback-material-types.js` - **NEW**: Rollback material type migration
 - `migrate-manual-override.js` - Migrate manual override data
 - `migrate-sessions.js` - Migrate session data
 - `migrate-versioning.js` - Migrate versioning data
