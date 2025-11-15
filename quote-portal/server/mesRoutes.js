@@ -3011,10 +3011,15 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         // Predecessor info for UI
         predecessors: nodeInfo?.predecessors || [],
         
+        // Material info (for fire counter system)
+        preProductionReservedAmount: assignment.preProductionReservedAmount || {},
+        materialInputs: nodeInfo?.materialInputs || assignment.materialInputs || {},
+        
         // Material output info
         hasOutputs: nodeInfo?.hasOutputs || false,
         outputCode: nodeInfo?.outputCode,
-        outputQty: nodeInfo?.outputQty
+        outputQty: nodeInfo?.outputQty,
+        plannedOutput: assignment.plannedOutput || {}
       };
       
       allTasks.push(task);
@@ -3194,12 +3199,12 @@ router.post('/migrate-assignment-ids', withAuth, async (req, res) => {
 router.patch('/work-packages/:id', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const { id: assignmentId } = req.params;
-    const { action, scrapQty, stationNote, actualOutputQuantity, defectQuantity } = req.body;
+    const { action, scrapQty, stationNote, actualOutputQuantity, defectQuantity, scrapCounters } = req.body;
     
     // DEBUG: Log incoming request
     console.log(`🔍 DEBUG - PATCH /work-packages/${assignmentId}`);
     console.log(`   Action: ${action}`);
-    console.log(`   Body:`, { action, scrapQty, stationNote, actualOutputQuantity, defectQuantity });
+    console.log(`   Body:`, { action, scrapQty, stationNote, actualOutputQuantity, defectQuantity, scrapCounters });
     
     if (!assignmentId) {
       const e = new Error('work_package_id_required');
@@ -3250,6 +3255,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
       let alertCreated = false;
       let scrapAdjustment = null;
       let materialReservationResult = null;
+      let counterResetFields = {}; // Declare here for use after switch
       
       switch (action) {
         case 'start':
@@ -3746,9 +3752,16 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           console.log(`   actualOutput (parsed): ${actualOutput}`);
           console.log(`   defectQuantity (raw): ${defectQuantity}`);
           console.log(`   defects (parsed): ${defects}`);
+          console.log(`   scrapCounters:`, scrapCounters);
           
           updateData.actualOutputQuantity = actualOutput;
           updateData.defectQuantity = defects;
+          
+          // Store scrap counter details if provided
+          if (scrapCounters) {
+            updateData.scrapCountersSnapshot = scrapCounters;
+            console.log(`📊 Storing scrap counter snapshot:`, scrapCounters);
+          }
           
           // If completing a cancelled_pending_report task, stamp completionContext
           if (assignment.status === 'cancelled_pending_report' || assignment.finishContext === 'cancelled') {
@@ -3798,7 +3811,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           console.log(`   Output defects: ${defects}`);
           
           // Reset scrap counters after reading (will be updated at end of transaction)
-          const counterResetFields = {};
+          counterResetFields = {}; // Initialize (already declared above)
           Object.keys(assignment).forEach(key => {
             if (key.startsWith('inputScrapCount_') || key.startsWith('productionScrapCount_')) {
               counterResetFields[key] = 0;
@@ -4247,30 +4260,386 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           }
           
           // ========================================================================
-          // STEP 4.5: Create Scrap Materials in Inventory
+          // STEP 5: Create Scrap/Hurda Material Records
+          // ========================================================================
+          // For each scrap counter (input damaged, production scrap, output defect),
+          // create or update hurda material records in materials collection with
+          // code format: M-001H, Be-001H (appending 'H' to original code)
           // ========================================================================
           
-          const scrapMaterialsCreated = [];
+          const scrapRecordsCreated = [];
           
-          // Process input scrap
-          for (const [materialCode, scrapQty] of Object.entries(inputScrapTotals)) {
-            if (scrapQty <= 0) continue;
+          // ========================================================================
+          // Process Input Material Scraps (Consolidated)
+          // ========================================================================
+          // For each input material, calculate total scrap:
+          // Total Input Scrap = inputScrapCounters + productionScrapCounters + (ratio × output defectQuantity)
+          
+          const outputDefectQty = (scrapCounters && scrapCounters.defectQuantity) || defects;
+          const inputMaterialScrapTotals = {}; // { 'M-001': totalScrapQty }
+          
+          // Collect all input materials that had scraps
+          const allInputMaterialCodes = new Set();
+          
+          // From inputScrapCounters
+          if (scrapCounters && scrapCounters.inputScrapCounters) {
+            Object.keys(scrapCounters.inputScrapCounters).forEach(code => allInputMaterialCodes.add(code));
+          }
+          
+          // From productionScrapCounters
+          if (scrapCounters && scrapCounters.productionScrapCounters) {
+            Object.keys(scrapCounters.productionScrapCounters).forEach(code => allInputMaterialCodes.add(code));
+          }
+          
+          // From materialInputs (for ratio calculation with output defects)
+          materialInputs.forEach(input => {
+            if (input.code || input.materialCode) {
+              allInputMaterialCodes.add(input.code || input.materialCode);
+            }
+          });
+          
+          console.log(`📊 Processing scraps for ${allInputMaterialCodes.size} input material(s)`);
+          
+          // Calculate total scrap for each input material
+          for (const materialCode of allInputMaterialCodes) {
+            let totalScrap = 0;
             
+            // 1. Input damaged (hasarlı gelen)
+            const inputDamaged = (scrapCounters?.inputScrapCounters?.[materialCode]) || 0;
+            totalScrap += inputDamaged;
+            
+            // 2. Production scrap (üretimde hurda)
+            const productionScrap = (scrapCounters?.productionScrapCounters?.[materialCode]) || 0;
+            totalScrap += productionScrap;
+            
+            // 3. Input scrap from output defects (output defect'i üretmek için kullanılan input)
+            if (outputDefectQty > 0 && plannedOutputQty > 0) {
+              const materialInput = materialInputs.find(m => (m.code || m.materialCode) === materialCode);
+              if (materialInput) {
+                const requiredInputQty = materialInput.qty || materialInput.requiredQuantity || 0;
+                const inputOutputRatio = requiredInputQty / plannedOutputQty;
+                const scrapFromDefects = outputDefectQty * inputOutputRatio;
+                totalScrap += scrapFromDefects;
+                
+                console.log(`   ${materialCode}: ratio=${inputOutputRatio.toFixed(4)}, defects=${outputDefectQty}, scrapFromDefects=${scrapFromDefects.toFixed(2)}`);
+              }
+            }
+            
+            if (totalScrap > 0) {
+              inputMaterialScrapTotals[materialCode] = totalScrap;
+              console.log(`📊 ${materialCode} total scrap: inputDamaged=${inputDamaged}, productionScrap=${productionScrap}, total=${totalScrap.toFixed(2)}`);
+            }
+          }
+          
+          // Pre-fetch all material docs before any writes (Firestore transaction requirement)
+          const materialDocsToFetch = new Set();
+          
+          // Collect all material codes we need to read
+          Object.keys(inputMaterialScrapTotals).forEach(code => {
+            materialDocsToFetch.add(code); // Original material
+            materialDocsToFetch.add(`${code}H`); // Scrap material
+          });
+          
+          if (outputCode && outputDefectQty > 0) {
+            materialDocsToFetch.add(outputCode); // Original output material
+            materialDocsToFetch.add(`${outputCode}H`); // Output scrap material
+          }
+          
+          // Pre-fetch all materials in parallel (all reads before any writes)
+          const materialCache = new Map();
+          const fetchPromises = Array.from(materialDocsToFetch).map(async code => {
             try {
-              const scrapMaterialCode = `${materialCode}-SCRAP-INPUT`;
-              const scrapMaterialRef = db.collection('materials').doc(scrapMaterialCode);
-              const scrapMaterialDoc = await transaction.get(scrapMaterialRef);
+              const doc = await transaction.get(db.collection('materials').doc(code));
+              materialCache.set(code, { exists: doc.exists, data: doc.exists ? doc.data() : null });
+            } catch (err) {
+              console.warn(`Failed to fetch material ${code}:`, err.message);
+              materialCache.set(code, { exists: false, data: null });
+            }
+          });
+          
+          await Promise.all(fetchPromises);
+          console.log(`✅ Pre-fetched ${materialCache.size} material documents`);
+          
+          // Helper function to get or create scrap material (uses pre-fetched data)
+          async function getOrCreateScrapMaterial(originalCode, scrapQuantity, scrapType) {
+            if (scrapQuantity <= 0) return null;
+            
+            const scrapCode = `${originalCode}H`;
+            
+            // Get from cache (already fetched)
+            const scrapMaterialCached = materialCache.get(scrapCode) || { exists: false, data: null };
+            const originalMaterialCached = materialCache.get(originalCode) || { exists: false, data: null };
+            
+            const scrapExists = scrapMaterialCached.exists;
+            const originalMaterialData = originalMaterialCached.data;
+            
+            const originalName = originalMaterialData?.name || originalCode;
+            const originalUnit = originalMaterialData?.unit || 'adet';
+            
+            const previousScrapStock = scrapExists ? (parseFloat(scrapMaterialCached.data.stock) || 0) : 0;
+            const newScrapStock = previousScrapStock + scrapQuantity;
+            
+            // Create or update scrap material
+            const scrapMaterialRef = db.collection('materials').doc(scrapCode);
+            if (!scrapExists) {
+              // Create new scrap material
+              transaction.set(scrapMaterialRef, {
+                code: scrapCode,
+                name: `${originalName} HURDA`,
+                type: 'scrap',
+                category: 'scrap',
+                originalMaterialCode: originalCode,
+                stock: newScrapStock,
+                reserved: 0,
+                wipReserved: 0,
+                unit: originalUnit,
+                status: 'Aktif',
+                isActive: true,
+                reorderPoint: 0,
+                createdAt: now,
+                updatedAt: now,
+                createdBy: actorEmail,
+                updatedBy: actorEmail
+              });
               
-              const scrapMaterialExists = scrapMaterialDoc.exists;
-              const previousScrapStock = scrapMaterialExists ? (parseFloat(scrapMaterialDoc.data().stock) || 0) : 0;
-              const newScrapStock = previousScrapStock + scrapQty;
+              console.log(`✅ Created scrap material ${scrapCode} with initial stock ${newScrapStock}`);
+            } else {
+              // Update existing scrap material stock
+              transaction.update(scrapMaterialRef, {
+                stock: newScrapStock,
+                updatedAt: now,
+                updatedBy: actorEmail
+              });
               
-              // Get original material info for naming
-              let originalMaterialName = materialCode;
-              try {
-                const originalMaterialDoc = await transaction.get(db.collection('materials').doc(materialCode));
-                if (originalMaterialDoc.exists) {
-                  originalMaterialName = originalMaterialDoc.data().name || materialCode;
+              console.log(`✅ Updated scrap material ${scrapCode}: ${previousScrapStock} → ${newScrapStock} (+${scrapQuantity})`);
+            }
+            
+            // Create stock movement for audit trail
+            const scrapMovementRef = db.collection('stockMovements').doc();
+            const scrapTypeLabels = {
+              input_damaged: 'Hasarlı Gelen Malzeme',
+              production_scrap: 'Üretimde Hurda',
+              output_defect: 'Çıktı Hatası'
+            };
+            
+            transaction.set(scrapMovementRef, {
+              materialId: scrapCode,
+              materialCode: scrapCode,
+              materialName: `${originalName} HURDA`,
+              type: 'in',
+              subType: `scrap_${scrapType}`,
+              quantity: scrapQuantity,
+              unit: originalUnit,
+              stockBefore: previousScrapStock,
+              stockAfter: newScrapStock,
+              unitCost: null,
+              totalCost: null,
+              currency: 'TRY',
+              reference: assignmentId,
+              referenceType: 'mes_task_complete_scrap',
+              relatedPlanId: planId,
+              relatedNodeId: nodeId,
+              originalMaterialCode: originalCode,
+              warehouse: null,
+              location: 'Hurda Deposu',
+              notes: `${scrapTypeLabels[scrapType] || scrapType} - ${scrapQuantity} ${originalUnit} hurda kaydı`,
+              reason: `MES görev tamamlama - ${scrapTypeLabels[scrapType] || scrapType}`,
+              movementDate: now,
+              createdAt: now,
+              userId: actorEmail,
+              userName: actorName || actorEmail,
+              approved: true,
+              approvedBy: actorEmail,
+              approvedAt: now
+            });
+            
+            return {
+              scrapCode,
+              originalCode,
+              scrapType,
+              quantity: scrapQuantity,
+              previousStock: previousScrapStock,
+              newStock: newScrapStock,
+              unit: originalUnit,
+              created: !scrapExists
+            };
+          }
+          
+          // ========================================================================
+          // Use the helper function to create scrap material records
+          // ========================================================================
+          
+          // Create scrap material records for all input materials
+          for (const [materialCode, totalScrapQty] of Object.entries(inputMaterialScrapTotals)) {
+            try {
+              const result = await getOrCreateScrapMaterial(materialCode, totalScrapQty, 'input_scrap_combined');
+              if (result) {
+                scrapRecordsCreated.push(result);
+                console.log(`📊 Input material scrap: ${materialCode} → ${result.scrapCode} (+${totalScrapQty.toFixed(2)})`);
+              }
+            } catch (err) {
+              console.error(`❌ Failed to create input scrap for ${materialCode}:`, err);
+            }
+          }
+          
+          // Process Output Material Scrap (only output defects)
+          if (outputCode && outputDefectQty > 0) {
+            try {
+              const result = await getOrCreateScrapMaterial(outputCode, outputDefectQty, 'output_defect');
+              if (result) {
+                scrapRecordsCreated.push(result);
+                console.log(`📊 Output defect scrap: ${outputCode} → ${result.scrapCode} (+${outputDefectQty})`);
+              }
+            } catch (err) {
+              console.error(`❌ Failed to create output defect scrap for ${outputCode}:`, err);
+            }
+          }
+          
+          console.log(`✅ Created/updated ${scrapRecordsCreated.length} scrap material record(s)`);
+          
+          // ========================================================================
+          // STEP 6: Record Material Movements in Assignment
+          // ========================================================================
+          
+          updateData.materialMovements = {
+            inputConsumption: consumptionResults,
+            inputStockAdjustments: stockAdjustmentResults,
+            outputStockUpdate: outputStockResult,
+            scrapRecordsCreated: scrapRecordsCreated,
+            timestamp: now,
+            completedBy: actorEmail
+          };
+          
+          console.log(`✅ Comprehensive completion processing finished for ${assignmentId}`);
+          console.log(`   - Input materials adjusted: ${stockAdjustmentResults.length}`);
+          console.log(`   - Output material updated: ${outputStockResult ? 'Yes' : 'No'}`);
+          console.log(`   - Scrap materials created/updated: ${scrapRecordsCreated.length}`);
+          console.log(`   - Total output: ${actualOutput}, Defects: ${defects}`);
+          
+          // ========================================================================
+          // STEP 7: Clear Worker & Station State
+          // ========================================================================
+          
+          // Clear worker currentTask
+          if (workerRef) {
+            workerUpdate = {
+              currentTask: null,
+              updatedAt: now
+            };
+          }
+          
+          // Clear substation currentOperation (instead of station)
+          const substationIdComplete = assignment.substationId || null;
+          if (substationIdComplete) {
+            const substationRef = db.collection('mes-substations').doc(substationIdComplete);
+            stationUpdate = {
+              currentOperation: null,
+              currentWorkPackageId: null,
+              currentPlanId: null,
+              currentExpectedEnd: null,
+              currentOperationUpdatedAt: now,
+              updatedAt: now
+            };
+            stationRef = substationRef;
+            console.log(`✅ Clearing substation ${substationIdComplete} workload (currentOperation, workPackageId, planId, expectedEnd)`);
+          } else {
+            console.warn(`⚠️ No substationId in assignment ${assignmentId} for clearing currentOperation`);
+            stationRef = null;
+          }
+          break;
+      }
+      
+      // Apply updates
+      // For COMPLETE action: Add counter reset fields to updateData
+      if (action === 'complete' && Object.keys(counterResetFields).length > 0) {
+        Object.assign(updateData, counterResetFields);
+        console.log(`🔄 Resetting ${Object.keys(counterResetFields).length} scrap counters to 0`);
+      }
+      
+      transaction.update(assignmentRef, updateData);
+      
+      if (workerRef && workerUpdate) {
+        transaction.update(workerRef, workerUpdate);
+      }
+      
+      if (stationRef && stationUpdate) {
+        // Use set with merge for substation updates (in case document structure is incomplete)
+        transaction.set(stationRef, stationUpdate, { merge: true });
+      }
+      
+      return {
+        success: true,
+        workPackageId: assignmentId,
+        action,
+        status: updateData.status,
+        alertCreated,
+        scrapAdjustment,
+        materialReservation: materialReservationResult,
+        materialMovements: updateData.materialMovements || null,
+        updatedAt: now.toISOString()
+      };
+    });
+    
+    // ========================================================================
+    // POST-TRANSACTION: Check if all work packages are completed
+    // ========================================================================
+    if (action === 'complete') {
+      try {
+        // If we don't have workOrderCode on assignment, try to derive it from the plan
+        if (!workOrderCode && planId) {
+          try {
+            const planSnap = await db.collection('mes-production-plans').doc(planId).get();
+            if (planSnap.exists) {
+              const planData = planSnap.data();
+              workOrderCode = planData.workOrderCode || planData.code || null;
+            }
+          } catch (err) {
+            console.warn('Failed to derive workOrderCode from plan:', err.message || err);
+          }
+        }
+
+        if (workOrderCode) {
+          // Query all assignments for this work order
+          const allAssignmentsSnapshot = await db.collection('mes-worker-assignments')
+            .where('workOrderCode', '==', workOrderCode)
+            .get();
+          
+          if (!allAssignmentsSnapshot.empty) {
+            const allAssignments = allAssignmentsSnapshot.docs.map(doc => doc.data());
+            
+            // Check if all assignments are completed
+            const allCompleted = allAssignments.every(a => a.status === 'completed');
+            
+            if (allCompleted) {
+              console.log(`✅ All work packages completed for ${workOrderCode} - updating quote production state to "Üretim Tamamlandı"`);
+              
+              await updateApprovedQuoteProductionState(
+                workOrderCode,
+                'Üretim Tamamlandı',
+                actorEmail
+              );
+            } else {
+              const completedCount = allAssignments.filter(a => a.status === 'completed').length;
+              console.log(`📊 Work order ${workOrderCode}: ${completedCount}/${allAssignments.length} packages completed`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Error checking work order completion for ${workOrderCode}:`, error);
+        // Don't throw - the work package was completed successfully
+      }
+    }
+    
+    return result;
+  }, res);
+});
+
+// ============================================================================
+// PRODUCTION PLAN LAUNCH ENDPOINT
+// ============================================================================
+
+/**
+ * POST /api/mes/production-plans/:planId/launch
                 }
               } catch (err) {
                 console.warn(`Could not fetch original material ${materialCode} for naming:`, err.message);
@@ -4585,24 +4954,6 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           break;
       }
       
-      // Apply updates
-      // For COMPLETE action: Add counter reset fields to updateData
-      if (action === 'complete' && Object.keys(counterResetFields).length > 0) {
-        Object.assign(updateData, counterResetFields);
-        console.log(`🔄 Resetting ${Object.keys(counterResetFields).length} scrap counters to 0`);
-      }
-      
-      transaction.update(assignmentRef, updateData);
-      
-      if (workerRef && workerUpdate) {
-        transaction.update(workerRef, workerUpdate);
-      }
-      
-      if (stationRef && stationUpdate) {
-        // Use set with merge for substation updates (in case document structure is incomplete)
-        transaction.set(stationRef, stationUpdate, { merge: true });
-      }
-      
       return {
         success: true,
         workPackageId: assignmentId,
@@ -4616,20 +4967,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
       };
     });
     
-    // ========================================================================
-    // POST-TRANSACTION: Check if all work packages are completed
-    // ========================================================================
-    if (action === 'complete') {
-      try {
-        // If we don't have workOrderCode on assignment, try to derive it from the plan
-        if (!workOrderCode && planId) {
-          try {
-            const planSnap = await db.collection('mes-production-plans').doc(planId).get();
-            if (planSnap.exists) {
-              const planD = planSnap.data();
-              workOrderCode = planD.orderCode || planId;
-              console.log(`Derived workOrderCode from plan: ${workOrderCode}`);
-            }
+    return result;
           } catch (err) {
             console.warn('Failed to derive workOrderCode from plan:', err.message || err);
           }

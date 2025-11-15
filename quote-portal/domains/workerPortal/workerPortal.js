@@ -251,13 +251,20 @@ async function completeTask(assignmentId) {
   if (completionData === null) return; // User cancelled
   
   try {
-    await updateWorkPackage(assignmentId, { 
+    const payload = { 
       action: 'complete',
       actualOutputQuantity: completionData.actualOutputQuantity,
       defectQuantity: completionData.defectQuantity,
       // Keep scrapQty for backward compatibility
       scrapQty: completionData.defectQuantity
-    });
+    };
+    
+    // Include scrap counter details if available
+    if (completionData.scrapCounters) {
+      payload.scrapCounters = completionData.scrapCounters;
+    }
+    
+    await updateWorkPackage(assignmentId, payload);
     await loadWorkerTasks();
     
     window.dispatchEvent(new CustomEvent('assignments:updated'));
@@ -332,7 +339,7 @@ function showStationErrorModal() {
 }
 
 function showCompletionModal(task) {
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
     // Extract planned output information
     let plannedQty = 0;
     let outputUnit = 'adet';
@@ -351,6 +358,13 @@ function showCompletionModal(task) {
       plannedQty = task.outputQty || 0;
       outputCode = task.outputCode || '';
     }
+    
+    // Fetch scrap counters
+    const counters = await getScrapCounters(task.assignmentId);
+    const outputDefectQty = counters.defectQuantity || 0;
+    const hasScrapData = (Object.keys(counters.inputScrapCounters).length > 0 || 
+                          Object.keys(counters.productionScrapCounters).length > 0 || 
+                          outputDefectQty > 0);
     
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -390,7 +404,7 @@ function showCompletionModal(task) {
           
           <div class="form-group">
             <label class="form-label" for="defectQty">
-              Fire/Hatalı Miktar (${outputUnit})
+              Çıktı Hatası / Output Defect (${outputUnit})
             </label>
             <input 
               type="number" 
@@ -398,11 +412,30 @@ function showCompletionModal(task) {
               class="form-input" 
               min="0" 
               step="0.01" 
-              value="0"
+              value="${outputDefectQty}"
               placeholder="0.00"
             />
-            <p class="form-help">Üretim sırasında oluşan hatalı veya hurda ürün adedini girin.</p>
+            <p class="form-help">${hasScrapData ? '🔥 Fire sayacından otomatik yüklendi. Düzenleyebilirsiniz.' : 'Çıktı malzemesinde oluşan hatalı ürün miktarını girin.'}</p>
           </div>
+          
+          ${hasScrapData ? `
+          <div class="form-info" style="margin-top: 16px; padding: 12px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
+            <div style="font-size: 12px; color: #92400e; margin-bottom: 8px;">
+              <strong>🔥 Fire Detayları:</strong>
+            </div>
+            ${Object.keys(counters.inputScrapCounters).length > 0 ? `
+            <div style="font-size: 11px; color: #78350f; margin-bottom: 4px;">
+              <strong>Hasarlı Gelen:</strong> ${Object.entries(counters.inputScrapCounters).map(([code, qty]) => `${code}: ${qty}`).join(', ')}
+            </div>` : ''}
+            ${Object.keys(counters.productionScrapCounters).length > 0 ? `
+            <div style="font-size: 11px; color: #78350f; margin-bottom: 4px;">
+              <strong>Üretimde Hurda:</strong> ${Object.entries(counters.productionScrapCounters).map(([code, qty]) => `${code}: ${qty}`).join(', ')}
+            </div>` : ''}
+            ${counters.defectQuantity > 0 ? `
+            <div style="font-size: 11px; color: #78350f;">
+              <strong>Çıktı Hatası:</strong> ${counters.defectQuantity}
+            </div>` : ''}
+          </div>` : ''}
           
           <div class="form-info" style="margin-top: 16px; padding: 12px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px;">
             <div style="font-size: 12px; color: #92400e;">
@@ -427,6 +460,25 @@ function showCompletionModal(task) {
     actualOutputInput.focus();
     actualOutputInput.select();
     
+    // Update output defect counter when defectQty changes
+    let updateTimeout;
+    defectInput.addEventListener('input', () => {
+      clearTimeout(updateTimeout);
+      updateTimeout = setTimeout(async () => {
+        const newDefectQty = parseFloat(defectInput.value) || 0;
+        if (newDefectQty >= 0 && newDefectQty !== outputDefectQty) {
+          try {
+            // Update backend counter
+            await incrementScrap(outputCode, 'output_scrap', newDefectQty - outputDefectQty);
+            counters.defectQuantity = newDefectQty;
+            console.log(`Updated output defect: ${outputDefectQty} → ${newDefectQty}`);
+          } catch (error) {
+            console.error('Failed to update output defect counter:', error);
+          }
+        }
+      }, 500); // Debounce 500ms
+    });
+    
     confirmBtn.onclick = () => {
       const actualOutputQuantity = parseFloat(actualOutputInput.value);
       const defectQuantity = parseFloat(defectInput.value) || 0;
@@ -447,7 +499,8 @@ function showCompletionModal(task) {
       modal.remove();
       resolve({
         actualOutputQuantity,
-        defectQuantity
+        defectQuantity,
+        scrapCounters: hasScrapData ? counters : null // Include scrap counter data
       });
     };
     
@@ -532,6 +585,521 @@ function showScrapModal() {
     });
   });
 }
+
+// ============================================================================
+// FIRE COUNTER SYSTEM (Real-time with atomic backend sync)
+// ============================================================================
+
+let currentFireAssignment = null;
+let scrapCounters = {
+  inputScrapCounters: {},      // { 'M-001': 5, 'M-002': 3 }
+  productionScrapCounters: {}, // { 'M-001': 2 }
+  defectQuantity: 0
+};
+let pendingMaterialCode = null; // For scrap type selection
+
+// Get total scrap count for an assignment
+async function getScrapCounters(assignmentId) {
+  try {
+    const response = await fetch(`/api/mes/work-packages/${assignmentId}/scrap`);
+    if (!response.ok) {
+      // No counters yet
+      return {
+        inputScrapCounters: {},
+        productionScrapCounters: {},
+        defectQuantity: 0
+      };
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Failed to fetch scrap counters:', error);
+    return {
+      inputScrapCounters: {},
+      productionScrapCounters: {},
+      defectQuantity: 0
+    };
+  }
+}
+
+// Calculate total scrap from counters
+function calculateTotalScrap(counters) {
+  let total = 0;
+  
+  // Input damaged materials
+  if (counters.inputScrapCounters) {
+    total += Object.values(counters.inputScrapCounters).reduce((sum, val) => sum + val, 0);
+  }
+  
+  // Production scraps
+  if (counters.productionScrapCounters) {
+    total += Object.values(counters.productionScrapCounters).reduce((sum, val) => sum + val, 0);
+  }
+  
+  // Output defects
+  if (counters.defectQuantity) {
+    total += counters.defectQuantity;
+  }
+  
+  return total;
+}
+
+// Open fire modal for an assignment
+async function openFireModal(assignmentId) {
+  // Find assignment from current tasks
+  const task = state.tasks.find(t => t.assignmentId === assignmentId);
+  if (!task) {
+    showNotification('Görev bulunamadı', 'error');
+    return;
+  }
+  
+  console.log('Opening fire modal for assignment:', assignmentId);
+  console.log('Task data:', task);
+  console.log('preProductionReservedAmount:', task.preProductionReservedAmount);
+  console.log('materialInputs:', task.materialInputs);
+  console.log('outputCode:', task.outputCode);
+  
+  currentFireAssignment = task;
+  
+  // Load current scrap counters from backend
+  try {
+    const response = await fetch(`/api/mes/work-packages/${assignmentId}/scrap`);
+    
+    if (!response.ok) {
+      // If 404, assignment might not have counters yet - initialize empty
+      if (response.status === 404) {
+        console.warn('Assignment not found, initializing empty counters');
+        scrapCounters = {
+          inputScrapCounters: {},
+          productionScrapCounters: {},
+          defectQuantity: 0
+        };
+      } else {
+        const errorText = await response.text();
+        throw new Error(`Failed to fetch scrap counters: ${response.status} ${errorText}`);
+      }
+    } else {
+      const data = await response.json();
+      scrapCounters = {
+        inputScrapCounters: data.inputScrapCounters || {},
+        productionScrapCounters: data.productionScrapCounters || {},
+        defectQuantity: data.defectQuantity || 0
+      };
+    }
+  } catch (error) {
+    console.error('Failed to load scrap counters:', error);
+    // Initialize empty counters and continue - we can still add new scrap entries
+    console.log('Continuing with empty counters...');
+    scrapCounters = {
+      inputScrapCounters: {},
+      productionScrapCounters: {},
+      defectQuantity: 0
+    };
+  }
+  
+  // Create modal
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.id = 'fireModal';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h2 class="modal-title">🗑️ Fire Sayacı - ${task.name || task.operationName}</h2>
+        <button class="modal-close" onclick="closeFireModal()">×</button>
+      </div>
+      
+      <div class="modal-body">
+        <p class="info-text">Malzeme butonlarına tıklayarak fire sayaçlarını artırın. Değişiklikler anında backend'e senkronize edilir.</p>
+        
+        <div class="material-section">
+          <h4 style="color: #111827; margin-bottom: 12px; font-size: 14px; font-weight: 600;">Giriş Malzemeleri</h4>
+          <div class="material-buttons-grid" id="inputMaterialsGrid"></div>
+        </div>
+        
+        <div class="material-section">
+          <h4 style="color: #111827; margin-bottom: 12px; font-size: 14px; font-weight: 600;">Çıktı Ürün</h4>
+          <div class="material-buttons-grid" id="outputMaterialGrid"></div>
+        </div>
+        
+        <div class="totals-summary">
+          <h4 style="margin-bottom: 12px; font-size: 14px; color: #111827;">Oturum Toplamları</h4>
+          <div id="totalsSummary" class="totals-list"></div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeFireModal()">Kapat</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Populate material buttons
+  populateMaterialButtons();
+  updateCounterDisplay();
+}
+
+function closeFireModal() {
+  const modal = document.getElementById('fireModal');
+  if (modal) modal.remove();
+  currentFireAssignment = null;
+}
+
+// Show scrap type selector for input materials
+function showScrapTypeSelector(materialCode) {
+  pendingMaterialCode = materialCode;
+  
+  // Check if modal already exists
+  let modal = document.getElementById('scrapTypeModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'scrapTypeModal';
+    modal.style.zIndex = '10000';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width: 400px;">
+        <div class="modal-header">
+          <h2 class="modal-title">Fire Tipi Seçin</h2>
+        </div>
+        <div class="modal-body">
+          <p style="margin-bottom: 16px;">Malzeme: <strong id="selectedMaterialCode"></strong></p>
+          <div class="scrap-type-buttons">
+            <button class="scrap-type-btn" 
+                    data-type="input_damaged"
+                    onclick="incrementScrapWithType('input_damaged')">
+              <span style="font-size: 16px; font-weight: 600;">📦 Hasarlı Gelen</span>
+              <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Malzeme hasarlı geldi</small>
+            </button>
+            <button class="scrap-type-btn" 
+                    data-type="production_scrap"
+                    onclick="incrementScrapWithType('production_scrap')">
+              <span style="font-size: 16px; font-weight: 600;">🔧 Üretimde Hurda</span>
+              <small style="color: #6b7280; font-size: 12px; margin-top: 4px; display: block;">Üretim sırasında hasar gördü</small>
+            </button>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="closeScrapTypeModal()">İptal</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+  
+  document.getElementById('selectedMaterialCode').textContent = materialCode;
+  modal.style.display = 'flex';
+}
+
+function closeScrapTypeModal() {
+  const modal = document.getElementById('scrapTypeModal');
+  if (modal) modal.style.display = 'none';
+  pendingMaterialCode = null;
+}
+
+// Increment scrap with selected type (for input materials)
+async function incrementScrapWithType(scrapType) {
+  if (!pendingMaterialCode) return;
+  
+  await incrementScrap(pendingMaterialCode, scrapType, 1);
+  closeScrapTypeModal();
+}
+
+// Real-time counter increment (syncs to backend immediately)
+async function incrementScrap(materialCode, scrapType, quantity) {
+  if (!currentFireAssignment) return;
+  
+  try {
+    // Optimistic UI update
+    if (scrapType === 'input_damaged') {
+      scrapCounters.inputScrapCounters[materialCode] = 
+        (scrapCounters.inputScrapCounters[materialCode] || 0) + quantity;
+    } else if (scrapType === 'production_scrap') {
+      scrapCounters.productionScrapCounters[materialCode] = 
+        (scrapCounters.productionScrapCounters[materialCode] || 0) + quantity;
+    } else if (scrapType === 'output_scrap') {
+      scrapCounters.defectQuantity += quantity;
+    }
+    
+    updateCounterDisplay();
+    
+    // Sync to backend (atomic increment)
+    const response = await fetch(`/api/mes/work-packages/${currentFireAssignment.assignmentId}/scrap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scrapType,
+        entry: {
+          materialCode,
+          quantity
+        }
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to sync counter');
+    }
+    
+    // Show success feedback (brief toast)
+    showToast(`✅ ${materialCode}: +${quantity}`, 'success');
+    
+  } catch (error) {
+    console.error('Failed to increment scrap:', error);
+    // Revert optimistic update
+    if (scrapType === 'input_damaged') {
+      scrapCounters.inputScrapCounters[materialCode] -= quantity;
+    } else if (scrapType === 'production_scrap') {
+      scrapCounters.productionScrapCounters[materialCode] -= quantity;
+    } else if (scrapType === 'output_scrap') {
+      scrapCounters.defectQuantity -= quantity;
+    }
+    updateCounterDisplay();
+    showNotification('Fire sayacı güncellenemedi: ' + error.message, 'error');
+  }
+}
+
+// Populate material buttons from assignment data
+function populateMaterialButtons() {
+  if (!currentFireAssignment) return;
+  
+  const inputGrid = document.getElementById('inputMaterialsGrid');
+  const outputGrid = document.getElementById('outputMaterialGrid');
+  
+  if (!inputGrid || !outputGrid) return;
+  
+  // Try multiple field names for input materials
+  const inputMaterials = currentFireAssignment.preProductionReservedAmount 
+    || currentFireAssignment.materialInputs
+    || currentFireAssignment.inputs
+    || {};
+  
+  console.log('Input materials found:', inputMaterials);
+  
+  const materialCodes = Object.keys(inputMaterials);
+  
+  if (materialCodes.length === 0) {
+    inputGrid.innerHTML = '<p style="color: #9ca3af; font-size: 13px;">Giriş malzemesi bulunamadı</p>';
+  } else {
+    inputGrid.innerHTML = materialCodes.map(materialCode => {
+      const totalCount = 
+        (scrapCounters.inputScrapCounters[materialCode] || 0) + 
+        (scrapCounters.productionScrapCounters[materialCode] || 0);
+      
+      return `
+        <div class="material-button-wrapper">
+          <button class="material-btn" 
+                  data-material-code="${materialCode}" 
+                  onclick="showScrapTypeSelector('${materialCode}')">
+            <div class="material-info">
+              <span class="material-code">${materialCode}</span>
+            </div>
+            <div class="counter-badge ${totalCount > 0 ? 'has-count' : ''}" 
+                 id="counter-input-${materialCode}">${totalCount}</div>
+          </button>
+        </div>
+      `;
+    }).join('');
+  }
+  
+  // Output material (from outputCode)
+  const outputCode = currentFireAssignment.outputCode;
+  if (outputCode) {
+    outputGrid.innerHTML = `
+      <button class="material-btn material-btn-output" 
+              data-material-code="${outputCode}" 
+              onclick="incrementScrap('${outputCode}', 'output_scrap', 1)">
+        <div class="material-info">
+          <span class="material-code">${outputCode}</span>
+        </div>
+        <div class="counter-badge counter-badge-output ${scrapCounters.defectQuantity > 0 ? 'has-count' : ''}" 
+             id="counter-output-${outputCode}">${scrapCounters.defectQuantity}</div>
+      </button>
+    `;
+  } else {
+    outputGrid.innerHTML = '<p style="color: #9ca3af; font-size: 13px;">Çıktı ürün tanımlı değil</p>';
+  }
+}
+
+// Update counter display (badges and totals)
+function updateCounterDisplay() {
+  // Update input material badges
+  Object.keys(scrapCounters.inputScrapCounters).forEach(materialCode => {
+    const badgeEl = document.getElementById(`counter-input-${materialCode}`);
+    if (badgeEl) {
+      const totalCount = 
+        (scrapCounters.inputScrapCounters[materialCode] || 0) + 
+        (scrapCounters.productionScrapCounters[materialCode] || 0);
+      badgeEl.textContent = totalCount;
+      badgeEl.classList.toggle('has-count', totalCount > 0);
+    }
+  });
+  
+  Object.keys(scrapCounters.productionScrapCounters).forEach(materialCode => {
+    const badgeEl = document.getElementById(`counter-input-${materialCode}`);
+    if (badgeEl) {
+      const totalCount = 
+        (scrapCounters.inputScrapCounters[materialCode] || 0) + 
+        (scrapCounters.productionScrapCounters[materialCode] || 0);
+      badgeEl.textContent = totalCount;
+      badgeEl.classList.toggle('has-count', totalCount > 0);
+    }
+  });
+  
+  // Update output badge
+  const outputCode = currentFireAssignment?.outputCode;
+  if (outputCode) {
+    const outputBadgeEl = document.getElementById(`counter-output-${outputCode}`);
+    if (outputBadgeEl) {
+      outputBadgeEl.textContent = scrapCounters.defectQuantity;
+      outputBadgeEl.classList.toggle('has-count', scrapCounters.defectQuantity > 0);
+    }
+  }
+  
+  // Update totals summary
+  updateTotalsSummary();
+}
+
+// Update totals summary display
+function updateTotalsSummary() {
+  const summaryEl = document.getElementById('totalsSummary');
+  if (!summaryEl) return;
+  
+  const entries = [];
+  
+  // Input damaged
+  Object.entries(scrapCounters.inputScrapCounters).forEach(([code, qty]) => {
+    if (qty > 0) {
+      entries.push(`
+        <div class="total-item">
+          <span class="badge badge-red">Hasarlı Gelen</span> ${code}: ${qty}
+          <button class="decrement-btn" onclick="decrementScrap('${code}', 'input_damaged', 1)" title="1 azalt">
+            −
+          </button>
+        </div>
+      `);
+    }
+  });
+  
+  // Production scrap
+  Object.entries(scrapCounters.productionScrapCounters).forEach(([code, qty]) => {
+    if (qty > 0) {
+      entries.push(`
+        <div class="total-item">
+          <span class="badge badge-orange">Üretimde Hurda</span> ${code}: ${qty}
+          <button class="decrement-btn" onclick="decrementScrap('${code}', 'production_scrap', 1)" title="1 azalt">
+            −
+          </button>
+        </div>
+      `);
+    }
+  });
+  
+  // Output defects
+  if (scrapCounters.defectQuantity > 0) {
+    entries.push(`
+      <div class="total-item">
+        <span class="badge badge-yellow">Çıktı Fire</span> ${currentFireAssignment.outputCode}: ${scrapCounters.defectQuantity}
+        <button class="decrement-btn" onclick="decrementScrap('${currentFireAssignment.outputCode}', 'output_scrap', 1)" title="1 azalt">
+          −
+        </button>
+      </div>
+    `);
+  }
+  
+  summaryEl.innerHTML = entries.length > 0 
+    ? entries.join('') 
+    : '<p class="no-data">Henüz fire kaydı yok</p>';
+}
+
+// Show toast notification (brief feedback)
+function showToast(message, type = 'info') {
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+    color: white;
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    z-index: 10001;
+    font-size: 13px;
+    font-weight: 500;
+  `;
+  
+  document.body.appendChild(toast);
+  
+  setTimeout(() => toast.remove(), 2000);
+}
+
+// Decrement scrap counter (undo)
+async function decrementScrap(materialCode, scrapType, quantity) {
+  if (!currentFireAssignment) return;
+  
+  // Check if counter has value to decrement
+  let currentValue = 0;
+  if (scrapType === 'input_damaged') {
+    currentValue = scrapCounters.inputScrapCounters[materialCode] || 0;
+  } else if (scrapType === 'production_scrap') {
+    currentValue = scrapCounters.productionScrapCounters[materialCode] || 0;
+  } else if (scrapType === 'output_scrap') {
+    currentValue = scrapCounters.defectQuantity || 0;
+  }
+  
+  if (currentValue <= 0) {
+    showToast('⚠️ Sayaç zaten 0', 'warning');
+    return;
+  }
+  
+  try {
+    // Optimistic UI update
+    if (scrapType === 'input_damaged') {
+      scrapCounters.inputScrapCounters[materialCode] = Math.max(0, currentValue - quantity);
+    } else if (scrapType === 'production_scrap') {
+      scrapCounters.productionScrapCounters[materialCode] = Math.max(0, currentValue - quantity);
+    } else if (scrapType === 'output_scrap') {
+      scrapCounters.defectQuantity = Math.max(0, currentValue - quantity);
+    }
+    
+    updateCounterDisplay();
+    
+    // Sync to backend (atomic decrement)
+    const response = await fetch(
+      `/api/mes/work-packages/${currentFireAssignment.assignmentId}/scrap/${scrapType}/${materialCode}/${quantity}`,
+      { method: 'DELETE' }
+    );
+    
+    if (!response.ok) {
+      throw new Error('Failed to decrement counter');
+    }
+    
+    // Show success feedback
+    showToast(`✅ ${materialCode}: −${quantity}`, 'success');
+    
+  } catch (error) {
+    console.error('Failed to decrement scrap:', error);
+    // Revert optimistic update
+    if (scrapType === 'input_damaged') {
+      scrapCounters.inputScrapCounters[materialCode] = currentValue;
+    } else if (scrapType === 'production_scrap') {
+      scrapCounters.productionScrapCounters[materialCode] = currentValue;
+    } else if (scrapType === 'output_scrap') {
+      scrapCounters.defectQuantity = currentValue;
+    }
+    updateCounterDisplay();
+    showNotification('Fire sayacı azaltılamadı: ' + error.message, 'error');
+  }
+}
+
+// Make functions globally accessible for onclick handlers
+window.closeFireModal = closeFireModal;
+window.showScrapTypeSelector = showScrapTypeSelector;
+window.closeScrapTypeModal = closeScrapTypeModal;
+window.incrementScrapWithType = incrementScrapWithType;
+window.incrementScrap = incrementScrap;
+window.decrementScrap = decrementScrap;
 
 // ============================================================================
 // RENDERING
@@ -1061,6 +1629,16 @@ function renderTaskActions(task) {
     `);
   }
   
+  // Fire button - only if in progress (and worker available)
+  if (task.status === 'in_progress') {
+    const disabled = workerUnavailable ? 'disabled' : '';
+    actions.push(`
+      <button class="action-btn action-fire" data-action="fire" data-id="${task.assignmentId}" ${disabled}>
+        🗑️ Fire
+      </button>
+    `);
+  }
+  
   if (actions.length === 0) {
     return '<span class="text-muted">-</span>';
   }
@@ -1093,6 +1671,9 @@ function attachEventListeners() {
           break;
         case 'error':
           await reportStationError(assignmentId);
+          break;
+        case 'fire':
+          await openFireModal(assignmentId);
           break;
       }
     });
