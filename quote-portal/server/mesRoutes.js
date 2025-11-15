@@ -3769,29 +3769,41 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           console.log(`✅ Actual output: ${actualOutput}, ❌ Defects: ${defects}`);
           
           // ========================================================================
-          // STEP 1.5: Process Input and Production Scrap
+          // STEP 1.5: Process Input and Production Scrap from Counters
           // ========================================================================
           
-          const inputScrapLog = assignment.inputScrapLog || [];
-          const productionScrapLog = assignment.productionScrapLog || [];
-          
-          // Aggregate scrap by material code
+          // Parse counter fields from assignment
           const inputScrapTotals = {};
-          inputScrapLog.forEach(entry => {
-            const code = entry.materialCode;
-            inputScrapTotals[code] = (inputScrapTotals[code] || 0) + (entry.quantity || 0);
-          });
-          
           const productionScrapTotals = {};
-          productionScrapLog.forEach(entry => {
-            const code = entry.materialCode;
-            productionScrapTotals[code] = (productionScrapTotals[code] || 0) + (entry.quantity || 0);
+          
+          Object.keys(assignment).forEach(key => {
+            if (key.startsWith('inputScrapCount_')) {
+              const materialCode = key.replace('inputScrapCount_', '').replace(/_/g, '-');
+              const quantity = assignment[key] || 0;
+              if (quantity > 0) {
+                inputScrapTotals[materialCode] = quantity;
+              }
+            } else if (key.startsWith('productionScrapCount_')) {
+              const materialCode = key.replace('productionScrapCount_', '').replace(/_/g, '-');
+              const quantity = assignment[key] || 0;
+              if (quantity > 0) {
+                productionScrapTotals[materialCode] = quantity;
+              }
+            }
           });
           
           console.log(`📊 Scrap Summary for assignment ${assignmentId}:`);
           console.log(`   Input scrap:`, inputScrapTotals);
           console.log(`   Production scrap:`, productionScrapTotals);
           console.log(`   Output defects: ${defects}`);
+          
+          // Reset scrap counters after reading (will be updated at end of transaction)
+          const counterResetFields = {};
+          Object.keys(assignment).forEach(key => {
+            if (key.startsWith('inputScrapCount_') || key.startsWith('productionScrapCount_')) {
+              counterResetFields[key] = 0;
+            }
+          });
           
           // Get plan and node information
           const planDoc = await transaction.get(db.collection('mes-production-plans').doc(planId));
@@ -4574,6 +4586,12 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
       }
       
       // Apply updates
+      // For COMPLETE action: Add counter reset fields to updateData
+      if (action === 'complete' && Object.keys(counterResetFields).length > 0) {
+        Object.assign(updateData, counterResetFields);
+        console.log(`🔄 Resetting ${Object.keys(counterResetFields).length} scrap counters to 0`);
+      }
+      
       transaction.update(assignmentRef, updateData);
       
       if (workerRef && workerUpdate) {
@@ -4659,6 +4677,190 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
     }
     
     return result;
+  }, res);
+});
+
+// ============================================================================
+// SCRAP MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// POST /api/mes/work-packages/:id/scrap - Record scrap entry during task
+router.post('/work-packages/:id/scrap', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id: assignmentId } = req.params;
+    const { scrapType, entry } = req.body;
+    
+    // Validate scrap type
+    const validTypes = ['input_damaged', 'production_scrap', 'output_scrap'];
+    if (!validTypes.includes(scrapType)) {
+      const e = new Error('Invalid scrap type');
+      e.status = 400;
+      throw e;
+    }
+    
+    // Validate entry
+    if (!entry || !entry.materialCode || !entry.quantity || entry.quantity <= 0) {
+      const e = new Error('Invalid scrap entry');
+      e.status = 400;
+      throw e;
+    }
+    
+    const db = getFirestore();
+    const assignmentRef = db.collection('mes-worker-assignments').doc(assignmentId);
+    
+    // Get current assignment
+    const assignmentDoc = await assignmentRef.get();
+    if (!assignmentDoc.exists) {
+      const e = new Error('Assignment not found');
+      e.status = 404;
+      throw e;
+    }
+    
+    const assignment = assignmentDoc.data();
+    
+    // Check if task is in progress
+    if (assignment.status !== 'in_progress') {
+      const e = new Error('Task must be in progress to record scrap');
+      e.status = 400;
+      throw e;
+    }
+    
+    // Generate counter field name (replace special chars for Firestore compatibility)
+    const safeCode = entry.materialCode.replace(/[^a-zA-Z0-9]/g, '_');
+    
+    // Update appropriate counter using atomic increment
+    const updateData = { updatedAt: new Date() };
+    
+    if (scrapType === 'input_damaged') {
+      const counterField = `inputScrapCount_${safeCode}`;
+      updateData[counterField] = admin.firestore.FieldValue.increment(entry.quantity);
+      
+    } else if (scrapType === 'production_scrap') {
+      const counterField = `productionScrapCount_${safeCode}`;
+      updateData[counterField] = admin.firestore.FieldValue.increment(entry.quantity);
+      
+    } else if (scrapType === 'output_scrap') {
+      // For output scrap, just update the defectQuantity
+      updateData.defectQuantity = admin.firestore.FieldValue.increment(entry.quantity);
+    }
+    
+    // Save to database (atomic operation - no race condition)
+    await assignmentRef.update(updateData);
+    
+    console.log(`✅ Scrap counter updated for assignment ${assignmentId}: ${scrapType}, +${entry.quantity} ${entry.materialCode}`);
+    
+    return {
+      success: true,
+      assignmentId,
+      scrapType,
+      materialCode: entry.materialCode,
+      quantity: entry.quantity,
+      operation: 'increment'
+    };
+    
+  }, res);
+});
+
+// GET /api/mes/work-packages/:id/scrap - Get current scrap log
+router.get('/work-packages/:id/scrap', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id: assignmentId } = req.params;
+    
+    const db = getFirestore();
+    const assignmentDoc = await db.collection('mes-worker-assignments').doc(assignmentId).get();
+    
+    if (!assignmentDoc.exists) {
+      const e = new Error('Assignment not found');
+      e.status = 404;
+      throw e;
+    }
+    
+    const assignment = assignmentDoc.data();
+    
+    // Parse counter fields from assignment
+    const inputScrapCounters = {};
+    const productionScrapCounters = {};
+    
+    Object.keys(assignment).forEach(key => {
+      if (key.startsWith('inputScrapCount_')) {
+        const materialCode = key.replace('inputScrapCount_', '').replace(/_/g, '-');
+        inputScrapCounters[materialCode] = assignment[key] || 0;
+      } else if (key.startsWith('productionScrapCount_')) {
+        const materialCode = key.replace('productionScrapCount_', '').replace(/_/g, '-');
+        productionScrapCounters[materialCode] = assignment[key] || 0;
+      }
+    });
+    
+    return {
+      assignmentId,
+      inputScrapCounters,
+      productionScrapCounters,
+      defectQuantity: assignment.defectQuantity || 0,
+      status: assignment.status
+    };
+    
+  }, res);
+});
+
+// DELETE /api/mes/work-packages/:id/scrap/:scrapType/:materialCode/:quantity - Decrease scrap counter (undo)
+router.delete('/work-packages/:id/scrap/:scrapType/:materialCode/:quantity', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id: assignmentId, scrapType, materialCode, quantity } = req.params;
+    const decrementAmount = parseFloat(quantity);
+    
+    if (isNaN(decrementAmount) || decrementAmount <= 0) {
+      const e = new Error('Invalid quantity');
+      e.status = 400;
+      throw e;
+    }
+    
+    const validTypes = ['input_damaged', 'production_scrap', 'output_scrap'];
+    if (!validTypes.includes(scrapType)) {
+      const e = new Error('Invalid scrap type');
+      e.status = 400;
+      throw e;
+    }
+    
+    const db = getFirestore();
+    const assignmentRef = db.collection('mes-worker-assignments').doc(assignmentId);
+    
+    const assignmentDoc = await assignmentRef.get();
+    if (!assignmentDoc.exists) {
+      const e = new Error('Assignment not found');
+      e.status = 404;
+      throw e;
+    }
+    
+    // Generate counter field name
+    const safeCode = materialCode.replace(/[^a-zA-Z0-9]/g, '_');
+    const updateData = { updatedAt: new Date() };
+    
+    if (scrapType === 'input_damaged') {
+      const counterField = `inputScrapCount_${safeCode}`;
+      updateData[counterField] = admin.firestore.FieldValue.increment(-decrementAmount);
+      
+    } else if (scrapType === 'production_scrap') {
+      const counterField = `productionScrapCount_${safeCode}`;
+      updateData[counterField] = admin.firestore.FieldValue.increment(-decrementAmount);
+      
+    } else if (scrapType === 'output_scrap') {
+      updateData.defectQuantity = admin.firestore.FieldValue.increment(-decrementAmount);
+    }
+    
+    // Save (atomic decrement)
+    await assignmentRef.update(updateData);
+    
+    console.log(`✅ Scrap counter decreased for assignment ${assignmentId}: ${scrapType}, -${decrementAmount} ${materialCode}`);
+    
+    return {
+      success: true,
+      assignmentId,
+      scrapType,
+      materialCode,
+      decrementAmount,
+      operation: 'decrement'
+    };
+    
   }, res);
 });
 
