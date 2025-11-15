@@ -175,6 +175,37 @@ async function handleFirestoreOperation(operation, res) {
 // ============================================================================
 
 /**
+ * Apply output code suffix for finished products
+ * If a node is the final node (no other nodes use it as predecessor),
+ * append 'F' suffix to outputCode to mark it as finished product
+ * 
+ * @param {Array} nodes - All nodes in the plan
+ * @returns {Array} Nodes with updated outputCodes
+ */
+function applyOutputCodeSuffixes(nodes) {
+  if (!nodes || !Array.isArray(nodes)) return nodes;
+  
+  return nodes.map(node => {
+    if (!node.outputCode) return node;
+    
+    // Check if this node is a finished product (no other nodes use it as predecessor)
+    const isFinishedProduct = !nodes.some(n => 
+      Array.isArray(n.predecessors) && n.predecessors.includes(node.id)
+    );
+    
+    // If it's a finished product and doesn't already have 'F' suffix, add it
+    if (isFinishedProduct && !node.outputCode.endsWith('F')) {
+      const updatedNode = { ...node };
+      updatedNode.outputCode = `${node.outputCode}F`;
+      console.log(`✅ Applied 'F' suffix to finished product: ${node.outputCode} → ${updatedNode.outputCode}`);
+      return updatedNode;
+    }
+    
+    return node;
+  });
+}
+
+/**
  * Calculate pre-production reserved amounts for a work package
  * Takes into account the expected defect rate and input/output ratio
  * 
@@ -1689,9 +1720,12 @@ router.post('/production-plans', withAuth, async (req, res) => {
       db
     );
     
+    // Apply output code suffixes for finished products ('F' suffix)
+    const nodesWithSuffixes = applyOutputCodeSuffixes(enrichedNodes);
+    
     // Remove assignments from plan data to avoid storing in plan document
     const planData = { ...productionPlan };
-    planData.nodes = enrichedNodes;
+    planData.nodes = nodesWithSuffixes;
     delete planData.assignments;
     
     // Handle 'released' status - add release metadata
@@ -1841,6 +1875,11 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     // Remove assignments from updates to avoid storing in plan document
     const planUpdates = { ...updates };
     delete planUpdates.assignments;
+    
+    // Apply output code suffixes for finished products if nodes are being updated
+    if (planUpdates.nodes && Array.isArray(planUpdates.nodes)) {
+      planUpdates.nodes = applyOutputCodeSuffixes(planUpdates.nodes);
+    }
     
     // Check if status is transitioning to 'released' - add release metadata
     if (updates.status === 'released') {
@@ -2217,8 +2256,15 @@ router.post('/templates', withAuth, async (req, res) => {
     // Normalize createdAt to Date
     const createdAtDate = template.createdAt ? new Date(template.createdAt) : now
     const createdParts = formatDateParts(createdAtDate)
+    
+    // Apply output code suffixes for finished products if nodes exist
+    const templateData = { ...template };
+    if (templateData.nodes && Array.isArray(templateData.nodes)) {
+      templateData.nodes = applyOutputCodeSuffixes(templateData.nodes);
+    }
+    
     await db.collection('mes-production-plans').doc(template.id).set({
-      ...template,
+      ...templateData,
       status: (template.status || 'template'),
       createdAt: createdAtDate,
       updatedAt: now,
