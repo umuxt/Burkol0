@@ -1385,7 +1385,7 @@ async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
   
   // Initialize schedule tracking
   const workerSchedule = new Map(); // workerId -> [{nodeId, start, end}]
-  const stationSchedule = new Map(); // substationId -> [{nodeId, start, end}] (CANONICAL: uses substationId)
+  const substationSchedule = new Map(); // substationId -> [{nodeId, start, end}] (CANONICAL: uses substationId)
   const nodeEndTimes = new Map(); // nodeId -> Date (for dependency tracking)
   
   console.log('🕐 Starting node time enrichment...');
@@ -1441,7 +1441,7 @@ async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
       stations,
       substations,
       workerSchedule,
-      stationSchedule,
+      substationSchedule,
       planData,
       nodeEndTimes,
       db
@@ -1500,10 +1500,10 @@ async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
       // CRITICAL FIX: Track substation schedule, not station schedule
       const substationId = assignment.substationId;
       if (substationId) {
-        if (!stationSchedule.has(substationId)) {
-          stationSchedule.set(substationId, []);
+        if (!substationSchedule.has(substationId)) {
+          substationSchedule.set(substationId, []);
         }
-        stationSchedule.get(substationId).push({
+        substationSchedule.get(substationId).push({
           nodeId,
           start: startTime,
           end: endTime
@@ -5536,7 +5536,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     
     // Track assignments in this run to avoid conflicts
     const workerSchedule = new Map(); // workerId -> [{ start, end }]
-    const stationSchedule = new Map(); // stationId -> [{ start, end }]
+    const substationSchedule = new Map(); // substationId -> [{ start, end }]
     const nodeEndTimes = new Map(); // nodeId -> plannedEnd timestamp (for dependency tracking)
     
     // Process nodes in topological order
@@ -5558,7 +5558,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
           stations,
           substations,
           workerSchedule,
-          stationSchedule,
+          substationSchedule,
           planData,
           nodeEndTimes, // Pass predecessor tracking map
           db // Pass db for fetching operations
@@ -5602,10 +5602,10 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
           // CRITICAL FIX: Track substation schedule, not station schedule
           // This allows multiple substations of the same station to work in parallel
           if (substationId) {
-            if (!stationSchedule.has(substationId)) {
-              stationSchedule.set(substationId, []);
+            if (!substationSchedule.has(substationId)) {
+              substationSchedule.set(substationId, []);
             }
-            stationSchedule.get(substationId).push({
+            substationSchedule.get(substationId).push({
               start: new Date(assignment.plannedStart),
               end: new Date(assignment.plannedEnd)
             });
@@ -6258,7 +6258,7 @@ async function assignNodeResources(
   stations,
   substations,
   workerSchedule,
-  stationSchedule,
+  substationSchedule,
   planData,
   nodeEndTimes = new Map(), // Track when predecessor nodes finish
   db = null // Database instance for fetching operations
@@ -6350,8 +6350,8 @@ async function assignNodeResources(
             }
           }
           
-          // Check queued tasks in stationSchedule for this substation
-          const substationQueue = stationSchedule.get(ss.id) || [];
+          // Check queued tasks in substationSchedule for this substation
+          const substationQueue = substationSchedule.get(ss.id) || [];
           if (substationQueue.length > 0) {
             const lastQueued = substationQueue[substationQueue.length - 1];
             if (lastQueued.end > lastEndTime) {
@@ -6390,7 +6390,7 @@ async function assignNodeResources(
     if (!selectedStation) {
       const stationsWithLoad = stations.map(s => ({
         station: s,
-        load: (stationSchedule.get(s.id) || []).length
+        load: 0  // ⚠️ Fallback doesn't have substation info, set load to 0
       }));
       
       stationsWithLoad.sort((a, b) => a.load - b.load);
@@ -6542,7 +6542,7 @@ async function assignNodeResources(
   // CRITICAL FIX: Use substation ID instead of station ID for scheduling
   // This allows multiple substations of the same station to work in parallel
   const substationAssignments = selectedSubstation 
-    ? (stationSchedule.get(selectedSubstation.id) || [])
+    ? (substationSchedule.get(selectedSubstation.id) || [])
     : [];
   const now = new Date();
   
