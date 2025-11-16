@@ -55,6 +55,35 @@ const metrics = {
   }
 };
 
+// ============================================================================
+// NODE ID NORMALIZATION HELPERS
+// ============================================================================
+
+/**
+ * Normalize node ID - use nodeId if exists, otherwise fallback to id
+ * This handles the inconsistency where some nodes have 'nodeId' and some have 'id'
+ * @param {Object} node - Node object
+ * @returns {string|null} Normalized node ID
+ */
+function getNodeId(node) {
+  if (!node) return null;
+  return node.nodeId || node.id || null;
+}
+
+/**
+ * Normalize array of nodes - ensures each node has consistent ID field
+ * @param {Array} nodes - Array of node objects
+ * @returns {Array} Normalized nodes with _id field
+ */
+function normalizeNodes(nodes) {
+  if (!Array.isArray(nodes)) return [];
+  
+  return nodes.map(node => ({
+    ...node,
+    _id: getNodeId(node) // Canonical ID field
+  }));
+}
+
 console.log('✅ MES Routes module loaded - including semi-code endpoints');
 
 // Middleware to authenticate requests (reuse existing auth)
