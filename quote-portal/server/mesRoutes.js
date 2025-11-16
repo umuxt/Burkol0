@@ -5779,6 +5779,122 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
 });
 
 // ============================================================================
+// PROMPT 5: URGENT PRIORITY ENDPOINT
+// ============================================================================
+
+/**
+ * Set Urgent Priority
+ * POST /api/mes/set-urgent-priority
+ * 
+ * Toggles isUrgent flag for a work order across:
+ * - Production plans
+ * - Worker assignments
+ * - Approved quotes
+ */
+router.post('/set-urgent-priority', withAuth, async (req, res) => {
+  try {
+    const { workOrderCode, urgent } = req.body;
+    
+    // Validation
+    if (!workOrderCode || typeof urgent !== 'boolean') {
+      return res.status(400).json({ 
+        error: 'validation_error',
+        message: 'workOrderCode (string) and urgent (boolean) are required' 
+      });
+    }
+    
+    console.log(`⚡ Setting isUrgent=${urgent} for ${workOrderCode}`);
+    
+    const db = getFirestore();
+    const batch = db.batch();
+    let updateCount = 0;
+    
+    // 1. Update Production Plan
+    const planSnap = await db.collection('mes-production-plans')
+      .where('workOrderCode', '==', workOrderCode)
+      .where('status', 'in', ['production', 'in-progress'])
+      .limit(1)
+      .get();
+    
+    if (!planSnap.empty) {
+      batch.update(planSnap.docs[0].ref, { 
+        isUrgent: urgent,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      updateCount++;
+      console.log(`  ✅ Updated plan: ${planSnap.docs[0].id}`);
+    } else {
+      console.warn(`  ⚠️ No active production plan found for ${workOrderCode}`);
+    }
+    
+    // 2. Update Worker Assignments
+    const assignmentSnap = await db.collection('mes-worker-assignments')
+      .where('workOrderCode', '==', workOrderCode)
+      .where('status', 'in', ['pending', 'in-progress'])
+      .get();
+    
+    if (!assignmentSnap.empty) {
+      assignmentSnap.docs.forEach(doc => {
+        batch.update(doc.ref, { 
+          isUrgent: urgent,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        updateCount++;
+      });
+      console.log(`  ✅ Updated ${assignmentSnap.size} worker assignment(s)`);
+    } else {
+      console.warn(`  ⚠️ No active assignments found for ${workOrderCode}`);
+    }
+    
+    // 3. Update Approved Quote
+    const quoteSnap = await db.collection('mes-approved-quotes')
+      .where('workOrderCode', '==', workOrderCode)
+      .limit(1)
+      .get();
+    
+    if (!quoteSnap.empty) {
+      batch.update(quoteSnap.docs[0].ref, { 
+        isUrgent: urgent,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+      updateCount++;
+      console.log(`  ✅ Updated approved quote: ${quoteSnap.docs[0].id}`);
+    } else {
+      console.warn(`  ⚠️ No approved quote found for ${workOrderCode}`);
+    }
+    
+    // Check if anything was updated
+    if (updateCount === 0) {
+      return res.status(404).json({
+        error: 'not_found',
+        message: `No active production data found for ${workOrderCode}`
+      });
+    }
+    
+    // Commit all updates
+    await batch.commit();
+    
+    console.log(`✅ Successfully set isUrgent=${urgent} for ${workOrderCode} (${updateCount} document(s) updated)`);
+    
+    res.json({
+      success: true,
+      message: `Üretim planı ${urgent ? 'acil' : 'normal'} önceliğe alındı`,
+      workOrderCode,
+      updateCount,
+      isUrgent: urgent
+    });
+    
+  } catch (error) {
+    console.error('❌ Set urgent priority error:', error);
+    res.status(500).json({ 
+      error: 'internal_error',
+      message: 'Failed to set urgent priority',
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
 // HELPER FUNCTIONS FOR LAUNCH ENDPOINT
 // ============================================================================
 
