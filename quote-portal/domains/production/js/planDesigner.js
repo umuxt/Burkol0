@@ -69,6 +69,136 @@ function escapeHtml(str) {
 }
 
 // ============================================================================
+// GRAPH VALIDATION UTILITIES
+// ============================================================================
+
+/**
+ * Döngü kontrolü - DFS algoritması ile döngü tespiti
+ * @param {string} fromId - Kaynak node ID
+ * @param {string} toId - Hedef node ID  
+ * @returns {boolean} - true ise döngü oluşur
+ */
+function wouldCreateCycle(fromId, toId) {
+  const visited = new Set();
+  const recursionStack = new Set();
+  
+  function dfs(nodeId) {
+    visited.add(nodeId);
+    recursionStack.add(nodeId);
+    
+    const node = planDesignerState.nodes.find(n => n.id === nodeId);
+    if (!node) return false;
+    
+    // Mevcut bağlantıları kontrol et
+    const connections = node.connections || [];
+    
+    for (const targetId of connections) {
+      // Yeni bağlantıyı simüle et
+      const effectiveTarget = (nodeId === fromId) ? toId : targetId;
+      
+      if (!visited.has(effectiveTarget)) {
+        if (dfs(effectiveTarget)) return true;
+      } else if (recursionStack.has(effectiveTarget)) {
+        return true; // Döngü bulundu!
+      }
+    }
+    
+    // Yeni bağlantıyı da kontrol et
+    if (nodeId === fromId && toId) {
+      if (!visited.has(toId)) {
+        if (dfs(toId)) return true;
+      } else if (recursionStack.has(toId)) {
+        return true;
+      }
+    }
+    
+    recursionStack.delete(nodeId);
+    return false;
+  }
+  
+  return dfs(fromId);
+}
+
+/**
+ * Topological sort - Başlangıçtan sona doğru sıralama
+ * Kahn's Algorithm kullanarak dependency-aware numaralandırma
+ * @returns {Array} - Sıralanmış node ID'leri
+ */
+function calculateTopologicalOrder() {
+  const nodes = planDesignerState.nodes;
+  
+  if (nodes.length === 0) return [];
+  
+  // Her node'un kaç predecessor'ı olduğunu say
+  const inDegree = new Map();
+  nodes.forEach(node => {
+    inDegree.set(node.id, (node.predecessors || []).length);
+  });
+  
+  // Başlangıç node'ları (predecessor'ı olmayanlar)
+  const queue = [];
+  nodes.forEach(node => {
+    if ((node.predecessors || []).length === 0) {
+      queue.push(node.id);
+    }
+  });
+  
+  // Topological sıralama
+  const sortedIds = [];
+  
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+    sortedIds.push(nodeId);
+    
+    // Bu node'un successor'ını kontrol et
+    const node = nodes.find(n => n.id === nodeId);
+    if (node && node.connections) {
+      node.connections.forEach(successorId => {
+        const currentInDegree = inDegree.get(successorId) - 1;
+        inDegree.set(successorId, currentInDegree);
+        
+        // Tüm predecessor'ları tamamlandıysa kuyruğa ekle
+        if (currentInDegree === 0) {
+          queue.push(successorId);
+        }
+      });
+    }
+  }
+  
+  // Döngü kontrolü - tüm node'lar işlenmeli
+  if (sortedIds.length !== nodes.length) {
+    console.warn('⚠️ Döngü tespit edildi! Tüm node\'lar sıralanamadı.');
+    return [];
+  }
+  
+  return sortedIds;
+}
+
+/**
+ * Node'lara sequence numarası ata (topological sort'a göre)
+ */
+export function updateNodeSequences() {
+  const sortedIds = calculateTopologicalOrder();
+  
+  if (sortedIds.length === 0 && planDesignerState.nodes.length > 0) {
+    // Döngü var, sequence atanamaz
+    planDesignerState.nodes.forEach(node => {
+      node.sequence = undefined;
+    });
+    return false;
+  }
+  
+  sortedIds.forEach((nodeId, index) => {
+    const node = planDesignerState.nodes.find(n => n.id === nodeId);
+    if (node) {
+      node.sequence = index + 1;
+    }
+  });
+  
+  return true;
+}
+
+// ============================================================================
 // TIMING AND CAPACITY UTILITIES  
 // ============================================================================
 
@@ -837,6 +967,9 @@ export function handleCanvasDrop(event) {
   // Quiet
   planDesignerState.nodes.push(newNode);
   
+  // Sequence'leri hesapla
+  updateNodeSequences();
+  
   // Render appropriate canvas
   if (planDesignerState.isFullscreen) {
     // Quiet
@@ -855,6 +988,9 @@ export function renderCanvas() {
   if (!canvas) return;
   const existingElements = canvas.querySelectorAll('.canvas-node, .connection-container');
   existingElements.forEach(element => element.remove());
+
+  // Sequence'leri güncelle
+  updateNodeSequences();
 
   planDesignerState.nodes.forEach(node => {
     node.connections.forEach(targetId => {
@@ -1040,7 +1176,13 @@ export function renderNode(node, targetCanvas = null) {
     return 'Auto-assign at launch';
   })();
   
+  // Sequence badge (sol üst köşe)
+  const sequenceBadge = node.sequence 
+    ? `<div style="position: absolute; top: -8px; left: -8px; background: #3b82f6; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; box-shadow: 0 2px 4px rgba(0,0,0,0.2); z-index: 20;">${node.sequence}</div>`
+    : '';
+  
   nodeElement.innerHTML = [
+    sequenceBadge,
     '<div style="display: flex; justify-content: between; align-items: flex-start; margin-bottom: 4px;">',
     `<div class="drag-handle" style="font-weight: 600; font-size: 14px; color: ${colors[node.type] || '#6b7280'}; flex: 1; cursor: ${planDesignerState.readOnly ? 'default' : 'move'}; padding: 2px;">🔸 ${node.name}${warningBadge}${efficiencyBadge}</div>`,
     actionsHtml,
@@ -1209,6 +1351,9 @@ export function deleteConnection(fromNodeId, toNodeId) {
     try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toNodeId } })) } catch {}
   }
   
+  // Sequence'leri yeniden hesapla
+  updateNodeSequences();
+  
   // Render appropriate canvas
   if (planDesignerState.isFullscreen) {
     const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
@@ -1246,49 +1391,73 @@ export function connectNodes(fromId, toId) {
   if (planDesignerState.readOnly) { showInfoToast('Read-only mode'); return; }
   const fromNode = planDesignerState.nodes.find(n => n.id === fromId);
   const toNode = planDesignerState.nodes.find(n => n.id === toId);
-  if (fromNode && toNode && !fromNode.connections.includes(toId)) {
-    // Graph edge (from -> to)
-    fromNode.connections.push(toId);
-    // Scheduling dependency: to cannot start before from completes
-    if (!Array.isArray(toNode.predecessors)) toNode.predecessors = [];
-    if (!toNode.predecessors.includes(fromId)) toNode.predecessors.push(fromId);
-
-    // Material propagation: from's output becomes input material of to (SCHEMA-COMPLIANT)
-    if (!Array.isArray(toNode.materialInputs)) toNode.materialInputs = [];
-    const existingIdx = toNode.materialInputs.findIndex(m => m && (m.derivedFrom === fromId || m.materialCode === (fromNode.semiCode || `node-${fromId}-output`)));
-    if (existingIdx === -1) {
-      const autoMat = {
-        materialCode: fromNode.semiCode || `node-${fromId}-output`,  // SCHEMA: materialCode
-        name: fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`,  // Display only
-        requiredQuantity: (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : 0,  // SCHEMA: requiredQuantity
-        unitRatio: 1,  // SCHEMA: unitRatio
-        derivedFrom: fromId  // Tracking only
-      };
-      toNode.materialInputs.push(autoMat);
-      try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toId } })) } catch {}
-    } else {
-      // If a matching row exists, update it with new values
-      const m = toNode.materialInputs[existingIdx]
-      if (m) {
-        m.derivedFrom = fromId
-        m.materialCode = fromNode.semiCode || `node-${fromId}-output`  // SCHEMA
-        m.name = fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`
-        m.requiredQuantity = (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : 0  // SCHEMA
-        m.unitRatio = 1  // SCHEMA
-        try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toId } })) } catch {}
-      }
-    }
-
-    // Render appropriate canvas
-    if (planDesignerState.isFullscreen) {
-      const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
-      if (fullscreenCanvas) renderCanvasContent(fullscreenCanvas);
-    } else {
-      renderCanvas();
-    }
-    
-    showSuccessToast('Operations connected');
+  
+  if (!fromNode || !toNode) return;
+  
+  // ÖNEMLİ: Bir node'dan sadece BİR çıkış olabilir!
+  if (fromNode.connections && fromNode.connections.length > 0) {
+    showErrorToast('Bu operasyonun zaten bir çıkışı var! Bir operasyondan sadece bir yere gidilebilir.');
+    return;
   }
+  
+  // Döngü kontrolü - DFS ile
+  if (wouldCreateCycle(fromId, toId)) {
+    showErrorToast('Bu bağlantı döngü oluşturur! İş akışında döngü olamaz.');
+    return;
+  }
+  
+  // Zaten bağlı mı kontrolü
+  if (fromNode.connections && fromNode.connections.includes(toId)) {
+    showWarningToast('Bu operasyonlar zaten bağlı');
+    return;
+  }
+  
+  // Graph edge (from -> to)
+  if (!Array.isArray(fromNode.connections)) fromNode.connections = [];
+  fromNode.connections.push(toId);
+  
+  // Scheduling dependency: to cannot start before from completes
+  if (!Array.isArray(toNode.predecessors)) toNode.predecessors = [];
+  if (!toNode.predecessors.includes(fromId)) toNode.predecessors.push(fromId);
+
+  // Material propagation: from's output becomes input material of to (SCHEMA-COMPLIANT)
+  if (!Array.isArray(toNode.materialInputs)) toNode.materialInputs = [];
+  const existingIdx = toNode.materialInputs.findIndex(m => m && (m.derivedFrom === fromId || m.materialCode === (fromNode.semiCode || `node-${fromId}-output`)));
+  if (existingIdx === -1) {
+    const autoMat = {
+      materialCode: fromNode.semiCode || `node-${fromId}-output`,  // SCHEMA: materialCode
+      name: fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`,  // Display only
+      requiredQuantity: (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : 0,  // SCHEMA: requiredQuantity
+      unitRatio: 1,  // SCHEMA: unitRatio
+      derivedFrom: fromId  // Tracking only
+    };
+    toNode.materialInputs.push(autoMat);
+    try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toId } })) } catch {}
+  } else {
+    // If a matching row exists, update it with new values
+    const m = toNode.materialInputs[existingIdx]
+    if (m) {
+      m.derivedFrom = fromId
+      m.materialCode = fromNode.semiCode || `node-${fromId}-output`  // SCHEMA
+      m.name = fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`
+      m.requiredQuantity = (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : 0  // SCHEMA
+      m.unitRatio = 1  // SCHEMA
+      try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toId } })) } catch {}
+    }
+  }
+
+  // Sequence'leri yeniden hesapla
+  updateNodeSequences();
+
+  // Render appropriate canvas
+  if (planDesignerState.isFullscreen) {
+    const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
+    if (fullscreenCanvas) renderCanvasContent(fullscreenCanvas);
+  } else {
+    renderCanvas();
+  }
+  
+  showSuccessToast('Operations connected');
 }
 
 export function toggleConnectMode() {
@@ -1371,15 +1540,35 @@ export function clearCanvas() {
 function buildStationSelector(node) {
   const availableStations = planDesignerState.availableStations || [];
   
-  // Handle legacy preferredStations (comma-separated strings) and migrate to IDs
-  const legacyPreferredStations = node.preferredStations || [];
-  const preferredStationIds = node.preferredStationIds || [];
+  // CRITICAL: Extract station IDs from multiple possible formats
+  // 1. assignedStations array (new format: [{ stationId: 'xxx' }])
+  // 2. preferredStationIds array (legacy format: ['xxx', 'yyy'])
+  // 3. preferredStations array (oldest format: station names/tags)
   
-  // Migration: if we have legacy data but no IDs, try to resolve them
-  let currentStationIds = [...preferredStationIds];
+  let currentStationIds = [];
+  
+  // Parse assignedStations (new canonical format)
+  if (Array.isArray(node.assignedStations) && node.assignedStations.length > 0) {
+    node.assignedStations.forEach(item => {
+      if (typeof item === 'string') {
+        currentStationIds.push(item);
+      } else if (item && item.stationId) {
+        currentStationIds.push(item.stationId);
+      }
+    });
+  }
+  
+  // Fallback: preferredStationIds (legacy format)
+  const preferredStationIds = node.preferredStationIds || [];
+  if (currentStationIds.length === 0 && preferredStationIds.length > 0) {
+    currentStationIds = [...preferredStationIds];
+  }
+  
+  // Migration: if we have legacy preferredStations (names/tags), try to resolve them
+  const legacyPreferredStations = node.preferredStations || [];
   const missingStations = [];
   
-  if (legacyPreferredStations.length > 0 && preferredStationIds.length === 0) {
+  if (legacyPreferredStations.length > 0 && currentStationIds.length === 0) {
     // Try to resolve legacy station names/IDs to current station IDs
     legacyPreferredStations.forEach(pref => {
       const station = availableStations.find(s => 
@@ -1394,6 +1583,9 @@ function buildStationSelector(node) {
       }
     });
   }
+  
+  // Remove duplicates
+  currentStationIds = [...new Set(currentStationIds)];
   
   // Check if any currently selected stations are missing
   currentStationIds.forEach(stationId => {
@@ -1604,16 +1796,54 @@ export async function editNode(nodeId) {
   const preferredStationTags = node.preferredStationTags || [];
   const tagsInputValue = preferredStationTags.join(', ');
   
-  // Compute effectiveTime preview
-  const nominalTime = node.time || 0;
-  const efficiency = node.efficiency || 1.0;
-  const effectiveTime = nominalTime > 0 ? Math.round(nominalTime / efficiency) : 0;
+  // CRITICAL FIX: Use nominalTime as fallback for time (backward compatibility)
+  const nominalTime = node.time || node.nominalTime || 60;
+  
+  // CRITICAL FIX: Parse efficiency correctly (0-1 range or percentage)
+  let efficiency = 1.0;
+  if (node.efficiency !== undefined && node.efficiency !== null) {
+    const effVal = parseFloat(node.efficiency);
+    // If efficiency > 1, it's in percentage (e.g., 80), convert to decimal
+    efficiency = effVal > 1 ? effVal / 100 : effVal;
+  }
+  
+  const effectiveTime = nominalTime > 0 && efficiency > 0 
+    ? Math.round(nominalTime / efficiency) 
+    : nominalTime;
   const efficiencyPercent = efficiency * 100;
+  
+  // Build material inputs display
+  const materialInputs = node.materialInputs || [];
+  let materialsHTML = '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Material Inputs</label>';
+  
+  if (materialInputs.length === 0) {
+    materialsHTML += '<div style="font-size: 12px; color: var(--muted-foreground); padding: 8px; background: #f9fafb; border-radius: 4px;">No material inputs defined</div>';
+  } else {
+    materialsHTML += '<div style="border: 1px solid var(--border); border-radius: 4px; overflow: hidden;">';
+    materialInputs.forEach((mat, idx) => {
+      const bgColor = idx % 2 === 0 ? '#ffffff' : '#f9fafb';
+      const materialCode = mat.materialCode || mat.code || 'N/A';
+      const quantity = mat.requiredQuantity || mat.quantity || 0;
+      const ratio = mat.unitRatio !== undefined ? mat.unitRatio : 1;
+      
+      materialsHTML += `
+        <div style="padding: 8px 12px; background: ${bgColor}; display: flex; justify-content: space-between; align-items: center;">
+          <div style="flex: 1;">
+            <div style="font-size: 13px; font-weight: 500; color: #1f2937;">${escapeHtml(materialCode)}</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Qty: ${quantity} | Ratio: ${ratio}</div>
+          </div>
+        </div>
+      `;
+    });
+    materialsHTML += '</div>';
+  }
+  materialsHTML += '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Material inputs are inherited from the operation definition</div></div>';
   
   const formContent =
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Nominal Time (minutes)</label><input type="number" id="edit-time" value="' + node.time + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreview()" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Design-time duration (will be adjusted by efficiency)</div></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Efficiency Override (%) <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="number" id="edit-efficiency" value="' + (node.efficiency ? (node.efficiency * 100).toFixed(1) : '') + '" min="1" max="100" step="0.1" placeholder="Leave empty for operation default" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreview()" /><div id="effective-time-preview" style="font-size: 12px; color: #3b82f6; margin-top: 4px; font-weight: 500;">Effective Time: ' + effectiveTime + ' min</div><div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Lower efficiency → longer effective time (e.g., 80% = 1.25x time)</div></div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Nominal Time (minutes)</label><input type="number" id="edit-time" value="' + nominalTime + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreview()" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Design-time duration (will be adjusted by efficiency)</div></div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Efficiency Override (%) <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span></label><input type="number" id="edit-efficiency" value="' + (efficiency < 1.0 ? efficiencyPercent.toFixed(1) : '') + '" min="1" max="100" step="0.1" placeholder="Leave empty for operation default" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreview()" /><div id="effective-time-preview" style="font-size: 12px; color: #3b82f6; margin-top: 4px; font-weight: 500;">Effective Time: ' + effectiveTime + ' min</div><div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Lower efficiency → longer effective time (e.g., 80% = 1.25x time)</div></div>' +
+    materialsHTML +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Required Skills</label><div style="font-size: 12px; color: var(--muted-foreground); padding: 8px; background: #f9fafb; border-radius: 4px;">' + (requiredSkills.length > 0 ? requiredSkills.join(', ') : 'None specified') + '</div><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Skills are inherited from the operation definition</div></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Preferred Specific Stations <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span> <span style="cursor: help; color: #3b82f6;" title="Select specific stations by name. At launch, the system will prefer these exact stations.">ℹ️</span></label>' + stationSelectHTML + missingStationsWarning + '<div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Select specific stations for this operation. System will try to assign one of these first.</div></div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Capability Tags <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(optional)</span> <span style="cursor: help; color: #3b82f6;" title="Enter generic capability tags like \'CNC\', \'Welding\', etc. System will match stations with these tags as fallback.">ℹ️</span></label><input type="text" id="edit-station-tags" value="' + escapeHtml(tagsInputValue) + '" placeholder="e.g., CNC, Welding, Laser" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /><div style="font-size: 11px; color: #6b7280; margin-top: 4px;">Generic capabilities (comma-separated). Used if no specific station is available.</div></div>' +
@@ -2029,6 +2259,9 @@ export function deleteNode(nodeId) {
       }
     });
     
+    // Sequence'leri yeniden hesapla
+    updateNodeSequences();
+    
     // Render appropriate canvas
     if (planDesignerState.isFullscreen) {
       const fullscreenCanvas = document.getElementById('fullscreen-plan-canvas');
@@ -2238,9 +2471,15 @@ function sanitizeNodesForBackend(nodes) {
       id: node.id,
       name: node.name || 'Unnamed Node',
       operationId: node.operationId,
+      type: node.type || 'General',  // CRITICAL: Operation type for color coding in UI
+      
+      // CRITICAL: Canvas position (x, y) - required for visual layout
+      x: typeof node.x === 'number' ? node.x : 100,
+      y: typeof node.y === 'number' ? node.y : 100,
       
       // CANONICAL: nominalTime (map from legacy 'time')
       nominalTime: node.nominalTime || node.time || node.estimatedNominalTime || node.duration || 60,
+      time: node.time || node.nominalTime || node.estimatedNominalTime || node.duration || 60,  // Backward compatibility
       
       // CANONICAL: requiredSkills (map from legacy 'skills')
       requiredSkills: Array.isArray(node.requiredSkills) 
@@ -2266,6 +2505,7 @@ function sanitizeNodesForBackend(nodes) {
       
       // Dependencies and materials (SCHEMA-COMPLIANT)
       predecessors: Array.isArray(node.predecessors) ? node.predecessors : [],
+      connections: Array.isArray(node.connections) ? node.connections : [],  // CRITICAL: Save connections for canvas rendering
       
       // Material inputs: Clean structure, already schema-compliant
       materialInputs: Array.isArray(node.materialInputs) 
@@ -2279,17 +2519,17 @@ function sanitizeNodesForBackend(nodes) {
       semiCode: node.semiCode || node.outputCode || null,
       outputCode: node.semiCode || node.outputCode || null,
       outputQty: parseFloat(node.outputQty) || 0,
-      outputUnit: node.outputUnit || 'pcs'
+      outputUnit: node.outputUnit || 'pcs',
+      
+      // CRITICAL: Always save effectiveTime for timing summary calculations
+      effectiveTime: node.effectiveTime !== undefined && node.effectiveTime !== null 
+        ? parseFloat(node.effectiveTime) 
+        : (node.nominalTime || node.time || 60)
     };
     
     // Optional: efficiency (only if set)
     if (node.efficiency !== undefined && node.efficiency !== null) {
       sanitized.efficiency = parseFloat(node.efficiency);
-    }
-    
-    // Optional: effectiveTime (if pre-calculated)
-    if (node.effectiveTime !== undefined && node.effectiveTime !== null) {
-      sanitized.effectiveTime = parseFloat(node.effectiveTime);
     }
     
     return sanitized;
@@ -3223,6 +3463,17 @@ function normalizeIncomingNodes(rawNodes = []) {
       ...mat,
       derivedFrom: resolveId(mat?.derivedFrom)
     }));
+  });
+  
+  // CRITICAL FIX: If connections is empty but predecessors exist, rebuild connections
+  // This ensures backward compatibility with plans saved before connections field was added
+  cloned.forEach(node => {
+    if (!node.connections || node.connections.length === 0) {
+      // Find all nodes that list this node as a predecessor
+      node.connections = cloned
+        .filter(n => n.predecessors && n.predecessors.includes(node.id))
+        .map(n => n.id);
+    }
   });
 
   let maxNumeric = 0;

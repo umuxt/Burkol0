@@ -191,14 +191,29 @@ export async function viewProductionPlan(id) {
       return;
     }
     
-    // Open designer in read-only view
-    if (typeof window.openCreatePlan === 'function') window.openCreatePlan()
-    
-    // Title should reflect view mode
-    try {
+    // Show designer UI directly without triggering create mode
+    const section = document.getElementById('plan-designer-section');
+    if (section) {
+      // Hide list-related UI
+      const tabs = document.getElementById('plans-tabs');
+      const panelCard = document.getElementById('plans-panel-card');
+      const headerControls = document.getElementById('plans-header-controls');
+      const createButton = document.getElementById('create-plan-button');
+      const filterBar = document.getElementById('plans-filter-compact');
       const title = document.getElementById('plans-title');
-      if (title) title.textContent = 'Production Route Management / Overview';
-    } catch {}
+      const backBtn = document.getElementById('plans-back-btn');
+      
+      if (tabs) tabs.style.display = 'none';
+      if (panelCard) panelCard.style.display = 'none';
+      if (headerControls) headerControls.style.display = 'none';
+      if (createButton) createButton.style.display = 'none';
+      if (filterBar) filterBar.style.display = 'none';
+      if (title) title.textContent = 'Production Route Management / View Plan';
+      if (backBtn) backBtn.style.display = '';
+      
+      // Show designer
+      section.style.display = 'block';
+    }
     
     // Show plan ID in configuration header
     try {
@@ -229,6 +244,31 @@ export async function viewProductionPlan(id) {
     
     // Ensure the order dropdown reflects this plan's order even if it's taken
     try { await loadApprovedOrdersToSelect(); } catch {}
+    
+    // CRITICAL: Load stations, workers and master data for timing calculations in view mode
+    try {
+      const { getStations, getWorkers, getMasterData } = await import('./mesApi.js');
+      const [stations, workers, masterData] = await Promise.all([
+        getStations(true).catch(() => []),
+        getWorkers(true).catch(() => []),
+        getMasterData(true).catch(() => ({}))
+      ]);
+      
+      // Import planDesignerState to set caches
+      const { planDesignerState } = await import('./planDesigner.js');
+      planDesignerState.stationsCache = stations;
+      planDesignerState.workersCache = workers;
+      planDesignerState.masterDataCache = masterData;
+      
+      console.log('✅ Loaded cache data for view mode:', {
+        stations: stations.length,
+        workers: workers.length,
+        hasMasterData: !!masterData
+      });
+    } catch (e) {
+      console.warn('Could not load cache data for view mode:', e);
+    }
+    
     const nodes = Array.isArray(p.nodes) ? p.nodes : (Array.isArray(p.steps) ? p.steps : (p.graph && Array.isArray(p.graph.nodes) ? p.graph.nodes : []))
     loadPlanNodes(nodes || [])
   } catch (e) { console.warn('viewProductionPlan failed', e?.message) }
@@ -276,7 +316,30 @@ export function editTemplateById(id) {
         return;
       }
       
-      if (typeof window.openCreatePlan === 'function') window.openCreatePlan()
+      // Show designer UI directly
+      const section = document.getElementById('plan-designer-section');
+      if (section) {
+        // Hide list-related UI
+        const tabs = document.getElementById('plans-tabs');
+        const panelCard = document.getElementById('plans-panel-card');
+        const headerControls = document.getElementById('plans-header-controls');
+        const createButton = document.getElementById('create-plan-button');
+        const filterBar = document.getElementById('plans-filter-compact');
+        const title = document.getElementById('plans-title');
+        const backBtn = document.getElementById('plans-back-btn');
+        
+        if (tabs) tabs.style.display = 'none';
+        if (panelCard) panelCard.style.display = 'none';
+        if (headerControls) headerControls.style.display = 'none';
+        if (createButton) createButton.style.display = 'none';
+        if (filterBar) filterBar.style.display = 'none';
+        if (title) title.textContent = 'Production Route Management / Edit Template';
+        if (backBtn) backBtn.style.display = '';
+        
+        // Show designer
+        section.style.display = 'block';
+      }
+      
       setReadOnly(false)
       
       // Show plan ID in configuration header for template editing
@@ -316,6 +379,24 @@ export function editTemplateById(id) {
       });
       
       try { loadApprovedOrdersToSelect(); } catch {}
+      
+      // Load cache data for timing calculations
+      (async () => {
+        try {
+          const { getStations, getWorkers, getMasterData } = await import('./mesApi.js');
+          const [stations, workers, masterData] = await Promise.all([
+            getStations(true).catch(() => []),
+            getWorkers(true).catch(() => []),
+            getMasterData(true).catch(() => ({}))
+          ]);
+          planDesignerState.stationsCache = stations;
+          planDesignerState.workersCache = workers;
+          planDesignerState.masterDataCache = masterData;
+        } catch (e) {
+          console.warn('Could not load cache data:', e);
+        }
+      })();
+      
       loadPlanNodes(tpl.steps || [])
     }
 
@@ -410,7 +491,8 @@ export function openCreatePlan() {
   console.log('🆕 Opening Create Plan mode');
   
   try { 
-    resetPlanDesignerState(); 
+    // Reset all designer state including canvas
+    resetPlanDesignerState({ preserveMeta: false }); 
   } catch (e) { 
     console.warn('Failed to reset designer state before opening', e); 
   }
@@ -472,7 +554,13 @@ export function openCreatePlan() {
 }
 
 export function cancelPlanCreation() {
-  try { resetPlanDesignerState(); } catch (e) { console.warn('Failed to reset designer state on cancel', e); }
+  try { 
+    // Full state reset when canceling
+    resetPlanDesignerState({ preserveMeta: false }); 
+  } catch (e) { 
+    console.warn('Failed to reset designer state on cancel', e); 
+  }
+  
   const section = document.getElementById('plan-designer-section');
   const tabs = document.getElementById('plans-tabs');
   const panelCard = document.getElementById('plans-panel-card');

@@ -37,12 +37,16 @@ function renderView(viewId) {
         // Inject metadata toggle styles
         injectMetadataToggleStyles();
         
-        // Check URL parameters for auto-actions
+        // Check URL parameters for auto-actions (only on first load)
         const urlParams = new URLSearchParams(window.location.search);
         const action = urlParams.get('action');
         const orderCode = urlParams.get('orderCode');
         
         if (action === 'create') {
+          // Clear URL parameters after reading them
+          const newUrl = window.location.pathname + window.location.hash;
+          window.history.replaceState({}, '', newUrl);
+          
           // Trigger create new plan
           openCreatePlan();
 
