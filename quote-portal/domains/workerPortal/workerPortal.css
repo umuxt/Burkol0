@@ -236,6 +236,22 @@
   color: var(--muted-foreground, #6b7280);
 }
 
+.operational-details {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #eff6ff;
+  border-radius: 6px;
+  border-left: 3px solid #3b82f6;
+  font-size: 11px;
+  color: #1e40af;
+  line-height: 1.6;
+}
+
+.operational-details strong {
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
 .task-blockers {
   font-size: 11px;
   color: #dc2626;

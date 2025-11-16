@@ -3035,8 +3035,10 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         
         // Timing
         assignedAt: assignment.createdAt,
-        actualStart: assignment.actualStart || null,
-        actualEnd: assignment.actualEnd || null,
+        actualStart: assignment.actualStart?.toDate ? assignment.actualStart.toDate().toISOString() : assignment.actualStart || null,
+        actualEnd: assignment.actualEnd?.toDate ? assignment.actualEnd.toDate().toISOString() : assignment.actualEnd || null,
+        plannedStart: nodeState?.plannedStart || assignment.plannedStart || null,
+        plannedEnd: nodeState?.plannedEnd || assignment.plannedEnd || null,
         
         // Pause metadata (to differentiate plan pause vs worker pause)
         pauseContext: assignment.pauseContext || null,

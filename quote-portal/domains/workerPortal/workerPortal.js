@@ -83,6 +83,33 @@ async function loadWorkerTasks() {
     state.tasks = result.tasks || [];
     state.nextTaskId = result.nextTaskId || null;
     
+    // Debug: Log first task to check data
+    if (state.tasks.length > 0) {
+      console.log('📊 First task data:', {
+        name: state.tasks[0].name,
+        estimatedNominalTime: state.tasks[0].estimatedNominalTime,
+        estimatedEffectiveTime: state.tasks[0].estimatedEffectiveTime,
+        plannedStart: state.tasks[0].plannedStart,
+        plannedEnd: state.tasks[0].plannedEnd,
+        actualStart: state.tasks[0].actualStart,
+        actualStartType: typeof state.tasks[0].actualStart,
+        status: state.tasks[0].status,
+        assignmentId: state.tasks[0].assignmentId
+      });
+      
+      // Log the first in-progress task for debugging timer
+      const inProgressTask = state.tasks.find(t => t.status === 'in-progress' || t.status === 'in_progress');
+      if (inProgressTask) {
+        console.log('⏱️ In-progress task for timer:', {
+          name: inProgressTask.name,
+          status: inProgressTask.status,
+          actualStart: inProgressTask.actualStart,
+          estimatedEffectiveTime: inProgressTask.estimatedEffectiveTime,
+          estimatedNominalTime: inProgressTask.estimatedNominalTime
+        });
+      }
+    }
+    
     // Extract worker info from first task
     if (state.tasks.length > 0) {
       state.currentWorker = {
@@ -1132,6 +1159,9 @@ function render() {
   
   // Attach event listeners
   attachEventListeners();
+  
+  // Start live duration updates
+  startDurationUpdates();
 }
 
 function renderLoading() {
@@ -1399,9 +1429,6 @@ function renderTaskRow(task, isNextTask) {
   // Material preview (inputs → outputs)
   const materialPreviewHtml = renderMaterialPreview(task);
   
-  // Time information banner
-  const timeInfoHtml = renderTimeInfo(task);
-  
   return `
     <tr class="task-row ${task.status === 'paused' ? 'task-paused' : ''}" data-assignment-id="${task.assignmentId}">
       <td>
@@ -1420,9 +1447,9 @@ function renderTaskRow(task, isNextTask) {
           <div class="task-details">
             Plan: ${task.planId} | Node: ${task.nodeId}
           </div>
+          ${renderOperationalDetails(task)}
           ${materialPreviewHtml}
           ${renderPrerequisites(task.prerequisites, task)}
-          ${timeInfoHtml}
           ${pausedBannerHtml}
           ${blockReasonsHtml}
         </div>
@@ -1431,7 +1458,13 @@ function renderTaskRow(task, isNextTask) {
         <div class="station-info">${task.stationName || 'Belirsiz'}</div>
       </td>
       <td>
-        <div class="duration-info">${formatDuration(task.estimatedEffectiveTime)}</div>
+        <div class="duration-info" 
+             data-assignment-id="${task.assignmentId}"
+             data-status="${task.status}"
+             data-actual-start="${task.actualStart ? (typeof task.actualStart === 'object' ? JSON.stringify(task.actualStart) : task.actualStart) : ''}"
+             data-estimated-time="${task.estimatedEffectiveTime || task.estimatedNominalTime || 0}">
+          ${task.actualStart && (task.status === 'in-progress' || task.status === 'in_progress') ? '⏱️ 0dk' : formatDuration(task.estimatedEffectiveTime || task.estimatedNominalTime)}
+        </div>
       </td>
       <td>
         ${renderTaskActions(task)}
@@ -1452,6 +1485,138 @@ function renderMaterialStatus(prerequisites) {
   }
   
   return '<span style="font-size: 14px; color: #9ca3af;" title="Malzeme durumu bilinmiyor">?</span>';
+}
+
+function renderOperationalDetails(task) {
+  // Build operational details with station, substation, and time estimates
+  const details = [];
+  
+  // Station info
+  if (task.stationName && task.stationName !== 'Belirsiz') {
+    details.push(`🏭 İstasyon: <strong>${task.stationName}</strong>`);
+  }
+  
+  // Substation info (if available)
+  if (task.substationCode) {
+    details.push(`🔧 Alt İstasyon: <strong>${task.substationCode}</strong>`);
+  }
+  
+  // Operation type (if available)
+  if (task.operationId || task.operationName) {
+    const opName = task.operationName || task.operationId;
+    details.push(`⚙️ Operasyon: <strong>${opName}</strong>`);
+  }
+  
+  // Time estimates - always show if available
+  const timeDetails = [];
+  if (task.estimatedNominalTime && task.estimatedNominalTime > 0) {
+    const nominalStr = formatDuration(task.estimatedNominalTime);
+    timeDetails.push(`⏱️ Nominal: <strong>${nominalStr}</strong>`);
+  }
+  
+  if (task.estimatedEffectiveTime && task.estimatedEffectiveTime > 0) {
+    const effectiveStr = formatDuration(task.estimatedEffectiveTime);
+    timeDetails.push(`⚡ Efektif: <strong>${effectiveStr}</strong>`);
+  }
+  
+  if (timeDetails.length > 0) {
+    details.push(timeDetails.join(' <span style="color: #cbd5e1;">•</span> '));
+  }
+  
+  if (details.length === 0) {
+    return ''; // No operational details to show
+  }
+  
+  // Build timing section separately for better visibility
+  const timingDetails = [];
+  
+  // If task has started, show expected times in gray (muted)
+  if (task.actualStart) {
+    // Show expected start/end in muted style
+    if (task.plannedStart || task.plannedEnd) {
+      const plannedParts = [];
+      if (task.plannedStart) {
+        plannedParts.push(`Beklenen: ${formatTime(task.plannedStart)}`);
+      }
+      if (task.plannedEnd) {
+        plannedParts.push(`${formatTime(task.plannedEnd)}`);
+      }
+      timingDetails.push(`<span style="color: #9ca3af; font-size: 10px;">${plannedParts.join(' → ')}</span>`);
+    }
+    
+    // Show actual start time prominently
+    const actualStartTime = formatTime(task.actualStart);
+    timingDetails.push(`<span style="color: #059669;">▶️ Başladı: <strong>${actualStartTime}</strong></span>`);
+    
+    // Calculate expected end based on actual start + effective time
+    // Always calculate from actualStart, not plannedEnd
+    try {
+      let startDate;
+      
+      // Handle Firestore Timestamp objects
+      if (typeof task.actualStart === 'object' && task.actualStart._seconds !== undefined) {
+        startDate = new Date(task.actualStart._seconds * 1000);
+      } else {
+        startDate = new Date(task.actualStart);
+      }
+      
+      // Use effective time if available, otherwise use nominal time, otherwise calculate from plannedEnd
+      let durationMinutes = task.estimatedEffectiveTime || task.estimatedNominalTime;
+      
+      if (!durationMinutes && task.plannedEnd && task.plannedStart) {
+        // Calculate duration from planned times as fallback
+        const plannedEndDate = new Date(task.plannedEnd);
+        const plannedStartDate = new Date(task.plannedStart);
+        durationMinutes = Math.round((plannedEndDate - plannedStartDate) / 60000);
+      }
+      
+      if (durationMinutes > 0) {
+        const expectedEndDate = new Date(startDate.getTime() + (durationMinutes * 60000));
+        const expectedEndTime = formatTime(expectedEndDate.toISOString());
+        timingDetails.push(`<span style="color: #dc2626;">🎯 Bitmeli: <strong>${expectedEndTime}</strong></span>`);
+      } else if (task.plannedEnd) {
+        // Fallback to planned end if no effective time
+        const expectedEndTime = formatTime(task.plannedEnd);
+        timingDetails.push(`<span style="color: #dc2626;">🎯 Bitmeli: <strong>${expectedEndTime}</strong></span>`);
+      }
+    } catch (err) {
+      console.error('Error calculating expected end:', err);
+      // Fallback to planned end if calculation fails
+      if (task.plannedEnd) {
+        const expectedEndTime = formatTime(task.plannedEnd);
+        timingDetails.push(`<span style="color: #dc2626;">🎯 Bitmeli: <strong>${expectedEndTime}</strong></span>`);
+      }
+    }
+  } else {
+    // Task not started yet - show expected times normally
+    if (task.plannedStart) {
+      const expectedStartTime = formatTime(task.plannedStart);
+      timingDetails.push(`📅 Beklenen Başlangıç: <strong>${expectedStartTime}</strong>`);
+    }
+    
+    if (task.plannedEnd) {
+      const expectedEndTime = formatTime(task.plannedEnd);
+      timingDetails.push(`🎯 Beklenen Bitiş: <strong>${expectedEndTime}</strong>`);
+    }
+  }
+  
+  let timingHtml = '';
+  if (timingDetails.length > 0) {
+    timingHtml = `
+      <div style="font-size: 11px; color: #1e40af; margin-top: 6px; padding-top: 6px; border-top: 1px solid #dbeafe; line-height: 1.6;">
+        ${timingDetails.join(' <span style="color: #cbd5e1;">•</span> ')}
+      </div>
+    `;
+  }
+  
+  return `
+    <div class="operational-details" style="margin-top: 8px; padding: 8px 10px; background: #eff6ff; border-radius: 6px; border-left: 3px solid #3b82f6;">
+      <div style="font-size: 11px; color: #1e40af; line-height: 1.6;">
+        ${details.join(' <span style="color: #cbd5e1;">•</span> ')}
+      </div>
+      ${timingHtml}
+    </div>
+  `;
 }
 
 function renderMaterialPreview(task) {
@@ -1744,6 +1909,72 @@ function attachEventListeners() {
 }
 
 // ============================================================================
+// LIVE DURATION UPDATES
+// ============================================================================
+
+let durationUpdateInterval = null;
+
+function startDurationUpdates() {
+  // Clear existing interval
+  if (durationUpdateInterval) {
+    clearInterval(durationUpdateInterval);
+  }
+  
+  // Update all in-progress task durations every second
+  durationUpdateInterval = setInterval(() => {
+    document.querySelectorAll('.duration-info[data-status="in-progress"], .duration-info[data-status="in_progress"]').forEach(el => {
+      const actualStart = el.dataset.actualStart;
+      if (!actualStart) return;
+      
+      try {
+        let startTime;
+        
+        // Try to parse as Firestore Timestamp JSON
+        try {
+          const parsed = JSON.parse(actualStart);
+          if (parsed._seconds !== undefined) {
+            startTime = new Date(parsed._seconds * 1000);
+          } else {
+            startTime = new Date(actualStart);
+          }
+        } catch {
+          // Not JSON, treat as ISO string
+          startTime = new Date(actualStart);
+        }
+        
+        const elapsed = Math.floor((Date.now() - startTime.getTime()) / 60000); // minutes
+        el.textContent = `⏱️ ${formatDuration(elapsed)}`;
+        
+        // Color code based on estimated time
+        const estimatedTime = parseInt(el.dataset.estimatedTime) || 0;
+        if (estimatedTime > 0) {
+          const progress = (elapsed / estimatedTime) * 100;
+          if (progress > 100) {
+            el.style.color = '#dc2626'; // red - over time
+          } else if (progress > 80) {
+            el.style.color = '#f59e0b'; // orange - warning
+          } else {
+            el.style.color = '#059669'; // green - on track
+          }
+        }
+      } catch (err) {
+        console.error('Error updating duration:', err);
+      }
+    });
+  }, 1000); // Update every second
+}
+
+// Stop interval when page is hidden
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && durationUpdateInterval) {
+    clearInterval(durationUpdateInterval);
+    durationUpdateInterval = null;
+  } else if (!document.hidden) {
+    startDurationUpdates();
+  }
+});
+
+// ============================================================================
 // UTILITIES
 // ============================================================================
 
@@ -1775,14 +2006,43 @@ function formatDuration(minutes) {
 function formatTime(isoString) {
   if (!isoString) return '—';
   try {
-    const date = new Date(isoString);
+    let date;
+    
+    // Handle Firestore Timestamp objects (from JSON serialization)
+    if (typeof isoString === 'object' && isoString._seconds !== undefined) {
+      date = new Date(isoString._seconds * 1000);
+    } 
+    // Handle ISO string
+    else if (typeof isoString === 'string') {
+      date = new Date(isoString);
+    }
+    // Handle Date objects
+    else if (isoString instanceof Date) {
+      date = isoString;
+    }
+    // Handle epoch milliseconds
+    else if (typeof isoString === 'number') {
+      date = new Date(isoString);
+    }
+    else {
+      console.warn('Unknown date format:', isoString);
+      return '—';
+    }
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      console.warn('Invalid date:', isoString);
+      return '—';
+    }
+    
     return date.toLocaleString('tr-TR', { 
       month: 'short', 
       day: 'numeric', 
       hour: '2-digit', 
       minute: '2-digit' 
     });
-  } catch {
+  } catch (err) {
+    console.error('Error formatting time:', err, isoString);
     return '—';
   }
 }
