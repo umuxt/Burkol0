@@ -3037,8 +3037,13 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         // Assignment info
         assignmentId: assignment.id,
         planId: assignment.planId,
+        workOrderCode: assignment.workOrderCode || plan?.workOrderCode || 'Unknown',
         nodeId: assignment.nodeId,
         status: assignment.status || 'pending',
+        
+        // Priority system (PROMPT 7)
+        priorityIndex: assignment.priorityIndex || nodeInfo?.priorityIndex || 0,
+        isUrgent: assignment.isUrgent || false,
         
         // Worker info
         workerId: assignment.workerId,
@@ -3059,7 +3064,6 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         name: nodeInfo?.name || 'İsimsiz Görev',
         operationId: nodeInfo?.operationId,
         operationName: nodeInfo?.operationName,
-        priorityIndex: nodeInfo?.priorityIndex || 0,
         estimatedNominalTime: nodeInfo?.estimatedNominalTime || 0,
         estimatedEffectiveTime: nodeInfo?.estimatedEffectiveTime || 0,
         
@@ -5661,6 +5665,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       const completeAssignment = {
         ...assignment,
         id: workPackageId,
+        workPackageId: workPackageId,  // ✅ Add explicit workPackageId field
         planId,
         workOrderCode,
         nodeId: getNodeId(assignment),  // ✅ Normalization
@@ -5809,12 +5814,21 @@ router.post('/set-urgent-priority', withAuth, async (req, res) => {
     const batch = db.batch();
     let updateCount = 0;
     
-    // 1. Update Production Plan
-    const planSnap = await db.collection('mes-production-plans')
+    // 1. Update Production Plan (try both workOrderCode and orderCode)
+    let planSnap = await db.collection('mes-production-plans')
       .where('workOrderCode', '==', workOrderCode)
       .where('status', 'in', ['production', 'in-progress'])
       .limit(1)
       .get();
+    
+    // Fallback to orderCode if workOrderCode not found
+    if (planSnap.empty) {
+      planSnap = await db.collection('mes-production-plans')
+        .where('orderCode', '==', workOrderCode)
+        .where('status', 'in', ['production', 'in-progress'])
+        .limit(1)
+        .get();
+    }
     
     if (!planSnap.empty) {
       batch.update(planSnap.docs[0].ref, { 
@@ -7715,6 +7729,8 @@ router.get('/work-packages', withAuth, async (req, res) => {
     
     const assignmentsSnapshot = await assignmentsQuery.get();
     
+    console.log(`📦 Work Packages Query: Found ${assignmentsSnapshot.size} assignments (limit: ${maxResults})`);
+    
     if (assignmentsSnapshot.empty) {
       return res.status(200).json({
         workPackages: [],
@@ -7764,12 +7780,15 @@ router.get('/work-packages', withAuth, async (req, res) => {
         // Assignment core data
         id: assignment.id,
         assignmentId: assignment.id, // For compatibility with frontend code
+        workPackageId: assignment.workPackageId || assignment.id, // Work package ID
         nodeId: assignment.nodeId,
         nodeName: assignment.nodeName,
         operationName: assignment.nodeName, // For compatibility
         operationId: assignment.operationId,
         status: assignment.status,
-        priority: assignment.priority || 0,
+        priority: assignment.priorityIndex || assignment.priority || 0, // Use priorityIndex (new) or priority (old)
+        priorityIndex: assignment.priorityIndex || assignment.priority || 0, // For frontend compatibility
+        isUrgent: assignment.isUrgent || false,
         
         // Work order data
         workOrderCode: assignment.workOrderCode,
@@ -7823,7 +7842,11 @@ router.get('/work-packages', withAuth, async (req, res) => {
     
     // Sort by priority (execution order) and then by planned start
     workPackages.sort((a, b) => {
-      if (a.priority !== b.priority) return a.priority - b.priority;
+      // Use priorityIndex if available (new field), fallback to priority (old field)
+      const aPriority = a.priorityIndex || a.priority || 0;
+      const bPriority = b.priorityIndex || b.priority || 0;
+      
+      if (aPriority !== bPriority) return aPriority - bPriority;
       if (a.plannedStart && b.plannedStart) {
         return new Date(a.plannedStart) - new Date(b.plannedStart);
       }

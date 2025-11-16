@@ -1965,7 +1965,7 @@ export async function initWorkPackagesWidget() {
     
     // Load data in parallel
     const [packagesData, workers, stations] = await Promise.all([
-      getWorkPackages({ limit: 200 }),
+      getWorkPackages({ limit: 500 }),
       getWorkers(),
       getStations()
     ]);
@@ -2072,10 +2072,17 @@ async function refreshWorkPackagesData(showButtonState = true) {
     
     // Clear cache and fetch fresh data
     clearWorkPackagesCache();
-    const packagesData = await getWorkPackages({ limit: 200 }, true);
+    const packagesData = await getWorkPackages({ limit: 500 }, true);
     
     // Update state
     workPackagesState.allPackages = packagesData.workPackages || [];
+    
+    console.log(`📦 Work Packages loaded:`, {
+      total: workPackagesState.allPackages.length,
+      statuses: [...new Set(workPackagesState.allPackages.map(p => p.status))],
+      workOrders: [...new Set(workPackagesState.allPackages.map(p => p.workOrderCode))],
+      samplePackage: workPackagesState.allPackages[0]
+    });
     
     // Reapply filters
     applyWorkPackagesFilters();
@@ -2330,9 +2337,13 @@ function bindWorkPackagesEvents() {
 function applyWorkPackagesFilters() {
   let filtered = workPackagesState.allPackages;
   
+  console.log(`🔍 Applying filters to ${filtered.length} packages`);
+  
   // Hide completed filter (applied first)
   if (workPackagesState.hideCompleted) {
+    const beforeCount = filtered.length;
     filtered = filtered.filter(pkg => pkg.status !== 'completed' && pkg.status !== 'cancelled');
+    console.log(`  ✂️  hideCompleted: ${beforeCount} → ${filtered.length}`);
   }
   
   // Search filter
@@ -2366,6 +2377,8 @@ function applyWorkPackagesFilters() {
   if (workPackagesState.stationFilters.length > 0) {
     filtered = filtered.filter(pkg => workPackagesState.stationFilters.includes(pkg.stationId));
   }
+  
+  console.log(`  ✅ Final filtered count: ${filtered.length}`);
   
   workPackagesState.filteredPackages = filtered;
 }
@@ -2416,11 +2429,20 @@ function renderWorkPackagesTable() {
     const quoteUrl = `/pages/production.html?view=approved-quotes&highlight=${encodeURIComponent(pkg.workOrderCode)}`;
     const planUrl = `/pages/production.html?view=plan-designer&action=view&id=${encodeURIComponent(pkg.planId)}`;
     
+    // DEBUG: Log each package being rendered
+    console.log(`🎨 Rendering package:`, {
+      id: pkg.id,
+      assignmentId: pkg.assignmentId,
+      workPackageId: pkg.workPackageId,
+      workOrderCode: pkg.workOrderCode,
+      status: pkg.status
+    });
+    
     return `
       <tr class="mes-table-row" onclick="(async () => await showWorkPackageDetail('${esc(pkg.assignmentId || pkg.id)}'))()" style="cursor: pointer;">
         <td>
           <div class="mes-muted-text" style="font-size: 11px; font-family: monospace;">
-            ${esc(pkg.assignmentId || pkg.id || '—')}
+            ${esc(pkg.workPackageId || pkg.assignmentId || pkg.id || '—')}
           </div>
         </td>
         <td>

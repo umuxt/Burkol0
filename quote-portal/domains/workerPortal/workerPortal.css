@@ -889,3 +889,68 @@
   font-size: 13px;
   margin-bottom: 16px;
 }
+
+/* ============================================================================
+   URGENT PRIORITY STYLES (PROMPT 7)
+   ============================================================================ */
+
+/* Urgent Badge */
+.urgent-badge {
+  background: linear-gradient(135deg, #ff4444, #cc0000);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85em;
+  font-weight: bold;
+  animation: pulse-urgent 2s infinite;
+  display: inline-block;
+  margin-left: 8px;
+}
+
+@keyframes pulse-urgent {
+  0%, 100% { 
+    box-shadow: 0 2px 8px rgba(255, 68, 68, 0.4); 
+  }
+  50% { 
+    box-shadow: 0 4px 16px rgba(255, 68, 68, 0.7); 
+  }
+}
+
+/* Urgent Task Card (Row) */
+.task-row.urgent-card {
+  border-left: 4px solid #ff4444 !important;
+  background: linear-gradient(to right, #fff5f5, #ffffff) !important;
+  box-shadow: 0 2px 8px rgba(255, 68, 68, 0.15) !important;
+}
+
+.task-row.urgent-card:hover {
+  background: linear-gradient(to right, #ffeded, #ffffff) !important;
+  box-shadow: 0 4px 12px rgba(255, 68, 68, 0.25) !important;
+}
+
+/* Disabled Button */
+.action-btn.disabled,
+.action-btn:disabled {
+  background: #cccccc !important;
+  cursor: not-allowed !important;
+  opacity: 0.6;
+  color: #666666 !important;
+}
+
+.action-btn.disabled:hover,
+.action-btn:disabled:hover {
+  background: #cccccc !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Waiting Text */
+.waiting-text {
+  display: block;
+  color: #888;
+  font-size: 0.85em;
+  font-style: italic;
+  margin-top: 4px;
+  text-align: center;
+}
+

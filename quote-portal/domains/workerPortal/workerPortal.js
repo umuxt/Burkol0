@@ -80,7 +80,55 @@ async function loadWorkerTasks() {
   
   try {
     const result = await getWorkerPortalTasks(state.currentWorker.id);
-    state.tasks = result.tasks || [];
+    let tasks = result.tasks || [];
+    
+    // ✅ Work order'lara göre grupla ve canStart logic uygula
+    const tasksByWorkOrder = {};
+    tasks.forEach(task => {
+      const wo = task.workOrderCode;
+      if (!tasksByWorkOrder[wo]) tasksByWorkOrder[wo] = [];
+      tasksByWorkOrder[wo].push(task);
+    });
+    
+    // ✅ Her work order için canStart belirle
+    Object.keys(tasksByWorkOrder).forEach(workOrderCode => {
+      const woTasks = tasksByWorkOrder[workOrderCode];
+      
+      // Pending/in-progress/ready olanları filtrele
+      const activeTasks = woTasks.filter(t => 
+        t.status === 'pending' || t.status === 'in-progress' || t.status === 'in_progress' || t.status === 'ready'
+      );
+      
+      // ✅ priorityIndex'e göre sırala
+      activeTasks.sort((a, b) => (a.priorityIndex || 0) - (b.priorityIndex || 0));
+      
+      // ✅ canStart logic: isUrgent=true ise hepsi, değilse sadece ilk pending/ready
+      const firstPendingIndex = activeTasks.findIndex(t => t.status === 'pending' || t.status === 'ready');
+      
+      console.log(`🔍 canStart logic for ${workOrderCode}:`, {
+        totalTasks: woTasks.length,
+        activeTasks: activeTasks.length,
+        firstPendingIndex,
+        isUrgent: activeTasks[0]?.isUrgent,
+        tasks: activeTasks.map(t => ({ 
+          id: t.assignmentId, 
+          status: t.status, 
+          priority: t.priorityIndex, 
+          isUrgent: t.isUrgent 
+        }))
+      });
+      
+      activeTasks.forEach((task, index) => {
+        if (task.status === 'in-progress' || task.status === 'in_progress') {
+          task.canStart = false; // Already started
+        } else {
+          task.canStart = task.isUrgent || (index === firstPendingIndex);
+        }
+        console.log(`  Task ${task.assignmentId}: status=${task.status}, isUrgent=${task.isUrgent}, index=${index}, firstPending=${firstPendingIndex}, canStart=${task.canStart}`);
+      });
+    });
+    
+    state.tasks = tasks;
     state.nextTaskId = result.nextTaskId || null;
     
     // Debug: Log first task to check data
@@ -1429,8 +1477,11 @@ function renderTaskRow(task, isNextTask) {
   // Material preview (inputs → outputs)
   const materialPreviewHtml = renderMaterialPreview(task);
   
+  // ✅ Urgent class for card highlighting
+  const urgentClass = task.isUrgent ? 'urgent-card' : '';
+  
   return `
-    <tr class="task-row ${task.status === 'paused' ? 'task-paused' : ''}" data-assignment-id="${task.assignmentId}">
+    <tr class="task-row ${task.status === 'paused' ? 'task-paused' : ''} ${urgentClass}" data-assignment-id="${task.assignmentId}">
       <td>
         <div class="priority-index">${task.priorityIndex}</div>
       </td>
@@ -1765,6 +1816,11 @@ function renderPrerequisites(prerequisites, task) {
 function renderTaskActions(task) {
   const actions = [];
   
+  // ✅ Urgent badge (yeni)
+  if (task.isUrgent) {
+    actions.push(`<span class="urgent-badge">🚨 Acil</span>`);
+  }
+  
   // Check if worker can start tasks (includes general status + schedule check)
   const workCheck = state.currentWorkerDetails ? canWorkerStartTasks(state.currentWorkerDetails) : { canWork: true, reason: null };
   const workerUnavailable = !workCheck.canWork;
@@ -1783,12 +1839,17 @@ function renderTaskActions(task) {
     !task.prerequisites.materialsReady
   );
   
+  // ✅ Check canStart flag (yeni)
+  const cannotStartYet = !task.canStart && (task.status === 'pending' || task.status === 'ready');
+  
   // Build tooltip for blocked reasons
   let blockTooltip = '';
   if (workerUnavailable) {
     blockTooltip = `title="İşçi durumu görev başlatmaya uygun değil: ${workCheck.reason || 'Bilinmeyen sebep'}"`;
   } else if (isPlanPaused) {
     blockTooltip = `title="Admin tarafından durduruldu"`;
+  } else if (cannotStartYet) {
+    blockTooltip = `title="⏳ Sırada bekliyor - Önce #${(task.priorityIndex || 1) - 1} numaralı görev tamamlanmalı"`;
   } else if (isBlocked) {
     const reasons = [];
     if (!task.prerequisites.predecessorsDone) reasons.push('Önceki görevler tamamlanmadı');
@@ -1800,7 +1861,7 @@ function renderTaskActions(task) {
   
   // Resume button - only if paused by worker/station (not admin)
   if (isWorkerPaused) {
-    const disabled = (isBlocked || workerUnavailable) ? 'disabled' : '';
+    const disabled = (isBlocked || workerUnavailable || cannotStartYet) ? 'disabled' : '';
     actions.push(`
       <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}" ${disabled} ${blockTooltip}>
         ▶️ Devam
@@ -1810,12 +1871,23 @@ function renderTaskActions(task) {
   
   // Start button - for ready OR pending tasks (and not paused, blocked, or worker unavailable)
   if (task.status === 'ready' || task.status === 'pending') {
-    const disabled = (isBlocked || isPlanPaused || workerUnavailable) ? 'disabled' : '';
-    actions.push(`
-      <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}" ${disabled} ${blockTooltip}>
-        ▶️ Başla
-      </button>
-    `);
+    const disabled = (isBlocked || isPlanPaused || workerUnavailable || cannotStartYet) ? 'disabled' : '';
+    
+    // ✅ Waiting text için kontrol
+    if (cannotStartYet && !disabled) {
+      actions.push(`
+        <button class="action-btn action-start disabled" data-action="start" data-id="${task.assignmentId}" disabled ${blockTooltip}>
+          ▶️ Başla
+        </button>
+        <small class="waiting-text">⏳ Sırada bekliyor</small>
+      `);
+    } else {
+      actions.push(`
+        <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}" ${disabled} ${blockTooltip}>
+          ▶️ Başla
+        </button>
+      `);
+    }
   }
   
   // Pause button - only if in progress (and worker available)

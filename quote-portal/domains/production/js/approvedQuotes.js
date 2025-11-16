@@ -758,6 +758,7 @@ async function fetchProductionPlans() {
           type: 'production',
           status: plan.status, // 'draft', 'production', etc.
           launchStatus: plan.launchStatus, // 'launched', 'paused', 'cancelled', undefined
+          isUrgent: plan.isUrgent || false, // ✅ Add isUrgent flag
           nodes: plan.nodes || []
         }
       }
