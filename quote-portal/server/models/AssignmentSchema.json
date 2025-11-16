@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["id", "planId", "nodeId", "workerId", "stationId", "substationId", "status", "nominalTime"],
+  "required": ["id", "planId", "nodeId", "workerId", "stationId", "status", "nominalTime"],
   "properties": {
     "id": {
       "type": "string",
@@ -20,7 +20,18 @@
       "type": "string"
     },
     "substationId": {
-      "type": "string"
+      "type": ["string", "null"],
+      "description": "Assigned substation ID (optional)"
+    },
+    "priorityIndex": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Execution order (topological/optimized)"
+    },
+    "isUrgent": {
+      "type": "boolean",
+      "default": false,
+      "description": "Urgent flag for parallel execution"
     },
     "status": {
       "type": "string",

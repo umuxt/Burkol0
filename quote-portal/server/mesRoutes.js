@@ -5663,6 +5663,10 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
         id: workPackageId,
         planId,
         workOrderCode,
+        nodeId: getNodeId(assignment),  // ✅ Normalization
+        substationId: assignment.substationId || null,  // ✅ Explicit null
+        priorityIndex: assignment.priorityIndex || i + 1,  // ✅ Default to index
+        isUrgent: false,  // ✅ Default to normal priority
         createdAt: now,
         createdBy: userEmail,
         updatedAt: now
@@ -5670,12 +5674,30 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       
       // Validate assignment schema (now with id and planId)
       if (!validateAssignment(completeAssignment)) {
-        console.error(`❌ Invalid assignment schema for ${workPackageId}:`, validateAssignment.errors);
-        // Continue anyway but log for monitoring
+        const errors = validateAssignment.errors || [];
+        console.error(`❌ Invalid assignment schema for ${workPackageId}:`, errors);
+        
+        // Check for critical errors
+        const criticalErrors = errors.filter(err => 
+          err.keyword === 'required' || err.keyword === 'type'
+        );
+        
+        if (criticalErrors.length > 0) {
+          throw new Error(
+            `Schema validation failed for ${workPackageId}: ${
+              criticalErrors.map(e => `${e.instancePath} ${e.message}`).join(', ')
+            }`
+          );
+        }
+        // Continue anyway for non-critical errors but log for monitoring
       }
       
       // DEBUG: Log assignment data being saved
       console.log(`🔍 DEBUG - Creating assignment ${workPackageId}:`);
+      console.log(`   nodeId:`, completeAssignment.nodeId);
+      console.log(`   substationId:`, completeAssignment.substationId);
+      console.log(`   priorityIndex:`, completeAssignment.priorityIndex);
+      console.log(`   isUrgent:`, completeAssignment.isUrgent);
       console.log(`   preProductionReservedAmount:`, assignment.preProductionReservedAmount);
       console.log(`   plannedOutput:`, assignment.plannedOutput);
       console.log(`   materialReservationStatus:`, assignment.materialReservationStatus);
