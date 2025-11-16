@@ -287,6 +287,51 @@ async function startProduction(workOrderCode) {
 }
 
 /**
+ * Set urgent priority for a production plan
+ * Toggles the isUrgent flag across production plan, assignments, and approved quote
+ */
+async function setUrgentPriority(workOrderCode) {
+  try {
+    const plan = productionPlansMap[workOrderCode];
+    const currentUrgent = plan?.isUrgent || false;
+    const newUrgent = !currentUrgent;
+    
+    const confirmed = confirm(
+      `${newUrgent ? 'ACİL ÖNCELİĞE ALMAK' : 'NORMAL ÖNCELİĞE DÖNDÜRMEK'} istediğinizden emin misiniz?\n\n` +
+      `İş Emri: ${workOrderCode}\n` +
+      `${newUrgent ? '🚨 Tüm work package\'lar aynı anda başlatılabilir hale gelecek!' : '⏳ Sadece ilk work package başlatılabilir hale gelecek.'}`
+    );
+    
+    if (!confirmed) return;
+    
+    const response = await fetch('/api/mes/set-urgent-priority', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      },
+      body: JSON.stringify({ workOrderCode, urgent: newUrgent })
+    });
+    
+    const result = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(result.message || result.error || 'Öncelik ayarlanamadı');
+    }
+    
+    alert(`✅ ${result.message}`);
+    
+    // Refresh data
+    await fetchProductionPlans();
+    renderApprovedQuotesTable();
+    
+  } catch (error) {
+    console.error('Set urgent priority error:', error);
+    alert(`❌ Hata: ${error.message}`);
+  }
+}
+
+/**
  * Pause production: Pause all assignments for this plan
  */
 async function pauseProduction(workOrderCode) {
@@ -318,7 +363,7 @@ async function pauseProduction(workOrderCode) {
       
       // Success! Update state to PAUSED (update server)
       await setProductionState(workOrderCode, PRODUCTION_STATES.PAUSED, true);
-      
+
       // Show success message
       alert(
         `Üretim durduruldu!\n\n` +
@@ -670,6 +715,7 @@ function showCancelProgressModal(plan) {
 // Expose functions globally for onclick handlers
 window.startProduction = startProduction
 window.pauseProduction = pauseProduction
+window.setUrgentPriority = setUrgentPriority
 window.resumeProduction = resumeProduction
 window.completeProduction = completeProduction
 window.cancelProduction = cancelProduction
@@ -985,11 +1031,13 @@ function renderApprovedQuotesTable() {
                         !plan.launchStatus;
       
       if (currentState === PRODUCTION_STATES.WAITING_APPROVAL && canLaunch) {
-        actionsCell += `<button onclick=\"event.stopPropagation(); startProduction('${esc(idForRow)}')\" style=\"${buttonStyle} background: #dcfce7; color: #166534;\" title=\"Üretimi Başlat\">🏁 Başlat</button>`
+        actionsCell += `<button onclick=\"event.stopPropagation(); startProduction('${esc(idForRow)}')\" class="btn-action btn-start" title=\"Üretimi Başlat\">🏁 Başlat</button>`
       } else if (currentState === PRODUCTION_STATES.IN_PRODUCTION) {
-        actionsCell += `<button onclick=\"event.stopPropagation(); pauseProduction('${esc(idForRow)}')\" style=\"${buttonStyle} background: #fef3c7; color: #92400e;\" title=\"Üretimi Durdur\">⏹️ Durdur</button>`
+        const isUrgent = plan.isUrgent || false;
+        actionsCell += `<button onclick=\"event.stopPropagation(); setUrgentPriority('${esc(idForRow)}')\" class="btn-action btn-urgent ${isUrgent ? 'active' : ''}" title=\"${isUrgent ? 'Normal Önceliğe Dön' : 'Acil Önceliğe Al'}\">${isUrgent ? '🚨' : '⏱️'} ${isUrgent ? 'ACİL' : 'Normal'}</button>`;
+        actionsCell += `<button onclick=\"event.stopPropagation(); pauseProduction('${esc(idForRow)}')\" class="btn-action btn-pause" title=\"Üretimi Durdur\">⏹️ Durdur</button>`;
       } else if (currentState === PRODUCTION_STATES.PAUSED) {
-        actionsCell += `<button onclick=\"event.stopPropagation(); resumeProduction('${esc(idForRow)}')\" style=\"${buttonStyle} background: #dbeafe; color: #1d4ed8;\" title=\"Üretime Devam Et\">▶️ Devam Et</button>`
+        actionsCell += `<button onclick=\"event.stopPropagation(); resumeProduction('${esc(idForRow)}')\" class="btn-action btn-resume" title=\"Üretime Devam Et\">▶️ Devam Et</button>`
       } else if (currentState === PRODUCTION_STATES.COMPLETED) {
         actionsCell += `<span style=\"color: #3b82f6; font-size: 11px;\"><i class="fa-solid fa-check-circle"></i> Tamamlandı</span>`
       } else if (currentState === PRODUCTION_STATES.CANCELLED) {
@@ -1000,7 +1048,7 @@ function renderApprovedQuotesTable() {
 
       // Show cancel button for all states except cancelled and completed
       if (currentState !== PRODUCTION_STATES.CANCELLED && currentState !== PRODUCTION_STATES.COMPLETED && currentState !== 'Plan Hazırlanıyor') {
-        actionsCell += ` <button onclick=\"event.stopPropagation(); cancelProduction('${esc(idForRow)}')\" style=\"${buttonStyle} background: #fee2e2; color: #dc2626;\" title=\"İptal Et\"><i class="fa-solid fa-times-circle"></i> İptal Et</button>`
+        actionsCell += ` <button onclick=\"event.stopPropagation(); cancelProduction('${esc(idForRow)}')\" class="btn-action btn-cancel" title=\"İptal Et\"><i class="fa-solid fa-times-circle"></i> İptal Et</button>`
       }
     }
 

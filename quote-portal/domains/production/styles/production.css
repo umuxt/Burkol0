@@ -1932,3 +1932,64 @@ span i {
   margin-right: 4px;
 }
 
+/* ========================================
+   ACTION BUTTON STYLES (Approved Quotes)
+   ======================================== */
+.btn-action {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 9px;
+  padding: 1px 3px;
+  margin: 1px;
+  border-radius: 3px;
+  white-space: nowrap;
+  display: inline-block;
+  transition: opacity 0.2s;
+}
+
+.btn-action:hover {
+  opacity: 0.8;
+}
+
+.btn-start {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.btn-pause {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.btn-resume {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.btn-cancel {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.btn-urgent {
+  background: #e0e7ff;
+  color: #4338ca;
+  font-weight: 600;
+}
+
+.btn-urgent.active {
+  background: #fef3c7;
+  color: #ea580c;
+  animation: pulse-urgent 2s ease-in-out infinite;
+}
+
+@keyframes pulse-urgent {
+  0%, 100% {
+    background: #fef3c7;
+  }
+  50% {
+    background: #fcd34d;
+  }
+}
+
