@@ -4523,27 +4523,508 @@ Bu faz malzeme rezervasyon sistemini düzeltiyor.
 
 ---
 
-#PROMPT 8: Gerçek Malzeme Rezervasyon Mekanizması (2-Phase Commit)
+#PROMPT 8: Gerçek Malzeme Rezervasyon Mekanizması (2-Phase Commit) + Transaction Fix
 
-**Öncelik:** 🟡 HIGH  
+**Öncelik:** 🔴 CRITICAL  
 **Bağımlılık:** FAZ 1-3 tamamlanmış olmalı  
-**Süre:** ~15 dakika  
+**Süre:** ~20 dakika  
 **Dosya:** `quote-portal/server/mesRoutes.js`
 
 ```markdown
-GÖREV: Launch sırasında malzeme kontrolünün simülasyon yerine gerçek stok düşüşü yapmasını sağlamak (2-phase commit pattern).
+GÖREV: 
+1. Launch sırasında malzeme kontrolünün simülasyon yerine gerçek stok düşüşü yapmasını sağlamak (2-phase commit pattern)
+2. **CRITICAL BUG FIX:** Complete task transaction'ında Firestore read/write order violation'ı düzeltmek
 
 **⚠️ BAĞIMLILIK:** PROMPT 1-7 tamamlanmış olmalı.
 
 CONTEXT:
-- Sorun: Şu anda launch malzeme kontrolü yapıyor ama stoktan düşmüyor
-- Risk: Aynı malzeme birden fazla plana atanabilir
-- Lokasyon: mesRoutes.js satır ~5850-5950 (material check + warnings)
+- Sorun 1: Şu anda launch malzeme kontrolü yapıyor ama stoktan düşmüyor
+- Sorun 2: **CRITICAL:** Complete task transaction'ında READ → WRITE → READ sırası var (Firestore hatası)
+- Risk 1: Aynı malzeme birden fazla plana atanabilir
+- Risk 2: Output material ekleme işlemi fail oluyor (transaction violation)
+- Lokasyon 1: mesRoutes.js satır ~5850-5950 (material check + warnings)
+- Lokasyon 2: mesRoutes.js satır ~3850-4300 (complete task comprehensive completion)
 
-ÇÖZÜM (2-PHASE COMMIT PATTERN):
+ÇÖZÜM:
 
-Phase 1: Material Check & Reserve (Launch sırasında)
-Phase 2: Material Commit (Task complete olunca) veya Rollback (Cancel/Pause)
+## PART A: TRANSACTION ORDER FIX (CRITICAL - mesRoutes.js satır ~3850-4300)
+
+**Problem:**
+```javascript
+// ❌ CURRENT (WRONG ORDER):
+const planDoc = await transaction.get(...)           // READ ✅
+const materialDoc = await transaction.get(...)       // READ ✅
+transaction.update(materialRef, {...})               // WRITE ❌
+transaction.update(wipMovementDoc.ref, {...})        // WRITE ❌
+const outputMaterialDoc = await transaction.get(...) // READ ❌ TOO LATE!
+// ❌ Error: Firestore transactions require all reads to be executed before all writes.
+```
+
+**Solution: ALL READS FIRST, THEN ALL WRITES**
+
+MEVCUT KOD (satır ~3850-4300, completeAssignmentComprehensive function):
+```javascript
+await db.runTransaction(async (transaction) => {
+  // Step 1: Gather data
+  const preProductionReservedAmount = assignment.preProductionReservedAmount || {};
+  
+  // Get plan and node
+  const planDoc = await transaction.get(db.collection('mes-production-plans').doc(planId));
+  const planData = planDoc.data();
+  const node = planData.nodes.find(n => n.id === nodeId);
+  
+  // Step 3: Stock adjustment for input materials
+  for (const consumption of consumptionResults) {
+    const materialRef = db.collection('materials').doc(materialCode);
+    const materialDoc = await transaction.get(materialRef);  // READ
+    // ... calculations ...
+    transaction.update(materialRef, { ... });  // WRITE ❌ (TOO EARLY)
+  }
+  
+  // Step 4: Output material
+  const outputMaterialRef = db.collection('materials').doc(outputCode);
+  const outputMaterialDoc = await transaction.get(outputMaterialRef);  // READ ❌ (AFTER WRITE!)
+  transaction.update(outputMaterialRef, { ... });  // WRITE
+});
+```
+
+YENİ KOD (TRANSACTION ORDER FIX):
+```javascript
+await db.runTransaction(async (transaction) => {
+  
+  // ========================================================================
+  // PHASE 1: ALL READS (Firestore requirement)
+  // ========================================================================
+  
+  console.log(`📖 PHASE 1: Reading all documents before writes...`);
+  
+  // READ 1: Get plan and node information
+  const planDoc = await transaction.get(db.collection('mes-production-plans').doc(planId));
+  if (!planDoc.exists) {
+    throw new Error(`Production plan ${planId} not found`);
+  }
+  
+  const planData = planDoc.data();
+  const nodes = planData.nodes || [];
+  const node = nodes.find(n => n.id === nodeId);
+  
+  if (!node) {
+    throw new Error(`Task node ${nodeId} not found in production plan`);
+  }
+  
+  const materialInputs = node.materialInputs || [];
+  const outputCode = node.outputCode || Object.keys(plannedOutput)[0];
+  const plannedOutputQty = node.outputQty || Object.values(plannedOutput)[0] || 0;
+  
+  // READ 2: Pre-fetch ALL input materials
+  const inputMaterialDocs = new Map();
+  for (const materialInput of materialInputs) {
+    const inputCode = materialInput.materialCode || materialInput.code;
+    if (!inputCode) continue;
+    
+    const materialRef = db.collection('materials').doc(inputCode);
+    const materialDoc = await transaction.get(materialRef);
+    inputMaterialDocs.set(inputCode, { ref: materialRef, doc: materialDoc });
+  }
+  
+  // READ 3: Pre-fetch output material (CRITICAL: before any writes!)
+  let outputMaterialSnapshot = null;
+  if (outputCode) {
+    const outputMaterialRef = db.collection('materials').doc(outputCode);
+    outputMaterialSnapshot = await transaction.get(outputMaterialRef);
+  }
+  
+  // READ 4: Pre-fetch WIP movements for all input materials
+  const wipMovementDocs = new Map();
+  for (const [inputCode, _] of inputMaterialDocs) {
+    const wipMovementSnap = await db.collection('stockMovements')
+      .where('reference', '==', assignmentId)
+      .where('materialCode', '==', inputCode)
+      .where('subType', '==', 'wip_reservation')
+      .limit(1)
+      .get();
+    
+    if (!wipMovementSnap.empty) {
+      wipMovementDocs.set(inputCode, wipMovementSnap.docs[0]);
+    }
+  }
+  
+  console.log(`✅ READ PHASE COMPLETE: ${inputMaterialDocs.size} input materials, ${outputMaterialSnapshot ? 1 : 0} output material, ${wipMovementDocs.size} WIP movements`);
+  
+  // ========================================================================
+  // PHASE 2: CALCULATIONS (No Firestore operations)
+  // ========================================================================
+  
+  const preProductionReservedAmount = assignment.preProductionReservedAmount || {};
+  const actualReservedAmounts = assignment.actualReservedAmounts || preProductionReservedAmount;
+  const plannedOutput = assignment.plannedOutput || {};
+  
+  console.log(`📦 Planned reserved materials:`, preProductionReservedAmount);
+  console.log(`📦 Actually reserved materials:`, actualReservedAmounts);
+  console.log(`🎯 Planned output:`, plannedOutput);
+  console.log(`✅ Actual output: ${actualOutput}, ❌ Defects: ${defects}`);
+  
+  // Process scrap counters
+  const inputScrapTotals = {};
+  const productionScrapTotals = {};
+  
+  Object.keys(assignment).forEach(key => {
+    if (key.startsWith('inputScrapCount_')) {
+      const materialCode = key.replace('inputScrapCount_', '').replace(/_/g, '-');
+      const quantity = assignment[key] || 0;
+      if (quantity > 0) {
+        inputScrapTotals[materialCode] = quantity;
+      }
+    } else if (key.startsWith('productionScrapCount_')) {
+      const materialCode = key.replace('productionScrapCount_', '').replace(/_/g, '-');
+      const quantity = assignment[key] || 0;
+      if (quantity > 0) {
+        productionScrapTotals[materialCode] = quantity;
+      }
+    }
+  });
+  
+  console.log(`📊 Scrap Summary for assignment ${assignmentId}:`);
+  console.log(`   Input scrap:`, inputScrapTotals);
+  console.log(`   Production scrap:`, productionScrapTotals);
+  console.log(`   Output defects: ${defects}`);
+  
+  console.log(`📋 Material inputs:`, materialInputs.map(m => `${m.materialCode || m.code}: ${m.requiredQuantity || 0}`));
+  console.log(`📦 Output code: ${outputCode}, Planned: ${plannedOutputQty}`);
+  
+  // Calculate consumption for each material
+  const totalConsumedOutput = actualOutput + defects;
+  const consumptionResults = [];
+  
+  console.log(`🔢 Total consumed (output + defect): ${totalConsumedOutput}`);
+  
+  if (materialInputs.length > 0 && plannedOutputQty > 0) {
+    for (const materialInput of materialInputs) {
+      const inputCode = materialInput.materialCode || materialInput.code;
+      const requiredInputQty = materialInput.requiredQuantity || 0;
+      
+      if (!inputCode || requiredInputQty <= 0) {
+        console.warn(`⚠️ Skipping invalid material input:`, materialInput);
+        continue;
+      }
+      
+      const inputOutputRatio = requiredInputQty / plannedOutputQty;
+      const baseConsumption = totalConsumedOutput * inputOutputRatio;
+      const inputScrap = inputScrapTotals[inputCode] || 0;
+      const productionScrap = productionScrapTotals[inputCode] || 0;
+      const theoreticalConsumption = baseConsumption + inputScrap + productionScrap;
+      const reservedAmount = actualReservedAmounts[inputCode] || 0;
+      const cappedConsumption = Math.min(theoreticalConsumption, reservedAmount);
+      
+      if (theoreticalConsumption > reservedAmount) {
+        console.error(`❌ INVARIANT VIOLATION: Consumption exceeds reserved for ${inputCode}!`);
+        console.error(`   Consumed: ${theoreticalConsumption}, Reserved: ${reservedAmount}`);
+        console.error(`   Capping consumption at reserved amount.`);
+      }
+      
+      const stockAdjustment = reservedAmount - cappedConsumption;
+      
+      console.log(`
+📊 Material: ${inputCode}
+   Required per unit: ${requiredInputQty}
+   Planned output: ${plannedOutputQty}
+   Input-output ratio: ${inputOutputRatio.toFixed(4)}
+   Actually reserved: ${reservedAmount}
+   Base consumption (output-based): ${baseConsumption.toFixed(2)}
+   Input scrap: ${inputScrap}
+   Production scrap: ${productionScrap}
+   Theoretical total: ${theoreticalConsumption.toFixed(2)}
+   Capped consumption: ${cappedConsumption.toFixed(2)}
+   Stock adjustment: ${stockAdjustment >= 0 ? '+' : ''}${stockAdjustment.toFixed(2)}
+      `);
+      
+      consumptionResults.push({
+        materialCode: inputCode,
+        requiredInputQty,
+        plannedOutputQty,
+        inputOutputRatio,
+        reservedAmount,
+        baseConsumption,
+        inputScrap,
+        productionScrap,
+        theoreticalConsumption,
+        actualConsumption: cappedConsumption,
+        stockAdjustment
+      });
+    }
+  } else {
+    console.warn(`⚠️ No material inputs found or planned output is zero. Skipping consumption calculation.`);
+  }
+  
+  // ========================================================================
+  // PHASE 3: ALL WRITES (After all reads complete)
+  // ========================================================================
+  
+  console.log(`✍️ PHASE 2: Performing all writes...`);
+  
+  // WRITE 1: Update input materials stock
+  console.log(`🔄 Processing stock adjustments for ${consumptionResults.length} input material(s)`);
+  
+  for (const consumption of consumptionResults) {
+    const { materialCode, reservedAmount, actualConsumption, stockAdjustment } = consumption;
+    
+    try {
+      const materialSnapshot = inputMaterialDocs.get(materialCode);
+      if (!materialSnapshot || !materialSnapshot.doc.exists) {
+        console.error(`❌ Material ${materialCode} not found`);
+        continue;
+      }
+      
+      const materialData = materialSnapshot.doc.data();
+      const currentStock = parseFloat(materialData.stock) || 0;
+      const currentWipReserved = parseFloat(materialData.wipReserved) || 0;
+      
+      const newWipReserved = Math.max(0, currentWipReserved - reservedAmount);
+      const newStock = currentStock + stockAdjustment;
+      
+      if (newStock < 0) {
+        console.warn(`⚠️ Warning: ${materialCode} stock would become negative (${newStock}). Setting to 0.`);
+      }
+      
+      transaction.update(materialSnapshot.ref, {
+        stock: Math.max(0, newStock),
+        wipReserved: newWipReserved,
+        updatedAt: now,
+        updatedBy: actorEmail
+      });
+      
+      // WRITE 2: Update or create WIP movement
+      const wipMovementDoc = wipMovementDocs.get(materialCode);
+      
+      if (wipMovementDoc) {
+        transaction.update(wipMovementDoc.ref, {
+          status: 'consumption',
+          quantity: actualConsumption,
+          notes: `[UPDATED] Görev tamamlandı - Gerçek sarfiyat: ${actualConsumption.toFixed(2)} ${materialData.unit} (Rezerve: ${reservedAmount}, Ayarlama: ${stockAdjustment >= 0 ? '+' : ''}${stockAdjustment.toFixed(2)})`,
+          actualConsumption,
+          stockAdjustment,
+          completedAt: now
+        });
+        
+        console.log(`✅ Updated WIP movement ${wipMovementDoc.id} to consumption: ${materialCode} ${reservedAmount} → ${actualConsumption} (${stockAdjustment >= 0 ? '+' : ''}${stockAdjustment})`);
+      } else {
+        console.warn(`⚠️ WIP movement not found for ${assignmentId}/${materialCode}, creating new consumption record`);
+        const consumptionMovementRef = db.collection('stockMovements').doc();
+        transaction.set(consumptionMovementRef, {
+          materialId: materialCode,
+          materialCode: materialCode,
+          materialName: materialData.name || '',
+          type: 'out',
+          subType: 'production_consumption',
+          status: 'consumption',
+          quantity: actualConsumption,
+          reservedQuantity: reservedAmount,
+          adjustedQuantity: stockAdjustment,
+          unit: materialData.unit || 'Adet',
+          stockBefore: currentStock,
+          stockAfter: Math.max(0, newStock),
+          actualOutput: actualOutput,
+          defectQuantity: defects,
+          plannedOutput: plannedOutputQty,
+          unitCost: materialData.costPrice || null,
+          totalCost: materialData.costPrice ? materialData.costPrice * actualConsumption : null,
+          currency: 'TRY',
+          reference: assignmentId,
+          referenceType: 'mes_task_complete',
+          relatedPlanId: planId,
+          relatedNodeId: nodeId,
+          warehouse: null,
+          location: 'Production Floor',
+          notes: `Görev tamamlandı - Gerçek sarfiyat: ${actualConsumption.toFixed(2)} ${materialData.unit} (Çıktı: ${actualOutput}, Fire: ${defects})`,
+          reason: 'MES görev tamamlama - Üretim sarfiyatı',
+          movementDate: now,
+          createdAt: now,
+          userId: actorEmail,
+          userName: actorName || actorEmail,
+          approved: true,
+          approvedBy: actorEmail,
+          approvedAt: now
+        });
+      }
+      
+      console.log(`✅ ${materialCode}: stock ${currentStock} → ${Math.max(0, newStock)} (${stockAdjustment >= 0 ? '+' : ''}${stockAdjustment.toFixed(2)}), wipReserved ${currentWipReserved} → ${newWipReserved} (-${reservedAmount})`);
+      
+    } catch (err) {
+      console.error(`❌ Failed to adjust stock for ${materialCode}:`, err);
+      // Continue with other materials
+    }
+  }
+  
+  // WRITE 3: Output material update
+  let outputStockResult = null;
+  
+  if (outputCode && actualOutput > 0 && outputMaterialSnapshot) {
+    console.log(`📦 Adding ${actualOutput} units of ${outputCode} to stock`);
+    
+    try {
+      const outputMaterialRef = db.collection('materials').doc(outputCode);
+      
+      if (outputMaterialSnapshot.exists) {
+        const outputMaterialData = outputMaterialSnapshot.data();
+        const currentOutputStock = parseFloat(outputMaterialData.stock) || 0;
+        const newOutputStock = currentOutputStock + actualOutput;
+        
+        transaction.update(outputMaterialRef, {
+          stock: newOutputStock,
+          updatedAt: now,
+          updatedBy: actorEmail
+        });
+        
+        outputStockResult = {
+          materialCode: outputCode,
+          materialName: outputMaterialData.name,
+          addedQuantity: actualOutput,
+          previousStock: currentOutputStock,
+          newStock: newOutputStock,
+          unit: outputMaterialData.unit
+        };
+        
+        // Stock movement for output
+        const outputMovementRef = db.collection('stockMovements').doc();
+        transaction.set(outputMovementRef, {
+          materialId: outputCode,
+          materialCode: outputCode,
+          materialName: outputMaterialData.name || '',
+          type: 'in',
+          subType: 'production_output',
+          status: 'production',
+          quantity: actualOutput,
+          unit: outputMaterialData.unit || 'Adet',
+          stockBefore: currentOutputStock,
+          stockAfter: newOutputStock,
+          actualOutput: actualOutput,
+          defectQuantity: defects,
+          plannedOutput: plannedOutputQty,
+          unitCost: outputMaterialData.costPrice || null,
+          totalCost: outputMaterialData.costPrice ? outputMaterialData.costPrice * actualOutput : null,
+          currency: 'TRY',
+          reference: assignmentId,
+          referenceType: 'mes_task_complete',
+          relatedPlanId: planId,
+          relatedNodeId: nodeId,
+          warehouse: null,
+          location: 'Production Output',
+          notes: `Üretim tamamlandı - ${actualOutput} ${outputMaterialData.unit} üretildi${defects > 0 ? ` (Fire: ${defects})` : ''}`,
+          reason: 'MES görev tamamlama - Üretim çıktısı',
+          movementDate: now,
+          createdAt: now,
+          userId: actorEmail,
+          userName: actorName || actorEmail,
+          approved: true,
+          approvedBy: actorEmail,
+          approvedAt: now
+        });
+        
+        console.log(`✅ Output ${outputCode}: stock ${currentOutputStock} → ${newOutputStock} (+${actualOutput})`);
+        
+      } else {
+        console.warn(`⚠️ Output material ${outputCode} not found, creating new material...`);
+        
+        const isFinishedProduct = !planData.nodes.some(n => 
+          Array.isArray(n.predecessors) && n.predecessors.includes(nodeId)
+        );
+        
+        const materialType = isFinishedProduct ? 'finished_product' : 'semi_finished';
+        const materialCategory = isFinishedProduct ? 'FINISHED_PRODUCT' : 'SEMI_FINISHED';
+        
+        console.log(`🏭 Material type determination: ${materialType} (isFinishedProduct: ${isFinishedProduct})`);
+        
+        transaction.set(outputMaterialRef, {
+          code: outputCode,
+          name: node.name || outputCode,
+          type: materialType,
+          category: materialCategory,
+          stock: actualOutput,
+          reserved: 0,
+          wipReserved: 0,
+          unit: 'adet',
+          status: 'Aktif',
+          isActive: true,
+          reorderPoint: 0,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: actorEmail,
+          updatedBy: actorEmail,
+          productionHistory: []
+        });
+        
+        outputStockResult = {
+          materialCode: outputCode,
+          materialName: node.name || outputCode,
+          addedQuantity: actualOutput,
+          previousStock: 0,
+          newStock: actualOutput,
+          unit: 'adet',
+          created: true
+        };
+        
+        const newMaterialMovementRef = db.collection('stockMovements').doc();
+        transaction.set(newMaterialMovementRef, {
+          materialId: outputCode,
+          materialCode: outputCode,
+          materialName: node.name || outputCode,
+          type: 'in',
+          subType: 'production_output_new_material',
+          status: 'production',
+          quantity: actualOutput,
+          unit: 'adet',
+          stockBefore: 0,
+          stockAfter: actualOutput,
+          actualOutput: actualOutput,
+          defectQuantity: defects,
+          plannedOutput: plannedOutputQty,
+          unitCost: null,
+          totalCost: null,
+          currency: 'TRY',
+          reference: assignmentId,
+          referenceType: 'mes_task_complete',
+          relatedPlanId: planId,
+          relatedNodeId: nodeId,
+          warehouse: null,
+          location: 'Production Output',
+          notes: `Yeni ${materialType === 'finished_product' ? 'bitmiş ürün' : 'yarı mamül'} malzemesi oluşturuldu ve ${actualOutput} adet üretildi${defects > 0 ? ` (Fire: ${defects})` : ''}`,
+          reason: `MES görev tamamlama - Yeni ${materialType === 'finished_product' ? 'bitmiş ürün' : 'yarı mamül'} malzeme + Üretim çıktısı`,
+          movementDate: now,
+          createdAt: now,
+          userId: actorEmail,
+          userName: actorName || actorEmail,
+          approved: true,
+          approvedBy: actorEmail,
+          approvedAt: now
+        });
+        
+        console.log(`✅ Created new output material ${outputCode} with stock: ${actualOutput}`);
+      }
+      
+    } catch (err) {
+      console.error(`❌ Failed to update output material ${outputCode}:`, err);
+      throw err; // Critical error, rollback transaction
+    }
+  }
+  
+  console.log(`✅ WRITE PHASE COMPLETE`);
+  
+  // Return results (outside transaction)
+  return { consumptionResults, outputStockResult };
+});
+```
+
+**KEY CHANGES:**
+1. ✅ **PHASE 1 (READS):** All `transaction.get()` calls moved to top
+2. ✅ **PHASE 2 (CALCULATIONS):** Pure JavaScript calculations, no Firestore calls
+3. ✅ **PHASE 3 (WRITES):** All `transaction.update()` and `transaction.set()` at end
+4. ✅ Pre-fetched output material **BEFORE** any writes
+5. ✅ Pre-fetched WIP movements **BEFORE** any writes
+6. ✅ Used snapshots from Phase 1 during write operations
+
+---
+
+## PART B: 2-PHASE MATERIAL RESERVATION (mesRoutes.js satır ~5850-5950)
 
 1. LAUNCH ENDPOİNTİNE REZERVASYON EKLE (satır ~5900):
 
@@ -4708,7 +5189,7 @@ router.post('/complete-task', withAuth, async (req, res) => {
 });
 ```
 
-3. CANCEL/PAUSE ENDPOİNTLERİNE ROLLBACK EKLE:
+2. CANCEL/PAUSE ENDPOİNTLERİNE ROLLBACK EKLE:
 
 ```javascript
 /**
@@ -4776,27 +5257,60 @@ router.post('/cancel-production', withAuth, async (req, res) => {
 });
 ```
 
+---
+
+## ÖZET: YAPILACAKLAR
+
+### ✅ PART A: Transaction Order Fix (CRITICAL)
+1. **mesRoutes.js satır ~3850-4300** - `completeAssignmentComprehensive` fonksiyonunu refactor et
+2. Transaction'ı 3 phase'e böl:
+   - **Phase 1:** ALL READS (plan, nodes, input materials, output material, WIP movements)
+   - **Phase 2:** CALCULATIONS (pure JavaScript, no Firestore)
+   - **Phase 3:** ALL WRITES (stock updates, movement records, material creation)
+3. Pre-fetch tüm material docs'ları Phase 1'de
+4. Snapshot'ları Phase 3'te kullan
+
+### ✅ PART B: 2-Phase Material Reservation
+1. **mesRoutes.js satır ~5850-5950** - Launch endpoint'e material reservation ekle
+2. Stock düşüşünü launch sırasında yap (rezervasyon)
+3. Cancel/Pause endpoint'lerine rollback logic ekle
+
+---
+
 TEST ADIMLARI:
+
+**PART A Test (Transaction Fix):**
+1. mesRoutes.js'de transaction refactor yap
+2. Server restart
+3. Plan launch et
+4. Task start et
+5. Task complete et → **Output material eklenmeli (hata olmamalı)**
+6. Console'da "✅ WRITE PHASE COMPLETE" log'unu gör
+7. Firestore'da output material'in stock'unun arttığını doğrula
+
+**PART B Test (Material Reservation):**
 1. Launch endpoint'i güncelle (material reservation ekle)
-2. Complete task endpoint'i ekle (material commit)
-3. Cancel production endpoint'i ekle (rollback)
-4. Server restart
-5. Firestore'da materials koleksiyonunu aç
-6. Bir malzemenin stock değerini not et (örn: 100)
-7. Plan launch et (örn: 10 adet gerekiyor)
-8. Firestore'da stock'un 90'a düştüğünü gör
-9. Reservations array'inde rezervasyonu gör
-10. Task complete et
-11. Reservation status'ünün "consumed" olduğunu gör
-12. Cancel et
-13. Stock'un 100'e geri döndüğünü gör
+2. Cancel production endpoint'i ekle (rollback)
+3. Server restart
+4. Firestore'da materials koleksiyonunu aç
+5. Bir malzemenin stock değerini not et (örn: 100)
+6. Plan launch et (örn: 10 adet gerekiyor)
+7. Firestore'da stock'un 90'a düştüğünü gör
+8. Reservations array'inde rezervasyonu gör
+9. Cancel et
+10. Stock'un 100'e geri döndüğünü gör
+
+---
 
 BAŞARI KRİTERLERİ:
+✅ **CRITICAL:** Complete task transaction başarıyla tamamlanıyor (output material ekleniyor)
+✅ Firestore transaction order kuralı uygulanıyor (ALL READS → ALL WRITES)
 ✅ Launch sırasında malzeme rezerve ediliyor
 ✅ Stock gerçekten düşüyor
-✅ Complete sırasında "consumed" olarak işaretleniyor
 ✅ Cancel sırasında stoka geri dönüyor
-✅ Optimistic locking çalışıyor
+✅ Console'da transaction phase log'ları görünüyor
+
+---
 
 DOSYA YOLU:
 /Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js
