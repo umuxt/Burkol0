@@ -219,7 +219,7 @@ function applyOutputCodeSuffixes(nodes) {
     
     // Check if this node is a finished product (no other nodes use it as predecessor)
     const isFinishedProduct = !nodes.some(n => 
-      Array.isArray(n.predecessors) && n.predecessors.includes(node.id)
+      Array.isArray(n.predecessors) && n.predecessors.includes(getNodeId(node))
     );
     
     // If it's a finished product and doesn't already have 'F' suffix, add it
@@ -269,7 +269,7 @@ function calculatePreProductionReservedAmount(node, expectedDefectRate = 0, plan
   const outputQty = parseFloat(node.outputQty) || 0;
   
   if (outputQty <= 0) {
-    console.warn(`Node ${node.id} has no outputQty, cannot calculate input/output ratio. Using direct input quantities.`);
+    console.warn(`Node ${getNodeId(node)} has no outputQty, cannot calculate input/output ratio. Using direct input quantities.`);
     // Fallback: use input quantities directly
     node.materialInputs.forEach(material => {
       // Schema-compliant: materialCode, requiredQuantity (also support legacy: code, qty)
@@ -292,7 +292,7 @@ function calculatePreProductionReservedAmount(node, expectedDefectRate = 0, plan
   // Calculate expected defects in OUTPUT units
   const expectedDefectsInOutput = scaledOutputQty * (defectRate / 100);
   
-  console.log(`📊 Rehin Calculation for node ${node.id}:`);
+  console.log(`📊 Rehin Calculation for node ${getNodeId(node)}:`);
   console.log(`   Output: ${scaledOutputQty}, Defect Rate: ${defectRate}%, Expected Defects: ${expectedDefectsInOutput}`);
   
   // Process each input material
@@ -424,7 +424,8 @@ async function getPlanExecutionState(planId) {
   
   // Process each node
   const tasks = nodes.map(node => {
-    const assignment = assignments.get(node.nodeId);
+    const nodeId = getNodeId(node);
+    const assignment = assignments.get(nodeId);
     const workerId = node.assignedWorkerId || assignment?.workerId;
     
     // Get stationId from assignedStations array (schema-compliant: stationId or id)
@@ -439,7 +440,7 @@ async function getPlanExecutionState(planId) {
     const worker = workerId ? workers.get(workerId) : null;
     const workerAvailable = !workerId || !worker 
       ? true // No worker assigned yet, or worker doesn't exist
-      : !worker.currentTask || worker.currentTask.planId === planId && worker.currentTask.nodeId === node.nodeId;
+      : !worker.currentTask || worker.currentTask.planId === planId && worker.currentTask.nodeId === nodeId;
     
     // Check substation availability (instead of station)
     // Substations track actual machine workload, not the general station category
@@ -447,15 +448,15 @@ async function getPlanExecutionState(planId) {
     const substation = substationId ? substations.get(substationId) : null;
     const substationAvailable = !substationId || !substation
       ? true // No substation assigned yet, or substation doesn't exist
-      : !substation.currentOperation || substation.currentOperation === node.nodeId;
+      : !substation.currentOperation || substation.currentOperation === nodeId;
     
     // DEBUG: Substation check details
     if (substationId) {
       console.log(`   🔧 Substation ${substationId} check:`);
       console.log(`      Substation exists: ${!!substation}`);
       console.log(`      Substation currentOperation: ${substation?.currentOperation}`);
-      console.log(`      Node ID: ${node.nodeId}`);
-      console.log(`      Match: ${substation?.currentOperation === node.nodeId}`);
+      console.log(`      Node ID: ${nodeId}`);
+      console.log(`      Match: ${substation?.currentOperation === nodeId}`);
       console.log(`      Available: ${substationAvailable}`);
     }
     
@@ -463,7 +464,7 @@ async function getPlanExecutionState(planId) {
     const materialsReady = !materialSummary.hasShortages;
     
     // DEBUG: Log prerequisite checks for this node
-    console.log(`🔍 getPlanExecutionState - Node ${node.nodeId}:`);
+    console.log(`🔍 getPlanExecutionState - Node ${nodeId}:`);
     console.log(`   Predecessors: ${JSON.stringify(node.predecessors || [])}`);
     console.log(`   predecessorsDone: ${predecessorsDone}, completedNodes: [${Array.from(completedNodes).join(', ')}]`);
     console.log(`   workerAvailable: ${workerAvailable}, workerId: ${workerId}`);
@@ -501,7 +502,7 @@ async function getPlanExecutionState(planId) {
     
     return {
       planId,
-      nodeId: node.nodeId,
+      nodeId: nodeId,
       name: node.name,
       operationId: node.operationId,
       operationName: node.operationName,
@@ -1395,7 +1396,7 @@ async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
   
   // Process nodes in dependency order
   async function processNode(node) {
-    const nodeId = node.id || node.nodeId;
+    const nodeId = getNodeId(node);
     
     if (processed.has(nodeId)) {
       return enrichedNodesMap.get(nodeId);
@@ -1427,7 +1428,7 @@ async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
     // Process predecessors first
     const predecessors = node.predecessors || [];
     for (const predId of predecessors) {
-      const predNode = nodesToProcess.find(n => (n.id || n.nodeId) === predId);
+      const predNode = nodesToProcess.find(n => getNodeId(n) === predId);
       if (predNode && !processed.has(predId)) {
         await processNode(predNode);
       }
@@ -1523,7 +1524,7 @@ async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
   
   // Return enriched nodes in original order
   return nodesToProcess.map(node => {
-    const nodeId = node.id || node.nodeId;
+    const nodeId = getNodeId(node);
     return enrichedNodesMap.get(nodeId) || node;
   });
 }
@@ -1547,17 +1548,17 @@ function validateProductionPlanNodes(nodes) {
   // Build predecessor map for starting node detection
   const predecessorMap = new Map();
   nodesToValidate.forEach(node => {
-    const nodeId = node.id || node.nodeId;
+    const nodeId = getNodeId(node);
     const preds = node.predecessors || [];
     predecessorMap.set(nodeId, preds);
   });
   
   nodesToValidate.forEach((node, index) => {
-    const nodeId = node.id || node.nodeId;
+    const nodeId = getNodeId(node);
     const nodeLabel = `Node ${index + 1} (${nodeId || 'unknown'})`;
     
     // 1. Validate node ID (CANONICAL - required)
-    if (!node.id || typeof node.id !== 'string' || node.id.trim() === '') {
+    if (!getNodeId(node) || typeof getNodeId(node) !== 'string' || getNodeId(node).trim() === '') {
       errors.push(`${nodeLabel}: Node id is required and must be a non-empty string`);
     }
     
@@ -3028,7 +3029,7 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
       // Find node info from plan's nodes array
       let nodeInfo = null;
       if (plan && plan.nodes && assignment.nodeId) {
-        nodeInfo = plan.nodes.find(node => node.id === assignment.nodeId);
+        nodeInfo = plan.nodes.find(node => getNodeId(node) === assignment.nodeId);
       }
       
       // Build task object
@@ -5401,7 +5402,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     if (nodesToUse.length > 0) {
       const sampleNode = nodesToUse[0];
       console.log(`📊 Sample node structure:`, {
-        id: sampleNode.id || sampleNode.nodeId,
+        id: getNodeId(sampleNode),
         hasNodeId: !!sampleNode.nodeId,
         hasMaterialInputs: !!(sampleNode.materialInputs && sampleNode.materialInputs.length > 0),
         hasOutputQty: !!sampleNode.outputQty,
@@ -5540,7 +5541,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     
     // Process nodes in topological order
     for (const nodeId of executionOrder.order) {
-      const node = nodesToUse.find(n => n.id === nodeId);
+      const node = nodesToUse.find(n => getNodeId(n) === nodeId);
       if (!node) {
         assignmentErrors.push({
           nodeId,
@@ -5565,7 +5566,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
         
         if (assignment.error) {
           assignmentErrors.push({
-            nodeId: node.id,
+            nodeId: getNodeId(node),
             nodeName: node.name,
             error: assignment.error,
             message: assignment.message,
@@ -5575,12 +5576,12 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
           assignments.push(assignment);
           
           // Track node end time for successor dependencies
-          nodeEndTimes.set(node.id, new Date(assignment.plannedEnd));
+          nodeEndTimes.set(getNodeId(node), new Date(assignment.plannedEnd));
           
           // Track warnings
           if (assignment.warnings && assignment.warnings.length > 0) {
             assignmentWarnings.push({
-              nodeId: node.id,
+              nodeId: getNodeId(node),
               nodeName: node.name,
               warnings: assignment.warnings
             });
@@ -5612,7 +5613,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
         }
       } catch (error) {
         assignmentErrors.push({
-          nodeId: node.id,
+          nodeId: getNodeId(node),
           nodeName: node.name,
           error: 'assignment_exception',
           message: error.message
@@ -5765,10 +5766,10 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
  * Supports both node.id and node.nodeId
  */
 function buildTopologicalOrder(nodes) {
-  // Normalize nodes - use nodeId if exists, otherwise id
+  // Normalize nodes - use getNodeId for consistency
   const normalizedNodes = nodes.map(n => ({
     ...n,
-    _id: n.nodeId || n.id
+    _id: getNodeId(n)
   }));
   
   const nodeMap = new Map(normalizedNodes.map(n => [n._id, n]));
@@ -5858,7 +5859,7 @@ async function validateMaterialAvailabilityForLaunch(planData, planQuantity, db)
   // Build predecessor map to identify start nodes
   const predecessorMap = new Map();
   nodes.forEach(node => {
-    predecessorMap.set(node.id, node.predecessors || []);
+    predecessorMap.set(getNodeId(node), node.predecessors || []);
   });
   
   // Identify start nodes (no predecessors)
@@ -5920,18 +5921,27 @@ async function validateMaterialAvailabilityForLaunch(planData, planQuantity, db)
     const available = materialData 
       ? parseFloat(materialData.stock || materialData.available) || 0
       : 0;
-    const required = mat.required;
+    
+    // ✅ DOĞRU ALAN + FALLBACK
+    const required = mat.requiredQuantity || mat.required || 0;
+    
+    if (required <= 0) {
+      console.warn(`⚠️  Material ${code} has invalid required quantity:`, mat);
+      continue;
+    }
     
     if (available < required) {
       const nodeNamesList = Array.from(mat.nodeNames).join(', ');
+      const shortage = Math.max(required - available, 0);
+      
       warnings.push({
         nodeName: nodeNamesList || 'Unknown',
         materialCode: code,
         materialName: mat.name || code,
-        required,
-        available,
-        shortage: required - available,
-        unit: mat.unit || ''
+        required: parseFloat(required.toFixed(2)),
+        available: parseFloat(available.toFixed(2)),
+        shortage: parseFloat(shortage.toFixed(2)),
+        unit: mat.unit || 'adet'
       });
     }
   }
@@ -6024,7 +6034,9 @@ async function validateMaterialAvailability(planData, planQuantity, db) {
       // Use 'stock' field for availability (standard in materials collection)
       // Also check 'available' field for backward compatibility
       const available = parseFloat(materialData.stock || materialData.available) || 0;
-      const required = mat.required;
+      
+      // ✅ DOĞRU ALAN + FALLBACK
+      const required = mat.requiredQuantity || mat.required || 0;
       
       // Use material data from DB as source of truth for name/unit
       const materialName = materialData.name || mat.name || code;
@@ -6279,7 +6291,7 @@ async function assignNodeResources(
     // Sort by priority (1 = highest priority)
     const sortedStations = [...assignedStations].sort((a, b) => a.priority - b.priority);
     
-    console.log(`Node ${node.id}: Checking ${sortedStations.length} stations in priority order`);
+    console.log(`Node ${getNodeId(node)}: Checking ${sortedStations.length} stations in priority order`);
     
     // Try each station in priority order
     for (const stationInfo of sortedStations) {
@@ -6372,7 +6384,7 @@ async function assignNodeResources(
     }
   } else {
     // No stations assigned - use fallback logic
-    console.warn(`Node ${node.id} has no assignedStations, using fallback logic`);
+    console.warn(`Node ${getNodeId(node)} has no assignedStations, using fallback logic`);
     
     // Fallback: Pick station with least load
     if (!selectedStation) {
@@ -6401,7 +6413,7 @@ async function assignNodeResources(
     
     return {
       error: 'no_station_available',
-      message: `No station available for node '${node.name || node.id}'. All compatible stations [${stationDetails}] are fully booked or have no available substations.`,
+      message: `No station available for node '${node.name || getNodeId(node)}'. All compatible stations [${stationDetails}] are fully booked or have no available substations.`,
       details: {
         assignedStations: assignedStations.map(s => s.stationId || s.id),
         totalStations: stations.length,
@@ -6464,7 +6476,7 @@ async function assignNodeResources(
       
       return {
         error: 'no_qualified_workers',
-        message: `No eligible workers found for node '${node.name || node.id}'. Reason: Required skills [${requiredSkills.join(', ')}] not found in any available worker.`,
+        message: `No eligible workers found for node '${node.name || getNodeId(node)}'. Reason: Required skills [${requiredSkills.join(', ')}] not found in any available worker.`,
         details: { 
           requiredSkills,
           availableSkills: Array.from(availableSkills),
@@ -6644,7 +6656,9 @@ async function assignNodeResources(
   // Calculate pre-production reserved amounts (rehin miktarı)
   const planQuantity = planData.quantity || 1;
   
-  console.log(`🔍 DEBUG - assignNodeResources for node ${node.id}:`);
+  const normalizedNodeId = getNodeId(node);
+  
+  console.log(`🔍 DEBUG - assignNodeResources for node ${normalizedNodeId}:`);
   console.log(`   node.materialInputs:`, node.materialInputs);
   
   const preProductionReservedAmount = calculatePreProductionReservedAmount(
@@ -6658,12 +6672,9 @@ async function assignNodeResources(
   // Calculate planned output
   const plannedOutput = calculatePlannedOutput(node, planQuantity);
   
-  // Normalize node ID - use nodeId if exists, otherwise id
-  const normalizedNodeId = node.nodeId || node.id;
-  
   // DEBUG: Log calculated values
-  console.log(`🔍 DEBUG - assignNodeResources for node ${normalizedNodeId}:`);
-  console.log(`   Node structure: id=${node.id}, nodeId=${node.nodeId}`);
+  console.log(`🔍 DEBUG - Final assignment values for node ${normalizedNodeId}:`);
+  console.log(`   Node structure: nodeId=${normalizedNodeId}`);
   console.log(`   Expected Defect Rate: ${expectedDefectRate}%`);
   console.log(`   Plan Quantity: ${planQuantity}`);
   console.log(`   Material Inputs Count: ${node.materialInputs ? node.materialInputs.length : 0}`);
