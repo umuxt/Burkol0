@@ -1,13 +1,13 @@
-// Dynamic Pricing Tab Component - Completely redesigned dynamic pricing system
+// Quotes Pricing Manager - Dynamic pricing configuration for quotes domain
 import React from 'react';
 import API from '../../../shared/lib/api.js'
-import FormulaValidator from '../SimpleFormulaValidator.js'
-import PricingUtils from '../../../domains/quotes/lib/pricing-utils.js'
-import EnhancedFormulaEditor from '../../../domains/quotes/forms/EnhancedFormulaEditor.js'
+import FormulaValidator from '../../../src/components/SimpleFormulaValidator.js'
+import PricingUtils from '../lib/pricing-utils.js'
+import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'
 
 const { useState, useEffect } = React;
 
-function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates }) {
+function PricingManager({ t, showNotification, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates }) {
   const [parameters, setParameters] = useState([])
   const [formula, setFormula] = useState('')
   const [userFormula, setUserFormula] = useState('') // Kullanıcı dostu formül (A, B, C...)
@@ -982,4 +982,4 @@ function DynamicPricingTab({ t, showNotification, globalProcessing, setGlobalPro
   )
 }
 
-export default DynamicPricingTab
+export default PricingManager

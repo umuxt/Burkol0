@@ -1,8 +1,8 @@
 // Settings App - Dedicated settings interface
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import PricingTab from '../../src/components/settings/DynamicPricingTab.js'
-import FormTab from '../../src/components/settings/FormTab.js'
+import PricingManager from '../quotes/components/PricingManager.jsx'
+import FormManager from '../quotes/components/FormManager.jsx'
 import AccountTab from '../../src/components/settings/AccountTab.jsx'
 
 // Notification Hook
@@ -166,12 +166,12 @@ function SettingsApp() {
         showNotification
       }),
 
-      activeTab === 'pricing' && React.createElement(PricingTab, {
+      activeTab === 'pricing' && React.createElement(PricingManager, {
         t,
         showNotification
       }),
       
-      activeTab === 'form' && React.createElement(FormTab, {
+      activeTab === 'form' && React.createElement(FormManager, {
         t,
         showNotification
       })

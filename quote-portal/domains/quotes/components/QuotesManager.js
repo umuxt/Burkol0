@@ -9,6 +9,8 @@ import { DetailModal } from '../../../src/components/modals/DetailModal.js'
 import SettingsModalCompact from '../../../src/components/modals/SettingsModal.js'
 import { FilterPopup } from '../../../src/components/modals/FilterPopup.js'
 import QuotesTabs from './QuotesTabs.jsx'
+import PricingManager from './PricingManager.jsx'
+import FormManager from './FormManager.jsx'
 
 const { useState, useEffect, useMemo, useRef } = React;
 
@@ -1659,34 +1661,26 @@ function QuotesManager({ t, onLogout, showNotification }) {
     })
       ),
       
-      // Tab 2: Fiyatlandırma (Placeholder)
+      // Tab 2: Fiyatlandırma
       React.createElement('div', { className: 'pricing-content' },
-        React.createElement('div', { 
-          style: { 
-            padding: '40px 20px', 
-            textAlign: 'center',
-            color: '#6b7280'
-          } 
-        },
-          React.createElement('div', { style: { fontSize: '48px', marginBottom: '16px' } }, '💰'),
-          React.createElement('h2', { style: { margin: '0 0 8px 0', color: '#111827' } }, 'Fiyatlandırma Ayarları'),
-          React.createElement('p', { style: { margin: 0 } }, 'Fiyatlandırma ayarları buraya taşınacak...')
-        )
+        React.createElement(PricingManager, {
+          t: t,
+          showNotification: showNotification,
+          globalProcessing: globalProcessing,
+          setGlobalProcessing: setGlobalProcessing,
+          checkAndProcessVersionUpdates: () => {
+            // Version updates için callback
+            loadList()
+          }
+        })
       ),
       
-      // Tab 3: Form Yapısı (Placeholder)
+      // Tab 3: Form Yapısı
       React.createElement('div', { className: 'form-structure-content' },
-        React.createElement('div', { 
-          style: { 
-            padding: '40px 20px', 
-            textAlign: 'center',
-            color: '#6b7280'
-          } 
-        },
-          React.createElement('div', { style: { fontSize: '48px', marginBottom: '16px' } }, '📋'),
-          React.createElement('h2', { style: { margin: '0 0 8px 0', color: '#111827' } }, 'Form Yapısı Yönetimi'),
-          React.createElement('p', { style: { margin: 0 } }, 'Form yapısı ayarları buraya taşınacak...')
-        )
+        React.createElement(FormManager, {
+          t: t,
+          showNotification: showNotification
+        })
       )
     )
   )

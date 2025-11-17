@@ -1,7 +1,7 @@
 // Compact Settings Modal - Modular tab-based settings interface
 import React from 'react';
-import PricingTab from '../settings/DynamicPricingTab.js'
-import FormTab from '../settings/FormTab.js'
+import PricingManager from '../../../domains/quotes/components/PricingManager.jsx'
+import FormManager from '../../../domains/quotes/components/FormManager.jsx'
 import UsersTab from '../settings/UsersTab.jsx'
 
 const { useState, useEffect } = React;
@@ -97,7 +97,7 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification,
 
       // Tab content
       React.createElement('div', { className: 'tab-content' },
-        activeTab === 'pricing' && React.createElement(PricingTab, {
+        activeTab === 'pricing' && React.createElement(PricingManager, {
           t,
           showNotification,
           globalProcessing,
@@ -105,7 +105,7 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification,
           checkAndProcessVersionUpdates
         }),
         
-        activeTab === 'form' && React.createElement(FormTab, {
+        activeTab === 'form' && React.createElement(FormManager, {
           t,
           showNotification
         }),

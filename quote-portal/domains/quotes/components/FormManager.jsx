@@ -1,11 +1,11 @@
-// Form Configuration Tab - Dynamic form builder management
+// Quotes Form Manager - Dynamic form configuration for quotes domain
 import React from 'react';
 import API from '../../../shared/lib/api.js'
-import { FormBuilderCompact } from '../formBuilder/FormBuilderCompact.js'
+import { FormBuilderCompact } from '../../../src/components/formBuilder/FormBuilderCompact.js'
 
 const { useState, useEffect } = React;
 
-function FormTab({ t, showNotification }) {
+function FormManager({ t, showNotification }) {
   const [formConfig, setFormConfig] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -60,4 +60,4 @@ function FormTab({ t, showNotification }) {
   )
 }
 
-export default FormTab
+export default FormManager
