@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { Plus, Download, Trash2 } from 'lucide-react'
 import MaterialsDashboard from './MaterialsDashboard.jsx'
 import MaterialsFilters from './MaterialsFilters.jsx'
 import MaterialsTable from './MaterialsTable.jsx'
@@ -325,51 +326,54 @@ export default function StocksTabContent({
 
   return (
     <div className="stocks-tab-content">
-      <div className="materials-header-section">
+      {/* MES Style Filter Bar */}
+      <div className="mes-filter-bar" style={{marginBottom: '24px'}}>
+        {/* Indicators */}
         <div className="materials-dashboard-container">
           <MaterialsDashboard materials={materials} />
         </div>
-        <div className="materials-actions-container">
-          <div className="materials-actions">
-            <button 
-              type="button" 
-              className="add-material-btn"
-              onClick={() => handleAddMaterial()}
-              disabled={loading}
-            >
-              + Yeni Malzeme
-            </button>
-            
-            <button 
-              type="button" 
-              className="csv-export-btn"
-              onClick={handleCSVExport}
-              title={selectedMaterials.size > 0 ? `${selectedMaterials.size} seçili malzemeyi dışa aktar` : 'Tüm malzemeleri dışa aktar'}
-              disabled={loading}
-            >
-              📊 CSV {selectedMaterials.size > 0 ? `(${selectedMaterials.size})` : ''}
-            </button>
-            
-            {selectedMaterials.size > 0 && (
-              <button 
-                type="button" 
-                className="delete-selected-btn"
-                onClick={handleBulkDelete}
-                title={`${selectedMaterials.size} seçili malzemeyi sil`}
-                disabled={loading}
-              >
-                🗑️ Sil ({selectedMaterials.size})
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="materials-filters-container">
-          <MaterialsFilters 
-            categories={categories}
-            types={materialTypes}
-            onFilterChange={handleFilterChange}
-          />
-        </div>
+
+        {/* Action Buttons - Outside filter-controls */}
+        <button 
+          type="button" 
+          className="mes-primary-action is-compact"
+          onClick={() => handleAddMaterial()}
+          disabled={loading}
+        >
+          <Plus size={14} />
+          <span>Yeni Malzeme</span>
+        </button>
+        
+        <button 
+          type="button" 
+          className="mes-filter-button is-compact"
+          onClick={handleCSVExport}
+          title={selectedMaterials.size > 0 ? `${selectedMaterials.size} seçili malzemeyi dışa aktar` : 'Tüm malzemeleri dışa aktar'}
+          disabled={loading}
+        >
+          <Download size={14} />
+          <span>CSV {selectedMaterials.size > 0 ? `(${selectedMaterials.size})` : ''}</span>
+        </button>
+        
+        {selectedMaterials.size > 0 && (
+          <button 
+            type="button" 
+            className="mes-filter-clear is-compact"
+            onClick={handleBulkDelete}
+            title={`${selectedMaterials.size} seçili malzemeyi sil`}
+            disabled={loading}
+          >
+            <Trash2 size={14} />
+            <span>Sil ({selectedMaterials.size})</span>
+          </button>
+        )}
+
+        {/* Filters - Inside filter-controls */}
+        <MaterialsFilters 
+          categories={categories}
+          types={materialTypes}
+          onFilterChange={handleFilterChange}
+        />
       </div>
       
       {/* Malzeme tablosu */}
@@ -380,18 +384,13 @@ export default function StocksTabContent({
             <p>Malzemeler yükleniyor...</p>
           </div>
         ) : error && materials.length === 0 ? (
-          <div className="error-state" style={{
-            padding: '60px 20px',
-            textAlign: 'center',
-            color: '#666'
-          }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
-            <h3 style={{ color: '#dc3545', marginBottom: '8px' }}>Veriler yüklenemedi</h3>
-            <p style={{ color: '#666', marginBottom: '16px' }}>{error}</p>
+          <div className="error-state">
+            <div>⚠️</div>
+            <h3>Veriler yüklenemedi</h3>
+            <p>{error}</p>
             <button 
-              className="add-material-btn"
+              className="mes-primary-action"
               onClick={() => handleAddMaterial()}
-              style={{ marginTop: '8px' }}
             >
               Yine de Yeni Malzeme Ekle
             </button>
@@ -401,7 +400,7 @@ export default function StocksTabContent({
             <h3>Henüz malzeme bulunmuyor</h3>
             <p>İlk malzemenizi eklemek için "Yeni Malzeme" butonunu kullanın.</p>
             <button 
-              className="add-material-btn primary"
+              className="mes-primary-action"
               onClick={() => handleAddMaterial()}
             >
               + İlk Malzemeyi Ekle

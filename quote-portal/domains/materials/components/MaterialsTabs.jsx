@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Package, Users, ShoppingCart } from 'lucide-react'
 
 export default function MaterialsTabs({ children, activeTab, onTabChange }) {
   // Eğer prop'lar verilmemişse internal state kullan (backward compatibility)
@@ -10,27 +11,30 @@ export default function MaterialsTabs({ children, activeTab, onTabChange }) {
   console.log('🔍 TAB DEBUG: Current active tab:', currentActiveTab);
 
   const tabs = [
-    { id: 'stocks', label: 'Stoklar', icon: '📦' },
-    { id: 'suppliers', label: 'Tedarikçi Listesi', icon: '📋' },
-    { id: 'orders', label: 'Sipariş Paneli', icon: '🛒' }
+    { id: 'stocks', label: 'Stoklar', icon: Package },
+    { id: 'suppliers', label: 'Tedarikçi Listesi', icon: Users },
+    { id: 'orders', label: 'Sipariş Paneli', icon: ShoppingCart }
   ]
 
   return (
     <div className="materials-tabs-container">
       <div className="materials-tabs-header">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            className={`materials-tab-btn ${currentActiveTab === tab.id ? 'active' : ''}`}
-            onClick={() => {
-              console.log('🔥 TAB CLICK:', tab.id, 'Current:', currentActiveTab);
-              handleTabChange(tab.id);
-            }}
-          >
-            <span className="tab-icon">{tab.icon}</span>
-            <span className="tab-label">{tab.label}</span>
-          </button>
-        ))}
+        {tabs.map(tab => {
+          const IconComponent = tab.icon
+          return (
+            <button
+              key={tab.id}
+              className={`materials-tab-btn ${currentActiveTab === tab.id ? 'active' : ''}`}
+              onClick={() => {
+                console.log('🔥 TAB CLICK:', tab.id, 'Current:', currentActiveTab);
+                handleTabChange(tab.id);
+              }}
+            >
+              <IconComponent className="tab-icon" size={16} strokeWidth={2} />
+              <span className="tab-label">{tab.label}</span>
+            </button>
+          )
+        })}
       </div>
       
       <div className="materials-tab-content">

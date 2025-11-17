@@ -1,3 +1,13 @@
+/* Materials Design System Variables */
+:root {
+  --background: #ffffff;
+  --foreground: #0c0a09;
+  --muted: #f5f5f4;
+  --muted-foreground: #78716c;
+  --border: #e7e5e4;
+  --input: #e7e5e4;
+}
+
 .materials-page {
   display: flex;
   flex-direction: column;
@@ -25,7 +35,7 @@ body:has(.materials-page) {
   flex-direction: column;
 }
 
-/* Materials Tabs Container */
+/* Materials Tabs Container - MES Style */
 .materials-tabs-container {
   display: flex;
   flex-direction: column;
@@ -33,52 +43,59 @@ body:has(.materials-page) {
   flex: 1;
 }
 
-/* Materials Tabs Header */
+/* Materials Tabs Header - MES Inspired Modern Design */
 .materials-tabs-header {
   display: flex;
-  border-bottom: 2px solid #e5e7eb;
-  background: white;
-  border-radius: 8px 8px 0 0;
-  padding: 0;
+  padding: 4px;
+  background: rgb(248, 249, 250);
+  border-bottom: 1px solid rgb(229, 231, 235);
+  border-radius: 6px 6px 0 0;
+  gap: 4px;
   margin-bottom: 0.75rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
 }
 
 .materials-tab-btn {
-  background: none;
+  padding: 8px 16px;
+  font-size: 13px;
   border: none;
-  padding: 1rem 1.5rem;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 0.875rem;
   font-weight: 500;
-  color: #6b7280;
-  border-bottom: 3px solid transparent;
+  color: rgb(75, 85, 99);
+  background: transparent;
+  box-shadow: none;
   transition: all 0.2s ease;
-  white-space: nowrap;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  border-radius: 8px 8px 0 0;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .materials-tab-btn:hover {
-  color: #374151;
-  background: #f9fafb;
+  color: rgb(17, 24, 39);
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .materials-tab-btn.active {
-  color: #d4af37;
-  border-bottom-color: #d4af37;
-  background: #fff;
   font-weight: 600;
+  color: rgb(17, 24, 39);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .tab-icon {
-  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .tab-label {
-  font-size: 0.875rem;
+  font-size: 13px;
+  line-height: 1;
+  font-weight: inherit;
 }
 
 /* Materials Tab Content */
@@ -102,7 +119,7 @@ body:has(.materials-page) {
 .stocks-tab-content {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0;
   flex: 1;
 }
 
@@ -312,14 +329,6 @@ body:has(.materials-page) {
 
 .orders-tab-content .table-container tbody tr:hover {
   background: #f8fafc;
-}
-
-/* Materials Header Section */
-.materials-header-section {
-  display: flex;
-  gap: 2px;
-  margin-bottom: 1px;
-  align-items: stretch;
 }
 
 /* Price Range Header Styles - Multi-select Header Tasarımında */
@@ -981,44 +990,34 @@ body:has(.materials-page) {
   border-color: #1d4ed8;
 }
 
-/* Materials Dashboard Container */
+/* MES Filter Bar - Main Container */
+.mes-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: thin;
+}
+
+/* Materials Dashboard Container - Inline Indicators */
 .materials-dashboard-container {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  min-width: 200px;
-  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  height: auto;
-  max-height: 100%;
-  overflow: hidden;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-/* Materials Actions Container */
-.materials-actions-container {
-  background: white;
-  border-radius: 8px;
-  padding: 8px 12px; /* İçerideki butonlar için daha rahat sağ/sol padding */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  min-width: 250px; /* Container daraltıldı: 300px -> 250px */
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  max-height: 100%;
-  justify-content: flex-start; /* İçeriği üstte başlat */
-  align-items: stretch; /* İçeriği genişlikte doldur */
-}
-
-/* Materials Filters Container */
+/* Materials Filters Container - MES Style */
 .materials-filters-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   height: 100%;
   max-height: 100%;
-  min-width: 0; /* Flex çocuk daralabilsin, taşma yapmasın */
+  min-width: 0;
 }
 
 /* Materials Controls Container - Eski yapı için backup */
@@ -1031,63 +1030,68 @@ body:has(.materials-page) {
   align-self: stretch;
 }
 
-/* Materials Actions - 2x2 grid layout, top-left aligned */
+/* Materials Actions - MES Style Button Group */
 .materials-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: 34px; /* Buton yüksekliği ile uyumlu */
+  display: flex;
+  align-items: center;
   gap: 8px;
-  align-content: start;
-  justify-content: start;
-  width: 100%;
+  flex-shrink: 0;
 }
 
-/* Common button sizing in actions panel (renkler korunur) */
-.materials-actions .add-material-btn,
-.materials-actions .csv-export-btn,
-.materials-actions .delete-selected-btn {
-  height: 34px; /* Search input ile hizalı */
-  min-height: 34px;
-  padding: 0 12px;
-  font-size: 13px;
-  border-radius: 6px;
+/* MES Button Styles - Import from Production */
+.mes-primary-action {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 44px;
+  border: none;
+  border-radius: 6px;
+  background: rgb(17, 24, 39);
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s ease;
   white-space: nowrap;
-  width: 100%; /* Grid hücresini doldur */
+  flex-shrink: 0;
 }
 
-/* Renk ve efektleri koru (yalnızca görsel) */
-.materials-actions .csv-export-btn {
-  background: linear-gradient(135deg, #007bff, #0056b3);
-  color: white;
-  border: none;
-  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
-  font-weight: 600;
-  transition: all 0.2s;
+.mes-primary-action:hover:not(:disabled) {
+  background: rgb(31, 41, 55);
 }
 
-.materials-actions .delete-selected-btn {
-  background: linear-gradient(135deg, #dc3545, #c82333);
-  color: white;
-  border: none;
-  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
-  font-weight: 600;
-  transition: all 0.2s;
+.mes-primary-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
-.materials-actions .add-material-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(40, 167, 69, 0.3);
+.mes-filter-button {
+  height: 44px;
+  padding: 6px 8px;
+  border: 1px solid rgb(229, 231, 235);
+  background: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  color: rgb(75, 85, 99);
+  flex-shrink: 0;
 }
 
-/* CSV Export Button */
-/* Özgün görseller korunur; yalnızca boyut standardizasyonu yapıldı */
+.mes-filter-button:hover:not(:disabled) {
+  background: rgb(249, 250, 251);
+  border-color: rgb(209, 213, 219);
+}
 
-.materials-actions .csv-export-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+.mes-filter-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Delete Selected Button */
@@ -1099,29 +1103,51 @@ body:has(.materials-page) {
   background: linear-gradient(135deg, #c82333, #bd2130);
 }
 
-/* Materials Dashboard */
+/* Materials Dashboard - MES Style Cards */
 .materials-dashboard {
   display: flex;
-  flex-direction: column;
-  gap: 2.5px;
-  flex: 1;
-  height: 100%;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .materials-dashboard .card {
-  background: #f8f9fa !important;
-  padding: 12px 16px !important;
-  border-radius: 6px !important;
-  box-shadow: none !important;
-  text-align: left !important;
-  border: none !important;
-  border-left: 4px solid #007bff !important;
-  transition: transform 0.2s;
-  flex: 1;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  min-height: 0;
+  background: rgb(249, 250, 251);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgb(229, 231, 235);
+  text-align: left;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  white-space: nowrap;
+}
+
+.materials-dashboard .card:hover {
+  background: rgb(243, 244, 246);
+  border-color: rgb(209, 213, 219);
+}
+
+.materials-dashboard .card h3 {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgb(107, 114, 128);
+  white-space: nowrap;
+}
+
+.materials-dashboard .card p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: rgb(17, 24, 39);
+  white-space: nowrap;
+}
+
+.materials-dashboard .card p.warning {
+  color: rgb(220, 38, 38);
+  animation: pulse 2s infinite;
 }
 
 /* Suppliers Button */
@@ -1204,30 +1230,7 @@ body:has(.materials-page) {
 
 /* Extra specificity for materials dashboard cards */
 section.materials-dashboard div.card {
-  padding: 3px 12px !important;
-}
-
-.materials-dashboard .card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
-.materials-dashboard .card h3 {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 600;
-  color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  flex: 1;
-}
-
-.materials-dashboard .card p {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: #333;
-  text-align: right;
+  padding: 12px;
 }
 
 .materials-dashboard .card p.warning {
@@ -1241,111 +1244,146 @@ section.materials-dashboard div.card {
   100% { opacity: 1; }
 }
 
-/* Materials Filters */
-.materials-filters {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  flex: 1 1 auto;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  min-width: 0; /* Header içinde sıkışabilsin */
-}
-
-.filters-container {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  flex: 1 1 auto;
-  height: 100%;
-  min-width: 0; /* İçerik taşmasını önle */
-}
-
-/* Search Section */
-.search-section {
+/* MES Filter Controls */
+.mes-filter-controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
-.search-input-container {
-  position: relative;
-  flex: 1;
-}
-
-.search-input {
-  width: 100%;
-  padding: 8px 32px 8px 12px;
-  border: 2px solid #e0e0e0;
+/* Search input - adaptif genişlik */
+.mes-filter-input {
+  height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
   border-radius: 6px;
+  min-width: 120px;
+  max-width: none;
+  width: 100%;
+  flex: 1 1 auto;
   font-size: 13px;
-  transition: border-color 0.2s;
+  background: #ffffff;
+  color: var(--foreground);
 }
 
-.search-input:focus {
+.mes-filter-input:focus {
   outline: none;
-  border-color: #007bff;
+  border: 1px solid var(--border);
 }
 
-.search-icon {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #999;
-  font-size: 14px;
+.mes-filter-input:hover {
+  border: 1px solid var(--border);
 }
 
-.quick-filters {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  flex-shrink: 0;
+.mes-filter-input:valid,
+.mes-filter-input:invalid {
+  border: 1px solid var(--border);
+  box-shadow: none;
 }
 
-.quick-filter-btn {
-  padding: 8px 12px; /* Search input ile aynı padding */
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: white;
+.mes-filter-input:-webkit-autofill,
+.mes-filter-input:-webkit-autofill:hover,
+.mes-filter-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px white inset;
+  border: 1px solid var(--border) !important;
+}
+
+.mes-filter-group {
+  position: relative;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.mes-filter-button {
+  height: 44px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 13px; /* Search input ile aynı font size */
-  transition: all 0.2s;
-  height: 34px; /* Search input ile aynı yükseklik */
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  color: var(--foreground);
+  white-space: nowrap;
 }
 
-.quick-filter-btn:hover {
-  background: #f8f9fa;
+.mes-filter-button:hover {
+  background: rgb(249, 250, 251);
 }
 
-.quick-filter-btn.active {
-  background: #fff3cd;
-  border-color: #ffc107;
-  color: #856404;
+.mes-filter-caret {
+  margin-left: auto;
+  opacity: 0.6;
 }
 
-.clear-filters-btn {
-  padding: 4px 8px;
-  border: 1px solid #dc3545;
-  border-radius: 4px;
-  background: white;
-  cursor: pointer;
+.mes-filter-count {
+  color: rgb(156, 163, 175);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* Compact Variants */
+.mes-filter-button.is-compact {
+  height: 30px;
+  padding: 3px 6px;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.mes-filter-input.is-compact {
+  height: 30px;
+  padding: 3px 12px;
+  font-size: 13px;
+}
+
+.mes-primary-action.is-compact {
+  height: 30px;
+  padding: 3px 8px;
+  gap: 5px;
   font-size: 11px;
-  color: #dc3545;
-  transition: all 0.2s;
 }
 
-.clear-filters-btn:hover {
-  background: #dc3545;
-  color: white;
+.mes-filter-clear.is-compact {
+  height: 30px;
+  padding: 3px 8px;
+  font-size: 11px;
+  min-width: fit-content;
 }
 
-/* Dropdown Filters */
+.mes-filter-clear {
+  height: 44px;
+  padding: 0 8px;
+  border: 1px solid #ef4444;
+  background: #ffffff;
+  color: #ef4444;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+  min-width: fit-content;
+}
+
+.mes-filter-clear:hover {
+  background: rgb(254, 242, 242);
+}
+
+/* Dropdown Filters - Legacy */
 .dropdown-filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
@@ -1373,98 +1411,200 @@ section.materials-dashboard div.card {
 }
 
 .filter-group select {
-  padding: 6px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 12px;
-  background: white;
+  padding: 6px 12px;
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 6px;
+  font-size: 13px;
+  background: #ffffff;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color 0.15s ease;
+  height: 44px;
+  color: rgb(75, 85, 99);
 }
 
 .filter-group select:focus {
   outline: none;
-  border-color: #007bff;
+  border-color: rgb(209, 213, 219);
 }
 
 /* Multi-Select Styles */
 .multi-select-container {
   position: relative;
+  overflow: visible;
 }
 
 .multi-select-header {
-  padding: 4px 6px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background: white;
+  height: 44px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #ffffff;
   cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   font-size: 12px;
-  line-height: 1.1;
-  gap: 6px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   white-space: nowrap;
-  color: #555;
-  transition: border-color 0.2s;
-  min-height: 32px; /* eski buton yüksekliğini koru */
+  color: var(--foreground);
+  transition: border-color 0.15s ease, background 0.15s ease;
+  min-width: 0;
+}
+
+.multi-select-header.is-compact {
+  height: 30px;
+  padding: 3px 6px;
+  gap: 5px;
+  font-size: 12px;
 }
 
 .multi-select-header:hover {
-  border-color: #007bff;
-}
-
-.dropdown-arrow {
-  font-size: 8px;
-  transition: transform 0.2s;
+  background: rgb(249, 250, 251);
 }
 
 .multi-select-dropdown {
   display: none;
   position: absolute;
-  top: 100%;
+  top: calc(100% + 6px);
   left: 0;
-  min-width: 100%;
-  max-width: 400px;
-  width: max-content;
-  background: white;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  width: 240px;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   z-index: 1000;
-  max-height: 150px;
-  overflow-y: auto;
+  max-height: 240px;
+  overflow: hidden;
 }
 
-.multi-select-option {
+.mes-filter-panel-header {
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 8px;
+  justify-content: flex-end;
+  box-sizing: border-box;
+}
+
+.mes-filter-panel-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  border-radius: 6px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background 0.15s ease;
+}
+
+.mes-filter-panel-button:hover {
+  background: rgb(249, 250, 251);
+}
+
+.mes-filter-panel-content {
+  max-height: 240px;
+  overflow: auto;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+/* Filter panel checkbox labels - MES Style */
+.mes-filter-panel-content label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1.5px 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: #0c0a09;
+}
+
+.mes-filter-panel-content label:hover {
+  background: rgb(249, 250, 251);
+}
+
+.mes-filter-panel-content label span {
+  font-size: 12px;
+  color: #0c0a09;
+}
+
+.mes-filter-panel-content label input[type="checkbox"] {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Legacy multi-select-option class for backwards compatibility */
+.multi-select-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 1.5px 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s;
   font-size: 12px;
   white-space: nowrap;
+  margin-bottom: 6px;
+}
+
+.multi-select-option:last-child {
+  margin-bottom: 0;
 }
 
 .multi-select-option:hover {
-  background-color: #f8f9fa;
+  background-color: rgb(249, 250, 251);
 }
 
 .multi-select-option input[type="checkbox"] {
   margin: 0;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
 }
 
-.selection-count {
-  background: #007bff;
-  color: white;
-  padding: 1px 4px;
-  border-radius: 8px;
-  font-size: 9px;
-  font-weight: 600;
-  margin-left: 3px;
+.multi-select-option span {
+  font-size: 12px;
+}
+
+.no-options {
+  padding: 12px;
+  text-align: center;
+  color: rgb(156, 163, 175);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.mes-filter-button.status-aktif {
+  background: rgb(220, 252, 231);
+  border-color: rgb(134, 239, 172);
+  color: rgb(22, 101, 52);
+}
+
+.mes-filter-button.status-removed {
+  background: rgb(254, 242, 242);
+  border-color: rgb(252, 165, 165);
+  color: rgb(153, 27, 27);
+}
+
+.mes-filter-button.status-tumü {
+  background: rgb(239, 246, 255);
+  border-color: rgb(147, 197, 253);
+  color: rgb(29, 78, 216);
+}
+
+.mes-filter-button.active {
+  background: rgb(254, 252, 232);
+  border-color: rgb(234, 179, 8);
+  color: rgb(133, 77, 14);
 }
 
 /* Status Toggle Styles */
@@ -3185,4 +3325,52 @@ textarea.editable-input {
   content: "📋";
   margin-right: 8px;
   font-size: 18px;
+}
+
+/* Materials States */
+.empty-state,
+.error-state {
+  padding: 60px 20px;
+  text-align: center;
+  color: #666;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.error-state div {
+  font-size: 48px;
+}
+
+.error-state h3 {
+  color: #dc3545;
+  margin: 0;
+}
+
+.error-state p {
+  color: #666;
+  margin: 0;
+}
+
+.loading-state {
+  padding: 40px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.loading-indicator {
+  padding: 8px 12px;
+  background: rgb(254, 252, 232);
+  border: 1px solid rgb(234, 179, 8);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: rgb(133, 77, 14);
+  margin-bottom: 8px;
 }

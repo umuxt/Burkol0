@@ -19,8 +19,21 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
       }
     };
 
+    // Scroll olduğunda dropdown'ları kapat
+    const handleScroll = () => {
+      document.querySelectorAll('.multi-select-dropdown').forEach(dropdown => {
+        if (dropdown.style.display === 'block') {
+          dropdown.style.display = 'none';
+        }
+      });
+    };
+
     document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
   }, []);
 
   const handleFilterChange = (key, value) => {
@@ -92,120 +105,203 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
   const hasActiveFilters = filters.search || filters.categories?.length > 0 || filters.types?.length > 0 || (filters.status && filters.status !== 'Aktif') || filters.lowStock;
 
   return (
-    <section className="materials-filters">
-      <div className="filters-container">
-        
-        {/* Arama ve Hızlı Filtreler */}
-        <div className="search-section">
-          <div className="search-input-container">
-            <input 
-              type="text" 
-              placeholder="Malzeme adı, kodu veya kategoriye göre ara..." 
-              value={filters.search}
-              onChange={(e) => handleFilterChange('search', e.target.value)}
-              className="search-input"
-            />
-            <span className="search-icon">🔍</span>
-          </div>
-          
-          <div className="quick-filters">
-            <button 
-              type="button"
-              className={`quick-filter-btn ${filters.lowStock ? 'active' : ''}`}
-              onClick={() => handleFilterChange('lowStock', !filters.lowStock)}
-            >
-              ⚠️ Düşük Stok
-            </button>
-            
-            {hasActiveFilters && (
-              <button 
-                type="button"
-                className="clear-filters-btn"
-                onClick={clearFilters}
-              >
-                ✕ Filtreleri Temizle
-              </button>
+    <div className="mes-filter-controls">
+      {/* Search Input */}
+      <input 
+        type="text" 
+        placeholder="Malzeme adı, kodu veya kategoriye göre ara..." 
+        value={filters.search}
+        onChange={(e) => handleFilterChange('search', e.target.value)}
+        className="mes-filter-input is-compact"
+      />
+      
+      {/* Tip Filter */}
+      <div className="mes-filter-group">
+        <div className="multi-select-container">
+          <div 
+            className="multi-select-header is-compact" 
+            onClick={(e) => {
+              e.stopPropagation();
+              const dropdown = document.getElementById('types-dropdown');
+              const header = e.currentTarget;
+              if (dropdown) {
+                const isVisible = dropdown.style.display === 'block';
+                // Close all other dropdowns first
+                document.querySelectorAll('.multi-select-dropdown').forEach(d => {
+                  d.style.display = 'none';
+                });
+                // Toggle this dropdown
+                if (!isVisible) {
+                  // Position dropdown below the button
+                  const rect = header.getBoundingClientRect();
+                  dropdown.style.position = 'fixed';
+                  dropdown.style.top = `${rect.bottom + 6}px`;
+                  dropdown.style.left = `${rect.left}px`;
+                  dropdown.style.display = 'block';
+                } else {
+                  dropdown.style.display = 'none';
+                }
+              }
+            }}
+          >
+            <span>Tip</span>
+            {filters.types?.length > 0 && (
+              <span className="mes-filter-count">{filters.types.length}</span>
             )}
+            <span className="mes-filter-caret">▾</span>
           </div>
-        </div>
-
-        {/* Dropdown Filtreler */}
-        <div className="dropdown-filters">
-          <div className="filter-group">
-            <div className="multi-select-container">
-              <div className="multi-select-header" onClick={() => {
-                const dropdown = document.getElementById('types-dropdown');
-                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-              }}>
-                {filters.types?.length > 0 
-                  ? `${filters.types.length} tip seçildi`
-                  : 'Tip seçin...'
-                }
-                <span className="dropdown-arrow">▼</span>
-              </div>
-              <div id="types-dropdown" className="multi-select-dropdown">
-                {types?.map(type => (
-                  <label key={type.id} className="multi-select-option">
-                    <input
-                      type="checkbox"
-                      checked={filters.types?.includes(type.id) || false}
-                      onChange={() => handleMultiSelectChange('types', type.id)}
-                    />
-                    <span>{type.label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="filter-group">
-            <div className="multi-select-container">
-              <div className="multi-select-header" onClick={() => {
-                const dropdown = document.getElementById('categories-dropdown');
-                dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
-              }}>
-                {filters.categories?.length > 0 
-                  ? `${filters.categories.length} kategori seçildi`
-                  : 'Kategori seçin...'
-                }
-                <span className="dropdown-arrow">▼</span>
-              </div>
-              <div id="categories-dropdown" className="multi-select-dropdown">
-                {categories?.map(category => (
-                  <label key={category.id} className="multi-select-option">
-                    <input
-                      type="checkbox"
-                      checked={filters.categories?.includes(category.id) || false}
-                      onChange={() => handleMultiSelectChange('categories', category.id)}
-                    />
-                    <span>{category.name || category.label}</span>
-                  </label>
-                ))}
-                {(!categories || categories.length === 0) && (
-                  <div className="no-options">Kategori bulunamadı</div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="filter-group">
-            <div className="status-toggle-container">
-              <div 
-                className={`status-toggle-header ${filters.status ? 'active' : ''} ${
-                  filters.status === 'Aktif' ? 'status-aktif' : 
-                  filters.status === 'Removed' ? 'status-removed' : 
-                  'status-tumü'
-                }`}
-                onClick={handleStatusToggle}
+          <div id="types-dropdown" className="multi-select-dropdown" style={{display: 'none'}}>
+            <div className="mes-filter-panel-header">
+              <button 
+                type="button" 
+                className="mes-filter-panel-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleFilterChange('types', []);
+                }}
               >
-                <span className="status-icon">{getStatusIcon()}</span>
-                <span>{getStatusLabel()}</span>
-                <span className="toggle-arrow">🔄</span>
-              </div>
+                Clear
+              </button>
+              <button 
+                type="button" 
+                className="mes-filter-panel-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  document.getElementById('types-dropdown').style.display = 'none';
+                }}
+                title="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="mes-filter-panel-content">
+              {types?.map(type => (
+                <label key={type.id}>
+                  <input
+                    type="checkbox"
+                    checked={filters.types?.includes(type.id) || false}
+                    onChange={() => handleMultiSelectChange('types', type.id)}
+                  />
+                  <span>{type.label}</span>
+                </label>
+              ))}
             </div>
           </div>
         </div>
       </div>
-    </section>
+
+      {/* Kategori Filter */}
+      <div className="mes-filter-group">
+        <div className="multi-select-container">
+          <div 
+            className="multi-select-header is-compact" 
+            onClick={(e) => {
+              e.stopPropagation();
+              const dropdown = document.getElementById('categories-dropdown');
+              const header = e.currentTarget;
+              if (dropdown) {
+                const isVisible = dropdown.style.display === 'block';
+                // Close all other dropdowns first
+                document.querySelectorAll('.multi-select-dropdown').forEach(d => {
+                  d.style.display = 'none';
+                });
+                // Toggle this dropdown
+                if (!isVisible) {
+                  // Position dropdown below the button
+                  const rect = header.getBoundingClientRect();
+                  dropdown.style.position = 'fixed';
+                  dropdown.style.top = `${rect.bottom + 6}px`;
+                  dropdown.style.left = `${rect.left}px`;
+                  dropdown.style.display = 'block';
+                } else {
+                  dropdown.style.display = 'none';
+                }
+              }
+            }}
+          >
+            <span>Kategori</span>
+            {filters.categories?.length > 0 && (
+              <span className="mes-filter-count">{filters.categories.length}</span>
+            )}
+            <span className="mes-filter-caret">▾</span>
+          </div>
+          <div id="categories-dropdown" className="multi-select-dropdown" style={{display: 'none'}}>
+            <div className="mes-filter-panel-header">
+              <button 
+                type="button" 
+                className="mes-filter-panel-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleFilterChange('categories', []);
+                }}
+              >
+                Clear
+              </button>
+              <button 
+                type="button" 
+                className="mes-filter-panel-button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  document.getElementById('categories-dropdown').style.display = 'none';
+                }}
+                title="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="mes-filter-panel-content">
+              {categories?.map(category => (
+                <label key={category.id}>
+                  <input
+                    type="checkbox"
+                    checked={filters.categories?.includes(category.id) || false}
+                    onChange={() => handleMultiSelectChange('categories', category.id)}
+                  />
+                  <span>{category.name || category.label}</span>
+                </label>
+              ))}
+              {(!categories || categories.length === 0) && (
+                <div className="no-options">Kategori bulunamadı</div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Status Toggle */}
+      <button 
+        type="button"
+        className={`mes-filter-button is-compact ${
+          filters.status === 'Aktif' ? 'status-aktif' : 
+          filters.status === 'Removed' ? 'status-removed' : 
+          'status-tumü'
+        }`}
+        onClick={handleStatusToggle}
+      >
+        <span>{getStatusIcon()}</span>
+        <span>{getStatusLabel()}</span>
+      </button>
+
+      {/* Düşük Stok Filter */}
+      <button 
+        type="button"
+        className={`mes-filter-button is-compact ${filters.lowStock ? 'active' : ''}`}
+        onClick={() => handleFilterChange('lowStock', !filters.lowStock)}
+      >
+        <span>⚠️ Düşük Stok</span>
+      </button>
+      
+      {/* Clear Filters */}
+      {hasActiveFilters && (
+        <button 
+          type="button"
+          className="mes-filter-clear is-compact"
+          onClick={clearFilters}
+          title="Clear all filters"
+        >
+          <span>Filtreleri Temizle</span>
+        </button>
+      )}
+    </div>
   )
 }
