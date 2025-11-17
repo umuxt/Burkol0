@@ -450,32 +450,6 @@ function MaterialsApp() {
     setEditingMaterial(null);
   };
 
-  if (materialsLoading || categoriesLoading) {
-    return (
-      <div className="loading-container">
-        <div className="loading-spinner">
-          <div className="spinner"></div>
-          <p>Veriler yükleniyor...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (materialsError || categoriesError) {
-    return (
-      <div className="error-container">
-        <h3>Hata Oluştu</h3>
-        <p>{materialsError || categoriesError}</p>
-        <button onClick={() => {
-          refreshMaterials(true);
-          refreshCategories();
-        }}>
-          Tekrar Dene
-        </button>
-      </div>
-    );
-  }
-
   const handleTabChange = (newTab) => {
     console.log('🔥 MAIN TAB CHANGE:', newTab, 'Old:', activeTab);
     setActiveTab(newTab);
@@ -492,6 +466,47 @@ function MaterialsApp() {
           onClose={() => removeNotification(notification.id)}
         />
       ))}
+      
+      {/* Global hata mesajı - sadece kritik hatalar için */}
+      {(materialsError || categoriesError) && (
+        <div className="global-error-banner" style={{
+          background: 'rgba(220, 53, 69, 0.1)',
+          border: '1px solid rgba(220, 53, 69, 0.3)',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          marginBottom: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px'
+        }}>
+          <div style={{ flex: 1 }}>
+            <strong style={{ color: '#dc3545' }}>⚠️ Bağlantı Hatası:</strong>
+            <span style={{ marginLeft: '8px', color: '#721c24' }}>
+              {materialsError || categoriesError}
+            </span>
+          </div>
+          <button 
+            onClick={() => {
+              refreshMaterials(true);
+              refreshCategories();
+            }}
+            style={{
+              padding: '6px 12px',
+              background: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Tekrar Dene
+          </button>
+        </div>
+      )}
+      
       <MaterialsTabs
         activeTab={activeTab}
         onTabChange={handleTabChange}

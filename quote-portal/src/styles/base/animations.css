@@ -122,3 +122,62 @@
 .animate-shake {
   animation: shake 0.5s ease-in-out;
 }
+
+/* Spinner components */
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-top-color: var(--primary-color, #d4af37);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+.spinner-large {
+  width: 60px;
+  height: 60px;
+  border-width: 6px;
+}
+
+/* Loading states */
+.loading-state {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-muted, #666);
+}
+
+.loading-state .spinner {
+  margin: 0 auto 16px;
+}
+
+.loading-state p {
+  font-size: 16px;
+  margin: 0;
+}
+
+/* Inline loading indicator */
+.loading-indicator {
+  padding: 8px 16px;
+  background: rgba(212, 175, 55, 0.1);
+  border-radius: 4px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #856404;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-indicator .spinner {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+  border-color: rgba(133, 100, 4, 0.2);
+  border-top-color: #856404;
+}

@@ -335,6 +335,7 @@ export default function StocksTabContent({
               type="button" 
               className="add-material-btn"
               onClick={() => handleAddMaterial()}
+              disabled={loading}
             >
               + Yeni Malzeme
             </button>
@@ -344,6 +345,7 @@ export default function StocksTabContent({
               className="csv-export-btn"
               onClick={handleCSVExport}
               title={selectedMaterials.size > 0 ? `${selectedMaterials.size} seçili malzemeyi dışa aktar` : 'Tüm malzemeleri dışa aktar'}
+              disabled={loading}
             >
               📊 CSV {selectedMaterials.size > 0 ? `(${selectedMaterials.size})` : ''}
             </button>
@@ -354,6 +356,7 @@ export default function StocksTabContent({
                 className="delete-selected-btn"
                 onClick={handleBulkDelete}
                 title={`${selectedMaterials.size} seçili malzemeyi sil`}
+                disabled={loading}
               >
                 🗑️ Sil ({selectedMaterials.size})
               </button>
@@ -371,7 +374,29 @@ export default function StocksTabContent({
       
       {/* Malzeme tablosu */}
       <div className="materials-table-container">
-        {materials.length === 0 ? (
+        {loading && materials.length === 0 ? (
+          <div className="loading-state">
+            <div className="spinner"></div>
+            <p>Malzemeler yükleniyor...</p>
+          </div>
+        ) : error && materials.length === 0 ? (
+          <div className="error-state" style={{
+            padding: '60px 20px',
+            textAlign: 'center',
+            color: '#666'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚠️</div>
+            <h3 style={{ color: '#dc3545', marginBottom: '8px' }}>Veriler yüklenemedi</h3>
+            <p style={{ color: '#666', marginBottom: '16px' }}>{error}</p>
+            <button 
+              className="add-material-btn"
+              onClick={() => handleAddMaterial()}
+              style={{ marginTop: '8px' }}
+            >
+              Yine de Yeni Malzeme Ekle
+            </button>
+          </div>
+        ) : materials.length === 0 ? (
           <div className="empty-state">
             <h3>Henüz malzeme bulunmuyor</h3>
             <p>İlk malzemenizi eklemek için "Yeni Malzeme" butonunu kullanın.</p>
@@ -383,18 +408,26 @@ export default function StocksTabContent({
             </button>
           </div>
         ) : (
-          <MaterialsTable 
-            materials={materials} 
-            types={materialTypes} 
-            categories={categories}
-            onMaterialSelect={handleMaterialSelect}
-            onEditMaterial={handleEditMaterial}
-            onDeleteMaterial={handleDeleteMaterial}
-            onCategoryManage={handleCategoryManage}
-            selectedMaterials={selectedMaterials}
-            onSelectedMaterialsChange={setSelectedMaterials}
-            onOrderClick={handleOrderClick}
-          />
+          <>
+            {loading && (
+              <div className="loading-indicator">
+                <div className="spinner spinner-small"></div>
+                Veriler güncelleniyor...
+              </div>
+            )}
+            <MaterialsTable 
+              materials={materials} 
+              types={materialTypes} 
+              categories={categories}
+              onMaterialSelect={handleMaterialSelect}
+              onEditMaterial={handleEditMaterial}
+              onDeleteMaterial={handleDeleteMaterial}
+              onCategoryManage={handleCategoryManage}
+              selectedMaterials={selectedMaterials}
+              onSelectedMaterialsChange={setSelectedMaterials}
+              onOrderClick={handleOrderClick}
+            />
+          </>
         )}
       </div>
 
