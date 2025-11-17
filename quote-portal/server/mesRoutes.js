@@ -3450,11 +3450,30 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             
             console.log(`🔄 Starting material reservation for work package ${assignmentId}`);
             
-            // Process each material in preProductionReservedAmount
+            // ========================================================================
+            // PHASE 1: PRE-FETCH ALL MATERIALS (Firestore transaction requirement)
+            // ========================================================================
+            console.log(`📖 PHASE 1: Pre-fetching all materials before writes...`);
+            
+            const materialDocs = new Map();
             for (const [materialCode, reservedQty] of Object.entries(assignment.preProductionReservedAmount)) {
+              const materialRef = db.collection('materials').doc(materialCode);
+              const materialDoc = await transaction.get(materialRef);
+              materialDocs.set(materialCode, { ref: materialRef, doc: materialDoc, reservedQty });
+            }
+            
+            console.log(`✅ READ PHASE COMPLETE: ${materialDocs.size} materials pre-fetched`);
+            
+            // ========================================================================
+            // PHASE 2: PROCESS ALL MATERIALS (using pre-fetched data)
+            // ========================================================================
+            console.log(`✍️ PHASE 2: Processing material reservations...`);
+            
+            // Process each material using pre-fetched data
+            for (const [materialCode, data] of materialDocs) {
+              const { ref: materialRef, doc: materialDoc, reservedQty } = data;
+              
               try {
-                const materialRef = db.collection('materials').doc(materialCode);
-                const materialDoc = await transaction.get(materialRef);
                 
                 if (!materialDoc.exists) {
                   reservationErrors.push({
@@ -3615,6 +3634,8 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                 console.error(`❌ Failed to reserve ${materialCode}:`, err);
               }
             }
+            
+            console.log(`✅ PHASE 2 COMPLETE: All material reservations processed`);
             
             // If any errors occurred, throw to rollback transaction
             if (reservationErrors.length > 0) {
@@ -3853,23 +3874,79 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           }
           
           // ========================================================================
-          // STEP 1: Gather Required Data
+          // PHASE 1: ALL READS (Firestore transaction requirement)
           // ========================================================================
+          
+          console.log(`📖 PHASE 1: Reading all documents before writes...`);
+          
+          // READ 1: Get plan and node information
+          const planDoc = await transaction.get(db.collection('mes-production-plans').doc(planId));
+          if (!planDoc.exists) {
+            console.error(`Plan ${planId} not found`);
+            throw new Error(`Production plan ${planId} not found`);
+          }
+          
+          const planData = planDoc.data();
+          const nodes = planData.nodes || [];
+          const node = nodes.find(n => n.id === nodeId);
+          
+          if (!node) {
+            console.error(`Node ${nodeId} not found in plan nodes (searched ${nodes.length} nodes)`);
+            throw new Error(`Task node ${nodeId} not found in production plan`);
+          }
           
           const preProductionReservedAmount = assignment.preProductionReservedAmount || {};
           const actualReservedAmounts = assignment.actualReservedAmounts || preProductionReservedAmount;
           const plannedOutput = assignment.plannedOutput || {};
+          const materialInputs = node.materialInputs || [];
+          const outputCode = node.outputCode || Object.keys(plannedOutput)[0];
+          const plannedOutputQty = node.outputQty || Object.values(plannedOutput)[0] || 0;
+          
+          // READ 2: Pre-fetch ALL input materials
+          const inputMaterialDocs = new Map();
+          for (const materialInput of materialInputs) {
+            const inputCode = materialInput.materialCode || materialInput.code;
+            if (!inputCode) continue;
+            
+            const materialRef = db.collection('materials').doc(inputCode);
+            const materialDoc = await transaction.get(materialRef);
+            inputMaterialDocs.set(inputCode, { ref: materialRef, doc: materialDoc });
+          }
+          
+          // READ 3: Pre-fetch output material (CRITICAL: before any writes!)
+          let outputMaterialSnapshot = null;
+          if (outputCode) {
+            const outputMaterialRef = db.collection('materials').doc(outputCode);
+            outputMaterialSnapshot = await transaction.get(outputMaterialRef);
+          }
+          
+          // READ 4: Pre-fetch WIP movements for all input materials
+          const wipMovementDocs = new Map();
+          for (const [inputCode, _] of inputMaterialDocs) {
+            const wipMovementSnap = await db.collection('stockMovements')
+              .where('reference', '==', assignmentId)
+              .where('materialCode', '==', inputCode)
+              .where('status', '==', 'wip')
+              .limit(1)
+              .get();
+            
+            if (!wipMovementSnap.empty) {
+              wipMovementDocs.set(inputCode, wipMovementSnap.docs[0]);
+            }
+          }
+          
+          console.log(`✅ READ PHASE COMPLETE: ${inputMaterialDocs.size} input materials, ${outputMaterialSnapshot ? 1 : 0} output material, ${wipMovementDocs.size} WIP movements`);
+          
+          // ========================================================================
+          // PHASE 2: CALCULATIONS (No Firestore operations)
+          // ========================================================================
           
           console.log(`📦 Planned reserved materials:`, preProductionReservedAmount);
           console.log(`📦 Actually reserved materials:`, actualReservedAmounts);
           console.log(`🎯 Planned output:`, plannedOutput);
           console.log(`✅ Actual output: ${actualOutput}, ❌ Defects: ${defects}`);
           
-          // ========================================================================
-          // STEP 1.5: Process Input and Production Scrap from Counters
-          // ========================================================================
-          
-          // Parse counter fields from assignment
+          // Process scrap counters
           const inputScrapTotals = {};
           const productionScrapTotals = {};
           
@@ -3902,36 +3979,10 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             }
           });
           
-          // Get plan and node information
-          const planDoc = await transaction.get(db.collection('mes-production-plans').doc(planId));
-          if (!planDoc.exists) {
-            console.error(`Plan ${planId} not found`);
-            throw new Error(`Production plan ${planId} not found`);
-          }
-          
-          const planData = planDoc.data();
-          
-          // Get material inputs and output information
-          const nodes = planData.nodes || [];
-          const node = nodes.find(n => n.id === nodeId);
-          
-          if (!node) {
-            console.error(`Node ${nodeId} not found in plan nodes (searched ${nodes.length} nodes)`);
-            throw new Error(`Task node ${nodeId} not found in production plan`);
-          }
-          
-          // Get material inputs and output information
-          const materialInputs = node.materialInputs || [];
-          const outputCode = node.outputCode || Object.keys(plannedOutput)[0];
-          const plannedOutputQty = node.outputQty || Object.values(plannedOutput)[0] || 0;
-          
           console.log(`📋 Material inputs:`, materialInputs.map(m => `${m.materialCode || m.code}: ${m.requiredQuantity || 0}`));
           console.log(`📦 Output code: ${outputCode}, Planned: ${plannedOutputQty}`);
           
-          // ========================================================================
-          // STEP 2: Calculate Actual Consumption
-          // ========================================================================
-          
+          // Calculate consumption for each material
           const totalConsumedOutput = actualOutput + defects;
           const consumptionResults = [];
           const stockAdjustmentResults = [];
@@ -4011,161 +4062,150 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
                 stockAdjustment
               });
             }
-            
-            // ========================================================================
-            // STEP 3: Stock Adjustment for Input Materials
-            // ========================================================================
-            
-            console.log(`🔄 Processing stock adjustments for ${consumptionResults.length} input material(s)`);
-            
-            for (const consumption of consumptionResults) {
-              const { materialCode, reservedAmount, actualConsumption, stockAdjustment } = consumption;
-              
-              try {
-                const materialRef = db.collection('materials').doc(materialCode);
-                const materialDoc = await transaction.get(materialRef);
-                
-                if (!materialDoc.exists) {
-                  console.error(`❌ Material ${materialCode} not found`);
-                  continue;
-                }
-                
-                const materialData = materialDoc.data();
-                const currentStock = parseFloat(materialData.stock) || 0;
-                const currentWipReserved = parseFloat(materialData.wipReserved) || 0;
-                
-                // Release wipReserved
-                const newWipReserved = Math.max(0, currentWipReserved - reservedAmount);
-                
-                // Adjust stock (add back unused or deduct extra used)
-                const newStock = currentStock + stockAdjustment;
-                
-                if (newStock < 0) {
-                  console.warn(`⚠️ Warning: ${materialCode} stock would become negative (${newStock}). Setting to 0.`);
-                }
-                
-                transaction.update(materialRef, {
-                  stock: Math.max(0, newStock),
-                  wipReserved: newWipReserved,
-                  updatedAt: now,
-                  updatedBy: actorEmail
-                });
-                
-                stockAdjustmentResults.push({
-                  materialCode,
-                  materialName: materialData.name,
-                  reservedAmount,
-                  actualConsumption,
-                  stockAdjustment,
-                  previousStock: currentStock,
-                  newStock: Math.max(0, newStock),
-                  previousWipReserved: currentWipReserved,
-                  newWipReserved,
-                  unit: materialData.unit
-                });
-                
-                // ========================================================================
-                // STOCK MOVEMENTS: Update existing WIP reservation record to consumption
-                // ========================================================================
-                
-                // Find the original WIP reservation movement for this assignment + material
-                const wipMovementSnapshot = await db.collection('stockMovements')
-                  .where('reference', '==', assignmentId)
-                  .where('materialCode', '==', materialCode)
-                  .where('status', '==', 'wip')
-                  .limit(1)
-                  .get();
-                
-                if (!wipMovementSnapshot.empty) {
-                  // Update existing WIP record to consumption
-                  const wipMovementDoc = wipMovementSnapshot.docs[0];
-                  const wipMovementRef = db.collection('stockMovements').doc(wipMovementDoc.id);
-                  
-                  transaction.update(wipMovementRef, {
-                    status: 'consumption', // 🔴 WIP → Consumption
-                    quantity: actualConsumption, // Gerçek sarf miktarı
-                    adjustedQuantity: stockAdjustment, // Fark (pozitif = geri döndü, negatif = fazla çekildi)
-                    actualOutput: actualOutput,
-                    defectQuantity: defects,
-                    plannedOutput: plannedOutputQty,
-                    stockAfterConsumption: Math.max(0, newStock),
-                    wipReservedAfterRelease: newWipReserved,
-                    totalCost: materialData.costPrice ? materialData.costPrice * actualConsumption : null,
-                    location: 'Production Floor',
-                    notes: `Görev tamamlandı - Gerçek sarfiyat: ${actualConsumption.toFixed(2)} ${materialData.unit} (Rezerve: ${reservedAmount}, Fark: ${stockAdjustment > 0 ? '+' : ''}${stockAdjustment.toFixed(2)}, Çıktı: ${actualOutput}, Fire: ${defects})`,
-                    reason: 'MES görev tamamlama - Üretim sarfiyatı',
-                    completedAt: now,
-                    completedBy: actorEmail
-                  });
-                  
-                  console.log(`✅ Updated WIP movement ${wipMovementDoc.id} to consumption: ${materialCode} ${reservedAmount} → ${actualConsumption} (${stockAdjustment > 0 ? '+' : ''}${stockAdjustment})`);
-                } else {
-                  // Fallback: WIP kaydı bulunamazsa yeni consumption kaydı oluştur
-                  console.warn(`⚠️ WIP movement not found for ${assignmentId}/${materialCode}, creating new consumption record`);
-                  const consumptionMovementRef = db.collection('stockMovements').doc();
-                  transaction.set(consumptionMovementRef, {
-                    materialId: materialCode,
-                    materialCode: materialCode,
-                    materialName: materialData.name || '',
-                    type: 'out',
-                    subType: 'production_consumption',
-                    status: 'consumption',
-                    quantity: actualConsumption,
-                    reservedQuantity: reservedAmount,
-                    adjustedQuantity: stockAdjustment,
-                    unit: materialData.unit || 'Adet',
-                    stockBefore: currentStock,
-                    stockAfter: Math.max(0, newStock),
-                    actualOutput: actualOutput,
-                    defectQuantity: defects,
-                    plannedOutput: plannedOutputQty,
-                    unitCost: materialData.costPrice || null,
-                    totalCost: materialData.costPrice ? materialData.costPrice * actualConsumption : null,
-                    currency: 'TRY',
-                    reference: assignmentId,
-                    referenceType: 'mes_task_complete',
-                    relatedPlanId: planId,
-                    relatedNodeId: nodeId,
-                    warehouse: null,
-                    location: 'Production Floor',
-                    notes: `Görev tamamlandı - Gerçek sarfiyat: ${actualConsumption.toFixed(2)} ${materialData.unit} (Çıktı: ${actualOutput}, Fire: ${defects})`,
-                    reason: 'MES görev tamamlama - Üretim sarfiyatı',
-                    movementDate: now,
-                    createdAt: now,
-                    userId: actorEmail,
-                    userName: actorName || actorEmail,
-                    approved: true,
-                    approvedBy: actorEmail,
-                    approvedAt: now
-                  });
-                }
-                
-                console.log(`✅ ${materialCode}: stock ${currentStock} → ${Math.max(0, newStock)} (${stockAdjustment >= 0 ? '+' : ''}${stockAdjustment.toFixed(2)}), wipReserved ${currentWipReserved} → ${newWipReserved} (-${reservedAmount})`);
-                
-              } catch (err) {
-                console.error(`❌ Failed to adjust stock for ${materialCode}:`, err);
-                // Continue with other materials
-              }
-            }
           } else {
             console.warn(`⚠️ No material inputs found or planned output is zero. Skipping consumption calculation.`);
           }
           
           // ========================================================================
-          // STEP 4: Stock Update for Output Material
+          // PHASE 3: ALL WRITES (After all reads complete)
+          // ========================================================================
+          
+          console.log(`✍️ PHASE 3: Performing all writes...`);
+          
+          // WRITE 1: Update input materials stock
+          console.log(`🔄 Processing stock adjustments for ${consumptionResults.length} input material(s)`);
+          
+          for (const consumption of consumptionResults) {
+            const { materialCode, reservedAmount, actualConsumption, stockAdjustment } = consumption;
+            
+            try {
+              const materialSnapshot = inputMaterialDocs.get(materialCode);
+              if (!materialSnapshot || !materialSnapshot.doc.exists) {
+                console.error(`❌ Material ${materialCode} not found`);
+                continue;
+              }
+              
+              const materialData = materialSnapshot.doc.data();
+              const currentStock = parseFloat(materialData.stock) || 0;
+              const currentWipReserved = parseFloat(materialData.wipReserved) || 0;
+              
+              // Release wipReserved
+              const newWipReserved = Math.max(0, currentWipReserved - reservedAmount);
+              
+              // Adjust stock (add back unused or deduct extra used)
+              const newStock = currentStock + stockAdjustment;
+              
+              if (newStock < 0) {
+                console.warn(`⚠️ Warning: ${materialCode} stock would become negative (${newStock}). Setting to 0.`);
+              }
+              
+              transaction.update(materialSnapshot.ref, {
+                stock: Math.max(0, newStock),
+                wipReserved: newWipReserved,
+                updatedAt: now,
+                updatedBy: actorEmail
+              });
+              
+              stockAdjustmentResults.push({
+                materialCode,
+                materialName: materialData.name,
+                reservedAmount,
+                actualConsumption,
+                stockAdjustment,
+                previousStock: currentStock,
+                newStock: Math.max(0, newStock),
+                previousWipReserved: currentWipReserved,
+                newWipReserved,
+                unit: materialData.unit
+              });
+              
+              // WRITE 2: Update or create WIP movement
+              const wipMovementDoc = wipMovementDocs.get(materialCode);
+              
+              if (wipMovementDoc) {
+                const wipMovementRef = db.collection('stockMovements').doc(wipMovementDoc.id);
+                
+                transaction.update(wipMovementRef, {
+                  status: 'consumption', // 🔴 WIP → Consumption
+                  quantity: actualConsumption, // Gerçek sarf miktarı
+                  adjustedQuantity: stockAdjustment, // Fark (pozitif = geri döndü, negatif = fazla çekildi)
+                  actualOutput: actualOutput,
+                  defectQuantity: defects,
+                  plannedOutput: plannedOutputQty,
+                  stockAfterConsumption: Math.max(0, newStock),
+                  wipReservedAfterRelease: newWipReserved,
+                  totalCost: materialData.costPrice ? materialData.costPrice * actualConsumption : null,
+                  location: 'Production Floor',
+                  notes: `Görev tamamlandı - Gerçek sarfiyat: ${actualConsumption.toFixed(2)} ${materialData.unit} (Rezerve: ${reservedAmount}, Fark: ${stockAdjustment > 0 ? '+' : ''}${stockAdjustment.toFixed(2)}, Çıktı: ${actualOutput}, Fire: ${defects})`,
+                  reason: 'MES görev tamamlama - Üretim sarfiyatı',
+                  completedAt: now,
+                  completedBy: actorEmail
+                });
+                
+                console.log(`✅ Updated WIP movement ${wipMovementDoc.id} to consumption: ${materialCode} ${reservedAmount} → ${actualConsumption} (${stockAdjustment > 0 ? '+' : ''}${stockAdjustment})`);
+              } else {
+                // Fallback: WIP kaydı bulunamazsa yeni consumption kaydı oluştur
+                console.warn(`⚠️ WIP movement not found for ${assignmentId}/${materialCode}, creating new consumption record`);
+                const consumptionMovementRef = db.collection('stockMovements').doc();
+                transaction.set(consumptionMovementRef, {
+                  materialId: materialCode,
+                  materialCode: materialCode,
+                  materialName: materialData.name || '',
+                  type: 'out',
+                  subType: 'production_consumption',
+                  status: 'consumption',
+                  quantity: actualConsumption,
+                  reservedQuantity: reservedAmount,
+                  adjustedQuantity: stockAdjustment,
+                  unit: materialData.unit || 'Adet',
+                  stockBefore: currentStock,
+                  stockAfter: Math.max(0, newStock),
+                  actualOutput: actualOutput,
+                  defectQuantity: defects,
+                  plannedOutput: plannedOutputQty,
+                  unitCost: materialData.costPrice || null,
+                  totalCost: materialData.costPrice ? materialData.costPrice * actualConsumption : null,
+                  currency: 'TRY',
+                  reference: assignmentId,
+                  referenceType: 'mes_task_complete',
+                  relatedPlanId: planId,
+                  relatedNodeId: nodeId,
+                  warehouse: null,
+                  location: 'Production Floor',
+                  notes: `Görev tamamlandı - Gerçek sarfiyat: ${actualConsumption.toFixed(2)} ${materialData.unit} (Çıktı: ${actualOutput}, Fire: ${defects})`,
+                  reason: 'MES görev tamamlama - Üretim sarfiyatı',
+                  movementDate: now,
+                  createdAt: now,
+                  userId: actorEmail,
+                  userName: actorName || actorEmail,
+                  approved: true,
+                  approvedBy: actorEmail,
+                  approvedAt: now
+                });
+              }
+              
+              console.log(`✅ ${materialCode}: stock ${currentStock} → ${Math.max(0, newStock)} (${stockAdjustment >= 0 ? '+' : ''}${stockAdjustment.toFixed(2)}), wipReserved ${currentWipReserved} → ${newWipReserved} (-${reservedAmount})`);
+              
+            } catch (err) {
+              console.error(`❌ Failed to adjust stock for ${materialCode}:`, err);
+              // Continue with other materials
+            }
+          }
+          
+          // ========================================================================
+          // WRITE 3: Stock Update for Output Material
           // ========================================================================
           
           let outputStockResult = null;
           
-          if (outputCode && actualOutput > 0) {
+          if (outputCode && actualOutput > 0 && outputMaterialSnapshot) {
             console.log(`📦 Adding ${actualOutput} units of ${outputCode} to stock`);
             
             try {
               const outputMaterialRef = db.collection('materials').doc(outputCode);
-              const outputMaterialDoc = await transaction.get(outputMaterialRef);
               
-              if (outputMaterialDoc.exists) {
-                const outputMaterialData = outputMaterialDoc.data();
+              if (outputMaterialSnapshot.exists) {
+                const outputMaterialData = outputMaterialSnapshot.data();
                 const currentOutputStock = parseFloat(outputMaterialData.stock) || 0;
                 const newOutputStock = currentOutputStock + actualOutput;
                 
@@ -4310,10 +4350,13 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
               
             } catch (err) {
               console.error(`❌ Failed to update output material ${outputCode}:`, err);
+              throw err; // Critical error, rollback transaction
             }
           } else {
             console.log(`ℹ️ No output material to add to stock (outputCode: ${outputCode}, actualOutput: ${actualOutput})`);
           }
+          
+          console.log(`✅ PHASE 3 WRITE COMPLETE: All material updates successful`);
           
           // ========================================================================
           // STEP 5: Create Scrap/Hurda Material Records
