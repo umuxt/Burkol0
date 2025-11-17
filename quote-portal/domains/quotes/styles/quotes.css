@@ -1,0 +1,903 @@
+/* Quotes Dashboard - MES Design System */
+.quotes-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem 1.5rem 1.5rem;
+  background: #f9fafb;
+  min-height: calc(100vh - 68px);
+  box-sizing: border-box;
+}
+
+/* Quotes Tabs Container - MES Style */
+.quotes-tabs-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  flex: 1;
+}
+
+/* Quotes Tabs Header - MES Inspired Modern Design */
+.quotes-tabs-header {
+  display: flex;
+  padding: 4px;
+  background: rgb(248, 249, 250);
+  border-bottom: 1px solid rgb(229, 231, 235);
+  border-radius: 6px 6px 0 0;
+  gap: 4px;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  flex-wrap: wrap;
+}
+
+.quotes-tab-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  color: rgb(75, 85, 99);
+  background: transparent;
+  box-shadow: none;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.quotes-tab-btn:hover {
+  color: rgb(17, 24, 39);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.quotes-tab-btn.active {
+  font-weight: 600;
+  color: rgb(17, 24, 39);
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.quotes-tab-btn .tab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.quotes-tab-btn .tab-label {
+  font-size: 13px;
+  line-height: 1;
+  font-weight: inherit;
+}
+
+/* Quotes Tab Content */
+.quotes-tab-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.quotes-tab-content .tab-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.quotes-tab-content .tab-panel.active {
+  display: flex !important;
+}
+
+/* Tab Content Areas */
+.quotes-list-content,
+.pricing-content,
+.form-structure-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 1;
+}
+
+/* Page Title - MES Style */
+.quotes-page-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+  color: rgb(17, 24, 39);
+  line-height: 1.2;
+}
+
+/* MES Filter Bar - Main Container */
+.mes-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: thin;
+}
+
+/* Dashboard Stats Container */
+.quotes-dashboard-container {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Quotes Dashboard Stats - Inline */
+.quotes-dashboard {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.quotes-dashboard .stat-card {
+  background: rgb(249, 250, 251);
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgb(229, 231, 235);
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.quotes-dashboard .stat-card:hover {
+  background: rgb(243, 244, 246);
+  border-color: rgb(209, 213, 219);
+}
+
+.quotes-dashboard .stat-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.quotes-dashboard .stat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quotes-dashboard .stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgb(107, 114, 128);
+  line-height: 1;
+}
+
+.quotes-dashboard .stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgb(17, 24, 39);
+  line-height: 1;
+}
+
+.quotes-dashboard .stat-value.warning {
+  color: rgb(220, 38, 38);
+  animation: pulse 2s infinite;
+}
+
+/* MES Primary Action Button */
+.mes-primary-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 44px;
+  border: none;
+  border-radius: 6px;
+  background: rgb(17, 24, 39);
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.mes-primary-action:hover:not(:disabled) {
+  background: rgb(31, 41, 55);
+}
+
+.mes-primary-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mes-primary-action.is-compact {
+  height: 30px;
+  padding: 3px 8px;
+  gap: 5px;
+  font-size: 11px;
+}
+
+/* MES Filter Button */
+.mes-filter-button {
+  height: 44px;
+  padding: 6px 8px;
+  border: 1px solid rgb(229, 231, 235);
+  background: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  color: rgb(75, 85, 99);
+  flex-shrink: 0;
+}
+
+.mes-filter-button:hover:not(:disabled) {
+  background: rgb(249, 250, 251);
+  border-color: rgb(209, 213, 219);
+}
+
+.mes-filter-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mes-filter-button.is-compact {
+  height: 30px;
+  padding: 3px 6px;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.mes-filter-button.active {
+  background: rgb(59, 130, 246);
+  color: white;
+  border-color: rgb(59, 130, 246);
+}
+
+.mes-filter-caret {
+  margin-left: auto;
+  opacity: 0.6;
+}
+
+.mes-filter-count {
+  color: rgb(156, 163, 175);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* MES Clear/Delete Button */
+.mes-filter-clear {
+  height: 44px;
+  padding: 0 8px;
+  border: 1px solid #ef4444;
+  background: #ffffff;
+  color: #ef4444;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+  min-width: fit-content;
+  flex-shrink: 0;
+}
+
+.mes-filter-clear:hover {
+  background: rgb(254, 242, 242);
+}
+
+.mes-filter-clear:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mes-filter-clear.is-compact {
+  height: 30px;
+  padding: 3px 8px;
+  font-size: 11px;
+  min-width: fit-content;
+}
+
+/* MES Search Input - Override admin.css */
+input.mes-search-input,
+.mes-search-input {
+  height: 30px !important;
+  padding: 3px 12px !important;
+  border: 1px solid rgb(229, 231, 235) !important;
+  border-radius: 6px !important;
+  min-width: 200px !important;
+  max-width: 400px !important;
+  width: 100% !important;
+  flex: 1 1 auto !important;
+  font-size: 13px !important;
+  background: #ffffff !important;
+  color: rgb(17, 24, 39) !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+
+input.mes-search-input:focus,
+.mes-search-input:focus {
+  outline: none !important;
+  border: 1px solid rgb(229, 231, 235) !important;
+  box-shadow: none !important;
+  background: #ffffff !important;
+  border-color: rgb(229, 231, 235) !important;
+}
+
+.mes-search-input:hover {
+  border: 1px solid rgb(229, 231, 235) !important;
+}
+
+.mes-search-input:valid,
+.mes-search-input:invalid {
+  border: 1px solid rgb(229, 231, 235) !important;
+  box-shadow: none !important;
+}
+
+.mes-search-input:-webkit-autofill,
+.mes-search-input:-webkit-autofill:hover,
+.mes-search-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px white inset !important;
+  border: 1px solid rgb(229, 231, 235) !important;
+}
+
+/* MES Filter Input */
+.mes-filter-input {
+  height: 44px;
+  padding: 6px 12px;
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 6px;
+  min-width: 120px;
+  max-width: none;
+  width: 100%;
+  flex: 1 1 auto;
+  font-size: 13px;
+  background: #ffffff;
+  color: rgb(17, 24, 39);
+}
+
+.mes-filter-input:focus {
+  outline: none;
+  border: 1px solid rgb(229, 231, 235);
+}
+
+.mes-filter-input:hover {
+  border: 1px solid rgb(229, 231, 235);
+}
+
+.mes-filter-input.is-compact {
+  height: 30px;
+  padding: 3px 12px;
+  font-size: 13px;
+}
+
+/* MES Filter Controls Container */
+.mes-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Quotes Dashboard Container */
+.quotes-dashboard-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  flex: 0 0 auto;
+  max-width: max-content;
+}
+
+/* Inline Dashboard - Single Line with Dividers (Materials Style) */
+.quotes-dashboard.is-inline {
+  background: rgb(249, 250, 251);
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgb(229, 231, 235);
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.quotes-dashboard.is-inline .stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.quotes-dashboard.is-inline .stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgb(107, 114, 128);
+}
+
+.quotes-dashboard.is-inline .stat-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(17, 24, 39);
+}
+
+.quotes-dashboard.is-inline .stat-value.warning {
+  color: rgb(220, 38, 38);
+}
+
+.quotes-dashboard.is-inline .divider {
+  width: 1px;
+  height: 16px;
+  background: rgb(209, 213, 219);
+  flex-shrink: 0;
+}
+
+/* Quotes Actions - MES Style */
+.quotes-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* MES Buttons - Primary Actions */
+.quotes-primary-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 44px;
+  border: none;
+  border-radius: 6px;
+  background: rgb(17, 24, 39);
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.quotes-primary-action:hover:not(:disabled) {
+  background: rgb(31, 41, 55);
+}
+
+.quotes-primary-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quotes-primary-action.success {
+  background: rgb(34, 197, 94);
+}
+
+.quotes-primary-action.success:hover:not(:disabled) {
+  background: rgb(22, 163, 74);
+}
+
+.quotes-primary-action.info {
+  background: rgb(59, 130, 246);
+}
+
+.quotes-primary-action.info:hover:not(:disabled) {
+  background: rgb(37, 99, 235);
+}
+
+.quotes-primary-action.danger {
+  background: rgb(220, 38, 38);
+}
+
+.quotes-primary-action.danger:hover:not(:disabled) {
+  background: rgb(185, 28, 28);
+}
+
+.quotes-primary-action.warning {
+  background: rgb(245, 158, 11);
+}
+
+.quotes-primary-action.warning:hover:not(:disabled) {
+  background: rgb(217, 119, 6);
+}
+
+/* MES Filter Buttons */
+.quotes-filter-button {
+  height: 44px;
+  padding: 6px 12px;
+  border: 1px solid rgb(229, 231, 235);
+  background: #ffffff;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  color: rgb(75, 85, 99);
+  flex-shrink: 0;
+  position: relative;
+}
+
+.quotes-filter-button:hover:not(:disabled) {
+  background: rgb(249, 250, 251);
+  border-color: rgb(209, 213, 219);
+}
+
+.quotes-filter-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quotes-filter-button.active {
+  background: rgb(59, 130, 246);
+  color: white;
+  border-color: rgb(59, 130, 246);
+}
+
+.quotes-filter-button .filter-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: rgb(220, 38, 38);
+  color: white;
+  border-radius: 50%;
+  min-width: 20px;
+  height: 20px;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+/* Search Input - MES Style */
+.quotes-search-input {
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid rgb(229, 231, 235);
+  background: #ffffff;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: all 0.15s ease;
+  min-width: 200px;
+  flex: 1;
+  max-width: 400px;
+}
+
+.quotes-search-input:focus {
+  outline: none;
+  border-color: rgb(59, 130, 246);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Quotes Table Container */
+.quotes-table-container {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid rgb(229, 231, 235);
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.quotes-table-wrapper {
+  overflow-x: auto;
+  flex: 1;
+}
+
+/* Quotes Table - MES Style (Materials Pattern) */
+.quotes-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.quotes-table th,
+.quotes-table td {
+  padding: 8px;
+  text-align: left;
+  border-bottom: 1px solid rgb(229, 231, 235);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quotes-table th {
+  background: rgb(248, 249, 250);
+  font-weight: 600;
+  color: rgb(55, 65, 81);
+  font-size: 14px;
+  text-transform: none;
+  letter-spacing: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.quotes-table td {
+  color: inherit;
+  font-size: 13px;
+  max-width: 0;
+}
+
+.quotes-table th:first-child {
+  width: 40px;
+  text-align: center;
+  padding: 8px;
+}
+
+.quotes-table td:first-child {
+  text-align: center;
+  padding: 8px;
+}
+
+/* Sort Button in Header */
+.quotes-sort-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  font-weight: 600;
+}
+
+.quotes-sort-button:hover {
+  color: rgb(17, 24, 39);
+}
+
+.quotes-sort-icon {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+/* Table Body */
+.quotes-table tbody tr {
+  background-color: #ffffff;
+  transition: background-color 0.2s ease;
+  cursor: pointer;
+}
+
+.quotes-table tbody tr:hover {
+  background-color: rgb(249, 250, 251);
+}
+
+.quotes-table tbody tr.selected {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+/* Status Badge */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Status Badge as Select */
+select.status-badge {
+  padding-right: 24px;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M5 6L0 3L1.5 1.5L5 3L8.5 1.5L10 3L5 6Z' fill='currentColor'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 8px;
+}
+
+select.status-badge option {
+  background: white;
+  color: #111827;
+}
+
+.status-badge.new {
+  background: rgb(219, 234, 254);
+  color: rgb(37, 99, 235);
+}
+
+.status-badge.review {
+  background: rgb(254, 243, 199);
+  color: rgb(217, 119, 6);
+}
+
+.status-badge.feasible {
+  background: rgb(220, 252, 231);
+  color: rgb(22, 163, 74);
+}
+
+.status-badge.not-feasible {
+  background: rgb(254, 226, 226);
+  color: rgb(220, 38, 38);
+}
+
+.status-badge.quoted {
+  background: rgb(243, 232, 255);
+  color: rgb(147, 51, 234);
+}
+
+.status-badge.approved {
+  background: rgb(209, 250, 229);
+  color: rgb(5, 150, 105);
+}
+
+/* Price Warning Badge */
+.price-warning-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.price-warning-badge.price-drift {
+  background: rgba(220, 38, 38, 0.1);
+  color: rgb(220, 38, 38);
+}
+
+.price-warning-badge.version-drift {
+  background: rgba(245, 158, 11, 0.1);
+  color: rgb(245, 158, 11);
+}
+
+/* Row Actions */
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.row-action-btn {
+  padding: 6px 10px;
+  border: 1px solid rgb(229, 231, 235);
+  background: white;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.row-action-btn:hover {
+  background: rgb(249, 250, 251);
+  border-color: rgb(209, 213, 219);
+}
+
+.row-action-btn.primary {
+  background: rgb(59, 130, 246);
+  color: white;
+  border-color: rgb(59, 130, 246);
+}
+
+.row-action-btn.primary:hover {
+  background: rgb(37, 99, 235);
+  border-color: rgb(37, 99, 235);
+}
+
+.row-action-btn.danger {
+  background: rgb(220, 38, 38);
+  color: white;
+  border-color: rgb(220, 38, 38);
+}
+
+.row-action-btn.danger:hover {
+  background: rgb(185, 28, 28);
+  border-color: rgb(185, 28, 28);
+}
+
+/* Empty State */
+.quotes-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  text-align: center;
+  color: rgb(107, 114, 128);
+}
+
+.quotes-empty-state .empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.quotes-empty-state .empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgb(17, 24, 39);
+  margin: 0 0 8px 0;
+}
+
+.quotes-empty-state .empty-message {
+  font-size: 14px;
+  color: rgb(107, 114, 128);
+  margin: 0;
+}
+
+/* Loading State */
+.quotes-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+}
+
+.quotes-loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgb(243, 244, 246);
+  border-top-color: rgb(59, 130, 246);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.quotes-loading .loading-text {
+  font-size: 14px;
+  color: rgb(107, 114, 128);
+}
+
+/* Pulse Animation for Warnings */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .quotes-filter-bar {
+    flex-wrap: wrap;
+  }
+  
+  .quotes-filter-bar-left,
+  .quotes-filter-bar-right {
+    width: 100%;
+  }
+  
+  .quotes-search-input {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .quotes-page {
+    padding: 0.5rem;
+  }
+  
+  .quotes-page-title {
+    font-size: 24px;
+  }
+  
+  .quotes-dashboard {
+    flex-wrap: wrap;
+  }
+  
+  .quotes-table th,
+  .quotes-table td {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+}

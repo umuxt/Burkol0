@@ -274,7 +274,8 @@ export function formatFieldValue(value, column, item, context) {
         return due;
         
       case 'status':
-        const statusText = statusLabel(value || 'new', t);
+        const statusValue = value || 'new';
+        const statusText = statusLabel(statusValue, t);
         const statusOptions = [
           { value: 'new', label: statusLabel('new', t) },
           { value: 'review', label: statusLabel('review', t) },
@@ -284,11 +285,21 @@ export function formatFieldValue(value, column, item, context) {
           { value: 'approved', label: statusLabel('approved', t) }
         ];
         
+        // Map status to CSS class
+        const statusClassMap = {
+          'new': 'new',
+          'review': 'review',
+          'feasible': 'feasible',
+          'not': 'not-feasible',
+          'quoted': 'quoted',
+          'approved': 'approved'
+        };
+        
         return React.createElement('div', { 
           style: { position: 'relative', display: 'inline-block' } 
         },
           React.createElement('select', {
-            value: value || 'new',
+            value: statusValue,
             onChange: (e) => {
               e.stopPropagation();
               const newStatus = e.target.value;
@@ -297,23 +308,12 @@ export function formatFieldValue(value, column, item, context) {
               }
             },
             onClick: (e) => e.stopPropagation(),
+            className: `status-badge ${statusClassMap[statusValue] || 'new'}`,
             style: {
-              padding: '2px 8px',
-              paddingRight: '20px',
-              borderRadius: '12px',
-              fontSize: '11px',
-              fontWeight: '600',
-              backgroundColor: getStatusColor(value),
-              color: getStatusTextColor(value),
-              border: `1px solid ${getStatusTextColor(value)}20`,
-              cursor: 'pointer',
               appearance: 'none',
-              backgroundImage: `url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iNiIgdmlld0JveD0iMCAwIDEwIDYiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik01IDZMMCAzTDEuNSAxLjVMNSAzTDguNSAxLjVMMTAgM0w1IDZaIiBmaWxsPSIke getStatusTextColor(value)}Ii8+KPHN2Zz4K")`,
-              backgroundRepeat: 'no-repeat',
-              backgroundPosition: 'right 6px center',
-              backgroundSize: '8px',
-              minWidth: '80px',
-              transition: 'all 0.2s ease'
+              cursor: 'pointer',
+              border: 'none',
+              minWidth: '100px'
             }
           },
             ...statusOptions.map(option =>

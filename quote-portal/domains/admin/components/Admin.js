@@ -7,6 +7,7 @@ import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clear
 import { DetailModal } from '../../../src/components/modals/DetailModal.js'
 import SettingsModalCompact from '../../../src/components/modals/SettingsModal.js'
 import { FilterPopup } from '../../../src/components/modals/FilterPopup.js'
+import QuotesTabs from '../../quotes/components/QuotesTabs.jsx'
 
 const { useState, useEffect, useMemo, useRef } = React;
 
@@ -98,6 +99,17 @@ function Admin({ t, onLogout, showNotification }) {
   const [processingMessage, setProcessingMessage] = useState('') // Processing message
   const bulkCancelRef = useRef(false)
   const [sortConfig, setSortConfig] = useState({ columnId: 'date', direction: 'desc' })
+  const [activeQuotesTab, setActiveQuotesTab] = useState(() => {
+    const storedTab = localStorage.getItem('bk_quotes_tab') || 'quotes';
+    console.log('🔍 QUOTES INIT: localStorage tab:', storedTab);
+    return storedTab;
+  })
+
+  const handleQuotesTabChange = (newTab) => {
+    console.log('🔥 ADMIN QUOTES TAB CHANGE:', newTab, 'Old:', activeQuotesTab);
+    setActiveQuotesTab(newTab);
+    localStorage.setItem('bk_quotes_tab', newTab);
+  }
 
   useEffect(() => {
     // Clear localStorage to ensure only Firebase data is shown
@@ -1038,7 +1050,7 @@ function Admin({ t, onLogout, showNotification }) {
     }
   }
 
-  return React.createElement('div', { className: 'admin-panel' },
+  return React.createElement('div', { className: 'quotes-page' },
     // Toast notification
     notification && React.createElement('div', {
       style: {
@@ -1094,458 +1106,272 @@ function Admin({ t, onLogout, showNotification }) {
       React.createElement('div', null, t.a_processing || 'Değişiklikler uygulanıyor...')
     ),
 
-    // Filters and search
-    React.createElement('div', { className: 'card', style: { marginTop: 16 } },
-      React.createElement('div', { className: 'row', style: { justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' } },
-        React.createElement('label', { style: { fontSize: '16px', fontWeight: '600', margin: 0, minWidth: '120px' } }, t.a_list),
-        
-        // Search controls
-        React.createElement('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', width: '100%', justifyContent: 'space-between' } },
-          // Sol taraf - arama ve filter butonları
-          React.createElement('div', { style: { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' } },
-            React.createElement('input', {
-              type: 'text',
-              placeholder: 'Tüm veriler içinde arama...',
-              value: globalSearch,
-              onChange: (e) => setGlobalSearch(e.target.value),
-              style: { padding: '6px 12px', border: '1px solid #ddd', borderRadius: '4px', minWidth: '200px' }
-            }),
+    // Quotes Tabs
+    React.createElement(QuotesTabs, {
+      activeTab: activeQuotesTab,
+      onTabChange: handleQuotesTabChange
+    },
+      // Tab 1: Teklifler
+      React.createElement('div', { className: 'quotes-list-content' },
+        // MES Style Filter Bar
+        React.createElement('div', { className: 'mes-filter-bar', style: { marginBottom: '24px' } },
+          // Dashboard Indicators
+          React.createElement('div', { className: 'quotes-dashboard-container' },
+            React.createElement('section', { className: 'quotes-dashboard is-inline' },
+              React.createElement('div', { className: 'stat' },
+                React.createElement('span', { className: 'stat-label' }, 'Toplam Teklif'),
+                React.createElement('span', { className: 'stat-value' }, list.length)
+              ),
+              React.createElement('div', { className: 'divider' }),
+              React.createElement('div', { className: 'stat' },
+                React.createElement('span', { className: 'stat-label' }, 'Seçili'),
+                React.createElement('span', { className: 'stat-value' }, selected.size)
+              ),
+              (function() {
+                const flaggedCount = list.filter(isQuoteFlaggedForPricing).length
+                if (flaggedCount === 0) return null
+                return [
+                  React.createElement('div', { className: 'divider', key: 'divider' }),
+                  React.createElement('div', { className: 'stat', key: 'stat' },
+                    React.createElement('span', { className: 'stat-label' }, 'Güncelleme Gerekli'),
+                    React.createElement('span', { className: 'stat-value warning' }, flaggedCount)
+                  )
+                ]
+              })()
+            )
+          ),
+
+          // Action Buttons
+          React.createElement('button', {
+            onClick: () => {
+              console.log('🔧 DEBUG: Kayıt Ekle button clicked')
+              setShowAddModal(true)
+            },
+            className: 'mes-primary-action is-compact',
+            disabled: loading
+          }, 
+            React.createElement('span', null, '✚'),
+            React.createElement('span', null, 'Yeni Teklif')
+          ),
+          
+          React.createElement('button', {
+            onClick: () => exportToCSV(),
+            className: 'mes-filter-button is-compact',
+            title: selected.size > 0 ? `${selected.size} seçili kaydı dışa aktar` : `${filtered.length} kaydı dışa aktar`,
+            disabled: loading
+          }, 
+            React.createElement('span', null, '📊'),
+            React.createElement('span', null, selected.size > 0 ? `CSV (${selected.size})` : 'CSV')
+          ),
+          
+          selected.size > 0 && React.createElement('button', {
+            onClick: (e) => {
+              if (confirm(`${selected.size} kayıt silinecek. Emin misiniz?`)) {
+                const selectedItems = Array.from(selected);
+                selectedItems.forEach(id => remove(id));
+                setSelected(new Set());
+              }
+            },
+            className: 'mes-filter-clear is-compact',
+            title: 'Seçili kayıtları sil',
+            disabled: loading
+          }, 
+            React.createElement('span', null, '🗑️'),
+            React.createElement('span', null, `Sil (${selected.size})`)
+          ),
+          
+          // Locked quotes toggle
+          React.createElement('button', {
+            onClick: () => {
+              setFilters(prev => ({ ...prev, lockedOnly: !prev.lockedOnly }))
+            },
+            title: filters.lockedOnly ? 'Kilitli filtresi aktif' : 'Sadece fiyatı kilitli kayıtları göster',
+            className: filters.lockedOnly ? 'mes-filter-button is-compact active' : 'mes-filter-button is-compact'
+          }, 
+            React.createElement('span', null, '🔒')
+          ),
+
+          // Search Input
+          React.createElement('input', {
+            type: 'text',
+            placeholder: 'Tüm veriler içinde arama...',
+            value: globalSearch,
+            onChange: (e) => setGlobalSearch(e.target.value),
+            className: 'mes-search-input',
+            disabled: loading
+          }),
+          
+          // Filter Controls Container
+          React.createElement('div', { className: 'mes-filter-controls' },
+            // Filter Button
             React.createElement('button', {
               onClick: () => setFilterPopup(true),
-              className: 'btn',
-              style: {
-                backgroundColor: getActiveFilterCount(filters) > 0 ? '#28a745' : '#6c757d',
-                color: 'white',
-                border: 'none',
-                padding: '6px 12px',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                position: 'relative'
-              }
+              className: getActiveFilterCount(filters) > 0 ? 'mes-filter-button is-compact active' : 'mes-filter-button is-compact'
             }, 
-              '🔍 Filtreler',
-              getActiveFilterCount(filters) > 0 && React.createElement('span', {
+              React.createElement('span', null, '🔍'),
+              React.createElement('span', null, 'Filtreler'),
+              getActiveFilterCount(filters) > 0 && React.createElement('span', { 
+                className: 'filter-badge',
                 style: {
                   position: 'absolute',
                   top: '-6px',
                   right: '-6px',
-                  backgroundColor: '#dc3545',
+                  background: '#dc3545',
                   color: 'white',
                   borderRadius: '50%',
-                  width: '20px',
-                  height: '20px',
-                  fontSize: '11px',
+                  minWidth: '18px',
+                  height: '18px',
+                  fontSize: '10px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  fontWeight: '600'
                 }
               }, getActiveFilterCount(filters))
             ),
             
-            // Koşullu Temizle butonu - sadece aktif filtreler varsa görün
+            // Clear Filters
             (function() {
               const activeFilterCount = getActiveFilterCount(filters)
               const hasGlobalSearch = globalSearch && globalSearch.trim().length > 0
               const hasLockedFilter = filters.lockedOnly
               
-              // Eğer hiç aktif filtre yoksa butonu gösterme
               if (activeFilterCount === 0 && !hasGlobalSearch && !hasLockedFilter) {
                 return null
               }
               
               return React.createElement('button', {
                 onClick: () => clearFilters(setFilters, setGlobalSearch),
-                className: 'btn',
-                style: {
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  border: 'none',
-                  padding: '6px 12px',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }
-              }, 'Seçili Filtreleri Kaldır')
-            })(),
-            
-            // Add Record button
-            React.createElement('button', {
-              onClick: () => {
-                console.log('🔧 DEBUG: Kayıt Ekle button clicked')
-                setShowAddModal(true)
-                console.log('🔧 DEBUG: showAddModal set to true')
-              },
-              className: 'btn',
-              style: {
-                backgroundColor: '#28a745',
-                color: 'white',
-                border: 'none',
-                padding: '6px 12px',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }
-            }, 'Kayıt Ekle'),
-            
-            // Locked quotes filter button
-            React.createElement('button', {
-              onClick: () => {
-                setFilters(prev => ({ ...prev, lockedOnly: !prev.lockedOnly }))
-              },
-              className: 'btn',
-              title: filters.lockedOnly ? 'Kilitli filtresi aktif - kaldırmak için tekrar tıkla' : 'Sadece fiyatı kilitli kayıtları göster',
-              style: {
-                backgroundColor: filters.lockedOnly ? '#28a745' : '#6c757d',
-                color: 'white',
-                border: 'none',
-                padding: '6px 12px',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                minWidth: '40px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '14px'
-              }
-            }, '🔒'),
-            
-            // Bulk price update button (dynamic label)
-            (function () {
-              const selectedCount = selected.size
-              const flaggedCount = list.filter(isQuoteFlaggedForPricing).length
-              
-              console.log('🔍 DEBUG - Buton Durumu:', {
-                totalQuotes: list.length,
-                selectedCount,
-                flaggedCount,
-                firstThreeQuotes: list.slice(0, 3).map(q => ({
-                  id: q.id,
-                  priceStatus: q.priceStatus,
-                  needsPriceUpdate: q.needsPriceUpdate,
-                  formStructureChanged: q.formStructureChanged,
-                  flagged: isQuoteFlaggedForPricing(q)
-                }))
-              })
-              
-              // Eğer hiç güncelleme durumu yoksa buton gözükmesin
-              if (flaggedCount === 0) {
-                console.log('🚫 Buton gizleniyor - flaggedCount = 0')
-                return null
-              }
-              
-              // Seçili kayıt varsa sadece seçilmiş olanları işle, yoksa tüm flagged kayıtları işle
-              const targetCount = selectedCount > 0 ? selectedCount : flaggedCount
-              const lockedCount = selectedCount > 0 
-                ? Array.from(selected).filter(id => {
-                    const quote = list.find(q => q.id === id)
-                    return quote?.manualOverride?.active
-                  }).length
-                : list.filter(item => isQuoteFlaggedForPricing(item) && item.manualOverride?.active).length
-              
-              // Effectual updateable count = flagged - locked
-              const effectualUpdateableCount = selectedCount > 0 ? selectedCount : (flaggedCount - lockedCount)
-              
-              // Eğer güncellnecek kayıt kalmadıysa buton gösterme
-              if (selectedCount === 0 && effectualUpdateableCount <= 0) {
-                console.log('🚫 Buton gizleniyor - effectualUpdateableCount =', effectualUpdateableCount, '(flagged:', flaggedCount, 'locked:', lockedCount, ')')
-                return null
-              }
-              
-              let label = selectedCount > 0 
-                ? `Seçili ${selectedCount} kaydı güncelle` 
-                : `${effectualUpdateableCount} kaydı güncelle`
-              
-              if (lockedCount > 0) {
-                label += ` (${lockedCount} kilitli atlanacak)`
-              }
-              const onClick = async () => {
-                if (bulkProgress && !bulkProgress.finished && !bulkProgress.cancelled) {
-                  showNotification('Bir toplu işlem zaten yürütülüyor', 'info')
-                  return
-                }
-
-                const ids = selectedCount > 0
-                  ? Array.from(selected)
-                  : list.filter(isQuoteFlaggedForPricing).map(item => item.id)
-
-                if (!ids.length) {
-                  showNotification('Güncellenecek kayıt bulunamadı', 'info')
-                  return
-                }
-
-                performBulkUpdate(ids, selectedCount > 0 ? 'selected' : 'all')
-              }
-              return React.createElement('button', {
-                onClick,
-                className: 'btn',
-                style: {
-                  backgroundColor: '#17a2b8',
-                  color: 'white',
-                  border: 'none',
-                  padding: '6px 12px',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }
-              }, label)
-            })()
-          ),
-          
-          // Seçili kayıtlar için işlem butonları (sadece seçim varsa görünür)
-          selected.size > 0 && React.createElement(React.Fragment, null,
-            React.createElement('button', {
-              onClick: (e) => {
-                const selectedItems = Array.from(selected);
-                console.log('ℹ️ Bulk Production transfer for items:', selectedItems);
-                // TODO: Bulk production transfer implementation
-              },
-              className: 'btn',
-              style: {
-                fontSize: '12px',
-                padding: '6px 12px',
-                backgroundColor: '#28a745',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              },
-              title: 'Seçili kayıtları üretime aktar'
-            }, 
-              '🏭 Üretime Aktar',
-              React.createElement('span', { style: { fontSize: '11px', opacity: 0.8 } }, `(${selected.size})`)
-            ),
-            React.createElement('button', {
-              onClick: (e) => {
-                if (confirm(`${selected.size} kayıt silinecek. Emin misiniz?`)) {
-                  const selectedItems = Array.from(selected);
-                  selectedItems.forEach(id => remove(id));
-                  setSelected(new Set());
-                }
-              },
-              className: 'btn',
-              style: {
-                fontSize: '12px',
-                padding: '6px 12px',
-                backgroundColor: '#dc3545',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              },
-              title: 'Seçili kayıtları sil'
-            }, 
-              '🗑️ Sil',
-              React.createElement('span', { style: { fontSize: '11px', opacity: 0.8 } }, `(${selected.size})`)
-            )
-          ),
-          
-          // Sağ taraf - CSV Export butonu
-          React.createElement('button', {
-            onClick: () => exportToCSV(),
-            className: 'btn',
-            style: {
-              backgroundColor: '#6f42c1',
-              color: 'white',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }
-          }, 
-            '📊 CSV Export',
-            React.createElement('span', { style: { fontSize: '12px', opacity: 0.8 } }, 
-              selected.size > 0 ? `(${selected.size} seçili kayıt)` : `(${filtered.length} kayıt)`
-            )
-          )
-        )
-      ),
-
-      // Active filters display
-      React.createElement('div', { style: { marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '8px' } },
-        // Status filters
-        filters.status.length > 0 && React.createElement('span', { 
-          style: { 
-            backgroundColor: '#007bff', 
-            color: 'white', 
-            padding: '4px 8px', 
-            borderRadius: '16px', 
-            fontSize: '11px',
-            position: 'relative',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            paddingRight: '20px'
-          },
-          onMouseOver: (e) => e.target.style.backgroundColor = '#0056b3',
-          onMouseOut: (e) => e.target.style.backgroundColor = '#007bff',
-          title: 'Durum filtresini kaldır'
-        }, 
-          `Durum: ${filters.status.join(', ')}`,
-          React.createElement('span', {
-            style: {
-              position: 'absolute',
-              right: '4px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '12px'
-            },
-            onClick: (e) => { e.stopPropagation(); clearSpecificFilter(setFilters, 'status') }
-          }, '×')
-        )
-      ),
-
-      // Results summary
-      React.createElement('div', { style: { marginTop: '12px', fontSize: '14px', color: '#666' } },
-        `${filtered.length} kayıt gösteriliyor${filtered.length !== list.length ? ` (toplam ${list.length} kayıttan)` : ''}`
-      )
-    ),
-
-    // Data table
-    React.createElement('div', { className: 'table-container', style: { marginTop: '16px', overflowX: 'auto', position: 'relative' } },
-      // Loading overlay for table only (but not during bulk operations)
-      loading && !bulkProgress && React.createElement('div', {
-        style: {
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(255, 255, 255, 0.9)',
-          backdropFilter: 'blur(1px)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000,
-          fontSize: '14px',
-          color: '#666',
-          minHeight: '200px'
-        }
-      },
-        React.createElement('div', {
-          style: {
-            width: '32px',
-            height: '32px',
-            border: '3px solid #f3f3f3',
-            borderTop: '3px solid #007bff',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            marginBottom: '12px'
-          }
-        }),
-        React.createElement('div', null, 'Veriler yükleniyor...')
-      ),
-      // Error overlay for table only (but not during bulk operations)
-      error && !loading && !bulkProgress && React.createElement('div', {
-        style: {
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 1000,
-          fontSize: '14px',
-          color: '#dc3545',
-          minHeight: '200px',
-          textAlign: 'center',
-          padding: '20px'
-        }
-      },
-        React.createElement('div', { style: { fontSize: '24px', marginBottom: '12px' } }, '⚠️'),
-        React.createElement('div', { style: { fontWeight: '500', marginBottom: '8px' } }, 'Veri yükleme hatası'),
-        React.createElement('div', null, error)
-      ),
-      React.createElement('table', { className: 'table' },
-        React.createElement('thead', null,
-          React.createElement('tr', null,
-            React.createElement('th', null,
-              React.createElement('input', {
-                type: 'checkbox',
-                checked: selected.size === filtered.length && filtered.length > 0,
-                onChange: (e) => toggleAll(e.target.checked),
-                onClick: (e) => e.stopPropagation()
-              })
-            ),
-            ...tableColumns.map(col => {
-              const isActive = sortConfig?.columnId === col.id
-              const indicator = isActive ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'
-              return React.createElement('th', { 
-                key: col.id, 
-                style: col.id === 'date' ? { whiteSpace: 'nowrap', minWidth: '90px' } : { whiteSpace: 'nowrap' }
-              },
-                React.createElement('button', {
-                  type: 'button',
-                  onClick: () => handleSort(col.id),
-                  style: {
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: isActive ? '#007bff' : 'inherit'
-                  }
-                },
-                  col.label,
-                  React.createElement('span', { style: { fontSize: '12px', opacity: isActive ? 1 : 0.6 } }, indicator)
-                )
+                className: 'mes-filter-clear is-compact',
+                title: 'Tüm filtreleri temizle'
+              }, 
+                React.createElement('span', null, '✕'),
+                React.createElement('span', null, 'Temizle')
               )
-            })
+            })()
           )
         ),
-        React.createElement('tbody', null,
-          currentPageItems.map(item => 
-            React.createElement('tr', { 
-              key: item.id,
-              onClick: () => {
-                console.log('🔧 DEBUG: Row clicked for item:', item.id, item);
-                setDetail(item);
-              },
-              style: { cursor: 'pointer' }
-            },
-              React.createElement('td', null,
+
+    // Data table
+    React.createElement('div', { className: 'quotes-table-container' },
+      React.createElement('div', { className: 'quotes-table-wrapper' },
+        // Loading overlay for table only
+        loading && !bulkProgress && React.createElement('div', { className: 'quotes-loading' },
+          React.createElement('div', { className: 'spinner' }),
+          React.createElement('div', { className: 'loading-text' }, 'Veriler yükleniyor...')
+        ),
+        
+        // Error overlay for table only
+        error && !loading && !bulkProgress && React.createElement('div', { className: 'quotes-empty-state' },
+          React.createElement('div', { className: 'empty-icon' }, '⚠️'),
+          React.createElement('div', { className: 'empty-title' }, 'Veri yükleme hatası'),
+          React.createElement('div', { className: 'empty-message' }, error)
+        ),
+        
+        React.createElement('table', { className: 'quotes-table' },
+          React.createElement('thead', null,
+            React.createElement('tr', null,
+              React.createElement('th', null,
                 React.createElement('input', {
                   type: 'checkbox',
-                  checked: selected.has(item.id),
-                  onChange: (e) => { e.stopPropagation(); toggleOne(item.id, e.target.checked) },
+                  checked: selected.size === filtered.length && filtered.length > 0,
+                  onChange: (e) => toggleAll(e.target.checked),
                   onClick: (e) => e.stopPropagation()
                 })
               ),
-              ...tableColumns.map(col => 
-                React.createElement('td', { 
-                  key: col.id,
-                  style: col.id === 'date' ? { whiteSpace: 'nowrap', minWidth: '90px' } : {}
+              ...tableColumns.map(col => {
+                const isActive = sortConfig?.columnId === col.id
+                const indicator = isActive ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'
+                return React.createElement('th', { key: col.id },
+                  React.createElement('button', {
+                    type: 'button',
+                    onClick: () => handleSort(col.id),
+                    className: isActive ? 'quotes-sort-button active' : 'quotes-sort-button'
+                  },
+                    col.label,
+                    React.createElement('span', { className: 'quotes-sort-icon' }, indicator)
+                  )
+                )
+              }),
+              React.createElement('th', null, 'İşlemler')
+            )
+          ),
+          React.createElement('tbody', null,
+            currentPageItems.map(item => {
+              const warningInfo = getQuoteWarningInfo(item)
+              const hasWarning = warningInfo.priority > 0
+              
+              return React.createElement('tr', { 
+                key: item.id,
+                onClick: () => {
+                  console.log('🔧 DEBUG: Row clicked for item:', item.id, item);
+                  setDetail(item);
                 },
-                  formatFieldValue(
-                    getFieldValue(item, col.id),
-                    col,
-                    item,
-                    {
-                      getPriceChangeType: (quote) => getPriceChangeType(quote, priceSettings),
-                      setSettingsModal,
-                      openPriceReview,
-                      calculatePrice: (quote) => calculatePrice(quote, priceSettings),
-                      statusLabel,
-                      t
-                    }
+                className: selected.has(item.id) ? 'selected' : '',
+                style: { cursor: 'pointer' }
+              },
+                React.createElement('td', null,
+                  React.createElement('input', {
+                    type: 'checkbox',
+                    checked: selected.has(item.id),
+                    onChange: (e) => { e.stopPropagation(); toggleOne(item.id, e.target.checked) },
+                    onClick: (e) => e.stopPropagation()
+                  })
+                ),
+                ...tableColumns.map(col => 
+                  React.createElement('td', { key: col.id },
+                    formatFieldValue(
+                      getFieldValue(item, col.id),
+                      col,
+                      item,
+                      {
+                        getPriceChangeType: (quote) => getPriceChangeType(quote, priceSettings),
+                        setSettingsModal,
+                        openPriceReview,
+                        calculatePrice: (quote) => calculatePrice(quote, priceSettings),
+                        statusLabel,
+                        t
+                      }
+                    )
+                  )
+                ),
+                React.createElement('td', null,
+                  React.createElement('div', { className: 'row-actions' },
+                    React.createElement('button', {
+                      onClick: (e) => {
+                        e.stopPropagation();
+                        setDetail(item);
+                      },
+                      className: 'row-action-btn primary',
+                      title: 'Detayları görüntüle'
+                    }, 'Görüntüle'),
+                    hasWarning && React.createElement('button', {
+                      onClick: (e) => {
+                        e.stopPropagation();
+                        openPriceReview(item);
+                      },
+                      className: 'row-action-btn',
+                      style: {
+                        background: warningInfo.bgColor,
+                        color: warningInfo.color,
+                        borderColor: warningInfo.color
+                      },
+                      title: warningInfo.type === 'price' ? 'Fiyat güncellemesi gerekli' : 'Versiyon güncellemesi gerekli'
+                    }, '⚠️ Güncelle'),
+                    React.createElement('button', {
+                      onClick: (e) => {
+                        e.stopPropagation();
+                        if (confirm('Bu kaydı silmek istediğinizden emin misiniz?')) {
+                          remove(item.id);
+                        }
+                      },
+                      className: 'row-action-btn danger',
+                      title: 'Kaydı sil'
+                    }, '🗑️')
                   )
                 )
               )
-            )
+            })
           )
         )
       )
@@ -1830,6 +1656,38 @@ function Admin({ t, onLogout, showNotification }) {
       formConfig: formConfig,
       onSave: handleAddRecord
     })
+      ),
+      
+      // Tab 2: Fiyatlandırma (Placeholder)
+      React.createElement('div', { className: 'pricing-content' },
+        React.createElement('div', { 
+          style: { 
+            padding: '40px 20px', 
+            textAlign: 'center',
+            color: '#6b7280'
+          } 
+        },
+          React.createElement('div', { style: { fontSize: '48px', marginBottom: '16px' } }, '💰'),
+          React.createElement('h2', { style: { margin: '0 0 8px 0', color: '#111827' } }, 'Fiyatlandırma Ayarları'),
+          React.createElement('p', { style: { margin: 0 } }, 'Fiyatlandırma ayarları buraya taşınacak...')
+        )
+      ),
+      
+      // Tab 3: Form Yapısı (Placeholder)
+      React.createElement('div', { className: 'form-structure-content' },
+        React.createElement('div', { 
+          style: { 
+            padding: '40px 20px', 
+            textAlign: 'center',
+            color: '#6b7280'
+          } 
+        },
+          React.createElement('div', { style: { fontSize: '48px', marginBottom: '16px' } }, '📋'),
+          React.createElement('h2', { style: { margin: '0 0 8px 0', color: '#111827' } }, 'Form Yapısı Yönetimi'),
+          React.createElement('p', { style: { margin: 0 } }, 'Form yapısı ayarları buraya taşınacak...')
+        )
+      )
+    )
   )
 }
 
