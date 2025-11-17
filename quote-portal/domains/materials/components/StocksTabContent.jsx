@@ -378,56 +378,21 @@ export default function StocksTabContent({
       
       {/* Malzeme tablosu */}
       <div className="materials-table-container">
-        {loading && materials.length === 0 ? (
-          <div className="loading-state">
-            <div className="spinner"></div>
-            <p>Malzemeler yükleniyor...</p>
-          </div>
-        ) : error && materials.length === 0 ? (
-          <div className="error-state">
-            <div>⚠️</div>
-            <h3>Veriler yüklenemedi</h3>
-            <p>{error}</p>
-            <button 
-              className="mes-primary-action"
-              onClick={() => handleAddMaterial()}
-            >
-              Yine de Yeni Malzeme Ekle
-            </button>
-          </div>
-        ) : materials.length === 0 ? (
-          <div className="empty-state">
-            <h3>Henüz malzeme bulunmuyor</h3>
-            <p>İlk malzemenizi eklemek için "Yeni Malzeme" butonunu kullanın.</p>
-            <button 
-              className="mes-primary-action"
-              onClick={() => handleAddMaterial()}
-            >
-              + İlk Malzemeyi Ekle
-            </button>
-          </div>
-        ) : (
-          <>
-            {loading && (
-              <div className="loading-indicator">
-                <div className="spinner spinner-small"></div>
-                Veriler güncelleniyor...
-              </div>
-            )}
-            <MaterialsTable 
-              materials={materials} 
-              types={materialTypes} 
-              categories={categories}
-              onMaterialSelect={handleMaterialSelect}
-              onEditMaterial={handleEditMaterial}
-              onDeleteMaterial={handleDeleteMaterial}
-              onCategoryManage={handleCategoryManage}
-              selectedMaterials={selectedMaterials}
-              onSelectedMaterialsChange={setSelectedMaterials}
-              onOrderClick={handleOrderClick}
-            />
-          </>
-        )}
+        <MaterialsTable 
+          materials={materials} 
+          types={materialTypes} 
+          categories={categories}
+          onMaterialSelect={handleMaterialSelect}
+          onEditMaterial={handleEditMaterial}
+          onDeleteMaterial={handleDeleteMaterial}
+          onCategoryManage={handleCategoryManage}
+          selectedMaterials={selectedMaterials}
+          onSelectedMaterialsChange={setSelectedMaterials}
+          onOrderClick={handleOrderClick}
+          loading={loading}
+          error={error}
+          onAddMaterial={handleAddMaterial}
+        />
       </div>
 
       {/* Bulk Progress Modal */}

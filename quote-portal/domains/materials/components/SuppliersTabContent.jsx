@@ -273,19 +273,21 @@ export default function SuppliersTabContent({
   return (
     <div className="stocks-tab-content">
       {/* MES Filter Bar: Dashboard + Actions + Filters */}
-      <div className="mes-filter-bar is-compact">
+      <div className="mes-filter-bar" style={{marginBottom: '24px'}}>
         {/* Dashboard - Inline Single Line */}
-        <section className="materials-dashboard is-inline">
-          <div className="stat">
-            <span className="stat-label">Aktif Tedarikçi</span>
-            <span className="stat-value">{activeSuppliers}</span>
-          </div>
-          <div className="divider"></div>
-          <div className="stat">
-            <span className="stat-label">Bu Ay Sipariş</span>
-            <span className="stat-value">{thisMonthOrders}</span>
-          </div>
-        </section>
+        <div className="materials-dashboard-container">
+          <section className="materials-dashboard is-inline">
+            <div className="stat">
+              <span className="stat-label">Aktif Tedarikçi</span>
+              <span className="stat-value">{activeSuppliers}</span>
+            </div>
+            <div className="divider"></div>
+            <div className="stat">
+              <span className="stat-label">Bu Ay Sipariş</span>
+              <span className="stat-value">{thisMonthOrders}</span>
+            </div>
+          </section>
+        </div>
 
         {/* Action Buttons */}
         <button
@@ -316,66 +318,28 @@ export default function SuppliersTabContent({
         />
       </div>
 
-      {/* Kategori Sekmeleri + Tablo */}
-      <section className="materials-table">
-        <CategoryTabs suppliers={filteredSuppliers} activeCategory={activeCategory} onCategoryChange={setActiveCategory} />
-        <div style={{ padding: 0 }}>
-          <SuppliersTable 
-            suppliers={categoryFilteredSuppliers}
-            onSupplierDetails={handleSupplierDetails}
-            loading={suppliersLoading}
-            suppliersLoading={suppliersLoading}
-            onUpdateSupplier={updateSupplierWithRefresh}
-            onDeleteSupplier={deleteSupplier}
-            onRefreshSuppliers={refetchSuppliers}
-            handleDeleteMaterial={handleDeleteMaterial}
-          />
-        </div>
-      </section>
+      {/* Suppliers Table */}
+      <div className="materials-table-container">
+        <SuppliersTable 
+          suppliers={categoryFilteredSuppliers}
+          onSupplierDetails={handleSupplierDetails}
+          loading={suppliersLoading}
+          suppliersLoading={suppliersLoading}
+          onUpdateSupplier={updateSupplierWithRefresh}
+          onDeleteSupplier={deleteSupplier}
+          onRefreshSuppliers={refetchSuppliers}
+          handleDeleteMaterial={handleDeleteMaterial}
+          activeCategory={activeCategory}
+          onCategoryChange={setActiveCategory}
+          categories={categories}
+        />
+      </div>
 
       <AddSupplierModal
         isOpen={isAddSupplierModalOpen}
         onClose={() => setIsAddSupplierModalOpen(false)}
         onSave={handleAddSupplier}
       />
-    </div>
-  )
-}
-
-// Basit kategori sekmeleri (stoklar/siparişlerdeki görünümle uyumlu)
-function CategoryTabs({ suppliers, activeCategory, onCategoryChange }) {
-  const { categories, loading } = useCategories(true)
-  const materialCategories = useMemo(() => (categories || []).filter(c => c.type === 'material' || !c.type), [categories])
-
-  const counts = useMemo(() => {
-    const map = { all: suppliers?.length || 0 }
-    for (const cat of materialCategories) {
-      const count = (suppliers || []).filter(s => (s.suppliedMaterials || []).some(m => m?.category === cat.id)).length
-      map[cat.id] = count
-    }
-    return map
-  }, [suppliers, materialCategories])
-
-  const tabs = useMemo(() => [
-    { id: 'all', label: 'Tümünü Göster' },
-    ...materialCategories.map(c => ({ id: c.id, label: c.name || c.label || c.id }))
-  ], [materialCategories])
-
-  if (!suppliers) return null
-
-  return (
-    <div className="materials-tabs">
-      {tabs.map(tab => (
-        <button
-          key={tab.id}
-          className={`tab-button ${activeCategory === tab.id ? 'active' : ''}`}
-          onClick={() => onCategoryChange(tab.id)}
-          disabled={loading && tab.id !== 'all'}
-        >
-          {tab.label}
-          <span className="tab-count">({counts[tab.id] ?? 0})</span>
-        </button>
-      ))}
     </div>
   )
 }

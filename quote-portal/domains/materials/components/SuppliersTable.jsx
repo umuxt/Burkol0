@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import useSupplierProcurementHistory from '../hooks/useSupplierProcurementHistory.js'
 import { useMaterials, useMaterialActions } from '../hooks/useMaterials'
 import { useSuppliers } from '../hooks/useSuppliers'
+import { useCategories } from '../hooks/useCategories'
 import { categoriesService } from '../services/categories-service'
 import { materialsService } from '../services/materials-service'
 import EditMaterialModal from './EditMaterialModal'
@@ -22,7 +23,10 @@ export default function SuppliersTable({
   onUpdateSupplier,
   onDeleteSupplier,
   onRefreshSuppliers,
-  handleDeleteMaterial
+  handleDeleteMaterial,
+  activeCategory = 'all',
+  onCategoryChange,
+  categories: categoriesProp
 }) {
   const [selectedSupplier, setSelectedSupplier] = useState(null)
   const [selectedSupplierId, setSelectedSupplierId] = useState(null)
@@ -829,10 +833,28 @@ export default function SuppliersTable({
     }
   }
 
-  const sortedSuppliers = React.useMemo(() => {
-    if (!sortField) return suppliers
+  // Filter suppliers by category
+  const filteredSuppliers = React.useMemo(() => {
+    if (activeCategory === 'all') return suppliers
+    
+    return suppliers.filter(supplier => {
+      if (!supplier.suppliedMaterials || supplier.suppliedMaterials.length === 0) return false
+      
+      return supplier.suppliedMaterials.some(material => {
+        const fullMaterial = allMaterials.find(m => 
+          m.id === (material.id || material.materialId) || 
+          m.code === material.materialCode || 
+          m.code === material.code
+        )
+        return fullMaterial && fullMaterial.category === activeCategory
+      })
+    })
+  }, [suppliers, activeCategory, allMaterials])
 
-    return [...suppliers].sort((a, b) => {
+  const sortedSuppliers = React.useMemo(() => {
+    if (!sortField) return filteredSuppliers
+
+    return [...filteredSuppliers].sort((a, b) => {
       let aVal = a[sortField] || ''
       let bVal = b[sortField] || ''
 
@@ -845,7 +867,7 @@ export default function SuppliersTable({
         return aVal < bVal ? 1 : -1
       }
     })
-  }, [suppliers, sortField, sortDirection])
+  }, [filteredSuppliers, sortField, sortDirection])
 
   const getInputStyle = (isEditing) => ({
     padding: '8px 12px',
@@ -856,99 +878,136 @@ export default function SuppliersTable({
     fontSize: '14px'
   })
 
-  if (loading) {
-    return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex justify-center items-center h-48">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-gray-600">Tedarikçiler yükleniyor...</span>
-        </div>
-      </div>
-    )
-  }
+  // Get category tabs
+  const categoryList = React.useMemo(() => {
+    return (categoriesProp || []).filter(c => c.type === 'material' || !c.type)
+  }, [categoriesProp])
+
+  const categoryTabs = React.useMemo(() => {
+    const tabs = [
+      {
+        id: 'all',
+        label: 'Tümü',
+        count: suppliers.length
+      }
+    ]
+
+    categoryList.forEach(cat => {
+      const count = suppliers.filter(supplier => {
+        if (!supplier.suppliedMaterials || supplier.suppliedMaterials.length === 0) return false
+        
+        return supplier.suppliedMaterials.some(material => {
+          const fullMaterial = allMaterials.find(m => 
+            m.id === (material.id || material.materialId) || 
+            m.code === material.materialCode || 
+            m.code === material.code
+          )
+          return fullMaterial && fullMaterial.category === cat.id
+        })
+      }).length
+
+      tabs.push({
+        id: cat.id,
+        label: cat.name,
+        count: count
+      })
+    })
+
+    return tabs
+  }, [suppliers, categoryList, allMaterials])
 
   return (
-    <div className="suppliers-container" style={{ 
-      display: 'flex', 
-      gap: '20px', 
-      height: 'calc(100vh - 200px)',
-      flexDirection: window.innerWidth <= 768 ? 'column' : 'row'
-    }}>
-      {/* Sol Panel - Tablo */}
-      <div className="suppliers-table-panel" style={{ 
-        flex: window.innerWidth <= 768 ? 'none' : '1', 
-        minWidth: window.innerWidth <= 768 ? 'auto' : '300px', 
-        display: 'flex', 
-        flexDirection: 'column',
-        height: window.innerWidth <= 768 ? '50vh' : 'auto'
-      }}>
-        <div className="suppliers-table">
-          <div className="table-container" style={{ 
-            overflowY: 'auto',
-            border: '1px solid #e5e7eb',
-            borderRadius: '6px',
-            background: 'white'
-          }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ 
-                background: 'rgb(248, 249, 250)', 
-                position: 'sticky', 
-                top: 0, 
-                zIndex: 1 
-              }}>
-                <tr>
-                  <th style={{ width: '40px', textAlign: 'center' }}>
-                    <input
-                      type="checkbox"
-                      title="Tümünü seç"
-                      checked={sortedSuppliers.length > 0 && sortedSuppliers.every(s => selectedSupplierIds.has(s.id))}
-                      onChange={(e) => handleSelectAll(e.target.checked, sortedSuppliers)}
-                    />
-                  </th>
-                  <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
-                    <button 
-                      type="button"
-                      onClick={() => handleSort('code')}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', font: 'inherit' }}
-                    >
-                      Tedarikçi Kodu <span style={{ fontSize: '12px', opacity: 0.6 }}>
-                        {sortField === 'code' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-                      </span>
-                    </button>
-                  </th>
-                  <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
-                    <button 
-                      type="button"
-                      onClick={() => handleSort('name')}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', font: 'inherit' }}
-                    >
-                      Firma Adı <span style={{ fontSize: '12px', opacity: 0.6 }}>
-                        {sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-                      </span>
-                    </button>
-                  </th>
-                  <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
-                    <button 
-                      type="button"
-                      onClick={() => handleSort('categories')}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'inherit', font: 'inherit' }}
-                    >
-                      Kategoriler <span style={{ fontSize: '12px', opacity: 0.6 }}>
-                        {sortField === 'categories' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
-                      </span>
-                    </button>
-                  </th>
-                  {!selectedSupplier && (
-                    <th 
-                      style={{ minWidth: '180px', textAlign: 'center', fontSize: '12px', fontWeight: 600, color: 'rgb(55, 65, 81)' }}
-                    >
-                      Aksiyonlar
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedSuppliers.map(supplier => (
+    <section className="materials-table">
+      {/* Category Tabs */}
+      <div className="materials-tabs">
+        {categoryTabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`tab-button ${activeCategory === tab.id ? 'active' : ''}`}
+            onClick={() => onCategoryChange(tab.id)}
+          >
+            {tab.label}
+            <span className="tab-count">{tab.count}</span>
+          </button>
+        ))}
+      </div>
+      
+      <div className="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: '40px', textAlign: 'center' }}>
+                <input
+                  type="checkbox"
+                  title="Tümünü seç"
+                  checked={sortedSuppliers.length > 0 && sortedSuppliers.every(s => selectedSupplierIds.has(s.id))}
+                  onChange={(e) => handleSelectAll(e.target.checked, sortedSuppliers)}
+                />
+              </th>
+              <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
+                <button 
+                  type="button"
+                  onClick={() => handleSort('code')}
+                  className="mes-sort-button"
+                >
+                  Tedarikçi Kodu<span className="mes-sort-icon">
+                    {sortField === 'code' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                  </span>
+                </button>
+              </th>
+              <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
+                <button 
+                  type="button"
+                  onClick={() => handleSort('name')}
+                  className="mes-sort-button"
+                >
+                  Firma Adı<span className="mes-sort-icon">
+                    {sortField === 'name' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                  </span>
+                </button>
+              </th>
+              <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
+                <button 
+                  type="button"
+                  onClick={() => handleSort('categories')}
+                  className="mes-sort-button"
+                >
+                  Kategoriler<span className="mes-sort-icon">
+                    {sortField === 'categories' ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}
+                  </span>
+                </button>
+              </th>
+              {!selectedSupplier && (
+                <th style={{ minWidth: '180px', textAlign: 'center' }}>
+                  Aksiyonlar
+                </th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Loading state */}
+            {loading && suppliers.length === 0 && (
+              <tr>
+                <td colSpan="5" style={{ 
+                  textAlign: 'center', 
+                  padding: '40px 20px',
+                  color: '#6b7280'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    <div className="spinner"></div>
+                    <p style={{ margin: 0, fontSize: '14px' }}>Tedarikçiler yükleniyor...</p>
+                  </div>
+                </td>
+              </tr>
+            )}
+            
+            {/* Data rows */}
+            {!loading && sortedSuppliers.map(supplier => (
                   <tr
                     key={supplier.id}
                     onClick={() => handleRowClick(supplier)}
@@ -1142,11 +1201,41 @@ export default function SuppliersTable({
                     )}
                   </tr>
                 ))}
+                
+            {/* Empty state */}
+            {!loading && sortedSuppliers.length === 0 && (
+              <tr>
+                <td colSpan="5" style={{ 
+                  textAlign: 'center', 
+                  padding: '40px 20px'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px',
+                    color: '#6b7280'
+                  }}>
+                    <div style={{ fontSize: '48px', opacity: 0.5 }}>🏭</div>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#374151' }}>
+                      {activeCategory === 'all' 
+                        ? 'Henüz tedarikçi bulunmuyor' 
+                        : 'Bu kategoride tedarikçi bulunmuyor'
+                      }
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '14px' }}>
+                      {activeCategory === 'all' 
+                        ? 'İlk tedarikçinizi eklemek için "Tedarikçi Ekle" butonunu kullanın.' 
+                        : 'Bu kategoriye ait henüz tedarikçi yok.'
+                      }
+                    </p>
+                  </div>
+                </td>
+              </tr>
+            )}
               </tbody>
             </table>
           </div>
-        </div>
-      </div>
 
       {/* Sağ Panel - Detaylar */}
       {selectedSupplier && (
@@ -3211,7 +3300,7 @@ export default function SuppliersTable({
           }
         }}
       />
-    </div>
+    </section>
   )
 }
 
@@ -3324,3 +3413,5 @@ function SupplierHistorySection({ supplier }) {
     </div>
   )
 }
+
+

@@ -11,7 +11,10 @@ export default function MaterialsTable({
   onCategoryManage,
   selectedMaterials = new Set(),
   onSelectedMaterialsChange,
-  onOrderClick
+  onOrderClick,
+  loading = false,
+  error = null,
+  onAddMaterial
 }) {
   const [activeTab, setActiveTab] = useState('all');
   const [sortField, setSortField] = useState('');
@@ -139,11 +142,11 @@ export default function MaterialsTable({
             {tab.label}
             {tab.id !== 'all' && (
               <span className="tab-count">
-                ({materials.filter(m => m.type === tab.id).length})
+                {materials.filter(m => m.type === tab.id).length}
               </span>
             )}
             {tab.id === 'all' && (
-              <span className="tab-count">({materials.length})</span>
+              <span className="tab-count">{materials.length}</span>
             )}
           </button>
         ))}
@@ -165,127 +168,138 @@ export default function MaterialsTable({
                 <button 
                   type="button"
                   onClick={() => handleSort('code')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: 'inherit'
-                  }}
+                  className="mes-sort-button"
                 >
-                  Malzeme Kodu{getSortIcon('code')}
+                  Malzeme Kodu<span className="mes-sort-icon">{getSortIcon('code')}</span>
                 </button>
               </th>
               <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('name')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: 'inherit'
-                  }}
+                  className="mes-sort-button"
                 >
-                  Ad{getSortIcon('name')}
+                  Ad<span className="mes-sort-icon">{getSortIcon('name')}</span>
                 </button>
               </th>
               <th style={{ minWidth: '140px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('type')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: 'inherit'
-                  }}
+                  className="mes-sort-button"
                 >
-                  Tip{getSortIcon('type')}
+                  Tip<span className="mes-sort-icon">{getSortIcon('type')}</span>
                 </button>
               </th>
               <th style={{ minWidth: '160px', whiteSpace: 'nowrap' }}>
-                <button 
-                  type="button"
-                  onClick={() => handleSort('category')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: 'inherit'
-                  }}
-                >
-                  Kategori{getSortIcon('category')}
-                </button>
-                <button 
-                  className="category-info-btn"
-                  onClick={() => onCategoryManage && onCategoryManage()}
-                  title="Kategori yönetimi"
-                >
-                  ℹ️
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button 
+                    type="button"
+                    onClick={() => handleSort('category')}
+                    className="mes-sort-button"
+                  >
+                    Kategori<span className="mes-sort-icon">{getSortIcon('category')}</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => onCategoryManage && onCategoryManage()}
+                    title="Kategori yönetimi"
+                    style={{
+                      padding: '0px 3px',
+                      border: '1px solid var(--border)',
+                      background: 'white',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Manage
+                  </button>
+                </div>
               </th>
               <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('unit')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: 'inherit'
-                  }}
+                  className="mes-sort-button"
                 >
-                  Birim{getSortIcon('unit')}
+                  Birim<span className="mes-sort-icon">{getSortIcon('unit')}</span>
                 </button>
               </th>
               <th style={{ minWidth: '140px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('stock')}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    font: 'inherit',
-                    color: 'inherit'
-                  }}
+                  className="mes-sort-button"
                 >
-                  Stok Durumu{getSortIcon('stock')}
+                  Stok Durumu<span className="mes-sort-icon">{getSortIcon('stock')}</span>
                 </button>
               </th>
             </tr>
           </thead>
           <tbody>
-            {sortedMaterials.map((material) => (
+            {/* Loading state */}
+            {loading && materials.length === 0 && (
+              <tr>
+                <td colSpan="7" style={{ 
+                  textAlign: 'center', 
+                  padding: '40px 20px',
+                  color: '#6b7280'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px'
+                  }}>
+                    <div className="spinner"></div>
+                    <p style={{ margin: 0, fontSize: '14px' }}>Malzemeler yükleniyor...</p>
+                  </div>
+                </td>
+              </tr>
+            )}
+            
+            {/* Error state */}
+            {!loading && error && materials.length === 0 && (
+              <tr>
+                <td colSpan="7" style={{ 
+                  textAlign: 'center', 
+                  padding: '40px 20px'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px',
+                    color: '#dc2626'
+                  }}>
+                    <div style={{ fontSize: '48px', opacity: 0.5 }}>⚠️</div>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+                      Veriler yüklenemedi
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+                      {error}
+                    </p>
+                    {onAddMaterial && (
+                      <button 
+                        className="mes-primary-action"
+                        onClick={() => onAddMaterial()}
+                        style={{
+                          marginTop: '8px',
+                          padding: '8px 16px',
+                          fontSize: '14px'
+                        }}
+                      >
+                        Yine de Yeni Malzeme Ekle
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            )}
+            
+            {/* Data rows */}
+            {!loading && !error && sortedMaterials.map((material) => (
               <tr 
                 key={material.id || material.code} 
                 className={`
@@ -363,13 +377,48 @@ export default function MaterialsTable({
                 </td>
               </tr>
             ))}
-            {sortedMaterials.length === 0 && (
+            
+            {/* Empty state */}
+            {!loading && !error && sortedMaterials.length === 0 && (
               <tr>
-                <td colSpan="5" className="no-data">
-                  {activeTab === 'all' 
-                    ? 'Henüz malzeme bulunmuyor.' 
-                    : `Bu tipte malzeme bulunmuyor: ${tabs.find(t => t.id === activeTab)?.label}`
-                  }
+                <td colSpan="7" style={{ 
+                  textAlign: 'center', 
+                  padding: '40px 20px'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '12px',
+                    color: '#6b7280'
+                  }}>
+                    <div style={{ fontSize: '48px', opacity: 0.5 }}>📦</div>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#374151' }}>
+                      {activeTab === 'all' 
+                        ? 'Henüz malzeme bulunmuyor' 
+                        : `Bu tipte malzeme bulunmuyor`
+                      }
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '14px' }}>
+                      {activeTab === 'all' 
+                        ? 'İlk malzemenizi eklemek için "Yeni Malzeme" butonunu kullanın.' 
+                        : `${tabs.find(t => t.id === activeTab)?.label} tipinde henüz malzeme yok.`
+                      }
+                    </p>
+                    {activeTab === 'all' && onAddMaterial && (
+                      <button 
+                        className="mes-primary-action"
+                        onClick={() => onAddMaterial()}
+                        style={{
+                          marginTop: '8px',
+                          padding: '8px 16px',
+                          fontSize: '14px'
+                        }}
+                      >
+                        + İlk Malzemeyi Ekle
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             )}
