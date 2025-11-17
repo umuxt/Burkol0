@@ -5471,135 +5471,122 @@ DOSYA YOLLARI:
 
 ---
 
-#PROMPT 10: Pause/Cancel Substation Schedule Güncelleme
+#PROMPT 10: Pause/Cancel Resource Management Fix
 
-**Öncelik:** 🟡 MEDIUM  
-**Bağımlılık:** PROMPT 3 tamamlanmış olmalı (substationSchedule var)  
-**Süre:** ~8 dakika  
+**Öncelik:** 🔴 HIGH  
+**Bağımlılık:** Yok  
+**Süre:** ~10 dakika  
 **Dosya:** `quote-portal/server/mesRoutes.js`
 
 ```markdown
-GÖREV: Pause/Cancel endpoint'lerinde substationSchedule'ın güncellenmesini sağlamak.
-
-**⚠️ BAĞIMLILIK:** PROMPT 3 tamamlanmış olmalı (substationSchedule refactoring).
+GÖREV: Admin pause/cancel endpoint'lerinde worker/station/substation atamalarının doğru yönetilmesini sağlamak.
 
 CONTEXT:
-- Sorun: Pause/Cancel sırasında worker schedule güncelleniyor ama substation schedule güncellenmiyor
-- Sonuç: Substation'lar hala rezerve görünüyor, yeni atama yapılamıyor
-- Lokasyon: mesRoutes.js satır ~6100, ~6200
+- Sorun 1: Admin pause (/production-plans/:planId/pause) worker/station atamalarını tamamen siliyor
+- Sorun 2: Worker pause ile admin pause tutarsız davranıyor
+- Sonuç: Resume yapılınca atamalar bulunamıyor, sistem bozuluyor
+- Lokasyon: mesRoutes.js lines 6960-7020 (admin pause), 3765 (worker pause)
+
+PAUSE CONTEXT TYPES:
+- 'worker': İşçi portalından pause (yemek, tuvalet) → Atamalar KORUNMALI
+- 'plan': Admin pause (WO tablosundan) → Atamalar KORUNMALI
+- 'station_error': Makine arızası → Atamalar KORUNMALI
 
 ÇÖZÜM:
 
-1. PAUSE ENDPOINT GÜNCELLEMESİ (satır ~6100):
+1. ADMIN PAUSE FIX (satır ~6980):
 
-MEVCUT KOD:
+❌ MEVCUT HATALI KOD:
 ```javascript
-router.post('/pause-production', withAuth, async (req, res) => {
-  try {
-    const { workOrderCode } = req.body;
-    
-    const batch = db.batch();
-    
-    // Update plan
-    const planSnap = await db.collection('mes-production-plans')
-      .where('workOrderCode', '==', workOrderCode)
-      .limit(1)
-      .get();
-    
-    if (!planSnap.empty) {
-      batch.update(planSnap.docs[0].ref, { 
-        status: 'paused',
-        pausedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-    }
-    
-    // Update assignments
-    const assignmentSnap = await db.collection('mes-worker-assignments')
-      .where('workOrderCode', '==', workOrderCode)
-      .where('status', 'in', ['pending', 'in-progress'])
-      .get();
-    
-    assignmentSnap.docs.forEach(doc => {
-      batch.update(doc.ref, { 
-        status: 'paused',
-        pausedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-    });
-    
-    await batch.commit();
-    
-    res.json({ success: true });
-    
-  } catch (error) {
-    console.error('Pause error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
+// Clear worker currentTask for affected workers
+for (const workerId of workersToUpdate) {
+  const workerRef = db.collection('mes-workers').doc(workerId);
+  batch.update(workerRef, {
+    currentTask: null,              // ❌ YANLIŞ: Atamayı siliyor!
+    currentTaskUpdatedAt: now
+  });
+}
+
+// Clear station currentOperation for affected stations
+for (const stationId of stationsToUpdate) {
+  const stationRef = db.collection('mes-stations').doc(stationId);
+  batch.update(stationRef, {
+    currentOperation: null,          // ❌ YANLIŞ: Atamayı siliyor!
+    currentOperationUpdatedAt: now
+  });
+}
 ```
 
-YENİ KOD:
+✅ YENİ DOĞRU KOD:
 ```javascript
-router.post('/pause-production', withAuth, async (req, res) => {
-  try {
-    const { workOrderCode } = req.body;
-    
-    const batch = db.batch();
-    
-    // Update plan
-    const planSnap = await db.collection('mes-production-plans')
-      .where('workOrderCode', '==', workOrderCode)
-      .limit(1)
-      .get();
-    
-    if (!planSnap.empty) {
-      batch.update(planSnap.docs[0].ref, { 
-        status: 'paused',
-        pausedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-    }
-    
-    // Get assignments to free substations
-    const assignmentSnap = await db.collection('mes-worker-assignments')
-      .where('workOrderCode', '==', workOrderCode)
-      .where('status', 'in', ['pending', 'in-progress'])
-      .get();
-    
-    // ✅ Free substations
-    const freedSubstations = [];
-    
-    assignmentSnap.docs.forEach(doc => {
-      const assignment = doc.data();
-      
-      batch.update(doc.ref, { 
-        status: 'paused',
-        pausedAt: admin.firestore.FieldValue.serverTimestamp()
-      });
-      
-      // ✅ Track freed substation
-      if (assignment.substationId) {
-        freedSubstations.push({
-          substationId: assignment.substationId,
-          workPackageId: assignment.workPackageId
-        });
-      }
-    });
-    
-    await batch.commit();
-    
-    console.log(`✅ Paused production for ${workOrderCode}`);
-    console.log(`   Freed ${freedSubstations.length} substations:`, freedSubstations);
-    
-    res.json({ 
-      success: true,
-      message: 'Üretim duraklatıldı',
-      freedSubstations: freedSubstations.length
-    });
-    
-  } catch (error) {
-    console.error('Pause error:', error);
-    res.status(500).json({ error: error.message });
+// Update worker currentTask status (keep assignment, just pause status)
+for (const workerId of workersToUpdate) {
+  const workerRef = db.collection('mes-workers').doc(workerId);
+  batch.update(workerRef, {
+    'currentTask.status': 'paused',  // ✅ DOĞRU: Sadece status değişir, atama korunur
+    updatedAt: now
+  });
+}
+
+// Update station currentOperation status (keep assignment, just pause status)
+for (const stationId of stationsToUpdate) {
+  const stationRef = db.collection('mes-stations').doc(stationId);
+  batch.update(stationRef, {
+    'currentOperation.status': 'paused',  // ✅ DOĞRU: Sadece status değişir, atama korunur
+    updatedAt: now
+  });
+}
+```
+
+2. SUBSTATION TRACKING EKLEME (satır ~6978):
+
+✅ YENİ KOD EKLE:
+```javascript
+// Track resources to update (workers, stations, substations)
+const workersToUpdate = new Set();
+const stationsToUpdate = new Set();
+const substationsToUpdate = new Set();  // ✅ Substation tracking ekle
+
+assignmentsSnapshot.docs.forEach(doc => {
+  const assignment = doc.data();
+  
+  // Skip already completed
+  if (assignment.status === 'completed') {
+    alreadyCompleteCount++;
+    return;
   }
+  
+  // Pause the assignment
+  batch.update(doc.ref, {
+    status: 'paused',
+    pausedAt: now,
+    pausedBy: userEmail,
+    pausedByName: req.user?.displayName || userEmail,
+    pauseContext: 'plan',
+    pauseReason: 'Admin paused the production plan',
+    updatedAt: now
+  });
+  
+  pausedCount++;
+  
+  // Track resources
+  if (assignment.workerId) workersToUpdate.add(assignment.workerId);
+  if (assignment.stationId) stationsToUpdate.add(assignment.stationId);
+  if (assignment.substationId) substationsToUpdate.add(assignment.substationId);  // ✅ Ekle
 });
+
+// Update substations
+for (const substationId of substationsToUpdate) {
+  const substationRef = db.collection('mes-substations').doc(substationId);
+  batch.update(substationRef, {
+    'currentOperation.status': 'paused',  // ✅ Substation da pause
+    updatedAt: now
+  });
+}
+
+console.log(`✅ Paused production plan ${planId}`);
+console.log(`   Paused: ${pausedCount} assignments`);
+console.log(`   Updated: ${workersToUpdate.size} workers, ${stationsToUpdate.size} stations, ${substationsToUpdate.size} substations`);
 ```
 
 2. CANCEL ENDPOINT GÜNCELLEMESİ (satır ~6200):
@@ -5651,11 +5638,10 @@ router.post('/cancel-production', withAuth, async (req, res) => {
       .where('status', 'in', ['pending', 'in-progress', 'paused'])
       .get();
     
-    // ✅ Free substations & workers
-    const freedResources = {
-      substations: [],
-      workers: []
-    };
+    // ✅ Track resources to clear
+    const workersToUpdate = new Set();
+    const stationsToUpdate = new Set();
+    const substationsToUpdate = new Set();
     
     assignmentSnap.docs.forEach(doc => {
       const assignment = doc.data();
@@ -5665,24 +5651,52 @@ router.post('/cancel-production', withAuth, async (req, res) => {
         cancelledAt: admin.firestore.FieldValue.serverTimestamp()
       });
       
-      // ✅ Track freed resources
-      if (assignment.substationId) {
-        freedResources.substations.push(assignment.substationId);
-      }
-      if (assignment.workerId) {
-        freedResources.workers.push(assignment.workerId);
-      }
+      // ✅ Track resources (CANCEL'da tamamen temizlenir)
+      if (assignment.workerId) workersToUpdate.add(assignment.workerId);
+      if (assignment.stationId) stationsToUpdate.add(assignment.stationId);
+      if (assignment.substationId) substationsToUpdate.add(assignment.substationId);
     });
+    
+    // Clear workers completely on cancel
+    for (const workerId of workersToUpdate) {
+      const workerRef = db.collection('mes-workers').doc(workerId);
+      batch.update(workerRef, {
+        currentTask: null,  // ✅ Cancel'da tamamen sil
+        currentTaskUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    
+    // Clear stations completely on cancel
+    for (const stationId of stationsToUpdate) {
+      const stationRef = db.collection('mes-stations').doc(stationId);
+      batch.update(stationRef, {
+        currentOperation: null,  // ✅ Cancel'da tamamen sil
+        currentOperationUpdatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    
+    // Clear substations completely on cancel
+    for (const substationId of substationsToUpdate) {
+      const substationRef = db.collection('mes-substations').doc(substationId);
+      batch.update(substationRef, {
+        currentOperation: null,  // ✅ Cancel'da tamamen sil
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
     
     await batch.commit();
     
     console.log(`✅ Cancelled production for ${workOrderCode}`);
-    console.log(`   Freed resources:`, freedResources);
+    console.log(`   Cleared: ${workersToUpdate.size} workers, ${stationsToUpdate.size} stations, ${substationsToUpdate.size} substations`);
     
     res.json({ 
       success: true,
-      message: 'Üretim iptal edildi, kaynaklar serbest bırakıldı',
-      freedResources
+      message: 'Üretim iptal edildi, kaynaklar temizlendi',
+      clearedResources: {
+        workers: workersToUpdate.size,
+        stations: stationsToUpdate.size,
+        substations: substationsToUpdate.size
+      }
     });
     
   } catch (error) {
@@ -5692,21 +5706,32 @@ router.post('/cancel-production', withAuth, async (req, res) => {
 });
 ```
 
+3. PAUSE vs CANCEL FARKI:
+
+**PAUSE (Geçici Durdurma):**
+- Assignment status: 'paused'
+- Worker/Station/Substation: currentTask.status = 'paused' (atama KORUNUr)
+- Resume yapılabilir → Aynı işe devam edilir
+
+**CANCEL (İptal):**
+- Assignment status: 'cancelled'
+- Worker/Station/Substation: currentTask = null (atama TEMİZLENİR)
+- Resume YAPILMAZ → İş iptal edilmiştir, kaynaklar serbest
+
 TEST ADIMLARI:
-1. Pause endpoint'i güncelle
-2. Cancel endpoint'i güncelle
-3. Server restart
-4. Plan launch et, substation ataması olsun
-5. Pause et
-6. Console'da freed substations log'unu gör
-7. Yeni plan launch edebilmeyi dene (aynı substation'a)
-8. Cancel et
-9. Freed resources log'unu gör
+1. Admin pause endpoint'ini güncelle (lines 6983-6996)
+2. Substation tracking ekle
+3. Cancel endpoint'i kontrol et (zaten doğru - tamamen temizliyor)
+4. Server restart
+5. Plan launch et → Pause et → currentTask.status = 'paused' kontrol
+6. Resume et → Aynı işe devam kontrol
+7. Plan launch et → Cancel et → currentTask = null kontrol
 
 BAŞARI KRİTERLERİ:
-✅ Pause sırasında substation'lar track ediliyor
-✅ Cancel sırasında substation'lar free ediliyor
-✅ Yeni atamalar yapılabiliyor
+✅ Pause: Worker/station atamalar korunuyor (sadece status paused)
+✅ Cancel: Worker/station atamalar tamamen temizleniyor (null)
+✅ Resume pause'dan sonra çalışıyor
+✅ Substation tracking her iki işlemde de doğru çalışıyor
 ✅ Log'lar doğru
 
 DOSYA YOLU:
