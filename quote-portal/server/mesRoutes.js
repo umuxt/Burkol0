@@ -6942,9 +6942,10 @@ router.post('/production-plans/:planId/pause', withAuth, async (req, res) => {
       });
     }
     
-    // Collect unique workers and stations to update
+    // Collect unique workers, stations, and substations to update
     const workersToUpdate = new Set();
     const stationsToUpdate = new Set();
+    const substationsToUpdate = new Set();
     
     const batch = db.batch();
     let pausedCount = 0;
@@ -6974,26 +6975,36 @@ router.post('/production-plans/:planId/pause', withAuth, async (req, res) => {
       
       pausedCount++;
       
-      // Track resources to clear
+      // Track resources to update (workers, stations, substations)
       if (assignment.workerId) workersToUpdate.add(assignment.workerId);
       if (assignment.stationId) stationsToUpdate.add(assignment.stationId);
+      if (assignment.substationId) substationsToUpdate.add(assignment.substationId);
     });
     
-    // Clear worker currentTask for affected workers
+    // Update worker currentTask status (keep assignment, just pause status)
     for (const workerId of workersToUpdate) {
       const workerRef = db.collection('mes-workers').doc(workerId);
       batch.update(workerRef, {
-        currentTask: null,
-        currentTaskUpdatedAt: now
+        'currentTask.status': 'paused',
+        updatedAt: now
       });
     }
     
-    // Clear station currentOperation for affected stations
+    // Update station currentOperation status (keep assignment, just pause status)
     for (const stationId of stationsToUpdate) {
       const stationRef = db.collection('mes-stations').doc(stationId);
       batch.update(stationRef, {
-        currentOperation: null,
-        currentOperationUpdatedAt: now
+        'currentOperation.status': 'paused',
+        updatedAt: now
+      });
+    }
+    
+    // Update substation currentOperation status
+    for (const substationId of substationsToUpdate) {
+      const substationRef = db.collection('mes-substations').doc(substationId);
+      batch.update(substationRef, {
+        'currentOperation.status': 'paused',
+        updatedAt: now
       });
     }
     
@@ -7007,6 +7018,10 @@ router.post('/production-plans/:planId/pause', withAuth, async (req, res) => {
     
     // Commit all changes
     await batch.commit();
+    
+    console.log(`✅ Paused production plan ${planId}`);
+    console.log(`   Paused: ${pausedCount} assignments, Already complete: ${alreadyCompleteCount}`);
+    console.log(`   Updated: ${workersToUpdate.size} workers, ${stationsToUpdate.size} stations, ${substationsToUpdate.size} substations`);
     
     // Update approved quote productionState to 'Üretim Durduruldu'
     if (planData.orderCode) {
