@@ -1558,18 +1558,18 @@ function buildStationSelector(node) {
     });
   }
   
-  // Fallback: preferredStationIds (legacy format)
+  // Check legacy preferredStationIds field
   const preferredStationIds = node.preferredStationIds || [];
   if (currentStationIds.length === 0 && preferredStationIds.length > 0) {
     currentStationIds = [...preferredStationIds];
   }
   
-  // Migration: if we have legacy preferredStations (names/tags), try to resolve them
+  // Data migration: resolve old preferredStations (names/tags) to station IDs
   const legacyPreferredStations = node.preferredStations || [];
   const missingStations = [];
   
   if (legacyPreferredStations.length > 0 && currentStationIds.length === 0) {
-    // Try to resolve legacy station names/IDs to current station IDs
+    // Try to resolve station names/IDs to current format
     legacyPreferredStations.forEach(pref => {
       const station = availableStations.find(s => 
         s.id === pref || 
@@ -1796,8 +1796,8 @@ export async function editNode(nodeId) {
   const preferredStationTags = node.preferredStationTags || [];
   const tagsInputValue = preferredStationTags.join(', ');
   
-  // CRITICAL FIX: Use nominalTime as fallback for time (backward compatibility)
-  const nominalTime = node.time || node.nominalTime || 60;
+  // Get operation time (nominalTime is primary, time is internal fallback)
+  const nominalTime = node.nominalTime || node.time || 60;
   
   // CRITICAL FIX: Parse efficiency correctly (0-1 range or percentage)
   let efficiency = 1.0;
@@ -2043,12 +2043,11 @@ export function saveNodeEdit() {
     .filter(s => s.length > 0);
   planDesignerState.selectedNode.preferredStationTags = stationTags;
   
-  // Keep legacy preferredStations for backward compatibility (will be ignored by new backend logic)
-  // Combine IDs and tags for legacy field
+  // Store station IDs in legacy field for internal state consistency
   const legacyStations = [...selectedStationIds];
   planDesignerState.selectedNode.preferredStations = legacyStations;
   
-  // Update assignment mode (SCHEMA-COMPLIANT)
+  // Update assignment mode
   planDesignerState.selectedNode.assignmentMode = assignmentMode;
   
   // Update assigned worker (only if manual assignment)
@@ -2455,76 +2454,77 @@ export function closeMaterialCheckModal() {
   // No-op - modal no longer exists
 }
 
-// Make functions globally available for backward compatibility
+// Export functions to global scope
 window.showMaterialCheckModal = showMaterialCheckModal;
 window.closeMaterialCheckModal = closeMaterialCheckModal;
 
 /**
- * Sanitize nodes to canonical backend schema
- * Maps legacy field names to canonical names expected by backend
+ * Sanitize nodes for backend submission
+ * Transforms internal node structure to canonical backend schema
  * @param {Array} nodes - Frontend node objects
- * @returns {Array} Sanitized nodes with canonical field names
+ * @returns {Array} Sanitized nodes with canonical field names (nodeId, nominalTime, etc.)
  */
 function sanitizeNodesForBackend(nodes) {
   return nodes.map(node => {
     const sanitized = {
-      id: node.id,
+      // Backend canonical schema (PROMPT 9: normalization layer removed)
+      nodeId: node.id,  // Internal 'id' → Backend 'nodeId'
       name: node.name || 'Unnamed Node',
       operationId: node.operationId,
-      type: node.type || 'General',  // CRITICAL: Operation type for color coding in UI
+      type: node.type || 'General',
       
-      // CRITICAL: Canvas position (x, y) - required for visual layout
+      // Canvas layout coordinates
       x: typeof node.x === 'number' ? node.x : 100,
       y: typeof node.y === 'number' ? node.y : 100,
       
-      // CANONICAL: nominalTime (map from legacy 'time')
-      nominalTime: node.nominalTime || node.time || node.estimatedNominalTime || node.duration || 60,
-      time: node.time || node.nominalTime || node.estimatedNominalTime || node.duration || 60,  // Backward compatibility
+      // Timing: nominalTime is the canonical field
+      nominalTime: node.nominalTime || 60,
       
-      // CANONICAL: requiredSkills (map from legacy 'skills')
+      // Skills: support both requiredSkills (new) and skills (old) formats
       requiredSkills: Array.isArray(node.requiredSkills) 
         ? node.requiredSkills 
         : (Array.isArray(node.skills) ? node.skills : []),
       
-      // CANONICAL: assignedStations (array format, map from legacy 'assignedStationId')
-      // Schema requires: [{ stationId: string, priority?: number }]
+      // Stations: convert various formats to canonical array of objects
+      // Backend expects: [{ stationId: string, priority?: number }]
       assignedStations: node.assignedStationId && typeof node.assignedStationId === 'string'
-        ? [{ stationId: node.assignedStationId, priority: 1 }]  // String → Array
+        ? [{ stationId: node.assignedStationId, priority: 1 }]
         : (Array.isArray(node.assignedStations) 
           ? node.assignedStations.map(s => 
               typeof s === 'string' 
-                ? { stationId: s, priority: 1 }  // String → Object
-                : (s && s.stationId ? s : null)  // Object with stationId or null
-            ).filter(Boolean)  // Remove nulls
+                ? { stationId: s, priority: 1 }
+                : (s && s.stationId ? s : null)
+            ).filter(Boolean)
           : []),
       
-      // Optional fields
+      // Worker assignment
       assignedSubstations: Array.isArray(node.assignedSubstations) ? node.assignedSubstations : [],
-      assignmentMode: node.assignmentMode || 'auto',  // SCHEMA-COMPLIANT (no legacy fallback)
+      assignmentMode: node.assignmentMode || 'auto',
       assignedWorkerId: node.assignedWorkerId || null,
       
-      // Dependencies and materials (SCHEMA-COMPLIANT)
+      // Dependencies and workflow
       predecessors: Array.isArray(node.predecessors) ? node.predecessors : [],
-      connections: Array.isArray(node.connections) ? node.connections : [],  // CRITICAL: Save connections for canvas rendering
+      connections: Array.isArray(node.connections) ? node.connections : [],
       
-      // Material inputs: Clean structure, already schema-compliant
+      // Material inputs (canonical schema)
       materialInputs: Array.isArray(node.materialInputs) 
         ? node.materialInputs.map(m => ({
-            materialCode: m.materialCode,        // SCHEMA: materialCode
-            requiredQuantity: m.requiredQuantity || 0, // SCHEMA: requiredQuantity
-            unitRatio: m.unitRatio || 1          // SCHEMA: unitRatio
+            materialCode: m.materialCode,
+            requiredQuantity: m.requiredQuantity || 0,
+            unitRatio: m.unitRatio || 1
           }))
         : [],
       
+      // Output configuration
       semiCode: node.semiCode || node.outputCode || null,
       outputCode: node.semiCode || node.outputCode || null,
       outputQty: parseFloat(node.outputQty) || 0,
       outputUnit: node.outputUnit || 'pcs',
       
-      // CRITICAL: Always save effectiveTime for timing summary calculations
+      // Effective time (computed or fallback to nominal)
       effectiveTime: node.effectiveTime !== undefined && node.effectiveTime !== null 
         ? parseFloat(node.effectiveTime) 
-        : (node.nominalTime || node.time || 60)
+        : (node.nominalTime || 60)
     };
     
     // Optional: efficiency (only if set)

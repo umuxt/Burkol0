@@ -59,30 +59,12 @@ const metrics = {
 // NODE ID NORMALIZATION HELPERS
 // ============================================================================
 
-/**
- * Normalize node ID - use nodeId if exists, otherwise fallback to id
- * This handles the inconsistency where some nodes have 'nodeId' and some have 'id'
- * @param {Object} node - Node object
- * @returns {string|null} Normalized node ID
- */
-function getNodeId(node) {
-  if (!node) return null;
-  return node.nodeId || node.id || null;
-}
-
-/**
- * Normalize array of nodes - ensures each node has consistent ID field
- * @param {Array} nodes - Array of node objects
- * @returns {Array} Normalized nodes with _id field
- */
-function normalizeNodes(nodes) {
-  if (!Array.isArray(nodes)) return [];
-  
-  return nodes.map(node => ({
-    ...node,
-    _id: getNodeId(node) // Canonical ID field
-  }));
-}
+// ============================================================================
+// NORMALIZATION LAYER REMOVED (PROMPT 9)
+// - getNodeId() helper removed: Frontend always sends 'nodeId' (not 'id')
+// - normalizeNodes() removed: No fallback logic needed
+// - Backend expects canonical schema: node.nodeId, node.nominalTime
+// ============================================================================
 
 console.log('✅ MES Routes module loaded - including semi-code endpoints');
 
@@ -219,7 +201,7 @@ function applyOutputCodeSuffixes(nodes) {
     
     // Check if this node is a finished product (no other nodes use it as predecessor)
     const isFinishedProduct = !nodes.some(n => 
-      Array.isArray(n.predecessors) && n.predecessors.includes(getNodeId(node))
+      Array.isArray(n.predecessors) && n.predecessors.includes(node.nodeId)
     );
     
     // If it's a finished product and doesn't already have 'F' suffix, add it
@@ -269,10 +251,10 @@ function calculatePreProductionReservedAmount(node, expectedDefectRate = 0, plan
   const outputQty = parseFloat(node.outputQty) || 0;
   
   if (outputQty <= 0) {
-    console.warn(`Node ${getNodeId(node)} has no outputQty, cannot calculate input/output ratio. Using direct input quantities.`);
+    console.warn(`Node ${node.nodeId} has no outputQty, cannot calculate input/output ratio. Using direct input quantities.`);
     // Fallback: use input quantities directly
     node.materialInputs.forEach(material => {
-      // Schema-compliant: materialCode, requiredQuantity (also support legacy: code, qty)
+      // Material schema: materialCode, requiredQuantity (legacy code/qty still supported for materials)
       const materialCode = material.materialCode || material.code;
       const requiredQty = (material.requiredQuantity || material.qty || material.required || 0) * planQuantity;
       if (materialCode && requiredQty > 0) {
@@ -292,12 +274,12 @@ function calculatePreProductionReservedAmount(node, expectedDefectRate = 0, plan
   // Calculate expected defects in OUTPUT units
   const expectedDefectsInOutput = scaledOutputQty * (defectRate / 100);
   
-  console.log(`📊 Rehin Calculation for node ${getNodeId(node)}:`);
+  console.log(`📊 Rehin Calculation for node ${node.nodeId}:`);
   console.log(`   Output: ${scaledOutputQty}, Defect Rate: ${defectRate}%, Expected Defects: ${expectedDefectsInOutput}`);
   
   // Process each input material
   node.materialInputs.forEach(material => {
-    // Schema-compliant: materialCode, requiredQuantity (also support legacy: code, qty)
+    // Material schema: materialCode, requiredQuantity (legacy code/qty still supported)
     const materialCode = material.materialCode || material.code;
     const inputQtyPerOperation = material.requiredQuantity || material.qty || material.required || 0;
     
@@ -424,7 +406,7 @@ async function getPlanExecutionState(planId) {
   
   // Process each node
   const tasks = nodes.map(node => {
-    const nodeId = getNodeId(node);
+    const nodeId = node.nodeId;
     const assignment = assignments.get(nodeId);
     const workerId = node.assignedWorkerId || assignment?.workerId;
     
@@ -525,8 +507,8 @@ async function getPlanExecutionState(planId) {
       prerequisites: {
         predecessorsDone,
         workerAvailable,
-        substationAvailable, // Changed from stationAvailable
-        stationAvailable: substationAvailable, // Keep for backward compatibility
+        substationAvailable,
+        stationAvailable: substationAvailable, // Alias for frontend compatibility
         materialsReady
       },
       
@@ -1300,7 +1282,7 @@ router.get('/master-data', withAuth, async (req, res) => {
     }
 
     const data = doc.data() || {}
-    // Backward compatibility: map legacy fields if present
+    // Map legacy field names if present
     if (!data.availableSkills && Array.isArray(data.skills)) {
       data.availableSkills = data.skills
     }
@@ -1396,7 +1378,7 @@ async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
   
   // Process nodes in dependency order
   async function processNode(node) {
-    const nodeId = getNodeId(node);
+    const nodeId = node.nodeId;
     
     if (processed.has(nodeId)) {
       return enrichedNodesMap.get(nodeId);
@@ -1412,8 +1394,8 @@ async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
     // Use node efficiency override if present, otherwise use operation default
     const efficiency = node.efficiency || defaultEfficiency;
     
-    // Support both canonical (nominalTime) and legacy (time) field names
-    const nominalTime = node.nominalTime || node.time || node.estimatedNominalTime || node.duration || 60;
+    // Use canonical nominalTime field only
+    const nominalTime = node.nominalTime || 60;
     
     // Compute effectiveTime using inverse proportionality: effectiveTime = nominalTime / efficiency
     // Example: nominalTime=60, efficiency=0.8 → effectiveTime=75 (takes longer with lower efficiency)
@@ -1428,7 +1410,7 @@ async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
     // Process predecessors first
     const predecessors = node.predecessors || [];
     for (const predId of predecessors) {
-      const predNode = nodesToProcess.find(n => getNodeId(n) === predId);
+      const predNode = nodesToProcess.find(n => n.nodeId === predId);
       if (predNode && !processed.has(predId)) {
         await processNode(predNode);
       }
@@ -1451,7 +1433,7 @@ async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
       // If assignment fails, use simple time estimation
       console.warn(`⚠️ Could not auto-assign node ${nodeId}: ${assignment.message}`);
       
-      // Simple fallback: use effectiveTime (already computed above)
+      // Error fallback: use pre-computed effectiveTime
       const startTime = new Date();
       const endTime = new Date(startTime.getTime() + effectiveTime * 60000);
       
@@ -1524,7 +1506,7 @@ async function enrichNodesWithEstimatedTimes(nodes, planData, db) {
   
   // Return enriched nodes in original order
   return nodesToProcess.map(node => {
-    const nodeId = getNodeId(node);
+    const nodeId = node.nodeId;
     return enrichedNodesMap.get(nodeId) || node;
   });
 }
@@ -1548,17 +1530,17 @@ function validateProductionPlanNodes(nodes) {
   // Build predecessor map for starting node detection
   const predecessorMap = new Map();
   nodesToValidate.forEach(node => {
-    const nodeId = getNodeId(node);
+    const nodeId = node.nodeId;
     const preds = node.predecessors || [];
     predecessorMap.set(nodeId, preds);
   });
   
   nodesToValidate.forEach((node, index) => {
-    const nodeId = getNodeId(node);
+    const nodeId = node.nodeId;
     const nodeLabel = `Node ${index + 1} (${nodeId || 'unknown'})`;
     
     // 1. Validate node ID (CANONICAL - required)
-    if (!getNodeId(node) || typeof getNodeId(node) !== 'string' || getNodeId(node).trim() === '') {
+    if (!node.nodeId || typeof node.nodeId !== 'string' || node.nodeId.trim() === '') {
       errors.push(`${nodeLabel}: Node id is required and must be a non-empty string`);
     }
     
@@ -1568,8 +1550,7 @@ function validateProductionPlanNodes(nodes) {
     }
     
     // 3. Validate nominalTime (CANONICAL - required)
-    // Support fallback to legacy field names for backward compatibility
-    const nominalTime = node.nominalTime || node.time || node.estimatedNominalTime || node.duration;
+    const nominalTime = node.nominalTime;
     if (!Number.isFinite(nominalTime) || nominalTime < 1) {
       errors.push(`${nodeLabel}: nominalTime must be a number >= 1 minute`);
     }
@@ -1596,7 +1577,7 @@ function validateProductionPlanNodes(nodes) {
     }
     
     // 7. Validate output quantity
-    const outputQty = node.outputQty || node.outputQuantity;
+    const outputQty = node.outputQty;
     if (!Number.isFinite(outputQty) || outputQty <= 0) {
       errors.push(`${nodeLabel}: Output quantity must be a number greater than 0`);
     }
@@ -1613,8 +1594,8 @@ function validateProductionPlanNodes(nodes) {
     
     // Check each material has a valid quantity (CANONICAL: requiredQuantity)
     allMaterials.forEach((material, matIndex) => {
-      const matQty = material.requiredQuantity || material.qty || material.quantity;
-      console.log(`   Material ${matIndex + 1}: requiredQuantity=${material.requiredQuantity}, qty=${material.qty}, quantity=${material.quantity}, resolved=${matQty}`);
+      const matQty = material.requiredQuantity;
+      console.log(`   Material ${matIndex + 1}: requiredQuantity=${material.requiredQuantity}, resolved=${matQty}`);
       if (!Number.isFinite(matQty) || matQty < 0) {
         errors.push(`${nodeLabel}, Material ${matIndex + 1}: Quantity must be a valid number >= 0`);
       }
@@ -3029,7 +3010,7 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
       // Find node info from plan's nodes array
       let nodeInfo = null;
       if (plan && plan.nodes && assignment.nodeId) {
-        nodeInfo = plan.nodes.find(node => getNodeId(node) === assignment.nodeId);
+        nodeInfo = plan.nodes.find(node => node.nodeId === assignment.nodeId);
       }
       
       // Build task object
@@ -5449,7 +5430,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     if (nodesToUse.length > 0) {
       const sampleNode = nodesToUse[0];
       console.log(`📊 Sample node structure:`, {
-        id: getNodeId(sampleNode),
+        id: sampleNode.nodeId,
         hasNodeId: !!sampleNode.nodeId,
         hasMaterialInputs: !!(sampleNode.materialInputs && sampleNode.materialInputs.length > 0),
         hasOutputQty: !!sampleNode.outputQty,
@@ -5588,7 +5569,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
     
     // Process nodes in topological order
     for (const nodeId of executionOrder.order) {
-      const node = nodesToUse.find(n => getNodeId(n) === nodeId);
+      const node = nodesToUse.find(n => n.nodeId === nodeId);
       if (!node) {
         assignmentErrors.push({
           nodeId,
@@ -5613,7 +5594,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
         
         if (assignment.error) {
           assignmentErrors.push({
-            nodeId: getNodeId(node),
+            nodeId: node.nodeId,
             nodeName: node.name,
             error: assignment.error,
             message: assignment.message,
@@ -5623,12 +5604,12 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
           assignments.push(assignment);
           
           // Track node end time for successor dependencies
-          nodeEndTimes.set(getNodeId(node), new Date(assignment.plannedEnd));
+          nodeEndTimes.set(node.nodeId, new Date(assignment.plannedEnd));
           
           // Track warnings
           if (assignment.warnings && assignment.warnings.length > 0) {
             assignmentWarnings.push({
-              nodeId: getNodeId(node),
+              nodeId: node.nodeId,
               nodeName: node.name,
               warnings: assignment.warnings
             });
@@ -5660,7 +5641,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
         }
       } catch (error) {
         assignmentErrors.push({
-          nodeId: getNodeId(node),
+          nodeId: node.nodeId,
           nodeName: node.name,
           error: 'assignment_exception',
           message: error.message
@@ -5711,7 +5692,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
         workPackageId: workPackageId,  // ✅ Add explicit workPackageId field
         planId,
         workOrderCode,
-        nodeId: getNodeId(assignment),  // ✅ Normalization
+        nodeId: assignment.nodeId,  // Direct access - no normalization needed
         substationId: assignment.substationId || null,  // ✅ Explicit null
         priorityIndex: assignment.priorityIndex || i + 1,  // ✅ Default to index
         isUrgent: false,  // ✅ Default to normal priority
@@ -5958,13 +5939,13 @@ router.post('/set-urgent-priority', withAuth, async (req, res) => {
 /**
  * Build topological order from node predecessors
  * Detects cycles and validates prerequisites
- * Supports both node.id and node.nodeId
+ * Expects canonical schema: node.nodeId (not node.id)
  */
 function buildTopologicalOrder(nodes) {
-  // Normalize nodes - use getNodeId for consistency
+  // Use nodeId directly - no normalization needed
   const normalizedNodes = nodes.map(n => ({
     ...n,
-    _id: getNodeId(n)
+    _id: n.nodeId
   }));
   
   const nodeMap = new Map(normalizedNodes.map(n => [n._id, n]));
@@ -6054,7 +6035,7 @@ async function validateMaterialAvailabilityForLaunch(planData, planQuantity, db)
   // Build predecessor map to identify start nodes
   const predecessorMap = new Map();
   nodes.forEach(node => {
-    predecessorMap.set(getNodeId(node), node.predecessors || []);
+    predecessorMap.set(node.nodeId, node.predecessors || []);
   });
   
   // Identify start nodes (no predecessors)
@@ -6462,15 +6443,12 @@ async function assignNodeResources(
   // Canonical: requiredSkills, Legacy: skills
   const requiredSkills = node.requiredSkills || node.skills || [];
   
-  // CANONICAL: effectiveTime (computed with efficiency) > nominalTime > legacy fields
-  // effectiveTime = nominalTime / efficiency (inverse proportionality)
+  // CANONICAL: effectiveTime (computed with efficiency) or nominalTime
   const effectiveTime = node.effectiveTime 
     ? parseFloat(node.effectiveTime)
-    : (node.nominalTime ? parseFloat(node.nominalTime) : parseFloat(node.time || node.estimatedNominalTime || node.duration || 60));
+    : parseFloat(node.nominalTime || 60);
   
-  const nominalTime = node.nominalTime 
-    ? parseFloat(node.nominalTime)
-    : parseFloat(node.time || node.estimatedNominalTime || node.duration || 60); // minutes
+  const nominalTime = parseFloat(node.nominalTime || 60);
   
   // ========================================================================
   // STATION & SUBSTATION SELECTION (Priority-based with smart allocation)
@@ -6486,7 +6464,7 @@ async function assignNodeResources(
     // Sort by priority (1 = highest priority)
     const sortedStations = [...assignedStations].sort((a, b) => a.priority - b.priority);
     
-    console.log(`Node ${getNodeId(node)}: Checking ${sortedStations.length} stations in priority order`);
+    console.log(`Node ${node.nodeId}: Checking ${sortedStations.length} stations in priority order`);
     
     // Try each station in priority order
     for (const stationInfo of sortedStations) {
@@ -6579,7 +6557,7 @@ async function assignNodeResources(
     }
   } else {
     // No stations assigned - use fallback logic
-    console.warn(`Node ${getNodeId(node)} has no assignedStations, using fallback logic`);
+    console.warn(`Node ${node.nodeId} has no assignedStations, using fallback logic`);
     
     // Fallback: Pick station with least load
     if (!selectedStation) {
@@ -6608,7 +6586,7 @@ async function assignNodeResources(
     
     return {
       error: 'no_station_available',
-      message: `No station available for node '${node.name || getNodeId(node)}'. All compatible stations [${stationDetails}] are fully booked or have no available substations.`,
+      message: `No station available for node '${node.name || node.nodeId}'. All compatible stations [${stationDetails}] are fully booked or have no available substations.`,
       details: {
         assignedStations: assignedStations.map(s => s.stationId || s.id),
         totalStations: stations.length,
@@ -6671,7 +6649,7 @@ async function assignNodeResources(
       
       return {
         error: 'no_qualified_workers',
-        message: `No eligible workers found for node '${node.name || getNodeId(node)}'. Reason: Required skills [${requiredSkills.join(', ')}] not found in any available worker.`,
+        message: `No eligible workers found for node '${node.name || node.nodeId}'. Reason: Required skills [${requiredSkills.join(', ')}] not found in any available worker.`,
         details: { 
           requiredSkills,
           availableSkills: Array.from(availableSkills),
@@ -6851,7 +6829,7 @@ async function assignNodeResources(
   // Calculate pre-production reserved amounts (rehin miktarı)
   const planQuantity = planData.quantity || 1;
   
-  const normalizedNodeId = getNodeId(node);
+  const normalizedNodeId = node.nodeId;
   
   console.log(`🔍 DEBUG - assignNodeResources for node ${normalizedNodeId}:`);
   console.log(`   node.materialInputs:`, node.materialInputs);
