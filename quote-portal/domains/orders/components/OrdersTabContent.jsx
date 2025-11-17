@@ -131,64 +131,6 @@ function OrdersTable({
     })
     return sorted
   }, [orders, variant, sortField, sortDirection])
-  if (loading) {
-    return (
-      <div className="orders-table-placeholder">
-        <p>Siparişler yükleniyor...</p>
-      </div>
-    )
-  }
-
-  // Error state
-  if (error) {
-    return (
-      <div className="orders-table-placeholder">
-        <div style={{
-          textAlign: 'center',
-          padding: '40px 20px',
-          color: '#ef4444'
-        }}>
-          <div style={{
-            fontSize: '48px',
-            marginBottom: '16px',
-            opacity: 0.5
-          }}>⚠️</div>
-          <h3 style={{
-            margin: '0 0 8px 0',
-            fontSize: '18px',
-            fontWeight: '600',
-            color: '#dc2626'
-          }}>
-            Bağlantı Problemi
-          </h3>
-          <p style={{
-            margin: '0 0 16px 0',
-            fontSize: '14px',
-            color: '#6b7280'
-          }}>
-            {error.includes('timeout') ? 
-              'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.' : 
-              `Siparişler yüklenirken hata oluştu: ${error}`
-            }
-          </p>
-          <button 
-            onClick={() => window.location.reload()} 
-            style={{
-              padding: '8px 16px',
-              fontSize: '14px',
-              backgroundColor: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-          >
-            Sayfayı Yenile
-          </button>
-        </div>
-      </div>
-    )
-  }
 
   // Empty state component for different tabs
   const EmptyState = ({ variant, hasNoOrdersAtAll = false }) => {
@@ -392,7 +334,7 @@ function OrdersTable({
           disabled={loading}
         >
           Tümünü Göster
-          <span className="tab-count">({tabCounts?.all ?? 0})</span>
+          <span className="tab-count">{tabCounts?.all ?? 0}</span>
         </button>
         <button
           type="button"
@@ -401,7 +343,7 @@ function OrdersTable({
           disabled={loading}
         >
           Bekleyen Siparişler
-          <span className="tab-count">({tabCounts?.pending ?? 0})</span>
+          <span className="tab-count">{tabCounts?.pending ?? 0}</span>
         </button>
         <button
           type="button"
@@ -410,82 +352,17 @@ function OrdersTable({
           disabled={loading}
         >
           Tamamlanan Siparişler
-          <span className="tab-count">({tabCounts?.completed ?? 0})</span>
+          <span className="tab-count">{tabCounts?.completed ?? 0}</span>
         </button>
       </div>
 
       {/* Table Container - Always visible */}
       <div className="table-container" style={{ width: '100%' }}>
-        {loading ? (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '40px',
-            color: '#6b7280'
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '24px', marginBottom: '8px' }}>⏳</div>
-              <div>Siparişler yükleniyor...</div>
-            </div>
-          </div>
-        ) : error ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '40px 20px',
-            color: '#ef4444'
-          }}>
-            <div style={{
-              fontSize: '48px',
-              marginBottom: '16px',
-              opacity: 0.5
-            }}>⚠️</div>
-            <h3 style={{
-              margin: '0 0 8px 0',
-              fontSize: '18px',
-              fontWeight: '600',
-              color: '#dc2626'
-            }}>
-              Bağlantı Problemi
-            </h3>
-            <p style={{
-              margin: '0 0 16px 0',
-              fontSize: '14px',
-              color: '#6b7280'
-            }}>
-              {error.includes('timeout') ? 
-                'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.' : 
-                `Siparişler yüklenirken hata oluştu: ${error}`
-              }
-            </p>
-            <button 
-              onClick={() => window.location.reload()} 
-              style={{
-                padding: '8px 16px',
-                fontSize: '14px',
-                backgroundColor: '#3b82f6',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer'
-              }}
-            >
-              Sayfayı Yenile
-            </button>
-          </div>
-        ) : (!orders || orders.length === 0) ? (
-          // Show tab-specific empty state
-          <EmptyState 
-            variant={variant} 
-            hasNoOrdersAtAll={true}
-          />
-        ) : (
-          // Render the actual table with data
-          <table style={{ tableLayout: 'fixed', width: '100%' }}>
-            <colgroup>{[
-              <col key="sel" style={{ width: '40px' }} />,
-              <col key="code" style={{ width: '120px' }} />,
-              <col key="supplier" style={{ width: '220px' }} />,
+        <table style={{ tableLayout: 'fixed', width: '100%' }}>
+          <colgroup>{[
+            <col key="sel" style={{ width: '40px' }} />,
+            <col key="code" style={{ width: '120px' }} />,
+            <col key="supplier" style={{ width: '220px' }} />,
               ...(variant !== 'completed' ? [<col key="delivery" style={{ width: '180px' }} />] : []),
               <col key="items" style={{ width: 'auto' }} />,
               <col key="total" style={{ width: '120px' }} />,
@@ -505,49 +382,115 @@ function OrdersTable({
                   />
                 </th>
                 <th style={{ width: '120px', minWidth: '120px', whiteSpace: 'nowrap' }}>
-                  <button type="button" onClick={() => handleSort('orderCode')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
+                  <button type="button" onClick={() => handleSort('orderCode')} className="mes-sort-button">
                     Sipariş Kodu
-                    <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('orderCode')}</span>
+                    <span className="mes-sort-icon">{getSortIndicator('orderCode')}</span>
                   </button>
                 </th>
                 <th style={{ width: '220px', minWidth: '220px', whiteSpace: 'nowrap' }}>
-                  <button type="button" onClick={() => handleSort('supplier')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
+                  <button type="button" onClick={() => handleSort('supplier')} className="mes-sort-button">
                     Tedarikçi
-                    <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('supplier')}</span>
+                    <span className="mes-sort-icon">{getSortIndicator('supplier')}</span>
                   </button>
                 </th>
                 {variant !== 'completed' && (
                   <th style={{ minWidth: '140px', maxWidth: '180px', whiteSpace: 'nowrap' }}>
-                    <button type="button" onClick={() => handleSort('status')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
+                    <button type="button" onClick={() => handleSort('status')} className="mes-sort-button">
                       Teslimat Durumu
-                      <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('status')}</span>
+                      <span className="mes-sort-icon">{getSortIndicator('status')}</span>
                     </button>
                   </th>
                 )}
                 <th style={{ minWidth: '220px', whiteSpace: 'nowrap' }}>
-                  <button type="button" onClick={() => handleSort('items')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
+                  <button type="button" onClick={() => handleSort('items')} className="mes-sort-button">
                     Sipariş Satırları
-                    <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('items')}</span>
+                    <span className="mes-sort-icon">{getSortIndicator('items')}</span>
                   </button>
                 </th>
                 <th style={{ width: '120px', minWidth: '90px', maxWidth: '120px', textAlign: 'left', whiteSpace: 'nowrap' }}>
-                  <button type="button" onClick={() => handleSort('total')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
+                  <button type="button" onClick={() => handleSort('total')} className="mes-sort-button">
                     Tutar
-                    <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('total')}</span>
+                    <span className="mes-sort-icon">{getSortIndicator('total')}</span>
                   </button>
                 </th>
                 {variant !== 'completed' && (
                   <th style={{ minWidth: '80px', maxWidth: '80px', whiteSpace: 'nowrap' }}>
-                    <button type="button" onClick={() => handleSort('status')} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit' }}>
+                    <button type="button" onClick={() => handleSort('status')} className="mes-sort-button">
                       Durum
-                      <span style={{ fontSize: '12px', opacity: 0.6 }}>{getSortIndicator('status')}</span>
+                      <span className="mes-sort-icon">{getSortIndicator('status')}</span>
                     </button>
                   </th>
                 )}
               </tr>
             </thead>
             <tbody>
-              {visibleOrders && visibleOrders.length > 0 ? visibleOrders.map((order) => {
+              {/* Loading state */}
+              {loading && orders.length === 0 && (
+                <tr>
+                  <td colSpan={variant !== 'completed' ? 7 : 5} style={{ 
+                    textAlign: 'center', 
+                    padding: '40px 20px',
+                    color: '#6b7280'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '12px'
+                    }}>
+                      <div className="spinner"></div>
+                      <p style={{ margin: 0, fontSize: '14px' }}>Siparişler yükleniyor...</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              
+              {/* Error state */}
+              {!loading && error && orders.length === 0 && (
+                <tr>
+                  <td colSpan={variant !== 'completed' ? 7 : 5} style={{ 
+                    textAlign: 'center', 
+                    padding: '40px 20px'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '12px',
+                      color: '#dc2626'
+                    }}>
+                      <div style={{ fontSize: '48px', opacity: 0.5 }}>⚠️</div>
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+                        Bağlantı Problemi
+                      </h3>
+                      <p style={{ margin: 0, fontSize: '14px', color: '#6b7280' }}>
+                        {error.includes('timeout') ? 
+                          'Sunucuya bağlanılamadı. İnternet bağlantınızı kontrol edin.' : 
+                          `Siparişler yüklenirken hata oluştu: ${error}`
+                        }
+                      </p>
+                      <button 
+                        onClick={() => window.location.reload()} 
+                        style={{
+                          marginTop: '8px',
+                          padding: '8px 16px',
+                          fontSize: '14px',
+                          backgroundColor: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Sayfayı Yenile
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              
+              {/* Data rows */}
+              {!loading && !error && visibleOrders && visibleOrders.length > 0 ? visibleOrders.map((order) => {
                 // Order status'a göre filtreleme yap - items'a değil
                 const isPendingOrder = order.orderStatus !== 'Teslim Edildi'
                 const isCompletedOrder = order.orderStatus === 'Teslim Edildi'
@@ -714,7 +657,10 @@ function OrdersTable({
                     )}
                   </tr>
                 )
-              }) : (
+              }) : null}
+              
+              {/* Empty state */}
+              {!loading && !error && visibleOrders && visibleOrders.length === 0 && (
                 <tr>
                   <td colSpan={variant !== 'completed' ? 7 : 5} style={{ padding: 0, border: 'none' }}>
                     <EmptyState 
@@ -726,7 +672,6 @@ function OrdersTable({
               )}
             </tbody>
           </table>
-        )}
       </div>
     </section>
   )
@@ -2070,25 +2015,27 @@ export default function OrdersTabContent() {
   return (
     <div className="stocks-tab-content">
       {/* MES Filter Bar: Dashboard + Actions + Filters */}
-      <div className="mes-filter-bar is-compact">
+      <div className="mes-filter-bar" style={{marginBottom: '24px'}}>
         {/* Dashboard - Inline Single Line - hide when filters expanded */}
         {!isFiltersExpanded && (
-          <section className="materials-dashboard is-inline">
-            <div className="stat">
-              <span className="stat-label">Açık Siparişler</span>
-              <span className="stat-value">{statsLoading ? '...' : stats.pendingOrders}</span>
-            </div>
-            <div className="divider"></div>
-            <div className="stat">
-              <span className="stat-label">Bu Ay Teslim</span>
-              <span className="stat-value">{statsLoading ? '...' : stats.thisMonthOrders}</span>
-            </div>
-            <div className="divider"></div>
-            <div className="stat">
-              <span className="stat-label">Kısmi Teslimat</span>
-              <span className="stat-value warning">{statsLoading ? '...' : stats.partialOrders}</span>
-            </div>
-          </section>
+          <div className="materials-dashboard-container">
+            <section className="materials-dashboard is-inline">
+              <div className="stat">
+                <span className="stat-label">Açık Siparişler</span>
+                <span className="stat-value">{statsLoading ? '...' : stats.pendingOrders}</span>
+              </div>
+              <div className="divider"></div>
+              <div className="stat">
+                <span className="stat-label">Bu Ay Teslim</span>
+                <span className="stat-value">{statsLoading ? '...' : stats.thisMonthOrders}</span>
+              </div>
+              <div className="divider"></div>
+              <div className="stat">
+                <span className="stat-label">Kısmi Teslimat</span>
+                <span className="stat-value warning">{statsLoading ? '...' : stats.partialOrders}</span>
+              </div>
+            </section>
+          </div>
         )}
 
         {/* Action Buttons - hide when filters expanded */}
@@ -2147,9 +2094,11 @@ export default function OrdersTabContent() {
         />
       </div>
 
-      <OrdersTable 
-        orders={currentOrders}
-        loading={currentLoading}
+      {/* Orders Table */}
+      <div className="materials-table-container">
+        <OrdersTable 
+          orders={currentOrders}
+          loading={currentLoading}
         error={ordersError}
         variant={activeOrdersTab}
         tabCounts={{ 
@@ -2175,6 +2124,7 @@ export default function OrdersTabContent() {
               : 'Sipariş bulunamadı'
         }
       />
+      </div>
 
       {/* Add Order Modal */}
       <AddOrderModal 
