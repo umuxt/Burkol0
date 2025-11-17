@@ -1,4 +1,4 @@
-// Admin Filter Utils - Filtering and search functionality
+// Quotes Filter Utils - Filtering and search functionality for quotes
 import React from 'react';
 
 const { useMemo } = React;

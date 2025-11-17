@@ -1,4 +1,4 @@
-// Admin Price Calculator - Price calculation and update logic
+// Quotes Price Calculator - Price calculation and update logic for quotes
 import API from '../../../shared/lib/api.js'
 
 export function calculatePrice(quote, priceSettings) {

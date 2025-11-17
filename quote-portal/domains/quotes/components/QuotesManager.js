@@ -1,13 +1,14 @@
+// QuotesManager - Main quotes management component
 import React from 'react';
 import API from '../../../shared/lib/api.js'
 import { statusLabel, procLabel, materialLabel } from '../../../shared/i18n.js'
-import { getTableColumns, getFieldValue, formatFieldValue } from '../../quotes/lib/table-utils.js'
-import { calculatePrice, getPriceChangeType } from '../../quotes/lib/price-calculator.js'
-import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from '../../quotes/lib/filter-utils.js'
+import { getTableColumns, getFieldValue, formatFieldValue } from '../lib/table-utils.js'
+import { calculatePrice, getPriceChangeType } from '../lib/price-calculator.js'
+import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from '../lib/filter-utils.js'
 import { DetailModal } from '../../../src/components/modals/DetailModal.js'
 import SettingsModalCompact from '../../../src/components/modals/SettingsModal.js'
 import { FilterPopup } from '../../../src/components/modals/FilterPopup.js'
-import QuotesTabs from '../../quotes/components/QuotesTabs.jsx'
+import QuotesTabs from './QuotesTabs.jsx'
 
 const { useState, useEffect, useMemo, useRef } = React;
 
@@ -63,8 +64,8 @@ function isQuoteFlaggedForPricing(quote) {
   return getQuoteWarningInfo(quote).priority > 0
 }
 
-function Admin({ t, onLogout, showNotification }) {
-  console.log('🔄 Admin component loaded at:', new Date().toLocaleTimeString())
+function QuotesManager({ t, onLogout, showNotification }) {
+  console.log('🔄 QuotesManager component loaded at:', new Date().toLocaleTimeString())
   const [list, setList] = useState([])
   const [detail, setDetail] = useState(null)
   const [creating, setCreating] = useState(false)
@@ -2199,4 +2200,4 @@ function BulkProgressOverlay({ progress, onAction }) {
   )
 }
 
-export default Admin
+export default QuotesManager

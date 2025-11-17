@@ -403,7 +403,7 @@ export const API = {
       return { synced: 0, errors: 1 }
     }
   },
-  // Backward-compat alias kept for Admin.js
+  // Backward-compat alias kept for QuotesManager.js
   async syncLocalQuotesToFirebase() {
     return this.syncLocalQuotesToBackend()
   },

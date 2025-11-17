@@ -1,4 +1,4 @@
-// Admin Table Utils - Table column management and data formatting
+// Quotes Table Utils - Table column management and data formatting for quotes
 import React from 'react';
 import * as Utils from '../../../shared/lib/utils.js'
 
@@ -9,10 +9,10 @@ const formatPrice = Utils.formatPrice || function(price, currency = 'TL') {
   return `₺${formatted}`
 }
 
-// Import warning info from Admin.js to avoid duplication
+// Import warning info from QuotesManager.js to avoid duplication
 // We'll use a helper function instead of duplicating the logic
 
-// Helper function to get warning info - will be passed from Admin.js
+// Helper function to get warning info - will be passed from QuotesManager.js
 function getWarningInfoForQuote(quote) {
   if (!quote || !quote.priceStatus) {
     return { type: 'none', color: null, priority: 0 }

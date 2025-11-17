@@ -2,7 +2,7 @@ import React from 'react';
 import API, { API_BASE } from '../../../shared/lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../../shared/lib/utils.js'
 import { statusLabel } from '../../../shared/i18n.js'
-import { PriceStatusBadge } from '../../../domains/admin/components/PriceStatusUI.js'
+import { PriceStatusBadge } from '../../../domains/quotes/components/PriceStatusBadge.js'
 
 export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, showNotification, formConfig, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, currentQuotes }) {
   console.log('🔧 DEBUG: DetailModal rendered with item:', item?.id, 'formConfig:', !!formConfig)
