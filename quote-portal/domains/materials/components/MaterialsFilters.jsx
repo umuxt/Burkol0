@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 
-export default function MaterialsFilters({ categories, types, onFilterChange }) {
+export default function MaterialsFilters({ categories, types, onFilterChange, materials = [] }) {
   const [filters, setFilters] = useState({
     search: '',
     categories: [],
@@ -104,6 +104,43 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
 
   const hasActiveFilters = filters.search || filters.categories?.length > 0 || filters.types?.length > 0 || (filters.status && filters.status !== 'Aktif') || filters.lowStock;
 
+  // Toggle dropdown with screen edge detection
+  const toggleDropdown = (dropdownId, event) => {
+    event.stopPropagation();
+    const dropdown = document.getElementById(dropdownId);
+    const header = event.currentTarget;
+    if (dropdown) {
+      const isVisible = dropdown.style.display === 'block';
+      // Close all other dropdowns first
+      document.querySelectorAll('.multi-select-dropdown').forEach(d => {
+        d.style.display = 'none';
+      });
+      // Toggle this dropdown
+      if (!isVisible) {
+        // Position dropdown below the button
+        const rect = header.getBoundingClientRect();
+        dropdown.style.position = 'fixed';
+        dropdown.style.top = `${rect.bottom + 6}px`;
+        
+        // Check if dropdown would go off right edge of screen
+        const dropdownWidth = 240;
+        const spaceOnRight = window.innerWidth - rect.left;
+        
+        if (spaceOnRight < dropdownWidth) {
+          dropdown.style.left = 'auto';
+          dropdown.style.right = `${window.innerWidth - rect.right}px`;
+        } else {
+          dropdown.style.left = `${rect.left}px`;
+          dropdown.style.right = 'auto';
+        }
+        
+        dropdown.style.display = 'block';
+      } else {
+        dropdown.style.display = 'none';
+      }
+    }
+  };
+
   return (
     <div className="mes-filter-controls">
       {/* Search Input */}
@@ -120,29 +157,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
         <div className="multi-select-container">
           <div 
             className="multi-select-header is-compact" 
-            onClick={(e) => {
-              e.stopPropagation();
-              const dropdown = document.getElementById('types-dropdown');
-              const header = e.currentTarget;
-              if (dropdown) {
-                const isVisible = dropdown.style.display === 'block';
-                // Close all other dropdowns first
-                document.querySelectorAll('.multi-select-dropdown').forEach(d => {
-                  d.style.display = 'none';
-                });
-                // Toggle this dropdown
-                if (!isVisible) {
-                  // Position dropdown below the button
-                  const rect = header.getBoundingClientRect();
-                  dropdown.style.position = 'fixed';
-                  dropdown.style.top = `${rect.bottom + 6}px`;
-                  dropdown.style.left = `${rect.left}px`;
-                  dropdown.style.display = 'block';
-                } else {
-                  dropdown.style.display = 'none';
-                }
-              }
-            }}
+            onClick={(e) => toggleDropdown('types-dropdown', e)}
           >
             <span>Tip</span>
             {filters.types?.length > 0 && (
@@ -175,16 +190,20 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
               </button>
             </div>
             <div className="mes-filter-panel-content">
-              {types?.map(type => (
-                <label key={type.id}>
-                  <input
-                    type="checkbox"
-                    checked={filters.types?.includes(type.id) || false}
-                    onChange={() => handleMultiSelectChange('types', type.id)}
-                  />
-                  <span>{type.label}</span>
-                </label>
-              ))}
+              {types?.map(type => {
+                const count = materials.filter(m => m.type === type.id).length
+                return (
+                  <label key={type.id}>
+                    <input
+                      type="checkbox"
+                      checked={filters.types?.includes(type.id) || false}
+                      onChange={() => handleMultiSelectChange('types', type.id)}
+                    />
+                    <span style={{ flex: '1 1 0%' }}>{type.label}</span>
+                    <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({count})</span>
+                  </label>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -195,29 +214,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
         <div className="multi-select-container">
           <div 
             className="multi-select-header is-compact" 
-            onClick={(e) => {
-              e.stopPropagation();
-              const dropdown = document.getElementById('categories-dropdown');
-              const header = e.currentTarget;
-              if (dropdown) {
-                const isVisible = dropdown.style.display === 'block';
-                // Close all other dropdowns first
-                document.querySelectorAll('.multi-select-dropdown').forEach(d => {
-                  d.style.display = 'none';
-                });
-                // Toggle this dropdown
-                if (!isVisible) {
-                  // Position dropdown below the button
-                  const rect = header.getBoundingClientRect();
-                  dropdown.style.position = 'fixed';
-                  dropdown.style.top = `${rect.bottom + 6}px`;
-                  dropdown.style.left = `${rect.left}px`;
-                  dropdown.style.display = 'block';
-                } else {
-                  dropdown.style.display = 'none';
-                }
-              }
-            }}
+            onClick={(e) => toggleDropdown('categories-dropdown', e)}
           >
             <span>Kategori</span>
             {filters.categories?.length > 0 && (
@@ -250,16 +247,20 @@ export default function MaterialsFilters({ categories, types, onFilterChange }) 
               </button>
             </div>
             <div className="mes-filter-panel-content">
-              {categories?.map(category => (
-                <label key={category.id}>
-                  <input
-                    type="checkbox"
-                    checked={filters.categories?.includes(category.id) || false}
-                    onChange={() => handleMultiSelectChange('categories', category.id)}
-                  />
-                  <span>{category.name || category.label}</span>
-                </label>
-              ))}
+              {categories?.map(category => {
+                const count = materials.filter(m => m.category === category.id || m.category === category.name).length
+                return (
+                  <label key={category.id}>
+                    <input
+                      type="checkbox"
+                      checked={filters.categories?.includes(category.id) || false}
+                      onChange={() => handleMultiSelectChange('categories', category.id)}
+                    />
+                    <span style={{ flex: '1 1 0%' }}>{category.name || category.label}</span>
+                    <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({count})</span>
+                  </label>
+                )
+              })}
               {(!categories || categories.length === 0) && (
                 <div className="no-options">Kategori bulunamadı</div>
               )}

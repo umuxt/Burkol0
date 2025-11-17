@@ -373,6 +373,7 @@ export default function StocksTabContent({
           categories={categories}
           types={materialTypes}
           onFilterChange={handleFilterChange}
+          materials={materials}
         />
       </div>
       

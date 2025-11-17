@@ -1524,8 +1524,7 @@ section.materials-dashboard div.card {
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
   z-index: 1000;
-  max-height: 240px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .mes-filter-panel-header {
@@ -1559,7 +1558,7 @@ section.materials-dashboard div.card {
   overflow: auto;
   padding: 8px;
   display: grid;
-  gap: 6px;
+  gap: 2px;
 }
 
 /* Filter panel checkbox labels - MES Style */

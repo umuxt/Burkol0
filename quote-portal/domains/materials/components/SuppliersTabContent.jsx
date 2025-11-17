@@ -315,6 +315,7 @@ export default function SuppliersTabContent({
           filters={filters}
           onFilterChange={handleFilterChange}
           onClearAll={handleClearAllFilters}
+          suppliers={suppliers}
         />
       </div>
 

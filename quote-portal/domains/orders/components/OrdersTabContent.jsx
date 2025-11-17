@@ -703,12 +703,14 @@ export default function OrdersTabContent() {
   // Filter state
   const [filters, setFilters] = useState({
     search: '',
-    orderStatus: '',
-    itemStatus: '',
-    dateRange: '',
-    deliveryStatus: '', // Teslimat durumu filtresi
-    materialType: '', // Malzeme tipi filtresi
-    supplierType: '', // Tedarikçi filtresi
+    orderStatus: [], // Sipariş durumu filtresi - multi-select
+    itemStatus: [], // Satır durumu filtresi - multi-select
+    dateRange: [], // Tarih filtresi - multi-select
+    customDateRange: { startDate: '', endDate: '' }, // Özel tarih aralığı
+    deliveryStatus: [], // Teslimat durumu filtresi - multi-select
+    customDeliveryDateRange: { startDate: '', endDate: '' }, // Özel teslimat aralığı
+    materialType: [], // Malzeme tipi filtresi - multi-select
+    supplierType: [], // Tedarikçi filtresi - multi-select
     materialCategory: '', // Malzeme kategorisi filtresi
     priceRange: {
       min: '',
@@ -1426,7 +1428,21 @@ export default function OrdersTabContent() {
   // Check if filters are active
   const hasActiveFilters = () => {
     const hasPriceRange = !!(filters.priceRange.min || filters.priceRange.max);
-    return !!(filters.search || filters.orderStatus || filters.itemStatus || filters.dateRange || filters.deliveryStatus || filters.materialType || filters.supplierType || filters.materialCategory || hasPriceRange);
+    const hasCustomDateRange = !!(filters.customDateRange?.startDate || filters.customDateRange?.endDate);
+    const hasCustomDeliveryRange = !!(filters.customDeliveryDateRange?.startDate || filters.customDeliveryDateRange?.endDate);
+    return !!(
+      filters.search || 
+      filters.orderStatus?.length > 0 || 
+      filters.itemStatus?.length > 0 || 
+      filters.dateRange?.length > 0 || 
+      hasCustomDateRange ||
+      filters.deliveryStatus?.length > 0 || 
+      hasCustomDeliveryRange ||
+      filters.materialType?.length > 0 || 
+      filters.supplierType?.length > 0 || 
+      filters.materialCategory || 
+      hasPriceRange
+    );
   }
 
   // Apply filters to orders
@@ -1446,38 +1462,61 @@ export default function OrdersTabContent() {
       }
 
       // Status filter
-      if (filters.orderStatus && order.orderStatus !== filters.orderStatus) {
-        return false;
+      if (filters.orderStatus?.length > 0) {
+        if (!filters.orderStatus.includes(order.orderStatus)) {
+          return false;
+        }
       }
 
       // Item status filter
-      if (filters.itemStatus) {
+      if (filters.itemStatus?.length > 0) {
         const orderItems = Array.isArray(order.items) ? order.items : [];
-        const hasMatchingItem = orderItems.some(item => item.itemStatus === filters.itemStatus);
+        const hasMatchingItem = orderItems.some(item => filters.itemStatus.includes(item.itemStatus));
         if (!hasMatchingItem) return false;
       }
 
       // Date range filter
-      if (filters.dateRange && order.orderDate) {
+      if (filters.dateRange?.length > 0 && order.orderDate) {
         const orderDate = order.orderDate instanceof Date ? order.orderDate : new Date(order.orderDate);
         const now = new Date();
         
-        switch (filters.dateRange) {
-          case 'bugün':
-            if (orderDate.toDateString() !== now.toDateString()) return false;
-            break;
-          case 'bu-hafta':
-            const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
-            if (orderDate < weekStart) return false;
-            break;
-          case 'bu-ay':
-            if (orderDate.getMonth() !== now.getMonth() || orderDate.getFullYear() !== now.getFullYear()) return false;
-            break;
-          case 'son-3-ay':
-            const threeMonthsAgo = new Date();
-            threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-            if (orderDate < threeMonthsAgo) return false;
-            break;
+        const matchesAnyRange = filters.dateRange.some(range => {
+          switch (range) {
+            case 'bugün':
+              return orderDate.toDateString() === now.toDateString();
+            case 'bu-hafta':
+              const weekStart = new Date(now);
+              weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+              return orderDate >= weekStart;
+            case 'bu-ay':
+              return orderDate.getMonth() === now.getMonth() && orderDate.getFullYear() === now.getFullYear();
+            case 'son-3-ay':
+              const threeMonthsAgo = new Date();
+              threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+              return orderDate >= threeMonthsAgo;
+            default:
+              return false;
+          }
+        });
+        
+        if (!matchesAnyRange) return false;
+      }
+
+      // Custom date range filter
+      if (filters.customDateRange?.startDate || filters.customDateRange?.endDate) {
+        if (!order.orderDate) return false;
+        
+        const orderDate = order.orderDate instanceof Date ? order.orderDate : new Date(order.orderDate);
+        
+        if (filters.customDateRange.startDate) {
+          const startDate = new Date(filters.customDateRange.startDate);
+          if (orderDate < startDate) return false;
+        }
+        
+        if (filters.customDateRange.endDate) {
+          const endDate = new Date(filters.customDateRange.endDate);
+          endDate.setHours(23, 59, 59, 999); // End of day
+          if (orderDate > endDate) return false;
         }
       }
 
@@ -1506,28 +1545,49 @@ export default function OrdersTabContent() {
       }
 
       // Delivery status filter
-      if (filters.deliveryStatus) {
+      if (filters.deliveryStatus?.length > 0) {
         const deliveryStatus = deliveryStatuses[order.id];
-        if (!deliveryStatus || deliveryStatus.status !== filters.deliveryStatus) {
+        if (!deliveryStatus || !filters.deliveryStatus.includes(deliveryStatus.status)) {
           return false;
         }
       }
 
+      // Custom delivery date range filter
+      if (filters.customDeliveryDateRange?.startDate || filters.customDeliveryDateRange?.endDate) {
+        const deliveryStatus = deliveryStatuses[order.id];
+        if (!deliveryStatus || !deliveryStatus.expectedDate) return false;
+        
+        const deliveryDate = deliveryStatus.expectedDate instanceof Date 
+          ? deliveryStatus.expectedDate 
+          : new Date(deliveryStatus.expectedDate);
+        
+        if (filters.customDeliveryDateRange.startDate) {
+          const startDate = new Date(filters.customDeliveryDateRange.startDate);
+          if (deliveryDate < startDate) return false;
+        }
+        
+        if (filters.customDeliveryDateRange.endDate) {
+          const endDate = new Date(filters.customDeliveryDateRange.endDate);
+          endDate.setHours(23, 59, 59, 999); // End of day
+          if (deliveryDate > endDate) return false;
+        }
+      }
+
       // Material type filter
-      if (filters.materialType) {
+      if (filters.materialType?.length > 0) {
         const orderItems = Array.isArray(order.items) ? order.items : [];
         const hasMatchingMaterial = orderItems.some(item => 
-          item.materialCode === filters.materialType || 
-          item.materialName === filters.materialType
+          filters.materialType.includes(item.materialCode) || 
+          filters.materialType.includes(item.materialName)
         );
         if (!hasMatchingMaterial) return false;
       }
 
       // Supplier type filter
-      if (filters.supplierType) {
+      if (filters.supplierType?.length > 0) {
         const hasMatchingSupplier = 
-          order.supplierCode === filters.supplierType ||
-          order.supplierId === filters.supplierType;
+          filters.supplierType.includes(order.supplierCode) ||
+          filters.supplierType.includes(order.supplierId);
         if (!hasMatchingSupplier) return false;
       }
 

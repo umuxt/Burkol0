@@ -1,9 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 
-export default function SuppliersFilters({ filters, onFilterChange, onClearAll }) {
-  const [openDropdown, setOpenDropdown] = useState(null)
-  const dropdownRefs = useRef({})
-
+export default function SuppliersFilters({ filters, onFilterChange, onClearAll, suppliers = [] }) {
   // Check if any filter is active
   const hasActiveFilters = !!(
     filters.search || 
@@ -122,37 +119,57 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
   const toggleDropdown = (dropdownName, event) => {
     event.stopPropagation()
     
-    if (openDropdown === dropdownName) {
-      setOpenDropdown(null)
-    } else {
-      setOpenDropdown(dropdownName)
-      
-      // Calculate position
-      setTimeout(() => {
-        const button = event.currentTarget
-        const dropdown = dropdownRefs.current[dropdownName]
-        if (dropdown && button) {
-          const rect = button.getBoundingClientRect()
-          dropdown.style.top = `${rect.bottom + window.scrollY + 4}px`
-          dropdown.style.left = `${rect.left + window.scrollX}px`
+    const dropdown = document.getElementById(`${dropdownName}-dropdown`)
+    const header = event.currentTarget
+    
+    if (dropdown) {
+      const isVisible = dropdown.style.display === 'block'
+      // Close all other dropdowns first
+      document.querySelectorAll('.multi-select-dropdown').forEach(d => {
+        d.style.display = 'none'
+      })
+      // Toggle this dropdown
+      if (!isVisible) {
+        // Position dropdown below the button
+        const rect = header.getBoundingClientRect()
+        dropdown.style.position = 'fixed'
+        dropdown.style.top = `${rect.bottom + 6}px`
+        
+        // Check if dropdown would go off right edge of screen
+        const dropdownWidth = 240 // default width from CSS
+        const spaceOnRight = window.innerWidth - rect.left
+        
+        if (spaceOnRight < dropdownWidth) {
+          // Align to right edge of button instead
+          dropdown.style.left = 'auto'
+          dropdown.style.right = `${window.innerWidth - rect.right}px`
+        } else {
+          dropdown.style.left = `${rect.left}px`
+          dropdown.style.right = 'auto'
         }
-      }, 0)
+        
+        dropdown.style.display = 'block'
+      } else {
+        dropdown.style.display = 'none'
+      }
     }
   }
 
   // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (openDropdown && !event.target.closest('.multi-select-container')) {
-        setOpenDropdown(null)
+      if (!event.target.closest('.multi-select-container')) {
+        document.querySelectorAll('.multi-select-dropdown').forEach(d => {
+          d.style.display = 'none'
+        })
       }
     }
 
     // Close on scroll
     const handleScroll = () => {
-      if (openDropdown) {
-        setOpenDropdown(null)
-      }
+      document.querySelectorAll('.multi-select-dropdown').forEach(d => {
+        d.style.display = 'none'
+      })
     }
 
     document.addEventListener('click', handleClickOutside)
@@ -162,7 +179,7 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
       document.removeEventListener('click', handleClickOutside)
       window.removeEventListener('scroll', handleScroll, true)
     }
-  }, [openDropdown])
+  }, [])
 
   // Clear dropdown selection
   const clearDropdown = (key) => {
@@ -181,6 +198,18 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
   const creditRatingOptions = ['A - Mükemmel', 'B - İyi', 'C - Orta', 'D - Zayıf', 'E - Risk']
   const paymentTermsOptions = ['Peşin', '15 Gün Vade', '30 Gün Vade', '45 Gün Vade', '60 Gün Vade', '90 Gün Vade', '120 Gün Vade']
   const deliveryTimeOptions = ['Hızlı (0-7 gün)', 'Normal (8-15 gün)', 'Uzun (15+ gün)']
+
+  // Count helpers
+  const getSupplierTypeCount = (type) => suppliers.filter(s => s.supplierType === type || s.type === type).length
+  const getCountryCount = (country) => suppliers.filter(s => s.country === country).length
+  const getCreditRatingCount = (rating) => suppliers.filter(s => s.creditRating === rating).length
+  const getPaymentTermsCount = (term) => suppliers.filter(s => s.paymentTerms === term || s.paymentTerms?.includes(term)).length
+  const getDeliveryTimeCount = (time) => {
+    if (time === 'Hızlı (0-7 gün)') return suppliers.filter(s => (s.leadTime || 0) <= 7).length
+    if (time === 'Normal (8-15 gün)') return suppliers.filter(s => (s.leadTime || 0) > 7 && (s.leadTime || 0) <= 15).length
+    if (time === 'Uzun (15+ gün)') return suppliers.filter(s => (s.leadTime || 0) > 15).length
+    return 0
+  }
 
   return (
     <div className="mes-filter-controls">
@@ -251,23 +280,26 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
             <span className="mes-filter-count">{filters.supplierTypes.length}</span>
           )}
         </button>
-        {openDropdown === 'supplierTypes' && (
-          <div 
-            ref={el => dropdownRefs.current.supplierTypes = el}
-            className="multi-select-dropdown"
+        <div 
+          id="supplierTypes-dropdown"
+          className="multi-select-dropdown"
+          style={{ display: 'none' }}
           >
             <div className="mes-filter-panel-header">
               <button
                 type="button"
-                className="mes-filter-panel-clear"
+                className="mes-filter-panel-button"
                 onClick={() => clearDropdown('supplierTypes')}
               >
                 <span>Temizle</span>
               </button>
               <button
                 type="button"
-                className="mes-filter-panel-close"
-                onClick={() => setOpenDropdown(null)}
+                className="mes-filter-panel-button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  document.getElementById('supplierTypes-dropdown').style.display = 'none'
+                }}
               >
                 <span>Kapat</span>
               </button>
@@ -280,12 +312,12 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
                     checked={filters.supplierTypes?.includes(option) || false}
                     onChange={() => handleMultiSelectChange('supplierTypes', option)}
                   />
-                  <span>{option}</span>
+                  <span style={{ flex: '1 1 0%' }}>{option}</span>
+                  <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({getSupplierTypeCount(option)})</span>
                 </label>
               ))}
             </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Multi-select: Ülke */}
@@ -301,23 +333,26 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
             <span className="mes-filter-count">{filters.countries.length}</span>
           )}
         </button>
-        {openDropdown === 'countries' && (
-          <div 
-            ref={el => dropdownRefs.current.countries = el}
-            className="multi-select-dropdown"
+        <div 
+          id="countries-dropdown"
+          className="multi-select-dropdown"
+          style={{ display: 'none' }}
           >
             <div className="mes-filter-panel-header">
               <button
                 type="button"
-                className="mes-filter-panel-clear"
+                className="mes-filter-panel-button"
                 onClick={() => clearDropdown('countries')}
               >
                 <span>Temizle</span>
               </button>
               <button
                 type="button"
-                className="mes-filter-panel-close"
-                onClick={() => setOpenDropdown(null)}
+                className="mes-filter-panel-button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  document.getElementById('countries-dropdown').style.display = 'none'
+                }}
               >
                 <span>Kapat</span>
               </button>
@@ -330,12 +365,12 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
                     checked={filters.countries?.includes(option) || false}
                     onChange={() => handleMultiSelectChange('countries', option)}
                   />
-                  <span>{option}</span>
+                  <span style={{ flex: '1 1 0%' }}>{option}</span>
+                  <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({getCountryCount(option)})</span>
                 </label>
               ))}
             </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Multi-select: Kredi Notu */}
@@ -351,23 +386,26 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
             <span className="mes-filter-count">{filters.creditRating.length}</span>
           )}
         </button>
-        {openDropdown === 'creditRating' && (
-          <div 
-            ref={el => dropdownRefs.current.creditRating = el}
-            className="multi-select-dropdown"
+        <div 
+          id="creditRating-dropdown"
+          className="multi-select-dropdown"
+          style={{ display: 'none' }}
           >
             <div className="mes-filter-panel-header">
               <button
                 type="button"
-                className="mes-filter-panel-clear"
+                className="mes-filter-panel-button"
                 onClick={() => clearDropdown('creditRating')}
               >
                 <span>Temizle</span>
               </button>
               <button
                 type="button"
-                className="mes-filter-panel-close"
-                onClick={() => setOpenDropdown(null)}
+                className="mes-filter-panel-button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  document.getElementById('creditRating-dropdown').style.display = 'none'
+                }}
               >
                 <span>Kapat</span>
               </button>
@@ -380,12 +418,12 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
                     checked={filters.creditRating?.includes(option) || false}
                     onChange={() => handleMultiSelectChange('creditRating', option)}
                   />
-                  <span>{option}</span>
+                  <span style={{ flex: '1 1 0%' }}>{option}</span>
+                  <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({getCreditRatingCount(option)})</span>
                 </label>
               ))}
             </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Multi-select: Ödeme Koşulları */}
@@ -401,23 +439,26 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
             <span className="mes-filter-count">{filters.paymentTerms.length}</span>
           )}
         </button>
-        {openDropdown === 'paymentTerms' && (
-          <div 
-            ref={el => dropdownRefs.current.paymentTerms = el}
-            className="multi-select-dropdown"
+        <div 
+          id="paymentTerms-dropdown"
+          className="multi-select-dropdown"
+          style={{ display: 'none' }}
           >
             <div className="mes-filter-panel-header">
               <button
                 type="button"
-                className="mes-filter-panel-clear"
+                className="mes-filter-panel-button"
                 onClick={() => clearDropdown('paymentTerms')}
               >
                 <span>Temizle</span>
               </button>
               <button
                 type="button"
-                className="mes-filter-panel-close"
-                onClick={() => setOpenDropdown(null)}
+                className="mes-filter-panel-button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  document.getElementById('paymentTerms-dropdown').style.display = 'none'
+                }}
               >
                 <span>Kapat</span>
               </button>
@@ -430,12 +471,12 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
                     checked={filters.paymentTerms?.includes(option) || false}
                     onChange={() => handleMultiSelectChange('paymentTerms', option)}
                   />
-                  <span>{option}</span>
+                  <span style={{ flex: '1 1 0%' }}>{option}</span>
+                  <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({getPaymentTermsCount(option)})</span>
                 </label>
               ))}
             </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Multi-select: Teslimat Süresi */}
@@ -451,23 +492,26 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
             <span className="mes-filter-count">{filters.deliveryTime.length}</span>
           )}
         </button>
-        {openDropdown === 'deliveryTime' && (
-          <div 
-            ref={el => dropdownRefs.current.deliveryTime = el}
-            className="multi-select-dropdown"
+        <div 
+          id="deliveryTime-dropdown"
+          className="multi-select-dropdown"
+          style={{ display: 'none' }}
           >
             <div className="mes-filter-panel-header">
               <button
                 type="button"
-                className="mes-filter-panel-clear"
+                className="mes-filter-panel-button"
                 onClick={() => clearDropdown('deliveryTime')}
               >
                 <span>Temizle</span>
               </button>
               <button
                 type="button"
-                className="mes-filter-panel-close"
-                onClick={() => setOpenDropdown(null)}
+                className="mes-filter-panel-button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  document.getElementById('deliveryTime-dropdown').style.display = 'none'
+                }}
               >
                 <span>Kapat</span>
               </button>
@@ -480,12 +524,12 @@ export default function SuppliersFilters({ filters, onFilterChange, onClearAll }
                     checked={filters.deliveryTime?.includes(option) || false}
                     onChange={() => handleMultiSelectChange('deliveryTime', option)}
                   />
-                  <span>{option}</span>
+                  <span style={{ flex: '1 1 0%' }}>{option}</span>
+                  <span style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>({getDeliveryTimeCount(option)})</span>
                 </label>
               ))}
             </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Clear All Filters Button */}
