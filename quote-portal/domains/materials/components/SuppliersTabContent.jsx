@@ -274,15 +274,16 @@ export default function SuppliersTabContent({
     <div className="stocks-tab-content">
       {/* MES Filter Bar: Dashboard + Actions + Filters */}
       <div className="mes-filter-bar is-compact">
-        {/* Dashboard - Inline Horizontal Cards */}
-        <section className="materials-dashboard">
-          <div className="card">
-            <h3>Aktif Tedarikçi</h3>
-            <p>{activeSuppliers}</p>
+        {/* Dashboard - Inline Single Line */}
+        <section className="materials-dashboard is-inline">
+          <div className="stat">
+            <span className="stat-label">Aktif Tedarikçi</span>
+            <span className="stat-value">{activeSuppliers}</span>
           </div>
-          <div className="card">
-            <h3>Bu Ay Sipariş</h3>
-            <p>{thisMonthOrders}</p>
+          <div className="divider"></div>
+          <div className="stat">
+            <span className="stat-label">Bu Ay Sipariş</span>
+            <span className="stat-value">{thisMonthOrders}</span>
           </div>
         </section>
 
@@ -331,19 +332,6 @@ export default function SuppliersTabContent({
           />
         </div>
       </section>
-
-      {suppliersError && (
-        <div className="error-message" style={{ 
-          padding: '1rem', 
-          margin: '1rem 0', 
-          backgroundColor: '#fee', 
-          border: '1px solid #fcc', 
-          borderRadius: '4px',
-          color: '#c33'
-        }}>
-          Tedarikçiler yüklenirken hata oluştu: {suppliersError}
-        </div>
-      )}
 
       <AddSupplierModal
         isOpen={isAddSupplierModalOpen}

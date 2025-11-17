@@ -12,7 +12,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 1.5rem;
+  padding: 0.75rem 1.5rem 1.5rem 1.5rem; /* top: 0.75rem, others: 1.5rem */
   background: #f9fafb;
   min-height: calc(100vh - 68px); /* BurkolNavigation yüksekliği çıkarılır */
   box-sizing: border-box;
@@ -96,6 +96,15 @@ body:has(.materials-page) {
   font-size: 13px;
   line-height: 1;
   font-weight: inherit;
+}
+
+/* Materials Page Title - MES Style */
+.materials-page-title {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 16px 0;
+  color: rgb(17, 24, 39);
+  line-height: 1.2;
 }
 
 /* Materials Tab Content */
@@ -1148,6 +1157,48 @@ body:has(.materials-page) {
 .materials-dashboard .card p.warning {
   color: rgb(220, 38, 38);
   animation: pulse 2s infinite;
+}
+
+/* Inline Dashboard - Single Line with Dividers */
+.materials-dashboard.is-inline {
+  background: rgb(249, 250, 251);
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgb(229, 231, 235);
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.materials-dashboard.is-inline .stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.materials-dashboard.is-inline .stat-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgb(107, 114, 128);
+}
+
+.materials-dashboard.is-inline .stat-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgb(17, 24, 39);
+}
+
+.materials-dashboard.is-inline .stat-value.warning {
+  color: rgb(220, 38, 38);
+}
+
+.materials-dashboard.is-inline .divider {
+  width: 1px;
+  height: 16px;
+  background: rgb(209, 213, 219);
+  flex-shrink: 0;
 }
 
 /* Suppliers Button */

@@ -16,6 +16,12 @@ export default function MaterialsTabs({ children, activeTab, onTabChange }) {
     { id: 'orders', label: 'Sipariş Paneli', icon: ShoppingCart }
   ]
 
+  const tabTitles = {
+    stocks: 'Stok Yönetimi',
+    suppliers: 'Tedarikçi Yönetimi',
+    orders: 'Sipariş Yönetimi'
+  }
+
   return (
     <div className="materials-tabs-container">
       <div className="materials-tabs-header">
@@ -36,6 +42,10 @@ export default function MaterialsTabs({ children, activeTab, onTabChange }) {
           )
         })}
       </div>
+      
+      <h1 className="materials-page-title">
+        {tabTitles[currentActiveTab]}
+      </h1>
       
       <div className="materials-tab-content">
         {React.Children.map(children, (child, index) => {

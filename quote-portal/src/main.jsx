@@ -467,46 +467,6 @@ function MaterialsApp() {
         />
       ))}
       
-      {/* Global hata mesajı - sadece kritik hatalar için */}
-      {(materialsError || categoriesError) && (
-        <div className="global-error-banner" style={{
-          background: 'rgba(220, 53, 69, 0.1)',
-          border: '1px solid rgba(220, 53, 69, 0.3)',
-          borderRadius: '8px',
-          padding: '12px 16px',
-          marginBottom: '16px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px'
-        }}>
-          <div style={{ flex: 1 }}>
-            <strong style={{ color: '#dc3545' }}>⚠️ Bağlantı Hatası:</strong>
-            <span style={{ marginLeft: '8px', color: '#721c24' }}>
-              {materialsError || categoriesError}
-            </span>
-          </div>
-          <button 
-            onClick={() => {
-              refreshMaterials(true);
-              refreshCategories();
-            }}
-            style={{
-              padding: '6px 12px',
-              background: '#dc3545',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '14px',
-              whiteSpace: 'nowrap'
-            }}
-          >
-            Tekrar Dene
-          </button>
-        </div>
-      )}
-      
       <MaterialsTabs
         activeTab={activeTab}
         onTabChange={handleTabChange}
@@ -607,6 +567,54 @@ function MaterialsApp() {
 
       {/* Floating Help Button + Popup */}
       <MaterialsHelp />
+
+      {/* Global Error Banner - Fixed at bottom */}
+      {(materialsError || categoriesError) && (
+        <div className="global-error-banner" style={{
+          position: 'fixed',
+          bottom: '16px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'rgba(220, 53, 69, 0.95)',
+          border: '1px solid rgba(220, 53, 69, 0.3)',
+          borderRadius: '8px',
+          padding: '12px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          maxWidth: '90%',
+          minWidth: '400px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          zIndex: 1000
+        }}>
+          <div style={{ flex: 1 }}>
+            <strong style={{ color: 'white' }}>⚠️ Bağlantı Hatası:</strong>
+            <span style={{ marginLeft: '8px', color: 'rgba(255, 255, 255, 0.9)' }}>
+              {materialsError || categoriesError}
+            </span>
+          </div>
+          <button 
+            onClick={() => {
+              refreshMaterials(true);
+              refreshCategories();
+            }}
+            style={{
+              padding: '6px 12px',
+              background: 'white',
+              color: '#dc3545',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '600',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Tekrar Dene
+          </button>
+        </div>
+      )}
     </div>
   );
 }
