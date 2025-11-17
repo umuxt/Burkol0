@@ -40,9 +40,9 @@
   "definitions": {
     "Node": {
       "type": "object",
-      "required": ["id", "name", "operationId", "nominalTime"],
+      "required": ["nodeId", "name", "operationId", "nominalTime"],
       "properties": {
-        "id": {
+        "nodeId": {
           "type": "string"
         },
         "name": {

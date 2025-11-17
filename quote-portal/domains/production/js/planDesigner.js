@@ -2467,8 +2467,8 @@ window.closeMaterialCheckModal = closeMaterialCheckModal;
 function sanitizeNodesForBackend(nodes) {
   return nodes.map(node => {
     const sanitized = {
-      // Backend canonical schema (PROMPT 9: normalization layer removed)
-      nodeId: node.id,  // Internal 'id' → Backend 'nodeId'
+      // Backend canonical schema uses 'nodeId' throughout the codebase
+      nodeId: node.id || node.nodeId,
       name: node.name || 'Unnamed Node',
       operationId: node.operationId,
       type: node.type || 'General',

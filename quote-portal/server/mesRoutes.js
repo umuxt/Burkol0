@@ -2719,7 +2719,7 @@ router.post('/worker-assignments/batch', withAuth, async (req, res) => {
         const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
         
         // Find the node in nodes array
-        const node = nodes.find(n => n.id === assignment.nodeId);
+        const node = nodes.find(n => n.nodeId === assignment.nodeId);
         
         // Get operation data for defect rate
         const operation = node && node.operationId ? operationsMap.get(node.operationId) : null;
@@ -3869,7 +3869,7 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
           
           const planData = planDoc.data();
           const nodes = planData.nodes || [];
-          const node = nodes.find(n => n.id === nodeId);
+          const node = nodes.find(n => n.nodeId === nodeId);
           
           if (!node) {
             console.error(`Node ${nodeId} not found in plan nodes (searched ${nodes.length} nodes)`);
