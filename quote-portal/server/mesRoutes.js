@@ -3040,9 +3040,12 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         nodeId: assignment.nodeId,
         status: assignment.status || 'pending',
         
-        // Priority system
+        // Priority system (PROMPT 2-4, 11)
         priority: assignment.priority || 2, // 1=Low, 2=Normal, 3=High
         expectedStart: assignment.expectedStart || assignment.plannedStart || null,
+        optimizedIndex: assignment.optimizedIndex || null,
+        optimizedStart: assignment.optimizedStart || null,
+        schedulingMode: assignment.schedulingMode || 'fifo',
         isUrgent: assignment.isUrgent || false,
         
         // Worker info
@@ -3112,6 +3115,32 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
       const aTime = a.expectedStart ? new Date(a.expectedStart).getTime() : 0;
       const bTime = b.expectedStart ? new Date(b.expectedStart).getTime() : 0;
       return aTime - bTime;
+    });
+    
+    // ✅ Initialize canStart=false for all tasks
+    allTasks.forEach(task => {
+      task.canStart = false;
+    });
+    
+    // ✅ canStart logic: WORKER-LEVEL FIFO (not per work order)
+    // Filter active tasks (pending/ready/in-progress) across ALL work orders
+    const activeTasks = allTasks.filter(t => 
+      t.status === 'pending' || t.status === 'in-progress' || t.status === 'in_progress' || t.status === 'ready'
+    );
+    
+    // Already sorted by expectedStart above
+    
+    // Find first pending/ready task
+    const firstPendingIndex = activeTasks.findIndex(t => t.status === 'pending' || t.status === 'ready');
+    
+    // Set canStart: isUrgent=true -> all can start, otherwise only first pending
+    activeTasks.forEach((task, index) => {
+      if (task.status === 'in-progress' || task.status === 'in_progress') {
+        task.canStart = false; // Already started
+      } else {
+        // ✅ Worker can start: urgent tasks OR first pending task (FIFO)
+        task.canStart = task.isUrgent || (index === firstPendingIndex);
+      }
     });
     
     // Find next task (first pending or ready task)
@@ -3359,43 +3388,50 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
             
             // DEBUG: Log task status and prerequisites
             console.log(`🔍 DEBUG START - Task ${assignmentId}:`);
-            console.log(`   Status: ${currentTask.status}`);
+            console.log(`   Assignment Status: ${assignment.status}`);
+            console.log(`   Execution State Status: ${currentTask.status}`);
             console.log(`   Prerequisites:`, currentTask.prerequisites);
             console.log(`   Node ID: ${currentTask.nodeId}`);
             console.log(`   Predecessors:`, currentTask.predecessors);
             
-            // Check if task status is ready, pending, or paused (but only if not plan-paused)
-            if (currentTask.status === 'paused' && currentTask.pauseContext === 'plan') {
+            // Check if task status is ready, pending, or paused (use ASSIGNMENT status, not execution state)
+            if (assignment.status === 'paused' && assignment.pauseContext === 'plan') {
               const e = new Error('Task cannot be started: paused by admin');
               e.status = 400;
               e.code = 'precondition_failed';
               throw e;
             }
             
-            if (currentTask.status !== 'ready' && currentTask.status !== 'pending' && currentTask.status !== 'paused') {
-              console.error(`❌ Task ${assignmentId} has invalid status for starting: ${currentTask.status}`);
-              const e = new Error(`Task cannot be started: current status is ${currentTask.status}`);
+            if (assignment.status !== 'ready' && assignment.status !== 'pending' && assignment.status !== 'paused') {
+              console.error(`❌ Task ${assignmentId} has invalid status for starting: ${assignment.status}`);
+              const e = new Error(`Task cannot be started: current status is ${assignment.status}`);
               e.status = 400;
               e.code = 'precondition_failed';
               throw e;
             }
             
-            // Check prerequisites
+            // Check prerequisites (skip predecessor check if urgent)
             const prereqs = currentTask.prerequisites || {};
             const failedPrereqs = [];
             
-            if (!prereqs.predecessorsDone) failedPrereqs.push('Önceki görevler tamamlanmadı');
+            // ✅ URGENT tasks can bypass predecessor check
+            if (!assignment.isUrgent && !prereqs.predecessorsDone) {
+              failedPrereqs.push('Önceki görevler tamamlanmadı');
+            }
             if (!prereqs.workerAvailable) failedPrereqs.push('İşçi meşgul');
-            if (!prereqs.substationAvailable) failedPrereqs.push('Alt istasyon meşgul'); // Changed from stationAvailable
+            if (!prereqs.substationAvailable) failedPrereqs.push('Alt istasyon meşgul');
             if (!prereqs.materialsReady) failedPrereqs.push('Malzeme eksik');
             
             if (failedPrereqs.length > 0) {
+              console.error(`❌ Prerequisites failed for ${assignmentId}:`, failedPrereqs);
               const e = new Error(`Preconditions not met: ${failedPrereqs.join(', ')}`);
               e.status = 400;
               e.code = 'precondition_failed';
               e.details = failedPrereqs;
               throw e;
             }
+            
+            console.log(`✅ Prerequisites passed for ${assignmentId} (isUrgent: ${assignment.isUrgent})`);
             
             // RE-VALIDATE MATERIAL AVAILABILITY
             // Fetch the plan to check materials haven't been depleted since launch

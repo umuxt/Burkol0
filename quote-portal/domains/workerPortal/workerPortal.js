@@ -82,55 +82,16 @@ async function loadWorkerTasks() {
     const result = await getWorkerPortalTasks(state.currentWorker.id);
     let tasks = result.tasks || [];
     
-    // ✅ Work order'lara göre grupla ve canStart logic uygula
-    const tasksByWorkOrder = {};
-    tasks.forEach(task => {
-      const wo = task.workOrderCode;
-      if (!tasksByWorkOrder[wo]) tasksByWorkOrder[wo] = [];
-      tasksByWorkOrder[wo].push(task);
-    });
-    
-    // ✅ Her work order için canStart belirle
-    Object.keys(tasksByWorkOrder).forEach(workOrderCode => {
-      const woTasks = tasksByWorkOrder[workOrderCode];
-      
-      // Pending/in-progress/ready olanları filtrele
-      const activeTasks = woTasks.filter(t => 
-        t.status === 'pending' || t.status === 'in-progress' || t.status === 'in_progress' || t.status === 'ready'
-      );
-      
-      // Sort by expectedStart (FIFO mode) or optimizedStart (optimized mode)
-      activeTasks.sort((a, b) => {
-        const aStart = new Date(a.optimizedStart || a.expectedStart || a.plannedStart).getTime();
-        const bStart = new Date(b.optimizedStart || b.expectedStart || b.plannedStart).getTime();
-        return aStart - bStart;
-      });
-      
-      // ✅ canStart logic: isUrgent=true ise hepsi, değilse sadece ilk pending/ready
-      const firstPendingIndex = activeTasks.findIndex(t => t.status === 'pending' || t.status === 'ready');
-      
-      console.log(`🔍 canStart logic for ${workOrderCode}:`, {
-        totalTasks: woTasks.length,
-        activeTasks: activeTasks.length,
-        firstPendingIndex,
-        isUrgent: activeTasks[0]?.isUrgent,
-        tasks: activeTasks.map(t => ({ 
-          id: t.assignmentId, 
-          status: t.status, 
-          expectedStart: t.expectedStart, 
-          isUrgent: t.isUrgent 
-        }))
-      });
-      
-      activeTasks.forEach((task, index) => {
-        if (task.status === 'in-progress' || task.status === 'in_progress') {
-          task.canStart = false; // Already started
-        } else {
-          task.canStart = task.isUrgent || (index === firstPendingIndex);
-        }
-        console.log(`  Task ${task.assignmentId}: status=${task.status}, isUrgent=${task.isUrgent}, index=${index}, firstPending=${firstPendingIndex}, canStart=${task.canStart}`);
-      });
-    });
+    // ✅ Backend'den gelen canStart değerini kullan (duplicate logic kaldırıldı)
+    console.log(`📊 Loaded ${tasks.length} tasks with canStart from backend:`, 
+      tasks.map(t => ({ 
+        id: t.assignmentId, 
+        workOrder: t.workOrderCode,
+        status: t.status, 
+        isUrgent: t.isUrgent,
+        canStart: t.canStart
+      }))
+    );
     
     state.tasks = tasks;
     state.nextTaskId = result.nextTaskId || null;
@@ -1854,8 +1815,8 @@ function renderTaskActions(task) {
     !task.prerequisites.materialsReady
   );
   
-  // ✅ Check canStart flag (yeni)
-  const cannotStartYet = !task.canStart && (task.status === 'pending' || task.status === 'ready');
+  // ✅ Check canStart flag (backend'den gelen değer, undefined ise false)
+  const cannotStartYet = (task.canStart === false) && (task.status === 'pending' || task.status === 'ready');
   
   // Build tooltip for blocked reasons
   let blockTooltip = '';
@@ -1888,8 +1849,8 @@ function renderTaskActions(task) {
   if (task.status === 'ready' || task.status === 'pending') {
     const disabled = (isBlocked || isPlanPaused || workerUnavailable || cannotStartYet) ? 'disabled' : '';
     
-    // ✅ Waiting text için kontrol
-    if (cannotStartYet && !disabled) {
+    // ✅ Waiting text for tasks that cannot start yet
+    if (cannotStartYet) {
       actions.push(`
         <button class="action-btn action-start disabled" data-action="start" data-id="${task.assignmentId}" disabled ${blockTooltip}>
           ▶️ Başla
