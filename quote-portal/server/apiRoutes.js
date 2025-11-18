@@ -412,7 +412,7 @@ export function setupQuoteRoutes(app, uploadsDir) {
   })
 
   // Update quote status
-  app.patch('/api/quotes/:id/status', requireAuth, (req, res) => {
+  app.patch('/api/quotes/:id/status', requireAuth, async (req, res) => {
     const { id } = req.params
     const { status } = req.body
     
@@ -454,55 +454,62 @@ export function setupQuoteRoutes(app, uploadsDir) {
       })
 
       // If status changed to approved, create Approved Quote Work Order in MES storage
-      ;(async () => {
+      // ✅ ALWAYS create new WO, no duplicate check (immutable record keeping)
+      if (String(status).toLowerCase() === 'approved' || String(status).toLowerCase() === 'onaylandı' || String(status).toLowerCase() === 'onaylandi') {
+        console.log(`🔍 [STATUS UPDATE] Quote ${id} approved, creating WO...`)
         try {
-          if (String(status).toLowerCase() === 'approved' || String(status).toLowerCase() === 'onaylandı' || String(status).toLowerCase() === 'onaylandi') {
-            const db = getFirestore()
-            const col = db.collection('mes-approved-quotes')
+          const db = getFirestore()
+          const col = db.collection('mes-approved-quotes')
 
-            // Avoid duplicates for the same quote
-            const existingApproved = await col.where('quoteId', '==', id).limit(1).get()
-            if (!existingApproved.empty) return
-
-            // Generate next WO code (WO-00X)
-            const snap = await col.get()
-            let maxIdx = 0
-            snap.forEach(doc => {
-              const data = doc.data() || {}
-              const code = data.workOrderCode || data.id || ''
-              const m = /^WO-(\d+)$/.exec(String(code))
-              if (m) {
-                const n = parseInt(m[1], 10)
-                if (Number.isFinite(n)) maxIdx = Math.max(maxIdx, n)
-              }
-            })
-            const nextIdx = maxIdx + 1
-            const code = `WO-${String(nextIdx).padStart(3, '0')}`
-
-            // Build snapshot (copy essential fields + full snapshot for reference)
-            const snapshot = readOne(id) || updated
-            const approvedDoc = {
-              workOrderCode: code,
-              quoteId: id,
-              status: 'approved',
-              customer: snapshot.name || snapshot.customer || null,
-              company: snapshot.company || null,
-              email: snapshot.email || null,
-              phone: snapshot.phone || null,
-              deliveryDate: snapshot.deliveryDate || null,
-              price: snapshot.price ?? snapshot.calculatedPrice ?? null,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              quoteSnapshot: snapshot
+          // Generate next WO code using centralized counter (matches mesRoutes.js)
+          const counterRef = db.collection('mes-counters').doc('work-orders');
+          const code = await db.runTransaction(async (tx) => {
+            const snap = await tx.get(counterRef);
+            let next = 1;
+            
+            if (snap.exists) {
+              const data = snap.data() || {};
+              next = Number.isFinite(data.next) ? data.next : 1;
             }
+            
+            const workOrderCode = `WO-${String(next).padStart(3, '0')}`;
+            
+            tx.set(counterRef, { 
+              next: next + 1, 
+              updatedAt: new Date(),
+              lastGenerated: workOrderCode
+            }, { merge: true });
+            
+            console.log(`🔢 Generated Work Order Code: ${workOrderCode}`);
+            return workOrderCode;
+          });
 
-            // Use WO code as document ID
-            await col.doc(code).set(approvedDoc, { merge: true })
+          // Build snapshot (copy essential fields + full snapshot for reference)
+          const snapshot = readOne(id) || updated
+          const approvedDoc = {
+            workOrderCode: code,
+            quoteId: id,
+            status: 'approved',
+            customer: snapshot.name || snapshot.customer || null,
+            company: snapshot.company || null,
+            email: snapshot.email || null,
+            phone: snapshot.phone || null,
+            deliveryDate: snapshot.deliveryDate || null,
+            price: snapshot.price ?? snapshot.calculatedPrice ?? null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            quoteSnapshot: snapshot
           }
+
+          // Use WO code as document ID
+          console.log(`💾 [STATUS UPDATE] Saving WO to Firestore: ${code}`)
+          await col.doc(code).set(approvedDoc, { merge: true })
+          console.log(`✅ [STATUS UPDATE] Approved Quote WO created: ${code} for quote ${id}`)
         } catch (e) {
-          console.error('Failed to create Approved Quote WO:', e)
+          console.error('❌ [STATUS UPDATE] Failed to create Approved Quote WO:', e)
+          // Don't fail the whole request, but log the error clearly
         }
-      })()
+      }
 
       res.json(updated)
     } catch (error) {
@@ -511,7 +518,7 @@ export function setupQuoteRoutes(app, uploadsDir) {
   })
 
   // Update quote (general PATCH)
-  app.patch('/api/quotes/:id', requireAuth, (req, res) => {
+  app.patch('/api/quotes/:id', requireAuth, async (req, res) => {
     const { id } = req.params
     const updateData = req.body
     
@@ -554,8 +561,72 @@ export function setupQuoteRoutes(app, uploadsDir) {
         }
       })
 
+      // ✅ If status changed to approved, create Work Order (ALWAYS create new WO, no duplicate check)
+      if (updateData.status) {
+        const newStatus = String(updateData.status).toLowerCase()
+        const oldStatus = String(existing.status || '').toLowerCase()
+        
+        if ((newStatus === 'approved' || newStatus === 'onaylandı' || newStatus === 'onaylandi') && 
+            oldStatus !== newStatus) {
+          console.log(`🔍 [GENERAL UPDATE] Quote ${id} status changed to approved, creating WO...`)
+          try {
+            const db = getFirestore()
+            const col = db.collection('mes-approved-quotes')
+            
+            // Generate next WO code using centralized counter
+            const counterRef = db.collection('mes-counters').doc('work-orders');
+            const code = await db.runTransaction(async (tx) => {
+              const snap = await tx.get(counterRef);
+              let next = 1;
+              
+              if (snap.exists) {
+                const data = snap.data() || {};
+                next = Number.isFinite(data.next) ? data.next : 1;
+              }
+              
+              const workOrderCode = `WO-${String(next).padStart(3, '0')}`;
+              
+              tx.set(counterRef, { 
+                next: next + 1, 
+                updatedAt: new Date(),
+                lastGenerated: workOrderCode
+              }, { merge: true });
+              
+              console.log(`🔢 [GENERAL UPDATE] Generated Work Order Code: ${workOrderCode}`);
+              return workOrderCode;
+            });
+
+            // Build snapshot
+            const snapshot = updated
+            const approvedDoc = {
+              workOrderCode: code,
+              quoteId: id,
+              status: 'approved',
+              customer: snapshot.name || snapshot.customer || null,
+              company: snapshot.company || null,
+              email: snapshot.email || null,
+              phone: snapshot.phone || null,
+              deliveryDate: snapshot.deliveryDate || null,
+              price: snapshot.price ?? snapshot.calculatedPrice ?? null,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              quoteSnapshot: snapshot
+            }
+
+            // Use WO code as document ID
+            console.log(`💾 [GENERAL UPDATE] Saving WO to Firestore: ${code}`)
+            await col.doc(code).set(approvedDoc, { merge: true })
+            console.log(`✅ [GENERAL UPDATE] Approved Quote WO created: ${code} for quote ${id}`)
+          } catch (e) {
+            console.error('❌ [GENERAL UPDATE] Failed to create Approved Quote WO:', e)
+            // Don't fail the whole request, but log the error clearly
+          }
+        }
+      }
+
       res.json(updated)
     } catch (error) {
+      console.error('❌ [GENERAL UPDATE] Error:', error)
       res.status(500).json({ error: 'Quote update failed' })
     }
   })
