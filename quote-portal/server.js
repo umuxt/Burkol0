@@ -11,8 +11,9 @@ import { fileURLToPath } from 'url'
 import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
 import { setupMaterialsRoutes } from './server/materialsRoutes.js'
-import { ordersRoutes } from './server/ordersRoutes.js'
-// TODO: Migrate these routes to PostgreSQL
+// TODO: Migrate orders routes to PostgreSQL (still uses Firebase)
+// import { ordersRoutes } from './server/ordersRoutes.js'
+// TODO: Migrate suppliers routes to PostgreSQL
 // import {
 //     getAllSuppliers,
 //     addSupplier,
@@ -23,13 +24,13 @@ import { ordersRoutes } from './server/ordersRoutes.js'
 //     getSuppliersForMaterial,
 //     getMaterialsForSupplier
 // } from './server/suppliersRoutes.js';
-// import {
-//     getMaterialCategories,
-//     createMaterialCategory,
-//     updateMaterialCategory,
-//     deleteMaterialCategory,
-//     getMaterialCategoryUsage
-// } from './server/materialCategoriesRoutes.js';
+import {
+    getMaterialCategories,
+    createMaterialCategory,
+    updateMaterialCategory,
+    deleteMaterialCategory,
+    getMaterialCategoryUsage
+} from './server/materialCategoriesRoutes.js'
 import { addMigrationRoutes } from './server/migrationRoutes.js'
 import { testConnection } from './db/connection.js'
 import dotenv from 'dotenv'
@@ -142,7 +143,8 @@ app.use('/api/form-fields', ensureCoreRoutes)
 app.use('/api/form-config', ensureCoreRoutes)
 app.use('/api/form-fields', ensureCoreRoutes)
 setupMaterialsRoutes(app)
-app.use('/api', ordersRoutes)
+// TODO: Re-enable after migrating to PostgreSQL
+// app.use('/api', ordersRoutes)
 
 // MES Routes - lazy bootstrap on first request to speed up startup
 let mesRouterPromise = null
@@ -192,12 +194,12 @@ try {
 // app.get('/api/materials/:materialId/suppliers', getSuppliersForMaterial)
 // app.get('/api/suppliers/:supplierId/materials', getMaterialsForSupplier)
 
-// Setup material categories CRUD routes
-// app.get('/api/material-categories', getMaterialCategories)
-// app.post('/api/material-categories', createMaterialCategory)
-// app.put('/api/material-categories/:id', updateMaterialCategory)
-// app.delete('/api/material-categories/:id', deleteMaterialCategory)
-// app.get('/api/material-categories/:id/usage', getMaterialCategoryUsage)
+// Setup material categories CRUD routes (PostgreSQL)
+app.get('/api/material-categories', getMaterialCategories)
+app.post('/api/material-categories', createMaterialCategory)
+app.put('/api/material-categories/:id', updateMaterialCategory)
+app.delete('/api/material-categories/:id', deleteMaterialCategory)
+app.get('/api/material-categories/:id/usage', getMaterialCategoryUsage)
 
 
 // Expose migration management API routes used by admin tooling
