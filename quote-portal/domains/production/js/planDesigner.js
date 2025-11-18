@@ -1323,13 +1323,14 @@ export function updateConnectionsForNode(nodeId) {
   const existing = canvas.querySelectorAll('.connection-container');
   existing.forEach(el => el.remove());
   
+  // Render connections using successor model
   planDesignerState.nodes.forEach(node => {
-    node.connections.forEach(targetId => {
-      const targetNode = planDesignerState.nodes.find(n => n.id === targetId);
+    if (node.successor) {
+      const targetNode = planDesignerState.nodes.find(n => n.id === node.successor);
       if (targetNode) {
         renderConnection(node, targetNode, canvas);
       }
-    });
+    }
   });
 }
 

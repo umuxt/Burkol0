@@ -56,15 +56,10 @@ const metrics = {
 };
 
 // ============================================================================
-// NODE ID NORMALIZATION HELPERS
+// CANONICAL SCHEMA ENFORCEMENT
 // ============================================================================
-
-// ============================================================================
-// NORMALIZATION LAYER REMOVED (PROMPT 9)
-// - getNodeId() helper removed: Frontend always sends 'nodeId' (not 'id')
-// - normalizeNodes() removed: No fallback logic needed
-// - Backend expects canonical schema: node.nodeId, node.nominalTime
-// ============================================================================
+// Backend expects: node.nodeId, node.nominalTime, node.successor
+// Frontend sanitizes before sending (see planDesigner.js sanitizeNodesForBackend)
 
 console.log('✅ MES Routes module loaded - including semi-code endpoints');
 
@@ -519,7 +514,7 @@ async function getPlanExecutionState(planId) {
       pausedByName: assignment?.pausedByName || null,
       pausedAt: assignment?.pausedAt || null,
       
-      // Timing (PROMPT 11: use expectedStart, fallback to plannedStart for old assignments)
+      // Scheduling timing
       expectedStart: assignment?.expectedStart || assignment?.plannedStart || null,
       priority: assignment?.priority || 2, // 1=Low, 2=Normal, 3=High
       estimatedNominalTime: node.estimatedNominalTime,
@@ -3027,7 +3022,7 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         nodeId: assignment.nodeId,
         status: assignment.status || 'pending',
         
-        // Priority system (PROMPT 11: priority + expectedStart for FIFO)
+        // Priority system
         priority: assignment.priority || 2, // 1=Low, 2=Normal, 3=High
         expectedStart: assignment.expectedStart || assignment.plannedStart || null,
         isUrgent: assignment.isUrgent || false,
@@ -5705,14 +5700,14 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
         nodeId: assignment.nodeId,  // Direct access - no normalization needed
         substationId: assignment.substationId || null,  // ✅ Explicit null
         
-        // ✅ PROMPT 11: FIFO scheduling fields (replace priorityIndex)
-        expectedStart: assignment.plannedStart,  // Rename plannedStart → expectedStart
+        // FIFO scheduling fields
+        expectedStart: assignment.plannedStart,
         priority: 2,  // Default: Normal priority (1=Low, 2=Normal, 3=High)
         optimizedIndex: null,  // Not optimized yet
         optimizedStart: null,  // No optimization result
         schedulingMode: 'fifo',  // Default scheduling mode
         
-        isUrgent: false,  // ✅ Default to normal priority
+        isUrgent: false,  // Default to normal priority
         createdAt: now,
         createdBy: userEmail,
         updatedAt: now
@@ -5828,7 +5823,7 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// PROMPT 5: URGENT PRIORITY ENDPOINT
+// URGENT PRIORITY MANAGEMENT
 // ============================================================================
 
 /**
@@ -7842,7 +7837,7 @@ router.get('/work-packages', withAuth, async (req, res) => {
         operationName: assignment.nodeName, // For compatibility
         operationId: assignment.operationId,
         status: assignment.status,
-        priority: assignment.priority || 2, // PROMPT 11: 1=Low, 2=Normal, 3=High
+        priority: assignment.priority || 2, // 1=Low, 2=Normal, 3=High
         expectedStart: assignment.expectedStart || assignment.plannedStart || null,
         optimizedStart: assignment.optimizedStart || null,
         isUrgent: assignment.isUrgent || false,

@@ -74,7 +74,7 @@ function buildGraph(nodes) {
     // If this node has a successor, that's an OUTGOING edge
     const outs = n.successor ? [n.successor] : [];
     
-    // ✅ Backward compatibility: fallback to old connections array
+    // Backward compatibility: fallback to connections array if successor not available
     const legacyConnections = Array.isArray(n.connections) ? n.connections : [];
     const outgoingEdges = outs.length > 0 ? outs : legacyConnections;
     

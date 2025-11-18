@@ -99,7 +99,7 @@ async function loadWorkerTasks() {
         t.status === 'pending' || t.status === 'in-progress' || t.status === 'in_progress' || t.status === 'ready'
       );
       
-      // ✅ PROMPT 11: Sort by expectedStart (FIFO mode) or optimizedStart (optimized mode)
+      // Sort by expectedStart (FIFO mode) or optimizedStart (optimized mode)
       activeTasks.sort((a, b) => {
         const aStart = new Date(a.optimizedStart || a.expectedStart || a.plannedStart).getTime();
         const bStart = new Date(b.optimizedStart || b.expectedStart || b.plannedStart).getTime();
