@@ -99,8 +99,12 @@ async function loadWorkerTasks() {
         t.status === 'pending' || t.status === 'in-progress' || t.status === 'in_progress' || t.status === 'ready'
       );
       
-      // ✅ priorityIndex'e göre sırala
-      activeTasks.sort((a, b) => (a.priorityIndex || 0) - (b.priorityIndex || 0));
+      // ✅ PROMPT 11: Sort by expectedStart (FIFO mode) or optimizedStart (optimized mode)
+      activeTasks.sort((a, b) => {
+        const aStart = new Date(a.optimizedStart || a.expectedStart || a.plannedStart).getTime();
+        const bStart = new Date(b.optimizedStart || b.expectedStart || b.plannedStart).getTime();
+        return aStart - bStart;
+      });
       
       // ✅ canStart logic: isUrgent=true ise hepsi, değilse sadece ilk pending/ready
       const firstPendingIndex = activeTasks.findIndex(t => t.status === 'pending' || t.status === 'ready');
@@ -113,7 +117,7 @@ async function loadWorkerTasks() {
         tasks: activeTasks.map(t => ({ 
           id: t.assignmentId, 
           status: t.status, 
-          priority: t.priorityIndex, 
+          expectedStart: t.expectedStart, 
           isUrgent: t.isUrgent 
         }))
       });
@@ -1384,8 +1388,12 @@ function renderTaskList() {
     `;
   }
   
-  // Sort by priorityIndex
-  const sortedTasks = [...state.tasks].sort((a, b) => a.priorityIndex - b.priorityIndex);
+  // ✅ PROMPT 11: Sort by expectedStart (FIFO) or optimizedStart (optimized mode)
+  const sortedTasks = [...state.tasks].sort((a, b) => {
+    const aStart = new Date(a.optimizedStart || a.expectedStart || a.plannedStart).getTime();
+    const bStart = new Date(b.optimizedStart || b.expectedStart || b.plannedStart).getTime();
+    return aStart - bStart;
+  });
   
   // Find first ready/pending task
   const nextTask = sortedTasks.find(t => t.status === 'ready' || t.status === 'pending');
@@ -1477,17 +1485,24 @@ function renderTaskRow(task, isNextTask) {
   // Material preview (inputs → outputs)
   const materialPreviewHtml = renderMaterialPreview(task);
   
+  // ✅ PROMPT 11: Priority badge based on priority field (1=Low, 2=Normal, 3=High)
+  const priorityLabels = {1: 'DÜŞÜK', 2: 'NORMAL', 3: 'YÜKSEK'};
+  const priorityColors = {1: 'priority-low', 2: 'priority-normal', 3: 'priority-high'};
+  const priority = task.priority || 2; // Default to normal
+  const priorityBadgeHtml = `<span class="priority-level-badge ${priorityColors[priority]}">${priorityLabels[priority]}</span>`;
+  
   // ✅ Urgent class for card highlighting
   const urgentClass = task.isUrgent ? 'urgent-card' : '';
   
   return `
     <tr class="task-row ${task.status === 'paused' ? 'task-paused' : ''} ${urgentClass}" data-assignment-id="${task.assignmentId}">
       <td>
-        <div class="priority-index">${task.priorityIndex}</div>
+        <div class="priority-index">#${task.workPackageId?.split('-').pop() || '?'}</div>
       </td>
       <td>
         <span class="status-badge status-${task.status}">${statusInfo.icon} ${statusInfo.label}</span>
         ${priorityBadge}
+        ${priorityBadgeHtml}
       </td>
       <td>
         <div class="task-info">
@@ -1849,7 +1864,7 @@ function renderTaskActions(task) {
   } else if (isPlanPaused) {
     blockTooltip = `title="Admin tarafından durduruldu"`;
   } else if (cannotStartYet) {
-    blockTooltip = `title="⏳ Sırada bekliyor - Önce #${(task.priorityIndex || 1) - 1} numaralı görev tamamlanmalı"`;
+    blockTooltip = `title="⏳ Sırada bekliyor - Önceki görevler tamamlanmalı"`;
   } else if (isBlocked) {
     const reasons = [];
     if (!task.prerequisites.predecessorsDone) reasons.push('Önceki görevler tamamlanmadı');

@@ -519,8 +519,9 @@ async function getPlanExecutionState(planId) {
       pausedByName: assignment?.pausedByName || null,
       pausedAt: assignment?.pausedAt || null,
       
-      // Timing
-      priorityIndex: node.priorityIndex,
+      // Timing (PROMPT 11: use expectedStart, fallback to plannedStart for old assignments)
+      expectedStart: assignment?.expectedStart || assignment?.plannedStart || null,
+      priority: assignment?.priority || 2, // 1=Low, 2=Normal, 3=High
       estimatedNominalTime: node.estimatedNominalTime,
       estimatedEffectiveTime: node.estimatedEffectiveTime,
       
@@ -540,8 +541,12 @@ async function getPlanExecutionState(planId) {
     };
   });
   
-  // Sort by priority index
-  tasks.sort((a, b) => a.priorityIndex - b.priorityIndex);
+  // Sort by expectedStart time (FIFO)
+  tasks.sort((a, b) => {
+    const aTime = a.expectedStart ? new Date(a.expectedStart).getTime() : 0;
+    const bTime = b.expectedStart ? new Date(b.expectedStart).getTime() : 0;
+    return aTime - bTime;
+  });
   
   return tasks;
 }
@@ -3022,8 +3027,9 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
         nodeId: assignment.nodeId,
         status: assignment.status || 'pending',
         
-        // Priority system (PROMPT 7)
-        priorityIndex: assignment.priorityIndex || nodeInfo?.priorityIndex || 0,
+        // Priority system (PROMPT 11: priority + expectedStart for FIFO)
+        priority: assignment.priority || 2, // 1=Low, 2=Normal, 3=High
+        expectedStart: assignment.expectedStart || assignment.plannedStart || null,
         isUrgent: assignment.isUrgent || false,
         
         // Worker info
@@ -3088,8 +3094,12 @@ router.get('/worker-portal/tasks', withAuth, async (req, res) => {
       allTasks.push(task);
     }
     
-    // Sort by priorityIndex
-    allTasks.sort((a, b) => a.priorityIndex - b.priorityIndex);
+    // Sort by expectedStart (FIFO scheduling)
+    allTasks.sort((a, b) => {
+      const aTime = a.expectedStart ? new Date(a.expectedStart).getTime() : 0;
+      const bTime = b.expectedStart ? new Date(b.expectedStart).getTime() : 0;
+      return aTime - bTime;
+    });
     
     // Find next task (first pending or ready task)
     const nextTask = allTasks.find(t => t.status === 'pending' || t.status === 'ready');
@@ -5694,7 +5704,14 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
         workOrderCode,
         nodeId: assignment.nodeId,  // Direct access - no normalization needed
         substationId: assignment.substationId || null,  // ✅ Explicit null
-        priorityIndex: assignment.priorityIndex || i + 1,  // ✅ Default to index
+        
+        // ✅ PROMPT 11: FIFO scheduling fields (replace priorityIndex)
+        expectedStart: assignment.plannedStart,  // Rename plannedStart → expectedStart
+        priority: 2,  // Default: Normal priority (1=Low, 2=Normal, 3=High)
+        optimizedIndex: null,  // Not optimized yet
+        optimizedStart: null,  // No optimization result
+        schedulingMode: 'fifo',  // Default scheduling mode
+        
         isUrgent: false,  // ✅ Default to normal priority
         createdAt: now,
         createdBy: userEmail,
@@ -5725,7 +5742,10 @@ router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
       console.log(`🔍 DEBUG - Creating assignment ${workPackageId}:`);
       console.log(`   nodeId:`, completeAssignment.nodeId);
       console.log(`   substationId:`, completeAssignment.substationId);
-      console.log(`   priorityIndex:`, completeAssignment.priorityIndex);
+      console.log(`   expectedStart:`, completeAssignment.expectedStart);
+      console.log(`   priority:`, completeAssignment.priority);
+      console.log(`   optimizedIndex:`, completeAssignment.optimizedIndex);
+      console.log(`   schedulingMode:`, completeAssignment.schedulingMode);
       console.log(`   isUrgent:`, completeAssignment.isUrgent);
       console.log(`   preProductionReservedAmount:`, assignment.preProductionReservedAmount);
       console.log(`   plannedOutput:`, assignment.plannedOutput);
@@ -7822,8 +7842,9 @@ router.get('/work-packages', withAuth, async (req, res) => {
         operationName: assignment.nodeName, // For compatibility
         operationId: assignment.operationId,
         status: assignment.status,
-        priority: assignment.priorityIndex || assignment.priority || 0, // Use priorityIndex (new) or priority (old)
-        priorityIndex: assignment.priorityIndex || assignment.priority || 0, // For frontend compatibility
+        priority: assignment.priority || 2, // PROMPT 11: 1=Low, 2=Normal, 3=High
+        expectedStart: assignment.expectedStart || assignment.plannedStart || null,
+        optimizedStart: assignment.optimizedStart || null,
         isUrgent: assignment.isUrgent || false,
         
         // Work order data
@@ -7876,15 +7897,14 @@ router.get('/work-packages', withAuth, async (req, res) => {
       };
     });
     
-    // Sort by priority (execution order) and then by planned start
+    // Sort by expectedStart (FIFO mode) or optimizedStart (optimized mode)
     workPackages.sort((a, b) => {
-      // Use priorityIndex if available (new field), fallback to priority (old field)
-      const aPriority = a.priorityIndex || a.priority || 0;
-      const bPriority = b.priorityIndex || b.priority || 0;
+      // Use optimizedStart if available (optimization module), otherwise expectedStart (FIFO)
+      const aStart = a.optimizedStart || a.expectedStart || a.plannedStart;
+      const bStart = b.optimizedStart || b.expectedStart || b.plannedStart;
       
-      if (aPriority !== bPriority) return aPriority - bPriority;
-      if (a.plannedStart && b.plannedStart) {
-        return new Date(a.plannedStart) - new Date(b.plannedStart);
+      if (aStart && bStart) {
+        return new Date(aStart) - new Date(bStart);
       }
       return 0;
     });

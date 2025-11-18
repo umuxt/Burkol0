@@ -23,15 +23,28 @@
       "type": ["string", "null"],
       "description": "Assigned substation ID (optional)"
     },
-    "priorityIndex": {
+    "priority": {
       "type": "integer",
       "minimum": 1,
-      "description": "Execution order (topological/optimized)"
+      "maximum": 3,
+      "default": 2,
+      "description": "Priority for optimization (1=Low, 2=Normal, 3=High)"
+    },
+    "optimizedIndex": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Optimized execution order (null for FIFO mode)"
     },
     "isUrgent": {
       "type": "boolean",
       "default": false,
-      "description": "Urgent flag for parallel execution"
+      "description": "Urgent flag for UI indication"
+    },
+    "schedulingMode": {
+      "type": "string",
+      "enum": ["fifo", "optimized"],
+      "default": "fifo",
+      "description": "Scheduling algorithm used (fifo or optimized)"
     },
     "status": {
       "type": "string",
@@ -45,9 +58,15 @@
       "type": "integer",
       "minimum": 1
     },
-    "plannedStart": {
+    "expectedStart": {
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "description": "Expected start time (FIFO mode)"
+    },
+    "optimizedStart": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Optimized start time (optimized mode, null for FIFO)"
     },
     "plannedEnd": {
       "type": "string",
