@@ -5,9 +5,9 @@ import { FieldEditor } from './FieldEditor.js'
 import { FieldList } from './FieldList.js'
 import { FormBuilderUtils } from './FormBuilderUtils.js'
 
-const { useState, useEffect } = React;
+const { useState, useEffect, useMemo } = React;
 
-export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
+export function FormBuilderCompact({ isDarkMode, t, showNotification, renderHeaderActions }) {
   const [fields, setFields] = useState([])
   const [editingField, setEditingField] = useState(null)
   const [isFieldEditorOpen, setIsFieldEditorOpen] = useState(false)
@@ -24,6 +24,105 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
     console.log('FormBuilderUtils.fieldTypes:', FormBuilderUtils.fieldTypes)
     loadFormConfig()
   }, [])
+
+  // Memoize header buttons to prevent infinite re-renders
+  const headerButtons = useMemo(() => {
+    const hasUnsavedChanges = FormBuilderUtils.hasUnsavedChanges(fields, savedFields)
+    
+    return [
+      React.createElement('button', {
+        key: 'save',
+        onClick: saveFormConfig,
+        className: 'mes-btn mes-btn-lg mes-btn-success',
+        disabled: !hasUnsavedChanges,
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          opacity: hasUnsavedChanges ? 1 : 0.5,
+          cursor: hasUnsavedChanges ? 'pointer' : 'not-allowed'
+        }
+      }, [
+        React.createElement('span', {
+          key: 'save-icon',
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' }
+        }),
+        'Kaydet'
+      ]),
+      
+      React.createElement('button', {
+        key: 'export',
+        onClick: handleExportForm,
+        className: 'mes-btn mes-btn-lg',
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'rgb(0, 0, 0)',
+          color: 'rgb(255, 255, 255)'
+        }
+      }, [
+        React.createElement('span', {
+          key: 'export-icon',
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' }
+        }),
+        'Dışa Aktar'
+      ]),
+      
+      React.createElement('label', {
+        key: 'import',
+        className: 'mes-btn mes-btn-lg',
+        style: {
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          background: 'rgb(0, 0, 0)',
+          color: 'rgb(255, 255, 255)'
+        }
+      }, [
+        React.createElement('span', {
+          key: 'import-icon',
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' }
+        }),
+        'İçe Aktar',
+        React.createElement('input', {
+          type: 'file',
+          accept: '.json',
+          onChange: handleImportForm,
+          style: { display: 'none' }
+        })
+      ]),
+      
+      React.createElement('button', {
+        key: 'clear',
+        onClick: handleClearForm,
+        className: 'mes-btn mes-btn-lg mes-btn-danger',
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }
+      }, [
+        React.createElement('span', {
+          key: 'delete-icon',
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>' }
+        }),
+        'Temizle'
+      ])
+    ]
+  }, [fields, savedFields])
+
+  // Send header actions to parent via callback
+  useEffect(() => {
+    if (renderHeaderActions) {
+      renderHeaderActions(headerButtons)
+    }
+  }, [headerButtons])
 
   async function loadFormConfig() {
     try {
@@ -56,7 +155,7 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
       }
     } catch (error) {
       console.error('Form yüklenirken hata:', error)
-      // Try localStorage as backup
+      // API'ye bağlanılamadı, localStorage fallback kullan
       const saved = localStorage.getItem('formBuilder_config')
       if (saved) {
         try {
@@ -68,9 +167,19 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
           if (config.settings) {
             setFormSettings(config.settings)
           }
+          if (showNotification) {
+            showNotification('API bağlantısı yok - Yerel kayıt kullanılıyor', 'warning')
+          }
         } catch (localError) {
           console.error('Local storage yüklenirken hata:', localError)
-          showNotification('Kaydedilmiş form yüklenemedi', 'error')
+          if (showNotification) {
+            showNotification('Form yapılandırması yüklenemedi', 'error')
+          }
+        }
+      } else {
+        // localStorage de boş - boş formla devam et
+        if (showNotification) {
+          showNotification('API bağlantısı yok - Boş formla başlatılıyor', 'info')
         }
       }
     }
@@ -253,73 +362,27 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
   const hasUnsavedChanges = FormBuilderUtils.hasUnsavedChanges(fields, savedFields)
   const formStats = FormBuilderUtils.getFormStatistics(fields)
 
-  return React.createElement('div', { className: 'form-builder-container' },
-    // Header
-    React.createElement('div', { 
-      className: 'form-builder-header',
-      style: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '16px',
-        backgroundColor: 'white',
-        borderBottom: '1px solid #ddd',
-        marginBottom: '20px'
-      }
-    },
-      React.createElement('div', null,
-        React.createElement('h2', { style: { margin: '0 0 4px 0' } }, 'Form Oluşturucu'),
-        React.createElement('div', { style: { fontSize: '14px', color: '#666' } },
-          `${formStats.totalFields} alan • ${formStats.requiredFields} zorunlu`,
-          hasUnsavedChanges && React.createElement('span', { 
-            style: { color: '#dc3545', marginLeft: '8px' } 
-          }, '• Kaydedilmemiş değişiklikler')
-        )
-      ),
-      
-      React.createElement('div', { style: { display: 'flex', gap: '8px' } },
-        React.createElement('button', {
-          onClick: saveFormConfig,
-          className: 'btn btn-success',
-          disabled: !hasUnsavedChanges,
-          style: {
-            opacity: hasUnsavedChanges ? 1 : 0.6,
-            cursor: hasUnsavedChanges ? 'pointer' : 'not-allowed'
-          }
-        }, 'Kaydet'),
-        
-        React.createElement('button', {
-          onClick: handleExportForm,
-          className: 'btn btn-primary'
-        }, 'Dışa Aktar'),
-        
-        React.createElement('label', {
-          className: 'btn btn-secondary',
-          style: { cursor: 'pointer' }
-        }, 
-          'İçe Aktar',
-          React.createElement('input', {
-            type: 'file',
-            accept: '.json',
-            onChange: handleImportForm,
-            style: { display: 'none' }
-          })
-        ),
-        
-        React.createElement('button', {
-          onClick: handleClearForm,
-          className: 'btn btn-danger'
-        }, 'Temizle')
-      )
-    ),
-
+  return React.createElement('div', { 
+    className: 'form-builder-container',
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '0'
+    }
+  },
     // Tab Navigation
     React.createElement('div', { 
       className: 'tab-navigation',
       style: {
         display: 'flex',
-        borderBottom: '1px solid #ddd',
-        marginBottom: '20px'
+        borderBottom: '2px solid #e5e7eb',
+        marginTop: '20px',
+        marginBottom: '0',
+        gap: '4px',
+        background: '#fff',
+        padding: '0 20px',
+        borderRadius: '6px',
+        border: '2px solid #e5e7eb'
       }
     },
       ['builder', 'preview'].map(tab =>
@@ -328,14 +391,16 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
           onClick: () => setActiveTab(tab),
           className: `tab-button ${activeTab === tab ? 'active' : ''}`,
           style: {
-            padding: '12px 24px',
+            padding: '10px 20px',
             border: 'none',
-            backgroundColor: activeTab === tab ? '#007bff' : 'transparent',
-            color: activeTab === tab ? 'white' : '#666',
-            borderBottom: activeTab === tab ? '2px solid #007bff' : '2px solid transparent',
+            backgroundColor: activeTab === tab ? '#111827' : 'transparent',
+            color: activeTab === tab ? '#fff' : '#6b7280',
+            borderBottom: activeTab === tab ? '2px solid #111827' : 'none',
             cursor: 'pointer',
-            fontSize: '14px',
-            fontWeight: activeTab === tab ? 'bold' : 'normal'
+            fontSize: '13px',
+            fontWeight: activeTab === tab ? '600' : '500',
+            borderRadius: '6px 6px 0 0',
+            transition: 'all 0.2s'
           }
         }, 
           tab === 'builder' ? 'Form Tasarımı' : 'Önizleme'
@@ -344,58 +409,120 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
     ),
 
     // Tab Content
-    React.createElement('div', { className: 'tab-content' },
+    React.createElement('div', { 
+      className: 'tab-content',
+      style: {
+        background: '#fff',
+        border: '2px solid #e5e7eb',
+        borderRadius: '6px',
+        padding: '20px',
+        minHeight: '400px'
+      }
+    },
       activeTab === 'builder' && React.createElement('div', { 
         className: 'builder-content',
         style: {
           display: 'flex',
           flexDirection: 'column',
-          gap: '8px', // Small consistent gap between elements
+          gap: '16px',
           minHeight: 'auto',
-          height: 'auto' // Let content determine height
+          height: 'auto'
         }
       },
-        // Existing Fields List
-        React.createElement('div', {
-          style: {
-            flex: '0 0 auto' // Don't grow, natural height, no margin
-          }
-        },
-          React.createElement(FieldList, {
-            fields,
-            onEditField: handleEditField,
-            onDeleteField: handleDeleteField,
-            onDuplicateField: handleDuplicateField,
-            onReorderFields: handleReorderField
-          })
-        ),
-        
-        // Add New Field Button - Now closer to the field list
+        // Header with Add Button
         React.createElement('div', { 
           style: { 
-            flex: '0 0 auto', // Don't grow
-            padding: '8px 16px', // Reduced padding
-            borderTop: '2px dashed #dee2e6',
-            textAlign: 'center',
-            marginTop: '0' // No additional margin since we use gap
-          }
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: '8px'
+          } 
         },
-          React.createElement('button', {
-            onClick: handleAddNewField,
-            className: 'btn btn-primary',
-            style: {
-              padding: '12px 24px',
-              fontSize: '14px',
-              fontWeight: '600',
-              display: 'inline-flex',
+          React.createElement('h3', { 
+            style: { 
+              margin: 0, 
+              fontSize: '16px', 
+              fontWeight: '600', 
+              color: '#111827',
+              display: 'flex',
               alignItems: 'center',
               gap: '8px'
-            }
+            } 
           },
-            React.createElement('span', { style: { fontSize: '18px' } }, '+'),
-            'Yeni Alan Ekle'
-          )
-        )
+            React.createElement('span', {
+              dangerouslySetInnerHTML: {
+                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01"/><path d="M17 7h.01"/><path d="M7 17h.01"/><path d="M17 17h.01"/></svg>'
+              }
+            }),
+            'Form Alanları'
+          ),
+          
+          React.createElement('button', {
+            onClick: handleAddNewField,
+            className: 'mes-primary-action is-compact',
+            style: {
+              minWidth: 'fit-content',
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }
+          }, [
+            React.createElement('span', {
+              key: 'icon',
+              style: { display: 'flex', alignItems: 'center' },
+              dangerouslySetInnerHTML: {
+                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>'
+              }
+            }),
+            React.createElement('span', { key: 'text' }, 'Yeni Alan Ekle')
+          ])
+        ),
+        
+        // Empty state or Field List
+        fields.length === 0 ? React.createElement('div', { 
+          style: { 
+            textAlign: 'center', 
+            padding: '60px 20px',
+            background: '#f9fafb',
+            border: '2px dashed #e5e7eb',
+            borderRadius: '8px',
+            marginTop: '20px'
+          }
+        },
+          React.createElement('div', { 
+            style: { 
+              width: '48px', 
+              height: '48px', 
+              margin: '0 auto 16px',
+              color: '#9ca3af'
+            },
+            dangerouslySetInnerHTML: { 
+              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01"/><path d="M17 7h.01"/><path d="M7 17h.01"/><path d="M17 17h.01"/></svg>'
+            }
+          }),
+          React.createElement('p', { 
+            style: { 
+              margin: '0 0 8px 0', 
+              fontSize: '15px', 
+              fontWeight: 600, 
+              color: '#111827' 
+            } 
+          }, 'Henüz Form Alanı Eklenmedi'),
+          React.createElement('p', { 
+            style: { 
+              margin: 0, 
+              fontSize: '13px', 
+              color: '#6b7280' 
+            } 
+          }, 'Yukarıdaki "Yeni Alan Ekle" butonunu kullanarak form alanları ekleyin')
+        ) : React.createElement(FieldList, {
+          fields,
+          onEditField: handleEditField,
+          onDeleteField: handleDeleteField,
+          onDuplicateField: handleDuplicateField,
+          onReorderFields: handleReorderField
+        })
       ),
 
       activeTab === 'preview' && React.createElement(React.Fragment, null,
@@ -530,15 +657,50 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification }) {
       )
     ),
 
-    // Field Editor Modal
-    isFieldEditorOpen && React.createElement(FieldEditor, {
-      field: editingField,
-      onSave: handleSaveField,
-      onCancel: () => {
-        setIsFieldEditorOpen(false)
-        setEditingField(null)
+    // Field Editor Modal - Overlay style like PricingManager
+    isFieldEditorOpen && React.createElement('div', {
+      style: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        padding: '20px'
       },
-      showNotification
-    })
+      onClick: (e) => {
+        if (e.target === e.currentTarget) {
+          setIsFieldEditorOpen(false)
+          setEditingField(null)
+        }
+      }
+    },
+      React.createElement('div', {
+        style: {
+          background: '#fff',
+          borderRadius: '8px',
+          maxWidth: '600px',
+          width: '100%',
+          maxHeight: '90vh',
+          overflow: 'auto',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+        },
+        onClick: (e) => e.stopPropagation()
+      },
+        React.createElement(FieldEditor, {
+          field: editingField,
+          onSave: handleSaveField,
+          onCancel: () => {
+            setIsFieldEditorOpen(false)
+            setEditingField(null)
+          },
+          showNotification
+        })
+      )
+    )
   )
 }

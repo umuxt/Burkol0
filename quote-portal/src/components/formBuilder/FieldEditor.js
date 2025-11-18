@@ -104,6 +104,18 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNoti
   return React.createElement('div', { className: 'field-editor' },
     React.createElement('div', { 
       className: 'modal-overlay',
+      style: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999
+      },
       onClick: (e) => {
         if (e.target === e.currentTarget) {
           onCancel()
@@ -117,19 +129,43 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNoti
           width: '90vw',
           maxHeight: '85vh', 
           overflow: 'auto',
-          padding: '24px'
+          padding: '0',
+          backgroundColor: '#fff',
+          borderRadius: '8px',
+          border: '2px solid #e5e7eb',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
         },
         onClick: (e) => e.stopPropagation()
       },
+        // Modal Header
         React.createElement('div', { 
           style: { 
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center', 
-            marginBottom: '20px' 
+            padding: '20px 24px',
+            borderBottom: '2px solid #e5e7eb',
+            backgroundColor: '#fff'
           } 
         },
-          React.createElement('h3', { style: { margin: 0 } }, field ? 'Alan Düzenle' : 'Yeni Alan Ekle'),
+          React.createElement('h3', { 
+            style: { 
+              margin: 0, 
+              fontSize: '18px', 
+              fontWeight: '600', 
+              color: '#111827',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            } 
+          },
+            React.createElement('span', {
+              dangerouslySetInnerHTML: {
+                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
+              }
+            }),
+            field ? 'Alan Düzenle' : 'Yeni Alan Ekle'
+          ),
           React.createElement('button', {
             onClick: onCancel,
             style: {
@@ -137,30 +173,43 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNoti
               border: 'none',
               fontSize: '24px',
               cursor: 'pointer',
-              color: 'var(--text)',
-              padding: '0',
+              color: '#6b7280',
+              padding: '4px',
               width: '32px',
               height: '32px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: '4px',
-              transition: 'background-color 0.2s'
+              transition: 'all 0.2s'
             },
-            onMouseEnter: (e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.1)',
-            onMouseLeave: (e) => e.target.style.backgroundColor = 'transparent'
+            onMouseEnter: (e) => {
+              e.target.style.backgroundColor = '#f3f4f6'
+              e.target.style.color = '#111827'
+            },
+            onMouseLeave: (e) => {
+              e.target.style.backgroundColor = 'transparent'
+              e.target.style.color = '#6b7280'
+            }
           }, '×')
         ),
         
-        // Form container with two columns
-        React.createElement('div', { 
-          style: { 
-            display: 'grid', 
-            gridTemplateColumns: '1fr 1fr', 
-            gap: '24px',
-            marginBottom: '20px'
-          } 
+        // Modal Body
+        React.createElement('div', {
+          style: {
+            padding: '24px',
+            backgroundColor: '#f9fafb'
+          }
         },
+          // Form container with two columns
+          React.createElement('div', { 
+            style: { 
+              display: 'grid', 
+              gridTemplateColumns: '1fr 1fr', 
+              gap: '24px',
+              marginBottom: '0'
+            } 
+          },
           // Left column
           React.createElement('div', { className: 'form-column' },
             // Basic field properties
@@ -489,55 +538,151 @@ export function FieldEditor({ field, onSave, onCancel, fieldTypes = [], showNoti
         ),
 
         // Options for select-type fields (full width)
-        needsOptions && React.createElement('div', { className: 'form-group' },
-          React.createElement('label', null, 'Seçenekler'),
-          React.createElement('div', { style: { display: 'flex', gap: '8px', marginBottom: '8px' } },
+        needsOptions && React.createElement('div', { 
+          className: 'form-group',
+          style: {
+            gridColumn: '1 / -1',
+            backgroundColor: '#fff',
+            padding: '20px',
+            borderRadius: '6px',
+            border: '2px solid #e5e7eb'
+          }
+        },
+          React.createElement('h4', { 
+            style: { 
+              margin: '0 0 16px 0', 
+              fontSize: '15px', 
+              fontWeight: '600', 
+              color: '#111827' 
+            } 
+          }, 'Seçenekler'),
+          React.createElement('div', { style: { display: 'flex', gap: '8px', marginBottom: '12px' } },
             React.createElement('input', {
               type: 'text',
               value: newOption,
               onChange: (e) => setNewOption(e.target.value),
-              placeholder: 'Yeni seçenek',
+              placeholder: 'Yeni seçenek ekle',
               className: 'form-control',
-              style: { flex: 1 }
+              style: { 
+                flex: 1,
+                padding: '8px 12px',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                fontSize: '13px',
+                color: '#111827',
+                backgroundColor: '#fff'
+              },
+              onKeyPress: (e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addOption()
+                }
+              }
             }),
             React.createElement('button', {
               type: 'button',
               onClick: addOption,
-              className: 'btn btn-primary'
-            }, 'Ekle')
+              className: 'mes-btn mes-btn-lg mes-btn-primary',
+              style: { display: 'flex', alignItems: 'center', gap: '6px' }
+            }, [
+              React.createElement('span', {
+                key: 'plus-icon',
+                dangerouslySetInnerHTML: {
+                  __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>'
+                }
+              }),
+              'Ekle'
+            ])
           ),
           
           (fieldForm.options && fieldForm.options.length > 0) && React.createElement('ul', { 
-            className: 'options-list'
+            style: {
+              listStyle: 'none',
+              padding: 0,
+              margin: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }
           },
             ...fieldForm.options.map((option, index) =>
               React.createElement('li', { 
-                key: index
+                key: index,
+                style: {
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  backgroundColor: '#f9fafb',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  color: '#111827'
+                }
               },
-                React.createElement('span', null, option),
+                React.createElement('span', { style: { fontWeight: '500' } }, option),
                 React.createElement('button', {
                   type: 'button',
                   onClick: () => removeOption(index),
-                  className: 'option-remove-btn'
+                  style: {
+                    background: 'none',
+                    border: 'none',
+                    color: '#ef4444',
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    borderRadius: '4px',
+                    transition: 'background-color 0.2s'
+                  },
+                  onMouseEnter: (e) => e.target.style.backgroundColor = '#fee2e2',
+                  onMouseLeave: (e) => e.target.style.backgroundColor = 'transparent'
                 }, 'Sil')
               )
             )
           )
+        )
         ),
 
-        // Action buttons
-        React.createElement('div', { className: 'modal-actions', style: { marginTop: '20px', textAlign: 'right' } },
+        // Modal Footer
+        React.createElement('div', { 
+          style: { 
+            padding: '16px 24px', 
+            borderTop: '2px solid #e5e7eb',
+            backgroundColor: '#fff',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '8px',
+            borderRadius: '0 0 8px 8px'
+          } 
+        },
           React.createElement('button', {
             type: 'button',
             onClick: onCancel,
-            className: 'btn btn-secondary',
-            style: { marginRight: '10px' }
+            className: 'mes-btn mes-btn-lg',
+            style: { 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '6px',
+              background: '#f3f4f6',
+              color: '#111827',
+              border: '1px solid #d1d5db'
+            }
           }, 'İptal'),
           React.createElement('button', {
             type: 'button',
             onClick: handleSave,
-            className: 'btn btn-primary'
-          }, 'Kaydet')
+            className: 'mes-btn mes-btn-lg mes-btn-success',
+            style: { display: 'flex', alignItems: 'center', gap: '6px' }
+          }, [
+            React.createElement('span', {
+              key: 'save-icon',
+              dangerouslySetInnerHTML: {
+                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>'
+              }
+            }),
+            'Kaydet'
+          ])
         )
       )
     )

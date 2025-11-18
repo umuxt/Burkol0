@@ -11,6 +11,7 @@ import { FilterPopup } from '../../../src/components/modals/FilterPopup.js'
 import QuotesTabs from './QuotesTabs.jsx'
 import PricingManager from './PricingManager.jsx'
 import FormManager from './FormManager.jsx'
+import { showToast } from '../utils/toast.js'
 
 const { useState, useEffect, useMemo, useRef } = React;
 
@@ -79,7 +80,6 @@ function QuotesManager({ t, onLogout, showNotification }) {
   const [formConfig, setFormConfig] = useState(null)
   const [priceSettings, setPriceSettings] = useState({})
   const [showAddModal, setShowAddModal] = useState(false)
-  const [notification, setNotification] = useState(null)
   const [pagination, setPagination] = useState({
     currentPage: 1,
     itemsPerPage: 10,
@@ -107,6 +107,10 @@ function QuotesManager({ t, onLogout, showNotification }) {
     console.log('🔍 QUOTES INIT: localStorage tab:', storedTab);
     return storedTab;
   })
+  const [pricingHeaderActions, setPricingHeaderActions] = useState(null)
+  const [pricingVersionHistory, setPricingVersionHistory] = useState(null)
+  const [formHeaderActions, setFormHeaderActions] = useState(null)
+  const [apiConnectionError, setApiConnectionError] = useState(null)
 
   const handleQuotesTabChange = (newTab) => {
     console.log('🔥 ADMIN QUOTES TAB CHANGE:', newTab, 'Old:', activeQuotesTab);
@@ -140,9 +144,23 @@ function QuotesManager({ t, onLogout, showNotification }) {
       console.error("API quotes loading error:", error);
       if (error.message.includes('401') || error.message.includes('unauthorized')) {
         setError("Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.");
+        setApiConnectionError({ message: 'Oturum süreniz dolmuş', code: 401 });
         onLogout();
+      } else if (error.message.includes('Load failed') || error.message.includes('NetworkError')) {
+        // API sunucusuna bağlanılamıyor
+        setError("API sunucusuna bağlanılamıyor. Lütfen sunucunun çalıştığından emin olun.");
+        setApiConnectionError({ 
+          message: 'API sunucusuna bağlanılamıyor. Lütfen sunucunun çalıştığından emin olun.', 
+          code: 'NETWORK_ERROR' 
+        });
+        setList([]); // Boş liste göster, çökmesin
       } else {
         setError(`Veri yükleme hatası: ${error.message}`);
+        setApiConnectionError({ 
+          message: `HTTP error! status: ${error.status || 'unknown'}, message: ${error.message}`, 
+          code: error.status 
+        });
+        setList([]); // Boş liste göster
       }
       setLoading(false);
     }
@@ -318,11 +336,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
   }
 
   function showNotification(message, type = 'info') {
-    setNotification({ message, type })
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-      setNotification(null)
-    }, 3000)
+    showToast(message, type)
   }
 
   function exportToCSV() {
@@ -1054,26 +1068,63 @@ function QuotesManager({ t, onLogout, showNotification }) {
   }
 
   return React.createElement('div', { className: 'quotes-page' },
-    // Toast notification
-    notification && React.createElement('div', {
+    // API Connection Error Banner - MES Style (Bottom Center)
+    apiConnectionError && React.createElement('div', {
+      className: 'global-error-banner',
       style: {
         position: 'fixed',
-        top: '20px',
+        bottom: '16px',
         left: '50%',
         transform: 'translateX(-50%)',
-        backgroundColor: notification.type === 'success' ? '#4caf50' : notification.type === 'error' ? '#f44336' : '#2196f3',
-        color: 'white',
-        padding: '12px 24px',
+        background: 'rgba(220, 53, 69, 0.95)',
+        border: '1px solid rgba(220, 53, 69, 0.3)',
         borderRadius: '8px',
+        padding: '12px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        maxWidth: '90%',
+        minWidth: '400px',
         boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-        zIndex: 10000,
-        fontSize: '14px',
-        fontWeight: '500',
-        maxWidth: '400px',
-        textAlign: 'center',
-        animation: 'slideInDown 0.3s ease-out'
+        zIndex: 1000
       }
-    }, notification.message),
+    }, [
+      React.createElement('div', {
+        key: 'message',
+        style: { flex: 1 }
+      }, [
+        React.createElement('strong', {
+          key: 'title',
+          style: { color: 'white' }
+        }, '⚠️ Bağlantı Hatası:'),
+        React.createElement('span', {
+          key: 'detail',
+          style: {
+            marginLeft: '8px',
+            color: 'rgba(255, 255, 255, 0.9)'
+          }
+        }, apiConnectionError.message || '')
+      ]),
+      React.createElement('button', {
+        key: 'retry',
+        onClick: () => {
+          setApiConnectionError(null)
+          loadQuotes()
+        },
+        style: {
+          padding: '6px 12px',
+          background: 'white',
+          color: 'rgb(220, 53, 69)',
+          border: 'medium',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontSize: '14px',
+          fontWeight: '600',
+          whiteSpace: 'nowrap'
+        }
+      }, 'Tekrar Dene')
+    ]),
 
     // Global Processing Overlay
     globalProcessing && React.createElement('div', {
@@ -1112,7 +1163,14 @@ function QuotesManager({ t, onLogout, showNotification }) {
     // Quotes Tabs
     React.createElement(QuotesTabs, {
       activeTab: activeQuotesTab,
-      onTabChange: handleQuotesTabChange
+      onTabChange: handleQuotesTabChange,
+      headerActions: {
+        pricing: pricingHeaderActions,
+        form: formHeaderActions
+      },
+      headerContent: {
+        pricing: pricingVersionHistory
+      }
     },
       // Tab 1: Teklifler
       React.createElement('div', { className: 'quotes-list-content' },
@@ -1662,26 +1720,29 @@ function QuotesManager({ t, onLogout, showNotification }) {
       ),
       
       // Tab 2: Fiyatlandırma
-      React.createElement('div', { className: 'pricing-content' },
-        React.createElement(PricingManager, {
-          t: t,
-          showNotification: showNotification,
-          globalProcessing: globalProcessing,
-          setGlobalProcessing: setGlobalProcessing,
-          checkAndProcessVersionUpdates: () => {
-            // Version updates için callback
-            loadList()
-          }
-        })
-      ),
+      React.createElement(PricingManager, {
+        t: t,
+        showNotification: showNotification,
+        globalProcessing: globalProcessing,
+        setGlobalProcessing: setGlobalProcessing,
+        checkAndProcessVersionUpdates: () => {
+          // Version updates için callback
+          loadQuotes()
+        },
+        renderHeaderActions: (actions, versionHistory) => {
+          setPricingHeaderActions(actions)
+          setPricingVersionHistory(versionHistory)
+        }
+      }),
       
       // Tab 3: Form Yapısı
-      React.createElement('div', { className: 'form-structure-content' },
-        React.createElement(FormManager, {
-          t: t,
-          showNotification: showNotification
-        })
-      )
+      React.createElement(FormManager, {
+        t: t,
+        showNotification: showNotification,
+        renderHeaderActions: (actions) => {
+          setFormHeaderActions(actions)
+        }
+      })
     )
   )
 }

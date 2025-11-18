@@ -901,3 +901,389 @@ select.status-badge option {
     font-size: 12px;
   }
 }
+
+/* ========================================
+   PRICING MANAGER - MES DESIGN SYSTEM
+   ======================================== */
+
+.pricing-content {
+  padding: 1.5rem;
+  background: #ffffff;
+  border-radius: 8px;
+}
+
+/* Pricing Section Headers */
+.pricing-section-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgb(17, 24, 39);
+  margin: 0 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* MES Button Styles for Pricing */
+.mes-btn {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+
+/* Override global label styles when used as button */
+label.mes-btn {
+  display: inline-flex !important;
+  margin-bottom: 0 !important;
+  font-size: 13px !important;
+  color: inherit !important;
+}
+
+.mes-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Primary Button - Dark */
+.mes-btn-primary {
+  background: rgb(17, 24, 39);
+  color: white;
+  border: 1px solid rgb(17, 24, 39);
+}
+
+.mes-btn-primary:hover:not(:disabled) {
+  background: rgb(31, 41, 55);
+}
+
+/* Success Button - Green */
+.mes-btn-success {
+  background: rgb(34, 197, 94);
+  color: white;
+  border: 1px solid rgb(34, 197, 94);
+}
+
+.mes-btn-success:hover:not(:disabled) {
+  background: rgb(22, 163, 74);
+}
+
+.mes-btn-success.unsaved {
+  background: rgb(239, 68, 68);
+  border-color: rgb(239, 68, 68);
+  animation: pulse-btn 1.5s infinite;
+}
+
+@keyframes pulse-btn {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+/* Danger Button - Red */
+.mes-btn-danger {
+  background: rgb(239, 68, 68);
+  color: white;
+  border: 1px solid rgb(239, 68, 68);
+}
+
+.mes-btn-danger:hover:not(:disabled) {
+  background: rgb(220, 38, 38);
+}
+
+/* Warning Button - Yellow */
+.mes-btn-warning {
+  background: rgb(251, 191, 36);
+  color: rgb(17, 24, 39);
+  border: 1px solid rgb(251, 191, 36);
+}
+
+.mes-btn-warning:hover:not(:disabled) {
+  background: rgb(245, 158, 11);
+}
+
+/* Secondary Button - Gray */
+.mes-btn-secondary {
+  background: rgb(229, 231, 235);
+  color: rgb(17, 24, 39);
+  border: 1px solid rgb(209, 213, 219);
+}
+
+.mes-btn-secondary:hover:not(:disabled) {
+  background: rgb(209, 213, 219);
+}
+
+/* Info Button - Blue */
+.mes-btn-info {
+  background: rgb(59, 130, 246);
+  color: white;
+  border: 1px solid rgb(59, 130, 246);
+}
+
+.mes-btn-info:hover:not(:disabled) {
+  background: rgb(37, 99, 235);
+}
+
+/* Link Button */
+.mes-btn-link {
+  background: transparent;
+  color: rgb(59, 130, 246);
+  border: none;
+  padding: 4px 8px;
+}
+
+.mes-btn-link:hover:not(:disabled) {
+  color: rgb(37, 99, 235);
+  text-decoration: underline;
+}
+
+/* Small Button */
+.mes-btn-sm {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+/* Large Button */
+.mes-btn-lg {
+  padding: 6px 12px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+}
+
+/* Pricing Form Inputs - MES Style */
+.pricing-form-control {
+  padding: 8px 12px;
+  border: 1px solid rgb(209, 213, 219);
+  border-radius: 6px;
+  font-size: 13px;
+  transition: border-color 0.15s ease;
+  background: white;
+}
+
+.pricing-form-control:focus {
+  outline: none;
+  border-color: rgb(17, 24, 39);
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1);
+}
+
+/* MES Filter Dropdown - Copied from materials.css */
+.mes-filter-select {
+  height: 30px;
+  padding: 3px 12px;
+  border: 1px solid var(--border, rgb(229, 231, 235));
+  border-radius: 6px;
+  min-width: 120px;
+  font-size: 13px;
+  background: #ffffff;
+  color: rgb(75, 85, 99);
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%234b5563' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 10px 6px;
+  padding-right: 36px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mes-filter-select:focus {
+  outline: none;
+  border-color: rgb(209, 213, 219);
+}
+
+.mes-filter-select:hover {
+  background: rgb(249, 250, 251);
+  border-color: rgb(209, 213, 219);
+}
+
+/* Custom dropdown styling for option elements */
+.mes-filter-select option {
+  background: #ffffff;
+  color: rgb(75, 85, 99);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.mes-filter-select.is-compact {
+  height: 30px;
+  padding: 3px 12px;
+  font-size: 12px;
+}
+
+/* Override global form-group styles for inline layout */
+.pricing-content .form-group.inline {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-bottom: 16px !important;
+}
+
+.pricing-content .form-group.inline label {
+  display: inline-block !important;
+  margin-bottom: 0 !important;
+  min-width: fit-content !important;
+}
+
+.pricing-form-select {
+  padding: 8px 12px;
+  border: 1px solid rgb(209, 213, 219);
+  border-radius: 6px;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23374151' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 10px 6px;
+  padding-right: 36px;
+  transition: border-color 0.15s ease;
+}
+
+.pricing-form-select:focus {
+  outline: none;
+  border-color: rgb(17, 24, 39);
+  box-shadow: 0 0 0 3px rgba(17, 24, 39, 0.1);
+}
+
+/* Pricing Table - MES Style */
+.pricing-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  background: #fff;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.pricing-table thead th {
+  background: #f8fafc;
+  padding: 8px 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 12px;
+  color: #374151;
+  border-bottom: 2px solid #e2e8f0;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pricing-table tbody td {
+  padding: 3px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px;
+  color: #111827;
+  vertical-align: middle;
+}
+
+.pricing-table tbody tr {
+  transition: background-color 0.2s ease;
+}
+
+.pricing-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.pricing-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.pricing-table tbody tr.orphan-row {
+  background: #fef2f2;
+  border-left: 3px solid #ef4444;
+}
+
+.pricing-table tbody tr.orphan-row:hover {
+  background: #fee2e2;
+}
+
+/* Alert Boxes - MES Style */
+.pricing-alert {
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  border: 2px solid;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pricing-alert strong {
+  font-weight: 600;
+  color: #111827;
+}
+
+.pricing-alert-danger {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #7f1d1d;
+}
+
+.pricing-alert-info {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+.pricing-alert-warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #78350f;
+}
+
+/* Formula Display */
+.pricing-formula-display {
+  padding: 12px 16px;
+  background: rgb(249, 250, 251);
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 6px;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  color: rgb(17, 24, 39);
+  margin: 12px 0;
+}
+
+.pricing-formula-display.valid {
+  border-color: rgb(34, 197, 94);
+  background: rgb(240, 253, 244);
+}
+
+.pricing-formula-display.invalid {
+  border-color: rgb(239, 68, 68);
+  background: rgb(254, 242, 242);
+}
+
+/* Pricing Column Containers - Table-like Borders */
+.pricing-parameters-column,
+.pricing-formula-column {
+  background: white;
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.pricing-parameters-column:hover,
+.pricing-formula-column:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.2s ease;
+}
+
+/* Pricing Manager Responsive Design */
+@media (max-width: 1200px) {
+  .pricing-content > div:first-child {
+    grid-template-columns: 1fr !important;
+  }
+}

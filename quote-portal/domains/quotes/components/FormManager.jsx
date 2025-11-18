@@ -5,7 +5,7 @@ import { FormBuilderCompact } from '../../../src/components/formBuilder/FormBuil
 
 const { useState, useEffect } = React;
 
-function FormManager({ t, showNotification }) {
+function FormManager({ t, showNotification, renderHeaderActions }) {
   const [formConfig, setFormConfig] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -47,15 +47,11 @@ function FormManager({ t, showNotification }) {
   }
 
   return React.createElement(React.Fragment, null,
-    React.createElement('h3', null, t.settings_form_config || 'Form Yapılandırması'),
-    React.createElement('p', { style: { color: '#666', marginBottom: '20px' } },
-      t.settings_form_subtitle || 'Müşteri teklif formunda gösterilecek alanları ve seçenekleri yönetin.'
-    ),
-    
     React.createElement(FormBuilderCompact, {
       isDarkMode: false,
       t,
-      showNotification
+      showNotification,
+      renderHeaderActions
     })
   )
 }

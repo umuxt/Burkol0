@@ -250,8 +250,14 @@ function EnhancedFormulaEditor({
       className: 'formula-quick-actions',
       style: { marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '5px' }
     },
-      React.createElement('div', { style: { fontSize: '0.9em', fontWeight: 'bold', width: '100%', marginBottom: '5px' } },
-        '⚡ Hızlı Ekleme:'
+      React.createElement('div', { style: { fontSize: '0.9em', fontWeight: 'bold', width: '100%', marginBottom: '5px', color: '#000', display: 'flex', alignItems: 'center', gap: '6px' } },
+        React.createElement('span', {
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: {
+            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>'
+          }
+        }),
+        'Hızlı Ekleme:'
       ),
       
       // Parametreler
@@ -261,8 +267,8 @@ function EnhancedFormulaEditor({
             key: param,
             type: 'button',
             onClick: () => insertQuickFunction(param),
-            className: 'btn btn-sm btn-outline-primary',
-            style: { fontSize: '0.75em' }
+            className: 'btn btn-sm',
+            style: { fontSize: '12px', color: '#000', background: '#fff', borderColor: '#d1d5db', border: '1px solid', boxShadow: '0 1px 3px rgba(0,0,0,0.12)', padding: '4px 12px', fontWeight: '600' }
           }, param)
         )
       ),
@@ -275,7 +281,7 @@ function EnhancedFormulaEditor({
             type: 'button',
             onClick: () => insertQuickFunction(op.symbol),
             className: 'btn btn-sm btn-outline-secondary',
-            style: { fontSize: '0.75em' },
+            style: { fontSize: '12px', color: '#333', borderColor: '#555', boxShadow: '0 1px 3px rgba(0,0,0,0.12)', padding: '4px 12px' },
             title: op.description
           }, op.symbol)
         )
@@ -288,8 +294,8 @@ function EnhancedFormulaEditor({
             key: func,
             type: 'button',
             onClick: () => insertQuickFunction(func),
-            className: 'btn btn-sm btn-outline-success',
-            style: { fontSize: '0.75em' }
+            className: 'btn btn-sm btn-outline-secondary',
+            style: { fontSize: '12px', color: '#333', borderColor: '#555', boxShadow: '0 1px 3px rgba(0,0,0,0.12)', padding: '4px 12px' }
           }, func)
         )
       )
@@ -303,6 +309,12 @@ function EnhancedFormulaEditor({
       
       .formula-editor-container {
         position: relative;
+      }
+      
+      .formula-textarea:focus {
+        border-color: #28a745 !important;
+        box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25) !important;
+        outline: none !important;
       }
       
       .formula-textarea {

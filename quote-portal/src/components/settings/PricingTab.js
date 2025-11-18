@@ -161,7 +161,7 @@ function PricingTab({ t, showNotification }) {
           value: parameterName,
           onChange: (e) => setParameterName(e.target.value),
           className: 'form-control',
-          placeholder: 'Örn: materyalKatsayisi, islemFiyati'
+          placeholder: 'Örn: materyalKatsayisi'
         })
       ),
 

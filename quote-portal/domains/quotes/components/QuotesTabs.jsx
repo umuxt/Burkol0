@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { FileText, DollarSign, Layers } from 'lucide-react'
 
-export default function QuotesTabs({ children, activeTab, onTabChange }) {
+export default function QuotesTabs({ children, activeTab, onTabChange, headerActions, headerContent }) {
   // Eğer prop'lar verilmemişse internal state kullan (backward compatibility)
   const [internalActiveTab, setInternalActiveTab] = useState('quotes')
   
@@ -43,9 +43,23 @@ export default function QuotesTabs({ children, activeTab, onTabChange }) {
         })}
       </div>
       
-      <h1 className="quotes-page-title">
-        {tabTitles[currentActiveTab]}
-      </h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h1 className="quotes-page-title" style={{ margin: 0 }}>
+          {tabTitles[currentActiveTab]}
+        </h1>
+        
+        {headerActions && headerActions[currentActiveTab] && (
+          <div style={{ display: 'flex', gap: '12px' }}>
+            {headerActions[currentActiveTab]}
+          </div>
+        )}
+      </div>
+      
+      {headerContent && headerContent[currentActiveTab] && (
+        <div style={{ marginBottom: '24px' }}>
+          {headerContent[currentActiveTab]}
+        </div>
+      )}
       
       <div className="quotes-tab-content">
         {React.Children.map(children, (child, index) => {

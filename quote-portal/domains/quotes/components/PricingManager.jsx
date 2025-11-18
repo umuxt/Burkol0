@@ -7,7 +7,7 @@ import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'
 
 const { useState, useEffect } = React;
 
-function PricingManager({ t, showNotification, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates }) {
+function PricingManager({ t, showNotification, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, renderHeaderActions }) {
   const [parameters, setParameters] = useState([])
   const [formula, setFormula] = useState('')
   const [userFormula, setUserFormula] = useState('') // Kullanıcı dostu formül (A, B, C...)
@@ -44,6 +44,12 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
     warnings: [],
     errors: []
   })
+  
+  // Add parameter form state
+  const [isAddingParameter, setIsAddingParameter] = useState(false)
+  
+  // Custom dropdown state
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   
   // Inline edit states (not used in add flow anymore)
   const [editingParamId, setEditingParamId] = useState(null)
@@ -88,10 +94,12 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
       console.log('🔧 DEBUG: Processed fields:', dynamicFields)
       setFormFields(dynamicFields)
     } catch (e) {
-      console.error('Form fields load error:', e)
-      showNotification('Form alanları yüklenemedi!', 'error')
-      // Fallback olarak boş liste
+      console.warn('⚠️ Form fields API error:', e.message)
+      // API bağlantısı yok - boş liste ile devam et
       setFormFields([])
+      if (showNotification) {
+        showNotification('API bağlantısı yok - Form alanları yüklenmedi', 'warning')
+      }
     } finally {
       setIsLoadingFields(false)
     }
@@ -361,6 +369,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
     setParameterType('')
     setNewLookupOption('')
     setNewLookupValue('')
+    setIsAddingParameter(false) // Form'u kapat
   }
 
   function addLookupEntry() {
@@ -489,51 +498,342 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
     return idMapping.backendToUser[param.id] || String.fromCharCode(65 + index)
   }
 
-  return React.createElement(React.Fragment, null,
-    // Parameters section
-    React.createElement('div', { className: 'card' },
-      React.createElement('h3', null, '📊 Fiyat Parametreleri'),
+  // Render header actions if callback provided
+  useEffect(() => {
+    if (renderHeaderActions) {
+      const isDisabled = !isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave
+      const shouldShowGreen = !isDisabled || hasUnsavedChanges
       
-      isLoadingFields && React.createElement('div', { className: 'alert alert-info' },
-        '📝 Form alanları yükleniyor... Firebase\'den form konfigürasyonu çekiliyor.'
-      ),
-      
-      !isLoadingFields && React.createElement(React.Fragment, null,
-        // Add parameter form
-        React.createElement('div', { className: 'form-group inline' },
-          React.createElement('label', null, 'Eklenecek Parametre Türü'),
-          React.createElement('select', {
-            value: parameterType,
-            onChange: (e) => setParameterType(e.target.value),
-            className: 'form-control',
-            style: { width: 'auto', minWidth: '180px', maxWidth: '200px' }
-          },
-            React.createElement('option', { value: '' }, t.pricing_select || 'Seçiniz...'),
-            React.createElement('option', { value: 'fixed' }, '🔢 ' + (t.pricing_fixed_param || 'Sabit Değer')),
-            React.createElement('option', { value: 'form' }, '📝 ' + (t.pricing_form_param || 'Form Verisinden'))
-          )
+      renderHeaderActions([
+        React.createElement('button', {
+          key: 'save',
+          onClick: savePriceSettings,
+          className: shouldShowGreen ? 'mes-btn mes-btn-lg mes-btn-success' : 'mes-btn mes-btn-lg',
+          disabled: isDisabled,
+          style: { 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            ...(isDisabled && hasUnsavedChanges ? { opacity: 1 } : {})
+          }
+        }, 
+          React.createElement('span', { 
+            style: { display: 'flex', alignItems: 'center' },
+            dangerouslySetInnerHTML: { 
+              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>'
+            }
+          }),
+          systemIntegrity.canSave ? `Fiyat Ayarlarını Kaydet ${hasUnsavedChanges ? '●' : ''}` : 'Kaydetme Engellendi - Orphan Parametreler Mevcut'
         ),
+        
+        React.createElement('button', {
+          key: 'version',
+          onClick: toggleVersionHistory,
+          className: 'mes-btn mes-btn-lg',
+          style: { display: 'flex', alignItems: 'center', gap: '8px', background: '#000', color: '#fff' }
+        },
+          React.createElement('span', { 
+            style: { display: 'flex', alignItems: 'center' },
+            dangerouslySetInnerHTML: { 
+              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>'
+            }
+          }),
+          showVersionHistory ? 'Sürüm Geçmişini Gizle' : 'Sürüm Geçmişi'
+        )
+      ],
+      // Version history content as second parameter
+      showVersionHistory ? React.createElement('div', {
+        style: {
+          padding: '20px',
+          border: '2px solid rgb(229, 231, 235)',
+          borderRadius: '8px',
+          backgroundColor: '#fff'
+        }
+      },
+        React.createElement('h3', { 
+          style: { 
+            margin: '0 0 16px 0', 
+            fontSize: '18px', 
+            fontWeight: 'bold', 
+            color: '#000',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          } 
+        },
+          React.createElement('span', {
+            style: { display: 'flex', alignItems: 'center' },
+            dangerouslySetInnerHTML: {
+              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>'
+            }
+          }),
+          'Sürüm Geçmişi'
+        ),
+        
+        isLoadingVersions ? 
+          React.createElement('div', { 
+            style: { 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              color: '#000',
+              fontSize: '14px'
+            } 
+          },
+            React.createElement('span', {
+              style: { display: 'flex', alignItems: 'center' },
+              dangerouslySetInnerHTML: {
+                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>'
+              }
+            }),
+            'Yükleniyor...'
+          ) :
+          versions.length === 0 ? 
+            React.createElement('div', { 
+              style: { 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                color: '#666',
+                fontSize: '14px'
+              } 
+            },
+              React.createElement('span', {
+                style: { display: 'flex', alignItems: 'center' },
+                dangerouslySetInnerHTML: {
+                  __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>'
+                }
+              }),
+              'Henüz kaydedilmiş sürüm bulunmuyor.'
+            ) :
+            React.createElement('div', { style: { maxHeight: '400px', overflowY: 'auto' } },
+              ...versions.map((version, index) => 
+                React.createElement('div', {
+                  key: version.id,
+                  style: {
+                    padding: '16px',
+                    margin: '12px 0',
+                    border: '1px solid rgb(229, 231, 235)',
+                    borderRadius: '6px',
+                    backgroundColor: index === 0 ? '#f0f9ff' : '#fafafa'
+                  }
+                },
+                  React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } },
+                    React.createElement('div', { style: { flex: 1 } },
+                      React.createElement('h4', { style: { margin: '0 0 8px 0', fontSize: '16px', fontWeight: 'bold', color: '#000', display: 'flex', alignItems: 'center', gap: '8px' } },
+                        React.createElement('span', {
+                          style: { display: 'flex', alignItems: 'center' },
+                          dangerouslySetInnerHTML: {
+                            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+                          }
+                        }),
+                        `Sürüm ${version.version}`,
+                        index === 0 && React.createElement('span', { style: { color: '#28a745', fontSize: '12px', fontWeight: 'normal' } }, '(Güncel)')
+                      ),
+                      React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
+                        `Tarih: ${version.timestamp ? new Date(version.timestamp).toLocaleString('tr-TR') : 'Bilinmiyor'}`
+                      ),
+                      React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
+                        `Versiyon Kodu: ${version.versionId || version.id}`
+                      ),
+                      version.userTag && React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
+                        `Kullanıcı Etiketi: ${version.userTag}`
+                      ),
+                      version.dateKey && React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
+                        `Tarih Kodu: ${version.dateKey}`
+                      ),
+                      version.dailyIndex && React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
+                        `Günlük Sıra: ${String(version.dailyIndex).padStart(2, '0')}`
+                      ),
+                      version.savedBy && React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
+                        `Kaydeden: ${version.savedBy}`
+                      ),
+                      version.changeSummary && React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#000' } },
+                        `Özet: ${version.changeSummary}`
+                      ),
+                      React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#000' } },
+                        `Parametre Sayısı: ${(version.parameters && version.parameters.length) || (version.data?.parameters?.length) || 0}`
+                      ),
+                      (version.formula || version.data?.formula) && React.createElement('p', { style: { margin: '4px 0', fontSize: '12px', color: '#666', fontFamily: 'monospace' } },
+                        `Formül: ${(version.formula || version.data?.formula || '').substring(0, 80)}${(version.formula || version.data?.formula || '').length > 80 ? '...' : ''}`
+                      )
+                    ),
 
-        parameterType === 'fixed' && React.createElement('div', { className: 'form-group' },
-          React.createElement('label', null, t.pricing_param_name || 'Parametre Adı'),
+                    index !== 0 && React.createElement('button', {
+                      onClick: () => restoreVersion(version.id),
+                      className: 'mes-btn mes-btn-sm',
+                      style: { fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', background: '#f59e0b', color: '#fff', flexShrink: 0 }
+                    },
+                      React.createElement('span', {
+                        style: { display: 'flex', alignItems: 'center' },
+                        dangerouslySetInnerHTML: {
+                          __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>'
+                        }
+                      }),
+                      'Geri Yükle'
+                    )
+                  )
+                )
+              )
+            )
+      ) : null
+      )
+    }
+  }, [hasUnsavedChanges, systemIntegrity.canSave, isFormulaValid, parameters.length, showVersionHistory, isLoadingVersions, versions])
+
+  return React.createElement(React.Fragment, null,
+    // Two column layout
+    React.createElement('div', { 
+      style: { 
+        display: 'grid', 
+        gridTemplateColumns: '1fr 1fr', 
+        gap: '24px',
+        marginBottom: '24px'
+      } 
+    },
+      // LEFT COLUMN - Parameters section
+      React.createElement('div', { className: 'pricing-parameters-column' },
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '16px' } },
+        
+        // Header with title and add button
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', position: 'relative' } },
+          React.createElement('h3', { className: 'pricing-section-title', style: { margin: 0, display: 'flex', alignItems: 'center', gap: '8px' } }, 
+            React.createElement('span', { 
+              style: { display: 'flex', alignItems: 'center' },
+              dangerouslySetInnerHTML: { 
+                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>'
+              }
+            }),
+            'Fiyat Parametreleri'
+          ),
+          
+          // Add parameter button (shows when form is closed)
+          !isLoadingFields && !isAddingParameter && React.createElement('button', {
+            onClick: () => setIsAddingParameter(true),
+            className: systemIntegrity.canEdit ? 'mes-primary-action is-compact' : 'mes-filter-button is-compact',
+            disabled: !systemIntegrity.canEdit,
+            style: { minWidth: 'fit-content', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px' }
+          },
+            systemIntegrity.canEdit ? React.createElement(React.Fragment, null,
+              React.createElement('span', { 
+                style: { display: 'flex', alignItems: 'center' },
+                dangerouslySetInnerHTML: { 
+                  __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>'
+                }
+              }),
+              React.createElement('span', null, 'Parametre Ekle')
+            ) : React.createElement(React.Fragment, null,
+              React.createElement('span', { 
+                style: { display: 'flex', alignItems: 'center' },
+                dangerouslySetInnerHTML: { 
+                  __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>'
+                }
+              }),
+              React.createElement('span', null, 'Orphan Parametreler Var - Ekleme Engellendi')
+            )
+          ),
+          
+          // Add parameter modal/dropdown (shows when isAddingParameter is true)
+          !isLoadingFields && isAddingParameter && React.createElement('div', {
+            style: {
+              position: 'absolute',
+              top: '100%',
+              right: 0,
+              marginTop: '8px',
+              background: 'white',
+              border: '1px solid rgb(209, 213, 219)',
+              borderRadius: '8px',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+              padding: '20px',
+              minWidth: '400px',
+              maxWidth: '500px',
+              zIndex: 1000
+            }
+          },
+            // Modal Header
+            React.createElement('h4', { style: { margin: '0 0 16px 0', fontSize: '16px', fontWeight: 600, color: '#000' } }, 'Parametre Ekle'),
+            
+            // Add parameter form
+            React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' } },
+              React.createElement('label', { style: { fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', color: '#000', width: '110px', lineHeight: '30px' } }, 'Parametre Türü'),
+              
+              // Custom dropdown button
+              React.createElement('div', { style: { position: 'relative', flex: 1 } },
+                React.createElement('button', {
+                  type: 'button',
+                  className: 'mes-filter-select',
+                  onClick: () => setIsDropdownOpen(!isDropdownOpen),
+                  style: { width: '100%', textAlign: 'left' }
+                },
+                  React.createElement('span', null, 
+                    parameterType === 'fixed' ? (t.pricing_fixed_param || 'Sabit Değer') :
+                    parameterType === 'form' ? (t.pricing_form_param || 'Form Alanı') :
+                    (t.pricing_select || 'Seçiniz...')
+                  )
+                ),
+                
+                // Dropdown panel
+                isDropdownOpen && React.createElement('div', {
+                  className: 'mes-filter-panel-content',
+                  style: {
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: '4px',
+                    background: 'white',
+                    border: '1px solid rgb(229, 231, 235)',
+                    borderRadius: '6px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    zIndex: 1001,
+                    maxHeight: 'none',
+                    padding: '4px'
+                  }
+                },
+                  React.createElement('label', {
+                    onClick: () => {
+                      setParameterType('fixed');
+                      setIsDropdownOpen(false);
+                    },
+                    style: { cursor: 'pointer' }
+                  },
+                    React.createElement('span', null, t.pricing_fixed_param || 'Sabit Değer')
+                  ),
+                  React.createElement('label', {
+                    onClick: () => {
+                      setParameterType('form');
+                      setIsDropdownOpen(false);
+                    },
+                    style: { cursor: 'pointer' }
+                  },
+                    React.createElement('span', null, t.pricing_form_param || 'Form Alanı')
+                  )
+                )
+              )
+            ),
+
+            parameterType === 'fixed' && React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' } },
+          React.createElement('label', { style: { fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', color: '#000', width: '110px', lineHeight: '30px' } }, t.pricing_param_name || 'Parametre Adı'),
           React.createElement('input', {
             type: 'text',
             value: parameterName,
             onChange: (e) => setParameterName(e.target.value),
-            className: 'form-control',
-            placeholder: 'Örn: materyalKatsayisi, islemFiyati'
+            className: 'mes-filter-input is-compact',
+            placeholder: 'Örn: materyalKatsayisi, islem..',
+            style: { flex: 1 }
           })
         ),
 
-        parameterType === 'fixed' && React.createElement('div', { className: 'form-group' },
-          React.createElement('label', null, t.pricing_fixed_value || 'Sabit Değer'),
+        parameterType === 'fixed' && React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' } },
+          React.createElement('label', { style: { fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', color: '#000', width: '110px', lineHeight: '30px' } }, t.pricing_fixed_value || 'Sabit Değer'),
           React.createElement('input', {
             type: 'number',
             value: fixedValue,
             onChange: (e) => setFixedValue(e.target.value),
-            className: 'form-control',
+            className: 'mes-filter-input is-compact',
             placeholder: '0',
-            step: '0.01'
+            step: '0.01',
+            style: { flex: 1 }
           })
         ),
 
@@ -541,7 +841,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
           React.createElement('div', { className: 'form-group' },
             React.createElement('label', null, t.pricing_form_field || 'Form Alanı'),
             formFields.length === 0 ? 
-              React.createElement('div', { className: 'alert alert-warning' },
+              React.createElement('div', { className: 'pricing-alert pricing-alert-warning' },
                 React.createElement('strong', null, '⚠️ Form alanı bulunamadı'),
                 React.createElement('br'),
                 'Firebase\'de form konfigürasyonu bulunamadı. Önce Form Düzenleme menüsünden form alanları oluşturun.',
@@ -549,13 +849,13 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                 React.createElement('small', null, 'Debug: formFields.length = ', formFields.length)
               ) :
               React.createElement('div', null,
-                React.createElement('div', { className: 'alert alert-success', style: { fontSize: '13px', padding: '8px', marginBottom: '8px' } },
+                React.createElement('div', { className: 'pricing-alert pricing-alert-info', style: { fontSize: '13px', padding: '8px', marginBottom: '8px' } },
                   `✅ ${formFields.length} form alanı Firebase'den başarıyla yüklendi`
                 ),
                 React.createElement('select', {
                   value: selectedFormField,
                   onChange: (e) => setSelectedFormField(e.target.value),
-                  className: 'form-control'
+                  className: 'pricing-form-control'
                 },
                   React.createElement('option', { value: '' }, t.pricing_select || 'Seçiniz...'),
                   ...formFields.map(field =>
@@ -568,13 +868,14 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
           ),
 
           // Show auto parameter name for clarity (read-only)
-          selectedFormField && React.createElement('div', { className: 'form-group' },
-            React.createElement('label', null, t.pricing_param_name_auto || 'Parametre Adı (otomatik)'),
+          selectedFormField && React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' } },
+            React.createElement('label', { style: { fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', color: '#000', width: '110px', lineHeight: '30px' } }, t.pricing_param_name_auto || 'Parametre Adı (otomatik)'),
             React.createElement('input', {
               type: 'text',
               value: (formFields.find(f => f.value === selectedFormField)?.label || ''),
               readOnly: true,
-              className: 'form-control'
+              className: 'mes-filter-input is-compact',
+              style: { flex: 1 }
             })
           ),
 
@@ -602,7 +903,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                         type: 'number',
                         value: entry.value === 0 ? '' : (entry.value ?? ''),
                         onChange: (e) => updateLookupValue(index, e.target.value),
-                        className: 'form-control',
+                        className: 'mes-filter-input is-compact',
                         step: '0.01',
                         style: { width: '100px' }
                       })
@@ -614,20 +915,49 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
           )
         ),
 
-        parameterType && React.createElement('button', {
-          onClick: addParameter,
-          className: systemIntegrity.canEdit ? 'btn btn-primary' : 'btn btn-secondary',
-          style: { marginTop: '6px' },
-          disabled: (formFields.length === 0 && parameterType === 'form') || !systemIntegrity.canEdit
-        }, systemIntegrity.canEdit ? '➕ Parametre Ekle' : '🚫 Orphan Parametreler Var - Ekleme Engellendi')
+        // Save and Cancel buttons when adding parameter
+        React.createElement('div', { style: { display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' } },
+          React.createElement('button', {
+            onClick: addParameter,
+            className: 'mes-primary-action is-compact',
+            style: { background: '#000', display: 'flex', alignItems: 'center', gap: '6px' },
+            disabled: !parameterType || (formFields.length === 0 && parameterType === 'form')
+          },
+            React.createElement('span', { 
+              style: { display: 'flex', alignItems: 'center' },
+              dangerouslySetInnerHTML: { 
+                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>'
+              }
+            }),
+            React.createElement('span', null, 'Parametreyi Kaydet')
+          ),
+          
+          React.createElement('button', {
+            onClick: resetParameterForm,
+            className: 'mes-filter-button is-compact',
+            style: { display: 'flex', alignItems: 'center', gap: '6px' }
+          },
+            React.createElement('span', { 
+              style: { display: 'flex', alignItems: 'center' },
+              dangerouslySetInnerHTML: { 
+                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
+              }
+            }),
+            React.createElement('span', null, 'İptal')
+          )
+        )
+          ) // Close modal div
+        ),
+      
+      isLoadingFields && React.createElement('div', { className: 'pricing-alert pricing-alert-info' },
+        '📝 Form alanları yükleniyor... Firebase\'den form konfigürasyonu çekiliyor.'
       ),
 
       // Parameters list with user-friendly IDs
-      parameters.length > 0 && React.createElement('div', { style: { marginTop: '5px' } },
-        React.createElement('h4', null, '📋 Mevcut Parametreler'),
+      React.createElement('div', { style: { marginTop: '20px' } },
         
         // Orphan parameter uyarı sistemi
-        !systemIntegrity.isValid && React.createElement('div', { className: 'alert alert-danger', style: { marginBottom: '15px' } },
+        parameters.length > 0 && !systemIntegrity.isValid && React.createElement('div', { className: 'pricing-alert pricing-alert-danger', style: { marginBottom: '15px' } },
           React.createElement('h5', { style: { margin: '0 0 10px 0' } }, '🚨 SİSTEM BÜTÜNLÜK HATASI'),
           React.createElement('div', { style: { marginBottom: '10px' } },
             React.createElement('strong', null, 'Aşağıdaki parametreler artık form alanında bulunmuyor:')
@@ -656,7 +986,33 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
           )
         ),
         
-        React.createElement('table', { className: 'table' },
+        parameters.length === 0 && React.createElement('div', { 
+          style: { 
+            textAlign: 'center', 
+            padding: '60px 20px',
+            background: '#ffffff',
+            border: '1px solid rgb(229, 231, 235)',
+            borderRadius: '8px',
+            marginTop: '20px'
+          }
+        },
+          React.createElement('div', { 
+            className: 'lucide lucide-calculator',
+            style: { 
+              width: '48px', 
+              height: '48px', 
+              margin: '0 auto 16px',
+              color: 'rgb(156, 163, 175)'
+            },
+            dangerouslySetInnerHTML: { 
+              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>'
+            }
+          }),
+          React.createElement('p', { style: { margin: '0 0 8px 0', fontSize: '15px', fontWeight: 600, color: '#000' } }, 'Henüz Parametre Eklenmedi'),
+          React.createElement('p', { style: { margin: 0, fontSize: '13px', color: 'rgb(107, 114, 128)' } }, 'Yukarıdaki "Parametre Ekle" butonunu kullanarak fiyat parametreleri ekleyin')
+        ),
+        
+        parameters.length > 0 && React.createElement('table', { className: 'pricing-table' },
           React.createElement('thead', null,
             React.createElement('tr', null,
               React.createElement('th', null, 'Formül ID'),
@@ -684,14 +1040,32 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                         type: 'text',
                         value: paramDraft.name,
                         onChange: (e) => setParamDraft({ ...paramDraft, name: e.target.value }),
-                        className: 'form-control',
+                        className: 'pricing-form-control',
                         placeholder: 'Parametre adı',
                         style: { padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
                       })
                     : param.name
                 ),
                 // Type col (read-only label)
-                React.createElement('td', null, param.type === 'fixed' ? '🔢 Sabit' : '📝 Form'),
+                React.createElement('td', null, 
+                  param.type === 'fixed' 
+                    ? React.createElement('span', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                        React.createElement('span', { 
+                          dangerouslySetInnerHTML: { 
+                            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>'
+                          }
+                        }),
+                        'Sabit'
+                      )
+                    : React.createElement('span', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+                        React.createElement('span', { 
+                          dangerouslySetInnerHTML: { 
+                            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>'
+                          }
+                        }),
+                        'Form'
+                      )
+                ),
                 // Value/Field col (editable by type)
                 React.createElement('td', null,
                   editingParamId === param.id
@@ -700,12 +1074,12 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                             type: 'number',
                             value: paramDraft.value,
                             onChange: (e) => setParamDraft({ ...paramDraft, value: e.target.value }),
-                            className: 'form-control',
+                            className: 'pricing-form-control',
                             step: '0.01',
                             style: { width: '110px', padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
                           })
                         : React.createElement('select', {
-                            className: 'form-control',
+                            className: 'pricing-form-control',
                             value: paramDraft.formField,
                             onChange: (e) => setParamDraft({ ...paramDraft, formField: e.target.value }),
                             style: { padding: '1px 6px', fontSize: '0.8rem', lineHeight: '1.1', height: '24px', maxHeight: '24px' }
@@ -729,28 +1103,28 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                       return React.createElement(React.Fragment, null,
                         React.createElement('button', {
                           onClick: () => saveEditParameter(param),
-                          className: 'btn btn-sm btn-success',
+                          className: 'mes-btn mes-btn-sm mes-btn-success',
                           style: { marginRight: '6px' }
                         }, 'Kaydet'),
                         React.createElement('button', {
                           onClick: cancelEditParameter,
-                          className: 'btn btn-sm btn-secondary'
+                          className: 'mes-btn mes-btn-sm mes-btn-secondary'
                         }, 'İptal')
                       )
                     }
                     return React.createElement(React.Fragment, null,
                       canEdit && !isOrphan && React.createElement('button', {
                         onClick: () => editParameter(param),
-                        className: 'btn btn-sm btn-primary',
+                        className: 'mes-btn mes-btn-sm mes-btn-primary',
                         style: { marginRight: '6px', marginTop: '2px', marginBottom: '2px' }
                       }, 'Düzenle'),
                       isOrphan ? React.createElement('button', {
                         onClick: () => removeOrphanParameter(param.id),
-                        className: 'btn btn-sm btn-warning',
+                        className: 'mes-btn mes-btn-sm mes-btn-warning',
                         style: { marginRight: '6px', marginTop: '2px', marginBottom: '2px' }
                       }, '🧹 Orphan Temizle') : React.createElement('button', {
                         onClick: () => deleteParameter(param.id),
-                        className: 'btn btn-sm btn-danger',
+                        className: 'mes-btn mes-btn-sm mes-btn-danger',
                         style: { marginTop: '2px', marginBottom: '2px' }
                       }, 'Sil')
                     )
@@ -785,7 +1159,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                                 type: 'number',
                                 value: (it.value === 0 ? '' : (it.value ?? '')),
                                 onChange: (e) => paramUpdateLookupValue(idx, e.target.value),
-                                className: 'form-control',
+                                className: 'pricing-form-control',
                                 step: '0.01',
                                 style: { width: '120px' }
                               })
@@ -794,20 +1168,29 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                         )
                       )
                     )
-                  : React.createElement('div', { className: 'alert alert-warning' }, 'Eşleştirme tablosu boş')
+                  : React.createElement('div', { className: 'pricing-alert pricing-alert-warning' }, 'Eşleştirme tablosu boş')
                 )
               )
             )
           })
         )
-      )
-    ),
+      ) // End of parameters list div
+        ) // End of inner flex container
+      ), // End of LEFT COLUMN wrapper
 
-    // Formula section with user-friendly interface
-    React.createElement('div', { className: 'card' },
-      React.createElement('h3', null, '🧮 Fiyat Hesaplama Formülü'),
+      // RIGHT COLUMN - Formula section with user-friendly interface
+      React.createElement('div', { className: 'pricing-formula-column' },
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '16px' } },
+        React.createElement('h3', { className: 'pricing-section-title', style: { display: 'flex', alignItems: 'center', gap: '8px' } }, 
+          React.createElement('span', { 
+            dangerouslySetInnerHTML: { 
+              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 10h6"/><path d="M9 14h6"/><path d="M9 18h3"/></svg>'
+            }
+          }),
+          'Fiyat Hesaplama Formülü'
+        ),
       
-      parameters.length > 0 && React.createElement('div', { className: 'alert alert-success', style: { fontSize: '0.9em' } },
+      parameters.length > 0 && React.createElement('div', { className: 'pricing-alert pricing-alert-info', style: { fontSize: '0.9em' } },
         React.createElement('strong', null, 'Kullanılabilir Parametreler: '),
         Object.values(idMapping.backendToUser).join(', ')
       ),
@@ -825,15 +1208,33 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
         React.createElement('div', { style: { display: 'flex', gap: '6px', marginTop: '4px' } },
           React.createElement('button', {
             onClick: () => setShowFormulaInfo(!showFormulaInfo),
-            className: 'btn btn-link',
-            style: { padding: '5px 0' }
-          }, showFormulaInfo ? '❌ Yardımı Gizle' : '❓ Formül Yardımı'),
+            className: 'mes-btn mes-btn-link',
+            style: { padding: '5px 0', display: 'flex', alignItems: 'center', gap: '4px' }
+          }, 
+            React.createElement('span', { 
+              style: { display: 'flex', alignItems: 'center' },
+              dangerouslySetInnerHTML: { 
+                __html: showFormulaInfo 
+                  ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>'
+                  : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>'
+              }
+            }),
+            showFormulaInfo ? 'Yardımı Gizle' : 'Formül Yardımı'
+          ),
           
           parameters.length > 0 && React.createElement('button', {
             onClick: () => setUserFormula('A * B'),
-            className: 'btn btn-link',
-            style: { padding: '5px 0' }
-          }, '📝 Örnek Formül Ekle')
+            className: 'mes-btn mes-btn-link',
+            style: { padding: '5px 0', display: 'flex', alignItems: 'center', gap: '4px' }
+          }, 
+            React.createElement('span', { 
+              style: { display: 'flex', alignItems: 'center' },
+              dangerouslySetInnerHTML: { 
+                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
+              }
+            }),
+            'Örnek Formül Ekle'
+          )
         )
       ),
 
@@ -842,7 +1243,16 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
         className: `alert ${formulaValidation.isValid ? 'alert-success' : 'alert-danger'}`,
         style: { marginTop: '8px' }
       },
-        React.createElement('strong', null, formulaValidation.isValid ? '✅ Formül Geçerli' : '❌ Formül Hatası'),
+        React.createElement('strong', { style: { display: 'flex', alignItems: 'center', gap: '6px' } }, 
+          React.createElement('span', { 
+            dangerouslySetInnerHTML: { 
+              __html: formulaValidation.isValid
+                ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+                : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>'
+            }
+          }),
+          formulaValidation.isValid ? 'Formül Geçerli' : 'Formül Hatası'
+        ),
         formulaValidation.message && React.createElement('div', null, formulaValidation.message),
         formulaValidation.suggestions && formulaValidation.suggestions.length > 0 && 
         React.createElement('ul', { style: { marginTop: '5px', marginBottom: 0 } },
@@ -854,131 +1264,112 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
 
       // Formula info panel
       showFormulaInfo && React.createElement('div', { 
-        className: 'alert alert-info',
-        style: { marginTop: '8px' }
+        className: 'pricing-alert pricing-alert-info',
+        style: { marginTop: '8px', background: '#fff', borderColor: '#e5e7eb' }
       },
-        React.createElement('h5', null, '📚 Kullanılabilir Fonksiyonlar:'),
-        React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' } },
-          React.createElement('div', null,
-            React.createElement('strong', null, 'Matematik:'),
-            React.createElement('br', null), 'SQRT, ROUND, MAX, MIN, ABS, POWER'
-          ),
-          React.createElement('div', null,
-            React.createElement('strong', null, 'Yuvarlama:'),
-            React.createElement('br', null), 'CEIL, FLOOR, ROUNDUP, ROUNDDOWN'
-          ),
-          React.createElement('div', null,
-            React.createElement('strong', null, 'Mantık:'),
-            React.createElement('br', null), 'IF, AND, OR, NOT'
-          ),
-          React.createElement('div', null,
-            React.createElement('strong', null, 'Sabitler:'),
-            React.createElement('br', null), 'PI, E'
+        // Başlık - İlk satır
+        React.createElement('div', { style: { marginBottom: '12px' } },
+          React.createElement('h5', { 
+            style: { 
+              margin: '0', 
+              fontSize: '14px', 
+              fontWeight: '600', 
+              color: '#111827',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            } 
+          },
+            React.createElement('span', {
+              dangerouslySetInnerHTML: {
+                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>'
+              }
+            }),
+            'Kullanılabilir Fonksiyonlar'
           )
         ),
-        React.createElement('div', { style: { marginTop: '8px', padding: '8px', backgroundColor: '#e9ecef', borderRadius: '4px' } },
-          React.createElement('strong', null, 'Örnek Formüller:'),
-          React.createElement('ul', { style: { marginBottom: 0, marginTop: '4px' } },
-            React.createElement('li', null, 'Basit: A * B + C'),
-            React.createElement('li', null, 'Karmaşık: A * SQRT(B) + IF(C > 10, 50, 0)'),
-            React.createElement('li', null, 'Yüzde: A * (1 + B/100)')
+        // 3 kutu yan yana - İkinci satır
+        React.createElement('div', { 
+          style: { 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr 1fr', 
+            gap: '10px'
+          } 
+        },
+          // Sol kutu - Matematik ve Yuvarlama
+          React.createElement('div', { 
+            style: { 
+              padding: '10px 12px', 
+              background: '#f9fafb', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            } 
+          },
+            React.createElement('div', { style: { marginBottom: '8px' } },
+              React.createElement('strong', { style: { color: '#111827', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '4px' } }, 'Matematik:'),
+              React.createElement('span', { style: { fontFamily: 'monospace', fontSize: '12px', color: '#374151' } }, 'SQRT, ROUND, MAX, MIN, ABS, POWER')
+            ),
+            React.createElement('div', null,
+              React.createElement('strong', { style: { color: '#111827', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '4px' } }, 'Yuvarlama:'),
+              React.createElement('span', { style: { fontFamily: 'monospace', fontSize: '12px', color: '#374151' } }, 'CEIL, FLOOR, ROUNDUP, ROUNDDOWN')
+            )
+          ),
+          // Orta kutu - Mantık ve Sabitler
+          React.createElement('div', { 
+            style: { 
+              padding: '10px 12px', 
+              background: '#f9fafb', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            } 
+          },
+            React.createElement('div', { style: { marginBottom: '8px' } },
+              React.createElement('strong', { style: { color: '#111827', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '4px' } }, 'Mantık:'),
+              React.createElement('span', { style: { fontFamily: 'monospace', fontSize: '12px', color: '#374151' } }, 'IF, AND, OR, NOT')
+            ),
+            React.createElement('div', null,
+              React.createElement('strong', { style: { color: '#111827', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '4px' } }, 'Sabitler:'),
+              React.createElement('span', { style: { fontFamily: 'monospace', fontSize: '12px', color: '#374151' } }, 'PI, E')
+            )
+          ),
+          // Sağ kutu - Örnek Formüller
+          React.createElement('div', { 
+            style: { 
+              padding: '10px 12px', 
+              background: '#f9fafb', 
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb'
+            } 
+          },
+            React.createElement('strong', { 
+              style: { 
+                fontSize: '12px', 
+                color: '#111827', 
+                textTransform: 'uppercase', 
+                letterSpacing: '0.5px',
+                display: 'block',
+                marginBottom: '6px'
+              } 
+            }, 'Örnek Formüller:'),
+            React.createElement('ul', { 
+              style: { 
+                margin: '0', 
+                paddingLeft: '18px',
+                fontSize: '12px',
+                color: '#374151',
+                lineHeight: '1.6'
+              } 
+            },
+              React.createElement('li', { style: { fontFamily: 'monospace', marginBottom: '2px' } }, 'A * B + C'),
+              React.createElement('li', { style: { fontFamily: 'monospace', marginBottom: '2px' } }, 'A * SQRT(B) + IF(C > 10, 50, 0)'),
+              React.createElement('li', { style: { fontFamily: 'monospace' } }, 'A * (1 + B/100)')
+            )
           )
         )
-      ),
-
-      React.createElement('div', { style: { marginTop: '8px' } },
-        React.createElement('button', {
-          onClick: savePriceSettings,
-          className: systemIntegrity.canSave ? 'btn btn-success btn-lg' : 'btn btn-danger btn-lg',
-          style: { 
-            marginRight: '10px',
-            backgroundColor: hasUnsavedChanges ? '#FF4444' : (systemIntegrity.canSave ? '#28a745' : '#dc3545'),
-            borderColor: hasUnsavedChanges ? '#FF4444' : (systemIntegrity.canSave ? '#28a745' : '#dc3545')
-          },
-          disabled: !isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave
-        }, systemIntegrity.canSave ? `💾 Fiyat Ayarlarını Kaydet ${hasUnsavedChanges ? '●' : ''}` : '🚫 Kaydetme Engellendi - Orphan Parametreler Mevcut'),
-        
-        React.createElement('button', {
-          onClick: toggleVersionHistory,
-          className: 'btn btn-info btn-lg',
-          style: { marginLeft: '10px' }
-        }, showVersionHistory ? '📋 Sürüm Geçmişini Gizle' : '📋 Sürüm Geçmişi')
-      ),
-
-      // Version History Modal
-      showVersionHistory && React.createElement('div', {
-        style: {
-          marginTop: '20px',
-          padding: '20px',
-          border: '1px solid #ddd',
-          borderRadius: '8px',
-          backgroundColor: '#f9f9f9'
-        }
-      },
-        React.createElement('h3', null, '📋 Sürüm Geçmişi'),
-        
-        isLoadingVersions ? 
-          React.createElement('p', null, '⏳ Yükleniyor...') :
-          versions.length === 0 ? 
-            React.createElement('p', null, 'Henüz kaydedilmiş sürüm bulunmuyor.') :
-            React.createElement('div', { style: { maxHeight: '400px', overflowY: 'auto' } },
-              ...versions.map((version, index) => 
-                React.createElement('div', {
-                  key: version.id,
-                  style: {
-                    padding: '15px',
-                    margin: '10px 0',
-                    border: '1px solid #ccc',
-                    borderRadius: '5px',
-                    backgroundColor: index === 0 ? '#e8f5e8' : 'white'
-                  }
-                },
-                  React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
-                    React.createElement('div', null,
-                      React.createElement('h4', { style: { margin: '0 0 5px 0' } },
-                        `Sürüm ${version.version}`,
-                        index === 0 && React.createElement('span', { style: { color: '#28a745', fontSize: '14px', marginLeft: '10px' } }, '(Güncel)')
-                      ),
-                      React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
-                        `Tarih: ${version.timestamp ? new Date(version.timestamp).toLocaleString('tr-TR') : 'Bilinmiyor'}`
-                      ),
-                      React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
-                        `Versiyon Kodu: ${version.versionId || version.id}`
-                      ),
-                      version.userTag && React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
-                        `Kullanıcı Etiketi: ${version.userTag}`
-                      ),
-                      version.dateKey && React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
-                        `Tarih Kodu: ${version.dateKey}`
-                      ),
-                      version.dailyIndex && React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
-                        `Günlük Sıra: ${String(version.dailyIndex).padStart(2, '0')}`
-                      ),
-                      version.savedBy && React.createElement('p', { style: { margin: '5px 0', fontSize: '14px', color: '#666' } },
-                        `Kaydeden: ${version.savedBy}`
-                      ),
-                      version.changeSummary && React.createElement('p', { style: { margin: '5px 0', fontSize: '13px', color: '#555' } },
-                        `Özet: ${version.changeSummary}`
-                      ),
-                      React.createElement('p', { style: { margin: '5px 0', fontSize: '14px' } },
-                        `Parametre Sayısı: ${(version.parameters && version.parameters.length) || (version.data?.parameters?.length) || 0}`
-                      ),
-                      (version.formula || version.data?.formula) && React.createElement('p', { style: { margin: '5px 0', fontSize: '12px', color: '#888' } },
-                        `Formül: ${(version.formula || version.data?.formula || '').substring(0, 80)}${(version.formula || version.data?.formula || '').length > 80 ? '...' : ''}`
-                      )
-                    ),
-
-                    index !== 0 && React.createElement('button', {
-                      onClick: () => restoreVersion(version.id),
-                      className: 'btn btn-warning',
-                      style: { fontSize: '14px' }
-                    }, '🔄 Geri Yükle')
-                  )
-                )
-              )
-            )
       )
-    )
+        ) // End of inner flex container
+      ) // End of RIGHT COLUMN wrapper
+    ) // End of grid - close the two-column layout div
   )
 }
 
