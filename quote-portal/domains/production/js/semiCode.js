@@ -43,10 +43,24 @@ function pad3(n) { return String(n).padStart(3, '0'); }
 
 export function getPrefixForNode(node, ops = [], stations = []) {
   // Prefer station-based combined operation codes (e.g., KAs) if station is selected
-  // Get first assigned station from assignedStations array
-  const firstStationId = Array.isArray(node.assignedStations) && node.assignedStations.length > 0
-    ? (node.assignedStations[0].stationId || node.assignedStations[0].id)  // SCHEMA: stationId with fallback
-    : null;
+  // ✅ Get first assigned station from assignedStations array (priority-aware)
+  let firstStationId = null;
+  
+  if (Array.isArray(node.assignedStations) && node.assignedStations.length > 0) {
+    // ✅ Sort by priority (lowest number = highest priority)
+    const sortedStations = [...node.assignedStations].sort((a, b) => 
+      (a.priority || 999) - (b.priority || 999)
+    );
+    
+    const firstStation = sortedStations[0];
+    firstStationId = firstStation.stationId || firstStation.id;
+    
+    console.log(`📝 Semi-code for ${node.operationName || node.name || 'node'}: Using station ${firstStationId} (priority: ${firstStation.priority || 'N/A'})`);
+  } else if (node.stationId) {
+    // ✅ Backward compatibility: single stationId field
+    firstStationId = node.stationId;
+  }
+  
   const station = firstStationId && Array.isArray(stations)
     ? stations.find(s => s.id === firstStationId)
     : null;

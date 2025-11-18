@@ -89,12 +89,12 @@ function wouldCreateCycle(fromId, toId) {
     const node = planDesignerState.nodes.find(n => n.id === nodeId);
     if (!node) return false;
     
-    // Mevcut bağlantıları kontrol et
-    const connections = node.connections || [];
+    // NEW MODEL: Check successor
+    const successor = node.successor;
     
-    for (const targetId of connections) {
+    if (successor) {
       // Yeni bağlantıyı simüle et
-      const effectiveTarget = (nodeId === fromId) ? toId : targetId;
+      const effectiveTarget = (nodeId === fromId) ? toId : successor;
       
       if (!visited.has(effectiveTarget)) {
         if (dfs(effectiveTarget)) return true;
@@ -152,16 +152,15 @@ function calculateTopologicalOrder() {
     
     // Bu node'un successor'ını kontrol et
     const node = nodes.find(n => n.id === nodeId);
-    if (node && node.connections) {
-      node.connections.forEach(successorId => {
-        const currentInDegree = inDegree.get(successorId) - 1;
-        inDegree.set(successorId, currentInDegree);
-        
-        // Tüm predecessor'ları tamamlandıysa kuyruğa ekle
-        if (currentInDegree === 0) {
-          queue.push(successorId);
-        }
-      });
+    if (node && node.successor) {
+      const successorId = node.successor;
+      const currentInDegree = inDegree.get(successorId) - 1;
+      inDegree.set(successorId, currentInDegree);
+      
+      // Tüm predecessor'ları tamamlandıysa kuyruğa ekle
+      if (currentInDegree === 0) {
+        queue.push(successorId);
+      }
     }
   }
   
@@ -650,13 +649,14 @@ function updateConnectionsForNodeInCanvas(nodeId, canvas) {
   const existing = canvas.querySelectorAll('.connection-container');
   existing.forEach(el => el.remove());
   
+  // NEW MODEL: Render successor connections
   planDesignerState.nodes.forEach(node => {
-    node.connections.forEach(targetId => {
-      const targetNode = planDesignerState.nodes.find(n => n.id === targetId);
+    if (node.successor) {
+      const targetNode = planDesignerState.nodes.find(n => n.id === node.successor);
       if (targetNode) {
         renderConnection(node, targetNode, canvas);
       }
-    });
+    }
   });
 }
 
@@ -951,8 +951,9 @@ export function handleCanvasDrop(event) {
     assignmentMode: 'auto', // 'auto' (default) or 'manual' - SCHEMA-COMPLIANT
     workerHint: null, // Optional hint for manual allocation: { workerId?, workerNameHint? }
     priorityTag: null, // Optional priority or lane identifier
-    // Scheduling dependencies
+    // Scheduling dependencies (NEW MODEL)
     predecessors: [], // Explicit list of predecessor node IDs
+    successor: null, // Single successor node ID (one-to-one)
     // Material inputs/outputs (SCHEMA-COMPLIANT)
     materialInputs: [], // List of materials consumed: [{ materialCode, requiredQuantity, unitRatio }]
     semiCode: null, // Output semi-finished product code
@@ -960,8 +961,7 @@ export function handleCanvasDrop(event) {
     outputUnit: 'pcs', // Default output unit (will be updated when user configures)
     // Canvas positioning
     x: Math.max(0, x),
-    y: Math.max(0, y),
-    connections: [] // Visual connections (for display only)
+    y: Math.max(0, y)
   };
   
   // Quiet
@@ -992,11 +992,12 @@ export function renderCanvas() {
   // Sequence'leri güncelle
   updateNodeSequences();
 
+  // NEW MODEL: Render successor connections
   planDesignerState.nodes.forEach(node => {
-    node.connections.forEach(targetId => {
-      const targetNode = planDesignerState.nodes.find(n => n.id === targetId);
+    if (node.successor) {
+      const targetNode = planDesignerState.nodes.find(n => n.id === node.successor);
       if (targetNode) renderConnection(node, targetNode);
-    });
+    }
   });
   planDesignerState.nodes.forEach(node => renderNode(node));
 
@@ -1337,7 +1338,10 @@ export function deleteConnection(fromNodeId, toNodeId) {
   const fromNode = planDesignerState.nodes.find(n => n.id === fromNodeId);
   const toNode = planDesignerState.nodes.find(n => n.id === toNodeId);
   if (fromNode) {
-    fromNode.connections = fromNode.connections.filter(id => id !== toNodeId);
+    // NEW MODEL: Clear successor if it matches
+    if (fromNode.successor === toNodeId) {
+      fromNode.successor = null;
+    }
   }
   if (toNode) {
     // Remove scheduling dependency
@@ -1395,7 +1399,7 @@ export function connectNodes(fromId, toId) {
   if (!fromNode || !toNode) return;
   
   // ÖNEMLİ: Bir node'dan sadece BİR çıkış olabilir!
-  if (fromNode.connections && fromNode.connections.length > 0) {
+  if (fromNode.successor) {
     showErrorToast('Bu operasyonun zaten bir çıkışı var! Bir operasyondan sadece bir yere gidilebilir.');
     return;
   }
@@ -1407,14 +1411,13 @@ export function connectNodes(fromId, toId) {
   }
   
   // Zaten bağlı mı kontrolü
-  if (fromNode.connections && fromNode.connections.includes(toId)) {
+  if (fromNode.successor === toId) {
     showWarningToast('Bu operasyonlar zaten bağlı');
     return;
   }
   
-  // Graph edge (from -> to)
-  if (!Array.isArray(fromNode.connections)) fromNode.connections = [];
-  fromNode.connections.push(toId);
+  // NEW MODEL: Set successor (single value)
+  fromNode.successor = toId;
   
   // Scheduling dependency: to cannot start before from completes
   if (!Array.isArray(toNode.predecessors)) toNode.predecessors = [];
@@ -2173,14 +2176,13 @@ function topoSortNodes(nodes) {
   const idToNode = new Map(arr.map(n => [idKey(n), n]))
   const indeg = new Map(arr.map(n => [idKey(n), 0]))
 
-  // Build indegrees from connections
+  // NEW MODEL: Build indegrees from successor
   arr.forEach(n => {
     const from = idKey(n)
-    const outs = Array.isArray(n.connections) ? n.connections : []
-    outs.forEach(t => {
-      const to = asIdString(t)
+    if (n.successor) {
+      const to = asIdString(n.successor)
       if (idToNode.has(to)) indeg.set(to, (indeg.get(to) || 0) + 1)
-    })
+    }
   })
 
   // Kahn
@@ -2192,14 +2194,15 @@ function topoSortNodes(nodes) {
     const node = idToNode.get(id)
     if (!node) continue
     order.push(node)
-    const outs = Array.isArray(node.connections) ? node.connections : []
-    outs.forEach(t => {
-      const to = asIdString(t)
-      if (!indeg.has(to)) return
-      const nd = (indeg.get(to) || 0) - 1
-      indeg.set(to, nd)
-      if (nd === 0) q.push(to)
-    })
+    // NEW MODEL: Process successor
+    if (node.successor) {
+      const to = asIdString(node.successor)
+      if (indeg.has(to)) {
+        const nd = (indeg.get(to) || 0) - 1
+        indeg.set(to, nd)
+        if (nd === 0) q.push(to)
+      }
+    }
   }
   // Fallback: if cycle or missing, append remaining
   if (order.length < arr.length) {
@@ -2246,8 +2249,10 @@ export function deleteNode(nodeId) {
     planDesignerState.nodes = planDesignerState.nodes.filter(n => n.id !== nodeId);
     // Clean up edges, scheduling deps and auto-materials in remaining nodes
     planDesignerState.nodes.forEach(node => {
-      // Outgoing edges
-      node.connections = (node.connections || []).filter(connId => connId !== nodeId);
+      // NEW MODEL: Clear successor if it points to deleted node
+      if (node.successor === nodeId) {
+        node.successor = null;
+      }
       // Scheduling predecessors
       if (Array.isArray(node.predecessors)) {
         node.predecessors = node.predecessors.filter(pid => pid !== nodeId);
@@ -2502,9 +2507,9 @@ function sanitizeNodesForBackend(nodes) {
       assignmentMode: node.assignmentMode || 'auto',
       assignedWorkerId: node.assignedWorkerId || null,
       
-      // Dependencies and workflow
+      // Dependencies and workflow (NEW MODEL)
       predecessors: Array.isArray(node.predecessors) ? node.predecessors : [],
-      connections: Array.isArray(node.connections) ? node.connections : [],
+      successor: node.successor || null,
       
       // Material inputs (canonical schema)
       materialInputs: Array.isArray(node.materialInputs) 
@@ -3182,12 +3187,12 @@ export function renderCanvasContent(canvasElement) {
   const existingElements = canvasElement.querySelectorAll('.canvas-node, .connection-container');
   existingElements.forEach(element => element.remove());
 
-  // Render connections first
+  // NEW MODEL: Render successor connections first
   planDesignerState.nodes.forEach(node => {
-    node.connections.forEach(targetId => {
-      const targetNode = planDesignerState.nodes.find(n => n.id === targetId);
+    if (node.successor) {
+      const targetNode = planDesignerState.nodes.find(n => n.id === node.successor);
       if (targetNode) renderConnection(node, targetNode, canvasElement);
-    });
+    }
   });
   
   // Render nodes using the same renderNode function
@@ -3391,9 +3396,9 @@ function normalizeIncomingNodes(rawNodes = []) {
     remap.set(`__idx_${index}`, assignedId);
     node.id = assignedId;
 
-    node.connections = Array.isArray(node?.connections)
-      ? node.connections.filter(Boolean).map(val => String(val).trim())
-      : [];
+    // NEW MODEL: Normalize successor (single value)
+    node.successor = node.successor ? String(node.successor).trim() : null;
+    
     node.predecessors = Array.isArray(node?.predecessors)
       ? node.predecessors.filter(Boolean).map(val => String(val).trim())
       : [];
@@ -3457,7 +3462,8 @@ function normalizeIncomingNodes(rawNodes = []) {
   };
 
   cloned.forEach(node => {
-    node.connections = node.connections.map(resolveId).filter(Boolean);
+    // NEW MODEL: Resolve successor
+    node.successor = resolveId(node.successor);
     node.predecessors = node.predecessors.map(resolveId).filter(Boolean);
     node.materialInputs = (node.materialInputs || []).map(mat => ({
       ...mat,
@@ -3465,14 +3471,14 @@ function normalizeIncomingNodes(rawNodes = []) {
     }));
   });
   
-  // CRITICAL FIX: If connections is empty but predecessors exist, rebuild connections
-  // This ensures backward compatibility with plans saved before connections field was added
+  // BACKWARD COMPATIBILITY: Build successor from predecessors if missing
   cloned.forEach(node => {
-    if (!node.connections || node.connections.length === 0) {
-      // Find all nodes that list this node as a predecessor
-      node.connections = cloned
-        .filter(n => n.predecessors && n.predecessors.includes(node.id))
-        .map(n => n.id);
+    if (!node.successor) {
+      // Find the node that has this node as predecessor (if single)
+      const successors = cloned.filter(n => n.predecessors && n.predecessors.includes(node.id));
+      if (successors.length === 1) {
+        node.successor = successors[0].id;
+      }
     }
   });
 

@@ -67,8 +67,18 @@ function buildGraph(nodes) {
 
   for (const n of nodes) {
     const fromId = asIdString(n.id);
-    const outs = Array.isArray(n.connections) ? n.connections : [];
-    for (const to of outs) {
+    
+    // ✅ New model: predecessors → ins (reversed for flow), successor → outs
+    // Note: We need to reverse the logic since we're building FROM this node
+    // If this node has predecessors, those are INCOMING edges
+    // If this node has a successor, that's an OUTGOING edge
+    const outs = n.successor ? [n.successor] : [];
+    
+    // ✅ Backward compatibility: fallback to old connections array
+    const legacyConnections = Array.isArray(n.connections) ? n.connections : [];
+    const outgoingEdges = outs.length > 0 ? outs : legacyConnections;
+    
+    for (const to of outgoingEdges) {
       const toId = asIdString(to);
       if (!preds.has(toId) || !succs.has(fromId)) continue;
       preds.get(toId).add(fromId);
