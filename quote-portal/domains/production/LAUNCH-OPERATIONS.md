@@ -5742,30 +5742,132 @@ DOSYA YOLU:
 
 ---
 
-#PROMPT 11: priorityIndex Assignment Array'e Ekleme
+#PROMPT 11: Scheduling System Refactoring (FIFO + Optimization Foundation)
 
-**Öncelik:** 🟡 MEDIUM  
-**Bağımlılık:** PROMPT 1 tamamlanmış olmalı  
-**Süre:** ~3 dakika  
-**Dosya:** `quote-portal/server/mesRoutes.js`
+**Öncelik:** 🔴 CRITICAL  
+**Bağımlılık:** PROMPT 1, 4, 9 tamamlanmış olmalı  
+**Süre:** ~25 dakika  
+**Dosyalar:**
+- `quote-portal/server/mesRoutes.js` (Launch endpoint)
+- `quote-portal/domains/workerPortal/workerPortal.js` (Task sorting)
+- `quote-portal/shared/schemas/assignment.schema.json` (Schema update)
 
 ```markdown
-GÖREV: Launch sırasında assignment array'e priorityIndex değerini eklemek (PROMPT 4 ile birlikte çalışır).
+GÖREV: Mevcut priorityIndex sistemini kaldırıp expectedStart bazlı FIFO'ya geçmek ve gelecekteki Optimization modülü için altyapı hazırlamak.
 
-**⚠️ BAĞIMLILIK:** PROMPT 1 tamamlanmış olmalı (getNodeId kullanılacak).
+**⚠️ BAĞIMLILIK:** 
+- PROMPT 1: getNodeId() normalizasyonu
+- PROMPT 4: completeAssignment schema
+- PROMPT 9: Frontend schema cleanup
 
-**📢 ÖNEMLİ:** Bu prompt SADECE assignmentsArray.push() kısmını düzeltir. Firestore write kısmı PROMPT 4'te zaten yapılıyor!
+**🎯 AMAÇ:**
+1. **priorityIndex kaldır** → Artık sadece expectedStart ile sıralama (FIFO)
+2. **priority (1-3) ekle** → Gelecekteki optimization modülü için weight
+3. **isUrgent koru** → Her iki modda da "can start" kontrolü
+4. **schedulingMode hazırlığı** → 'fifo' (default) vs 'optimized' (future)
 
-CONTEXT:
-- PROMPT 4 completeAssignment objesine `priorityIndex: assignment.priorityIndex` ekliyor
-- Ancak assignmentsArray'de bu alan yok
-- Lokasyon: mesRoutes.js satır ~5545
+---
 
-ÇÖZÜM:
+## 📊 Kavramsal Değişiklikler
 
-ASSIGNMENT ARRAY'E priorityIndex EKLE (satır ~5545):
+### ESKI SİSTEM (Kaldırılacak):
+```javascript
+{
+  priorityIndex: 1,  // ❌ Loop sırası (i+1), gerçek değer yok
+  isUrgent: false    // ✅ Korunacak
+}
 
-MEVCUT KOD:
+// Worker Portal Sorting (ESKİ):
+activeTasks.sort((a, b) => (a.priorityIndex || 0) - (b.priorityIndex || 0));
+```
+
+### YENİ SİSTEM:
+```javascript
+{
+  // ✅ FIFO için
+  expectedStart: Timestamp,  // Kronolojik sıralama
+  
+  // ✅ Optimization için (future)
+  priority: 2,  // 1=Low, 2=Normal, 3=High (weight for optimizer)
+  optimizedIndex: null,  // Optimization sonucu (null = not optimized)
+  optimizedStart: null,  // Optimizer'ın önerdiği start time
+  
+  // ✅ Her iki mod için
+  isUrgent: false,  // UI buton kontrolü (sıralama değil!)
+  schedulingMode: 'fifo'  // 'fifo' | 'optimized'
+}
+
+// Worker Portal Sorting (YENİ):
+activeTasks.sort((a, b) => {
+  const timeA = a.schedulingMode === 'optimized' && a.optimizedStart 
+    ? a.optimizedStart 
+    : a.expectedStart;
+  const timeB = b.schedulingMode === 'optimized' && b.optimizedStart 
+    ? b.optimizedStart 
+    : b.expectedStart;
+  return timeA - timeB;
+});
+```
+
+---
+
+## 🔧 İmplementasyon Adımları
+
+### 1. SCHEMA GÜNCELLEMESİ
+
+**Dosya:** `quote-portal/shared/schemas/assignment.schema.json`
+
+MEVCUT SCHEMA'YA EKLE:
+```json
+{
+  "properties": {
+    "priority": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3,
+      "default": 2,
+      "description": "Priority level for optimization: 1=Low, 2=Normal, 3=High"
+    },
+    "optimizedIndex": {
+      "type": ["integer", "null"],
+      "default": null,
+      "description": "Execution order set by optimization algorithm (null = FIFO mode)"
+    },
+    "optimizedStart": {
+      "type": ["object", "null"],
+      "default": null,
+      "description": "Start time calculated by optimizer (Firestore Timestamp)"
+    },
+    "schedulingMode": {
+      "type": "string",
+      "enum": ["fifo", "optimized"],
+      "default": "fifo",
+      "description": "Current scheduling mode for this assignment"
+    }
+  },
+  "required": [
+    "workPackageId",
+    "nodeId",
+    "expectedStart",
+    "priority",
+    "isUrgent"
+  ]
+}
+```
+
+**KALDIR:**
+```json
+"priorityIndex": { ... }  // ❌ Artık kullanılmıyor
+```
+
+---
+
+### 2. LAUNCH ENDPOINT GÜNCELLEMESİ
+
+**Dosya:** `quote-portal/server/mesRoutes.js`
+**Lokasyon:** ~satır 5545 (assignmentsArray.push)
+
+**MEVCUT KOD:**
 ```javascript
 executionOrder.order.forEach((nodeId, index) => {
   const node = nodesToUse.find(n => getNodeId(n) === nodeId);
@@ -5777,14 +5879,15 @@ executionOrder.order.forEach((nodeId, index) => {
       workerId: resources.workerId,
       stationId: resources.stationId,
       substationId: resources.substationId,
-      plannedStart: resources.plannedStart,
+      plannedStart: resources.plannedStart,  // ❌ Eski alan adı
       duration: node.duration
+      // ❌ priorityIndex yok (fallback kullanıyordu)
     });
   }
 });
 ```
 
-YENİ KOD:
+**YENİ KOD:**
 ```javascript
 executionOrder.order.forEach((nodeId, index) => {
   const node = nodesToUse.find(n => getNodeId(n) === nodeId);
@@ -5796,31 +5899,291 @@ executionOrder.order.forEach((nodeId, index) => {
       workerId: resources.workerId,
       stationId: resources.stationId,
       substationId: resources.substationId,
-      plannedStart: resources.plannedStart,
+      
+      // ✅ FIFO fields
+      expectedStart: resources.plannedStart,  // Rename: plannedStart → expectedStart
       duration: node.duration,
-      priorityIndex: index + 1  // ✅ Topological order (1-based)
+      
+      // ✅ Optimization fields (future)
+      priority: 2,  // Default: Normal priority
+      optimizedIndex: null,  // Not optimized yet
+      optimizedStart: null,  // No optimization result
+      
+      // ✅ Metadata
+      schedulingMode: 'fifo',  // Default mode
+      isUrgent: false  // Will be set at WO start
     });
   }
 });
 ```
 
-**❗ NOT:** Firestore write kısmı (satır ~5620) PROMPT 4'te zaten düzeltildi. Orada tekrar değişiklik YAPMA!
+---
 
-TEST ADIMLARI:
-1. assignmentsArray.push() içine priorityIndex ekle
-2. Server restart
-3. Plan launch et
-4. Console'da assignmentsArray log'la, priorityIndex olduğunu gör
-5. Firestore'da assignment'larda priorityIndex (1, 2, 3...) olduğunu gör
+### 3. FIRESTORE WRITE GÜNCELLEMESİ
 
-BAŞARI KRİTERLERİ:
-✅ assignmentsArray her item'da priorityIndex var
-✅ Değerler topological order'a uygun (1, 2, 3...)
-✅ PROMPT 4 ile uyumlu çalışıyor
-✅ Duplicate edit yok
+**Dosya:** `quote-portal/server/mesRoutes.js`
+**Lokasyon:** ~satır 5697 (completeAssignment)
 
-DOSYA YOLU:
-/Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js
+**MEVCUT KOD:**
+```javascript
+const completeAssignment = {
+  ...assignment,
+  id: workPackageId,
+  workPackageId: workPackageId,
+  planId,
+  workOrderCode,
+  nodeId: assignment.nodeId,
+  substationId: assignment.substationId || null,
+  priorityIndex: assignment.priorityIndex || i + 1,  // ❌ Fallback
+  isUrgent: false,
+  createdAt: now,
+  createdBy: userEmail,
+  updatedAt: now
+};
+```
+
+**YENİ KOD:**
+```javascript
+const completeAssignment = {
+  ...assignment,
+  id: workPackageId,
+  workPackageId: workPackageId,
+  planId,
+  workOrderCode,
+  nodeId: assignment.nodeId,
+  substationId: assignment.substationId || null,
+  
+  // ✅ FIFO fields (from assignment)
+  expectedStart: assignment.expectedStart,  // Required
+  duration: assignment.duration,
+  
+  // ✅ Optimization fields (from assignment)
+  priority: assignment.priority || 2,  // Default: Normal
+  optimizedIndex: assignment.optimizedIndex || null,
+  optimizedStart: assignment.optimizedStart || null,
+  schedulingMode: assignment.schedulingMode || 'fifo',
+  
+  // ✅ UI control
+  isUrgent: assignment.isUrgent || false,
+  
+  // ✅ Metadata
+  createdAt: now,
+  createdBy: userEmail,
+  updatedAt: now
+};
+```
+
+**KALDIR:**
+```javascript
+priorityIndex: assignment.priorityIndex || i + 1  // ❌ Artık yok
+```
+
+---
+
+### 4. WORKER PORTAL SORTING GÜNCELLEMESİ
+
+**Dosya:** `quote-portal/domains/workerPortal/workerPortal.js`
+**Lokasyon:** ~satır 103
+
+**MEVCUT KOD:**
+```javascript
+// ✅ priorityIndex'e göre sırala
+activeTasks.sort((a, b) => (a.priorityIndex || 0) - (b.priorityIndex || 0));
+```
+
+**YENİ KOD:**
+```javascript
+// ✅ expectedStart'a göre sırala (kronolojik FIFO)
+// ⚠️ Optimization modunda optimizedStart kullan
+activeTasks.sort((a, b) => {
+  const timeA = a.schedulingMode === 'optimized' && a.optimizedStart 
+    ? a.optimizedStart.toMillis() 
+    : (a.expectedStart ? a.expectedStart.toMillis() : 0);
+    
+  const timeB = b.schedulingMode === 'optimized' && b.optimizedStart 
+    ? b.optimizedStart.toMillis() 
+    : (b.expectedStart ? b.expectedStart.toMillis() : 0);
+  
+  return timeA - timeB;
+});
+
+console.log(`🔍 Worker Portal sorting (${activeTasks[0]?.schedulingMode || 'fifo'}):`, 
+  activeTasks.map(t => ({ 
+    id: t.assignmentId, 
+    expectedStart: t.expectedStart?.toDate(),
+    optimizedStart: t.optimizedStart?.toDate(),
+    priority: t.priority,
+    isUrgent: t.isUrgent 
+  }))
+);
+```
+
+---
+
+### 5. CAN START LOGIC GÜNCELLEMESİ
+
+**Dosya:** `quote-portal/domains/workerPortal/workerPortal.js`
+**Lokasyon:** ~satır 110-120
+
+**MEVCUT KOD:**
+```javascript
+const firstPendingIndex = activeTasks.findIndex(t => t.status === 'pending' || t.status === 'ready');
+
+activeTasks.forEach((task, index) => {
+  if (task.status === 'in-progress' || task.status === 'in_progress') {
+    task.canStart = false;
+  } else {
+    task.canStart = task.isUrgent || (index === firstPendingIndex);
+  }
+});
+```
+
+**YENİ KOD (değişiklik yok, sadece açıklama ekle):**
+```javascript
+// ✅ En erken expectedStart'a sahip pending task
+const firstPendingIndex = activeTasks.findIndex(t => t.status === 'pending' || t.status === 'ready');
+
+activeTasks.forEach((task, index) => {
+  if (task.status === 'in-progress' || task.status === 'in_progress') {
+    task.canStart = false;  // Already started
+  } else {
+    // ✅ isUrgent=true ise her zaman başlatılabilir
+    // ✅ Değilse sadece sıradaki ilk pending task başlatılabilir
+    task.canStart = task.isUrgent || (index === firstPendingIndex);
+  }
+  
+  console.log(`  Task ${task.assignmentId}:`, {
+    expectedStart: task.expectedStart?.toDate(),
+    status: task.status,
+    isUrgent: task.isUrgent,
+    canStart: task.canStart
+  });
+});
+```
+
+---
+
+### 6. WORKER PORTAL UI GÜNCELLEMESİ
+
+**Dosya:** `quote-portal/domains/workerPortal/workerPortal.js`
+**Lokasyon:** ~satır 1486 (renderTaskCard)
+
+**MEVCUT KOD:**
+```javascript
+<div class="priority-index">${task.priorityIndex}</div>
+```
+
+**YENİ KOD:**
+```javascript
+<!-- ✅ Priority badge (1-3) -->
+<div class="priority-badge priority-${task.priority || 2}">
+  ${task.priority === 1 ? 'LOW' : task.priority === 3 ? 'HIGH' : 'NORMAL'}
+</div>
+
+<!-- ✅ Expected start time -->
+<div class="expected-start">
+  Start: ${task.expectedStart ? task.expectedStart.toDate().toLocaleString('tr-TR') : 'N/A'}
+</div>
+
+<!-- ✅ Optimization indicator (future) -->
+${task.schedulingMode === 'optimized' ? '<span class="optimized-badge">🎯 Optimized</span>' : ''}
+```
+
+**CSS EKLE:**
+```css
+.priority-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.priority-1 { background: #e3f2fd; color: #1976d2; }  /* Low */
+.priority-2 { background: #fff3e0; color: #f57c00; }  /* Normal */
+.priority-3 { background: #ffebee; color: #c62828; }  /* High */
+
+.expected-start {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 4px;
+}
+
+.optimized-badge {
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.7rem;
+}
+```
+
+---
+
+## ✅ TEST ADIMLARI
+
+1. **Schema Update**
+   - `assignment.schema.json` güncelle
+   - Schema validator'ı test et
+
+2. **Launch Test**
+   - Yeni plan launch et
+   - Console'da assignmentsArray'e bak:
+     - `expectedStart` var mı?
+     - `priority: 2` default mu?
+     - `optimizedIndex: null` mı?
+     - `priorityIndex` YOK mu?
+
+3. **Firestore Test**
+   - Firestore'da yeni assignment'a bak
+   - Tüm yeni field'lar var mı?
+   - Eski `priorityIndex` field'ı YOK mu?
+
+4. **Worker Portal Test**
+   - Worker Portal'ı aç
+   - Tasklar `expectedStart`'a göre sıralı mı?
+   - Priority badge doğru mu? (NORMAL göstermeli)
+   - Start butonu en erken task'ta aktif mi?
+
+5. **isUrgent Test**
+   - Bir task'ı isUrgent=true yap
+   - Worker Portal'da butonu aktif mi?
+   - Diğer task'ların da butonları aktif mi? (HAYIR olmalı)
+
+---
+
+## 🎯 BAŞARI KRİTERLERİ
+
+### Backend:
+✅ `priorityIndex` tamamen kaldırıldı
+✅ `expectedStart` her assignment'ta var
+✅ `priority`, `optimizedIndex`, `optimizedStart` default değerlerle eklendi
+✅ `schedulingMode: 'fifo'` default
+✅ Fallback logic kaldırıldı
+
+### Frontend:
+✅ Worker Portal `expectedStart`'a göre sıralıyor
+✅ Priority badge gösteriliyor (LOW/NORMAL/HIGH)
+✅ Start butonu sadece en erken task'ta aktif
+✅ `isUrgent=true` ise o task'ın butonu aktif
+✅ Eski `priorityIndex` UI elementleri kaldırıldı
+
+### Geriye Uyumluluk:
+✅ Eski assignments'lar hala çalışıyor (migration gerekmiyor)
+✅ `isUrgent` mantığı korundu
+✅ Mevcut WO'lar etkilenmedi
+
+---
+
+## 📁 DOSYA YOLLARI
+
+1. `/Users/umutyalcin/Documents/Burkol0/quote-portal/shared/schemas/assignment.schema.json`
+2. `/Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js`
+3. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/workerPortal/workerPortal.js`
+4. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/workerPortal/styles.css` (yeni)
+
+---
+
+**⚠️ DİKKAT:** Bu prompt optimization modülünü IMPLEMENT ETMİYOR, sadece altyapıyı hazırlıyor. Optimization modülü için **APPENDIX D: OPTIMIZATION MODULE** bölümüne bakın.
 
 İŞLEMİ GERÇEKLEŞTIR.
 ```
@@ -6088,6 +6451,2601 @@ PROMPT 1'deki `getNodeId()` şu promtlarda kullanılıyor:
 
 ---
 
-**Son Güncelleme:** 16 Kasım 2025  
+**Son Güncelleme:** 18 Kasım 2025  
 **Yazar:** GitHub Copilot (Claude Sonnet 4.5)  
-**Versiyon:** v2.0 - Final (Entegrasyon Doğrulandı)
+**Versiyon:** v3.0 - Optimization Module Foundation
+
+---
+
+# APPENDIX D: OPTIMIZATION MODULE SPECIFICATION
+
+## 🎯 Executive Summary
+
+Bu appendix, **Production Scheduling Optimization Module**'ün detaylı teknik spesifikasyonunu içerir. Modül, mevcut FIFO sistemine paralel çalışacak, isteğe bağlı olarak etkinleştirilebilecek bir optimizasyon katmanıdır.
+
+**Ana Hedefler:**
+1. ✅ Mevcut FIFO sistemini korumak (geriye uyumlu)
+2. ✅ Priority-based optimization desteği eklemek
+3. ✅ Manuel + otomatik optimization tetikleyicileri
+4. ✅ Production Settings'ten yönetilebilir UI
+5. ✅ Real-time schedule visualization
+
+---
+
+## 📐 System Architecture
+
+### 1. Dual-Mode System Design
+
+```
+┌─────────────────────────────────────────────────────┐
+│           PRODUCTION SCHEDULING SYSTEM              │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  ┌──────────────┐         ┌──────────────────┐    │
+│  │  FIFO MODE   │         │ OPTIMIZATION MODE│    │
+│  │  (Default)   │         │   (Optional)     │    │
+│  └──────────────┘         └──────────────────┘    │
+│         │                          │               │
+│         ├─ expectedStart            ├─ optimizedStart   │
+│         ├─ Topological order        ├─ optimizedIndex   │
+│         ├─ Simple queue             ├─ Priority-based   │
+│         └─ No calculation           └─ Algorithm result │
+│                                                     │
+│  ┌──────────────────────────────────────────────┐  │
+│  │        COMMON LAYER                          │  │
+│  ├──────────────────────────────────────────────┤  │
+│  │ • isUrgent (UI button control)               │  │
+│  │ • priority (1-3, optimization weight)        │  │
+│  │ • Worker Portal (mode-aware sorting)         │  │
+│  │ • Master Data Settings (mode toggle)         │  │
+│  └──────────────────────────────────────────────┘  │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+### 2. Data Flow
+
+```
+┌─────────────────────┐
+│ Work Order Launch   │
+│ (User initiates)    │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────────────────────┐
+│  Launch Endpoint                    │
+│  - Read schedulingMode              │
+│  - Create assignments with:         │
+│    * expectedStart (FIFO baseline)  │
+│    * priority (from WO start popup) │
+│    * optimizedIndex = null          │
+│    * optimizedStart = null          │
+└──────────┬──────────────────────────┘
+           │
+           ▼
+   ┌───────┴────────┐
+   │                │
+   ▼                ▼
+┌──────────┐   ┌──────────────┐
+│ FIFO     │   │ OPTIMIZATION │
+│ (Skip)   │   │ (If enabled) │
+└──────────┘   └──────┬───────┘
+                      │
+                      ▼
+           ┌──────────────────────┐
+           │ Optimization Engine  │
+           │ - Read ALL pending   │
+           │ - Calculate optimal  │
+           │ - Update Firestore:  │
+           │   * optimizedIndex   │
+           │   * optimizedStart   │
+           │   * schedulingMode   │
+           └──────────┬───────────┘
+                      │
+           ┌──────────┴─────────────┐
+           │                        │
+           ▼                        ▼
+   ┌───────────────┐      ┌────────────────┐
+   │ Worker Portal │      │ Admin Dashboard│
+   │ - Sort by mode│      │ - Show schedule│
+   │ - Display time│      │ - Visualize    │
+   └───────────────┘      └────────────────┘
+```
+
+---
+
+## 🗄️ Schema Extensions
+
+### Assignment Document (Firestore)
+
+```typescript
+interface Assignment {
+  // ═══════════════════════════════════════════════
+  // EXISTING FIELDS (Unchanged)
+  // ═══════════════════════════════════════════════
+  workPackageId: string;
+  planId: string;
+  workOrderCode: string;
+  nodeId: string;
+  operationName: string;
+  workerId: string;
+  stationId: string;
+  substationId: string | null;
+  duration: number;
+  status: 'pending' | 'in-progress' | 'completed' | 'paused' | 'cancelled';
+  
+  // ═══════════════════════════════════════════════
+  // FIFO FIELDS (New in PROMPT 11)
+  // ═══════════════════════════════════════════════
+  expectedStart: Timestamp;  // Baseline start time (FIFO calculation)
+  
+  // ═══════════════════════════════════════════════
+  // OPTIMIZATION FIELDS (New in PROMPT 11)
+  // ═══════════════════════════════════════════════
+  priority: 1 | 2 | 3;  // Weight for optimization
+                        // 1 = Low (can be delayed)
+                        // 2 = Normal (default)
+                        // 3 = High (prioritize in schedule)
+  
+  optimizedIndex: number | null;  // Execution order from optimizer
+                                  // null = not optimized yet
+  
+  optimizedStart: Timestamp | null;  // Start time from optimizer
+                                     // null = not optimized yet
+  
+  schedulingMode: 'fifo' | 'optimized';  // Current mode for this assignment
+  
+  // ═══════════════════════════════════════════════
+  // UI CONTROL FIELD (Unchanged)
+  // ═══════════════════════════════════════════════
+  isUrgent: boolean;  // Allow immediate start (bypasses queue)
+                      // Works in BOTH modes
+  
+  // ═══════════════════════════════════════════════
+  // METADATA
+  // ═══════════════════════════════════════════════
+  createdAt: Timestamp;
+  createdBy: string;
+  updatedAt: Timestamp;
+}
+```
+
+### Production Settings Document (Firestore)
+
+```typescript
+interface ProductionSettings {
+  // ═══════════════════════════════════════════════
+  // EXISTING FIELDS
+  // ═══════════════════════════════════════════════
+  // ... (operations management, etc.)
+  
+  // ═══════════════════════════════════════════════
+  // NEW: SCHEDULING CONFIGURATION
+  // ═══════════════════════════════════════════════
+  scheduling: {
+    mode: 'fifo' | 'optimized';  // System-wide default
+    
+    // Optimization settings (only if mode = 'optimized')
+    optimization: {
+      enabled: boolean;  // Master on/off switch
+      
+      autoCalculation: {
+        enabled: boolean;  // Automatic periodic optimization
+        intervalMinutes: number;  // e.g., 60 = every hour
+        
+        // Working hours constraint
+        duringWorkingHours: boolean;  // true = calculate during work hours
+                                      // false = calculate only outside work hours
+        
+        workingHours: {
+          start: string;  // e.g., "08:00"
+          end: string;    // e.g., "18:00"
+        };
+      };
+      
+      // Triggers
+      triggers: {
+        onNewWorkOrder: boolean;  // Auto-optimize when new WO launched
+        onPriorityChange: boolean;  // Auto-optimize when priority updated
+        onResourceChange: boolean;  // Auto-optimize when worker/station changed
+      };
+      
+      // Algorithm parameters (future expansion)
+      algorithm: {
+        considerSetupTime: boolean;  // Include station setup time
+        considerSkillLevel: boolean;  // Match worker skills
+        maxIterations: number;  // Algorithm computation limit
+      };
+    };
+  };
+  
+  // ═══════════════════════════════════════════════
+  // NEW: WORKER ASSIGNMENT MODE (Future)
+  // ═══════════════════════════════════════════════
+  workerAssignment: {
+    mode: 'manual' | 'automatic';  // Future expansion
+    // ... (will be defined later)
+  };
+}
+```
+
+---
+
+## 🎨 UI Specifications
+
+### 1. Production Settings Page
+
+**Location:** Master Data → Production Settings
+
+**Layout:**
+
+```
+┌────────────────────────────────────────────────────────┐
+│ Production Settings                                    │
+├────────────────────────────────────────────────────────┤
+│                                                        │
+│ ┌──────────────────────────────────────────────────┐  │
+│ │ 📋 Operations Management                         │  │
+│ │ [Existing settings...]                           │  │
+│ └──────────────────────────────────────────────────┘  │
+│                                                        │
+│ ┌──────────────────────────────────────────────────┐  │
+│ │ 🎯 Production Scheduling                         │  │
+│ │                                                  │  │
+│ │ Scheduling Mode:                                 │  │
+│ │ ┌─────────────────────────────────────────────┐ │  │
+│ │ │  ○ FIFO (First In First Out)               │ │  │
+│ │ │     Simple queue - tasks run in order      │ │  │
+│ │ │                                             │ │  │
+│ │ │  ● Optimization                             │ │  │
+│ │ │     AI-powered scheduling with priorities  │ │  │
+│ │ └─────────────────────────────────────────────┘ │  │
+│ │                                                  │  │
+│ │ ┌─────────────────────────────────────────────┐ │  │
+│ │ │ ⚙️ Optimization Settings                   │ │  │
+│ │ │ (Only visible if Optimization selected)    │ │  │
+│ │ │                                             │ │  │
+│ │ │ Auto-Calculation:                           │ │  │
+│ │ │ ☑ Enable automatic schedule optimization   │ │  │
+│ │ │                                             │ │  │
+│ │ │ Calculation Interval:                       │ │  │
+│ │ │ [60] minutes                                │ │  │
+│ │ │                                             │ │  │
+│ │ │ Working Hours Constraint:                   │ │  │
+│ │ │ ☐ Calculate only outside working hours    │ │  │
+│ │ │                                             │ │  │
+│ │ │ ┌──────────────────────────────────────┐   │ │  │
+│ │ │ │ Working Hours:                       │   │ │  │
+│ │ │ │ Start: [08:00] End: [18:00]          │   │ │  │
+│ │ │ └──────────────────────────────────────┘   │ │  │
+│ │ │                                             │ │  │
+│ │ │ Automatic Triggers:                         │ │  │
+│ │ │ ☑ Optimize on new work order launch        │ │  │
+│ │ │ ☑ Optimize on priority change              │ │  │
+│ │ │ ☐ Optimize on resource change              │ │  │
+│ │ └─────────────────────────────────────────────┘ │  │
+│ └──────────────────────────────────────────────────┘  │
+│                                                        │
+│ ┌──────────────────────────────────────────────────┐  │
+│ │ 👷 Worker Assignment Mode                        │  │
+│ │                                                  │  │
+│ │ Assignment Method:                               │  │
+│ │ ● Manual Assignment (Current)                    │  │
+│ │ ○ Automatic Assignment (Future)                  │  │
+│ │                                                  │  │
+│ │ ℹ️ Automatic assignment coming soon...          │  │
+│ └──────────────────────────────────────────────────┘  │
+│                                                        │
+│                            [Cancel]  [Save Settings]  │
+└────────────────────────────────────────────────────────┘
+```
+
+**Component:** `quote-portal/domains/admin/components/ProductionSettings.js`
+
+**State Management:**
+```javascript
+const [schedulingMode, setSchedulingMode] = useState('fifo');
+const [optimizationEnabled, setOptimizationEnabled] = useState(false);
+const [autoCalcEnabled, setAutoCalcEnabled] = useState(false);
+const [calcInterval, setCalcInterval] = useState(60);
+const [onlyOutsideWorkHours, setOnlyOutsideWorkHours] = useState(false);
+const [workingHours, setWorkingHours] = useState({ start: '08:00', end: '18:00' });
+const [triggers, setTriggers] = useState({
+  onNewWorkOrder: true,
+  onPriorityChange: true,
+  onResourceChange: false
+});
+```
+
+---
+
+### 2. Work Order Start Popup (Priority Selection)
+
+**Location:** Work Orders Page → Start Button → Popup
+
+**Layout (When schedulingMode = 'optimized'):**
+
+```
+┌─────────────────────────────────────┐
+│ Start Work Order: WO-001            │
+├─────────────────────────────────────┤
+│                                     │
+│ 📊 Select Priority Level:           │
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │  ○ Low Priority (1)             │ │
+│ │     Can be delayed if needed    │ │
+│ ├─────────────────────────────────┤ │
+│ │  ● Normal Priority (2)          │ │
+│ │     Standard scheduling         │ │
+│ ├─────────────────────────────────┤ │
+│ │  ○ High Priority (3)            │ │
+│ │     Prioritize in schedule      │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ ℹ️ Priority affects optimization    │
+│    algorithm's scheduling decisions │
+│                                     │
+│ 🚨 Need immediate start?            │
+│ ☐ Mark as Urgent                   │
+│   (allows parallel execution)      │
+│                                     │
+│              [Cancel]  [Start WO]  │
+└─────────────────────────────────────┘
+```
+
+**Component:** `quote-portal/domains/orders/components/StartWorkOrderModal.js`
+
+**Logic:**
+```javascript
+const StartWorkOrderModal = ({ workOrder, onStart, onClose }) => {
+  const [priority, setPriority] = useState(2);  // Default: Normal
+  const [isUrgent, setIsUrgent] = useState(false);
+  const { schedulingMode } = useProductionSettings();
+  
+  const handleStart = async () => {
+    await onStart({
+      workOrderCode: workOrder.code,
+      priority: schedulingMode === 'optimized' ? priority : 2,
+      isUrgent: isUrgent
+    });
+    onClose();
+  };
+  
+  return (
+    <Modal>
+      {schedulingMode === 'optimized' && (
+        <PrioritySelector value={priority} onChange={setPriority} />
+      )}
+      <UrgentCheckbox checked={isUrgent} onChange={setIsUrgent} />
+      <Button onClick={handleStart}>Start WO</Button>
+    </Modal>
+  );
+};
+```
+
+**Note:** If `schedulingMode = 'fifo'`, priority selector is **hidden** and priority defaults to 2.
+
+---
+
+### 3. Work Orders Page (Manual Optimize Button)
+
+**Location:** Work Orders Page → Top Action Bar
+
+**Layout:**
+
+```
+┌────────────────────────────────────────────────────────────┐
+│ Work Orders                                  [+ New WO]    │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│ ┌──────────────────────────────────────────────────────┐  │
+│ │ Filters: [All] [Active] [Completed] [Cancelled]     │  │
+│ │                                                      │  │
+│ │ Scheduling Mode: Optimization                        │  │
+│ │ [🎯 Optimize Schedule Now]  Last run: 2 hours ago   │  │
+│ └──────────────────────────────────────────────────────┘  │
+│                                                            │
+│ ┌──────────────────────────────────────────────────────┐  │
+│ │ Code    │ Priority │ Status   │ Expected Start      │  │
+│ ├──────────┼──────────┼──────────┼─────────────────────┤  │
+│ │ WO-001  │ 🔴 High  │ Active   │ 18 Nov 08:00       │  │
+│ │ WO-002  │ 🟡 Normal│ Pending  │ 18 Nov 10:30       │  │
+│ │ WO-003  │ 🟢 Low   │ Pending  │ 18 Nov 14:00       │  │
+│ └──────────┴──────────┴──────────┴─────────────────────┘  │
+└────────────────────────────────────────────────────────────┘
+```
+
+**Button Behavior:**
+```javascript
+const OptimizeButton = () => {
+  const { schedulingMode } = useProductionSettings();
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [lastRun, setLastRun] = useState(null);
+  
+  const handleOptimize = async () => {
+    setIsOptimizing(true);
+    try {
+      const response = await fetch('/api/mes/optimize-schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'manual' })
+      });
+      
+      const result = await response.json();
+      setLastRun(new Date());
+      
+      toast.success(`Schedule optimized: ${result.tasksUpdated} tasks reordered`);
+    } catch (error) {
+      toast.error('Optimization failed');
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+  
+  if (schedulingMode !== 'optimized') return null;
+  
+  return (
+    <div className="optimize-section">
+      <Button 
+        onClick={handleOptimize}
+        disabled={isOptimizing}
+        icon="🎯"
+      >
+        {isOptimizing ? 'Optimizing...' : 'Optimize Schedule Now'}
+      </Button>
+      {lastRun && <span>Last run: {formatDistanceToNow(lastRun)} ago</span>}
+    </div>
+  );
+};
+```
+
+**Only visible when `schedulingMode = 'optimized'`**
+
+---
+
+### 4. Worker Portal UI Updates
+
+**Task Card Updates:**
+
+```html
+<!-- BEFORE (PROMPT 11) -->
+<div class="task-card">
+  <div class="priority-index">1</div>  <!-- ❌ Removed -->
+  <div class="operation-name">Cutting</div>
+  <button class="start-btn">Start</button>
+</div>
+
+<!-- AFTER (PROMPT 11) -->
+<div class="task-card">
+  <div class="priority-badge priority-2">NORMAL</div>  <!-- ✅ New -->
+  <div class="operation-name">Cutting</div>
+  <div class="expected-start">Start: 18 Nov 08:00</div>  <!-- ✅ New -->
+  <span class="optimized-badge">🎯 Optimized</span>  <!-- ✅ If optimized -->
+  <button class="start-btn">Start</button>
+</div>
+```
+
+**Sorting Logic:**
+```javascript
+// BEFORE (PROMPT 11)
+activeTasks.sort((a, b) => (a.priorityIndex || 0) - (b.priorityIndex || 0));
+
+// AFTER (PROMPT 11)
+activeTasks.sort((a, b) => {
+  const timeA = a.schedulingMode === 'optimized' && a.optimizedStart 
+    ? a.optimizedStart.toMillis() 
+    : (a.expectedStart ? a.expectedStart.toMillis() : 0);
+    
+  const timeB = b.schedulingMode === 'optimized' && b.optimizedStart 
+    ? b.optimizedStart.toMillis() 
+    : (b.expectedStart ? b.expectedStart.toMillis() : 0);
+  
+  return timeA - timeB;
+});
+```
+
+---
+
+## 🧮 Optimization Algorithm (Future Implementation)
+
+### Endpoint: POST `/api/mes/optimize-schedule`
+
+**Request Body:**
+```json
+{
+  "mode": "manual" | "automatic",
+  "scope": "all" | "workOrderCode",  // Optimize all or specific WO
+  "workOrderCode": "WO-001"  // Optional, if scope = "workOrderCode"
+}
+```
+
+**Algorithm Flow:**
+
+```
+1. READ Phase (Firestore Transaction)
+   ├─ Get ALL pending assignments (status = 'pending')
+   ├─ Get current resource availability
+   │  ├─ Workers (skills, availability)
+   │  ├─ Stations (capacity, current load)
+   │  └─ Materials (stock levels)
+   └─ Get production settings (optimization config)
+
+2. CALCULATE Phase (In-memory)
+   ├─ Build dependency graph (from node predecessors)
+   ├─ Group by work order
+   ├─ Apply priority weights:
+   │  ├─ priority = 3 → weight = 1.5x
+   │  ├─ priority = 2 → weight = 1.0x
+   │  └─ priority = 1 → weight = 0.5x
+   ├─ Consider constraints:
+   │  ├─ Topological order (dependencies)
+   │  ├─ Resource availability
+   │  ├─ Setup time between operations
+   │  └─ Working hours
+   └─ Calculate optimal sequence:
+      ├─ Use scheduling algorithm (e.g., WSPT, EDD, etc.)
+      ├─ Generate new indices (1, 2, 3, ...)
+      └─ Calculate new start times
+
+3. WRITE Phase (Firestore Transaction)
+   ├─ Update each assignment:
+   │  ├─ optimizedIndex = calculated value
+   │  ├─ optimizedStart = calculated timestamp
+   │  ├─ schedulingMode = 'optimized'
+   │  └─ updatedAt = now
+   └─ Log optimization event
+      ├─ timestamp
+      ├─ tasksAffected
+      ├─ algorithm used
+      └─ execution time
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "tasksUpdated": 15,
+  "executionTimeMs": 450,
+  "changes": [
+    {
+      "workPackageId": "WO-001-Node-1",
+      "oldIndex": 3,
+      "newIndex": 1,
+      "oldStart": "2025-11-18T10:00:00Z",
+      "newStart": "2025-11-18T08:00:00Z"
+    }
+  ]
+}
+```
+
+---
+
+## 🔄 Auto-Calculation Logic
+
+### Cron Job Implementation
+
+**Location:** `quote-portal/server/services/optimizationScheduler.js`
+
+```javascript
+const cron = require('node-cron');
+const admin = require('firebase-admin');
+const { optimizeSchedule } = require('./optimizationEngine');
+
+class OptimizationScheduler {
+  constructor() {
+    this.job = null;
+  }
+  
+  async start() {
+    const settings = await this.getSettings();
+    
+    if (!settings.scheduling.optimization.enabled) {
+      console.log('⏸️ Optimization scheduler disabled');
+      return;
+    }
+    
+    if (!settings.scheduling.optimization.autoCalculation.enabled) {
+      console.log('⏸️ Auto-calculation disabled');
+      return;
+    }
+    
+    const interval = settings.scheduling.optimization.autoCalculation.intervalMinutes;
+    const cronExpression = `*/${interval} * * * *`;  // Every N minutes
+    
+    this.job = cron.schedule(cronExpression, async () => {
+      await this.runOptimization(settings);
+    });
+    
+    console.log(`✅ Optimization scheduler started (every ${interval} minutes)`);
+  }
+  
+  async runOptimization(settings) {
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    
+    const { workingHours, duringWorkingHours } = settings.scheduling.optimization.autoCalculation;
+    const [startHour, startMin] = workingHours.start.split(':').map(Number);
+    const [endHour, endMin] = workingHours.end.split(':').map(Number);
+    
+    const workStart = startHour * 60 + startMin;
+    const workEnd = endHour * 60 + endMin;
+    
+    const isWorkingHours = currentTime >= workStart && currentTime <= workEnd;
+    
+    // Check if we should run based on working hours constraint
+    if (!duringWorkingHours && isWorkingHours) {
+      console.log('⏸️ Skipping optimization (working hours constraint)');
+      return;
+    }
+    
+    console.log('🎯 Running automatic schedule optimization...');
+    
+    try {
+      const result = await optimizeSchedule({ mode: 'automatic', scope: 'all' });
+      console.log(`✅ Optimization complete: ${result.tasksUpdated} tasks updated`);
+    } catch (error) {
+      console.error('❌ Optimization failed:', error);
+    }
+  }
+  
+  async getSettings() {
+    const doc = await admin.firestore().collection('settings').doc('production').get();
+    return doc.data();
+  }
+  
+  stop() {
+    if (this.job) {
+      this.job.stop();
+      console.log('⏹️ Optimization scheduler stopped');
+    }
+  }
+}
+
+module.exports = new OptimizationScheduler();
+```
+
+**Startup Integration:**
+
+```javascript
+// quote-portal/server.js
+const optimizationScheduler = require('./services/optimizationScheduler');
+
+async function startServer() {
+  // ... existing startup code
+  
+  // Start optimization scheduler
+  await optimizationScheduler.start();
+  
+  console.log('✅ Server started with optimization scheduler');
+}
+```
+
+---
+
+## 🎯 Implementation Roadmap
+
+### Phase 1: Foundation (PROMPT 11) ✅
+- [x] Remove priorityIndex
+- [x] Add expectedStart, priority, optimizedIndex, optimizedStart
+- [x] Update Worker Portal sorting
+- [x] Add schema validation
+
+## 🎯 Implementation Roadmap
+
+### Phase 1: Foundation (PROMPT 11) ✅
+- [x] Remove priorityIndex
+- [x] Add expectedStart, priority, optimizedIndex, optimizedStart
+- [x] Update Worker Portal sorting
+- [x] Add schema validation
+
+### Phase 2: UI Infrastructure (PROMPT 13-16)
+- [ ] **PROMPT 13:** Production Settings UI (Non-Functional)
+  - [ ] Scheduling mode toggle (FIFO/Optimization)
+  - [ ] Auto-calculation settings (disabled by default)
+  - [ ] Working hours configuration
+  - [ ] Trigger checkboxes
+  - [ ] Worker assignment mode dropdown
+  
+- [ ] **PROMPT 14:** Production Mode Cache System ⭐
+  - [ ] Create global cache module (`productionMode.js`)
+  - [ ] Load mode at app startup (1x Firestore query)
+  - [ ] Provide synchronous access via cache
+  - [ ] Reactive listener system for mode changes
+  - [ ] Cache invalidation on settings save
+  
+- [ ] **PROMPT 15:** Work Order Priority Popup (Conditional) ⭐
+  - [ ] FIFO mode → Direct start (no popup)
+  - [ ] Optimization mode → Priority selection popup
+  - [ ] Priority selector (1-3) with descriptions
+  - [ ] isUrgent checkbox
+  - [ ] Backend integration (send priority to launch endpoint)
+  - [ ] Modal styling and animations
+  
+- [ ] **PROMPT 16:** Manual Optimize Button (Conditional) ⭐
+  - [ ] Button only visible in Optimization mode
+  - [ ] Use productionModeCache for visibility control
+  - [ ] Reactive show/hide on mode change
+  - [ ] Loading state animation
+  - [ ] Last run timestamp display
+  - [ ] Demo optimization (alert, Phase 3'te gerçek API)
+
+### Phase 3: Optimization Engine (Future)
+- [ ] Optimization algorithm implementation
+  - [ ] Dependency graph builder
+  - [ ] Priority weight system
+  - [ ] Resource constraint checker
+  - [ ] Scheduling algorithm (WSPT/EDD/etc.)
+- [ ] API endpoint: POST `/api/mes/optimize-schedule`
+  - [ ] Manual trigger handler
+  - [ ] Automatic trigger handler
+  - [ ] Transaction safety
+  - [ ] Error handling
+- [ ] Optimization scheduler service
+  - [ ] Cron job setup
+  - [ ] Working hours check
+  - [ ] Auto-trigger logic
+  - [ ] Logging and monitoring
+
+### Phase 4: Testing & Refinement
+- [ ] Unit tests for optimization logic
+- [ ] Integration tests for mode switching
+- [ ] Performance testing (large schedules)
+- [ ] User acceptance testing
+- [ ] Documentation and training
+
+---
+
+## 📊 Prompt Priority & Dependencies
+
+```
+CRITICAL PATH (Implementation Order):
+
+1. PROMPT 11 (Foundation)
+   └─ Schema changes, Worker Portal updates
+      ├─ ✅ COMPLETED
+      
+2. PROMPT 14 (Cache System) ⭐ ÖNCE BU!
+   └─ Global state for production mode
+      ├─ Used by PROMPT 15 & 16
+      ├─ 1x Firestore query at startup
+      └─ Eliminates repeated queries
+      
+3. PROMPT 15 (Priority Popup) ⭐
+   └─ Conditional UI based on cache
+      ├─ Depends on: PROMPT 14
+      ├─ FIFO: Direct start
+      └─ Optimization: Priority selection
+      
+4. PROMPT 16 (Optimize Button) ⭐
+   └─ Conditional visibility based on cache
+      ├─ Depends on: PROMPT 14
+      └─ Reactive show/hide
+      
+5. PROMPT 13 (Settings UI)
+   └─ Admin interface for mode toggle
+      ├─ Can be done in parallel with 14-16
+      └─ Low priority (admin-only)
+```
+
+**⚠️ ÖNEMLİ:** PROMPT 14'ü mutlaka PROMPT 15 ve 16'dan ÖNCE implement edin! Cache sistemi olmadan diğerleri Firestore'a her işlemde sorgu atacak.
+
+---
+
+## 📋 UI Prompts (Detailed Specifications)
+
+### PROMPT 13: Production Settings UI (Non-Functional)
+
+**Öncelik:** 🟡 MEDIUM  
+**Bağımlılık:** PROMPT 11 tamamlanmış olmalı  
+**Süre:** ~60 dakika  
+**Dosyalar:**
+- `quote-portal/domains/admin/pages/production-settings.html` (yeni)
+- `quote-portal/domains/admin/js/production-settings.js` (yeni)
+- `quote-portal/domains/admin/styles/production-settings.css` (yeni)
+
+```markdown
+GÖREV: Production Settings sayfasına Scheduling Mode ve Optimization ayarlarını eklemek (NON-FUNCTIONAL - sadece UI).
+
+**⚠️ NOT:** Bu prompt sadece UI oluşturur, backend entegrasyonu yapmaz!
+
+GEREKSINIMLER:
+1. Master Data → Production Settings menüsüne yeni section ekle
+2. Scheduling Mode toggle (FIFO / Optimization)
+3. Optimization settings collapsible panel
+4. Auto-calculation interval input
+5. Working hours constraint checkbox + time inputs
+6. Trigger checkboxes (new WO, priority change, resource change)
+7. Worker Assignment mode dropdown (disabled, "coming soon" label)
+8. Save button (dummy, alert göster)
+
+UI LAYOUT:
+[APPENDIX D, Section "UI Specifications, 1. Production Settings Page" başlığına bakın]
+
+COMPONENT STRUCTURE:
+```html
+<div class="production-settings-page">
+  <h1>Production Settings</h1>
+  
+  <section class="operations-management">
+    <!-- Existing operations settings -->
+  </section>
+  
+  <section class="scheduling-settings">
+    <h2>🎯 Production Scheduling</h2>
+    
+    <div class="mode-selector">
+      <label><input type="radio" name="mode" value="fifo"> FIFO</label>
+      <label><input type="radio" name="mode" value="optimized"> Optimization</label>
+    </div>
+    
+    <div id="optimization-panel" class="collapsible">
+      <h3>⚙️ Optimization Settings</h3>
+      <!-- Auto-calculation checkbox -->
+      <!-- Interval input -->
+      <!-- Working hours constraint -->
+      <!-- Triggers checkboxes -->
+    </div>
+  </section>
+  
+  <section class="worker-assignment">
+    <h2>👷 Worker Assignment Mode</h2>
+    <select disabled>
+      <option>Manual Assignment (Current)</option>
+      <option>Automatic Assignment (Future)</option>
+    </select>
+    <p class="info">ℹ️ Automatic assignment coming soon...</p>
+  </section>
+  
+  <div class="actions">
+    <button class="cancel-btn">Cancel</button>
+    <button class="save-btn">Save Settings</button>
+  </div>
+</div>
+```
+
+JAVASCRIPT LOGIC:
+```javascript
+// Mode toggle handler
+document.querySelectorAll('input[name="mode"]').forEach(radio => {
+  radio.addEventListener('change', (e) => {
+    const panel = document.getElementById('optimization-panel');
+    panel.style.display = e.target.value === 'optimized' ? 'block' : 'none';
+  });
+});
+
+// Save button (dummy)
+document.querySelector('.save-btn').addEventListener('click', () => {
+  alert('Settings saved! (Non-functional UI)');
+});
+```
+
+CSS STYLING:
+```css
+.scheduling-settings { margin: 20px 0; padding: 20px; border: 1px solid #ddd; }
+.mode-selector { display: flex; gap: 20px; margin: 15px 0; }
+.collapsible { display: none; margin-top: 15px; padding: 15px; background: #f9f9f9; }
+.info { color: #666; font-size: 0.9em; }
+```
+
+TEST CHECKLIST:
+✅ Toggle FIFO → Optimization panel gizli
+✅ Toggle Optimization → Panel görünür
+✅ Auto-calculation checkbox işaretlenince interval input aktif
+✅ Working hours constraint checkbox işaretlenince time inputs görünür
+✅ Save butonu alert gösteriyor
+✅ Worker assignment dropdown disabled
+
+İŞLEMİ GERÇEKLEŞTIR.
+```
+
+---
+
+### PROMPT 14: Production Mode Cache System (Global State)
+
+**Öncelik:** 🔴 CRITICAL  
+**Bağımlılık:** PROMPT 13 tamamlanmış olmalı  
+**Süre:** ~30 dakika  
+**Dosyalar:**
+- `quote-portal/shared/state/productionMode.js` (yeni)
+- `quote-portal/src/main.js` (güncelle - init cache on app start)
+
+```markdown
+GÖREV: Production mode'u uygulama başlangıcında Master Data'dan çekip global state'te cache'lemek.
+
+**⚠️ AMAÇ:** Her işlemde Firestore'a sorgu atmak yerine, app başlangıcında 1 kez çek ve memory'de tut.
+
+**📊 CACHE STRATEGY:**
+```
+App Start (main.js)
+     ↓
+Load Master Data (1x Firestore query)
+     ↓
+Cache in Memory (productionMode.js)
+     ↓
+All Components Read from Cache (0 Firestore queries)
+     ↓
+Settings Page Updates → Invalidate Cache → Reload
+```
+
+---
+
+## 1. GLOBAL STATE MODULE
+
+**Dosya:** `quote-portal/shared/state/productionMode.js` (YENİ)
+
+```javascript
+/**
+ * Global Production Mode Cache
+ * 
+ * Stores scheduling mode from Master Data to avoid repeated Firestore queries.
+ * Loaded once at app start, invalidated when settings change.
+ */
+
+class ProductionModeCache {
+  constructor() {
+    this.schedulingMode = 'fifo';  // Default
+    this.isLoaded = false;
+    this.listeners = [];  // For reactive updates
+  }
+  
+  /**
+   * Load production mode from Firestore (called once at app start)
+   */
+  async load() {
+    try {
+      const db = firebase.firestore();
+      const doc = await db.collection('settings').doc('production').get();
+      
+      if (doc.exists) {
+        const data = doc.data();
+        this.schedulingMode = data.scheduling?.mode || 'fifo';
+        this.isLoaded = true;
+        
+        console.log('✅ Production mode loaded:', this.schedulingMode);
+        this.notifyListeners();
+      } else {
+        console.warn('⚠️ Production settings not found, using default: fifo');
+        this.schedulingMode = 'fifo';
+        this.isLoaded = true;
+      }
+    } catch (error) {
+      console.error('❌ Failed to load production mode:', error);
+      this.schedulingMode = 'fifo';  // Fallback to FIFO
+      this.isLoaded = true;
+    }
+  }
+  
+  /**
+   * Get current scheduling mode (synchronous, no await needed)
+   */
+  getMode() {
+    if (!this.isLoaded) {
+      console.warn('⚠️ Production mode not loaded yet, returning default: fifo');
+      return 'fifo';
+    }
+    return this.schedulingMode;
+  }
+  
+  /**
+   * Check if optimization mode is enabled
+   */
+  isOptimizationMode() {
+    return this.getMode() === 'optimized';
+  }
+  
+  /**
+   * Update cache (called when settings are saved)
+   */
+  setMode(newMode) {
+    if (newMode !== 'fifo' && newMode !== 'optimized') {
+      console.error('❌ Invalid scheduling mode:', newMode);
+      return;
+    }
+    
+    this.schedulingMode = newMode;
+    console.log('🔄 Production mode updated:', newMode);
+    this.notifyListeners();
+  }
+  
+  /**
+   * Invalidate cache and reload from Firestore
+   */
+  async reload() {
+    console.log('🔄 Reloading production mode...');
+    this.isLoaded = false;
+    await this.load();
+  }
+  
+  /**
+   * Subscribe to mode changes (for reactive UI updates)
+   */
+  subscribe(callback) {
+    this.listeners.push(callback);
+    return () => {
+      this.listeners = this.listeners.filter(cb => cb !== callback);
+    };
+  }
+  
+  /**
+   * Notify all subscribers of mode change
+   */
+  notifyListeners() {
+    this.listeners.forEach(callback => {
+      try {
+        callback(this.schedulingMode);
+      } catch (error) {
+        console.error('❌ Listener error:', error);
+      }
+    });
+  }
+}
+
+// Export singleton instance
+const productionModeCache = new ProductionModeCache();
+export default productionModeCache;
+
+// For legacy scripts (non-module)
+if (typeof window !== 'undefined') {
+  window.productionModeCache = productionModeCache;
+}
+```
+
+---
+
+## 2. APP INITIALIZATION
+
+**Dosya:** `quote-portal/src/main.js` (GÜNCELLE)
+
+**MEVCUT KOD:**
+```javascript
+// App initialization
+async function initApp() {
+  await initFirebase();
+  await loadUserData();
+  renderNavigation();
+}
+
+document.addEventListener('DOMContentLoaded', initApp);
+```
+
+**YENİ KOD:**
+```javascript
+import productionModeCache from '../shared/state/productionMode.js';
+
+// App initialization
+async function initApp() {
+  await initFirebase();
+  await loadUserData();
+  
+  // ✅ Load production mode ONCE at startup
+  await productionModeCache.load();
+  
+  renderNavigation();
+}
+
+document.addEventListener('DOMContentLoaded', initApp);
+```
+
+---
+
+## 3. USAGE IN COMPONENTS
+
+**Example: Work Order Start Handler**
+
+**BEFORE (Multiple Firestore queries):**
+```javascript
+async function handleStartWorkOrder(workOrderCode) {
+  // ❌ Firestore query every time!
+  const settingsDoc = await db.collection('settings').doc('production').get();
+  const mode = settingsDoc.data().scheduling?.mode || 'fifo';
+  
+  if (mode === 'optimized') {
+    showPriorityPopup(workOrderCode);
+  } else {
+    startWorkOrderDirectly(workOrderCode);
+  }
+}
+```
+
+**AFTER (Use cache):**
+```javascript
+import productionModeCache from '../../shared/state/productionMode.js';
+
+function handleStartWorkOrder(workOrderCode) {
+  // ✅ Read from memory cache (no Firestore query!)
+  if (productionModeCache.isOptimizationMode()) {
+    showPriorityPopup(workOrderCode);
+  } else {
+    startWorkOrderDirectly(workOrderCode, 2);  // Default priority
+  }
+}
+```
+
+---
+
+## 4. PRODUCTION SETTINGS PAGE INTEGRATION
+
+**Dosya:** `quote-portal/domains/admin/js/production-settings.js` (GÜNCELLE)
+
+```javascript
+import productionModeCache from '../../../shared/state/productionMode.js';
+
+async function saveProductionSettings() {
+  const schedulingMode = document.querySelector('input[name="mode"]:checked').value;
+  
+  try {
+    // 1. Save to Firestore
+    await db.collection('settings').doc('production').update({
+      'scheduling.mode': schedulingMode
+    });
+    
+    // 2. Update cache (avoid reload, direct update)
+    productionModeCache.setMode(schedulingMode);
+    
+    toast.success('Settings saved!');
+  } catch (error) {
+    console.error('Failed to save settings:', error);
+    toast.error('Save failed');
+  }
+}
+```
+
+---
+
+## 5. REACTIVE UI UPDATES (Optional)
+
+**For components that need to react to mode changes:**
+
+```javascript
+import productionModeCache from '../../shared/state/productionMode.js';
+
+// Subscribe to mode changes
+const unsubscribe = productionModeCache.subscribe((newMode) => {
+  console.log('Scheduling mode changed:', newMode);
+  
+  // Update UI dynamically
+  document.getElementById('optimize-section').style.display = 
+    newMode === 'optimized' ? 'block' : 'none';
+});
+
+// Cleanup on component unmount
+window.addEventListener('beforeunload', unsubscribe);
+```
+
+---
+
+## ✅ TEST CHECKLIST
+
+1. **App Start:**
+   - ✅ Console shows "Production mode loaded: fifo" (or optimized)
+   - ✅ Only 1 Firestore query to settings/production
+   - ✅ `window.productionModeCache.getMode()` returns correct value
+
+2. **Work Order Start:**
+   - ✅ FIFO mode: Start button → direct start (no popup)
+   - ✅ Optimization mode: Start button → priority popup shown
+   - ✅ No additional Firestore queries
+
+3. **Settings Page:**
+   - ✅ Change mode from FIFO → Optimization
+   - ✅ Save settings
+   - ✅ Cache updates immediately (no page reload needed)
+   - ✅ Work order start behavior changes instantly
+
+4. **Performance:**
+   - ✅ 1 Firestore query at app start
+   - ✅ 0 Firestore queries for subsequent checks
+   - ✅ Cache reload only when settings change
+
+---
+
+## 🎯 BAŞARI KRİTERLERİ
+
+✅ Global cache modülü oluşturuldu  
+✅ App start'ta 1 kez Master Data yükleniyor  
+✅ Tüm componentler cache'den okuyabiliyor  
+✅ Settings değişince cache güncelleniyor  
+✅ Reactive listener sistemi çalışıyor  
+✅ Legacy script desteği var (window.productionModeCache)  
+
+---
+
+## 📁 DOSYA YOLLARI
+
+1. `/Users/umutyalcin/Documents/Burkol0/quote-portal/shared/state/productionMode.js` (YENİ)
+2. `/Users/umutyalcin/Documents/Burkol0/quote-portal/src/main.js` (GÜNCELLE)
+3. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/admin/js/production-settings.js` (GÜNCELLE)
+
+İŞLEMİ GERÇEKLEŞTIR.
+```
+
+---
+
+### PROMPT 15: Work Order Priority Popup (Conditional UI)
+
+**Öncelik:** 🟡 MEDIUM  
+**Bağımlılık:** PROMPT 14 tamamlanmış olmalı  
+**Süre:** ~40 dakika  
+**Dosyalar:**
+- `quote-portal/domains/orders/components/start-wo-modal.html` (güncelle)
+- `quote-portal/domains/orders/js/start-wo-modal.js` (güncelle)
+
+```markdown
+GÖREV: Work Order başlatma popup'ını production mode'a göre koşullu hale getirmek.
+
+**⚠️ DAVRANIŞLAR:**
+- **FIFO Mode:** Start butonu → Direkt başlat (popup YOK)
+- **Optimization Mode:** Start butonu → Priority popup → Seçim → Başlat
+
+GEREKSINIMLER:
+1. productionModeCache'i import et
+2. FIFO modunda popup gösterme, direkt başlat
+3. Optimization modunda priority seçimi iste
+4. Backend'e priority gönder (functional)
+
+---
+
+## MODAL CONTROL LOGIC
+
+**Dosya:** `quote-portal/domains/orders/js/work-orders.js` (GÜNCELLE)
+
+```javascript
+import productionModeCache from '../../../shared/state/productionMode.js';
+
+/**
+ * Handle Start Work Order Button Click
+ */
+async function handleStartWorkOrder(workOrderCode) {
+  // ✅ Check production mode from cache (no Firestore query!)
+  const mode = productionModeCache.getMode();
+  
+  if (mode === 'optimized') {
+    // Show priority selection popup
+    openPriorityPopup(workOrderCode);
+  } else {
+    // FIFO mode: Direct start with default priority
+    await startWorkOrder(workOrderCode, {
+      priority: 2,      // Default: Normal
+      isUrgent: false   // Default: Not urgent
+    });
+  }
+}
+
+/**
+ * Open Priority Selection Popup (Optimization Mode Only)
+ */
+function openPriorityPopup(workOrderCode) {
+  const modal = document.getElementById('start-wo-modal');
+  document.getElementById('wo-code').textContent = workOrderCode;
+  
+  // Reset form
+  document.querySelector('input[name="priority"][value="2"]').checked = true;
+  document.getElementById('is-urgent').checked = false;
+  
+  // Store workOrderCode for later
+  modal.dataset.workOrderCode = workOrderCode;
+  
+  modal.style.display = 'block';
+}
+
+/**
+ * Handle Priority Popup Submit
+ */
+document.querySelector('#start-wo-modal .start-btn').addEventListener('click', async () => {
+  const modal = document.getElementById('start-wo-modal');
+  const workOrderCode = modal.dataset.workOrderCode;
+  
+  const priority = parseInt(document.querySelector('input[name="priority"]:checked').value);
+  const isUrgent = document.getElementById('is-urgent').checked;
+  
+  // Close modal first
+  modal.style.display = 'none';
+  
+  // Start work order with selected priority
+  await startWorkOrder(workOrderCode, { priority, isUrgent });
+});
+
+/**
+ * Start Work Order (Backend Call)
+ */
+async function startWorkOrder(workOrderCode, { priority, isUrgent }) {
+  try {
+    const response = await fetch('/api/mes/launch-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        workOrderCode,
+        priority,      // ✅ Send to backend
+        isUrgent       // ✅ Send to backend
+      })
+    });
+    
+    if (response.ok) {
+      toast.success(`Work Order ${workOrderCode} started!`);
+      refreshWorkOrderList();
+    } else {
+      toast.error('Failed to start work order');
+    }
+  } catch (error) {
+    console.error('Error starting work order:', error);
+    toast.error('Network error');
+  }
+}
+```
+
+---
+
+## MODAL HTML
+
+**Dosya:** `quote-portal/domains/orders/components/start-wo-modal.html` (YENİ/GÜNCELLE)
+
+```html
+<div id="start-wo-modal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Start Work Order: <span id="wo-code"></span></h2>
+      <button class="close-btn" onclick="document.getElementById('start-wo-modal').style.display='none'">&times;</button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="priority-section">
+        <h3>📊 Select Priority Level:</h3>
+        <div class="priority-options">
+          <label class="priority-option">
+            <input type="radio" name="priority" value="1">
+            <div class="option-content">
+              <strong>Low Priority (1)</strong>
+              <p>Can be delayed if needed</p>
+            </div>
+          </label>
+          
+          <label class="priority-option">
+            <input type="radio" name="priority" value="2" checked>
+            <div class="option-content">
+              <strong>Normal Priority (2)</strong>
+              <p>Standard scheduling</p>
+            </div>
+          </label>
+          
+          <label class="priority-option">
+            <input type="radio" name="priority" value="3">
+            <div class="option-content">
+              <strong>High Priority (3)</strong>
+              <p>Prioritize in schedule</p>
+            </div>
+          </label>
+        </div>
+        <p class="info-text">ℹ️ Priority affects optimization algorithm's scheduling decisions</p>
+      </div>
+      
+      <div class="urgent-section">
+        <h3>🚨 Need immediate start?</h3>
+        <label class="checkbox-label">
+          <input type="checkbox" id="is-urgent">
+          <span>Mark as Urgent (allows parallel execution)</span>
+        </label>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn-secondary cancel-btn" onclick="document.getElementById('start-wo-modal').style.display='none'">
+        Cancel
+      </button>
+      <button class="btn-primary start-btn">
+        Start Work Order
+      </button>
+    </div>
+  </div>
+</div>
+```
+
+---
+
+## CSS STYLING
+
+**Dosya:** `quote-portal/domains/orders/styles/start-wo-modal.css` (YENİ)
+
+```css
+/* Modal Overlay */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal.show {
+  display: flex;
+}
+
+/* Modal Content */
+.modal-content {
+  background: white;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from { transform: translateY(-50px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Modal Header */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #999;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+/* Modal Body */
+.modal-body {
+  padding: 20px;
+}
+
+.priority-section,
+.urgent-section {
+  margin-bottom: 20px;
+}
+
+.priority-section h3,
+.urgent-section h3 {
+  font-size: 1rem;
+  margin-bottom: 15px;
+  color: #555;
+}
+
+/* Priority Options */
+.priority-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.priority-option {
+  display: flex;
+  align-items: flex-start;
+  padding: 15px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.priority-option:hover {
+  border-color: #1976d2;
+  background: #f5f9ff;
+}
+
+.priority-option input[type="radio"] {
+  margin-right: 12px;
+  margin-top: 3px;
+  cursor: pointer;
+}
+
+.priority-option input[type="radio"]:checked + .option-content {
+  color: #1976d2;
+}
+
+.priority-option input[type="radio"]:checked ~ .option-content strong {
+  color: #1976d2;
+}
+
+.option-content {
+  flex: 1;
+}
+
+.option-content strong {
+  display: block;
+  font-size: 1rem;
+  margin-bottom: 5px;
+  color: #333;
+}
+
+.option-content p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.info-text {
+  margin-top: 10px;
+  font-size: 0.875rem;
+  color: #666;
+  font-style: italic;
+}
+
+/* Urgent Section */
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.checkbox-label:hover {
+  background: #fff3e0;
+}
+
+.checkbox-label input[type="checkbox"] {
+  margin-right: 10px;
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+}
+
+.checkbox-label span {
+  font-size: 0.95rem;
+  color: #333;
+}
+
+/* Modal Footer */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.btn-secondary,
+.btn-primary {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-secondary {
+  background: #e0e0e0;
+  color: #333;
+}
+
+.btn-secondary:hover {
+  background: #d0d0d0;
+}
+
+.btn-primary {
+  background: #1976d2;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #1565c0;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+```
+
+---
+
+## BACKEND UPDATE (Launch Endpoint)
+
+**Dosya:** `quote-portal/server/mesRoutes.js` (GÜNCELLE)
+
+**Launch endpoint'e priority parametresi ekle:**
+
+```javascript
+router.post('/launch-plan', async (req, res) => {
+  const { workOrderCode, priority, isUrgent } = req.body;  // ✅ Extract priority
+  
+  // Validation
+  if (!workOrderCode) {
+    return res.status(400).json({ error: 'workOrderCode required' });
+  }
+  
+  // Validate priority
+  const validPriority = priority && [1, 2, 3].includes(priority) ? priority : 2;
+  
+  console.log(`🚀 Launching work order ${workOrderCode}:`, {
+    priority: validPriority,
+    isUrgent: isUrgent || false
+  });
+  
+  // ... existing launch logic ...
+  
+  // Pass priority to assignment creation
+  assignments.forEach((assignment, index) => {
+    assignmentsArray.push({
+      // ... existing fields ...
+      priority: validPriority,  // ✅ Use from request
+      isUrgent: isUrgent || false  // ✅ Use from request
+    });
+  });
+  
+  // ... rest of launch logic ...
+});
+```
+
+---
+
+## ✅ TEST SCENARIOS
+
+### Test 1: FIFO Mode (Direct Start)
+```
+1. Set production mode = 'fifo' in Master Data
+2. Restart app (or reload cache)
+3. Go to Work Orders page
+4. Click "Start" on WO-001
+5. Expected:
+   ✅ NO popup shown
+   ✅ Work order starts immediately
+   ✅ Console: "Launching... priority: 2, isUrgent: false"
+   ✅ Firestore: assignment has priority=2 (default)
+```
+
+### Test 2: Optimization Mode (Priority Popup)
+```
+1. Set production mode = 'optimized' in Master Data
+2. Restart app (or reload cache)
+3. Go to Work Orders page
+4. Click "Start" on WO-001
+5. Expected:
+   ✅ Priority popup opens
+   ✅ Default selection: Normal Priority (2)
+   ✅ Can select Low (1) or High (3)
+   ✅ Can check "Mark as Urgent"
+6. Select High Priority (3) + Urgent
+7. Click "Start Work Order"
+8. Expected:
+   ✅ Popup closes
+   ✅ Console: "Launching... priority: 3, isUrgent: true"
+   ✅ Firestore: assignment has priority=3, isUrgent=true
+```
+
+### Test 3: Mode Switch (No Page Reload)
+```
+1. Start in FIFO mode
+2. Click Start → Direct start (no popup) ✅
+3. Go to Production Settings
+4. Switch to Optimization mode
+5. Save settings
+6. Go back to Work Orders (same session)
+7. Click Start → Popup shows ✅
+8. No page reload needed ✅
+```
+
+---
+
+## 🎯 BAŞARI KRİTERLERİ
+
+### UI Behavior:
+✅ FIFO mode: No popup, direct start  
+✅ Optimization mode: Popup with priority selection  
+✅ Default priority: 2 (Normal)  
+✅ isUrgent checkbox works  
+✅ Modal responsive and styled  
+
+### Backend Integration:
+✅ Launch endpoint receives priority  
+✅ Priority validated (1-3, default 2)  
+✅ Assignment created with correct priority  
+✅ isUrgent flag saved correctly  
+
+### Performance:
+✅ No Firestore query to check mode (uses cache)  
+✅ Mode switch works instantly (no reload)  
+✅ Cache invalidation works on settings save  
+
+---
+
+## 📁 DOSYA YOLLARI
+
+1. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/orders/js/work-orders.js` (GÜNCELLE)
+2. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/orders/components/start-wo-modal.html` (YENİ)
+3. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/orders/styles/start-wo-modal.css` (YENİ)
+4. `/Users/umutyalcin/Documents/Burkol0/quote-portal/server/mesRoutes.js` (GÜNCELLE - launch endpoint)
+
+İŞLEMİ GERÇEKLEŞTIR.
+```
+
+---
+
+### PROMPT 16: Manual Optimize Button (Conditional Visibility)
+
+**Öncelik:** 🟢 LOW  
+**Bağımlılık:** PROMPT 14, 15 tamamlanmış olmalı  
+**Süre:** ~30 dakika  
+**Dosyalar:**
+- `quote-portal/pages/quote-dashboard.html` (güncelle)
+- `quote-portal/domains/orders/js/work-orders.js` (güncelle)
+
+```markdown
+GÖREV: Work Orders sayfasına "Optimize Schedule Now" butonu eklemek, sadece Optimization modunda görünsün.
+
+**⚠️ NOT:** Buton şimdilik sadece alert gösterecek, gerçek optimizasyon Phase 3'te yapılacak!
+
+GEREKSINIMLER:
+1. productionModeCache'den mode oku
+2. Sadece mode='optimized' ise buton göster
+3. Mode değişince reactive olarak göster/gizle
+4. Butona tıklayınca loading state + alert
+
+---
+
+## HTML STRUCTURE
+
+**Dosya:** `quote-portal/pages/quote-dashboard.html` (GÜNCELLE)
+
+**EKLE (work orders table'dan önce):**
+
+```html
+<div class="work-orders-page">
+  <div class="page-header">
+    <h1>Work Orders</h1>
+    <button class="new-wo-btn">+ New WO</button>
+  </div>
+  
+  <!-- ✅ Optimize Section (conditional) -->
+  <div id="optimize-section" class="optimize-bar" style="display: none;">
+    <div class="optimize-info">
+      <span class="mode-badge">Scheduling Mode: <strong id="current-mode">Optimization</strong></span>
+      <span class="last-run" id="last-run">Last run: Never</span>
+    </div>
+    <button id="optimize-btn" class="optimize-btn">
+      <span class="btn-icon">🎯</span>
+      <span class="btn-text">Optimize Schedule Now</span>
+    </button>
+  </div>
+  
+  <!-- Existing work orders table -->
+  <div class="work-orders-table">
+    <!-- ... -->
+  </div>
+</div>
+```
+
+---
+
+## JAVASCRIPT LOGIC
+
+**Dosya:** `quote-portal/domains/orders/js/work-orders.js` (GÜNCELLE)
+
+```javascript
+import productionModeCache from '../../../shared/state/productionMode.js';
+
+// ════════════════════════════════════════════════════
+// INITIALIZATION
+// ════════════════════════════════════════════════════
+
+function initOptimizeSection() {
+  const optimizeSection = document.getElementById('optimize-section');
+  const currentModeSpan = document.getElementById('current-mode');
+  
+  // Initial visibility check
+  updateOptimizeSectionVisibility();
+  
+  // Subscribe to mode changes (reactive)
+  productionModeCache.subscribe((newMode) => {
+    console.log('🔄 Scheduling mode changed:', newMode);
+    updateOptimizeSectionVisibility();
+  });
+  
+  // Optimize button handler
+  document.getElementById('optimize-btn').addEventListener('click', handleOptimize);
+}
+
+function updateOptimizeSectionVisibility() {
+  const optimizeSection = document.getElementById('optimize-section');
+  const currentModeSpan = document.getElementById('current-mode');
+  const mode = productionModeCache.getMode();
+  
+  if (mode === 'optimized') {
+    optimizeSection.style.display = 'flex';
+    currentModeSpan.textContent = 'Optimization';
+  } else {
+    optimizeSection.style.display = 'none';
+  }
+}
+
+// ════════════════════════════════════════════════════
+// OPTIMIZE HANDLER (Dummy for now)
+// ════════════════════════════════════════════════════
+
+async function handleOptimize() {
+  const btn = document.getElementById('optimize-btn');
+  const btnText = btn.querySelector('.btn-text');
+  const btnIcon = btn.querySelector('.btn-icon');
+  
+  // Disable button
+  btn.disabled = true;
+  btnIcon.textContent = '⏳';
+  btnText.textContent = 'Optimizing...';
+  
+  try {
+    // TODO (Phase 3): Replace with real API call
+    // const response = await fetch('/api/mes/optimize-schedule', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({ mode: 'manual' })
+    // });
+    
+    // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Update last run timestamp
+    const now = new Date();
+    document.getElementById('last-run').textContent = 
+      `Last run: ${now.toLocaleTimeString('tr-TR')}`;
+    
+    // Show success message
+    alert('✅ Schedule optimized! 15 tasks reordered.\n\n(This is a non-functional demo. Real optimization coming in Phase 3)');
+    
+    console.log('✅ Optimization complete (demo)');
+    
+  } catch (error) {
+    console.error('❌ Optimization failed:', error);
+    alert('❌ Optimization failed. Please try again.');
+  } finally {
+    // Re-enable button
+    btn.disabled = false;
+    btnIcon.textContent = '🎯';
+    btnText.textContent = 'Optimize Schedule Now';
+  }
+}
+
+// ════════════════════════════════════════════════════
+// PAGE INITIALIZATION
+// ════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', () => {
+  initOptimizeSection();
+  loadWorkOrders();
+});
+```
+
+---
+
+## CSS STYLING
+
+**Dosya:** `quote-portal/domains/orders/styles/work-orders.css` (EKLE)
+
+```css
+/* ═══════════════════════════════════════════════════════
+   OPTIMIZE SECTION
+   ═══════════════════════════════════════════════════════ */
+
+.optimize-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, #f0f7ff 0%, #e3f2fd 100%);
+  border: 1px solid #b3d9ff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.optimize-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.mode-badge {
+  font-size: 0.95rem;
+  color: #555;
+}
+
+.mode-badge strong {
+  color: #1976d2;
+  font-weight: 600;
+}
+
+.last-run {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+/* Optimize Button */
+.optimize-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: #1976d2;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
+}
+
+.optimize-btn:hover {
+  background: #1565c0;
+  box-shadow: 0 4px 12px rgba(25, 118, 210, 0.4);
+  transform: translateY(-2px);
+}
+
+.optimize-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(25, 118, 210, 0.3);
+}
+
+.optimize-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.optimize-btn .btn-icon {
+  font-size: 1.2rem;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.optimize-btn:disabled .btn-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .optimize-bar {
+    flex-direction: column;
+    gap: 15px;
+    align-items: stretch;
+  }
+  
+  .optimize-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+```
+
+---
+
+## ✅ TEST SCENARIOS
+
+### Test 1: FIFO Mode (Hidden Button)
+```
+1. Set production mode = 'fifo'
+2. Go to Work Orders page
+3. Expected:
+   ✅ Optimize section is HIDDEN
+   ✅ No "Optimize Schedule Now" button visible
+   ✅ Work orders table displayed normally
+```
+
+### Test 2: Optimization Mode (Visible Button)
+```
+1. Set production mode = 'optimized'
+2. Go to Work Orders page
+3. Expected:
+   ✅ Optimize section is VISIBLE
+   ✅ Badge shows "Scheduling Mode: Optimization"
+   ✅ "Last run: Never" displayed
+   ✅ Optimize button visible and enabled
+```
+
+### Test 3: Button Click (Loading State)
+```
+1. In Optimization mode
+2. Click "Optimize Schedule Now"
+3. Expected:
+   ✅ Button disabled
+   ✅ Icon changes to ⏳ (spinning)
+   ✅ Text changes to "Optimizing..."
+   ✅ After 2 seconds:
+      - Button re-enabled
+      - Icon back to 🎯
+      - Text back to "Optimize Schedule Now"
+      - Last run timestamp updated
+      - Alert shown with demo message
+```
+
+### Test 4: Reactive Mode Switch
+```
+1. Start in FIFO mode → Button hidden
+2. Go to Production Settings
+3. Switch to Optimization mode
+4. Save settings
+5. Return to Work Orders page (same session)
+6. Expected:
+   ✅ Button appears WITHOUT page reload
+   ✅ Subscribe callback triggered
+   ✅ Console: "🔄 Scheduling mode changed: optimized"
+```
+
+---
+
+## 🎯 BAŞARI KRİTERLERİ
+
+### Visibility Control:
+✅ Button only visible in Optimization mode  
+✅ Reactive updates (no page reload needed)  
+✅ Subscribe to productionModeCache changes  
+
+### UI/UX:
+✅ Modern gradient background  
+✅ Loading state with spinning icon  
+✅ Smooth animations  
+✅ Responsive design (mobile-friendly)  
+
+### Functionality:
+✅ Demo optimization (2s delay + alert)  
+✅ Last run timestamp updates  
+✅ Button disabled during optimization  
+✅ Error handling (try-catch)  
+
+---
+
+## 📁 DOSYA YOLLARI
+
+1. `/Users/umutyalcin/Documents/Burkol0/quote-portal/pages/quote-dashboard.html` (GÜNCELLE)
+2. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/orders/js/work-orders.js` (GÜNCELLE)
+3. `/Users/umutyalcin/Documents/Burkol0/quote-portal/domains/orders/styles/work-orders.css` (EKLE/GÜNCELLE)
+
+İŞLEMİ GERÇEKLEŞTIR.
+```
+
+UI LAYOUT:
+[APPENDIX D, Section "UI Specifications, 2. Work Order Start Popup" başlığına bakın]
+
+MODAL HTML:
+```html
+<div id="start-wo-modal" class="modal">
+  <div class="modal-content">
+    <h2>Start Work Order: <span id="wo-code"></span></h2>
+    
+    <div id="priority-section">
+      <h3>📊 Select Priority Level:</h3>
+      <div class="priority-options">
+        <label>
+          <input type="radio" name="priority" value="1">
+          <strong>Low Priority (1)</strong>
+          <p>Can be delayed if needed</p>
+        </label>
+        <label>
+          <input type="radio" name="priority" value="2" checked>
+          <strong>Normal Priority (2)</strong>
+          <p>Standard scheduling</p>
+        </label>
+        <label>
+          <input type="radio" name="priority" value="3">
+          <strong>High Priority (3)</strong>
+          <p>Prioritize in schedule</p>
+        </label>
+      </div>
+      <p class="info">ℹ️ Priority affects optimization algorithm's scheduling decisions</p>
+    </div>
+    
+    <div class="urgent-section">
+      <h3>🚨 Need immediate start?</h3>
+      <label>
+        <input type="checkbox" id="is-urgent">
+        Mark as Urgent (allows parallel execution)
+      </label>
+    </div>
+    
+    <div class="modal-actions">
+      <button class="cancel-btn">Cancel</button>
+      <button class="start-btn">Start WO</button>
+    </div>
+  </div>
+</div>
+```
+
+JAVASCRIPT LOGIC:
+```javascript
+function openStartWOModal(workOrderCode) {
+  const modal = document.getElementById('start-wo-modal');
+  document.getElementById('wo-code').textContent = workOrderCode;
+  
+  // Hardcode: Show priority section only in optimization mode
+  const schedulingMode = 'optimized';  // TODO: Get from settings
+  document.getElementById('priority-section').style.display = 
+    schedulingMode === 'optimized' ? 'block' : 'none';
+  
+  modal.style.display = 'block';
+}
+
+document.querySelector('.start-btn').addEventListener('click', () => {
+  const priority = document.querySelector('input[name="priority"]:checked').value;
+  const isUrgent = document.getElementById('is-urgent').checked;
+  
+  console.log('🚀 Starting WO with:', { priority, isUrgent });
+  alert(`WO started with priority ${priority}, urgent: ${isUrgent}`);
+  
+  closeModal();
+});
+```
+
+TEST CHECKLIST:
+✅ Modal açılıyor
+✅ Priority selector görünür (optimization mode)
+✅ Default priority = 2 (Normal)
+✅ isUrgent checkbox çalışıyor
+✅ Start butonu console log gösteriyor
+✅ Cancel butonu modal'ı kapatıyor
+
+İŞLEMİ GERÇEKLEŞTIR.
+```
+
+---
+
+## 📊 PROMPT Summary & Execution Order
+
+### **Core Launch Operations Fixes (PROMPT 1-12)**
+
+**Group 1: Foundation (PROMPT 1-3)**
+```
+PROMPT 1: Node ID Normalization ⭐ MUTLAKA İLK!
+├─ Bağımlılık: YOK
+├─ Öncelik: 🔴 CRITICAL
+└─ Süre: ~10 dakika
+
+PROMPT 2: Malzeme Alan İsmi Tutarsızlığı
+├─ Bağımlılık: PROMPT 1
+├─ Öncelik: 🔴 CRITICAL
+└─ Süre: ~5 dakika
+
+PROMPT 3: stationSchedule → substationSchedule Refactoring
+├─ Bağımlılık: PROMPT 1
+├─ Öncelik: 🔴 CRITICAL
+└─ Süre: ~10 dakika
+```
+
+**Group 2: Schema & Validation (PROMPT 4)**
+```
+PROMPT 4: SubstationId Schema + isUrgent Field
+├─ Bağımlılık: PROMPT 1, 2, 3
+├─ Öncelik: 🔴 CRITICAL
+└─ Süre: ~15 dakika
+```
+
+**Group 3: Urgent System (PROMPT 5-7)**
+```
+PROMPT 5: Urgent Backend Endpoint
+├─ Bağımlılık: PROMPT 4
+├─ Öncelik: 🟡 MEDIUM
+└─ Süre: ~12 dakika
+
+PROMPT 6: Urgent Frontend Button
+├─ Bağımlılık: PROMPT 5
+├─ Öncelik: 🟡 MEDIUM
+└─ Süre: ~15 dakika
+
+PROMPT 7: Worker Portal canStart Logic
+├─ Bağımlılık: PROMPT 5, 6
+├─ Öncelik: 🟡 MEDIUM
+└─ Süre: ~20 dakika
+```
+
+**Group 4: Material & Fixes (PROMPT 8-10)**
+```
+PROMPT 8: Malzeme Rezervasyon + Transaction Fix
+├─ Bağımlılık: PROMPT 1-7
+├─ Öncelik: 🔴 CRITICAL
+└─ Süre: ~45 dakika
+
+PROMPT 9: Frontend-Backend Schema Sync
+├─ Bağımlılık: PROMPT 4
+├─ Öncelik: 🟡 MEDIUM
+└─ Süre: ~30 dakika
+
+PROMPT 10: Pause/Cancel Resource Management
+├─ Bağımlılık: YOK
+├─ Öncelik: 🔴 CRITICAL
+└─ Süre: ~15 dakika
+```
+
+**Group 5: Scheduling System (PROMPT 11-12)**
+```
+PROMPT 11: Scheduling System Refactoring ⭐ Optimization Foundation!
+├─ Bağımlılık: PROMPT 1, 4, 9
+├─ Öncelik: 🔴 CRITICAL
+├─ Süre: ~25 dakika
+└─ Değişiklikler:
+    ├─ priorityIndex kaldırıldı
+    ├─ expectedStart eklendi (FIFO)
+    ├─ priority (1-3) eklendi (Optimization weight)
+    ├─ optimizedIndex, optimizedStart eklendi (future)
+    └─ Worker Portal sorting güncellendi
+
+PROMPT 12: Component Schema Updates
+├─ Bağımlılık: PROMPT 9
+├─ Öncelik: 🟢 LOW
+└─ Süre: ~8 dakika
+```
+
+---
+
+### **Optimization Module UI (PROMPT 13-16)** *(APPENDIX D)*
+
+**⚠️ ÖNEMLİ:** Bu prompt'lar APPENDIX D'de detaylı açıklanmıştır. PROMPT 1-12 tamamlandıktan sonra implement edilmelidir.
+
+```
+PROMPT 13: Production Settings UI (Non-Functional)
+├─ Bağımlılık: PROMPT 11
+├─ Öncelik: 🟡 MEDIUM
+├─ Süre: ~60 dakika
+├─ Nerede: APPENDIX D - Section "UI Prompts"
+└─ İçerik: Scheduling mode toggle, optimization settings
+
+PROMPT 14: Production Mode Cache System ⭐ Phase 2'de ÖNCE BU!
+├─ Bağımlılık: PROMPT 13
+├─ Öncelik: 🔴 CRITICAL (Phase 2)
+├─ Süre: ~30 dakika
+├─ Nerede: APPENDIX D - Section "UI Prompts"
+└─ İçerik: Global cache, 1x Firestore query, reactive updates
+
+PROMPT 15: Work Order Priority Popup (Conditional)
+├─ Bağımlılık: PROMPT 14 ⚠️
+├─ Öncelik: 🟡 MEDIUM
+├─ Süre: ~40 dakika
+├─ Nerede: APPENDIX D - Section "UI Prompts"
+└─ İçerik: FIFO=direct start, Optimization=priority selection
+
+PROMPT 16: Manual Optimize Button (Conditional)
+├─ Bağımlılık: PROMPT 14 ⚠️
+├─ Öncelik: 🟢 LOW
+├─ Süre: ~30 dakika
+├─ Nerede: APPENDIX D - Section "UI Prompts"
+└─ İçerik: Visible only in optimization mode, reactive
+```
+
+---
+
+### **Execution Matrix**
+
+| Phase | Prompts | Paralel? | Toplam Süre | Tamamlanma |
+|-------|---------|----------|-------------|------------|
+| **FAZ 1: Foundation** | 1, 2, 3 | Hayır (sıralı) | ~25 dk | ✅ COMPLETED |
+| **FAZ 2: Schema** | 4 | - | ~15 dk | ✅ COMPLETED |
+| **FAZ 3: Urgent** | 5→6→7 | Hayır (sıralı) | ~47 dk | ✅ COMPLETED |
+| **FAZ 4: Material** | 8 | - | ~45 dk | ✅ COMPLETED |
+| **FAZ 5: Fixes** | 9, 10, 12 | 9→12 sıralı, 10 bağımsız | ~53 dk | ✅ COMPLETED |
+| **FAZ 6: Scheduling** | 11 | - | ~25 dk | ⬜ NOT STARTED |
+| **Phase 2: UI Cache** | 14 | - | ~30 dk | ⬜ NOT STARTED |
+| **Phase 2: UI** | 13, 15, 16 | 15+16 paralel (14'ten sonra) | ~130 dk | ⬜ NOT STARTED |
+
+**Toplam:** ~370 dakika (~6 saat)
+
+---
+
+### **Bağımlılık Grafiği (Detaylı)**
+
+```
+        START
+          │
+    ┌─────┴─────┐
+    │  PROMPT 1 │ ⭐ MUTLAKA İLK!
+    └─────┬─────┘
+          │
+    ┌─────┴──────────┐
+    │                │
+    ▼                ▼
+┌────────┐      ┌────────┐
+│ PROMPT │      │ PROMPT │
+│   2    │      │   3    │
+└───┬────┘      └───┬────┘
+    │               │
+    └───────┬───────┘
+            ▼
+      ┌─────────┐
+      │ PROMPT  │
+      │    4    │
+      └────┬────┘
+           │
+    ┌──────┼──────────────┐
+    │      │              │
+    ▼      ▼              ▼
+┌───────┐ ┌──────┐   ┌───────┐
+│PROMPT │ │PROMPT│   │PROMPT │
+│   5   │ │  9   │   │  11   │ ← Optimization Foundation
+└───┬───┘ └──┬───┘   └───────┘
+    │        │
+    ▼        ▼
+┌───────┐ ┌──────┐
+│PROMPT │ │PROMPT│
+│   6   │ │  12  │
+└───┬───┘ └──────┘
+    │
+    ▼
+┌───────┐
+│PROMPT │
+│   7   │
+└───┬───┘
+    │
+    ▼
+┌───────┐    ┌───────┐
+│PROMPT │    │PROMPT │
+│   8   │    │  10   │ ← Bağımsız
+└───────┘    └───────┘
+
+    ↓ PHASE 2 ↓
+
+┌───────────┐
+│ PROMPT 11 │ Complete
+└─────┬─────┘
+      │
+┌─────┴─────┐
+│ PROMPT 13 │ Settings UI
+└─────┬─────┘
+      │
+┌─────┴──────┐
+│ PROMPT 14  │ ⭐ Cache System (ÖNCE BU!)
+└─────┬──────┘
+      │
+   ┌──┴───┐
+   │      │
+   ▼      ▼
+┌──────┐ ┌──────┐
+│PROMPT│ │PROMPT│
+│  15  │ │  16  │ ← Paralel yapılabilir
+└──────┘ └──────┘
+```
+
+---
+
+### **Critical Path (En Kısa Süre)**
+
+Sadece kritik bugfix'ler için minimum yol:
+
+```
+PROMPT 1 (10dk) → PROMPT 4 (15dk) → PROMPT 8 (45dk) → PROMPT 10 (15dk)
+= 85 dakika (~1.5 saat)
+```
+
+Tüm sistem için:
+```
+1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 11 → 14 → 15 → 16
+= ~295 dakika (~5 saat)
+```
+
+---
+
+### **Implementation Recommendations**
+
+**Scenario 1: Emergency Bugfix (Production Down)**
+```
+Sadece: PROMPT 1, 8, 10
+Süre: ~70 dakika
+Sonuç: Transaction fix + resource management fix
+```
+
+**Scenario 2: Full Bugfix (No Optimization)**
+```
+PROMPT 1-10, 12
+Süre: ~210 dakika (~3.5 saat)
+Sonuç: Tüm bugfix'ler + schema cleanup
+```
+
+**Scenario 3: Complete System (With Optimization UI)**
+```
+PROMPT 1-12, 14-16 (13 opsiyonel)
+Süre: ~310 dakika (~5 saat)
+Sonuç: Tam sistem + optimization hazırlığı
+```
+
+---
+
+## 🔍 Testing Strategy
+
+### Manual Test Scenarios
+
+**Test 1: FIFO Mode (Default)**
+```
+1. Set schedulingMode = 'fifo'
+2. Launch new work order
+3. Check Firestore:
+   - expectedStart: set ✅
+   - priority: 2 (default) ✅
+   - optimizedIndex: null ✅
+   - schedulingMode: 'fifo' ✅
+4. Open Worker Portal:
+   - Tasks sorted by expectedStart ✅
+   - No "optimized" badge ✅
+   - Only earliest task has active start button ✅
+5. Mark task as urgent:
+   - Start button becomes active ✅
+```
+
+**Test 2: Optimization Mode (Future)**
+```
+1. Set schedulingMode = 'optimized'
+2. Launch new work order with priority = 3 (High)
+3. Click "Optimize Schedule Now"
+4. Check Firestore:
+   - optimizedIndex: calculated ✅
+   - optimizedStart: calculated ✅
+   - schedulingMode: 'optimized' ✅
+5. Open Worker Portal:
+   - Tasks sorted by optimizedStart ✅
+   - "🎯 Optimized" badge visible ✅
+   - Priority badge shows "HIGH" ✅
+```
+
+**Test 3: Mode Switching**
+```
+1. Start with FIFO mode, launch WO-001
+2. Switch to Optimization mode
+3. Launch WO-002 with priority = 3
+4. Click "Optimize Schedule Now"
+5. Verify:
+   - WO-001 still uses expectedStart (FIFO) ✅
+   - WO-002 uses optimizedStart (Optimized) ✅
+   - Worker Portal shows mixed badges ✅
+```
+
+---
+
+## 📝 Key Decisions & Rationale
+
+### 1. Why Dual-Mode System?
+**Decision:** Support both FIFO and Optimization modes  
+**Rationale:**
+- Gradual adoption: Users can test optimization without commitment
+- Flexibility: Different production scenarios need different strategies
+- Safety: FIFO is proven, optimization is experimental
+
+### 2. Why Separate optimizedIndex vs expectedStart?
+**Decision:** Keep FIFO baseline (expectedStart) even in optimization mode  
+**Rationale:**
+- Rollback capability: Can revert to FIFO if optimization fails
+- Comparison: Can analyze optimization effectiveness
+- Transparency: Users see both original and optimized schedules
+
+### 3. Why priority ≠ isUrgent?
+**Decision:** Separate priority (weight) from isUrgent (UI control)  
+**Rationale:**
+- Priority: Strategic decision (affects optimization algorithm)
+- isUrgent: Tactical decision (immediate need, bypasses queue)
+- Both can coexist: High priority + urgent = top of queue
+
+### 4. Why Auto-Calculation with Working Hours Constraint?
+**Decision:** Allow optimization only outside working hours (optional)  
+**Rationale:**
+- Performance: Optimization can be CPU-intensive
+- Stability: Avoid disrupting active workers
+- Predictability: Changes happen during off-hours
+
+### 5. Why Cache Production Mode?
+**Decision:** Load mode once at startup, store in memory  
+**Rationale:**
+- Performance: Eliminates repeated Firestore queries (1 query vs N queries)
+- Responsiveness: Synchronous access (no await needed)
+- Consistency: All components see same mode without race conditions
+- Cost: Reduces Firestore read operations dramatically
+
+---
+
+## 🚀 Next Steps
+
+### ✅ COMPLETED:
+1. ✅ PROMPT 11 updated (priorityIndex → expectedStart + priority system)
+2. ✅ APPENDIX D created (full optimization module spec)
+3. ✅ PROMPT 14 added (Production Mode Cache System)
+4. ✅ PROMPT 15 added (Conditional Priority Popup)
+5. ✅ PROMPT 16 added (Conditional Optimize Button)
+
+### Immediate (Phase 2 - UI Implementation):
+**⚠️ IMPLEMENTATION ORDER:**
+1. **PROMPT 14 (Cache System)** ← START HERE!
+   - Global state module
+   - App startup integration
+   - Foundation for 15 & 16
+   
+2. **PROMPT 15 (Priority Popup)**
+   - Depends on: PROMPT 14
+   - FIFO mode: Direct start
+   - Optimization mode: Priority selection
+   
+3. **PROMPT 16 (Optimize Button)**
+   - Depends on: PROMPT 14
+   - Conditional visibility
+   - Reactive updates
+   
+4. **PROMPT 13 (Settings UI)** ← Low priority
+   - Admin interface
+   - Can be done last
+   - Non-critical for MVP
+
+### Short-term (Phase 3 - Backend Engine):
+1. ⬜ Research scheduling algorithms (WSPT, EDD, Critical Ratio, etc.)
+2. ⬜ Design dependency graph builder
+3. ⬜ Implement priority weight system
+4. ⬜ Create API endpoint: POST `/api/mes/optimize-schedule`
+5. ⬜ Build optimization scheduler service (cron job)
+6. ⬜ Add optimization event logging
+
+### Long-term (Phase 4 - Advanced Features):
+1. ⬜ A/B testing: FIFO vs Optimization effectiveness
+2. ⬜ Machine learning: Learn from historical data
+3. ⬜ Advanced constraints: Skill matching, setup time optimization
+4. ⬜ Real-time optimization: Adapt to changes dynamically
+5. ⬜ Mobile Worker Portal: Push notifications for schedule changes
+6. ⬜ Analytics Dashboard: Optimization metrics and KPIs
+
+---
+
+## 📊 Performance Metrics (Expected)
+
+### Before Cache System:
+- Firestore queries per work order start: **3-5 queries**
+  - 1x settings/production (check mode)
+  - 1x workOrders collection (get WO data)
+  - 1x plans collection (get plan data)
+  - 1-2x additional validation queries
+- Total daily queries (100 WO starts): **300-500 queries**
+
+### After Cache System (PROMPT 14):
+- Firestore queries per work order start: **2-3 queries**
+  - ✅ 0x settings/production (cached!)
+  - 1x workOrders collection
+  - 1x plans collection
+  - 0-1x validation queries
+- Total daily queries (100 WO starts): **200-300 queries**
+- **Savings: 33-40% reduction in Firestore reads**
+
+### Cost Impact:
+- Firestore pricing: $0.36 per 100K reads
+- Daily savings (100 queries): ~$0.000036
+- Monthly savings (3000 queries): **~$0.001 (1 cent per month)**
+- **Real benefit: Responsiveness & consistency, not cost**
+
+---
+
+**Son Güncelleme:** 18 Kasım 2025  
+**Yazar:** GitHub Copilot (Claude Sonnet 4.5)  
+**Versiyon:** v2.0 - Production Mode Cache System Added
