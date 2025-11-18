@@ -1,9 +1,10 @@
 // Knex Configuration for BeePlan Database Migrations
 // This file configures database connections and migration settings
 
-require('dotenv').config();
+import dotenv from 'dotenv';
+dotenv.config();
 
-module.exports = {
+export default {
   development: {
     client: 'pg',
     connection: {
