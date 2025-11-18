@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Download, Zap } from 'lucide-react'
+import { Plus, Download, Zap } from '../../../shared/components/Icons.jsx'
 import AddOrderModal from './AddOrderModal.jsx'
 import OrdersFilters from './OrdersFilters.jsx'
 import { fetchWithTimeout, withAuth } from '../../../shared/lib/api.js'

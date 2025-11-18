@@ -8,7 +8,7 @@ import {
   Clock,
   CheckCircle,
   Users,
-} from 'lucide-react';
+} from '../../../shared/components/Icons.jsx';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';

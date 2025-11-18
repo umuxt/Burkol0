@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
-import { Plus, Download } from 'lucide-react'
+import { Plus, Download } from '../../../shared/components/Icons.jsx'
 import SuppliersTable from './SuppliersTable'
 import AddSupplierModal from './AddSupplierModal'
 import SuppliersFilters from './SuppliersFilters'

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Settings as SettingsIcon, Plus, Pencil, Trash2, Save, X } from "lucide-react";
+import { SettingsIcon, Plus, Pencil, Trash2, Save, X } from "../../../shared/components/Icons.jsx";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../../shared/components/ui/card";
 import { Button } from "../../../shared/components/ui/button";
 import { Input } from "../../../shared/components/ui/input";

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Package, Users, ShoppingCart } from 'lucide-react'
+import { Package, Users, ShoppingCart } from '../../../shared/components/Icons.jsx'
 
 export default function MaterialsTabs({ children, activeTab, onTabChange }) {
   // Eğer prop'lar verilmemişse internal state kullan (backward compatibility)

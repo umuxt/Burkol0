@@ -48,6 +48,8 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
 
   return React.createElement(React.Fragment, null,
     React.createElement(FormBuilderCompact, {
+      formConfig,
+      onSave: saveFormConfig,
       isDarkMode: false,
       t,
       showNotification,

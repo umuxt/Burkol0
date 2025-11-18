@@ -7,12 +7,12 @@ import {
   Users,
   Clock,
   Trash2,
-  Settings,
+  SettingsIcon as Settings,
   Grid3x3,
   GripVertical,
   Package,
   CheckCircle2,
-} from "lucide-react";
+} from "../../../shared/components/Icons.jsx";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../shared/components/ui/card";
 import { Button } from "../../../shared/components/ui/button";
 import { Input } from "../../../shared/components/ui/input";

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { Plus, Download, Trash2 } from 'lucide-react'
+import { Plus, Download, Trash2 } from '../../../shared/components/Icons.jsx'
 import MaterialsDashboard from './MaterialsDashboard.jsx'
 import MaterialsFilters from './MaterialsFilters.jsx'
 import MaterialsTable from './MaterialsTable.jsx'

@@ -1,4 +1,4 @@
-import { FileText, Rocket } from "lucide-react";
+import { FileText, Rocket } from "../../../shared/components/Icons.jsx";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../../shared/components/ui/card";
 import { Alert, AlertDescription } from "../../../shared/components/ui/alert";
 

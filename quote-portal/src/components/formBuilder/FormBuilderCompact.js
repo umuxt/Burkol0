@@ -7,7 +7,7 @@ import { FormBuilderUtils } from './FormBuilderUtils.js'
 
 const { useState, useEffect, useMemo } = React;
 
-export function FormBuilderCompact({ isDarkMode, t, showNotification, renderHeaderActions }) {
+export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNotification, renderHeaderActions }) {
   const [fields, setFields] = useState([])
   const [editingField, setEditingField] = useState(null)
   const [isFieldEditorOpen, setIsFieldEditorOpen] = useState(false)
@@ -19,11 +19,19 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification, renderHead
   })
   const [savedFields, setSavedFields] = useState([])
 
-  // Load saved form configuration on mount
+  // Load form configuration from prop or API
   useEffect(() => {
     console.log('FormBuilderUtils.fieldTypes:', FormBuilderUtils.fieldTypes)
-    loadFormConfig()
-  }, [])
+    if (formConfig) {
+      // Use formConfig from props if available
+      setFields(formConfig.fields || [])
+      setSavedFields(formConfig.fields || [])
+      setFormSettings(formConfig.settings || formSettings)
+    } else {
+      // Otherwise load from API
+      loadFormConfig()
+    }
+  }, [formConfig])
 
   // Memoize header buttons to prevent infinite re-renders
   const headerButtons = useMemo(() => {
@@ -199,23 +207,36 @@ export function FormBuilderCompact({ isDarkMode, t, showNotification, renderHead
         lastModified: new Date().toISOString()
       }
       
-      // Save both to API and localStorage (as backup)
-      const result = await API.saveFormConfig(config)
-      localStorage.setItem('formBuilder_config', JSON.stringify({
-        fields,
-        settings: formSettings,
-        savedAt: new Date().toISOString()
-      }))
-      
       setSavedFields([...fields])
       
-      if (result.structuralChange) {
-        showNotification(
-          `Form yapılandırması kaydedildi. ${result.quotesMarkedForUpdate || 0} teklif fiyat güncellemesi için işaretlendi.`, 
-          'success'
-        )
+      // Use onSave prop if available, otherwise use API directly
+      if (onSave && typeof onSave === 'function') {
+        const result = await onSave(config)
+        if (result && result.structuralChange) {
+          showNotification(
+            `Form yapılandırması kaydedildi. ${result.quotesMarkedForUpdate || 0} teklif fiyat güncellemesi için işaretlendi.`, 
+            'success'
+          )
+        } else {
+          showNotification('Form yapılandırması kaydedildi', 'success')
+        }
       } else {
-        showNotification('Form yapılandırması kaydedildi', 'success')
+        // Fallback to API if no onSave prop
+        const result = await API.saveFormConfig(config)
+        localStorage.setItem('formBuilder_config', JSON.stringify({
+          fields,
+          settings: formSettings,
+          savedAt: new Date().toISOString()
+        }))
+        
+        if (result.structuralChange) {
+          showNotification(
+            `Form yapılandırması kaydedildi. ${result.quotesMarkedForUpdate || 0} teklif fiyat güncellemesi için işaretlendi.`, 
+            'success'
+          )
+        } else {
+          showNotification('Form yapılandırması kaydedildi', 'success')
+        }
       }
     } catch (error) {
       console.error('Form kaydedilirken hata:', error)
