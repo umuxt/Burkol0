@@ -6394,6 +6394,47 @@ function adjustStartTimeForSchedule(startTime, scheduleBlocks) {
 }
 
 /**
+ * Get default work schedule for a given day
+ * Used when worker has no personalSchedule or personalSchedule.blocks is empty
+ * 
+ * @param {string} dayName - Day name (lowercase: monday, tuesday, etc.)
+ * @returns {Array} - Array of schedule blocks: [{ type: 'work'|'break', start: 'HH:MM', end: 'HH:MM' }]
+ */
+function getDefaultWorkSchedule(dayName) {
+  const defaultSchedules = {
+    monday: [
+      { type: 'work', start: '08:00', end: '12:00' },
+      { type: 'break', start: '12:00', end: '13:00' },
+      { type: 'work', start: '13:00', end: '17:00' }
+    ],
+    tuesday: [
+      { type: 'work', start: '08:00', end: '12:00' },
+      { type: 'break', start: '12:00', end: '13:00' },
+      { type: 'work', start: '13:00', end: '17:00' }
+    ],
+    wednesday: [
+      { type: 'work', start: '08:00', end: '12:00' },
+      { type: 'break', start: '12:00', end: '13:00' },
+      { type: 'work', start: '13:00', end: '17:00' }
+    ],
+    thursday: [
+      { type: 'work', start: '08:00', end: '12:00' },
+      { type: 'break', start: '12:00', end: '13:00' },
+      { type: 'work', start: '13:00', end: '17:00' }
+    ],
+    friday: [
+      { type: 'work', start: '08:00', end: '12:00' },
+      { type: 'break', start: '12:00', end: '13:00' },
+      { type: 'work', start: '13:00', end: '16:00' }
+    ],
+    saturday: [],  // Hafta sonu çalışmıyor
+    sunday: []     // Hafta sonu çalışmıyor
+  };
+  
+  return defaultSchedules[dayName.toLowerCase()] || [];
+}
+
+/**
  * Helper function: Calculate end time considering breaks and work schedule
  * Skips break periods and non-work hours when calculating task duration
  * 
@@ -6834,9 +6875,22 @@ async function assignNodeResources(
   
   // Get worker's schedule blocks for the start day
   let scheduleBlocks = [];
+  const dayName = startTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+  
+  // Use personal schedule if exists and has blocks, otherwise use default
   if (selectedWorker.personalSchedule && selectedWorker.personalSchedule.blocks) {
-    const dayName = startTime.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
-    scheduleBlocks = selectedWorker.personalSchedule.blocks[dayName] || [];
+    const dayBlocks = selectedWorker.personalSchedule.blocks[dayName];
+    if (Array.isArray(dayBlocks) && dayBlocks.length > 0) {
+      scheduleBlocks = dayBlocks;
+    } else {
+      // Personal schedule exists but this day is empty, use default
+      scheduleBlocks = getDefaultWorkSchedule(dayName);
+      console.log(`⏰ Worker ${selectedWorker.id} has no blocks for ${dayName}, using default schedule`);
+    }
+  } else {
+    // No personal schedule, use default
+    scheduleBlocks = getDefaultWorkSchedule(dayName);
+    console.log(`⏰ Worker ${selectedWorker.id} has no personalSchedule, using default schedule`);
   }
   
   // Adjust start time to next valid work block if needed
