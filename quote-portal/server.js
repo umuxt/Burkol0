@@ -10,20 +10,20 @@ import { readFileSync, existsSync } from 'fs'
 import { fileURLToPath } from 'url'
 import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
-import { setupMaterialsRoutes } from './server/materialsRoutes.js'
+// Materials routes - TEMPORARILY DISABLED (pending PostgreSQL migration)
+// import { setupMaterialsRoutes } from './server/materialsRoutes.js'
 // TODO: Migrate orders routes to PostgreSQL (still uses Firebase)
 // import { ordersRoutes } from './server/ordersRoutes.js'
-// TODO: Migrate suppliers routes to PostgreSQL
-// import {
-//     getAllSuppliers,
-//     addSupplier,
-//     updateSupplier,
-//     deleteSupplier,
-//     getSuppliersByCategory,
-//     addMaterialToSupplier,
-//     getSuppliersForMaterial,
-//     getMaterialsForSupplier
-// } from './server/suppliersRoutes.js';
+import {
+    getAllSuppliers,
+    addSupplier,
+    updateSupplier,
+    deleteSupplier,
+    getSuppliersByCategory,
+    addMaterialToSupplier,
+    getSuppliersForMaterial,
+    getMaterialsForSupplier
+} from './server/suppliersRoutes.js'
 import {
     getMaterialCategories,
     createMaterialCategory,
@@ -142,7 +142,15 @@ app.use('/api/price-settings', ensureCoreRoutes)
 app.use('/api/form-fields', ensureCoreRoutes)
 app.use('/api/form-config', ensureCoreRoutes)
 app.use('/api/form-fields', ensureCoreRoutes)
-setupMaterialsRoutes(app)
+
+// Materials routes - TEMPORARILY DISABLED (pending PostgreSQL migration)
+// setupMaterialsRoutes(app)
+
+// Temporary materials endpoints - return empty arrays until migration
+app.get('/api/materials', (req, res) => res.json([]))
+app.get('/api/materials/active', (req, res) => res.json([]))
+app.get('/api/materials/all', (req, res) => res.json([]))
+
 // TODO: Re-enable after migrating to PostgreSQL
 // app.use('/api', ordersRoutes)
 
@@ -183,16 +191,15 @@ try {
   console.warn('⚠️ Migration routes not initialized:', e?.message)
 }
 
-// TODO: Re-enable after migrating to PostgreSQL
-// Setup suppliers routes
-// app.get('/api/suppliers', getAllSuppliers)
-// app.post('/api/suppliers', addSupplier)
-// app.patch('/api/suppliers/:id', updateSupplier)
-// app.delete('/api/suppliers/:id', deleteSupplier)
-// app.get('/api/suppliers/category/:category', getSuppliersByCategory)
-// app.post('/api/suppliers/:supplierId/materials', addMaterialToSupplier)
-// app.get('/api/materials/:materialId/suppliers', getSuppliersForMaterial)
-// app.get('/api/suppliers/:supplierId/materials', getMaterialsForSupplier)
+// Setup suppliers routes (PostgreSQL)
+app.get('/api/suppliers', getAllSuppliers)
+app.post('/api/suppliers', addSupplier)
+app.patch('/api/suppliers/:id', updateSupplier)
+app.delete('/api/suppliers/:id', deleteSupplier)
+app.get('/api/suppliers/category/:category', getSuppliersByCategory)
+app.post('/api/suppliers/:supplierId/materials', addMaterialToSupplier)
+app.get('/api/materials/:materialId/suppliers', getSuppliersForMaterial)
+app.get('/api/suppliers/:supplierId/materials', getMaterialsForSupplier)
 
 // Setup material categories CRUD routes (PostgreSQL)
 app.get('/api/material-categories', getMaterialCategories)

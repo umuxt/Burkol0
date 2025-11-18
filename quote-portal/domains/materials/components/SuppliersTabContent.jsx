@@ -103,12 +103,12 @@ export default function SuppliersTabContent({
 
   // Filter suppliers based on all filters
   const filteredSuppliers = suppliers.filter(supplier => {
-    console.log('📊 Filtering supplier:', supplier.companyName, 'with filters:', filters);
+    console.log('📊 Filtering supplier:', supplier.name, 'with filters:', filters);
     // Search filter
     const searchMatch = !filters.search || 
-      supplier.companyName?.toLowerCase().includes(filters.search.toLowerCase()) ||
+      supplier.name?.toLowerCase().includes(filters.search.toLowerCase()) ||
       supplier.category?.toLowerCase().includes(filters.search.toLowerCase()) ||
-      supplier.contactPerson?.toLowerCase().includes(filters.search.toLowerCase()) ||
+      supplier.contact_person?.toLowerCase().includes(filters.search.toLowerCase()) ||
       supplier.code?.toLowerCase().includes(filters.search.toLowerCase());
 
     // Status filter
