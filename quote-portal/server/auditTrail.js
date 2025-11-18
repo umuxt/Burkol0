@@ -1,4 +1,5 @@
-import { updateSession, getDb } from './auth.js'
+import { updateSession } from './auth.js'
+import db from '../db/connection.js'
 
 export async function auditSessionActivity(req, activity = {}) {
   try {
@@ -15,9 +16,12 @@ export async function auditSessionActivity(req, activity = {}) {
     }
 
     const entry = {
-      performedBy: performer,
+      performed_by: performer,
       timestamp: activity.timestamp || new Date().toISOString(),
-      ...activity
+      action: activity.action || null,
+      details: activity.details || null,
+      ip_address: req.ip || null,
+      user_agent: req.get('user-agent') || null
     }
 
     // Update session activity log in memory (append)
@@ -26,15 +30,11 @@ export async function auditSessionActivity(req, activity = {}) {
       activityLog: [entry]
     })
 
-    // Best-effort: persist audit entry to Firestore (audit_logs)
+    // Persist audit entry to PostgreSQL (audit_logs)
     try {
-      const db = getDb()
-      // Prefer snake_case collection; keep compatibility with camelCase by also mirroring
-      await db.collection('audit_logs').add(entry)
-      // Optional mirror write for legacy readers
-      try { await db.collection('auditLogs').add(entry) } catch {}
+      await db('audit_logs').insert(entry)
     } catch (err) {
-      console.warn('[auditTrail] Firestore write failed:', err?.message)
+      console.warn('[auditTrail] PostgreSQL write failed:', err?.message)
     }
   } catch (error) {
     console.error('Audit session activity error:', error)

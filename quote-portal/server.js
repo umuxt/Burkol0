@@ -12,25 +12,26 @@ import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
 import { setupMaterialsRoutes } from './server/materialsRoutes.js'
 import { ordersRoutes } from './server/ordersRoutes.js'
-import {
-    getAllSuppliers,
-    addSupplier,
-    updateSupplier,
-    deleteSupplier,
-    getSuppliersByCategory,
-    addMaterialToSupplier,
-    getSuppliersForMaterial,
-    getMaterialsForSupplier
-} from './server/suppliersRoutes.js';
-import {
-    getMaterialCategories,
-    createMaterialCategory,
-    updateMaterialCategory,
-    deleteMaterialCategory,
-    getMaterialCategoryUsage
-} from './server/materialCategoriesRoutes.js';
+// TODO: Migrate these routes to PostgreSQL
+// import {
+//     getAllSuppliers,
+//     addSupplier,
+//     updateSupplier,
+//     deleteSupplier,
+//     getSuppliersByCategory,
+//     addMaterialToSupplier,
+//     getSuppliersForMaterial,
+//     getMaterialsForSupplier
+// } from './server/suppliersRoutes.js';
+// import {
+//     getMaterialCategories,
+//     createMaterialCategory,
+//     updateMaterialCategory,
+//     deleteMaterialCategory,
+//     getMaterialCategoryUsage
+// } from './server/materialCategoriesRoutes.js';
 import { addMigrationRoutes } from './server/migrationRoutes.js'
-import admin from 'firebase-admin'
+import { testConnection } from './db/connection.js'
 import dotenv from 'dotenv'
 
 // Load environment variables
@@ -39,57 +40,19 @@ dotenv.config()
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Initialize Firebase Admin SDK if it hasn't been initialized yet
-if (!admin.apps.length) {
-  let credential;
-  
-  // Try to use environment variables first (recommended for production)
-  if (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PROJECT_ID) {
-    console.log('🔑 Using Firebase credentials from environment variables')
-    const serviceAccount = {
-      type: process.env.FIREBASE_TYPE || "service_account",
-      project_id: process.env.FIREBASE_PROJECT_ID,
-      private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-      client_email: process.env.FIREBASE_CLIENT_EMAIL,
-      client_id: process.env.FIREBASE_CLIENT_ID,
-      auth_uri: process.env.FIREBASE_AUTH_URI || "https://accounts.google.com/o/oauth2/auth",
-      token_uri: process.env.FIREBASE_TOKEN_URI || "https://oauth2.googleapis.com/token",
-      auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_X509_CERT_URL || "https://www.googleapis.com/oauth2/v1/certs",
-      client_x509_cert_url: process.env.FIREBASE_CLIENT_X509_CERT_URL,
-      universe_domain: process.env.FIREBASE_UNIVERSE_DOMAIN || "googleapis.com"
-    }
-    credential = admin.credential.cert(serviceAccount)
+// Test PostgreSQL connection on startup
+console.log('🔌 Testing PostgreSQL connection...')
+testConnection().then(success => {
+  if (success) {
+    console.log('✅ PostgreSQL connection successful')
   } else {
-    // Fallback to config/serviceAccountKey.json file (development only)
-    const serviceAccountPath = path.join(__dirname, 'config/serviceAccountKey.json')
-    if (existsSync(serviceAccountPath)) {
-      console.log('🔑 Using Firebase credentials from config/serviceAccountKey.json')
-      const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'))
-      credential = admin.credential.cert(serviceAccount)
-    } else {
-      console.error('❌ Firebase credentials not found!')
-      console.error('Please either:')
-      console.error('1. Set environment variables (recommended for production)')
-      console.error('2. Create config/serviceAccountKey.json file (development only)')
-      process.exit(1)
-    }
+    console.error('❌ PostgreSQL connection failed - check your .env file')
+    process.exit(1)
   }
-  
-  admin.initializeApp({
-    credential: credential
-  })
-  
-  // Set Firestore settings with timeout
-  const db = admin.firestore()
-  db.settings({
-    ignoreUndefinedProperties: true,
-    // Add timeout settings to prevent hanging
-    preferRest: true
-  })
-  
-  console.log('🔥 Firebase Admin SDK initialized successfully')
-}
+}).catch(err => {
+  console.error('❌ PostgreSQL connection error:', err.message)
+  process.exit(1)
+})
 
 // Configure JSX MIME type
 mime.types['jsx'] = 'application/javascript'
@@ -218,22 +181,23 @@ try {
   console.warn('⚠️ Migration routes not initialized:', e?.message)
 }
 
+// TODO: Re-enable after migrating to PostgreSQL
 // Setup suppliers routes
-app.get('/api/suppliers', getAllSuppliers)
-app.post('/api/suppliers', addSupplier)
-app.patch('/api/suppliers/:id', updateSupplier)
-app.delete('/api/suppliers/:id', deleteSupplier)
-app.get('/api/suppliers/category/:category', getSuppliersByCategory)
-app.post('/api/suppliers/:supplierId/materials', addMaterialToSupplier)
-app.get('/api/materials/:materialId/suppliers', getSuppliersForMaterial)
-app.get('/api/suppliers/:supplierId/materials', getMaterialsForSupplier)
+// app.get('/api/suppliers', getAllSuppliers)
+// app.post('/api/suppliers', addSupplier)
+// app.patch('/api/suppliers/:id', updateSupplier)
+// app.delete('/api/suppliers/:id', deleteSupplier)
+// app.get('/api/suppliers/category/:category', getSuppliersByCategory)
+// app.post('/api/suppliers/:supplierId/materials', addMaterialToSupplier)
+// app.get('/api/materials/:materialId/suppliers', getSuppliersForMaterial)
+// app.get('/api/suppliers/:supplierId/materials', getMaterialsForSupplier)
 
 // Setup material categories CRUD routes
-app.get('/api/material-categories', getMaterialCategories)
-app.post('/api/material-categories', createMaterialCategory)
-app.put('/api/material-categories/:id', updateMaterialCategory)
-app.delete('/api/material-categories/:id', deleteMaterialCategory)
-app.get('/api/material-categories/:id/usage', getMaterialCategoryUsage)
+// app.get('/api/material-categories', getMaterialCategories)
+// app.post('/api/material-categories', createMaterialCategory)
+// app.put('/api/material-categories/:id', updateMaterialCategory)
+// app.delete('/api/material-categories/:id', deleteMaterialCategory)
+// app.get('/api/material-categories/:id/usage', getMaterialCategoryUsage)
 
 
 // Expose migration management API routes used by admin tooling

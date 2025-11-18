@@ -2,7 +2,7 @@
 import crypto from 'crypto'
 import { 
   createUser, verifyUser, createSession, deleteSession, getSession, requireAuth, hashPassword,
-  upsertUser, getAllSessions, updateSession, deleteSessionById, listUsersRaw, listUsersFromFirebase, listSessionsFromFirebase, getUserByEmail
+  upsertUser, getAllSessions, updateSession, deleteSessionById, listUsersRaw, listUsersFromDatabase, listSessionsFromDatabase, getUserByEmail
 } from './auth.js'
 import auditSessionActivity from './auditTrail.js'
 
@@ -267,13 +267,13 @@ export function setupAuthRoutes(app) {
     }
 
     try {
-      // Firebase'den session verilerini çek
-      const firebaseSessions = await listSessionsFromFirebase()
+      // PostgreSQL'den session verilerini çek
+      const dbSessions = await listSessionsFromDatabase()
       // Memory'deki mevcut session'ları da ekle
       const memorySessions = getAllSessions()
       
       // İki listeyi birleştir
-      const allSessions = [...firebaseSessions, ...memorySessions]
+      const allSessions = [...dbSessions, ...memorySessions]
       
       res.json({ sessions: allSessions })
     } catch (error) {
@@ -311,7 +311,7 @@ export function setupAuthRoutes(app) {
   // List users endpoint
   app.get('/api/auth/users', requireAuth, async (req, res) => {
     try {
-      const users = await listUsersFromFirebase()
+      const users = await listUsersFromDatabase()
       // Şifreleri frontend'e gönder (sadece plain-text olanları)
       const safeUsers = users.map(user => ({
         email: user.email,

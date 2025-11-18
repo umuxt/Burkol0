@@ -626,21 +626,16 @@ function App() {
 
   useEffect(() => {
     async function checkLogin() {
-      // TEMPORARY BYPASS - Firebase credentials expired
-      setLoggedIn(true); // Always set logged in
-      return;
-      
-      // Original code (commented out):
-      // try {
-      //   const token = localStorage.getItem('bk_admin_token');
-      //   if (token) {
-      //     await API.me();
-      //     setLoggedIn(true);
-      //   }
-      // } catch (e) {
-      //   localStorage.removeItem('bk_admin_token');
-      //   setLoggedIn(false);
-      // }
+      try {
+        const token = localStorage.getItem('bk_admin_token');
+        if (token) {
+          await API.me();
+          setLoggedIn(true);
+        }
+      } catch (e) {
+        localStorage.removeItem('bk_admin_token');
+        setLoggedIn(false);
+      }
     }
     if (PAGE === 'admin') {
       checkLogin();

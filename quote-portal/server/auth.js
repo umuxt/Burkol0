@@ -1,18 +1,8 @@
-// Authentication system - User management and session handling with Firestore
+// Authentication system - User management and session handling with PostgreSQL
 import crypto from 'crypto'
-import admin from 'firebase-admin'
-
-// Firestore database instance
-let db
-export function getDb() {
-  if (!db) {
-    if (!admin.apps.length) {
-      try { admin.initializeApp() } catch {}
-    }
-    db = admin.firestore()
-  }
-  return db
-}
+import * as Users from '../db/models/users.js'
+import * as Sessions from '../db/models/sessions.js'
+import db from '../db/connection.js'
 
 // In-memory cache for sessions and system config
 const memory = {
@@ -34,55 +24,7 @@ export function createUser(email, password, role = 'admin') {
 }
 
 export async function verifyUser(email, password) {
-  try {
-    // Firestore'dan kullanıcıyı al
-    const usersSnapshot = await getDb().collection('users').where('email', '==', email).get()
-    
-    if (usersSnapshot.empty) {
-      console.log('❌ User not found:', email)
-      return null
-    }
-    
-    const userDoc = usersSnapshot.docs[0]
-    const user = userDoc.data()
-    
-    // Kullanıcının aktif olup olmadığını kontrol et
-    if (user.active === false) {
-      return { error: 'account_deactivated', message: 'Hesabınız devre dışı bırakılmış.' }
-    }
-    
-    // Plain password kontrolü (admin panel kullanıcıları için)
-    if (user.plainPassword && user.plainPassword === password) {
-      console.log('✅ User verified with plain password:', email)
-      return { 
-        id: userDoc.id,
-        email: user.email, 
-        role: user.role || 'admin',
-        name: user.name || user.email
-      }
-    }
-    
-    // Hash-based authentication
-    if (user.pw_hash && user.pw_salt) {
-      const { hash } = hashPassword(password, user.pw_salt)
-      if (hash === user.pw_hash) {
-        console.log('✅ User verified with hash:', email)
-        return { 
-          id: userDoc.id,
-          email: user.email, 
-          role: user.role || 'admin',
-          name: user.name || user.email
-        }
-      }
-    }
-    
-    console.log('❌ Invalid password for user:', email)
-    return null
-    
-  } catch (error) {
-    console.error('❌ Error verifying user:', error)
-    return null
-  }
+  return await Users.verifyUserCredentials(email, password, hashPassword);
 }
 
 // Session management
@@ -118,16 +60,15 @@ export async function createSession(email, days = 7) {
   const loginTime = new Date()
   const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000)
   
-  // Get user info for session from Firestore
+  // Get user info for session from PostgreSQL
   let userName = email.split('@')[0] // fallback
-  let workerId = null // Worker ID if user is a worker
+  let workerId = null
   
   try {
-    const usersSnapshot = await getDb().collection('users').where('email', '==', email).get()
-    if (!usersSnapshot.empty) {
-      const userData = usersSnapshot.docs[0].data()
-      userName = userData.name || userData.email?.split('@')[0] || userName
-      workerId = userData.workerId || null // Extract workerId if exists
+    const user = await Users.getUserByEmail(email)
+    if (user) {
+      userName = user.name || user.email?.split('@')[0] || userName
+      workerId = user.worker_id || null
     }
   } catch (error) {
     console.warn('Warning: Could not fetch user details for session:', error.message)
@@ -159,13 +100,13 @@ export async function createSession(email, days = 7) {
     token,
     userName,
     email,
-    workerId, // Include workerId in session
+    workerId,
     loginTime: loginTime.toISOString(),
-    loginDate: loginTime.toISOString().split('T')[0], // YYYY-MM-DD format
+    loginDate: loginTime.toISOString().split('T')[0],
     expires: expires.toISOString(),
     lastActivityAt: loginTime.toISOString(),
-    isActive: true, // Session aktif durumda
-    logoutTime: null, // Henüz çıkış yapılmamış
+    isActive: true,
+    logoutTime: null,
     activityLog: [loginActivity]
   }
   
@@ -173,24 +114,13 @@ export async function createSession(email, days = 7) {
   memory.sessions.set(token, sessionData)
   memory.sessionsById.set(sessionId, sessionData)
   
-  // Persist to Firestore (best-effort)
+  // Persist to PostgreSQL (best-effort)
   try {
-    await getDb().collection('sessions').doc(sessionId).set({
-      sessionId,
-      token,
-      email,
-      userName,
-      workerId, // Persist workerId to Firestore
-      loginTime: sessionData.loginTime,
-      loginDate: sessionData.loginDate,
-      expires: sessionData.expires,
-      lastActivityAt: sessionData.lastActivityAt,
-      isActive: true,
-      logoutTime: null
-    }, { merge: true })
+    await Sessions.createSession(sessionData)
   } catch (err) {
-    console.warn('[auth] Failed to persist session to Firestore:', err?.message)
+    console.warn('[auth] Failed to persist session to PostgreSQL:', err?.message)
   }
+  
   return token
 }
 
@@ -220,8 +150,8 @@ export function deleteSession(token) {
     if (session) memory.sessionsById.delete(session.sessionId)
     memory.sessions.delete(token)
     if (session && session.sessionId) {
-      // Best-effort Firestore delete
-      getDb().collection('sessions').doc(session.sessionId).delete().catch(() => {})
+      // Best-effort PostgreSQL delete
+      Sessions.deleteSessionById(session.sessionId).catch(() => {})
     }
   }
 }
@@ -282,13 +212,11 @@ export async function updateSession(sessionData) {
   }
   memory.sessionsById.set(sessionData.sessionId, merged)
   
-  // Best-effort Firestore update
+  // Best-effort PostgreSQL update
   try {
-    const patch = { ...sessionData }
-    if (patch.activityLog) delete patch.activityLog
-    await getDb().collection('sessions').doc(sessionData.sessionId).set(patch, { merge: true })
+    await Sessions.updateSession(sessionData.sessionId, sessionData)
   } catch (err) {
-    console.warn('[auth] Failed to update session in Firestore:', err?.message)
+    console.warn('[auth] Failed to update session in PostgreSQL:', err?.message)
   }
 }
 
@@ -299,8 +227,8 @@ export function deleteSessionById(sessionId) {
     memory.sessions.delete(tokenEntry[0])
   }
   const ok = memory.sessionsById.delete(sessionId)
-  // Best-effort Firestore delete
-  getDb().collection('sessions').doc(sessionId).delete().catch(() => {})
+  // Best-effort PostgreSQL delete
+  Sessions.deleteSessionById(sessionId).catch(() => {})
   return ok
 }
 
@@ -308,70 +236,36 @@ export function listUsersRaw() {
   return Array.from(memory.users.values())
 }
 
-export async function listUsersFromFirebase() {
+export async function listUsersFromDatabase() {
   try {
-    const usersSnapshot = await getDb().collection('users').get()
-    const users = []
-    
-    usersSnapshot.forEach(doc => {
-      const userData = doc.data()
-      users.push({
-        id: doc.id,
-        email: userData.email,
-        role: userData.role || 'admin',
-        active: userData.active !== false,
-        createdAt: userData.createdAt,
-        deactivatedAt: userData.deactivatedAt,
-        plainPassword: userData.plainPassword,
-        name: userData.name || userData.email,
-        pw_hash: userData.pw_hash,
-        pw_salt: userData.pw_salt
-      })
-    })
-    
-    console.log(`📋 Loaded ${users.length} users from Firebase`)
-    return users
+    const users = await Users.getAllUsers()
+    console.log(`📋 Loaded ${users.length} users from PostgreSQL`)
+    return users.map(user => ({
+      id: user.id,
+      email: user.email,
+      role: user.role || 'admin',
+      active: user.active !== false,
+      createdAt: user.created_at,
+      deactivatedAt: user.deactivated_at,
+      plainPassword: user.plain_password,
+      name: user.name || user.email,
+      pw_hash: user.pw_hash,
+      pw_salt: user.pw_salt,
+      workerId: user.worker_id
+    }))
   } catch (error) {
-    console.error('❌ Error loading users from Firebase:', error)
+    console.error('❌ Error loading users from PostgreSQL:', error)
     throw error
   }
 }
 
-export async function listSessionsFromFirebase() {
+export async function listSessionsFromDatabase() {
   try {
-    const db = getDb()
-    // Primary: sessions collection
-    const sessionsSnap = await db.collection('sessions').orderBy('lastActivityAt', 'desc').limit(200).get()
-    const sessions = sessionsSnap.docs.map(doc => ({ sessionId: doc.id, ...(doc.data() || {}) }))
-
-    // Enrich with audit logs (support both names)
-    const auditCollections = ['audit_logs', 'auditLogs']
-    let audits = []
-    for (const coll of auditCollections) {
-      try {
-        const snap = await db.collection(coll).orderBy('timestamp', 'desc').limit(200).get()
-        audits = audits.concat(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      } catch {}
-    }
-    if (audits.length) {
-      const latestBySession = new Map()
-      for (const a of audits) {
-        const sid = a?.performedBy?.sessionId
-        if (!sid) continue
-        const prev = latestBySession.get(sid)
-        if (!prev || (a.timestamp > prev.timestamp)) latestBySession.set(sid, a)
-      }
-      for (const s of sessions) {
-        if (!s.lastActivityAt && latestBySession.has(s.sessionId)) {
-          s.lastActivityAt = latestBySession.get(s.sessionId).timestamp
-        }
-      }
-    }
-
-    console.log(`📋 Loaded ${sessions.length} sessions from Firestore`)
+    const sessions = await Sessions.getAllSessions()
+    console.log(`📋 Loaded ${sessions.length} sessions from PostgreSQL`)
     return sessions
   } catch (error) {
-    console.error('❌ Error loading sessions from Firebase:', error)
+    console.error('❌ Error loading sessions from PostgreSQL:', error)
     throw error
   }
 }
