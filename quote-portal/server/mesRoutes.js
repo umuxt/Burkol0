@@ -1203,7 +1203,10 @@ router.get('/approved-quotes', withAuth, async (req, res) => {
 router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
     const { quoteId } = req.body || {}
+    console.log(`🔍 [ENSURE] Starting WO creation for quote: ${quoteId}`)
+    
     if (!quoteId) {
+      console.log('❌ [ENSURE] No quoteId provided')
       return { success: false, error: 'quoteId_required' }
     }
 
@@ -1211,28 +1214,40 @@ router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
     const col = db.collection('mes-approved-quotes')
 
     // Already exists?
+    console.log(`🔍 [ENSURE] Checking if WO already exists for quote: ${quoteId}`)
     const existsSnap = await col.where('quoteId', '==', quoteId).limit(1).get()
     if (!existsSnap.empty) {
-      return { success: true, ensured: true, workOrderCode: existsSnap.docs[0].id }
+      const existingCode = existsSnap.docs[0].id
+      console.log(`ℹ️ [ENSURE] WO already exists: ${existingCode}`)
+      return { success: true, ensured: true, workOrderCode: existingCode }
     }
 
     // Load quote from jsondb
+    console.log(`🔍 [ENSURE] Loading quote from jsondb: ${quoteId}`)
     const quote = jsondb.getQuote(quoteId)
     if (!quote) {
+      console.log(`❌ [ENSURE] Quote not found in jsondb: ${quoteId}`)
       const e = new Error('quote_not_found'); e.status = 404; throw e
     }
+    console.log(`✅ [ENSURE] Quote loaded: ${quote.id} | Status: ${quote.status}`)
+    
     const st = String(quote.status || '').toLowerCase()
     if (!(st === 'approved' || st === 'onaylandı' || st === 'onaylandi')) {
+      console.log(`❌ [ENSURE] Quote not approved. Status: ${quote.status}`)
       return { success: false, error: 'quote_not_approved', status: quote.status || null }
     }
 
     // Delivery date required to ensure approved quote is usable in MES
     if (!quote.deliveryDate || String(quote.deliveryDate).trim() === '') {
+      console.log(`❌ [ENSURE] Delivery date missing`)
       return { success: false, error: 'delivery_date_required' }
     }
+    console.log(`✅ [ENSURE] Delivery date: ${quote.deliveryDate}`)
 
     // Generate next WO code using centralized counter
+    console.log(`🔢 [ENSURE] Generating WO code...`)
     const code = await generateWorkOrderCode(db);
+    console.log(`✅ [ENSURE] Generated WO code: ${code}`)
 
     const approvedDoc = {
       workOrderCode: code,
@@ -1249,7 +1264,10 @@ router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
       quoteSnapshot: quote
     }
 
+    console.log(`💾 [ENSURE] Saving WO to Firestore: ${code}`)
     await col.doc(code).set(approvedDoc, { merge: true })
+    console.log(`✅ [ENSURE] WO successfully created: ${code} for quote ${quoteId}`)
+    
     return { success: true, ensured: true, workOrderCode: code }
   }, res)
 })
