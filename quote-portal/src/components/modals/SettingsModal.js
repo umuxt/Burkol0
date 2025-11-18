@@ -1,13 +1,10 @@
-// Compact Settings Modal - Modular tab-based settings interface
+// Compact Settings Modal - User management settings interface
 import React from 'react';
-import PricingManager from '../../../domains/quotes/components/PricingManager.jsx'
-import FormManager from '../../../domains/quotes/components/FormManager.jsx'
 import UsersTab from '../settings/UsersTab.jsx'
 
-const { useState, useEffect } = React;
+const { useEffect } = React;
 
-function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, initialTab = 'pricing' }) {
-  const [activeTab, setActiveTab] = useState(initialTab) // 'pricing' | 'form' | 'users'
+function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification }) {
 
   // Body scroll lock on mount/unmount
   useEffect(() => {
@@ -35,7 +32,7 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification,
     },
       // Modal header
       React.createElement('div', { className: 'modal-header' },
-        React.createElement('h2', null, t.settings_title || 'Ayarlar'),
+        React.createElement('h2', null, t.settings_title || 'Kullanıcı Ayarları'),
         React.createElement('button', {
           onClick: handleClose,
           className: 'btn btn-close',
@@ -51,66 +48,9 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification,
         }, '×')
       ),
 
-      // Tab navigation
-      React.createElement('div', { className: 'tab-navigation', style: { borderBottom: '1px solid #ddd', marginBottom: '20px' } },
-        React.createElement('button', {
-          className: `tab-button ${activeTab === 'pricing' ? 'active' : ''}`,
-          onClick: () => setActiveTab('pricing'),
-          style: {
-            padding: '10px 20px',
-            border: 'none',
-            background: activeTab === 'pricing' ? '#007bff' : 'transparent',
-            color: activeTab === 'pricing' ? 'white' : '#007bff',
-            cursor: 'pointer',
-            borderRadius: '4px 4px 0 0'
-          }
-        }, 'Fiyatlandırma'),
-        
-        React.createElement('button', {
-          className: `tab-button ${activeTab === 'form' ? 'active' : ''}`,
-          onClick: () => setActiveTab('form'),
-          style: {
-            padding: '10px 20px',
-            border: 'none',
-            background: activeTab === 'form' ? '#007bff' : 'transparent',
-            color: activeTab === 'form' ? 'white' : '#007bff',
-            cursor: 'pointer',
-            borderRadius: '4px 4px 0 0',
-            marginLeft: '5px'
-          }
-        }, 'Form Yapısı'),
-
-        React.createElement('button', {
-          className: `tab-button ${activeTab === 'users' ? 'active' : ''}`,
-          onClick: () => setActiveTab('users'),
-          style: {
-            padding: '10px 20px',
-            border: 'none',
-            background: activeTab === 'users' ? '#007bff' : 'transparent',
-            color: activeTab === 'users' ? 'white' : '#007bff',
-            cursor: 'pointer',
-            borderRadius: '4px 4px 0 0',
-            marginLeft: '5px'
-          }
-        }, 'Kullanıcılar')
-      ),
-
-      // Tab content
-      React.createElement('div', { className: 'tab-content' },
-        activeTab === 'pricing' && React.createElement(PricingManager, {
-          t,
-          showNotification,
-          globalProcessing,
-          setGlobalProcessing,
-          checkAndProcessVersionUpdates
-        }),
-        
-        activeTab === 'form' && React.createElement(FormManager, {
-          t,
-          showNotification
-        }),
-
-        activeTab === 'users' && React.createElement(UsersTab, {
+      // Content
+      React.createElement('div', { className: 'modal-body' },
+        React.createElement(UsersTab, {
           t,
           showNotification
         })

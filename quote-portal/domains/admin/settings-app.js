@@ -1,8 +1,6 @@
 // Settings App - Dedicated settings interface
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import PricingManager from '../quotes/components/PricingManager.jsx'
-import FormManager from '../quotes/components/FormManager.jsx'
 import AccountTab from '../../src/components/settings/AccountTab.jsx'
 
 // Notification Hook
@@ -61,70 +59,12 @@ function NotificationContainer({ notifications, onRemove }) {
 
 // Main Settings App Component
 function SettingsApp() {
-  // URL'den veya localStorage'dan aktif sekmeyi belirle
-  function getInitialTab() {
-    // URL search params kontrolü (?tab=form)
-    const urlParams = new URLSearchParams(window.location.search)
-    const tabParam = urlParams.get('tab')
-    if (['account', 'pricing', 'form'].includes(tabParam)) {
-      return tabParam
-    }
-    
-    // URL'de hash varsa onu kullan (#form, #pricing, #account)
-    const hash = window.location.hash.replace('#', '')
-    if (['account', 'pricing', 'form'].includes(hash)) {
-      return hash
-    }
-    
-    // localStorage'dan son seçilen sekmeyi al
-    const savedTab = localStorage.getItem('burkol-settings-tab')
-    if (['account', 'pricing', 'form'].includes(savedTab)) {
-      return savedTab
-    }
-    
-    // Varsayılan olarak hesap ayarları
-    return 'account'
-  }
-  
-  const [activeTab, setActiveTab] = useState(getInitialTab) // 'account' | 'pricing' | 'form'
   const { notifications, showNotification, removeNotification } = useNotifications()
-
-  // Sayfa ilk yüklendiğinde URL hash'ini doğru sekmeye ayarla
-  useEffect(() => {
-    const currentTab = getInitialTab()
-    if (window.location.hash !== `#${currentTab}`) {
-      window.location.hash = currentTab
-    }
-  }, [])
-
-  // Sekme değiştiğinde URL ve localStorage'ı güncelle
-  function handleTabChange(newTab) {
-    setActiveTab(newTab)
-    localStorage.setItem('burkol-settings-tab', newTab)
-    window.location.hash = newTab
-  }
-
-  // URL hash değişikliklerini dinle (geri/ileri butonları için)
-  useEffect(() => {
-    function handleHashChange() {
-      const hash = window.location.hash.replace('#', '')
-      if (['account', 'pricing', 'form'].includes(hash)) {
-        setActiveTab(hash)
-        localStorage.setItem('burkol-settings-tab', hash)
-      }
-    }
-
-    window.addEventListener('hashchange', handleHashChange)
-    return () => window.removeEventListener('hashchange', handleHashChange)
-  }, [])
 
   // Simple translation object
   const t = {
     settings_title: 'Sistem Ayarları',
     account: 'Hesap Ayarları',
-    pricing: 'Fiyatlandırma',
-    form_structure: 'Form Yapısı',
-    users: 'Kullanıcılar',
     close: 'Kapat',
     save: 'Kaydet'
   }
@@ -141,37 +81,9 @@ function SettingsApp() {
       onRemove: removeNotification
     }),
 
-    // Tab navigation
-    React.createElement('div', { className: 'tab-navigation' },
-      React.createElement('button', {
-        className: `tab-button ${activeTab === 'account' ? 'active' : ''}`,
-        onClick: () => handleTabChange('account')
-      }, 'Hesap Ayarları'),
-
-      React.createElement('button', {
-        className: `tab-button ${activeTab === 'pricing' ? 'active' : ''}`,
-        onClick: () => handleTabChange('pricing')
-      }, 'Fiyatlandırma'),
-      
-      React.createElement('button', {
-        className: `tab-button ${activeTab === 'form' ? 'active' : ''}`,
-        onClick: () => handleTabChange('form')
-      }, 'Form Yapısı')
-    ),
-
-    // Tab content
+    // Content (no tabs needed, just account settings)
     React.createElement('div', { className: 'tab-content' },
-      activeTab === 'account' && React.createElement(AccountTab, {
-        t,
-        showNotification
-      }),
-
-      activeTab === 'pricing' && React.createElement(PricingManager, {
-        t,
-        showNotification
-      }),
-      
-      activeTab === 'form' && React.createElement(FormManager, {
+      React.createElement(AccountTab, {
         t,
         showNotification
       })
