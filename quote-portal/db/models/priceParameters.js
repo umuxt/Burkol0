@@ -2,19 +2,21 @@ import db from '../db.js';
 
 /**
  * PriceParameters Model
- * Manages pricing parameters and their lookup tables
+ * Manages pricing parameters
+ * Note: Lookup tables removed - prices now stored directly in form_field_options.price_value
  */
 
 class PriceParameters {
   /**
    * Create a new price parameter
    */
-  static async create({ code, name, type, fixedValue, unit, description, isActive = true }) {
+  static async create({ code, name, type, formFieldCode, fixedValue, unit, description, isActive = true }) {
     const [parameter] = await db('quotes.price_parameters')
       .insert({
         code,
         name,
         type,
+        form_field_code: formFieldCode,
         fixed_value: fixedValue,
         unit,
         description,
@@ -76,6 +78,7 @@ class PriceParameters {
       .update({
         name: updates.name,
         type: updates.type,
+        form_field_code: updates.formFieldCode,
         fixed_value: updates.fixedValue,
         unit: updates.unit,
         description: updates.description,
@@ -99,151 +102,55 @@ class PriceParameters {
   }
 
   /**
-   * Add lookup value for form-based parameter
+   * Get price value from form field option
+   * This replaces the old lookup table approach
    */
-  static async addLookup({ parameterId, formFieldCode, optionValue, priceValue, currency = 'TRY', validFrom, validTo, isActive = true }) {
-    const [lookup] = await db('quotes.price_parameter_lookups')
-      .insert({
-        parameter_id: parameterId,
-        form_field_code: formFieldCode,
-        option_value: optionValue,
-        price_value: priceValue,
-        currency,
-        valid_from: validFrom,
-        valid_to: validTo,
-        is_active: isActive,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
-      })
-      .returning('*');
-    
-    return lookup;
-  }
-
-  /**
-   * Get all lookups for a parameter
-   */
-  static async getLookups(parameterId, filters = {}) {
-    let query = db('quotes.price_parameter_lookups')
-      .where('parameter_id', parameterId);
-
-    if (filters.isActive !== undefined) {
-      query = query.where('is_active', filters.isActive);
-    }
-
-    if (filters.formFieldCode) {
-      query = query.where('form_field_code', filters.formFieldCode);
-    }
-
-    // Filter by valid date range
-    const now = new Date();
-    if (filters.validNow) {
-      query = query.where(function() {
-        this.where('valid_from', '<=', now).orWhereNull('valid_from');
-      }).where(function() {
-        this.where('valid_to', '>=', now).orWhereNull('valid_to');
-      });
-    }
-
-    const lookups = await query.orderBy('form_field_code').orderBy('option_value');
-    return lookups;
-  }
-
-  /**
-   * Get lookup value for specific form field value
-   */
-  static async getLookupValue(parameterId, formFieldCode, optionValue) {
-    const now = new Date();
-    
-    const lookup = await db('quotes.price_parameter_lookups')
+  static async getPriceFromFormOption(formFieldCode, optionValue) {
+    const option = await db('quotes.form_field_options as ffo')
+      .join('quotes.form_fields as ff', 'ff.id', 'ffo.field_id')
       .where({
-        parameter_id: parameterId,
-        form_field_code: formFieldCode,
-        option_value: optionValue,
-        is_active: true
+        'ff.field_code': formFieldCode,
+        'ffo.option_value': optionValue,
+        'ffo.is_active': true
       })
-      .where(function() {
-        this.where('valid_from', '<=', now).orWhereNull('valid_from');
-      })
-      .where(function() {
-        this.where('valid_to', '>=', now).orWhereNull('valid_to');
-      })
+      .select('ffo.price_value')
       .first();
     
-    return lookup;
+    return option?.price_value || null;
   }
 
   /**
-   * Update lookup
+   * Get all form-based parameters with their price mappings
    */
-  static async updateLookup(lookupId, updates) {
-    const [lookup] = await db('quotes.price_parameter_lookups')
-      .where('id', lookupId)
-      .update({
-        option_value: updates.optionValue,
-        price_value: updates.priceValue,
-        currency: updates.currency,
-        valid_from: updates.validFrom,
-        valid_to: updates.validTo,
-        is_active: updates.isActive,
-        updated_at: db.fn.now()
+  static async getFormBasedParameters() {
+    const parameters = await db('quotes.price_parameters as pp')
+      .where('pp.type', 'form')
+      .whereNotNull('pp.form_field_code')
+      .select('pp.*');
+
+    // For each parameter, get the associated field options with prices
+    const parametersWithPrices = await Promise.all(
+      parameters.map(async (param) => {
+        const options = await db('quotes.form_field_options as ffo')
+          .join('quotes.form_fields as ff', 'ff.id', 'ffo.field_id')
+          .where('ff.field_code', param.form_field_code)
+          .where('ffo.is_active', true)
+          .select(
+            'ffo.id',
+            'ffo.option_value',
+            'ffo.option_label',
+            'ffo.price_value'
+          )
+          .orderBy('ffo.sort_order');
+
+        return {
+          ...param,
+          priceOptions: options
+        };
       })
-      .returning('*');
-    
-    return lookup;
-  }
+    );
 
-  /**
-   * Delete lookup
-   */
-  static async deleteLookup(lookupId) {
-    const count = await db('quotes.price_parameter_lookups')
-      .where('id', lookupId)
-      .delete();
-    
-    return count > 0;
-  }
-
-  /**
-   * Get parameter with all its lookups
-   */
-  static async getWithLookups(parameterId) {
-    const parameter = await this.getById(parameterId);
-    
-    if (!parameter) {
-      return null;
-    }
-
-    const lookups = await this.getLookups(parameterId, { isActive: true, validNow: true });
-
-    return {
-      ...parameter,
-      lookups
-    };
-  }
-
-  /**
-   * Bulk create lookups for a parameter
-   */
-  static async bulkCreateLookups(parameterId, lookupsData) {
-    const lookupsToInsert = lookupsData.map(lookup => ({
-      parameter_id: parameterId,
-      form_field_code: lookup.formFieldCode,
-      option_value: lookup.optionValue,
-      price_value: lookup.priceValue,
-      currency: lookup.currency || 'TRY',
-      valid_from: lookup.validFrom,
-      valid_to: lookup.validTo,
-      is_active: lookup.isActive !== undefined ? lookup.isActive : true,
-      created_at: db.fn.now(),
-      updated_at: db.fn.now()
-    }));
-
-    const lookups = await db('quotes.price_parameter_lookups')
-      .insert(lookupsToInsert)
-      .returning('*');
-    
-    return lookups;
+    return parametersWithPrices;
   }
 }
 

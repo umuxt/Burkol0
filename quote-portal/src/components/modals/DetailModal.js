@@ -24,8 +24,12 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     
     // Initialize form with dynamic fields based on formConfig
     const initialForm = {}
-    if (formConfig && formConfig.formStructure && formConfig.formStructure.fields) {
-      formConfig.formStructure.fields.forEach(field => {
+    
+    // Support both old and new formConfig structures
+    const fields = formConfig?.formStructure?.fields || formConfig?.fields || []
+    
+    if (fields && fields.length > 0) {
+      fields.forEach(field => {
         let value = item.customFields?.[field.id] || item.customFields?.[field.id] || item[field.id] || ''
         
         // Handle special field types
@@ -48,14 +52,15 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     const initialManualPrice = override?.price ?? item.price
     setManualPriceInput(formatManualPriceInput(initialManualPrice))
     setManualNote(override?.note || '')
-  }, [item.id, item.status, item.price, item.manualOverride])
+  }, [item.id, item.status, item.price, item.manualOverride, formConfig])
   
   function setF(k, v) { 
     setForm((s) => ({ ...s, [k]: v })) 
   }
 
   function renderDetailFields() {
-    if (!formConfig || !formConfig.formStructure.fields) {
+    const formFields = formConfig?.formStructure?.fields || formConfig?.fields || []
+    if (!formFields || formFields.length === 0) {
       return []
     }
     
@@ -68,7 +73,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     )
     
     // Add dynamic fields from form config
-    formConfig.formStructure.fields.forEach(field => {
+    formFields.forEach(field => {
       
         let value = item.customFields?.[field.id] || item[field.id] || '—'
         let label = field.label || field.id
@@ -115,13 +120,14 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
   }
 
   function renderEditFields() {
-    if (!formConfig || !formConfig.formStructure.fields) {
+    const formFields = formConfig?.formStructure?.fields || formConfig?.fields || []
+    if (!formFields || formFields.length === 0) {
       return []
     }
     
     const fields = []
     
-    formConfig.formStructure.fields.forEach(field => {
+    formFields.forEach(field => {
       
         const label = field.label || field.id
         
@@ -139,8 +145,9 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     return fields
   }
 
-  function renderDetailFields() {
-    if (!formConfig || !formConfig.formStructure.fields) {
+  function renderDetailFields_OLD() {
+    const formFields = formConfig?.formStructure?.fields || formConfig?.fields || []
+    if (!formFields || formFields.length === 0) {
       return []
     }
     
@@ -211,7 +218,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     fields.push(priceField)
     
     // Add dynamic fields from form config
-    formConfig.formStructure.fields.forEach(field => {
+    formFields.forEach(field => {
       // Skip default fields that are already handled above
       const defaultFieldKeys = ['company', 'proj', 'material', 'thickness', 'qty', 'notes']
       if (defaultFieldKeys.includes(field.id)) {
@@ -693,8 +700,9 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       }
       
       // Add dynamic fields from form config
-      if (formConfig && formConfig.formStructure.fields) {
-        formConfig.formStructure.fields.forEach(field => {
+      const formFields = formConfig?.formStructure?.fields || formConfig?.fields || []
+      if (formFields && formFields.length > 0) {
+        formFields.forEach(field => {
           
             let value = form[field.id]
             
@@ -719,8 +727,9 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       }
       
       // Add dynamic fields from form config
-      if (formConfig && formConfig.formStructure.fields) {
-        formConfig.formStructure.fields.forEach(field => {
+      const formFieldsList = formConfig?.formStructure?.fields || formConfig?.fields || []
+      if (formFieldsList && formFieldsList.length > 0) {
+        formFieldsList.forEach(field => {
           
             let value = form[field.id]
             

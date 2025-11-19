@@ -1712,3 +1712,133 @@ textarea.loading {
 /* =============================================================================
    BİTİŞ - SUPPLIERS TABLE STİLLERİ
    ============================================================================= */
+
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Section headers */
+.field-editor-modal-body .section-header {
+  font-size: 14px;
+  font-weight: 600;
+  color: #000;
+  margin: 16px 0 8px 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgb(229, 231, 235);
+}
+
+/* Option controls */
+.field-editor-modal-body .option-controls {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.field-editor-modal-body .option-controls input {
+  flex: 1;
+  height: 30px;
+  padding: 3px 12px;
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 6px;
+  font-size: 13px;
+  background: #ffffff;
+  color: rgb(17, 24, 39);
+}
+
+/* Option list */
+.field-editor-modal-body .option-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-editor-modal-body .option-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  background: #f9fafb;
+  border: 1px solid rgb(229, 231, 235);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.field-editor-modal-body .option-item:hover {
+  background: #f3f4f6;
+}
+
+.field-editor-modal-body .btn-delete-option {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+}
+
+.field-editor-modal-body .btn-delete-option:hover {
+  background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* Focus states */
+.field-editor-modal-body input:focus,
+.field-editor-modal-body select:focus {
+  outline: none;
+  border-color: rgb(229, 231, 235);
+}
+
+.field-editor-modal-body input::placeholder {
+  color: rgb(156, 163, 175);
+}
+
+/* Override old styles */
+.field-editor-modal-body .form-grid,
+.field-editor-modal-body .form-column,
+.field-editor-modal-body .form-group,
+.field-editor-modal-body .checkbox-label,
+.field-editor-modal-body .checkbox-group,
+.field-editor-modal-body .flex-row,
+.field-editor-modal-body .flex-1,
+.field-editor-modal-body .form-section {
+  all: unset;
+}
+
+.field-editor-modal-body .mes-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.field-editor-modal-body .mes-btn-primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.field-editor-modal-body .mes-btn-primary:hover {
+  background: #2563eb;
+}
+
+.field-editor-modal-body .mes-btn svg {
+  width: 14px;
+  height: 14px;
+}
+  flex: 1;
+}
+
+.field-editor-modal-body input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+}

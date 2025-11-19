@@ -127,36 +127,27 @@ class PriceFormulas {
 
   /**
    * Get all parameters for a formula
+   * NOTE: price_formula_parameters table was removed in migration 021
+   * Formula parameters are now parsed from formula_expression
    */
   static async getParameters(formulaId) {
-    const parameters = await db('quotes.price_formula_parameters as pfp')
-      .where('pfp.formula_id', formulaId)
-      .join('quotes.price_parameters as pp', 'pp.id', 'pfp.parameter_id')
-      .select(
-        'pp.*',
-        'pfp.sort_order'
-      )
-      .orderBy('pfp.sort_order');
-    
-    return parameters;
+    // Return empty array - parameters are parsed from formula expression
+    // This method kept for backward compatibility
+    return [];
   }
 
   /**
    * Remove parameter from formula
+   * NOTE: This is deprecated - parameters are parsed from formula
    */
   static async removeParameter(formulaId, parameterId) {
-    const count = await db('quotes.price_formula_parameters')
-      .where({
-        formula_id: formulaId,
-        parameter_id: parameterId
-      })
-      .delete();
-    
-    return count > 0;
+    // No-op - kept for backward compatibility
+    return false;
   }
 
   /**
    * Get formula with all its parameters
+   * NOTE: Parameters returned as empty array (parsed from formula_expression instead)
    */
   static async getWithParameters(formulaId) {
     const formula = await this.getById(formulaId);
@@ -165,11 +156,10 @@ class PriceFormulas {
       return null;
     }
 
-    const parameters = await this.getParameters(formulaId);
-
+    // Parameters are now parsed from formula_expression, not stored separately
     return {
       ...formula,
-      parameters
+      parameters: []
     };
   }
 
@@ -244,6 +234,12 @@ class PriceFormulas {
       // Replace parameter codes with their values in the formula
       let evaluatedFormula = formula.formula_expression;
       
+      // Remove leading equals sign if present (Excel-style formula)
+      evaluatedFormula = evaluatedFormula.trim();
+      if (evaluatedFormula.startsWith('=')) {
+        evaluatedFormula = evaluatedFormula.substring(1).trim();
+      }
+      
       // First, replace all parameter values
       for (const [code, value] of Object.entries(parameterValues)) {
         const regex = new RegExp(`\\b${code}\\b`, 'g');
@@ -258,6 +254,30 @@ class PriceFormulas {
       }
 
       // Evaluate the expression (simple eval for now - can be replaced with safer parser)
+      console.log('📐 Evaluating formula:', {
+        original: formula.formula_expression,
+        evaluated: evaluatedFormula,
+        parameterValues
+      });
+      
+      // Check if there are any unreplaced identifiers (potential undefined variables)
+      const identifierRegex = /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g;
+      const unreplacedVars = evaluatedFormula.match(identifierRegex) || [];
+      const mathConstants = ['Math', 'PI', 'E', 'abs', 'ceil', 'floor', 'round', 'max', 'min', 'pow', 'sqrt'];
+      const hasUndefinedVars = unreplacedVars.some(v => !mathConstants.includes(v));
+      
+      if (hasUndefinedVars) {
+        console.warn('⚠️  Formula contains undefined variables:', unreplacedVars.filter(v => !mathConstants.includes(v)));
+        // Replace undefined variables with 0
+        for (const varName of unreplacedVars) {
+          if (!mathConstants.includes(varName)) {
+            const regex = new RegExp(`\\b${varName}\\b`, 'g');
+            evaluatedFormula = evaluatedFormula.replace(regex, '0');
+          }
+        }
+        console.log('📐 Formula after replacing undefined vars:', evaluatedFormula);
+      }
+      
       const totalPrice = eval(evaluatedFormula);
 
       return {
@@ -268,6 +288,12 @@ class PriceFormulas {
         calculationDetails
       };
     } catch (error) {
+      console.error('❌ Formula evaluation failed:', {
+        originalFormula: formula.formula_expression,
+        evaluatedFormula,
+        parameterValues,
+        error: error.message
+      });
       throw new Error(`Failed to evaluate formula: ${error.message}`);
     }
   }
@@ -315,7 +341,8 @@ class PriceFormulas {
           };
         });
 
-        await trx('quotes.price_formula_parameters').insert(links);
+        // NOTE: price_formula_parameters table removed - skip insert
+        // await trx('quotes.price_formula_parameters').insert(links);
       }
 
       await trx.commit();
@@ -324,6 +351,112 @@ class PriceFormulas {
       await trx.rollback();
       throw error;
     }
+  }
+
+  /**
+   * Create new version of a formula
+   */
+  static async createNewVersion(formulaId, { name, formulaExpression, description, createdBy }) {
+    const trx = await db.transaction();
+    
+    try {
+      // Get current formula
+      const currentFormula = await trx('quotes.price_formulas')
+        .where('id', formulaId)
+        .first();
+      
+      if (!currentFormula) {
+        throw new Error('Formula not found');
+      }
+
+      // Deactivate current formula
+      await trx('quotes.price_formulas')
+        .where('id', formulaId)
+        .update({ is_active: false, updated_at: db.fn.now() });
+
+      // Create new version
+      const [newFormula] = await trx('quotes.price_formulas')
+        .insert({
+          code: currentFormula.code,
+          name: name || currentFormula.name,
+          formula_expression: formulaExpression || currentFormula.formula_expression,
+          description: description || currentFormula.description,
+          version: currentFormula.version + 1,
+          is_active: true,
+          supersedes_id: formulaId,
+          created_by: createdBy,
+          created_at: db.fn.now(),
+          updated_at: db.fn.now()
+        })
+        .returning('*');
+
+      await trx.commit();
+      return newFormula;
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  /**
+   * Get all versions of a formula
+   */
+  static async getVersions(code) {
+    const versions = await db('quotes.price_formulas')
+      .where('code', code)
+      .orderBy('version', 'desc');
+    
+    return versions;
+  }
+
+  /**
+   * Activate a specific version
+   */
+  static async activateVersion(formulaId) {
+    const trx = await db.transaction();
+    
+    try {
+      // Get the formula to activate
+      const formula = await trx('quotes.price_formulas')
+        .where('id', formulaId)
+        .first();
+      
+      if (!formula) {
+        throw new Error('Formula not found');
+      }
+
+      // Deactivate all other versions with same code
+      await trx('quotes.price_formulas')
+        .where('code', formula.code)
+        .update({ is_active: false, updated_at: db.fn.now() });
+
+      // Activate this version
+      await trx('quotes.price_formulas')
+        .where('id', formulaId)
+        .update({ is_active: true, updated_at: db.fn.now() });
+
+      await trx.commit();
+      return await this.getById(formulaId);
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
+  }
+
+  /**
+   * Parse parameter codes from formula expression
+   */
+  static parseParameters(formulaExpression) {
+    // Match parameter placeholders like {param_name}
+    const regex = /{([^}]+)}/g;
+    const matches = [];
+    let match;
+    
+    while ((match = regex.exec(formulaExpression)) !== null) {
+      matches.push(match[1]);
+    }
+    
+    return [...new Set(matches)]; // Remove duplicates
   }
 }
 

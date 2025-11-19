@@ -5,19 +5,64 @@ import { FieldEditor } from './FieldEditor.js'
 import { FieldList } from './FieldList.js'
 import { FormBuilderUtils } from './FormBuilderUtils.js'
 
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 
-export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNotification, renderHeaderActions }) {
+export function FormBuilderCompact({ 
+  formConfig, 
+  onSave, 
+  isDarkMode, 
+  t, 
+  showNotification, 
+  renderHeaderActions,
+  // Versioning props
+  allTemplates = [],
+  activeTemplateId = null,
+  currentTemplateId = null,
+  isNewDraftModalOpen = false,
+  isHistoryModalOpen = false,
+  newDraftName = '',
+  onCreateDraft = () => {},
+  onSwitchTemplate = () => {},
+  onActivateTemplate = () => {},
+  onOpenNewDraftModal = () => {},
+  onCloseNewDraftModal = () => {},
+  onOpenHistoryModal = () => {},
+  onCloseHistoryModal = () => {},
+  onDraftNameChange = () => {}
+}) {
   const [fields, setFields] = useState([])
   const [editingField, setEditingField] = useState(null)
   const [isFieldEditorOpen, setIsFieldEditorOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState('builder')
   const [formSettings, setFormSettings] = useState({
     title: 'Yeni Form',
     description: '',
     submitButtonText: 'Gönder'
   })
   const [savedFields, setSavedFields] = useState([])
+  const fieldEditorRef = useRef(null)
+
+  // Close field editor when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (isFieldEditorOpen && fieldEditorRef.current && !fieldEditorRef.current.contains(event.target)) {
+        // Toast notification kontrolü - toast elementlerine tıklanırsa kapatma
+        const toastContainer = document.getElementById('toast-container')
+        if (toastContainer && toastContainer.contains(event.target)) {
+          return // Toast'a tıklandıysa modal'ı kapatma
+        }
+        
+        setIsFieldEditorOpen(false)
+        setEditingField(null)
+      }
+    }
+
+    if (isFieldEditorOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [isFieldEditorOpen])
 
   // Load form configuration from prop or API
   useEffect(() => {
@@ -36,28 +81,72 @@ export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNoti
   // Memoize header buttons to prevent infinite re-renders
   const headerButtons = useMemo(() => {
     const hasUnsavedChanges = FormBuilderUtils.hasUnsavedChanges(fields, savedFields)
+    const isViewingActive = currentTemplateId === activeTemplateId
+    const saveButtonText = isViewingActive ? 'Kaydet' : 'Sürümü Değiştir'
     
     return [
+      // New Draft button
       React.createElement('button', {
-        key: 'save',
-        onClick: saveFormConfig,
-        className: 'mes-btn mes-btn-lg mes-btn-success',
-        disabled: !hasUnsavedChanges,
+        key: 'new-draft',
+        onClick: onOpenNewDraftModal,
+        className: 'mes-btn mes-btn-lg',
         style: {
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
-          opacity: hasUnsavedChanges ? 1 : 0.5,
-          cursor: hasUnsavedChanges ? 'pointer' : 'not-allowed'
+          background: 'rgb(255, 255, 255)',
+          color: 'rgb(0, 0, 0)',
+          border: '1px solid rgb(229, 231, 235)'
         }
-      }, [
+      },
+        React.createElement('span', {
+          key: 'draft-icon',
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>' }
+        }),
+        'Yeni Taslak Oluştur'
+      ),
+
+      // History button
+      React.createElement('button', {
+        key: 'history',
+        onClick: onOpenHistoryModal,
+        className: 'mes-btn mes-btn-lg',
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          background: 'rgb(255, 255, 255)',
+          color: 'rgb(0, 0, 0)',
+          border: '1px solid rgb(229, 231, 235)'
+        }
+      },
+        React.createElement('span', {
+          key: 'history-icon',
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>' }
+        }),
+        'Geçmiş Taslaklar'
+      ),
+
+      // Save / Activate button
+      React.createElement('button', {
+        key: 'save',
+        onClick: isViewingActive ? saveFormConfig : onActivateTemplate,
+        className: 'mes-btn mes-btn-lg mes-btn-success',
+        disabled: isViewingActive && !hasUnsavedChanges,
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          opacity: (isViewingActive && !hasUnsavedChanges) ? 0.5 : 1,
+          cursor: (isViewingActive && !hasUnsavedChanges) ? 'not-allowed' : 'pointer'
+        }
+      },
         React.createElement('span', {
           key: 'save-icon',
           style: { display: 'flex', alignItems: 'center' },
           dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>' }
         }),
-        'Kaydet'
-      ]),
+        saveButtonText
+      ),
       
       React.createElement('button', {
         key: 'export',
@@ -66,18 +155,18 @@ export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNoti
         style: {
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
-          background: 'rgb(0, 0, 0)',
-          color: 'rgb(255, 255, 255)'
+          background: 'rgb(255, 255, 255)',
+          color: 'rgb(0, 0, 0)',
+          border: '1px solid rgb(229, 231, 235)'
         }
-      }, [
+      },
         React.createElement('span', {
           key: 'export-icon',
           style: { display: 'flex', alignItems: 'center' },
           dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>' }
         }),
         'Dışa Aktar'
-      ]),
+      ),
       
       React.createElement('label', {
         key: 'import',
@@ -86,44 +175,33 @@ export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNoti
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
-          background: 'rgb(0, 0, 0)',
-          color: 'rgb(255, 255, 255)'
+          background: 'rgb(255, 255, 255)',
+          color: 'rgb(0, 0, 0) !important',
+          border: '1px solid rgb(229, 231, 235)'
         }
-      }, [
+      },
         React.createElement('span', {
           key: 'import-icon',
-          style: { display: 'flex', alignItems: 'center' },
+          style: { 
+            display: 'flex', 
+            alignItems: 'center',
+            color: 'rgb(0, 0, 0)'
+          },
           dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>' }
         }),
-        'İçe Aktar',
+        React.createElement('span', {
+          key: 'import-text',
+          style: { color: 'rgb(0, 0, 0)' }
+        }, 'İçe Aktar'),
         React.createElement('input', {
           type: 'file',
           accept: '.json',
           onChange: handleImportForm,
           style: { display: 'none' }
         })
-      ]),
-      
-      React.createElement('button', {
-        key: 'clear',
-        onClick: handleClearForm,
-        className: 'mes-btn mes-btn-lg mes-btn-danger',
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }
-      }, [
-        React.createElement('span', {
-          key: 'delete-icon',
-          style: { display: 'flex', alignItems: 'center' },
-          dangerouslySetInnerHTML: { __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>' }
-        }),
-        'Temizle'
-      ])
+      )
     ]
-  }, [fields, savedFields])
+  }, [fields, savedFields, currentTemplateId, activeTemplateId])
 
   // Send header actions to parent via callback
   useEffect(() => {
@@ -197,14 +275,9 @@ export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNoti
   async function saveFormConfig() {
     try {
       const config = {
-        formStructure: {
-          title: formSettings.title,
-          description: formSettings.description,
-          submitButtonText: formSettings.submitButtonText,
-          fields: fields
-        },
-        version: Date.now(), // Simple version based on timestamp
-        lastModified: new Date().toISOString()
+        name: formSettings.title || 'Teklif Formu',
+        description: formSettings.description,
+        fields: fields
       }
       
       setSavedFields([...fields])
@@ -218,11 +291,22 @@ export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNoti
             'success'
           )
         } else {
-          showNotification('Form yapılandırması kaydedildi', 'success')
+          // Don't show notification here, FormManager will show it
+          // showNotification('Form yapılandırması kaydedildi', 'success')
         }
       } else {
-        // Fallback to API if no onSave prop
-        const result = await API.saveFormConfig(config)
+        // Fallback to API if no onSave prop (legacy support)
+        const legacyConfig = {
+          formStructure: {
+            title: formSettings.title,
+            description: formSettings.description,
+            submitButtonText: formSettings.submitButtonText,
+            fields: fields
+          },
+          version: Date.now(),
+          lastModified: new Date().toISOString()
+        }
+        const result = await API.saveFormConfig(legacyConfig)
         localStorage.setItem('formBuilder_config', JSON.stringify({
           fields,
           settings: formSettings,
@@ -248,7 +332,22 @@ export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNoti
   function handleAddNewField() {
     console.log('handleAddNewField called')
     try {
-      const newField = FormBuilderUtils.createNewField('text')
+      // Mevcut max form ve tablo sıralarını bul
+      const maxFormOrder = fields.length > 0 
+        ? Math.max(...fields.map(f => f.display?.formOrder || 0))
+        : 0
+      const maxTableOrder = fields.length > 0
+        ? Math.max(...fields.map(f => f.display?.tableOrder || 0))
+        : 0
+      
+      const newField = FormBuilderUtils.createNewField('text', {
+        display: {
+          showInTable: false,
+          showInFilter: false,
+          formOrder: maxFormOrder + 1,
+          tableOrder: maxTableOrder + 1
+        }
+      })
       console.log('New field created:', newField)
       setEditingField(newField)
       setIsFieldEditorOpen(true)
@@ -287,17 +386,155 @@ export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNoti
         return
       }
 
+      // Max sıraları bul (mevcut field hariç)
+      const otherFields = fields.filter(f => f.id !== fieldData.id)
+      const maxFormOrder = otherFields.length > 0 
+        ? Math.max(...otherFields.map(f => f.display?.formOrder || 0))
+        : 0
+      const maxTableOrder = otherFields.length > 0
+        ? Math.max(...otherFields.map(f => f.display?.tableOrder || 0))
+        : 0
+      
+      // Kullanıcının girdiği sırayı normalize et
+      let normalizedFormOrder = fieldData.display?.formOrder || (maxFormOrder + 1)
+      let normalizedTableOrder = fieldData.display?.tableOrder || (maxTableOrder + 1)
+      
+      // Max'tan büyükse max+1 yap
+      if (normalizedFormOrder > maxFormOrder + 1) {
+        normalizedFormOrder = maxFormOrder + 1
+      }
+      if (normalizedTableOrder > maxTableOrder + 1) {
+        normalizedTableOrder = maxTableOrder + 1
+      }
+      
+      // Normalize edilmiş değerleri fieldData'ya uygula
+      fieldData = {
+        ...fieldData,
+        display: {
+          ...fieldData.display,
+          formOrder: normalizedFormOrder,
+          tableOrder: normalizedTableOrder
+        }
+      }
+
       const existingIndex = fields.findIndex(f => f.id === fieldData.id)
       
       if (existingIndex >= 0) {
         // Update existing field
-        const newFields = [...fields]
-        newFields[existingIndex] = fieldData
+        const oldField = fields[existingIndex]
+        let newFields = [...fields]
+        
+        // Form sırası değiştiyse diğer alanları kaydır
+        if (oldField.display?.formOrder !== normalizedFormOrder) {
+          const oldOrder = oldField.display?.formOrder || 0
+          const newOrder = normalizedFormOrder
+          
+          newFields = newFields.map((f, idx) => {
+            if (f.id === fieldData.id) return fieldData
+            
+            const currentOrder = f.display?.formOrder || 0
+            
+            if (newOrder < oldOrder) {
+              // Yukarı taşıma - araya girenler aşağı kayacak
+              if (currentOrder >= newOrder && currentOrder < oldOrder) {
+                return {
+                  ...f,
+                  display: { ...f.display, formOrder: currentOrder + 1 }
+                }
+              }
+            } else if (newOrder > oldOrder) {
+              // Aşağı taşıma - araya girenler yukarı kayacak
+              if (currentOrder > oldOrder && currentOrder <= newOrder) {
+                return {
+                  ...f,
+                  display: { ...f.display, formOrder: currentOrder - 1 }
+                }
+              }
+            }
+            
+            return f
+          })
+        }
+        
+        // Tablo sırası değiştiyse diğer alanları kaydır
+        if (oldField.display?.tableOrder !== normalizedTableOrder) {
+          const oldOrder = oldField.display?.tableOrder || 0
+          const newOrder = normalizedTableOrder
+          
+          newFields = newFields.map((f, idx) => {
+            if (f.id === fieldData.id) {
+              // Zaten yukarıda fieldData eklenmiş, sadece tableOrder'ı güncelle
+              return {
+                ...f,
+                display: { ...f.display, tableOrder: newOrder }
+              }
+            }
+            
+            const currentOrder = f.display?.tableOrder || 0
+            
+            if (newOrder < oldOrder) {
+              // Yukarı taşıma
+              if (currentOrder >= newOrder && currentOrder < oldOrder) {
+                return {
+                  ...f,
+                  display: { ...f.display, tableOrder: currentOrder + 1 }
+                }
+              }
+            } else if (newOrder > oldOrder) {
+              // Aşağı taşıma
+              if (currentOrder > oldOrder && currentOrder <= newOrder) {
+                return {
+                  ...f,
+                  display: { ...f.display, tableOrder: currentOrder - 1 }
+                }
+              }
+            }
+            
+            return f
+          })
+        }
+        
+        // Eğer sıra değişmediyse sadece güncelle
+        if (oldField.display?.formOrder === normalizedFormOrder && 
+            oldField.display?.tableOrder === normalizedTableOrder) {
+          newFields[existingIndex] = fieldData
+        }
+        
         setFields(newFields)
         showNotification('Alan güncellendi', 'success')
       } else {
-        // Add new field
-        setFields(prev => [...prev, fieldData])
+        // Add new field - araya giriyorsa diğer alanları kaydır
+        const newFormOrder = normalizedFormOrder
+        const newTableOrder = normalizedTableOrder
+        
+        // Yeni alan eklenirken araya girenler için shifting yap
+        let newFields = fields.map(f => {
+          const currentFormOrder = f.display?.formOrder || 0
+          const currentTableOrder = f.display?.tableOrder || 0
+          
+          // Form sırası için kaydırma
+          const updatedFormOrder = currentFormOrder >= newFormOrder 
+            ? currentFormOrder + 1 
+            : currentFormOrder
+          
+          // Tablo sırası için kaydırma
+          const updatedTableOrder = currentTableOrder >= newTableOrder 
+            ? currentTableOrder + 1 
+            : currentTableOrder
+          
+          return {
+            ...f,
+            display: {
+              ...f.display,
+              formOrder: updatedFormOrder,
+              tableOrder: updatedTableOrder
+            }
+          }
+        })
+        
+        // Yeni alanı ekle
+        newFields.push(fieldData)
+        setFields(newFields)
         showNotification('Yeni alan eklendi', 'success')
       }
       
@@ -316,8 +553,28 @@ export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNoti
 
   // Reorder fields
   function handleReorderField(fromIndex, toIndex) {
-    const reorderedFields = FormBuilderUtils.reorderFields(fields, fromIndex, toIndex)
-    setFields(reorderedFields)
+    // sortedFields üzerinde çalıştığımız için önce sıralanmış listeyi al
+    const sortedFields = [...fields].sort((a, b) => {
+      const orderA = a.display?.formOrder || 0
+      const orderB = b.display?.formOrder || 0
+      return orderA - orderB
+    })
+    
+    // Sıralanmış liste üzerinde yeniden sırala
+    const reorderedFields = [...sortedFields]
+    const [movedField] = reorderedFields.splice(fromIndex, 1)
+    reorderedFields.splice(toIndex, 0, movedField)
+    
+    // formOrder'ı güncelle
+    const updatedFields = reorderedFields.map((field, index) => ({
+      ...field,
+      display: {
+        ...field.display,
+        formOrder: index + 1
+      }
+    }))
+    
+    setFields(updatedFields)
     showNotification('Alan sıralaması değiştirildi', 'info')
   }
 
@@ -384,133 +641,91 @@ export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNoti
   const formStats = FormBuilderUtils.getFormStatistics(fields)
 
   return React.createElement('div', { 
-    className: 'form-builder-container',
+    className: 'form-builder-container pricing-parameters-column',
     style: {
       display: 'flex',
       flexDirection: 'column',
-      gap: '0'
+      gap: '16px'
     }
   },
-    // Tab Navigation
+    // Header with Add Button
     React.createElement('div', { 
-      className: 'tab-navigation',
-      style: {
-        display: 'flex',
-        borderBottom: '2px solid #e5e7eb',
-        marginTop: '20px',
-        marginBottom: '0',
-        gap: '4px',
-        background: '#fff',
-        padding: '0 20px',
-        borderRadius: '6px',
-        border: '2px solid #e5e7eb'
-      }
+      style: { 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        gap: '12px',
+        position: 'relative'  // For absolute positioning of FieldEditor
+      } 
     },
-      ['builder', 'preview'].map(tab =>
-        React.createElement('button', {
-          key: tab,
-          onClick: () => setActiveTab(tab),
-          className: `tab-button ${activeTab === tab ? 'active' : ''}`,
-          style: {
-            padding: '10px 20px',
-            border: 'none',
-            backgroundColor: activeTab === tab ? '#111827' : 'transparent',
-            color: activeTab === tab ? '#fff' : '#6b7280',
-            borderBottom: activeTab === tab ? '2px solid #111827' : 'none',
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: activeTab === tab ? '600' : '500',
-            borderRadius: '6px 6px 0 0',
-            transition: 'all 0.2s'
-          }
-        }, 
-          tab === 'builder' ? 'Form Tasarımı' : 'Önizleme'
-        )
-      )
-    ),
-
-    // Tab Content
-    React.createElement('div', { 
-      className: 'tab-content',
-      style: {
-        background: '#fff',
-        border: '2px solid #e5e7eb',
-        borderRadius: '6px',
-        padding: '20px',
-        minHeight: '400px'
-      }
-    },
-      activeTab === 'builder' && React.createElement('div', { 
-        className: 'builder-content',
-        style: {
+      React.createElement('h3', { 
+        className: 'pricing-section-title',
+        style: { 
+          margin: 0,
           display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          minHeight: 'auto',
-          height: 'auto'
+          alignItems: 'center',
+          gap: '8px'
+        } 
+      },
+        React.createElement('span', {
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: {
+            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01"/><path d="M17 7h.01"/><path d="M7 17h.01"/><path d="M17 17h.01"/></svg>'
+          }
+        }),
+        'Form Alanları'
+      ),
+      
+      React.createElement('button', {
+        onClick: handleAddNewField,
+        className: 'mes-primary-action is-compact',
+        style: {
+          minWidth: 'fit-content',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px'
         }
       },
-        // Header with Add Button
-        React.createElement('div', { 
-          style: { 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            marginBottom: '8px'
-          } 
-        },
-          React.createElement('h3', { 
-            style: { 
-              margin: 0, 
-              fontSize: '16px', 
-              fontWeight: '600', 
-              color: '#111827',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            } 
-          },
-            React.createElement('span', {
-              dangerouslySetInnerHTML: {
-                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M7 7h.01"/><path d="M17 7h.01"/><path d="M7 17h.01"/><path d="M17 17h.01"/></svg>'
-              }
-            }),
-            'Form Alanları'
-          ),
-          
-          React.createElement('button', {
-            onClick: handleAddNewField,
-            className: 'mes-primary-action is-compact',
-            style: {
-              minWidth: 'fit-content',
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px'
-            }
-          }, [
-            React.createElement('span', {
-              key: 'icon',
-              style: { display: 'flex', alignItems: 'center' },
-              dangerouslySetInnerHTML: {
-                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>'
-              }
-            }),
-            React.createElement('span', { key: 'text' }, 'Yeni Alan Ekle')
-          ])
-        ),
-        
-        // Empty state or Field List
-        fields.length === 0 ? React.createElement('div', { 
-          style: { 
-            textAlign: 'center', 
-            padding: '60px 20px',
-            background: '#f9fafb',
-            border: '2px dashed #e5e7eb',
-            borderRadius: '8px',
-            marginTop: '20px'
+        React.createElement('span', {
+          key: 'icon',
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: {
+            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>'
           }
+        }),
+        React.createElement('span', { key: 'text' }, 'Yeni Alan Ekle')
+      ),
+
+      // Field Editor Modal - Dropdown style (like Parametre Ekle)
+      isFieldEditorOpen && React.createElement(FieldEditor, {
+        field: editingField,
+        allFields: fields,
+        onSave: handleSaveField,
+        onCancel: () => {
+          setIsFieldEditorOpen(false)
+          setEditingField(null)
         },
+        showNotification,
+        fieldEditorRef: fieldEditorRef
+      })
+    ),
+    
+    // Content Area
+    React.createElement('div', {
+      style: { marginTop: '20px' }
+    },
+      // Empty state or Field List
+      fields.length === 0 ? React.createElement('div', { 
+        style: { 
+          textAlign: 'center', 
+          padding: '60px 20px',
+          background: '#fff',
+          border: '1px solid #e5e7eb',
+          borderRadius: '8px',
+          marginTop: '20px'
+        }
+      },
           React.createElement('div', { 
             style: { 
               width: '48px', 
@@ -527,7 +742,7 @@ export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNoti
               margin: '0 0 8px 0', 
               fontSize: '15px', 
               fontWeight: 600, 
-              color: '#111827' 
+              color: '#000'
             } 
           }, 'Henüz Form Alanı Eklenmedi'),
           React.createElement('p', { 
@@ -542,185 +757,155 @@ export function FormBuilderCompact({ formConfig, onSave, isDarkMode, t, showNoti
           onEditField: handleEditField,
           onDeleteField: handleDeleteField,
           onDuplicateField: handleDuplicateField,
-          onReorderFields: handleReorderField
+          onReorderField: handleReorderField
         })
-      ),
-
-      activeTab === 'preview' && React.createElement(React.Fragment, null,
-        React.createElement('h3', {
-          style: {
-            marginTop: '0',
-            marginBottom: '20px',
-            paddingBottom: '10px',
-            borderBottom: '2px solid #007bff',
-            color: '#333'
-          }
-        }, 'Form Önizlemesi'),
-        
-        React.createElement('form', null,
-          ...fields.map(field => 
-            React.createElement('div', {
-              key: field.id,
-              className: 'preview-field',
-              style: {
-                marginBottom: '20px',
-                padding: '12px',
-                border: '1px solid #ddd',
-                borderRadius: '6px',
-                backgroundColor: 'white'
-              }
-            },
-              React.createElement('label', {
-                style: {
-                  display: 'block',
-                  marginBottom: '6px',
-                  fontWeight: '500',
-                  color: '#333'
-                }
-              }, field.label),
-              
-              field.type === 'text' && React.createElement('input', {
-                type: 'text',
-                placeholder: field.placeholder,
-                className: 'form-control',
-                style: {
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }
-              }),
-              
-              field.type === 'number' && React.createElement('input', {
-                type: 'number',
-                placeholder: field.placeholder,
-                min: field.validation?.min || undefined,
-                max: field.validation?.max || undefined,
-                className: 'form-control',
-                style: {
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }
-              }),
-              
-              field.type === 'textarea' && React.createElement('textarea', {
-                placeholder: field.placeholder,
-                className: 'form-control',
-                rows: 3,
-                style: {
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  resize: 'vertical'
-                }
-              }),
-              
-              field.type === 'dropdown' && React.createElement('select', {
-                className: 'form-control',
-                style: {
-                  width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }
-              },
-                React.createElement('option', { value: '' }, field.placeholder || 'Seçiniz...'),
-                ...field.options.map((option, index) =>
-                  React.createElement('option', { key: index, value: option }, option)
-                )
-              )
-            )
-          ),
-          
-          React.createElement('div', {
-            style: {
-              marginTop: '30px',
-              paddingTop: '20px',
-              borderTop: '1px solid #eee',
-              display: 'flex',
-              gap: '12px'
-            }
-          },
-            React.createElement('button', {
-              type: 'submit',
-              className: 'btn btn-primary',
-              style: {
-                backgroundColor: '#007bff',
-                color: 'white',
-                border: 'none',
-                padding: '10px 20px',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }
-            }, 'Formu Doğrula'),
-            
-            React.createElement('button', {
-              type: 'button',
-              className: 'btn btn-secondary',
-              style: {
-                backgroundColor: '#6c757d',
-                color: 'white',
-                border: 'none',
-                padding: '10px 20px',
-                borderRadius: '4px',
-                cursor: 'pointer'
-              }
-            }, 'Temizle')
-          )
-        )
-      )
     ),
 
-    // Field Editor Modal - Overlay style like PricingManager
-    isFieldEditorOpen && React.createElement('div', {
+    // New Draft Modal
+    isNewDraftModalOpen && React.createElement('div', {
       style: {
         position: 'fixed',
         top: 0,
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        background: 'rgba(0, 0, 0, 0.5)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 9999,
-        padding: '20px'
+        zIndex: 10000
       },
-      onClick: (e) => {
-        if (e.target === e.currentTarget) {
-          setIsFieldEditorOpen(false)
-          setEditingField(null)
-        }
-      }
+      onClick: onCloseNewDraftModal
     },
       React.createElement('div', {
         style: {
           background: '#fff',
+          padding: '24px',
           borderRadius: '8px',
-          maxWidth: '600px',
-          width: '100%',
-          maxHeight: '90vh',
-          overflow: 'auto',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+          width: '400px',
+          maxWidth: '90%'
         },
         onClick: (e) => e.stopPropagation()
       },
-        React.createElement(FieldEditor, {
-          field: editingField,
-          onSave: handleSaveField,
-          onCancel: () => {
-            setIsFieldEditorOpen(false)
-            setEditingField(null)
-          },
-          showNotification
-        })
+        React.createElement('h3', {
+          style: { margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }
+        }, 'Yeni Taslak Oluştur'),
+        React.createElement('input', {
+          type: 'text',
+          value: newDraftName,
+          onChange: onDraftNameChange,
+          placeholder: 'Taslak ismi girin',
+          style: {
+            width: '100%',
+            padding: '8px 12px',
+            border: '1px solid #e5e7eb',
+            borderRadius: '4px',
+            fontSize: '14px',
+            marginBottom: '16px'
+          }
+        }),
+        React.createElement('div', {
+          style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' }
+        },
+          React.createElement('button', {
+            onClick: onCloseNewDraftModal,
+            className: 'mes-btn',
+            style: { background: '#6b7280', color: '#fff' }
+          }, 'İptal'),
+          React.createElement('button', {
+            onClick: onCreateDraft,
+            className: 'mes-btn',
+            style: { background: '#3b82f6', color: '#fff' }
+          }, 'Oluştur')
+        )
+      )
+    ),
+
+    // History Modal
+    isHistoryModalOpen && React.createElement('div', {
+      style: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10000
+      },
+      onClick: onCloseHistoryModal
+    },
+      React.createElement('div', {
+        style: {
+          background: '#fff',
+          padding: '24px',
+          borderRadius: '8px',
+          width: '500px',
+          maxWidth: '90%',
+          maxHeight: '80vh',
+          overflow: 'auto'
+        },
+        onClick: (e) => e.stopPropagation()
+      },
+        React.createElement('h3', {
+          style: { margin: '0 0 16px 0', fontSize: '18px', fontWeight: 600 }
+        }, 'Geçmiş Taslaklar'),
+        React.createElement('div', {
+          style: { display: 'flex', flexDirection: 'column', gap: '8px' }
+        },
+          allTemplates.length === 0 
+            ? React.createElement('p', { 
+                style: { textAlign: 'center', color: '#6b7280', padding: '20px' } 
+              }, 'Henüz taslak bulunmuyor')
+            : allTemplates.map(template => 
+                React.createElement('div', {
+                  key: template.id,
+                  style: {
+                    padding: '12px',
+                    border: `2px solid ${template.id === currentTemplateId ? '#3b82f6' : '#e5e7eb'}`,
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    background: template.is_active ? '#f0f9ff' : '#fff',
+                    transition: 'all 0.2s'
+                  },
+                  onClick: () => onSwitchTemplate(template.id)
+                },
+                  React.createElement('div', {
+                    style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
+                  },
+                    React.createElement('div', null,
+                      React.createElement('div', {
+                        style: { fontWeight: 600, fontSize: '14px' }
+                      }, template.name),
+                      React.createElement('div', {
+                        style: { fontSize: '12px', color: '#6b7280', marginTop: '4px' }
+                      }, `Versiyon: ${template.version}`)
+                    ),
+                    template.is_active && React.createElement('span', {
+                      style: {
+                        background: '#10b981',
+                        color: '#fff',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 600
+                      }
+                    }, 'AKTİF')
+                  )
+                )
+              )
+        ),
+        React.createElement('div', {
+          style: { marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }
+        },
+          React.createElement('button', {
+            onClick: onCloseHistoryModal,
+            className: 'mes-btn',
+            style: { background: '#6b7280', color: '#fff' }
+          }, 'Kapat')
+        )
       )
     )
   )

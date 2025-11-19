@@ -1,16 +1,38 @@
-// Quotes Pricing Manager - Dynamic pricing configuration for quotes domain
+// Quotes Pricing Manager - Dynamic pricing configuration for quotes domain with versioning
 import React from 'react';
-import API from '../../../shared/lib/api.js'
+import { priceApi } from '../api/index.js'
+import { formsApi } from '../api/index.js'
 import FormulaValidator from '../../../src/components/SimpleFormulaValidator.js'
 import PricingUtils from '../lib/pricing-utils.js'
 import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'
 
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 function PricingManager({ t, showNotification, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, renderHeaderActions }) {
+  // Core pricing data
   const [parameters, setParameters] = useState([])
   const [formula, setFormula] = useState('')
-  const [userFormula, setUserFormula] = useState('') // Kullanıcı dostu formül (A, B, C...)
+  const [userFormula, setUserFormula] = useState('') // User-friendly format (A, B, C...)
+  const [idMapping, setIdMapping] = useState({ backendToUser: {}, userToBackend: {} })
+  
+  // CRITICAL: Refs to track latest formula values (state updates are async!)
+  const userFormulaRef = useRef('')
+  const formulaRef = useRef('')
+  const renderHeaderActionsRef = useRef(null)
+  
+  // Versioning states (like FormManager)
+  const [allSettings, setAllSettings] = useState([])
+  const [activeSettingId, setActiveSettingId] = useState(null)
+  const [currentSettingId, setCurrentSettingId] = useState(null)
+  const [isNewVersionModalOpen, setIsNewVersionModalOpen] = useState(false)
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
+  const [newVersionName, setNewVersionName] = useState('')
+  
+  // Form fields for parameter creation
+  const [formFields, setFormFields] = useState([])
+  const [isLoadingFields, setIsLoadingFields] = useState(true)
+  
+  // Legacy states (for backward compatibility during transition)
   const [parameterType, setParameterType] = useState('')
   const [parameterName, setParameterName] = useState('')
   const [fixedValue, setFixedValue] = useState('')
@@ -21,20 +43,10 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
   const [formulaValidation, setFormulaValidation] = useState(null)
   const [isFormulaValid, setIsFormulaValid] = useState(true)
   const [showFormulaInfo, setShowFormulaInfo] = useState(false)
-  const [idMapping, setIdMapping] = useState({ backendToUser: {}, userToBackend: {} })
-  
-  // Version management states
-  const [versions, setVersions] = useState([])
-  const [showVersionHistory, setShowVersionHistory] = useState(false)
-  const [isLoadingVersions, setIsLoadingVersions] = useState(false)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [originalData, setOriginalData] = useState({ parameters: [], formula: '' })
   
-  // Dinamik form alanları
-  const [formFields, setFormFields] = useState([])
-  const [isLoadingFields, setIsLoadingFields] = useState(true)
-  
-  // Orphan parameter kontrolü
+  // System integrity (orphan parameter checks)
   const [systemIntegrity, setSystemIntegrity] = useState({
     isValid: true,
     canSave: true,
@@ -62,7 +74,13 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
   useEffect(() => {
     loadDynamicFormFields()
     loadPriceSettings()
+    loadAllSettings()
   }, [])
+  
+  // Store renderHeaderActions in ref
+  useEffect(() => {
+    renderHeaderActionsRef.current = renderHeaderActions
+  }, [renderHeaderActions])
 
   // Track changes for unsaved indicator
   useEffect(() => {
@@ -88,14 +106,12 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
     setIsLoadingFields(true)
     try {
       console.log('🔧 DEBUG: Loading form fields...')
-      const response = await API.getFormFields()
-      console.log('🔧 DEBUG: Raw response:', response)
-      const dynamicFields = PricingUtils.extractFieldInfoFromFormConfig(response.fields)
+      const template = await formsApi.getActiveTemplate()
+      const dynamicFields = PricingUtils.extractFieldInfoFromFormConfig(template.fields || [])
       console.log('🔧 DEBUG: Processed fields:', dynamicFields)
       setFormFields(dynamicFields)
     } catch (e) {
       console.warn('⚠️ Form fields API error:', e.message)
-      // API bağlantısı yok - boş liste ile devam et
       setFormFields([])
       if (showNotification) {
         showNotification('API bağlantısı yok - Form alanları yüklenmedi', 'warning')
@@ -134,59 +150,186 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
 
   async function loadPriceSettings() {
     try {
-      const settings = await API.getPriceSettings()
-      const loadedParameters = settings.parameters || []
-      setParameters(loadedParameters)
-      setFormula(settings.formula || '')
+      const setting = await priceApi.getActiveSetting()
       
-      // ID mapping'i güncelle ve kullanıcı dostu formülü ayarla
-      const mapping = PricingUtils.createUserFriendlyIdMapping(loadedParameters)
+      if (!setting || !setting.id) {
+        console.log('No active price setting found')
+        setParameters([])
+        setFormula('')
+        setUserFormula('')
+        userFormulaRef.current = ''
+        formulaRef.current = ''
+        setOriginalData({ parameters: [], formula: '' })
+        return
+      }
+
+      setCurrentSettingId(setting.id)
+      setActiveSettingId(setting.id)
+
+      const loadedParameters = setting.parameters || []
+      const convertedParams = loadedParameters.map(p => ({
+        id: p.code,
+        name: p.name,
+        type: p.type === 'form_lookup' ? 'form' : p.type,
+        value: p.fixed_value,
+        formField: p.form_field_code
+      }))
+      
+      setParameters(convertedParams)
+
+      const formulaExpression = setting.formula?.formula_expression || ''
+      setFormula(formulaExpression)
+      formulaRef.current = formulaExpression
+      
+      const mapping = PricingUtils.createUserFriendlyIdMapping(convertedParams)
       setIdMapping(mapping)
-      const userFriendlyFormula = PricingUtils.convertFormulaToUserFriendly(settings.formula || '', mapping)
+      const userFriendlyFormula = PricingUtils.convertFormulaToUserFriendly(formulaExpression, mapping)
       setUserFormula(userFriendlyFormula)
+      userFormulaRef.current = userFriendlyFormula
       
-      // Set original data for change tracking
-      setOriginalData({ parameters: loadedParameters, formula: userFriendlyFormula })
-      
-      // Check system integrity
-      checkSystemIntegrity(loadedParameters)
+      setOriginalData({ parameters: convertedParams, formula: userFriendlyFormula })
+      checkSystemIntegrity(convertedParams)
     } catch (e) {
       console.error('Price settings load error:', e)
+      showNotification('Fiyat ayarları yüklenemedi!', 'error')
     }
+  }
+
+  async function loadAllSettings() {
+    try {
+      const settings = await priceApi.getAllSettings()
+      setAllSettings(settings)
+      console.log('📚 All price settings loaded:', settings)
+    } catch (e) {
+      console.error('Failed to load all settings:', e)
+    }
+  }
+
+  async function switchToSetting(selectedSettingId) {
+    try {
+      const setting = await priceApi.getSetting(selectedSettingId)
+      
+      setCurrentSettingId(selectedSettingId)
+
+      const loadedParameters = setting.parameters || []
+      const convertedParams = loadedParameters.map(p => ({
+        id: p.code,
+        name: p.name,
+        type: p.type === 'form_lookup' ? 'form' : p.type,
+        value: p.fixed_value,
+        formField: p.form_field_code
+      }))
+      
+      setParameters(convertedParams)
+
+      const formulaExpression = setting.formula?.formula_expression || ''
+      setFormula(formulaExpression)
+      formulaRef.current = formulaExpression
+      
+      const mapping = PricingUtils.createUserFriendlyIdMapping(convertedParams)
+      setIdMapping(mapping)
+      const userFriendlyFormula = PricingUtils.convertFormulaToUserFriendly(formulaExpression, mapping)
+      setUserFormula(userFriendlyFormula)
+      userFormulaRef.current = userFriendlyFormula
+      
+      setOriginalData({ parameters: convertedParams, formula: userFriendlyFormula })
+      checkSystemIntegrity(convertedParams)
+      
+      setIsHistoryModalOpen(false)
+      showNotification(`Sürüm ${setting.version} görüntüleniyor`, 'info')
+    } catch (e) {
+      console.error('Failed to switch setting:', e)
+      showNotification('Sürüm yüklenemedi: ' + e.message, 'error')
+    }
+  }
+
+  async function activateSetting() {
+    try {
+      if (!currentSettingId) {
+        showNotification('Aktif edilecek sürüm bulunamadı', 'error')
+        return
+      }
+
+      await priceApi.activateSetting(currentSettingId)
+      
+      setActiveSettingId(currentSettingId)
+      await loadAllSettings()
+      
+      showNotification('Fiyat ayarları aktif edildi!', 'success')
+    } catch (e) {
+      console.error('Failed to activate setting:', e)
+      showNotification('Sürüm aktif edilemedi: ' + e.message, 'error')
+    }
+  }
+
+  async function createNewDraft() {
+    // Sıfırdan yeni taslak oluştur - hiçbir şey kopyalama
+    setParameters([])
+    setFormula('')
+    setUserFormula('')
+    userFormulaRef.current = ''
+    formulaRef.current = ''
+    setIdMapping({ backendToUser: {}, userToBackend: {} })
+    setCurrentSettingId(null)
+    setOriginalData({ parameters: [], formula: '' })
+    setHasUnsavedChanges(false)
+    
+    showNotification('Yeni taslak açıldı - değişikliklerinizi yapıp kaydedin', 'info')
+  }
+
+  async function openNewDraftConfirm() {
+    if (hasUnsavedChanges) {
+      const confirm = window.confirm('Kaydedilmemiş değişiklikler var. Yeni taslak açmak istediğinizden emin misiniz?')
+      if (!confirm) return
+    }
+    createNewDraft()
   }
 
   async function savePriceSettings() {
     try {
-      // Önce sistem bütünlüğü kontrolü yap
       if (!systemIntegrity.canSave) {
         showNotification('Kaydetme işlemi engellenmiştir! Orphan parametreleri temizleyin.', 'error')
         return
       }
       
-      // Lookup tablolarında boş veya geçersiz değer var mı kontrol et
-      const hasInvalidLookup = parameters.some(p => Array.isArray(p.lookupTable) && p.lookupTable.some(it => it.value === '' || Number.isNaN(Number(it.value))))
-      if (hasInvalidLookup) {
-        showNotification('Eşleştirme tablosunda boş veya geçersiz değerler var. Lütfen tüm değerleri doldurun.', 'error')
+      const currentUserFormula = userFormulaRef.current || userFormula
+      const backendFormula = PricingUtils.convertFormulaToBackend(currentUserFormula, idMapping)
+      
+      if (!currentSettingId) {
+        // İlk kayıt - yeni setting oluştur (is_active: false başlar, kaydet ile aktif olur)
+        const newSetting = await priceApi.createSetting({
+          name: 'Fiyat Ayarları ' + new Date().toLocaleString('tr-TR'),
+          description: 'Yeni taslak',
+          parameters,
+          formula: backendFormula
+        })
+        
+        setCurrentSettingId(newSetting.id)
+        setActiveSettingId(newSetting.id) // İlk kayıtta otomatik aktif yap
+        await loadAllSettings()
+        setOriginalData({ parameters, formula: currentUserFormula })
+        setHasUnsavedChanges(false)
+        showNotification('Fiyat ayarları kaydedildi ve aktif edildi!', 'success')
         return
       }
-      // Kullanıcı formülünü backend formatına çevir
-      const backendFormula = PricingUtils.convertFormulaToBackend(userFormula, idMapping)
       
-      // Save with versioning
-      const result = await API.savePriceSettings({ parameters, formula: backendFormula })
+      // Mevcut versiyonu güncelle (is_active durumunu değiştirme)
+      console.log('🔍 Updating setting:', { 
+        settingId: currentSettingId,
+        parameters: parameters.length,
+        formula: backendFormula
+      })
       
-      // Reset change tracking after successful save
-      setOriginalData({ parameters, formula: userFormula })
+      await priceApi.updateSetting(currentSettingId, {
+        parameters,
+        formula: backendFormula
+      })
+      
+      setOriginalData({ parameters, formula: currentUserFormula })
       setHasUnsavedChanges(false)
       
-      showNotification(`Fiyat ayarları kaydedildi! (Version ${result.version})`, 'success')
+      showNotification('Fiyat ayarları kaydedildi!', 'success')
       
-      // Refresh version history if visible
-      if (showVersionHistory) {
-        loadVersionHistory()
-      }
-
-      // Check for version updates after price settings save
       if (checkAndProcessVersionUpdates && setGlobalProcessing) {
         await checkAndProcessVersionUpdates()
       }
@@ -196,49 +339,13 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
     }
   }
 
+  async function saveAsNewVersion() {
+    setIsNewVersionModalOpen(true)
+  }
+
   // VERSION MANAGEMENT FUNCTIONS
 
-  async function loadVersionHistory() {
-    setIsLoadingVersions(true)
-    try {
-      const result = await API.getPriceSettingsVersions()
-      setVersions(result.versions || [])
-    } catch (e) {
-      console.error('Failed to load version history:', e)
-      showNotification('Sürüm geçmişi yüklenemedi!', 'error')
-    } finally {
-      setIsLoadingVersions(false)
-    }
-  }
-
-  async function restoreVersion(versionId) {
-    if (!window.confirm('Bu sürümü geri yüklemek istediğinizden emin misiniz? Bu işlem yeni bir sürüm oluşturacak.')) {
-      return
-    }
-
-    try {
-      const result = await API.restorePriceSettingsVersion(versionId)
-      showNotification(`Sürüm başarıyla geri yüklendi! (Yeni Version ${result.restoredVersion})`, 'success')
-      
-      // Reload current settings
-      loadPriceSettings()
-      
-      // Refresh version history
-      if (showVersionHistory) {
-        loadVersionHistory()
-      }
-    } catch (e) {
-      console.error('Version restore failed:', e)
-      showNotification('Sürüm geri yüklenemedi!', 'error')
-    }
-  }
-
-  function toggleVersionHistory() {
-    setShowVersionHistory(!showVersionHistory)
-    if (!showVersionHistory && versions.length === 0) {
-      loadVersionHistory()
-    }
-  }
+  // REMOVED: Old version history functions - now using settings-based versioning
 
   // System integrity check
   function checkSystemIntegrity(parametersToCheck = parameters) {
@@ -345,20 +452,31 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
         `(${userLetter} → 0 ile değiştirilecek)`
       )
       
-      if (confirmRemoval) {
-        // Formülden parametreyi otomatik kaldır
-        const cleanedFormula = userFormula.replace(new RegExp(`\\b${userLetter}\\b`, 'g'), '0')
-        setUserFormula(cleanedFormula)
-        showNotification(`Formül güncellendi: ${userLetter} → 0`, 'info')
-      } else {
+      if (!confirmRemoval) {
         showNotification('Önce formülden parametreyi manuel olarak kaldırın', 'warning')
         return
       }
+      
+      // Formülü temizle
+      const cleanedFormula = userFormula.replace(new RegExp(`\\b${userLetter}\\b`, 'g'), '0')
+      
+      // Parametreyi sil ve formülü güncelle
+      const updatedParameters = parameters.filter(p => p.id !== paramId)
+      setParameters(updatedParameters)
+      
+      // Yeni ID mapping oluştur
+      const newMapping = PricingUtils.createUserFriendlyIdMapping(updatedParameters)
+      setIdMapping(newMapping)
+      
+      // Temizlenmiş formülü set et
+      setUserFormula(cleanedFormula)
+      
+      showNotification(`"${param.name}" orphan parametresi temizlendi ve formül güncellendi`, 'success')
+    } else {
+      // Formülde kullanılmıyorsa direkt sil
+      deleteParameter(paramId)
+      showNotification(`"${param.name}" orphan parametresi temizlendi`, 'success')
     }
-    
-    // Parametreyi sil
-    deleteParameter(paramId)
-    showNotification(`"${param.name}" orphan parametresi temizlendi`, 'success')
   }
 
   function resetParameterForm() {
@@ -399,11 +517,29 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
   }
 
   function handleUserFormulaChange(newUserFormula) {
+    console.log('✏️ FORMULA CHANGE:', { 
+      newValue: newUserFormula, 
+      currentState: userFormula,
+      willSetTo: newUserFormula
+    })
+    
+    // Update refs IMMEDIATELY (synchronous)
+    userFormulaRef.current = newUserFormula
+    
+    // Update state (async)
     setUserFormula(newUserFormula)
     
     // Backend formülünü güncelle
     const backendFormula = PricingUtils.convertFormulaToBackend(newUserFormula, idMapping)
+    formulaRef.current = backendFormula
     setFormula(backendFormula)
+    
+    console.log('✏️ FORMULA CONVERTED:', { 
+      userFormula: newUserFormula,
+      backendFormula,
+      idMapping,
+      refUpdated: true
+    })
   }
 
   // Row-level edit helpers removed (direct input editing used)
@@ -498,188 +634,181 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
     return idMapping.backendToUser[param.id] || String.fromCharCode(65 + index)
   }
 
-  // Render header actions if callback provided
+  // Render header actions - versioning buttons
   useEffect(() => {
-    if (renderHeaderActions) {
-      const isDisabled = !isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave
-      const shouldShowGreen = !isDisabled || hasUnsavedChanges
-      
-      renderHeaderActions([
+    const renderFn = renderHeaderActionsRef.current
+    if (!renderFn) return
+    
+    const isSaveDisabled = !hasUnsavedChanges || !isFormulaValid || parameters.length === 0 || !systemIntegrity.canSave
+    const isViewingInactive = currentSettingId && currentSettingId !== activeSettingId
+    
+    renderFn([
+      // Yeni Taslak Oluştur VEYA Aktif Hale Getir
+      isViewingInactive ? 
         React.createElement('button', {
-          key: 'save',
-          onClick: savePriceSettings,
-          className: shouldShowGreen ? 'mes-btn mes-btn-lg mes-btn-success' : 'mes-btn mes-btn-lg',
-          disabled: isDisabled,
+          key: 'activate',
+          onClick: activateSetting,
+          className: 'mes-btn mes-btn-lg mes-btn-success',
           style: { 
             display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px',
-            ...(isDisabled && hasUnsavedChanges ? { opacity: 1 } : {})
+            alignItems: 'center'
           }
         }, 
           React.createElement('span', { 
             style: { display: 'flex', alignItems: 'center' },
             dangerouslySetInnerHTML: { 
-              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>'
-            }
-          }),
-          systemIntegrity.canSave ? `Fiyat Ayarlarını Kaydet ${hasUnsavedChanges ? '●' : ''}` : 'Kaydetme Engellendi - Orphan Parametreler Mevcut'
-        ),
-        
+              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>'
+              }
+            }),
+          'Aktif Hale Getir'
+        ) :
         React.createElement('button', {
-          key: 'version',
-          onClick: toggleVersionHistory,
+          key: 'new-draft',
+          onClick: openNewDraftConfirm,
           className: 'mes-btn mes-btn-lg',
-          style: { display: 'flex', alignItems: 'center', gap: '8px', background: '#000', color: '#fff' }
-        },
+          style: { 
+            display: 'flex', 
+            alignItems: 'center',
+            background: '#fff',
+            color: '#000',
+            border: '1px solid rgb(229, 231, 235)'
+          }
+        }, 
           React.createElement('span', { 
             style: { display: 'flex', alignItems: 'center' },
             dangerouslySetInnerHTML: { 
-              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>'
-            }
-          }),
-          showVersionHistory ? 'Sürüm Geçmişini Gizle' : 'Sürüm Geçmişi'
-        )
-      ],
-      // Version history content as second parameter
-      showVersionHistory ? React.createElement('div', {
-        style: {
-          padding: '20px',
-          border: '2px solid rgb(229, 231, 235)',
-          borderRadius: '8px',
-          backgroundColor: '#fff'
-        }
-      },
-        React.createElement('h3', { 
-          style: { 
-            margin: '0 0 16px 0', 
-            fontSize: '18px', 
-            fontWeight: 'bold', 
-            color: '#000',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          } 
-        },
-          React.createElement('span', {
-            style: { display: 'flex', alignItems: 'center' },
-            dangerouslySetInnerHTML: {
-              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>'
-            }
-          }),
-          'Sürüm Geçmişi'
-        ),
-        
-        isLoadingVersions ? 
-          React.createElement('div', { 
-            style: { 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '8px',
-              color: '#000',
-              fontSize: '14px'
-            } 
-          },
-            React.createElement('span', {
-              style: { display: 'flex', alignItems: 'center' },
-              dangerouslySetInnerHTML: {
-                __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>'
+              __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>'
               }
             }),
-            'Yükleniyor...'
-          ) :
-          versions.length === 0 ? 
-            React.createElement('div', { 
-              style: { 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '8px',
-                color: '#666',
-                fontSize: '14px'
-              } 
-            },
-              React.createElement('span', {
-                style: { display: 'flex', alignItems: 'center' },
-                dangerouslySetInnerHTML: {
-                  __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>'
+          'Yeni Taslak Oluştur'
+        ),
+      
+      // Geçmiş Taslaklar
+      React.createElement('button', {
+        key: 'history',
+        onClick: () => setIsHistoryModalOpen(true),
+        className: 'mes-btn mes-btn-lg',
+        style: { 
+          display: 'flex', 
+          alignItems: 'center',
+          background: '#fff',
+          color: '#000',
+          border: '1px solid rgb(229, 231, 235)'
+        }
+      },
+        React.createElement('span', { 
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { 
+            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>'
+            }
+          }),
+        'Geçmiş Taslaklar'
+      ),
+      
+      // Kaydet butonu (yeşil, disabled when no changes)
+      React.createElement('button', {
+        key: 'save',
+        onClick: savePriceSettings,
+        className: 'mes-btn mes-btn-lg mes-btn-success',
+        disabled: isSaveDisabled,
+        style: { 
+          display: 'flex', 
+          alignItems: 'center',
+          opacity: isSaveDisabled ? '0.5' : '1',
+          cursor: isSaveDisabled ? 'not-allowed' : 'pointer'
+        }
+      }, 
+        React.createElement('span', { 
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { 
+            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>'
+            }
+          }),
+        'Kaydet'
+      ),
+      
+      // Dışa Aktar
+      React.createElement('button', {
+        key: 'export',
+        onClick: () => {
+          const exportData = {
+            parameters,
+            formula: userFormula,
+            timestamp: new Date().toISOString()
+          }
+          const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = `fiyat-ayarlari-${new Date().toISOString().split('T')[0]}.json`
+          a.click()
+          URL.revokeObjectURL(url)
+        },
+        className: 'mes-btn mes-btn-lg',
+        style: { 
+          display: 'flex', 
+          alignItems: 'center',
+          background: '#fff',
+          color: '#000',
+          border: '1px solid rgb(229, 231, 235)'
+        }
+      },
+        React.createElement('span', { 
+          style: { display: 'flex', alignItems: 'center' },
+          dangerouslySetInnerHTML: { 
+            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>'
+            }
+          }),
+        'Dışa Aktar'
+      ),
+      
+      // İçe Aktar
+      React.createElement('label', {
+        key: 'import',
+        className: 'mes-btn mes-btn-lg',
+        style: { 
+          cursor: 'pointer',
+          display: 'flex', 
+          alignItems: 'center',
+          background: '#fff',
+          border: '1px solid rgb(229, 231, 235)'
+        }
+      },
+        React.createElement('span', { 
+          style: { display: 'flex', alignItems: 'center', color: '#000' },
+          dangerouslySetInnerHTML: { 
+            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>'
+            }
+          }),
+        React.createElement('span', { style: { color: '#000' } }, 'İçe Aktar'),
+        React.createElement('input', {
+          accept: '.json',
+          type: 'file',
+          style: { display: 'none' },
+          onChange: (e) => {
+            const file = e.target.files[0]
+            if (!file) return
+            const reader = new FileReader()
+            reader.onload = (event) => {
+              try {
+                const data = JSON.parse(event.target.result)
+                if (data.parameters) setParameters(data.parameters)
+                if (data.formula) {
+                  setUserFormula(data.formula)
+                  userFormulaRef.current = data.formula
                 }
-              }),
-              'Henüz kaydedilmiş sürüm bulunmuyor.'
-            ) :
-            React.createElement('div', { style: { maxHeight: '400px', overflowY: 'auto' } },
-              ...versions.map((version, index) => 
-                React.createElement('div', {
-                  key: version.id,
-                  style: {
-                    padding: '16px',
-                    margin: '12px 0',
-                    border: '1px solid rgb(229, 231, 235)',
-                    borderRadius: '6px',
-                    backgroundColor: index === 0 ? '#f0f9ff' : '#fafafa'
-                  }
-                },
-                  React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' } },
-                    React.createElement('div', { style: { flex: 1 } },
-                      React.createElement('h4', { style: { margin: '0 0 8px 0', fontSize: '16px', fontWeight: 'bold', color: '#000', display: 'flex', alignItems: 'center', gap: '8px' } },
-                        React.createElement('span', {
-                          style: { display: 'flex', alignItems: 'center' },
-                          dangerouslySetInnerHTML: {
-                            __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
-                          }
-                        }),
-                        `Sürüm ${version.version}`,
-                        index === 0 && React.createElement('span', { style: { color: '#28a745', fontSize: '12px', fontWeight: 'normal' } }, '(Güncel)')
-                      ),
-                      React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
-                        `Tarih: ${version.timestamp ? new Date(version.timestamp).toLocaleString('tr-TR') : 'Bilinmiyor'}`
-                      ),
-                      React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
-                        `Versiyon Kodu: ${version.versionId || version.id}`
-                      ),
-                      version.userTag && React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
-                        `Kullanıcı Etiketi: ${version.userTag}`
-                      ),
-                      version.dateKey && React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
-                        `Tarih Kodu: ${version.dateKey}`
-                      ),
-                      version.dailyIndex && React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
-                        `Günlük Sıra: ${String(version.dailyIndex).padStart(2, '0')}`
-                      ),
-                      version.savedBy && React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#666' } },
-                        `Kaydeden: ${version.savedBy}`
-                      ),
-                      version.changeSummary && React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#000' } },
-                        `Özet: ${version.changeSummary}`
-                      ),
-                      React.createElement('p', { style: { margin: '4px 0', fontSize: '13px', color: '#000' } },
-                        `Parametre Sayısı: ${(version.parameters && version.parameters.length) || (version.data?.parameters?.length) || 0}`
-                      ),
-                      (version.formula || version.data?.formula) && React.createElement('p', { style: { margin: '4px 0', fontSize: '12px', color: '#666', fontFamily: 'monospace' } },
-                        `Formül: ${(version.formula || version.data?.formula || '').substring(0, 80)}${(version.formula || version.data?.formula || '').length > 80 ? '...' : ''}`
-                      )
-                    ),
-
-                    index !== 0 && React.createElement('button', {
-                      onClick: () => restoreVersion(version.id),
-                      className: 'mes-btn mes-btn-sm',
-                      style: { fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px', background: '#f59e0b', color: '#fff', flexShrink: 0 }
-                    },
-                      React.createElement('span', {
-                        style: { display: 'flex', alignItems: 'center' },
-                        dangerouslySetInnerHTML: {
-                          __html: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>'
-                        }
-                      }),
-                      'Geri Yükle'
-                    )
-                  )
-                )
-              )
-            )
-      ) : null
+                showNotification('Fiyat ayarları içe aktarıldı!', 'success')
+              } catch (e) {
+                showNotification('Dosya okunamadı: ' + e.message, 'error')
+              }
+            }
+            reader.readAsText(file)
+            e.target.value = ''
+          }
+        })
       )
-    }
-  }, [hasUnsavedChanges, systemIntegrity.canSave, isFormulaValid, parameters.length, showVersionHistory, isLoadingVersions, versions])
+    ])
+  }, [hasUnsavedChanges, isFormulaValid, parameters.length, systemIntegrity.canSave, currentSettingId, activeSettingId])
 
   return React.createElement(React.Fragment, null,
     // Two column layout
@@ -883,15 +1012,15 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
           selectedFormField && formFields.find(f => f.value === selectedFormField)?.hasOptions && 
           React.createElement('div', { className: 'form-group' },
             React.createElement('label', null, '🔗 Değer Eşleştirme Tablosu'),
-            React.createElement('div', { style: { marginBottom: '8px', fontSize: '13px', color: '#666' } },
-              'Form alanındaki seçenekler otomatik olarak listelenmiştir. Sadece değerlerini güncelleyin.'
+            React.createElement('div', { style: { marginBottom: '8px', fontSize: '13px', color: '#0066cc', backgroundColor: '#e6f2ff', padding: '8px', borderRadius: '4px' } },
+              '📝 Not: Fiyatlar artık form alanı seçeneklerinde tanımlanıyor. Fiyatları değiştirmek için Form Yönetimi sekmesini kullanın.'
             ),
             
             lookupTable.length > 0 && React.createElement('table', { className: 'table table-sm' },
               React.createElement('thead', null,
                 React.createElement('tr', null,
                   React.createElement('th', null, 'Seçenek'),
-                  React.createElement('th', null, 'Değer')
+                  React.createElement('th', null, 'Değer (Salt Okunur)')
                 )
               ),
               React.createElement('tbody', null,
@@ -902,10 +1031,11 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                       React.createElement('input', {
                         type: 'number',
                         value: entry.value === 0 ? '' : (entry.value ?? ''),
-                        onChange: (e) => updateLookupValue(index, e.target.value),
+                        readOnly: true,
                         className: 'mes-filter-input is-compact',
                         step: '0.01',
-                        style: { width: '100px' }
+                        style: { width: '100px', backgroundColor: '#f5f5f5', cursor: 'not-allowed' },
+                        title: 'Fiyatlar form alanı seçeneklerinde tanımlanıyor'
                       })
                     )
                   )
@@ -1141,13 +1271,16 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
             return React.createElement('tr', { key: param.id + '-lookup' },
               React.createElement('td', { colSpan: 5 },
                 React.createElement('div', { className: 'card', style: { marginTop: '8px' } },
-                  React.createElement('h4', null, '🔗 Değer Eşleştirme (Düzenleme)'),
+                  React.createElement('h4', null, '🔗 Değer Eşleştirme (Salt Okunur)'),
+                  React.createElement('div', { style: { marginBottom: '8px', fontSize: '13px', color: '#0066cc', backgroundColor: '#e6f2ff', padding: '8px', borderRadius: '4px' } },
+                    '📝 Not: Fiyatlar artık form alanı seçeneklerinde tanımlanıyor. Fiyatları değiştirmek için Form Yönetimi sekmesini kullanın.'
+                  ),
                   paramLookupTable && paramLookupTable.length > 0 ?
                     React.createElement('table', { className: 'table table-sm' },
                       React.createElement('thead', null,
                         React.createElement('tr', null,
                           React.createElement('th', null, 'Seçenek'),
-                          React.createElement('th', null, 'Değer')
+                          React.createElement('th', null, 'Değer (Salt Okunur)')
                         )
                       ),
                       React.createElement('tbody', null,
@@ -1158,10 +1291,11 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                               React.createElement('input', {
                                 type: 'number',
                                 value: (it.value === 0 ? '' : (it.value ?? '')),
-                                onChange: (e) => paramUpdateLookupValue(idx, e.target.value),
+                                readOnly: true,
                                 className: 'pricing-form-control',
                                 step: '0.01',
-                                style: { width: '120px' }
+                                style: { width: '120px', backgroundColor: '#f5f5f5', cursor: 'not-allowed' },
+                                title: 'Fiyatlar form alanı seçeneklerinde tanımlanıyor'
                               })
                             )
                           )
@@ -1369,7 +1503,149 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
       )
         ) // End of inner flex container
       ) // End of RIGHT COLUMN wrapper
-    ) // End of grid - close the two-column layout div
+    ), // End of grid - close the two-column layout div
+    
+    // NEW VERSION MODAL
+    isNewVersionModalOpen && React.createElement('div', {
+      style: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+      },
+      onClick: () => setIsNewVersionModalOpen(false)
+    },
+      React.createElement('div', {
+        style: {
+          background: '#fff',
+          borderRadius: '8px',
+          padding: '24px',
+          maxWidth: '500px',
+          width: '90%'
+        },
+        onClick: (e) => e.stopPropagation()
+      },
+        React.createElement('h3', { style: { margin: '0 0 16px 0' } }, 'Yeni Sürüm Oluştur'),
+        React.createElement('p', { style: { margin: '0 0 16px 0', color: '#666' } }, 
+          'Mevcut ayarlardan yeni bir sürüm oluşturulacak. Yeni sürümün adını girin:'
+        ),
+        React.createElement('input', {
+          type: 'text',
+          value: newVersionName,
+          onChange: (e) => setNewVersionName(e.target.value),
+          placeholder: 'Örn: Fiyat Ayarları v2',
+          style: {
+            width: '100%',
+            padding: '8px 12px',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            fontSize: '14px',
+            marginBottom: '16px'
+          },
+          onKeyPress: (e) => e.key === 'Enter' && createNewVersion()
+        }),
+        React.createElement('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } },
+          React.createElement('button', {
+            onClick: () => setIsNewVersionModalOpen(false),
+            className: 'mes-btn',
+            style: { background: '#fff', border: '2px solid #000', color: '#000' }
+          }, 'İptal'),
+          React.createElement('button', {
+            onClick: createNewVersion,
+            className: 'mes-btn',
+            disabled: !newVersionName.trim(),
+            style: { background: '#4F46E5', color: '#fff', border: 'none' }
+          }, 'Oluştur')
+        )
+      )
+    ),
+    
+    // HISTORY MODAL
+    isHistoryModalOpen && React.createElement('div', {
+      style: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+      },
+      onClick: () => setIsHistoryModalOpen(false)
+    },
+      React.createElement('div', {
+        style: {
+          background: '#fff',
+          borderRadius: '8px',
+          padding: '24px',
+          maxWidth: '700px',
+          width: '90%',
+          maxHeight: '80vh',
+          overflow: 'auto'
+        },
+        onClick: (e) => e.stopPropagation()
+      },
+        React.createElement('h3', { style: { margin: '0 0 16px 0' } }, 'Fiyat Ayarları Sürüm Geçmişi'),
+        allSettings.length === 0 ? React.createElement('p', { style: { color: '#666' } }, 'Henüz kayıtlı sürüm yok') :
+        React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } },
+          allSettings.map(setting =>
+            React.createElement('div', {
+              key: setting.id,
+              style: {
+                padding: '12px',
+                border: setting.id === currentSettingId ? '2px solid #4F46E5' : '1px solid #ddd',
+                borderRadius: '6px',
+                background: setting.is_active ? '#f0fdf4' : '#fff',
+                cursor: 'pointer'
+              },
+              onClick: () => switchToSetting(setting.id)
+            },
+              React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+                React.createElement('div', null,
+                  React.createElement('strong', null, setting.name),
+                  React.createElement('span', { style: { marginLeft: '8px', fontSize: '12px', color: '#666' } },
+                    `v${setting.version}`
+                  ),
+                  setting.is_active && React.createElement('span', {
+                    style: {
+                      marginLeft: '8px',
+                      padding: '2px 8px',
+                      background: '#10b981',
+                      color: '#fff',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 'bold'
+                    }
+                  }, 'AKTİF')
+                ),
+                React.createElement('div', { style: { fontSize: '12px', color: '#999' } },
+                  new Date(setting.created_at).toLocaleDateString('tr-TR')
+                )
+              ),
+              setting.description && React.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px', color: '#666' } },
+                setting.description
+              )
+            )
+          )
+        ),
+        React.createElement('div', { style: { marginTop: '16px', display: 'flex', justifyContent: 'flex-end' } },
+          React.createElement('button', {
+            onClick: () => setIsHistoryModalOpen(false),
+            className: 'mes-btn',
+            style: { background: '#000', color: '#fff', border: 'none' }
+          }, 'Kapat')
+        )
+      )
+    )
   )
 }
 

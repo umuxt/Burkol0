@@ -6,6 +6,7 @@
 
 const PARAMETERS_URL = '/api/price-parameters';
 const FORMULAS_URL = '/api/price-formulas';
+const SETTINGS_URL = '/api/price-settings';
 
 export const priceApi = {
   // ==================== PARAMETERS ====================
@@ -13,9 +14,9 @@ export const priceApi = {
   /**
    * Get all parameters
    */
-  async getParameters(withLookups = false) {
+  async getParameters(withPrices = false) {
     try {
-      const url = withLookups ? `${PARAMETERS_URL}?withLookups=true` : PARAMETERS_URL;
+      const url = withPrices ? `${PARAMETERS_URL}?withPrices=true` : PARAMETERS_URL;
       const response = await fetch(url);
       
       if (!response.ok) {
@@ -45,10 +46,10 @@ export const priceApi = {
   },
 
   /**
-   * Get parameter with lookups
+   * Get parameter with prices
    */
-  async getParameterWithLookups(id) {
-    const response = await fetch(`${PARAMETERS_URL}/${id}/with-lookups`);
+  async getParameterWithPrices(id) {
+    const response = await fetch(`${PARAMETERS_URL}/${id}/with-prices`);
     
     if (!response.ok) {
       const error = await response.json();
@@ -109,78 +110,6 @@ export const priceApi = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.message || 'Failed to delete parameter');
-    }
-    
-    return response.json();
-  },
-
-  // ==================== PARAMETER LOOKUPS ====================
-
-  /**
-   * Get parameter lookups
-   */
-  async getLookups(parameterId) {
-    const response = await fetch(`${PARAMETERS_URL}/${parameterId}/lookups`);
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to fetch lookups');
-    }
-    
-    return response.json();
-  },
-
-  /**
-   * Add lookup
-   */
-  async addLookup(parameterId, lookupData) {
-    const response = await fetch(`${PARAMETERS_URL}/${parameterId}/lookups`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(lookupData),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to add lookup');
-    }
-    
-    return response.json();
-  },
-
-  /**
-   * Update lookup
-   */
-  async updateLookup(parameterId, lookupId, updates) {
-    const response = await fetch(`${PARAMETERS_URL}/${parameterId}/lookups/${lookupId}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(updates),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to update lookup');
-    }
-    
-    return response.json();
-  },
-
-  /**
-   * Delete lookup
-   */
-  async deleteLookup(parameterId, lookupId) {
-    const response = await fetch(`${PARAMETERS_URL}/${parameterId}/lookups/${lookupId}`, {
-      method: 'DELETE',
-    });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to delete lookup');
     }
     
     return response.json();
@@ -354,6 +283,142 @@ export const priceApi = {
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.message || 'Failed to remove parameter from formula');
+    }
+    
+    return response.json();
+  },
+
+  // ==================== PRICE SETTINGS (VERSIONING) ====================
+
+  /**
+   * Get all price settings (all versions)
+   */
+  async getAllSettings() {
+    const response = await fetch(`${SETTINGS_URL}/all`);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch settings');
+    }
+    
+    return response.json();
+  },
+
+  /**
+   * Get active price setting with details
+   */
+  async getActiveSetting() {
+    const response = await fetch(`${SETTINGS_URL}/active`);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch active setting');
+    }
+    
+    return response.json();
+  },
+
+  /**
+   * Get specific price setting by ID
+   */
+  async getSetting(id) {
+    const response = await fetch(`${SETTINGS_URL}/${id}`);
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to fetch setting');
+    }
+    
+    return response.json();
+  },
+
+  /**
+   * Create new price setting
+   */
+  async createSetting(data) {
+    const response = await fetch(SETTINGS_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create setting');
+    }
+    
+    return response.json();
+  },
+
+  /**
+   * Update price setting (current version only)
+   */
+  async updateSetting(id, data) {
+    const response = await fetch(`${SETTINGS_URL}/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to update setting');
+    }
+    
+    return response.json();
+  },
+
+  /**
+   * Create new version from existing setting
+   */
+  async createNewVersion(id, name) {
+    const response = await fetch(`${SETTINGS_URL}/${id}/new-version`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to create new version');
+    }
+    
+    return response.json();
+  },
+
+  /**
+   * Activate a price setting
+   */
+  async activateSetting(id) {
+    const response = await fetch(`${SETTINGS_URL}/${id}/activate`, {
+      method: 'PATCH',
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to activate setting');
+    }
+    
+    return response.json();
+  },
+
+  /**
+   * Delete price setting
+   */
+  async deleteSetting(id) {
+    const response = await fetch(`${SETTINGS_URL}/${id}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to delete setting');
     }
     
     return response.json();

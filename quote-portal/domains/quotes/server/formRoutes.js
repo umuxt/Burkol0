@@ -94,7 +94,7 @@ export function setupFormRoutes(app) {
         code,
         name,
         description,
-        version: version || '1.0',
+        version: version || 1,
         is_active: isActive !== undefined ? isActive : false
       });
 
@@ -142,7 +142,7 @@ export function setupFormRoutes(app) {
       const { id } = req.params;
       logger.info(`PATCH /api/form-templates/${id}/activate`);
 
-      const template = await FormTemplates.setActive(id);
+      const template = await FormTemplates.activateVersion(parseInt(id));
       
       if (!template) {
         logger.warning(`Template not found: ${id}`);
@@ -154,6 +154,44 @@ export function setupFormRoutes(app) {
     } catch (error) {
       logger.error('Failed to activate template', { error: error.message });
       res.status(500).json({ error: 'Failed to activate template', message: error.message });
+    }
+  });
+
+  // Get all versions of a template
+  app.get('/api/form-templates/:code/versions', async (req, res) => {
+    try {
+      const { code } = req.params;
+      logger.info(`GET /api/form-templates/${code}/versions`);
+
+      const versions = await FormTemplates.getVersions(code);
+      
+      logger.success(`Found ${versions.length} versions for template ${code}`);
+      res.json(versions);
+    } catch (error) {
+      logger.error('Failed to fetch template versions', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch template versions', message: error.message });
+    }
+  });
+
+  // Create new version of template
+  app.post('/api/form-templates/:id/new-version', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, createdBy } = req.body;
+      
+      logger.info(`POST /api/form-templates/${id}/new-version`);
+
+      const newTemplate = await FormTemplates.createNewVersion(parseInt(id), {
+        name,
+        description,
+        createdBy
+      });
+
+      logger.success(`New template version created: ${newTemplate.id} (version ${newTemplate.version})`);
+      res.status(201).json(newTemplate);
+    } catch (error) {
+      logger.error('Failed to create new template version', { error: error.message });
+      res.status(500).json({ error: 'Failed to create new template version', message: error.message });
     }
   });
 
@@ -229,35 +267,17 @@ export function setupFormRoutes(app) {
         });
       }
 
-      // If options provided, use bulk create
-      if (options && options.length > 0) {
-        const field = await FormFields.bulkCreateWithOptions({
-          template_id: templateId,
-          field_code: fieldCode,
-          field_name: fieldName,
-          field_type: fieldType,
-          sort_order: sortOrder,
-          is_required: isRequired,
-          validation_rule: validationRule,
-          placeholder,
-          default_value: defaultValue
-        }, options);
-
-        logger.success(`Field created with ${options.length} options: ${field.id}`);
-        return res.status(201).json(field);
-      }
-
       // Simple create without options
       const field = await FormFields.create({
-        template_id: templateId,
-        field_code: fieldCode,
-        field_name: fieldName,
-        field_type: fieldType,
-        sort_order: sortOrder,
-        is_required: isRequired,
-        validation_rule: validationRule,
+        templateId: templateId,
+        fieldCode: fieldCode,
+        fieldName: fieldName,
+        fieldType: fieldType,
+        sortOrder: sortOrder,
+        isRequired: isRequired,
+        validationRule: validationRule,
         placeholder,
-        default_value: defaultValue
+        defaultValue: defaultValue
       });
 
       logger.success(`Field created: ${field.id}`);
@@ -353,9 +373,9 @@ export function setupFormRoutes(app) {
   app.post('/api/form-fields/:fieldId/options', async (req, res) => {
     try {
       const { fieldId } = req.params;
-      const { optionValue, optionLabel, sortOrder, isActive } = req.body;
+      const { optionValue, optionLabel, sortOrder, isActive, priceValue } = req.body;
 
-      logger.info(`POST /api/form-fields/${fieldId}/options`, { optionValue, optionLabel });
+      logger.info(`POST /api/form-fields/${fieldId}/options`, { optionValue, optionLabel, priceValue });
 
       if (!optionValue || !optionLabel) {
         return res.status(400).json({ 
@@ -364,11 +384,13 @@ export function setupFormRoutes(app) {
         });
       }
 
-      const option = await FormFields.addOption(fieldId, {
-        option_value: optionValue,
-        option_label: optionLabel,
-        sort_order: sortOrder,
-        is_active: isActive !== undefined ? isActive : true
+      const option = await FormFields.addOption({
+        fieldId,
+        optionValue,
+        optionLabel,
+        sortOrder,
+        isActive: isActive !== undefined ? isActive : true,
+        priceValue: priceValue || null
       });
 
       logger.success(`Option added: ${option.id}`);
@@ -383,15 +405,16 @@ export function setupFormRoutes(app) {
   app.patch('/api/form-fields/:fieldId/options/:optionId', async (req, res) => {
     try {
       const { optionId } = req.params;
-      const { optionValue, optionLabel, sortOrder, isActive } = req.body;
+      const { optionValue, optionLabel, sortOrder, isActive, priceValue } = req.body;
 
       logger.info(`PATCH /api/form-fields/options/${optionId}`);
 
       const updates = {};
-      if (optionValue !== undefined) updates.option_value = optionValue;
-      if (optionLabel !== undefined) updates.option_label = optionLabel;
-      if (sortOrder !== undefined) updates.sort_order = sortOrder;
-      if (isActive !== undefined) updates.is_active = isActive;
+      if (optionValue !== undefined) updates.optionValue = optionValue;
+      if (optionLabel !== undefined) updates.optionLabel = optionLabel;
+      if (sortOrder !== undefined) updates.sortOrder = sortOrder;
+      if (isActive !== undefined) updates.isActive = isActive;
+      if (priceValue !== undefined) updates.priceValue = priceValue;
 
       const option = await FormFields.updateOption(optionId, updates);
       

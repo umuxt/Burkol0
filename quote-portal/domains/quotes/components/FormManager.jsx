@@ -9,9 +9,16 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
   const [formConfig, setFormConfig] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [templateId, setTemplateId] = useState(null)
+  const [allTemplates, setAllTemplates] = useState([])
+  const [activeTemplateId, setActiveTemplateId] = useState(null)
+  const [currentTemplateId, setCurrentTemplateId] = useState(null)
+  const [isNewDraftModalOpen, setIsNewDraftModalOpen] = useState(false)
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false)
+  const [newDraftName, setNewDraftName] = useState('')
 
   useEffect(() => {
     loadFormConfig()
+    loadAllTemplates()
   }, [])
 
   async function loadFormConfig() {
@@ -21,6 +28,8 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
       // Get active template with fields
       const template = await formsApi.getActiveTemplate()
       
+      console.log('🔍 FormManager - Loaded template:', template)
+      
       if (!template) {
         console.warn('No active template found, creating default')
         showNotification('Aktif form şablonu bulunamadı', 'warning')
@@ -29,9 +38,12 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
       }
 
       setTemplateId(template.id)
+      setActiveTemplateId(template.id)
+      setCurrentTemplateId(template.id)
       
       // Convert PostgreSQL format to legacy format for FormBuilderCompact
       const legacyConfig = convertToLegacyFormat(template)
+      console.log('🔄 FormManager - Converted to legacy format:', legacyConfig)
       setFormConfig(legacyConfig)
       
     } catch (e) {
@@ -43,49 +55,161 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
     }
   }
 
+  async function loadAllTemplates() {
+    try {
+      const templates = await formsApi.getTemplates()
+      setAllTemplates(templates)
+      console.log('📚 All templates loaded:', templates)
+    } catch (e) {
+      console.error('Failed to load templates:', e)
+    }
+  }
+
+  async function createNewDraft() {
+    try {
+      if (!newDraftName || !newDraftName.trim()) {
+        showNotification('Form ismi gereklidir', 'error')
+        return
+      }
+
+      const newTemplate = await formsApi.createTemplate({
+        code: `QUOTE_FORM_${Date.now()}`,
+        name: newDraftName.trim(),
+        description: '',
+        version: 1,
+        isActive: false // Henüz aktif değil
+      })
+
+      // Yeni taslağı görüntüle
+      setCurrentTemplateId(newTemplate.id)
+      setTemplateId(newTemplate.id)
+      setFormConfig({ fields: [] })
+      
+      // Template listesini güncelle
+      await loadAllTemplates()
+      
+      setIsNewDraftModalOpen(false)
+      setNewDraftName('')
+      showNotification('Yeni taslak oluşturuldu', 'success')
+    } catch (e) {
+      console.error('Failed to create draft:', e)
+      showNotification('Taslak oluşturulamadı: ' + e.message, 'error')
+    }
+  }
+
+  async function switchToTemplate(selectedTemplateId) {
+    try {
+      const template = await formsApi.getTemplateWithFields(selectedTemplateId)
+      
+      setCurrentTemplateId(selectedTemplateId)
+      setTemplateId(selectedTemplateId)
+      
+      const legacyConfig = convertToLegacyFormat(template)
+      setFormConfig(legacyConfig)
+      
+      setIsHistoryModalOpen(false)
+      showNotification('Taslak görüntüleniyor', 'info')
+    } catch (e) {
+      console.error('Failed to switch template:', e)
+      showNotification('Taslak yüklenemedi: ' + e.message, 'error')
+    }
+  }
+
+  async function switchActiveTemplate() {
+    try {
+      // Mevcut görüntülenen template'i aktif yap
+      await formsApi.activateTemplate(currentTemplateId)
+      
+      setActiveTemplateId(currentTemplateId)
+      await loadAllTemplates()
+      
+      showNotification('Aktif form değiştirildi!', 'success')
+    } catch (e) {
+      console.error('Failed to activate template:', e)
+      showNotification('Form aktif edilemedi: ' + e.message, 'error')
+    }
+  }
+
   async function saveFormConfig(config) {
     try {
+      console.log('💾 Saving form config:', config)
+      
       // Convert legacy format to PostgreSQL format
       const templateData = convertFromLegacyFormat(config)
+      console.log('📦 Template data:', templateData)
       
-      if (templateId) {
+      let currentTemplateId = templateId
+      
+      if (currentTemplateId) {
         // Update existing template
-        await formsApi.updateTemplate(templateId, {
+        await formsApi.updateTemplate(currentTemplateId, {
           name: templateData.name,
           description: templateData.description
         })
         
-        // TODO: Update fields (complex operation, needs field diff logic)
-        // For now, just update template metadata
+        // Delete existing fields and recreate (simple approach)
+        const existingFields = await formsApi.getFields(currentTemplateId)
+        for (const field of existingFields) {
+          await formsApi.deleteField(field.id)
+        }
       } else {
         // Create new template
         const newTemplate = await formsApi.createTemplate({
           code: `QUOTE_FORM_${Date.now()}`,
           name: templateData.name || 'Teklif Formu',
           description: templateData.description,
-          version: '1.0',
+          version: 1,
           isActive: true
         })
         
-        setTemplateId(newTemplate.id)
+        currentTemplateId = newTemplate.id
+        setTemplateId(currentTemplateId)
+      }
+      
+      // Create/recreate all fields
+      console.log('📝 Creating fields:', templateData.fields)
+      for (const field of templateData.fields) {
+        console.log('🔍 Field to create:', {
+          templateId: currentTemplateId,
+          fieldCode: field.id,
+          fieldName: field.label,
+          fieldType: field.type,
+          sortOrder: field.sortOrder,
+          isRequired: field.required,
+          placeholder: field.placeholder,
+          defaultValue: field.defaultValue,
+          validationRule: field.validationRule,
+          helpText: field.helpText
+        })
         
-        // Create fields
-        for (const field of templateData.fields) {
-          await formsApi.createField({
-            templateId: newTemplate.id,
-            fieldCode: field.id,
-            fieldName: field.label,
-            fieldType: field.type,
-            sortOrder: field.sortOrder || 0,
-            isRequired: field.required || false,
-            placeholder: field.placeholder,
-            defaultValue: field.defaultValue,
-            options: field.options || []
-          })
+        const createdField = await formsApi.createField({
+          templateId: currentTemplateId,
+          fieldCode: field.id,
+          fieldName: field.label,
+          fieldType: field.type,
+          sortOrder: field.sortOrder || 0,
+          isRequired: field.required || false,
+          placeholder: field.placeholder,
+          defaultValue: field.defaultValue,
+          validationRule: field.validationRule,
+          helpText: field.helpText || null
+        })
+        
+        console.log('✅ Field created:', createdField)
+        
+        // Create field options if any
+        if (field.options && field.options.length > 0) {
+          for (const option of field.options) {
+            await formsApi.addOption(createdField.id, {
+              optionValue: option.value,
+              optionLabel: option.label,
+              sortOrder: option.sortOrder || 0,
+              priceValue: option.priceValue
+            })
+          }
         }
       }
       
-      setFormConfig(config)
       showNotification('Form yapılandırması kaydedildi!', 'success')
       
       // Reload to get updated data
@@ -98,23 +222,33 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
 
   // Convert PostgreSQL template to legacy format
   function convertToLegacyFormat(template) {
-    return {
-      formConfig: {
-        fields: (template.fields || []).map((field, index) => ({
-          id: field.field_code,
-          label: field.field_name,
-          type: field.field_type,
-          required: field.is_required || false,
-          placeholder: field.placeholder,
-          defaultValue: field.default_value,
-          sortOrder: field.sort_order || index,
-          options: (field.options || []).map(opt => ({
-            value: opt.option_value,
-            label: opt.option_label
-          }))
+    console.log('🔧 Converting template fields:', template.fields)
+    
+    const converted = {
+      fields: (template.fields || []).map((field, index) => ({
+        id: field.field_code,
+        label: field.field_name,
+        type: field.field_type,
+        required: field.is_required || false,
+        placeholder: field.placeholder,
+        defaultValue: field.default_value,
+        display: {
+          formOrder: field.sort_order || index + 1,
+          tableOrder: field.sort_order || index + 1,
+          showInTable: true,
+          showInFilter: false
+        },
+        validation: field.validation_rule ? JSON.parse(field.validation_rule) : {},
+        options: (field.options || []).map(opt => ({
+          value: opt.value,
+          label: opt.label,
+          price: opt.priceValue || null
         }))
-      }
+      }))
     }
+    
+    console.log('✅ Converted fields:', converted.fields)
+    return converted
   }
 
   // Convert legacy format to PostgreSQL format
@@ -122,15 +256,22 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
     return {
       name: config.name || 'Teklif Formu',
       description: config.description,
-      fields: (config.formConfig?.fields || config.fields || []).map((field, index) => ({
+      fields: (config.fields || []).map((field, index) => ({
         id: field.id,
         label: field.label,
         type: field.type,
         required: field.required,
         placeholder: field.placeholder,
         defaultValue: field.defaultValue,
-        sortOrder: field.sortOrder !== undefined ? field.sortOrder : index,
-        options: field.options || []
+        helpText: field.helpText || null,
+        sortOrder: field.display?.formOrder || index + 1,
+        validationRule: field.validation ? JSON.stringify(field.validation) : null,
+        options: (field.options || []).map((opt, optIdx) => ({
+          value: opt.value,
+          label: opt.label,
+          priceValue: opt.price || null,
+          sortOrder: optIdx + 1
+        }))
       }))
     }
   }
@@ -151,7 +292,22 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
       isDarkMode: false,
       t,
       showNotification,
-      renderHeaderActions
+      renderHeaderActions,
+      // Versioning props
+      allTemplates,
+      activeTemplateId,
+      currentTemplateId,
+      isNewDraftModalOpen,
+      isHistoryModalOpen,
+      newDraftName,
+      onCreateDraft: createNewDraft,
+      onSwitchTemplate: switchToTemplate,
+      onActivateTemplate: switchActiveTemplate,
+      onOpenNewDraftModal: () => setIsNewDraftModalOpen(true),
+      onCloseNewDraftModal: () => setIsNewDraftModalOpen(false),
+      onOpenHistoryModal: () => setIsHistoryModalOpen(true),
+      onCloseHistoryModal: () => setIsHistoryModalOpen(false),
+      onDraftNameChange: (e) => setNewDraftName(e.target.value)
     })
   )
 }

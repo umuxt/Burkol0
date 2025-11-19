@@ -17,7 +17,7 @@ export const FormBuilderUtils = {
         type: 'text',
         required: false,
         placeholder: '',
-        validation: { min: 0, max: 255 }
+        validation: { min: 0, max: null }
       }
     },
     textarea: {
@@ -30,7 +30,7 @@ export const FormBuilderUtils = {
         type: 'textarea',
         required: false,
         placeholder: '',
-        validation: { min: 0, max: 1000 }
+        validation: { min: 0, max: null }
       }
     },
     number: {
@@ -152,7 +152,7 @@ export const FormBuilderUtils = {
 
     return {
       id: FormBuilderUtils.generateFieldId(),
-      label: `Yeni ${fieldType.label}`,
+      label: '',  // Boş bırak ki placeholder görünsün
       ...fieldType.defaultProps,
       display: {
         showInTable: true,
@@ -285,12 +285,12 @@ export const FormBuilderUtils = {
     const [movedField] = newFields.splice(fromIndex, 1)
     newFields.splice(toIndex, 0, movedField)
     
-    // Update order property
+    // Update formOrder property
     return newFields.map((field, index) => ({
       ...field,
       display: {
         ...field.display,
-        order: index
+        formOrder: index + 1
       }
     }))
   },

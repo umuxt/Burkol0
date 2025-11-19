@@ -4,8 +4,10 @@
  * API routes for managing price parameters and formulas
  */
 
+import db from '../../../db/db.js';
 import PriceParameters from '../../../db/models/priceParameters.js';
 import PriceFormulas from '../../../db/models/priceFormulas.js';
+import PriceSettings from './models/PriceSettings.js';
 import { requireAuth } from '../../../server/auth.js';
 import logger from './logger.js';
 
@@ -21,18 +23,13 @@ export function setupPriceRoutes(app) {
     try {
       logger.info('GET /api/price-parameters - Fetching all parameters');
       
-      const withLookups = req.query.withLookups === 'true';
+      const withPrices = req.query.withPrices === 'true';
       
-      if (withLookups) {
-        const parameters = await PriceParameters.getAll();
-        const parametersWithLookups = await Promise.all(
-          parameters.map(async (param) => {
-            const lookups = await PriceParameters.getLookups(param.id);
-            return { ...param, lookups };
-          })
-        );
-        logger.success(`Found ${parametersWithLookups.length} parameters with lookups`);
-        return res.json(parametersWithLookups);
+      if (withPrices) {
+        // Get form-based parameters with their price mappings from form_field_options
+        const parameters = await PriceParameters.getFormBasedParameters();
+        logger.success(`Found ${parameters.length} parameters with price mappings`);
+        return res.json(parameters);
       }
       
       const parameters = await PriceParameters.getAll();
@@ -45,19 +42,38 @@ export function setupPriceRoutes(app) {
   });
 
   // Get parameter with lookups
-  app.get('/api/price-parameters/:id/with-lookups', async (req, res) => {
+  // Note: Lookups removed - prices now in form_field_options.price_value
+  app.get('/api/price-parameters/:id/with-prices', async (req, res) => {
     try {
       const { id } = req.params;
-      logger.info(`GET /api/price-parameters/${id}/with-lookups`);
+      logger.info(`GET /api/price-parameters/${id}/with-prices`);
       
-      const parameter = await PriceParameters.getWithLookups(id);
+      const parameter = await PriceParameters.getById(id);
       
       if (!parameter) {
         logger.warning(`Parameter not found: ${id}`);
         return res.status(404).json({ error: 'Parameter not found' });
       }
 
-      logger.success(`Parameter fetched with ${parameter.lookups?.length || 0} lookups`);
+      // If form-based parameter, get price options from form_field_options
+      if (parameter.type === 'form' && parameter.form_field_code) {
+        const priceOptions = await db('quotes.form_field_options as ffo')
+          .join('quotes.form_fields as ff', 'ff.id', 'ffo.field_id')
+          .where('ff.field_code', parameter.form_field_code)
+          .where('ffo.is_active', true)
+          .select(
+            'ffo.id',
+            'ffo.option_value',
+            'ffo.option_label',
+            'ffo.price_value'
+          )
+          .orderBy('ffo.sort_order');
+
+        logger.success(`Parameter fetched with ${priceOptions.length} price options`);
+        return res.json({ ...parameter, priceOptions });
+      }
+
+      logger.success(`Parameter fetched: ${parameter.code}`);
       res.json(parameter);
     } catch (error) {
       logger.error('Failed to fetch parameter', { error: error.message });
@@ -89,7 +105,7 @@ export function setupPriceRoutes(app) {
   // Create parameter
   app.post('/api/price-parameters', async (req, res) => {
     try {
-      const { code, name, type, fixedValue, unit, description, lookups } = req.body;
+      const { code, name, type, formFieldCode, fixedValue, unit, description } = req.body;
       
       logger.info('POST /api/price-parameters - Creating parameter', { code, name, type });
 
@@ -105,7 +121,8 @@ export function setupPriceRoutes(app) {
         name,
         type,
         description,
-        unit
+        unit,
+        formFieldCode: formFieldCode || null
       };
 
       if (type === 'fixed') {
@@ -115,26 +132,19 @@ export function setupPriceRoutes(app) {
             details: ['fixedValue is required for fixed type parameters'] 
           });
         }
-        paramData.fixed_value = fixedValue;
+        paramData.fixedValue = fixedValue;
+      } else if (type === 'form') {
+        if (!formFieldCode) {
+          return res.status(400).json({ 
+            error: 'Missing required field', 
+            details: ['formFieldCode is required for form type parameters'] 
+          });
+        }
       }
 
       const parameter = await PriceParameters.create(paramData);
 
-      // Add lookups if provided
-      if (lookups && lookups.length > 0) {
-        await PriceParameters.bulkCreateLookups(parameter.id, lookups.map(lookup => ({
-          form_field_code: lookup.formFieldCode,
-          option_value: lookup.optionValue,
-          price_value: lookup.priceValue,
-          valid_from: lookup.validFrom,
-          valid_to: lookup.validTo
-        })));
-        
-        logger.success(`Parameter created with ${lookups.length} lookups: ${parameter.id}`);
-      } else {
-        logger.success(`Parameter created: ${parameter.id}`);
-      }
-
+      logger.success(`Parameter created: ${parameter.id}`);
       res.status(201).json(parameter);
     } catch (error) {
       logger.error('Failed to create parameter', { error: error.message });
@@ -146,7 +156,7 @@ export function setupPriceRoutes(app) {
   app.patch('/api/price-parameters/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const { code, name, type, fixedValue, unit, description } = req.body;
+      const { code, name, type, formFieldCode, fixedValue, unit, description } = req.body;
       
       logger.info(`PATCH /api/price-parameters/${id}`);
 
@@ -154,7 +164,8 @@ export function setupPriceRoutes(app) {
       if (code !== undefined) updates.code = code;
       if (name !== undefined) updates.name = name;
       if (type !== undefined) updates.type = type;
-      if (fixedValue !== undefined) updates.fixed_value = fixedValue;
+      if (formFieldCode !== undefined) updates.formFieldCode = formFieldCode;
+      if (fixedValue !== undefined) updates.fixedValue = fixedValue;
       if (unit !== undefined) updates.unit = unit;
       if (description !== undefined) updates.description = description;
 
@@ -191,106 +202,6 @@ export function setupPriceRoutes(app) {
     } catch (error) {
       logger.error('Failed to delete parameter', { error: error.message });
       res.status(500).json({ error: 'Failed to delete parameter', message: error.message });
-    }
-  });
-
-  // ==================== PARAMETER LOOKUPS ====================
-
-  // Get parameter lookups
-  app.get('/api/price-parameters/:parameterId/lookups', async (req, res) => {
-    try {
-      const { parameterId } = req.params;
-      logger.info(`GET /api/price-parameters/${parameterId}/lookups`);
-      
-      const lookups = await PriceParameters.getLookups(parameterId);
-      
-      logger.success(`Found ${lookups.length} lookups`);
-      res.json(lookups);
-    } catch (error) {
-      logger.error('Failed to fetch lookups', { error: error.message });
-      res.status(500).json({ error: 'Failed to fetch lookups', message: error.message });
-    }
-  });
-
-  // Add parameter lookup
-  app.post('/api/price-parameters/:parameterId/lookups', async (req, res) => {
-    try {
-      const { parameterId } = req.params;
-      const { formFieldCode, optionValue, priceValue, validFrom, validTo } = req.body;
-
-      logger.info(`POST /api/price-parameters/${parameterId}/lookups`);
-
-      if (!formFieldCode || !optionValue || priceValue === undefined) {
-        return res.status(400).json({ 
-          error: 'Missing required fields', 
-          details: ['formFieldCode, optionValue, and priceValue are required'] 
-        });
-      }
-
-      const lookup = await PriceParameters.addLookup(parameterId, {
-        form_field_code: formFieldCode,
-        option_value: optionValue,
-        price_value: priceValue,
-        valid_from: validFrom,
-        valid_to: validTo
-      });
-
-      logger.success(`Lookup added: ${lookup.id}`);
-      res.status(201).json(lookup);
-    } catch (error) {
-      logger.error('Failed to add lookup', { error: error.message });
-      res.status(500).json({ error: 'Failed to add lookup', message: error.message });
-    }
-  });
-
-  // Update parameter lookup
-  app.patch('/api/price-parameters/:parameterId/lookups/:lookupId', async (req, res) => {
-    try {
-      const { lookupId } = req.params;
-      const { formFieldCode, optionValue, priceValue, validFrom, validTo } = req.body;
-
-      logger.info(`PATCH /api/price-parameters/lookups/${lookupId}`);
-
-      const updates = {};
-      if (formFieldCode !== undefined) updates.form_field_code = formFieldCode;
-      if (optionValue !== undefined) updates.option_value = optionValue;
-      if (priceValue !== undefined) updates.price_value = priceValue;
-      if (validFrom !== undefined) updates.valid_from = validFrom;
-      if (validTo !== undefined) updates.valid_to = validTo;
-
-      const lookup = await PriceParameters.updateLookup(lookupId, updates);
-      
-      if (!lookup) {
-        logger.warning(`Lookup not found: ${lookupId}`);
-        return res.status(404).json({ error: 'Lookup not found' });
-      }
-
-      logger.success(`Lookup updated: ${lookupId}`);
-      res.json(lookup);
-    } catch (error) {
-      logger.error('Failed to update lookup', { error: error.message });
-      res.status(500).json({ error: 'Failed to update lookup', message: error.message });
-    }
-  });
-
-  // Delete parameter lookup
-  app.delete('/api/price-parameters/:parameterId/lookups/:lookupId', async (req, res) => {
-    try {
-      const { lookupId } = req.params;
-      logger.info(`DELETE /api/price-parameters/lookups/${lookupId}`);
-
-      const success = await PriceParameters.deleteLookup(lookupId);
-      
-      if (!success) {
-        logger.warning(`Lookup not found: ${lookupId}`);
-        return res.status(404).json({ error: 'Lookup not found' });
-      }
-
-      logger.success(`Lookup deleted: ${lookupId}`);
-      res.json({ success: true, message: 'Lookup deleted' });
-    } catch (error) {
-      logger.error('Failed to delete lookup', { error: error.message });
-      res.status(500).json({ error: 'Failed to delete lookup', message: error.message });
     }
   });
 
@@ -454,6 +365,66 @@ export function setupPriceRoutes(app) {
     }
   });
 
+  // Get all versions of a formula
+  app.get('/api/price-formulas/:code/versions', async (req, res) => {
+    try {
+      const { code } = req.params;
+      logger.info(`GET /api/price-formulas/${code}/versions`);
+
+      const versions = await PriceFormulas.getVersions(code);
+      
+      logger.success(`Found ${versions.length} versions for formula ${code}`);
+      res.json(versions);
+    } catch (error) {
+      logger.error('Failed to fetch formula versions', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch formula versions', message: error.message });
+    }
+  });
+
+  // Create new version of formula
+  app.post('/api/price-formulas/:id/new-version', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, formulaExpression, description, createdBy } = req.body;
+      
+      logger.info(`POST /api/price-formulas/${id}/new-version`);
+
+      const newFormula = await PriceFormulas.createNewVersion(parseInt(id), {
+        name,
+        formulaExpression,
+        description,
+        createdBy
+      });
+
+      logger.success(`New formula version created: ${newFormula.id} (version ${newFormula.version})`);
+      res.status(201).json(newFormula);
+    } catch (error) {
+      logger.error('Failed to create new formula version', { error: error.message });
+      res.status(500).json({ error: 'Failed to create new formula version', message: error.message });
+    }
+  });
+
+  // Activate a specific formula version
+  app.patch('/api/price-formulas/:id/activate', async (req, res) => {
+    try {
+      const { id } = req.params;
+      logger.info(`PATCH /api/price-formulas/${id}/activate`);
+
+      const formula = await PriceFormulas.activateVersion(parseInt(id));
+      
+      if (!formula) {
+        logger.warning(`Formula not found: ${id}`);
+        return res.status(404).json({ error: 'Formula not found' });
+      }
+
+      logger.success(`Formula activated: ${id}`);
+      res.json(formula);
+    } catch (error) {
+      logger.error('Failed to activate formula', { error: error.message });
+      res.status(500).json({ error: 'Failed to activate formula', message: error.message });
+    }
+  });
+
   // Calculate price with formula
   app.post('/api/price-formulas/:id/calculate', async (req, res) => {
     try {
@@ -524,6 +495,235 @@ export function setupPriceRoutes(app) {
     } catch (error) {
       logger.error('Failed to remove parameter from formula', { error: error.message });
       res.status(500).json({ error: 'Failed to remove parameter from formula', message: error.message });
+    }
+  });
+
+  // ==================== PRICE SETTINGS (VERSIONING) ====================
+
+  // Get all price settings (all versions)
+  app.get('/api/price-settings/all', async (req, res) => {
+    try {
+      logger.info('GET /api/price-settings/all - Fetching all versions');
+      const settings = await PriceSettings.getAll();
+      logger.success(`Found ${settings.length} price settings`);
+      res.json(settings);
+    } catch (error) {
+      logger.error('Failed to fetch price settings', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch price settings', message: error.message });
+    }
+  });
+
+  // Get active price setting with details
+  app.get('/api/price-settings/active', async (req, res) => {
+    try {
+      logger.info('GET /api/price-settings/active - Fetching active setting');
+      const setting = await PriceSettings.getActiveWithDetails();
+      
+      if (!setting) {
+        logger.info('No active price setting found');
+        return res.json({ parameters: [], formula: null });
+      }
+
+      logger.success(`Active setting found: ${setting.id}`);
+      res.json(setting);
+    } catch (error) {
+      logger.error('Failed to fetch active price setting', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch active price setting', message: error.message });
+    }
+  });
+
+  // Get specific price setting with details
+  app.get('/api/price-settings/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      logger.info(`GET /api/price-settings/${id} - Fetching setting`);
+      
+      const setting = await PriceSettings.getWithDetails(parseInt(id));
+      
+      if (!setting) {
+        return res.status(404).json({ error: 'Price setting not found' });
+      }
+
+      logger.success(`Setting found: ${setting.id}`);
+      res.json(setting);
+    } catch (error) {
+      logger.error('Failed to fetch price setting', { error: error.message });
+      res.status(500).json({ error: 'Failed to fetch price setting', message: error.message });
+    }
+  });
+
+  // Create new price setting
+  app.post('/api/price-settings', async (req, res) => {
+    try {
+      const { name, description, parameters, formula } = req.body;
+      
+      logger.info('POST /api/price-settings - Creating new setting');
+
+      if (!name) {
+        return res.status(400).json({ error: 'Name is required' });
+      }
+
+      // Create setting
+      const setting = await PriceSettings.create({
+        code: `PRICE_SETTING_${Date.now()}`,
+        name,
+        description,
+        is_active: false,
+        version: 1
+      });
+
+      // Add parameters if provided
+      if (parameters && parameters.length > 0) {
+        const paramData = parameters.map(p => ({
+          setting_id: setting.id,
+          code: p.id || p.code,
+          name: p.name,
+          type: p.type === 'form' ? 'form_lookup' : p.type,
+          fixed_value: p.type === 'fixed' ? (parseFloat(p.value || p.fixedValue) || 0) : null,
+          form_field_code: p.type === 'form' ? (p.formField || p.id) : null,
+          is_active: true
+        }));
+
+        await db('quotes.price_parameters').insert(paramData);
+      }
+
+      // Add formula if provided
+      if (formula && formula.trim()) {
+        await db('quotes.price_formulas').insert({
+          setting_id: setting.id,
+          code: 'MAIN_FORMULA',
+          name: 'Main Pricing Formula',
+          formula_expression: formula,
+          is_active: true,
+          version: 1
+        });
+      }
+
+      logger.success(`Price setting created: ${setting.id}`);
+      res.status(201).json(setting);
+    } catch (error) {
+      logger.error('Failed to create price setting', { error: error.message });
+      res.status(500).json({ error: 'Failed to create price setting', message: error.message });
+    }
+  });
+
+  // Update existing price setting (current version only)
+  app.patch('/api/price-settings/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, description, parameters, formula } = req.body;
+      
+      logger.info(`PATCH /api/price-settings/${id} - Updating setting`);
+
+      // Update setting metadata
+      if (name || description) {
+        await PriceSettings.update(parseInt(id), {
+          name,
+          description
+        });
+      }
+
+      // Update parameters
+      if (parameters) {
+        // Delete existing parameters for this setting
+        await db('quotes.price_parameters')
+          .where({ setting_id: parseInt(id) })
+          .delete();
+
+        // Insert new parameters
+        if (parameters.length > 0) {
+          const paramData = parameters.map(p => ({
+            setting_id: parseInt(id),
+            code: p.id || p.code,
+            name: p.name,
+            type: p.type === 'form' ? 'form_lookup' : p.type,
+            fixed_value: p.type === 'fixed' ? (parseFloat(p.value || p.fixedValue) || 0) : null,
+            form_field_code: p.type === 'form' ? (p.formField || p.id) : null,
+            is_active: true
+          }));
+
+          await db('quotes.price_parameters').insert(paramData);
+        }
+      }
+
+      // Update formula
+      if (formula !== undefined) {
+        // Delete existing formula
+        await db('quotes.price_formulas')
+          .where({ setting_id: parseInt(id) })
+          .delete();
+
+        // Insert new formula if not empty
+        if (formula && formula.trim()) {
+          await db('quotes.price_formulas').insert({
+            setting_id: parseInt(id),
+            code: 'MAIN_FORMULA',
+            name: 'Main Pricing Formula',
+            formula_expression: formula,
+            is_active: true,
+            version: 1
+          });
+        }
+      }
+
+      const updatedSetting = await PriceSettings.getWithDetails(parseInt(id));
+      logger.success(`Price setting updated: ${id}`);
+      res.json(updatedSetting);
+    } catch (error) {
+      logger.error('Failed to update price setting', { error: error.message });
+      res.status(500).json({ error: 'Failed to update price setting', message: error.message });
+    }
+  });
+
+  // Create new version from existing setting
+  app.post('/api/price-settings/:id/new-version', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name } = req.body;
+      
+      logger.info(`POST /api/price-settings/${id}/new-version - Creating new version`);
+
+      const newSetting = await PriceSettings.createNewVersion(parseInt(id), name);
+      
+      logger.success(`New version created: ${newSetting.id} (v${newSetting.version})`);
+      res.status(201).json(newSetting);
+    } catch (error) {
+      logger.error('Failed to create new version', { error: error.message });
+      res.status(500).json({ error: 'Failed to create new version', message: error.message });
+    }
+  });
+
+  // Activate a price setting
+  app.patch('/api/price-settings/:id/activate', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      logger.info(`PATCH /api/price-settings/${id}/activate - Activating setting`);
+
+      const setting = await PriceSettings.activate(parseInt(id));
+      
+      logger.success(`Price setting activated: ${id}`);
+      res.json(setting);
+    } catch (error) {
+      logger.error('Failed to activate price setting', { error: error.message });
+      res.status(500).json({ error: 'Failed to activate price setting', message: error.message });
+    }
+  });
+
+  // Delete price setting
+  app.delete('/api/price-settings/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      logger.info(`DELETE /api/price-settings/${id} - Deleting setting`);
+
+      await PriceSettings.delete(parseInt(id));
+      
+      logger.success(`Price setting deleted: ${id}`);
+      res.json({ success: true, message: 'Price setting deleted' });
+    } catch (error) {
+      logger.error('Failed to delete price setting', { error: error.message });
+      res.status(500).json({ error: 'Failed to delete price setting', message: error.message });
     }
   });
 }

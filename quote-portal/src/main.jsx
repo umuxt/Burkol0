@@ -666,7 +666,24 @@ function App() {
 
   async function handleQuoteSubmit(quoteData) {
     try {
-      await API.createQuote(quoteData);
+      // Map form field IDs to backend expected field names
+      const mappedData = {
+        customerName: quoteData.name,
+        customerEmail: quoteData.email,
+        customerPhone: quoteData.phone || '',
+        customerCompany: quoteData.company || '',
+        customerAddress: quoteData.address || '',
+        proj: quoteData.proj || '',
+        deliveryDate: quoteData.deliveryDate || null,
+        notes: quoteData.notes || '',
+        formData: quoteData.customFields || {},
+        formTemplateId: quoteData.formVersion,
+        formConfigSnapshot: quoteData.formConfigSnapshot,
+        status: quoteData.status || 'new',
+        createdAt: quoteData.createdAt || new Date().toISOString()
+      };
+      
+      await API.createQuote(mappedData);
       showNotification('Teklif başarıyla gönderildi!', 'success');
     } catch (error) {
       console.error('Quote submission error:', error);

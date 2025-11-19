@@ -88,7 +88,7 @@ class FormFields {
   /**
    * Add option to a field
    */
-  static async addOption({ fieldId, optionValue, optionLabel, sortOrder = 0, isActive = true }) {
+  static async addOption({ fieldId, optionValue, optionLabel, sortOrder = 0, isActive = true, priceValue = null }) {
     const [option] = await db('quotes.form_field_options')
       .insert({
         field_id: fieldId,
@@ -96,6 +96,7 @@ class FormFields {
         option_label: optionLabel,
         sort_order: sortOrder,
         is_active: isActive,
+        price_value: priceValue,
         created_at: db.fn.now(),
         updated_at: db.fn.now()
       })
@@ -126,6 +127,7 @@ class FormFields {
         option_label: updates.optionLabel,
         sort_order: updates.sortOrder,
         is_active: updates.isActive,
+        price_value: updates.priceValue,
         updated_at: db.fn.now()
       })
       .returning('*');
@@ -182,6 +184,7 @@ class FormFields {
             option_label: opt.label,
             sort_order: opt.sortOrder !== undefined ? opt.sortOrder : idx,
             is_active: opt.isActive !== undefined ? opt.isActive : true,
+            price_value: opt.priceValue || null,
             created_at: db.fn.now(),
             updated_at: db.fn.now()
           }));

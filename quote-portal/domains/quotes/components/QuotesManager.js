@@ -1,6 +1,7 @@
 // QuotesManager - Main quotes management component
 import React from 'react';
 import API from '../../../shared/lib/api.js'
+import { priceApi } from '../api/index.js'
 import { statusLabel, procLabel, materialLabel } from '../../../shared/i18n.js'
 import { getTableColumns, getFieldValue, formatFieldValue } from '../lib/table-utils.js'
 import { calculatePrice, getPriceChangeType } from '../lib/price-calculator.js'
@@ -485,28 +486,47 @@ function QuotesManager({ t, onLogout, showNotification }) {
 
   async function loadPriceSettings() {
     try {
-      // Defensive check for API method availability
-      if (typeof API.getPriceSettings !== 'function') {
-        console.warn('API.getPriceSettings is not available, using defaults')
+      console.log('📊 Loading active price settings from new API...')
+      const setting = await priceApi.getActiveSetting()
+      
+      if (!setting || !setting.id) {
+        console.warn('⚠️ No active price setting found, using empty defaults')
         setPriceSettings({
-          currency: 'USD',
-          margin: 20,
-          discountThreshold: 1000,
-          discountPercent: 5
+          parameters: [],
+          formula: ''
         })
         return
       }
-      
-      const settings = await API.getPriceSettings()
-      setPriceSettings(settings)
+
+      // Convert to format expected by price calculator
+      const convertedParams = (setting.parameters || []).map(p => ({
+        id: p.code,
+        name: p.name,
+        type: p.type === 'form_lookup' ? 'form' : p.type,
+        value: p.fixed_value,
+        formField: p.form_field_code,
+        lookupTable: p.lookup_table || []
+      }))
+
+      const priceSettings = {
+        parameters: convertedParams,
+        formula: setting.formula?.formula_expression || ''
+      }
+
+      console.log('✅ Price settings loaded:', {
+        settingId: setting.id,
+        version: setting.version,
+        parametersCount: convertedParams.length,
+        hasFormula: !!priceSettings.formula
+      })
+
+      setPriceSettings(priceSettings)
     } catch (e) {
-      console.error('Price settings load error:', e)
-      // Set default settings on error
+      console.error('❌ Price settings load error:', e)
+      // Set empty defaults on error
       setPriceSettings({
-        currency: 'USD',
-        margin: 20,
-        discountThreshold: 1000,
-        discountPercent: 5
+        parameters: [],
+        formula: ''
       })
     }
   }

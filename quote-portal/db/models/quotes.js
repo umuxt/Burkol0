@@ -32,6 +32,24 @@ class Quotes {
     try {
       const quoteId = await this.generateQuoteId();
 
+      // Get current versions to snapshot
+      let formTemplateVersion = null;
+      let priceFormulaVersion = null;
+
+      if (formTemplateId) {
+        const template = await trx('quotes.form_templates')
+          .where('id', formTemplateId)
+          .first();
+        formTemplateVersion = template?.version || null;
+      }
+
+      if (priceFormulaId) {
+        const formula = await trx('quotes.price_formulas')
+          .where('id', priceFormulaId)
+          .first();
+        priceFormulaVersion = formula?.version || null;
+      }
+
       // Create quote
       const [quote] = await trx('quotes.quotes')
         .insert({
@@ -43,6 +61,8 @@ class Quotes {
           customer_address: customerAddress,
           form_template_id: formTemplateId,
           price_formula_id: priceFormulaId,
+          form_template_version: formTemplateVersion,
+          price_formula_version: priceFormulaVersion,
           status: 'new',
           notes,
           created_by: createdBy,
@@ -66,12 +86,10 @@ class Quotes {
           .update({
             calculated_price: calculation.totalPrice,
             final_price: calculation.totalPrice,
-            price_calculated_at: db.fn.now(),
+            last_calculated_at: db.fn.now(),
+            needs_recalculation: false,
             price_status: 'current'
           });
-
-        // Save price calculation details
-        await this._savePriceDetails(trx, quoteId, calculation.calculationDetails);
       }
 
       await trx.commit();
@@ -119,23 +137,13 @@ class Quotes {
 
   /**
    * Internal: Save price calculation details
+   * Note: quote_price_details table removed in redesign
+   * Calculation details are not stored in DB anymore
    */
   static async _savePriceDetails(trx, quoteId, calculationDetails) {
-    const priceDetails = calculationDetails.map(detail => ({
-      quote_id: quoteId,
-      parameter_id: detail.parameterId,
-      parameter_code: detail.parameterCode,
-      parameter_name: detail.parameterName,
-      parameter_value: detail.parameterValue,
-      calculated_amount: detail.parameterValue, // Can be enhanced with actual calculation
-      source: detail.source,
-      created_at: db.fn.now(),
-      updated_at: db.fn.now()
-    }));
-
-    if (priceDetails.length > 0) {
-      await trx('quotes.quote_price_details').insert(priceDetails);
-    }
+    // No-op: We don't store calculation details anymore
+    // The final calculated_price is stored in quotes table
+    // If detailed breakdown is needed, it can be recalculated from form data
   }
 
   /**
@@ -191,9 +199,8 @@ class Quotes {
     });
 
     // Get price calculation details
-    const priceDetails = await db('quotes.quote_price_details')
-      .where('quote_id', id)
-      .orderBy('id');
+    // Note: quote_price_details table removed - details not stored in DB anymore
+    const priceDetails = [];
 
     // Get files
     const files = await db('quotes.quote_files')
@@ -252,17 +259,19 @@ class Quotes {
             .update({
               calculated_price: calculation.totalPrice,
               final_price: quote.manual_price || calculation.totalPrice,
-              price_calculated_at: db.fn.now(),
+              last_calculated_at: db.fn.now(),
+              needs_recalculation: false,
               price_status: quote.manual_price ? 'manual' : 'current'
             });
 
-          // Delete old price details
-          await trx('quotes.quote_price_details')
-            .where('quote_id', id)
-            .delete();
-          
-          // Insert new price details
-          await this._savePriceDetails(trx, id, calculation.calculationDetails);
+          // Note: quote_price_details table removed - details not stored anymore
+        } else {
+          // Mark as needing recalculation if no formula
+          await trx('quotes.quotes')
+            .where('id', id)
+            .update({
+              needs_recalculation: true
+            });
         }
       }
 
@@ -388,6 +397,85 @@ class Quotes {
       .first();
 
     return stats;
+  }
+
+  /**
+   * Mark quotes for recalculation when template/formula changes
+   */
+  static async markForRecalculation(criteria) {
+    let query = db('quotes.quotes');
+
+    if (criteria.formTemplateId) {
+      query = query.where('form_template_id', criteria.formTemplateId);
+    }
+
+    if (criteria.priceFormulaId) {
+      query = query.where('price_formula_id', criteria.priceFormulaId);
+    }
+
+    const count = await query.update({
+      needs_recalculation: true,
+      updated_at: db.fn.now()
+    });
+
+    return count;
+  }
+
+  /**
+   * Get quotes that need recalculation
+   */
+  static async getNeedingRecalculation() {
+    const quotes = await db('quotes.quotes')
+      .where('needs_recalculation', true)
+      .whereNotIn('status', ['cancelled', 'rejected'])
+      .orderBy('created_at', 'desc');
+    
+    return quotes;
+  }
+
+  /**
+   * Recalculate a quote's price
+   */
+  static async recalculate(id) {
+    const trx = await db.transaction();
+    
+    try {
+      const quote = await trx('quotes.quotes').where('id', id).first();
+      
+      if (!quote || !quote.price_formula_id) {
+        throw new Error('Quote not found or has no formula');
+      }
+
+      // Get form data
+      const formDataRows = await trx('quotes.quote_form_data')
+        .where('quote_id', id);
+      
+      const formData = {};
+      formDataRows.forEach(row => {
+        formData[row.field_code] = row.field_value;
+      });
+
+      // Calculate price
+      const calculation = await PriceFormulas.calculatePrice(quote.price_formula_id, formData);
+      
+      // Update quote
+      await trx('quotes.quotes')
+        .where('id', id)
+        .update({
+          calculated_price: calculation.totalPrice,
+          final_price: quote.manual_price || calculation.totalPrice,
+          last_calculated_at: db.fn.now(),
+          needs_recalculation: false,
+          price_status: quote.manual_price ? 'manual' : 'current',
+          updated_at: db.fn.now()
+        });
+
+      await trx.commit();
+      return await this.getById(id);
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
   }
 }
 

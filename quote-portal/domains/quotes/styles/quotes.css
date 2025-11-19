@@ -381,6 +381,21 @@ input.mes-search-input:focus,
   font-size: 13px;
 }
 
+.mes-filter-input::placeholder {
+  color: #9ca3af;
+  opacity: 1;
+}
+
+.mes-filter-input::-webkit-input-placeholder {
+  color: #9ca3af;
+  opacity: 1;
+}
+
+.mes-filter-input::-moz-placeholder {
+  color: #9ca3af;
+  opacity: 1;
+}
+
 /* MES Filter Controls Container */
 .mes-filter-controls {
   display: flex;
@@ -927,7 +942,7 @@ select.status-badge option {
 .mes-btn {
   display: inline-flex !important;
   align-items: center;
-  gap: 6px;
+  gap: 6px !important;
   padding: 8px 16px;
   border: none;
   border-radius: 6px;
