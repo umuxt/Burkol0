@@ -8,7 +8,15 @@ import Suppliers from '../db/models/suppliers.js'
 export async function getAllSuppliers(req, res) {
     try {
         const suppliers = await Suppliers.getAllSuppliers()
-        res.json(suppliers)
+        
+        // Convert snake_case to camelCase for frontend compatibility
+        const formattedSuppliers = suppliers.map(s => ({
+            ...s,
+            suppliedMaterialsCount: s.supplied_materials_count,
+            suppliedMaterials: s.supplied_materials // Add this field for frontend
+        }))
+        
+        res.json(formattedSuppliers)
     } catch (error) {
         console.error('Error getting all suppliers:', error)
         res.status(500).json({ error: 'Failed to get suppliers' })
@@ -87,15 +95,40 @@ export async function getSuppliersByCategory(req, res) {
 
 // Material-Supplier relationships
 // Note: These functions are placeholders until materials table is migrated
-// In PostgreSQL, material-supplier relationship is via materials.primary_supplier_id
+// In PostgreSQL, material-supplier relationship is via material_supplier_relation junction table
 
 export async function addMaterialToSupplier(req, res) {
     try {
-        // TODO: Implement after materials migration
-        // This will update materials table, not suppliers table
-        res.status(501).json({ 
-            error: 'Not implemented yet',
-            message: 'This will be implemented after materials migration'
+        const { supplierId } = req.params
+        const { materialId, isPrimary, costPrice } = req.body
+        
+        if (!materialId) {
+            return res.status(400).json({ error: 'Material ID is required' })
+        }
+        
+        // Use junction table
+        const MaterialSupplierRelation = (await import('../db/models/materialSupplierRelation.js')).default
+        
+        // First verify supplier exists
+        const supplier = await Suppliers.getSupplierById(supplierId)
+        if (!supplier) {
+            return res.status(404).json({ error: 'Supplier not found' })
+        }
+        
+        // Add relation (or update if exists)
+        const relation = await MaterialSupplierRelation.addSupplierToMaterial(
+            materialId,
+            parseInt(supplierId),
+            {
+                is_primary: isPrimary || false,
+                cost_price: costPrice
+            }
+        )
+        
+        res.json({
+            success: true,
+            relation: relation,
+            supplier: supplier
         })
     } catch (error) {
         console.error('Error adding material to supplier:', error)
@@ -105,12 +138,13 @@ export async function addMaterialToSupplier(req, res) {
 
 export async function getSuppliersForMaterial(req, res) {
     try {
-        // TODO: Implement after materials migration
-        // Query materials table for primary_supplier_id
-        res.status(501).json({ 
-            error: 'Not implemented yet',
-            message: 'This will be implemented after materials migration'
-        })
+        const { materialId } = req.params
+        
+        // Use junction table to get all suppliers
+        const MaterialSupplierRelation = (await import('../db/models/materialSupplierRelation.js')).default
+        const suppliers = await MaterialSupplierRelation.getSuppliersForMaterial(materialId)
+        
+        res.json(suppliers)
     } catch (error) {
         console.error('Error getting suppliers for material:', error)
         res.status(500).json({ error: 'Failed to get suppliers for material' })
@@ -119,12 +153,13 @@ export async function getSuppliersForMaterial(req, res) {
 
 export async function getMaterialsForSupplier(req, res) {
     try {
-        // TODO: Implement after materials migration
-        // Query materials table WHERE primary_supplier_id = supplierId
-        res.status(501).json({ 
-            error: 'Not implemented yet',
-            message: 'This will be implemented after materials migration'
-        })
+        const { supplierId } = req.params
+        
+        // Use junction table to get all materials
+        const MaterialSupplierRelation = (await import('../db/models/materialSupplierRelation.js')).default
+        const materials = await MaterialSupplierRelation.getMaterialsForSupplier(supplierId)
+        
+        res.json(materials)
     } catch (error) {
         console.error('Error getting materials for supplier:', error)
         res.status(500).json({ error: 'Failed to get materials for supplier' })

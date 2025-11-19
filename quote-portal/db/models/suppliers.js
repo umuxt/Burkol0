@@ -9,15 +9,46 @@ import db from '../connection.js'
 const SUPPLIERS_TABLE = 'materials.suppliers'
 
 /**
- * Get all suppliers
+ * Get all suppliers with material count and materials list
  */
 export async function getAllSuppliers() {
   try {
+    // First get all suppliers with counts
     const suppliers = await db(SUPPLIERS_TABLE)
-      .select('*')
-      .orderBy('code', 'asc')
+      .select(
+        'materials.suppliers.*',
+        db.raw('COUNT(DISTINCT material_supplier_relation.material_id) as supplied_materials_count')
+      )
+      .leftJoin('materials.material_supplier_relation', 'materials.suppliers.id', 'material_supplier_relation.supplier_id')
+      .groupBy('materials.suppliers.id')
+      .orderBy('materials.suppliers.code', 'asc')
     
-    return suppliers
+    // Then get materials for each supplier
+    const suppliersWithMaterials = await Promise.all(
+      suppliers.map(async (supplier) => {
+        const materials = await db('materials.material_supplier_relation')
+          .select(
+            'materials.materials.id',
+            'materials.materials.code',
+            'materials.materials.name',
+            'materials.materials.category',
+            'materials.materials.unit',
+            'material_supplier_relation.is_primary',
+            'material_supplier_relation.cost_price'
+          )
+          .join('materials.materials', 'material_supplier_relation.material_id', 'materials.materials.id')
+          .where('material_supplier_relation.supplier_id', supplier.id)
+          .orderBy('materials.materials.code', 'asc')
+        
+        return {
+          ...supplier,
+          supplied_materials_count: parseInt(supplier.supplied_materials_count) || 0,
+          supplied_materials: materials // Frontend expects this field
+        }
+      })
+    )
+    
+    return suppliersWithMaterials
   } catch (error) {
     console.error('❌ Error getting all suppliers:', error)
     throw error

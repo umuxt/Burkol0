@@ -11,7 +11,7 @@ import { fileURLToPath } from 'url'
 import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
 // Materials routes - TEMPORARILY DISABLED (pending PostgreSQL migration)
-// import { setupMaterialsRoutes } from './server/materialsRoutes.js'
+import { setupMaterialsRoutes } from './server/materialsRoutes.js'
 // TODO: Migrate orders routes to PostgreSQL (still uses Firebase)
 // import { ordersRoutes } from './server/ordersRoutes.js'
 import {
@@ -143,13 +143,8 @@ app.use('/api/form-fields', ensureCoreRoutes)
 app.use('/api/form-config', ensureCoreRoutes)
 app.use('/api/form-fields', ensureCoreRoutes)
 
-// Materials routes - TEMPORARILY DISABLED (pending PostgreSQL migration)
-// setupMaterialsRoutes(app)
-
-// Temporary materials endpoints - return empty arrays until migration
-app.get('/api/materials', (req, res) => res.json([]))
-app.get('/api/materials/active', (req, res) => res.json([]))
-app.get('/api/materials/all', (req, res) => res.json([]))
+// Materials routes
+setupMaterialsRoutes(app)
 
 // TODO: Re-enable after migrating to PostgreSQL
 // app.use('/api', ordersRoutes)

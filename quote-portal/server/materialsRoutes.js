@@ -1,1353 +1,258 @@
-// Materials API Routes - Firebase Admin SDK kullanarak
-import admin from 'firebase-admin'
+// Materials Routes - PostgreSQL Integration
+import Materials from '../db/models/materials.js'
 import { requireAuth } from './auth.js'
 
-let db
-function getDb() {
-  if (!db) {
-    if (!admin.apps.length) {
-      try { admin.initializeApp() } catch {}
-    }
-    db = admin.firestore()
-  }
-  return db
-}
-
-// Enhanced in-memory cache with rate limiting and quota protection
-const cache = {
-  materialsActive: { data: null, ts: 0, etag: '', hits: 0 },
-  materialsAll: { data: null, ts: 0, etag: '', hits: 0 },
-  categories: { data: null, ts: 0, etag: '', hits: 0 },
-  suppliers: { data: null, ts: 0, etag: '', hits: 0 }
-}
-const TTL_MS = Number(process.env.MATERIALS_CACHE_TTL_MS || 300_000) // 5 dakika default
-const QUOTA_PROTECTION_TTL_MS = Number(process.env.QUOTA_PROTECTION_TTL_MS || 600_000) // 10 dakika quota koruması
-
-// Rate limiting için request tracking
-const requestTracker = {
-  lastRequest: 0,
-  requestCount: 0,
-  windowStart: Date.now()
-}
-const RATE_LIMIT_WINDOW_MS = 60_000 // 1 dakika
-const MAX_REQUESTS_PER_WINDOW = process.env.NODE_ENV === 'production' ? 100 : 1000 // Production: 100, Development: 1000
-
-function buildEtag(items) {
-  try {
-    const base = items?.length ? `${items.length}:${items[0]?.id || ''}:${items[items.length - 1]?.id || ''}` : '0'
-    return 'W/"' + Buffer.from(base).toString('base64').slice(0, 16) + '"'
-  } catch { return 'W/"0"' }
-}
-
-// Rate limiting check
-function checkRateLimit() {
-  const now = Date.now()
-  
-  // Reset window if needed
-  if (now - requestTracker.windowStart >= RATE_LIMIT_WINDOW_MS) {
-    requestTracker.windowStart = now
-    requestTracker.requestCount = 0
-  }
-  
-  requestTracker.requestCount++
-  requestTracker.lastRequest = now
-  
-  if (requestTracker.requestCount > MAX_REQUESTS_PER_WINDOW) {
-    console.warn(`⚠️ Rate limit exceeded: ${requestTracker.requestCount} requests in current window`)
-    return false
-  }
-  
-  return true
-}
-
-// Enhanced cache check with quota protection
-function getCachedData(cacheKey, quotaProtection = false) {
-  const cached = cache[cacheKey]
-  if (!cached || !cached.data) return null
-  
-  const now = Date.now()
-  const ttl = quotaProtection ? QUOTA_PROTECTION_TTL_MS : TTL_MS
-  
-  if (now - cached.ts < ttl) {
-    cached.hits = (cached.hits || 0) + 1
-    console.log(`🎯 Cache hit for ${cacheKey} (hits: ${cached.hits})`)
-    return cached
-  }
-  
-  return null
-}
-
-// Safe Firestore query with retry and fallback
-async function safeFirestoreQuery(collectionName, filters = [], retries = 2) {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      let query = getDb().collection(collectionName)
-      
-      // Apply filters
-      filters.forEach(filter => {
-        query = query.where(...filter)
-      })
-      
-      const snapshot = await query.get()
-      return snapshot
-    } catch (error) {
-      console.error(`❌ Firestore query attempt ${attempt} failed:`, error.message)
-      
-      if (error.code === 8 || error.message.includes('Quota exceeded')) {
-        console.warn('🚨 Quota exceeded detected, enabling quota protection mode')
-        if (attempt === retries) {
-          throw new Error('QUOTA_EXCEEDED')
-        }
-        // Wait before retry with exponential backoff
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000))
-      } else if (attempt === retries) {
-        throw error
-      }
-    }
-  }
-}
-
-// Helper function to generate next material code
-async function generateNextMaterialCode() {
-  try {
-    const snapshot = await getDb().collection('materials').get()
-    const existingCodes = []
-    
-    snapshot.forEach(doc => {
-      const data = doc.data()
-      if (data.code && data.code.startsWith('M-')) {
-        const number = parseInt(data.code.split('-')[1])
-        if (!isNaN(number)) {
-          existingCodes.push(number)
-        }
-      }
-    })
-    
-    // En büyük sayıyı bul ve 1 ekle
-    const maxNumber = existingCodes.length > 0 ? Math.max(...existingCodes) : 0
-    const nextNumber = maxNumber + 1
-    
-    // M-001 formatında döndür
-    return `M-${String(nextNumber).padStart(3, '0')}`
-  } catch (error) {
-    console.error('❌ Material code oluşturulurken hata:', error)
-    return `M-${String(Date.now()).slice(-3)}` // Fallback
-  }
-}
-
-// Propagate material name changes to embedded order items
-async function propagateMaterialNameToOrders(materialCode, newName) {
-  try {
-    if (!materialCode || !newName) return { updatedOrders: 0, updatedItems: 0 }
-    console.log('🔄 Propagating material name to orders:', { materialCode, newName })
-    const ordersRef = getDb().collection('orders')
-    const snapshot = await ordersRef.get()
-    let updatedOrders = 0
-    let updatedItems = 0
-    for (const doc of snapshot.docs) {
-      const data = doc.data() || {}
-      const items = Array.isArray(data.items) ? data.items : []
-      if (!items.length) continue
-      let changed = false
-      const nextItems = items.map(it => {
-        if ((it.materialCode || it.code) === materialCode && it.materialName !== newName) {
-          changed = true
-          updatedItems += 1
-          return { ...it, materialName: newName, updatedAt: admin.firestore.FieldValue.serverTimestamp() }
-        }
-        return it
-      })
-      if (changed) {
-        await ordersRef.doc(doc.id).update({
-          items: nextItems,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        })
-        updatedOrders += 1
-      }
-    }
-    console.log(`✅ Propagation finished. Orders updated: ${updatedOrders}, Items updated: ${updatedItems}`)
-    return { updatedOrders, updatedItems }
-  } catch (e) {
-    console.error('❌ Propagate material name error:', e)
-    return { updatedOrders: 0, updatedItems: 0, error: e.message }
-  }
-}
-
-// ============================================================================
-// STOCK ADJUSTMENT HELPERS (for MES integration)
-// ============================================================================
-// These functions provide atomic stock management for production operations.
-//
-// USAGE DURING PRODUCTION PLAN RELEASE:
-// When a production plan is released (status → 'released'), the system
-// automatically consumes raw materials and produces WIP outputs based on
-// the plan's materialSummary data.
-//
-// KEY FUNCTIONS:
-// - adjustMaterialStock(materialIdOrCode, delta, options)
-//   * Atomic stock update using Firestore transaction
-//   * Delta: positive = add stock, negative = consume
-//   * For WIP materials: tracks consumption in 'consumedBy' array
-//   * Options: { reason, userId, orderId, planId, nodeId }
-//
-// - consumeMaterials(consumptionList, options)
-//   * Batch consumption of multiple materials
-//   * Handles both raw materials and derived WIP materials
-//   * continueOnError: Process all materials even if some fail
-//   * Returns: { success, consumed[], failed[] }
-//
-// WIP MATERIAL TRACKING:
-// - WIP materials (type: 'wip' or category: 'WIP') have special handling
-// - Each consumption is recorded in material.consumedBy array:
-//   { planId, nodeId, quantity, timestamp, userId }
-// - This enables traceability and production reporting
-//
-// AUDIT TRAIL:
-// - Every adjustment stores lastStockAdjustment with full details
-// - Results are also stored in plan.stockMovements for reference
-// ============================================================================
+// ================================
+// MATERIALS CRUD OPERATIONS
+// ================================
 
 /**
- * Adjust material stock with Firestore transaction
- * @param {string} materialIdOrCode - Material ID or code
- * @param {number} delta - Stock adjustment (positive = add, negative = consume)
- * @param {object} options - Additional options: { reason, userId, orderId, planId, nodeId }
- * @returns {Promise<{success: boolean, materialCode: string, previousStock: number, newStock: number}>}
+ * GET /api/materials - Get active materials
  */
-export async function adjustMaterialStock(materialIdOrCode, delta, options = {}) {
-  const db = getDb();
-  
+async function getMaterials(req, res) {
   try {
-    // Find material by code or ID
-    const materialsSnapshot = await db.collection('materials').get();
-    let materialDoc = null;
-    
-    materialsSnapshot.forEach(doc => {
-      const data = doc.data();
-      if (doc.id === materialIdOrCode || data.code === materialIdOrCode) {
-        materialDoc = { ref: doc.ref, id: doc.id, data };
-      }
-    });
-    
-    if (!materialDoc) {
-      throw new Error(`Material not found: ${materialIdOrCode}`);
-    }
-    
-    // Use transaction to ensure atomic update
-    const result = await db.runTransaction(async (transaction) => {
-      const freshDoc = await transaction.get(materialDoc.ref);
-      
-      if (!freshDoc.exists) {
-        throw new Error(`Material document disappeared: ${materialIdOrCode}`);
-      }
-      
-      const currentData = freshDoc.data();
-      const currentStock = parseFloat(currentData.stock || 0);
-      const newStock = currentStock + delta;
-      
-      // Check for negative stock (consumption validation)
-      if (newStock < 0 && delta < 0) {
-        throw new Error(
-          `Insufficient stock for ${currentData.code || materialIdOrCode}: ` +
-          `Required ${Math.abs(delta)}, Available ${currentStock}`
-        );
-      }
-      
-      // Prepare update object
-      const updateData = {
-        stock: newStock,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastStockAdjustment: {
-          delta,
-          previousStock: currentStock,
-          newStock,
-          timestamp: new Date().toISOString(),
-          reason: options.reason || (delta < 0 ? 'production_consumption' : 'production_output'),
-          userId: options.userId || 'system',
-          orderId: options.orderId || null,
-          planId: options.planId || null,
-          nodeId: options.nodeId || null
-        }
-      };
-      
-      // For semi-finished materials (type: 'semi_finished' or category: 'SEMI_FINISHED'), track consumption history
-      // Backward compatibility: Also check for old 'wip' type
-      const isSemiFinished = currentData.type === 'semi_finished' || currentData.category === 'SEMI_FINISHED' || 
-                             currentData.type === 'wip' || currentData.category === 'WIP' || currentData.produced === true;
-      
-      if (isSemiFinished && delta < 0 && options.planId) {
-        // Add consumption record to consumedBy array
-        const consumedByEntry = {
-          planId: options.planId,
-          nodeId: options.nodeId || null,
-          quantity: Math.abs(delta),
-          timestamp: new Date().toISOString(),
-          userId: options.userId || 'system'
-        };
-        
-        // Use arrayUnion to append to consumedBy array (creates array if doesn't exist)
-        updateData.consumedBy = admin.firestore.FieldValue.arrayUnion(consumedByEntry);
-      }
-      
-      // Track production history for semi_finished and finished_product (when stock increases)
-      if ((isSemiFinished || currentData.type === 'finished_product') && delta > 0 && options.planId) {
-        const productionEntry = {
-          planId: options.planId,
-          workOrderCode: options.workOrderCode || null,
-          nodeId: options.nodeId || null,
-          assignmentId: options.assignmentId || null,
-          quantity: delta,
-          timestamp: new Date().toISOString(),
-          producedBy: options.userId || 'system'
-        };
-        
-        updateData.productionHistory = admin.firestore.FieldValue.arrayUnion(productionEntry);
-      }
-      
-      // Update stock
-      transaction.update(materialDoc.ref, updateData);
-      
-      return {
-        success: true,
-        materialCode: currentData.code || materialDoc.id,
-        materialName: currentData.name || '',
-        materialType: currentData.type || currentData.category || 'unknown',
-        isSemiFinished,
-        previousStock: currentStock,
-        newStock,
-        delta
-      };
-    });
-    
-    // Invalidate cache after stock change
-    cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 };
-    cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 };
-    
-    console.log(
-      `✅ Stock adjusted: ${result.materialCode} ` +
-      `(${result.previousStock} → ${result.newStock}, Δ${delta})`
-    );
-    
-    return result;
-    
+    const materials = await Materials.getActiveMaterials()
+    res.json(materials)
   } catch (error) {
-    console.error(`❌ Stock adjustment failed for ${materialIdOrCode}:`, error.message);
-    throw error;
+    console.error('Error getting materials:', error)
+    res.status(500).json({ error: 'Failed to get materials' })
   }
 }
 
 /**
- * Consume multiple materials in batch (for production plan release)
- * @param {Array} consumptionList - Array of {code/id, qty, reason, nodeId}
- * @param {object} options - Additional options: { userId, orderId, planId, skipValidation, continueOnError }
- * @returns {Promise<{success: boolean, consumed: Array, failed: Array}>}
+ * GET /api/materials/all - Get all materials (including inactive)
  */
-export async function consumeMaterials(consumptionList, options = {}) {
-  if (!Array.isArray(consumptionList) || consumptionList.length === 0) {
-    return { success: true, consumed: [], failed: [] };
+async function getAllMaterials(req, res) {
+  try {
+    const materials = await Materials.getAllMaterials()
+    res.json(materials)
+  } catch (error) {
+    console.error('Error getting all materials:', error)
+    res.status(500).json({ error: 'Failed to get materials' })
   }
-  
-  const consumed = [];
-  const failed = [];
-  
-  console.log(`🔄 Consuming ${consumptionList.length} materials...`);
-  
-  for (const item of consumptionList) {
-    const materialId = item.code || item.id;
-    const qty = parseFloat(item.qty || 0);
-    
-    if (!materialId || qty <= 0) {
-      failed.push({
-        material: materialId || 'unknown',
-        qty,
-        error: 'Invalid material or quantity'
-      });
-      continue;
-    }
-    
-    try {
-      const result = await adjustMaterialStock(materialId, -qty, {
-        reason: item.reason || options.reason || 'production_consumption',
-        userId: options.userId,
-        orderId: options.orderId,
-        planId: options.planId, // Pass planId for WIP tracking
-        nodeId: item.nodeId || null // Pass nodeId if available
-      });
-      
-      consumed.push({
-        material: result.materialCode,
-        name: result.materialName,
-        type: result.materialType,
-        isWIP: result.isWIP,
-        qty,
-        previousStock: result.previousStock,
-        newStock: result.newStock
-      });
-      
-    } catch (error) {
-      const errorMessage = error.message || 'Unknown error';
-      
-      if (options.skipValidation && errorMessage.includes('Insufficient stock')) {
-        // Log warning but continue
-        console.warn(`⚠️ Stock shortage (continuing): ${materialId} - ${errorMessage}`);
-        consumed.push({
-          material: materialId,
-          qty,
-          warning: 'Consumed despite insufficient stock',
-          error: errorMessage
-        });
-      } else {
-        failed.push({
-          material: materialId,
-          qty,
-          error: errorMessage
-        });
-        
-        if (!options.continueOnError) {
-          // Stop on first error unless continueOnError is true
-          break;
-        }
-      }
-    }
-  }
-  
-  const success = failed.length === 0;
-  
-  console.log(
-    `✅ Material consumption complete: ` +
-    `${consumed.length} consumed, ${failed.length} failed`
-  );
-  
-  return { success, consumed, failed };
 }
+
+/**
+ * GET /api/materials/active - Alias for /api/materials
+ */
+async function getActiveMaterials(req, res) {
+  try {
+    const materials = await Materials.getActiveMaterials()
+    res.json(materials)
+  } catch (error) {
+    console.error('Error getting active materials:', error)
+    res.status(500).json({ error: 'Failed to get materials' })
+  }
+}
+
+/**
+ * POST /api/materials - Create new material
+ */
+async function createMaterial(req, res) {
+  try {
+    const materialData = {
+      code: req.body.code,
+      name: req.body.name,
+      description: req.body.description,
+      type: req.body.type,
+      category: req.body.category,
+      subcategory: req.body.subcategory,
+      stock: req.body.stock,
+      reserved: req.body.reserved,
+      wip_reserved: req.body.wip_reserved || req.body.wipReserved,
+      reorder_point: req.body.reorder_point || req.body.reorderPoint,
+      max_stock: req.body.max_stock || req.body.maxStock,
+      unit: req.body.unit,
+      cost_price: req.body.cost_price || req.body.costPrice,
+      average_cost: req.body.average_cost || req.body.averageCost,
+      currency: req.body.currency,
+      primary_supplier_id: req.body.primary_supplier_id || req.body.primarySupplierId || req.body.supplier,
+      barcode: req.body.barcode,
+      qr_code: req.body.qr_code || req.body.qrCode,
+      status: req.body.status,
+      is_active: req.body.is_active !== false,
+      scrap_type: req.body.scrap_type || req.body.scrapType,
+      parent_material: req.body.parent_material || req.body.parentMaterial,
+      specifications: req.body.specifications,
+      storage: req.body.storage,
+      production_history: req.body.production_history || req.body.productionHistory,
+      suppliers_data: req.body.suppliers_data || req.body.suppliersData,
+      created_by: req.body.created_by || req.body.createdBy || req.user?.email
+    }
+
+    const newMaterial = await Materials.createMaterial(materialData)
+    res.status(201).json(newMaterial)
+  } catch (error) {
+    console.error('Error creating material:', error)
+    res.status(500).json({ error: 'Failed to create material' })
+  }
+}
+
+/**
+ * PATCH /api/materials/:id - Update material
+ */
+async function updateMaterial(req, res) {
+  try {
+    const { id } = req.params
+    const updates = {
+      code: req.body.code,
+      name: req.body.name,
+      description: req.body.description,
+      type: req.body.type,
+      category: req.body.category,
+      subcategory: req.body.subcategory,
+      stock: req.body.stock,
+      reserved: req.body.reserved,
+      wip_reserved: req.body.wip_reserved || req.body.wipReserved,
+      reorder_point: req.body.reorder_point || req.body.reorderPoint,
+      max_stock: req.body.max_stock || req.body.maxStock,
+      unit: req.body.unit,
+      cost_price: req.body.cost_price || req.body.costPrice,
+      average_cost: req.body.average_cost || req.body.averageCost,
+      currency: req.body.currency,
+      primary_supplier_id: req.body.primary_supplier_id || req.body.primarySupplierId || req.body.supplier,
+      barcode: req.body.barcode,
+      qr_code: req.body.qr_code || req.body.qrCode,
+      status: req.body.status,
+      is_active: req.body.is_active,
+      scrap_type: req.body.scrap_type || req.body.scrapType,
+      parent_material: req.body.parent_material || req.body.parentMaterial,
+      specifications: req.body.specifications,
+      storage: req.body.storage,
+      production_history: req.body.production_history || req.body.productionHistory,
+      suppliers_data: req.body.suppliers_data || req.body.suppliersData,
+      updated_by: req.body.updated_by || req.body.updatedBy || req.user?.email
+    }
+
+    const updatedMaterial = await Materials.updateMaterial(id, updates)
+    res.json(updatedMaterial)
+  } catch (error) {
+    console.error('Error updating material:', error)
+    res.status(500).json({ error: 'Failed to update material' })
+  }
+}
+
+/**
+ * DELETE /api/materials/:id - Soft delete material
+ */
+async function deleteMaterial(req, res) {
+  try {
+    const { id } = req.params
+    await Materials.deleteMaterial(id)
+    res.json({ message: 'Material deleted successfully' })
+  } catch (error) {
+    console.error('Error deleting material:', error)
+    res.status(500).json({ error: 'Failed to delete material' })
+  }
+}
+
+/**
+ * DELETE /api/materials/:id/permanent - Hard delete material
+ */
+async function permanentDeleteMaterial(req, res) {
+  try {
+    const { id } = req.params
+    await Materials.hardDeleteMaterial(id)
+    res.json({ message: 'Material permanently deleted' })
+  } catch (error) {
+    console.error('Error permanently deleting material:', error)
+    res.status(500).json({ error: 'Failed to permanently delete material' })
+  }
+}
+
+// ================================
+// STOCK MANAGEMENT
+// ================================
+
+/**
+ * PATCH /api/materials/:code/stock - Update material stock
+ */
+async function updateStock(req, res) {
+  try {
+    const { code } = req.params
+    const { stockChange, reservedChange, wipReservedChange } = req.body
+
+    const updatedMaterial = await Materials.updateMaterialStock(
+      code,
+      stockChange || 0,
+      reservedChange || 0,
+      wipReservedChange || 0
+    )
+
+    res.json(updatedMaterial)
+  } catch (error) {
+    console.error('Error updating stock:', error)
+    res.status(500).json({ error: 'Failed to update stock' })
+  }
+}
+
+/**
+ * GET /api/stock - Get stock overview
+ */
+async function getStockOverview(req, res) {
+  try {
+    const stats = await Materials.getMaterialStats()
+    res.json(stats)
+  } catch (error) {
+    console.error('Error getting stock overview:', error)
+    res.status(500).json({ error: 'Failed to get stock overview' })
+  }
+}
+
+// ================================
+// QUERY OPERATIONS
+// ================================
+
+/**
+ * GET /api/materials/category/:category - Get materials by category
+ */
+async function getMaterialsByCategory(req, res) {
+  try {
+    const { category } = req.params
+    const materials = await Materials.getMaterialsByCategory(category)
+    res.json(materials)
+  } catch (error) {
+    console.error('Error getting materials by category:', error)
+    res.status(500).json({ error: 'Failed to get materials' })
+  }
+}
+
+/**
+ * GET /api/materials/supplier/:supplierId - Get materials by supplier
+ */
+async function getMaterialsBySupplier(req, res) {
+  try {
+    const { supplierId } = req.params
+    const materials = await Materials.getMaterialsBySupplier(supplierId)
+    res.json(materials)
+  } catch (error) {
+    console.error('Error getting materials by supplier:', error)
+    res.status(500).json({ error: 'Failed to get materials' })
+  }
+}
+
+// ================================
+// ROUTE SETUP
+// ================================
 
 export function setupMaterialsRoutes(app) {
-  
-  // GET /api/materials - Tüm malzemeleri listele (kaldırılanlar hariç)
-  app.get('/api/materials', requireAuth, async (req, res) => {
-    try {
-      console.log('📦 API: Materials listesi istendi')
-      
-      // Rate limiting check
-      if (!checkRateLimit()) {
-        return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: 60 })
-      }
-      
-      // Check for cache busting parameter
-      const forceRefresh = req.query._t !== undefined
-      if (forceRefresh) {
-        console.log('🔄 API: Force refresh requested via _t parameter')
-      }
-      
-      const ifNoneMatch = req.headers['if-none-match']
-      
-      // Check cache first (skip if force refresh)
-      if (!forceRefresh) {
-        const cached = getCachedData('materialsActive')
-        if (cached) {
-          if (ifNoneMatch && ifNoneMatch === cached.etag) {
-            res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-            res.set('Pragma', 'no-cache')
-            res.set('Expires', '0')
-            return res.status(304).end()
-          }
-          res.set('ETag', cached.etag)
-          res.set('X-Cache', 'HIT')
-          res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-          res.set('Pragma', 'no-cache')
-          res.set('Expires', '0')
-          return res.json(cached.data)
-        }
-      }
+  // Materials CRUD
+  app.get('/api/materials', requireAuth, getMaterials)
+  app.get('/api/materials/all', requireAuth, getAllMaterials)
+  app.get('/api/materials/active', requireAuth, getActiveMaterials)
+  app.post('/api/materials', requireAuth, createMaterial)
+  app.patch('/api/materials/:id', requireAuth, updateMaterial)
+  app.delete('/api/materials/:id', requireAuth, deleteMaterial)
+  app.delete('/api/materials/:id/permanent', requireAuth, permanentDeleteMaterial)
 
-      let materials
-      try {
-        // Get all materials and filter client-side (more reliable than != query)
-        const snapshot = await safeFirestoreQuery('materials')
-        const allMaterials = []
-        snapshot.forEach(doc => { allMaterials.push({ id: doc.id, ...doc.data() }) })
-        
-        // Filter out removed materials client-side
-        materials = allMaterials.filter(m => m.status !== 'Kaldırıldı')
-        console.log(`📊 Filtered ${materials.length} active materials from ${allMaterials.length} total`)
-      } catch (error) {
-        if (error.message === 'QUOTA_EXCEEDED') {
-          // Check if we have any cached data to serve
-          const cachedWithQuotaProtection = getCachedData('materialsActive', true)
-          if (cachedWithQuotaProtection) {
-            console.warn('🚨 Serving cached data due to quota exceeded')
-            res.set('ETag', cachedWithQuotaProtection.etag)
-            res.set('X-Cache', 'QUOTA-PROTECTED')
-            return res.json(cachedWithQuotaProtection.data)
-          }
-          
-          // No cache available, return empty list with quota protection headers
-          console.warn('🚨 Quota exceeded and no cache available, returning empty list')
-          res.set('X-Cache', 'QUOTA-EXCEEDED')
-          res.set('Retry-After', '300') // 5 dakika sonra tekrar dene
-          return res.json([])
-        }
-        throw error
-      }
+  // Stock management
+  app.patch('/api/materials/:code/stock', requireAuth, updateStock)
+  app.get('/api/stock', requireAuth, getStockOverview)
 
-      // Update cache
-      const now = Date.now()
-      const etag = buildEtag(materials)
-      cache.materialsActive = { data: materials, ts: now, etag, hits: 0 }
-      
-      res.set('ETag', etag)
-      res.set('X-Cache', 'MISS')
-      res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-      res.set('Pragma', 'no-cache')
-      res.set('Expires', '0')
-      console.log(`✅ API: ${materials.length} malzeme döndürüldü (kaldırılanlar hariç)`)
-      res.json(materials)
-    } catch (error) {
-      console.error('❌ API: Materials listesi alınırken hata:', error)
-      
-      // Check if it's a quota exceeded error
-      if (error.message && error.message.includes('Quota exceeded')) {
-        console.warn('🚨 Quota exceeded in final catch - returning empty list')
-        res.set('X-Cache', 'QUOTA-EXCEEDED-FINAL')
-        res.set('Retry-After', '300')
-        return res.json([])
-      }
-      
-      // Final fallback to any cached data
-      if (cache.materialsActive.data) {
-        console.warn('⚠️  Serving stale cached materials due to error')
-        res.set('ETag', cache.materialsActive.etag)
-        res.set('X-Cache', 'STALE')
-        return res.json(cache.materialsActive.data)
-      }
-      
-      // Last resort: return empty list instead of error
-      console.warn('⚠️  No cache available, returning empty materials list')
-      res.set('X-Cache', 'FALLBACK')
-      res.json([])
-    }
-  })
+  // Query operations
+  app.get('/api/materials/category/:category', requireAuth, getMaterialsByCategory)
+  app.get('/api/materials/supplier/:supplierId', requireAuth, getMaterialsBySupplier)
 
-  // GET /api/materials/all - Tüm malzemeleri listele (kaldırılanlar dahil)
-  app.get('/api/materials/all', requireAuth, async (req, res) => {
-    try {
-      console.log('📦 API: Tüm materials listesi istendi (kaldırılanlar dahil)')
-      
-      // Rate limiting check
-      if (!checkRateLimit()) {
-        return res.status(429).json({ error: 'Rate limit exceeded', retryAfter: 60 })
-      }
-      
-      // Check for cache busting parameter
-      const forceRefresh = req.query._t !== undefined
-      if (forceRefresh) {
-        console.log('🔄 API: Force refresh requested via _t parameter for /all endpoint')
-      }
-      
-      const ifNoneMatch = req.headers['if-none-match']
-      
-      // Check cache first (skip if force refresh)
-      if (!forceRefresh) {
-        const cached = getCachedData('materialsAll')
-        if (cached) {
-          if (ifNoneMatch && ifNoneMatch === cached.etag) {
-            res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-            res.set('Pragma', 'no-cache')
-            res.set('Expires', '0')
-            return res.status(304).end()
-          }
-          res.set('ETag', cached.etag)
-          res.set('X-Cache', 'HIT')
-          res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-          res.set('Pragma', 'no-cache')
-          res.set('Expires', '0')
-          return res.json(cached.data)
-        }
-      }
-
-      let materials
-      try {
-        // Try Firestore query with safe wrapper
-        const snapshot = await safeFirestoreQuery('materials')
-        materials = []
-        snapshot.forEach(doc => { materials.push({ id: doc.id, ...doc.data() }) })
-      } catch (error) {
-        if (error.message === 'QUOTA_EXCEEDED') {
-          // Check if we have any cached data to serve
-          const cachedWithQuotaProtection = getCachedData('materialsAll', true)
-          if (cachedWithQuotaProtection) {
-            console.warn('🚨 Serving cached all materials due to quota exceeded')
-            res.set('ETag', cachedWithQuotaProtection.etag)
-            res.set('X-Cache', 'QUOTA-PROTECTED')
-            return res.json(cachedWithQuotaProtection.data)
-          }
-          
-          // No cache available, return empty list with quota protection headers
-          console.warn('🚨 All materials quota exceeded and no cache available, returning empty list')
-          res.set('X-Cache', 'QUOTA-EXCEEDED')
-          res.set('Retry-After', '300') // 5 dakika sonra tekrar dene
-          return res.json([])
-        }
-        throw error
-      }
-
-      // Update cache
-      const now = Date.now()
-      const etag = buildEtag(materials)
-      cache.materialsAll = { data: materials, ts: now, etag, hits: 0 }
-      
-      res.set('ETag', etag)
-      res.set('X-Cache', 'MISS')
-      res.set('Cache-Control', 'no-cache, no-store, must-revalidate')
-      res.set('Pragma', 'no-cache')
-      res.set('Expires', '0')
-      console.log(`✅ API: ${materials.length} malzeme döndürüldü (tümü)`)
-      res.json(materials)
-    } catch (error) {
-      console.error('❌ API: Tüm materials listesi alınırken hata:', error)
-      if (cache.materialsAll.data) {
-        console.warn('⚠️  Serving stale cached all-materials due to error')
-        res.set('ETag', cache.materialsAll.etag)
-        res.set('X-Cache', 'STALE')
-        return res.json(cache.materialsAll.data)
-      }
-      res.status(503).json({ error: 'Tüm materials listesi alınamadı', reason: 'upstream_error' })
-    }
-  })
-
-  // POST /api/materials - Yeni malzeme ekle
-  app.post('/api/materials', requireAuth, async (req, res) => {
-    try {
-      console.log('📦 API: Yeni malzeme ekleniyor:', req.body)
-      
-      const materialData = {
-        ...req.body,
-        status: req.body.status || 'Aktif', // Varsayılan status 'Aktif'
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }
-      
-      // Custom ID kullan - eğer code varsa onu ID olarak kullan
-      const customId = materialData.code || await generateNextMaterialCode()
-      
-      // Eğer code yok ise otomatik oluştur ve data'ya ekle
-      if (!materialData.code) {
-        materialData.code = customId
-      }
-      
-      console.log('📦 API: Custom ID kullanılıyor:', customId)
-      
-      // Custom ID ile document oluştur
-      const docRef = getDb().collection('materials').doc(customId)
-      await docRef.set(materialData)
-      
-      const newDoc = await docRef.get()
-      const newMaterial = {
-        id: newDoc.id,
-        ...newDoc.data()
-      }
-      
-      // Invalidate cache after creation
-      try {
-        cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 }
-        cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 }
-        console.log('🧹 Cache invalidated after create')
-      } catch (e) {
-        console.error('Cache invalidation failed after create:', e)
-      }
-
-      console.log('✅ API: Malzeme eklendi:', newMaterial.id)
-      res.status(201).json(newMaterial)
-    } catch (error) {
-      console.error('❌ API: Malzeme eklenirken hata:', error)
-      res.status(500).json({ error: 'Malzeme eklenemedi' })
-    }
-  })
-
-  // PATCH /api/materials/:id - Malzeme güncelle
-  app.patch('/api/materials/:id', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params
-      console.log('📦 API: Malzeme güncelleniyor:', id, req.body)
-      
-      // Stok güncelleme kontrolü - eğer stock değişiyorsa transaction kullan
-      if (req.body.stock !== undefined) {
-        console.log('⚠️ API: Stok değişikliği tespit edildi, transaction başlatılıyor...')
-        
-        const materialRef = getDb().collection('materials').doc(id)
-        
-        const result = await getDb().runTransaction(async (transaction) => {
-          const materialDoc = await transaction.get(materialRef)
-          
-          if (!materialDoc.exists) {
-            throw new Error('Malzeme bulunamadı')
-          }
-          
-          const currentData = materialDoc.data()
-          const oldStock = currentData.stock || 0
-          const newStock = parseInt(req.body.stock) || 0
-          const stockDifference = newStock - oldStock
-          
-          // Update malzeme with new stock
-          const updateData = {
-            ...req.body,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            available: newStock - (currentData.reserved || 0)
-          }
-          
-          transaction.update(materialRef, updateData)
-          
-          // Log stock movement if there's a difference
-          if (stockDifference !== 0) {
-            const stockMovementRef = getDb().collection('stockMovements').doc()
-            transaction.set(stockMovementRef, {
-              materialId: id,
-              materialCode: currentData.code,
-              materialName: currentData.name || '',
-              type: stockDifference > 0 ? 'in' : 'out',
-              subType: 'manual_adjustment',
-              quantity: Math.abs(stockDifference),
-              unit: currentData.unit || 'Adet',
-              stockBefore: oldStock,
-              stockAfter: newStock,
-              unitCost: currentData.costPrice || null,
-              totalCost: currentData.costPrice ? currentData.costPrice * Math.abs(stockDifference) : null,
-              currency: 'TRY',
-              reference: `Material Edit: ${id}`,
-              referenceType: 'manual_edit',
-              warehouse: null,
-              location: null,
-              notes: `Manuel stok düzenleme: ${oldStock} → ${newStock}`,
-              reason: 'Admin tarafından manuel güncelleme',
-              movementDate: admin.firestore.FieldValue.serverTimestamp(),
-              createdAt: admin.firestore.FieldValue.serverTimestamp(),
-              userId: req.user?.uid || 'system',
-              userName: req.user?.name || 'Admin',
-              approved: true,
-              approvedBy: req.user?.uid || 'system',
-              approvedAt: admin.firestore.FieldValue.serverTimestamp()
-            })
-            
-            // Audit log oluştur
-            const auditLogRef = getDb().collection('auditLogs').doc()
-            transaction.set(auditLogRef, {
-              type: 'STOCK_UPDATE',
-              action: 'MANUAL_EDIT',
-              materialCode: currentData.code,
-              materialId: id,
-              materialName: currentData.name || '',
-              oldStock: oldStock,
-              newStock: newStock,
-              difference: stockDifference,
-              userId: req.user?.uid || 'system',
-              userName: req.user?.name || 'Admin',
-              timestamp: admin.firestore.FieldValue.serverTimestamp(),
-              details: {
-                operation: 'overwrite',
-                editSource: 'edit_modal',
-                userAgent: req.headers['user-agent'] || 'Unknown'
-              }
-            })
-          }
-          
-          return {
-            id: id,
-            ...currentData,
-            ...updateData,
-            stock: newStock
-          }
-        })
-        
-        console.log(`✅ API: Malzeme güncellendi (transaction): ${id}`)
-        // Optional name propagation if name also changed in same request
-        if (req.body.name && req.body.name !== result.name) {
-          await propagateMaterialNameToOrders(result.code || id, req.body.name)
-        }
-
-        // Invalidate cache after update
-        try {
-          cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 }
-          cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 }
-          console.log('🧹 Cache invalidated after transaction update')
-        } catch (e) {
-          console.error('Cache invalidation failed after transaction update:', e)
-        }
-
-        res.json(result)
-        
-      } else {
-        // Normal güncelleme (stok değişmiyorsa)
-        const updateData = {
-          ...req.body,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        }
-        
-        const docRef = getDb().collection('materials').doc(id)
-        await docRef.update(updateData)
-        
-        const updatedDoc = await docRef.get()
-        if (!updatedDoc.exists) {
-          return res.status(404).json({ error: 'Malzeme bulunamadı' })
-        }
-        
-        const updatedMaterial = {
-          id: updatedDoc.id,
-          ...updatedDoc.data()
-        }
-        
-        console.log('✅ API: Malzeme güncellendi:', id)
-        // If name changed, propagate to orders' embedded items
-        if (req.body.name && req.body.name !== (materialData?.name || '')) {
-          await propagateMaterialNameToOrders(updatedMaterial.code || id, req.body.name)
-        }
-
-        // Invalidate cache after update
-        try {
-          cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 }
-          cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 }
-          console.log('🧹 Cache invalidated after normal update')
-        } catch (e) {
-          console.error('Cache invalidation failed after normal update:', e)
-        }
-
-        res.json(updatedMaterial)
-      }
-      
-    } catch (error) {
-      console.error('❌ API: Malzeme güncellenirken hata:', error)
-      res.status(500).json({ error: 'Malzeme güncellenemedi' })
-    }
-  })
-
-  // DELETE /api/materials/:id - Malzeme sil (Soft Delete)
-  app.delete('/api/materials/:id', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params
-      console.log('📦 API: Malzeme soft delete yapılıyor:', id)
-      
-      const docRef = getDb().collection('materials').doc(id)
-      const doc = await docRef.get()
-      
-      if (!doc.exists) {
-        return res.status(404).json({ error: 'Malzeme bulunamadı' })
-      }
-      
-      const materialData = doc.data()
-      
-      // Zaten kaldırılmış malzemeyi tekrar kaldırmaya çalışılıyorsa
-      if (materialData.status === 'Kaldırıldı') {
-        console.log('⚠️ API: Malzeme zaten kaldırılmış, işlem atlanıyor:', id)
-        return res.json({ success: true, id, action: 'already_removed', message: 'Malzeme zaten kaldırılmış' })
-      }
-      
-      // Hard delete yerine soft delete - status'u 'Kaldırıldı' yap
-      await docRef.update({
-        status: 'Kaldırıldı',
-        removedAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      })
-      
-      // Invalidate cache after deletion
-      try {
-        cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 }
-        cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 }
-        console.log('🧹 Cache invalidated after soft delete')
-      } catch (e) {
-        console.error('Cache invalidation failed after soft delete:', e)
-      }
-      
-      console.log('✅ API: Malzeme soft delete edildi:', id)
-      res.json({ success: true, id, action: 'soft_delete' })
-    } catch (error) {
-      console.error('❌ API: Malzeme soft delete edilirken hata:', error)
-      res.status(500).json({ error: 'Malzeme silinemedi' })
-    }
-  })
-
-  // DELETE /api/materials/:id/permanent - Malzeme kalıcı sil (Hard Delete - Admin Only)
-  app.delete('/api/materials/:id/permanent', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params
-      console.log('📦 API: Malzeme kalıcı siliniyor (HARD DELETE):', id)
-      
-      const docRef = getDb().collection('materials').doc(id)
-      const doc = await docRef.get()
-      
-      if (!doc.exists) {
-        return res.status(404).json({ error: 'Malzeme bulunamadı' })
-      }
-      
-      // Hard delete - gerçekten sil
-      await docRef.delete()
-      
-      console.log('✅ API: Malzeme kalıcı silindi (HARD DELETE):', id)
-      res.json({ success: true, id, action: 'hard_delete' })
-    } catch (error) {
-      console.error('❌ API: Malzeme kalıcı silinirken hata:', error)
-      res.status(500).json({ error: 'Malzeme kalıcı silinemedi' })
-    }
-  })
-
-  // GET /api/categories - Tüm kategorileri listele
-  // Simple cache for categories
-  const categoriesCache = { data: null, ts: 0, etag: '' }
-  const CAT_TTL_MS = Number(process.env.CATEGORIES_CACHE_TTL_MS || 60_000)
-  function buildEtag(items) {
-    try { const base = items?.length ? `${items.length}:${items[0]?.id || ''}:${items[items.length-1]?.id || ''}` : '0'; return 'W/"' + Buffer.from(base).toString('base64').slice(0,16) + '"' } catch { return 'W/"0"' }
-  }
-
-  app.get('/api/categories', requireAuth, async (req, res) => {
-    try {
-      console.log('🏷️ API: Kategoriler listesi istendi')
-      const now = Date.now()
-      const ifNoneMatch = req.headers['if-none-match']
-      if (categoriesCache.data && now - categoriesCache.ts < CAT_TTL_MS) {
-        if (ifNoneMatch && ifNoneMatch === categoriesCache.etag) return res.status(304).end()
-        res.set('ETag', categoriesCache.etag)
-        return res.json(categoriesCache.data)
-      }
-
-      const snapshot = await getDb().collection('materials-categories').get()
-      
-      const categories = []
-      snapshot.forEach(doc => {
-        categories.push({
-          id: doc.id,
-          ...doc.data()
-        })
-      })
-      
-      categoriesCache.data = categories
-      categoriesCache.ts = now
-      categoriesCache.etag = buildEtag(categories)
-      res.set('ETag', categoriesCache.etag)
-      console.log(`✅ API: ${categories.length} kategori döndürüldü`)
-      res.json(categories)
-    } catch (error) {
-      console.error('❌ API: Kategoriler listesi alınırken hata:', error)
-      if (categoriesCache.data) {
-        console.warn('⚠️  Serving cached categories due to error')
-        res.set('ETag', categoriesCache.etag)
-        return res.json(categoriesCache.data)
-      }
-      if ((process.env.NODE_ENV || 'development') !== 'production') {
-        return res.json([])
-      }
-      res.status(503).json({ error: 'Kategoriler listesi alınamadı', reason: 'upstream_error' })
-    }
-  })
-
-  // POST /api/categories - Yeni kategori ekle
-  app.post('/api/categories', requireAuth, async (req, res) => {
-    try {
-      console.log('🏷️ API: Yeni kategori ekleniyor:', req.body)
-      
-      const categoryData = {
-        ...req.body,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }
-      
-      const docRef = await getDb().collection('materials-categories').add(categoryData)
-      const newDoc = await docRef.get()
-      
-      const newCategory = {
-        id: newDoc.id,
-        ...newDoc.data()
-      }
-      
-      console.log('✅ API: Kategori eklendi:', newCategory.id)
-      // In-memory categories cache invalidation after mutation
-      try {
-        categoriesCache.data = null
-        categoriesCache.ts = 0
-        categoriesCache.etag = ''
-        console.log('🧹 Categories cache invalidated after create')
-      } catch {}
-      res.status(201).json(newCategory)
-    } catch (error) {
-      console.error('❌ API: Kategori eklenirken hata:', error)
-      res.status(500).json({ error: 'Kategori eklenemedi' })
-    }
-  })
-
-  // PATCH /api/categories/:id - Kategori güncelle
-  app.patch('/api/categories/:id', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params
-      console.log('🏷️ API: Kategori güncelleniyor:', id, req.body)
-      
-      const updateData = {
-        ...req.body,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
-      }
-      
-      const docRef = getDb().collection('materials-categories').doc(id)
-      await docRef.update(updateData)
-      
-      const updatedDoc = await docRef.get()
-      if (!updatedDoc.exists) {
-        return res.status(404).json({ error: 'Kategori bulunamadı' })
-      }
-      
-      const updatedCategory = {
-        id: updatedDoc.id,
-        ...updatedDoc.data()
-      }
-      
-      console.log('✅ API: Kategori güncellendi:', id)
-      // Invalidate categories cache after update
-      try {
-        categoriesCache.data = null
-        categoriesCache.ts = 0
-        categoriesCache.etag = ''
-        console.log('🧹 Categories cache invalidated after update')
-      } catch {}
-      res.json(updatedCategory)
-    } catch (error) {
-      console.error('❌ API: Kategori güncellenirken hata:', error)
-      res.status(500).json({ error: 'Kategori güncellenemedi' })
-    }
-  })
-
-  // DELETE /api/categories/:id - Kategori sil
-  app.delete('/api/categories/:id', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params
-      const { updateRemoved } = req.query
-
-      console.log('🏷️ API: Kategori siliniyor:', { id, updateRemoved })
-      
-      const docRef = getDb().collection('materials-categories').doc(id)
-      const doc = await docRef.get()
-      
-      if (!doc.exists) {
-        return res.status(404).json({ error: 'Kategori bulunamadı' })
-      }
-
-      // Eğer 'updateRemoved' true ise, kaldırılmış malzemeleri güncelle ve kategoriyi sil
-      if (updateRemoved === 'true') {
-        console.log('🏷️ API: Kategori siliniyor ve kaldırılmış malzemeler güncelleniyor...')
-        const materialsRef = getDb().collection('materials')
-        const snapshot = await materialsRef.where('category', '==', id).where('status', '==', 'Kaldırıldı').get()
-
-        await getDb().runTransaction(async (transaction) => {
-          if (!snapshot.empty) {
-            console.log(`Found ${snapshot.size} removed materials to update.`)
-            snapshot.forEach(materialDoc => {
-              const materialRef = materialsRef.doc(materialDoc.id)
-              transaction.update(materialRef, { category: null, updatedAt: admin.firestore.FieldValue.serverTimestamp() })
-            })
-          }
-          transaction.delete(docRef)
-        })
-
-        console.log(`✅ API: Kategori silindi ve ${snapshot.size} kaldırılmış malzemenin kategorisi sıfırlandı.`)
-
-      } else {
-        // Doğrudan silme öncesi son bir güvenlik kontrolü yap
-        const usageSnapshot = await getDb().collection('materials').where('category', '==', id).limit(1).get()
-        if (!usageSnapshot.empty) {
-          // Bu kategoriyi kullanan malzeme var. Aktif mi kontrol et.
-          const activeUsage = await getDb().collection('materials').where('category', '==', id).where('status', '!=', 'Kaldırıldı').limit(1).get()
-          if (!activeUsage.empty) {
-            console.warn('❌ API: Aktif malzemeler tarafından kullanılan kategori silinemez.')
-            return res.status(400).json({ error: 'Bu kategori hala aktif malzemeler tarafından kullanılıyor ve silinemez.' })
-          }
-        }
-        // Hiçbir aktif malzeme kullanmıyorsa (veya hiç malzeme kullanmıyorsa) sil
-        console.log('🏷️ API: Kategori doğrudan siliniyor (aktif kullanım yok).')
-        await docRef.delete()
-      }
-      
-      // Invalidate categories cache after delete
-      try {
-        categoriesCache.data = null
-        categoriesCache.ts = 0
-        categoriesCache.etag = ''
-        console.log('🧹 Categories cache invalidated after delete')
-      } catch {}
-
-      res.json({ success: true, id })
-    } catch (error) {
-      console.error('❌ API: Kategori silinirken hata:', error)
-      res.status(500).json({ error: 'Kategori silinemedi' })
-    }
-  })
-
-  // GET /api/categories/:id/usage - Bu kategoriyi kullanan aktif ve kaldırılmış malzemeleri listele
-  app.get('/api/categories/:id/usage', requireAuth, async (req, res) => {
-    try {
-      const { id } = req.params
-      console.log('🏷️ API: Kategori kullanım kontrolü istendi:', id)
-
-      const snapshot = await safeFirestoreQuery('materials', [['category', '==', id]])
-      
-      const activeMaterials = []
-      const removedMaterials = []
-      
-      snapshot.forEach(doc => {
-        const data = doc.data() || {}
-        const materialInfo = { id: doc.id, code: data.code || '', name: data.name || '' }
-        
-        if (data.status === 'Kaldırıldı') {
-          removedMaterials.push(materialInfo)
-        } else {
-          activeMaterials.push(materialInfo)
-        }
-      })
-
-      console.log(`✅ API: Kategori kullanım sonucu: ${activeMaterials.length} aktif, ${removedMaterials.length} kaldırılmış`)
-      res.json({
-        categoryId: id,
-        active: {
-          count: activeMaterials.length,
-          materials: activeMaterials
-        },
-        removed: {
-          count: removedMaterials.length,
-          materials: removedMaterials
-        }
-      })
-    } catch (error) {
-      console.error('❌ API: Kategori kullanım kontrolü hatası:', error)
-      res.status(500).json({ error: 'Kategori kullanım bilgisi alınamadı' })
-    }
-  })
-
-  // GET /api/stock - Tüm malzeme stok durumu
-  app.get('/api/stock', async (req, res) => {
-    try {
-      console.log('📦 API: Stok durumu istendi')
-      
-      const snapshot = await getDb().collection('materials').get()
-      const stockData = []
-      
-      snapshot.forEach(doc => {
-        const data = doc.data()
-        stockData.push({
-          id: doc.id,
-          code: data.code,
-          name: data.name,
-          stock: data.stock || 0,
-          available: data.available || 0,
-          reserved: data.reserved || 0,
-          unit: data.unit || 'Adet',
-          reorderPoint: data.reorderPoint || 0,
-          category: data.category || 'Diğer',
-          supplier: data.supplier || '',
-          costPrice: data.costPrice || null,
-          lastUpdated: data.updatedAt
-        })
-      })
-      
-      console.log(`✅ API: ${stockData.length} malzeme stok durumu döndürüldü`)
-      res.json(stockData)
-    } catch (error) {
-      console.error('❌ API: Stok durumu alınırken hata:', error)
-      res.status(500).json({ error: 'Stok durumu alınamadı', details: error.message })
-    }
-  })
-
-  // PATCH /api/materials/:code/stock - Malzeme stok güncelleme (sipariş teslimi için)
-  app.patch('/api/materials/:code/stock', requireAuth, async (req, res) => {
-    try {
-      const { code } = req.params
-      const { quantity, operation = 'add', orderId, itemId, movementType = 'delivery', notes = '' } = req.body
-      
-      console.log(`📦 API: Stok güncelleme istendi - ${code}: ${operation} ${quantity}`)
-      
-      // Validation
-      if (!quantity || isNaN(quantity) || quantity <= 0) {
-        return res.status(400).json({ error: 'Geçerli bir miktar belirtilmelidir' })
-      }
-      
-      if (!['add', 'subtract'].includes(operation)) {
-        return res.status(400).json({ error: 'İşlem türü "add" veya "subtract" olmalıdır' })
-      }
-      
-      // Malzemeyi kod ile bul
-      const materialQuery = await getDb().collection('materials').where('code', '==', code).get()
-      
-      if (materialQuery.empty) {
-        return res.status(404).json({ error: `Malzeme bulunamadı: ${code}` })
-      }
-      
-      const materialDoc = materialQuery.docs[0]
-      const materialData = materialDoc.data()
-      const currentStock = materialData.stock || 0
-      
-      // Yeni stok miktarını hesapla
-      const adjustmentQuantity = operation === 'add' ? quantity : -quantity
-      const newStock = currentStock + adjustmentQuantity
-      
-      // Negatif stok kontrolü
-      if (newStock < 0) {
-        return res.status(400).json({ 
-          error: `Stok miktarı negatif olamaz. Mevcut: ${currentStock}, İstenilen: ${adjustmentQuantity}` 
-        })
-      }
-      
-      // Batch transaction başlat
-      const batch = getDb().batch()
-      
-      // Malzeme stokunu güncelle
-      const materialRef = getDb().collection('materials').doc(materialDoc.id)
-      batch.update(materialRef, {
-        stock: newStock,
-        available: newStock - (materialData.reserved || 0),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        lastStockUpdate: {
-          orderId: orderId || '',
-          itemId: itemId || '',
-          quantity: adjustmentQuantity,
-          previousStock: currentStock,
-          newStock: newStock,
-          operation: operation,
-          timestamp: admin.firestore.FieldValue.serverTimestamp()
-        }
-      })
-      
-      // Stock movement kaydı oluştur
-      const stockMovementRef = getDb().collection('stockMovements').doc()
-      batch.set(stockMovementRef, {
-        materialId: materialDoc.id,
-        materialCode: code,
-        materialName: materialData.name || '',
-        type: operation === 'add' ? 'in' : 'out',
-        subType: movementType,
-        quantity: Math.abs(adjustmentQuantity),
-        unit: materialData.unit || 'Adet',
-        stockBefore: currentStock,
-        stockAfter: newStock,
-        unitCost: materialData.costPrice || null,
-        totalCost: materialData.costPrice ? materialData.costPrice * Math.abs(adjustmentQuantity) : null,
-        currency: 'TRY',
-        reference: orderId || itemId || '',
-        referenceType: orderId ? 'purchase_order' : 'manual',
-        warehouse: null,
-        location: null,
-        notes: notes || `${operation === 'add' ? 'Stok girişi' : 'Stok çıkışı'} - Backend API`,
-        reason: movementType === 'delivery' ? 'Sipariş teslimi' : 'Manuel güncelleme',
-        movementDate: admin.firestore.FieldValue.serverTimestamp(),
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        userId: req.user?.uid || 'system',
-        userName: req.user?.name || 'System',
-        approved: true,
-        approvedBy: req.user?.uid || 'system',
-        approvedAt: admin.firestore.FieldValue.serverTimestamp()
-      })
-      
-      // Audit log oluştur
-      const auditLogRef = getDb().collection('auditLogs').doc()
-      batch.set(auditLogRef, {
-        type: 'STOCK_UPDATE',
-        action: `STOCK_${operation.toUpperCase()}_API`,
-        materialCode: code,
-        materialId: materialDoc.id,
-        materialName: materialData.name || '',
-        orderId: orderId || '',
-        itemId: itemId || '',
-        quantity: adjustmentQuantity,
-        previousStock: currentStock,
-        newStock: newStock,
-        userId: req.user?.uid || 'system',
-        userName: req.user?.name || 'System API',
-        timestamp: admin.firestore.FieldValue.serverTimestamp(),
-        details: {
-          operation: operation,
-          movementType: movementType,
-          notes: notes,
-          userAgent: req.headers['user-agent'] || 'Unknown'
-        }
-      })
-      
-      // Batch commit
-      await batch.commit()
-      
-      console.log(`✅ API: Stok güncellendi - ${code}: ${currentStock} → ${newStock}`)
-      
-      // Invalidate materials caches after stock change
-      try {
-        cache.materialsActive = { data: null, ts: 0, etag: '', hits: 0 }
-        cache.materialsAll = { data: null, ts: 0, etag: '', hits: 0 }
-        console.log('🧹 Materials cache invalidated after stock update')
-      } catch (e) {
-        console.warn('⚠️ Failed to invalidate materials cache after stock update:', e?.message)
-      }
-
-      // Response
-      res.json({
-        success: true,
-        materialCode: code,
-        materialName: materialData.name || '',
-        previousStock: currentStock,
-        newStock: newStock,
-        adjustment: adjustmentQuantity,
-        operation: operation,
-        timestamp: new Date().toISOString()
-      })
-      
-    } catch (error) {
-      console.error('❌ API: Stok güncellenirken hata:', error)
-      res.status(500).json({ 
-        error: 'Stok güncellenemedi', 
-        details: error.message 
-      })
-    }
-  })
-
-  // Stock Movements endpoint - fetch production history for a material
-  app.get('/api/stockMovements', requireAuth, async (req, res) => {
-    try {
-      const { materialCode } = req.query
-      
-      if (!materialCode) {
-        return res.status(400).json({ error: 'materialCode parametresi gerekli' })
-      }
-
-      console.log(`📊 Fetching stock movements for material: ${materialCode}`)
-
-      const db = getDb()
-      const movementsRef = db.collection('stockMovements')
-      
-      // Fetch movements where this material is involved
-      // Note: orderBy requires a Firestore index, so we'll sort client-side
-      const snapshot = await movementsRef
-        .where('materialCode', '==', materialCode)
-        .limit(100)
-        .get()
-
-      const movements = []
-      snapshot.forEach(doc => {
-        const data = doc.data()
-        movements.push({
-          id: doc.id,
-          ...data,
-          timestamp: data.timestamp?.toMillis ? data.timestamp.toMillis() : data.timestamp,
-          movementDate: data.movementDate?.toMillis ? data.movementDate.toMillis() : data.movementDate,
-          createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : data.createdAt
-        })
-      })
-
-      // Sort by timestamp client-side (newest first)
-      movements.sort((a, b) => {
-        const timeA = a.timestamp || a.movementDate || a.createdAt || 0
-        const timeB = b.timestamp || b.movementDate || b.createdAt || 0
-        return timeB - timeA
-      })
-
-      console.log(`✅ Found ${movements.length} stock movements for ${materialCode}`)
-      res.json({ movements, count: movements.length })
-
-    } catch (error) {
-      console.error('❌ Error fetching stock movements:', error)
-      res.status(500).json({ 
-        error: 'Stok hareketleri yüklenemedi', 
-        details: error.message 
-      })
-    }
-  })
-
-  console.log('✅ Materials API routes kuruldu')
+  // TODO: Stock movements tracking (future enhancement)
+  // app.get('/api/stockMovements', requireAuth, getStockMovements)
 }

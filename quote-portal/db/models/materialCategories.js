@@ -10,16 +10,24 @@ const CATEGORIES_TABLE = 'materials.materials_categories'
 const MATERIALS_TABLE = 'materials.materials'
 
 /**
- * Get all categories
+ * Get all categories with material counts
  */
 export async function getAllCategories() {
   try {
     const categories = await db(CATEGORIES_TABLE)
-      .select('*')
-      .orderBy('sort_order', 'asc')
-      .orderBy('name', 'asc')
+      .select(
+        'materials.materials_categories.*',
+        db.raw('COUNT(materials.materials.id) as material_count')
+      )
+      .leftJoin(MATERIALS_TABLE, 'materials.materials_categories.id', 'materials.materials.category')
+      .groupBy('materials.materials_categories.id')
+      .orderBy('materials.materials_categories.sort_order', 'asc')
+      .orderBy('materials.materials_categories.name', 'asc')
     
-    return categories
+    return categories.map(c => ({
+      ...c,
+      material_count: parseInt(c.material_count) || 0
+    }))
   } catch (error) {
     console.error('❌ Error getting all categories:', error)
     throw error
