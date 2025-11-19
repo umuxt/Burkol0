@@ -14,6 +14,10 @@ import { setupAuthRoutes } from './server/authRoutes.js'
 import { setupMaterialsRoutes } from './server/materialsRoutes.js'
 // Orders routes - PostgreSQL migrated
 import ordersRoutes from './server/ordersRoutes.js'
+// Quotes routes - PostgreSQL migrated
+import { setupQuotesRoutes } from './domains/quotes/server/quotesRoutes.js'
+import { setupFormRoutes } from './domains/quotes/server/formRoutes.js'
+import { setupPriceRoutes } from './domains/quotes/server/priceRoutes.js'
 import {
     getAllSuppliers,
     addSupplier,
@@ -116,7 +120,14 @@ app.use((req, res, next) => {
 
 // Setup API routes
 setupAuthRoutes(app)
+
+// Quotes routes - PostgreSQL (new system)
+setupQuotesRoutes(app)
+setupFormRoutes(app)
+setupPriceRoutes(app)
+
 // Lazily bootstrap core quote routes on first access to avoid Firestore reads
+// NOTE: These are OLD Firebase-based routes, will be phased out
 let coreRoutesBootstrapped = false
 async function ensureCoreRoutes(req, res, next) {
   try {

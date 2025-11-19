@@ -248,13 +248,8 @@ function QuotesManager({ t, onLogout, showNotification }) {
   async function refresh() {
     console.log('🔧 DEBUG: refresh() called')
     try {
-      // First sync any localStorage quotes to Firebase
-      console.log('🔄 Syncing localStorage quotes to Firebase...')
-      const syncResult = await API.syncLocalQuotesToFirebase()
-      if (syncResult.synced > 0) {
-        console.log('✅ Synced', syncResult.synced, 'localStorage quotes to Firebase')
-        showNotification(`Synced ${syncResult.synced} local quotes to database`, 'success')
-      }
+      // PostgreSQL migration: syncLocalQuotesToFirebase removed
+      // All data now directly from PostgreSQL
       
       // Reload quotes using the same method as initial load
       await loadQuotes()
