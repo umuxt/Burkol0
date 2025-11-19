@@ -35,3 +35,9 @@ build/
 # Temporary files
 *.tmp
 temp/
+
+# Backup files
+*.bak
+*.backup
+backup/
+*.firebase.bak
