@@ -12,8 +12,8 @@ import mime from 'mime-types'
 import { setupAuthRoutes } from './server/authRoutes.js'
 // Materials routes - TEMPORARILY DISABLED (pending PostgreSQL migration)
 import { setupMaterialsRoutes } from './server/materialsRoutes.js'
-// TODO: Migrate orders routes to PostgreSQL (still uses Firebase)
-// import { ordersRoutes } from './server/ordersRoutes.js'
+// Orders routes - PostgreSQL migrated
+import ordersRoutes from './server/ordersRoutes.js'
 import {
     getAllSuppliers,
     addSupplier,
@@ -146,8 +146,8 @@ app.use('/api/form-fields', ensureCoreRoutes)
 // Materials routes
 setupMaterialsRoutes(app)
 
-// TODO: Re-enable after migrating to PostgreSQL
-// app.use('/api', ordersRoutes)
+// Orders routes
+app.use('/api', ordersRoutes)
 
 // MES Routes - lazy bootstrap on first request to speed up startup
 let mesRouterPromise = null

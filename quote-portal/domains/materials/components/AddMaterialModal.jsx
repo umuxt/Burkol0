@@ -175,7 +175,7 @@ export default function AddMaterialModal({
       category: finalCategory,
       unit: formData.unit,
       stock: parseInt(formData.stock) || 0,
-      reorderPoint: parseInt(formData.reorderPoint) || 0,
+      reorder_point: parseInt(formData.reorderPoint) || 0,
       costPrice: parseFloat(formData.costPrice) || 0,
       sellPrice: parseFloat(formData.sellPrice) || 0,
       supplier: formData.supplier || '',

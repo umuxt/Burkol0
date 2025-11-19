@@ -190,6 +190,9 @@ export default function SuppliersTabContent({
       await createSupplier(supplierData)
       console.log('✅ Tedarikçi başarıyla eklendi')
       
+      // Suppliers listesini yenile (material relations dahil)
+      await refetchSuppliers()
+      
       setIsAddSupplierModalOpen(false)
     } catch (error) {
       console.error('❌ Tedarikçi ekleme hatası:', error)

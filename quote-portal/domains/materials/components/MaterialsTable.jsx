@@ -115,7 +115,7 @@ export default function MaterialsTable({
     }
 
     // Stok alanı için sayısal karşılaştırma
-    if (sortField === 'stock' || sortField === 'reorderPoint') {
+    if (sortField === 'stock' || sortField === 'reorder_point') {
       aValue = Number(aValue);
       bValue = Number(bValue);
     }
@@ -303,7 +303,7 @@ export default function MaterialsTable({
               <tr 
                 key={material.id || material.code} 
                 className={`
-                  ${material.stock <= material.reorderPoint ? 'low-stock' : ''} 
+                  ${material.stock <= material.reorder_point ? 'low-stock' : ''} 
                   ${material.status === 'Kaldırıldı' ? 'removed-material' : ''}
                 `.trim()}
                 onClick={(e) => {
@@ -335,7 +335,7 @@ export default function MaterialsTable({
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <StockBar 
                       stock={material.stock} 
-                      reorderPoint={material.reorderPoint} 
+                      reorderPoint={material.reorder_point} 
                       reserved={material.reserved || 0}
                       available={material.available || material.stock}
                     />

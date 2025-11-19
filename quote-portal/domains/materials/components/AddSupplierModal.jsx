@@ -377,17 +377,21 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
 
     try {
       // If new category, add it to Backend API first
+      let categoryToUse = finalCategory
       if (showNewCategory && newCategory.trim()) {
         try {
-          await categoriesService.addCategory({
+          const newCategoryData = await categoriesService.addCategory({
             name: newCategory.trim(),
             createdAt: new Date(),
             type: 'material'
           })
-          console.log('✅ New category added:', newCategory)
+          console.log('✅ New category added:', newCategory, 'ID:', newCategoryData.id)
+          // Use the category ID returned from backend
+          categoryToUse = newCategoryData.id
         } catch (categoryError) {
           console.error('❌ Category creation failed:', categoryError)
-          // Continue with material creation even if category fails
+          alert('Kategori oluşturulamadı. Mevcut kategorilerden birini seçin.')
+          return
         }
       }
 
@@ -396,11 +400,11 @@ export default function AddSupplierModal({ isOpen, onClose, onSave }) {
       
       const materialData = {
         ...newMaterial,
-        category: finalCategory, // Use final category (existing or new)
+        category: categoryToUse, // Use category ID (integer)
         code: finalCode,
         createdAt: new Date(),
         suppliers: [], // Will be updated when supplier is saved
-        reorderPoint: newMaterial.reorderPoint ? parseFloat(newMaterial.reorderPoint) : 0,
+        reorder_point: newMaterial.reorderPoint ? parseFloat(newMaterial.reorderPoint) : 0,
         stockLevel: newMaterial.stockLevel ? parseFloat(newMaterial.stockLevel) : 0,
         stock: newMaterial.stockLevel ? parseFloat(newMaterial.stockLevel) : 0, // stock alanı da ekle
         costPrice: newMaterial.costPrice ? parseFloat(newMaterial.costPrice) : 0,

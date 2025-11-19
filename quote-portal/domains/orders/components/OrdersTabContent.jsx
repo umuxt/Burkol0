@@ -104,21 +104,21 @@ function OrdersTable({
 
   const getSortValue = (order, field) => {
     switch (field) {
-      case 'orderCode': return order.orderCode || order.id || ''
-      case 'supplier': return (order.supplierName || order.supplier?.name || order.supplierCode || '').toString()
-      case 'status': return order.orderStatus || ''
-      case 'total': return Number(order.totalAmount || order.totalPrice || 0)
-      case 'items': return Number(order.items?.length || order.itemCount || 0)
+      case 'orderCode': return order.order_code || order.id || ''
+      case 'supplier': return (order.supplier_name || order.supplier?.name || order.supplierCode || '').toString()
+      case 'status': return order.order_status || ''
+      case 'total': return Number(order.total_amount || order.totalPrice || 0)
+      case 'items': return Number(order.items?.length || order.item_count || 0)
       case 'orderDate':
       default:
-        const d = order.orderDate instanceof Date ? order.orderDate : (order.orderDate ? new Date(order.orderDate) : new Date(0))
+        const d = order.order_date instanceof Date ? order.order_date : (order.order_date ? new Date(order.order_date) : new Date(0))
         return d.getTime()
     }
   }
 
   const visibleOrders = React.useMemo(() => {
     const base = Array.isArray(orders) ? orders.filter(o => {
-      const isCompleted = o.orderStatus === 'Teslim Edildi'
+      const isCompleted = o.order_status === 'Teslim Edildi'
       return variant === 'completed' ? isCompleted : variant === 'pending' ? !isCompleted : true
     }) : []
 
@@ -283,7 +283,7 @@ function OrdersTable({
             }}
           >
             <span style={{ fontSize: '11px', fontWeight: 600, color: '#1d4ed8' }}>
-              {item.itemCode || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
+              {item.item_code || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
             </span>
             <span
               style={{
@@ -296,7 +296,7 @@ function OrdersTable({
                 whiteSpace: 'nowrap'
               }}
             >
-              {item.itemStatus || 'Onay Bekliyor'}
+              {item.item_status || 'Onay Bekliyor'}
             </span>
           </div>
           <div
@@ -309,12 +309,12 @@ function OrdersTable({
               color: '#475569',
             }}
           >
-            <div style={{ fontWeight: 600 }}>{item.materialCode || '—'}</div>
+            <div style={{ fontWeight: 600 }}>{item.material_code || '—'}</div>
             <div style={{ fontWeight: 500, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {materialNameMap[item.materialCode] || item.materialName || '-'}
+              {materialNameMap[item.material_code] || item.material_name || '-'}
             </div>
             <div style={{ textAlign: 'right', fontWeight: 600 }}>
-              {item.quantity || 0} adet
+              {item.quantity || 0} {item.unit || 'adet'}
             </div>
           </div>
         </div>
@@ -492,8 +492,8 @@ function OrdersTable({
               {/* Data rows */}
               {!loading && !error && visibleOrders && visibleOrders.length > 0 ? visibleOrders.map((order) => {
                 // Order status'a göre filtreleme yap - items'a değil
-                const isPendingOrder = order.orderStatus !== 'Teslim Edildi'
-                const isCompletedOrder = order.orderStatus === 'Teslim Edildi'
+                const isPendingOrder = order.order_status !== 'Teslim Edildi'
+                const isCompletedOrder = order.order_status === 'Teslim Edildi'
                 
                 // Items varsa kullan, yoksa boş array
                 const items = order.items || []
@@ -526,12 +526,12 @@ function OrdersTable({
                     </td>
                     <td style={{ width: '120px', minWidth: '120px', whiteSpace: 'nowrap' }}>
                       <div className="material-name-cell" style={{ whiteSpace: 'nowrap' }}>
-                        {order.orderCode || order.id}
+                        {order.order_code || order.id}
                       </div>
                     </td>
                     <td style={{ width: '220px', minWidth: '220px', whiteSpace: 'nowrap' }}>
                       <div className="material-name-cell" style={{ whiteSpace: 'nowrap' }}>
-                        {(order.supplierId || '').toString()} {order.supplierId ? ' / ' : ''}{order.supplierName || ''}
+                        {(order.supplier_id || '').toString()} {order.supplier_id ? ' / ' : ''}{order.supplier_name || ''}
                       </div>
                     </td>
                     {variant !== 'completed' && (
@@ -540,15 +540,15 @@ function OrdersTable({
                           {(() => {
                             // Debug: Order fields'ları kontrol et
                             console.log('🚚 Delivery debug for order:', order.id, {
-                              expectedDeliveryDate: order.expectedDeliveryDate,
-                              orderStatus: order.orderStatus,
+                              expectedDeliveryDate: order.expected_delivery_date,
+                              orderStatus: order.order_status,
                               deliveryDate: order.deliveryDate,
                               allOrderFields: Object.keys(order)
                             })
                             
                             // Basit teslimat durumu hesaplama - API'ye bağımlı değil
                             const today = new Date()
-                            const deliveryDate = order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate) : null
+                            const deliveryDate = order.expected_delivery_date ? new Date(order.expected_delivery_date) : null
                             
                             let status = 'hesaplanıyor'
                             let daysRemaining = 0
@@ -557,7 +557,7 @@ function OrdersTable({
                               const timeDiff = deliveryDate.getTime() - today.getTime()
                               daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24))
                               
-                              if (order.orderStatus === 'Teslim Edildi') {
+                              if (order.order_status === 'Teslim Edildi') {
                                 status = 'teslim-edildi'
                               } else if (daysRemaining < 0) {
                                 status = 'gecikti'
@@ -596,31 +596,31 @@ function OrdersTable({
                       )}
                     </td>
                     <td style={{ width: '120px', textAlign: 'left', fontWeight: 600, paddingTop: '4px', paddingBottom: '4px' }}>
-                      {formatCurrency(relevantTotal || order.totalAmount)}
+                      {formatCurrency(relevantTotal || order.total_amount)}
                     </td>
                     {variant !== 'completed' && (
                       <td style={{ width: '80px', maxWidth: '80px', paddingTop: '4px', paddingBottom: '4px', whiteSpace: 'nowrap' }}>
                         {onUpdateOrderStatus ? (
                           <select
-                            value={order.orderStatus}
+                            value={order.order_status}
                             disabled={actionLoading}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
                               console.log('🎯 ORDER STATUS DROPDOWN CHANGE:')
                               console.log('  - Order ID:', order.id)
-                              console.log('  - Current Status:', order.orderStatus)
+                              console.log('  - Current Status:', order.order_status)
                               console.log('  - New Value:', e.target.value)
                               console.log('  - Event target:', e.target)
-                              console.log('  - Value check:', e.target.value && e.target.value !== order.orderStatus)
+                              console.log('  - Value check:', e.target.value && e.target.value !== order.order_status)
                               console.log('  - onUpdateOrderStatus type:', typeof onUpdateOrderStatus)
                               
-                              if (e.target.value && e.target.value !== order.orderStatus) {
+                              if (e.target.value && e.target.value !== order.order_status) {
                                 console.log('✅ Calling onUpdateOrderStatus with args:', order.id, e.target.value)
                                 onUpdateOrderStatus(order.id, e.target.value)
                               } else {
                                 console.log('❌ Conditions not met - not calling update')
                                 console.log('    - e.target.value truthy:', !!e.target.value)
-                                console.log('    - values different:', e.target.value !== order.orderStatus)
+                                console.log('    - values different:', e.target.value !== order.order_status)
                               }
                             }}
                             style={{
@@ -629,7 +629,7 @@ function OrdersTable({
                               fontWeight: 600,
                               border: '1px solid rgba(148, 163, 184, 0.6)',
                               borderRadius: '10px',
-                              background: getStatusColor(order.orderStatus),
+                              background: getStatusColor(order.order_status),
                               color: '#fff',
                               cursor: 'pointer'
                             }}
@@ -647,10 +647,10 @@ function OrdersTable({
                               fontSize: '11px',
                               fontWeight: 600,
                               color: 'white',
-                              backgroundColor: getStatusColor(order.orderStatus)
+                              backgroundColor: getStatusColor(order.order_status)
                             }}
                           >
-                            {order.orderStatus}
+                            {order.order_status}
                           </span>
                         )}
                       </td>
@@ -822,13 +822,13 @@ export default function OrdersTabContent() {
       const computeDeliverySummary = (order) => {
         // Reuse same quick logic from table
         const today = new Date()
-        const deliveryDate = order.expectedDeliveryDate ? new Date(order.expectedDeliveryDate) : null
+        const deliveryDate = order.expected_delivery_date ? new Date(order.expected_delivery_date) : null
         let status = 'hesaplanıyor'
         let daysRemaining = 0
         if (deliveryDate && !isNaN(deliveryDate.getTime())) {
           const diff = deliveryDate.getTime() - today.getTime()
           daysRemaining = Math.ceil(diff / (1000 * 3600 * 24))
-          if (order.orderStatus === 'Teslim Edildi') status = 'teslim-edildi'
+          if (order.order_status === 'Teslim Edildi') status = 'teslim-edildi'
           else if (daysRemaining < 0) status = 'gecikmiş'
           else if (daysRemaining === 0) status = 'bugün-teslim'
           else if (daysRemaining <= 7) status = 'bu-hafta-teslim'
@@ -847,18 +847,18 @@ export default function OrdersTabContent() {
 
       const rows = ordersSource.map(order => {
         const items = Array.isArray(order.items) ? order.items : []
-        const orderDate = order.orderDate ? (order.orderDate instanceof Date ? order.orderDate : new Date(order.orderDate)) : null
-        const expected = order.expectedDeliveryDate ? (order.expectedDeliveryDate instanceof Date ? order.expectedDeliveryDate : new Date(order.expectedDeliveryDate)) : null
+        const orderDate = order.order_date ? (order.order_date instanceof Date ? order.order_date : new Date(order.order_date)) : null
+        const expected = order.expected_delivery_date ? (order.expected_delivery_date instanceof Date ? order.expected_delivery_date : new Date(order.expected_delivery_date)) : null
         const actual = order.deliveryDate ? (order.deliveryDate instanceof Date ? order.deliveryDate : new Date(order.deliveryDate)) : null
         const currency = (order.currency || 'TRY')
-        const total = Number(order.totalPrice || order.totalAmount || 0)
+        const total = Number(order.totalPrice || order.total_amount || 0)
 
         const base = [
-          order.orderCode || '',
+          order.order_code || '',
           order.id || '',
           orderDate ? orderDate.toLocaleDateString(userLocale) : '',
-          order.supplierId || order.supplierCode || '',
-          order.supplierName || '',
+          order.supplier_id || order.supplierCode || '',
+          order.supplier_name || '',
           expected ? expected.toLocaleDateString(userLocale) : '',
           actual ? actual.toLocaleDateString(userLocale) : '',
           computeDeliverySummary(order),
@@ -867,7 +867,7 @@ export default function OrdersTabContent() {
           currency,
           total
         ]
-        if (includeStatusCol) base.push(order.orderStatus || '')
+        if (includeStatusCol) base.push(order.order_status || '')
         // Append per-line dynamic columns normalized to maxItemCount
         for (let i = 0; i < maxItemCount; i++) {
           const it = items[i]
@@ -1124,7 +1124,7 @@ export default function OrdersTabContent() {
         const suppliersWithCorrectFields = allSuppliers.map(supplier => ({
           ...supplier,
           supplierCode: supplier.code || supplier.supplierCode,
-          supplierName: supplier.name || supplier.companyName || supplier.supplierName
+          supplierName: supplier.name || supplier.companyName || supplier.supplier_name
         }))
         
         setSuppliers(suppliersWithCorrectFields)
@@ -1432,7 +1432,7 @@ export default function OrdersTabContent() {
     const hasCustomDeliveryRange = !!(filters.customDeliveryDateRange?.startDate || filters.customDeliveryDateRange?.endDate);
     return !!(
       filters.search || 
-      filters.orderStatus?.length > 0 || 
+      filters.order_status?.length > 0 || 
       filters.itemStatus?.length > 0 || 
       filters.dateRange?.length > 0 || 
       hasCustomDateRange ||
@@ -1454,16 +1454,16 @@ export default function OrdersTabContent() {
       if (filters.search) {
         const searchLower = filters.search.toLowerCase();
         const matches = 
-          (order.orderCode || order.id).toLowerCase().includes(searchLower) ||
-          order.supplierName?.toLowerCase().includes(searchLower) ||
-          order.supplierId?.toLowerCase().includes(searchLower);
+          (order.order_code || order.id).toLowerCase().includes(searchLower) ||
+          order.supplier_name?.toLowerCase().includes(searchLower) ||
+          order.supplier_id?.toLowerCase().includes(searchLower);
         
         if (!matches) return false;
       }
 
       // Status filter
-      if (filters.orderStatus?.length > 0) {
-        if (!filters.orderStatus.includes(order.orderStatus)) {
+      if (filters.order_status?.length > 0) {
+        if (!filters.order_status.includes(order.order_status)) {
           return false;
         }
       }
@@ -1476,8 +1476,8 @@ export default function OrdersTabContent() {
       }
 
       // Date range filter
-      if (filters.dateRange?.length > 0 && order.orderDate) {
-        const orderDate = order.orderDate instanceof Date ? order.orderDate : new Date(order.orderDate);
+      if (filters.dateRange?.length > 0 && order.order_date) {
+        const orderDate = order.order_date instanceof Date ? order.order_date : new Date(order.order_date);
         const now = new Date();
         
         const matchesAnyRange = filters.dateRange.some(range => {
@@ -1504,9 +1504,9 @@ export default function OrdersTabContent() {
 
       // Custom date range filter
       if (filters.customDateRange?.startDate || filters.customDateRange?.endDate) {
-        if (!order.orderDate) return false;
+        if (!order.order_date) return false;
         
-        const orderDate = order.orderDate instanceof Date ? order.orderDate : new Date(order.orderDate);
+        const orderDate = order.order_date instanceof Date ? order.order_date : new Date(order.order_date);
         
         if (filters.customDateRange.startDate) {
           const startDate = new Date(filters.customDateRange.startDate);
@@ -1587,7 +1587,7 @@ export default function OrdersTabContent() {
       if (filters.supplierType?.length > 0) {
         const hasMatchingSupplier = 
           filters.supplierType.includes(order.supplierCode) ||
-          filters.supplierType.includes(order.supplierId);
+          filters.supplierType.includes(order.supplier_id);
         if (!hasMatchingSupplier) return false;
       }
 
@@ -1615,8 +1615,8 @@ export default function OrdersTabContent() {
   const filteredOrders = applyFilters(orders, materials);
 
   // Basit order status based filtering - items'a bakmadan
-  const pendingOrdersView = filteredOrders.filter(order => order.orderStatus !== 'Teslim Edildi');
-  const completedOrdersView = filteredOrders.filter(order => order.orderStatus === 'Teslim Edildi');
+  const pendingOrdersView = filteredOrders.filter(order => order.order_status !== 'Teslim Edildi');
+  const completedOrdersView = filteredOrders.filter(order => order.order_status === 'Teslim Edildi');
   const allOrdersView = filteredOrders;
 
   const currentOrders = activeOrdersTab === 'pending' 
@@ -1628,13 +1628,13 @@ export default function OrdersTabContent() {
 
   console.log('📊 Orders debug (simplified):', {
     totalOrders: orders.length,
-    pendingOrders: orders.filter(o => o.orderStatus !== 'Teslim Edildi').length,
-    completedOrders: orders.filter(o => o.orderStatus === 'Teslim Edildi').length,
+    pendingOrders: orders.filter(o => o.order_status !== 'Teslim Edildi').length,
+    completedOrders: orders.filter(o => o.order_status === 'Teslim Edildi').length,
     activeTab: activeOrdersTab,
     ordersLoading,
     sampleOrder: orders[0] ? {
       id: orders[0].id,
-      orderStatus: orders[0].orderStatus,
+      orderStatus: orders[0].order_status,
       hasItems: Array.isArray(orders[0].items),
       itemsCount: orders[0].items?.length || 0
     } : 'No orders'
@@ -1659,9 +1659,9 @@ export default function OrdersTabContent() {
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         itemStatus: item.itemStatus,
-        expectedDeliveryDate: item.expectedDeliveryDate instanceof Date
-          ? item.expectedDeliveryDate
-          : (item.expectedDeliveryDate || null),
+        expectedDeliveryDate: item.expected_delivery_date instanceof Date
+          ? item.expected_delivery_date
+          : (item.expected_delivery_date || null),
         actualDeliveryDate: item.actualDeliveryDate instanceof Date
           ? item.actualDeliveryDate
           : (item.actualDeliveryDate || null)
@@ -1749,7 +1749,7 @@ export default function OrdersTabContent() {
 
       // Finalize order status to keep consistency (backend may already align it)
       console.log('📡 Finalizing order status to', newStatus, 'after item updates')
-      const updatedOrder = await updateOrder(orderId, { orderStatus: newStatus })
+      const updatedOrder = await updateOrder(orderId, { order_status: newStatus })
       console.log('✅ updateOrder API call completed, result:', updatedOrder)
 
       // Update local state
@@ -1817,7 +1817,7 @@ export default function OrdersTabContent() {
       // Rollback optimistic update if needed
       setOrders(prev => prev.map(o => {
         if (o.id === orderId && selectedOrder && selectedOrder.id === orderId) {
-          return { ...o, orderStatus: selectedOrder.orderStatus };
+          return { ...o, orderStatus: selectedOrder.order_status };
         }
         return o;
       }));
@@ -1856,7 +1856,7 @@ export default function OrdersTabContent() {
       itemId: itemId,
       oldStatus: item.itemStatus,
       newStatus: newStatus,
-      materialCode: item.materialCode,
+      materialCode: item.material_code,
       quantity: item.quantity,
       fullItem: item
     });
@@ -1885,7 +1885,7 @@ export default function OrdersTabContent() {
         newStatus: newStatus,
         oldStatus: item.itemStatus,
         isBecomingDelivered: isBecomingDelivered,
-        materialCode: item.materialCode,
+        materialCode: item.material_code,
         quantity: item.quantity
       });
 
@@ -1918,36 +1918,36 @@ export default function OrdersTabContent() {
       console.log('✅ DEBUG: API success:', result)
       console.log('✅ DEBUG: Full API response analysis:', {
         item: result.item,
-        orderStatus: result.orderStatus,
-        orderStatusChanged: result.orderStatusChanged,
+        orderStatus: result.order_status,
+        orderStatusChanged: result.order_statusChanged,
         message: result.message
       })
 
       // ✅ Backend'den dönen order status güncellemesi
       const updatedItem = result.item
-      const backendOrderStatus = result.orderStatus
-      const orderStatusChanged = result.orderStatusChanged
+      const backendOrderStatus = result.order_status
+      const orderStatusChanged = result.order_statusChanged
       
       console.log('🔍 DEBUG: Backend response analysis:', {
         orderStatusChanged,
         backendOrderStatus,
-        currentOrderStatus: selectedOrder?.orderStatus,
+        currentOrderStatus: selectedOrder?.order_status,
         apiSuccess: true
       })
 
       // If item is delivered, update material stock via backend API
       if (isBecomingDelivered) {
         console.log('🚀 DEBUG: Starting stock update for delivered item:', {
-          materialCode: item.materialCode,
+          materialCode: item.material_code,
           quantity: item.quantity,
           orderId: orderId,
           itemId: item.id
         });
         
         try {
-          console.log('� DEBUG: Making API call to:', `/api/materials/${item.materialCode}/stock`);
+          console.log('� DEBUG: Making API call to:', `/api/materials/${item.material_code}/stock`);
           
-          const response = await fetch(`/api/materials/${item.materialCode}/stock`, {
+          const response = await fetch(`/api/materials/${item.material_code}/stock`, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
@@ -1973,13 +1973,13 @@ export default function OrdersTabContent() {
 
           const result = await response.json();
           console.log('✅ DEBUG: API success response:', result);
-          console.log(`✅ Stock updated via API for ${item.materialCode}: ${result.previousStock} → ${result.newStock}`);
+          console.log(`✅ Stock updated via API for ${item.material_code}: ${result.previousStock} → ${result.newStock}`);
           
           // Dispatch unified global stock update events
           // Primary: materialStockUpdated (used by useMaterials for instant local + force refresh)
           window.dispatchEvent(new CustomEvent('materialStockUpdated', {
             detail: {
-              materialCode: item.materialCode,
+              materialCode: item.material_code,
               newStock: result.newStock,
               quantity: item.quantity,
               operation: 'add',
@@ -1990,7 +1990,7 @@ export default function OrdersTabContent() {
           // Backward compatibility: stockUpdated (kept for existing listeners)
           window.dispatchEvent(new CustomEvent('stockUpdated', {
             detail: {
-              materialCode: item.materialCode,
+              materialCode: item.material_code,
               previousStock: result.previousStock,
               newStock: result.newStock
             }
@@ -2035,7 +2035,7 @@ export default function OrdersTabContent() {
           if (orderResponse.ok) {
             const orderData = await orderResponse.json()
             const refreshed = orderData.order || orderData
-            console.log('🔄 DEBUG: Order refreshed with status:', refreshed.orderStatus)
+            console.log('🔄 DEBUG: Order refreshed with status:', refreshed.order_status)
             setSelectedOrder(refreshed)
             
             // ✅ Clear optimistic update ONLY after selectedOrder is successfully updated
@@ -2265,10 +2265,10 @@ export default function OrdersTabContent() {
                 {/* Sipariş Kodu + Durum seçimi (yan yana) */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '8px', marginBottom: '8px' }}>
                   <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#6b7280', whiteSpace: 'nowrap', flex: '0 0 auto' }}>
-                    {selectedOrder.orderCode || selectedOrder.id}
+                    {selectedOrder.order_code || selectedOrder.id}
                   </p>
                   <select
-                    value={selectedOrder.orderStatus || 'Onay Bekliyor'}
+                    value={selectedOrder.order_status || 'Onay Bekliyor'}
                     disabled={selectedOrderLoading || actionLoading}
                     onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)}
                     style={{
@@ -2290,18 +2290,18 @@ export default function OrdersTabContent() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                   <div>
                     <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Tedarikçi</div>
-                    <div style={{ fontSize: '14px', fontWeight: '600', marginTop: '4px' }}>{selectedOrder.supplierName}</div>
+                    <div style={{ fontSize: '14px', fontWeight: '600', marginTop: '4px' }}>{selectedOrder.supplier_name}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Oluşturulma Tarihi</div>
                     <div style={{ fontSize: '14px', marginTop: '4px' }}>
-                      {selectedOrder.orderDate ? (new Date(selectedOrder.orderDate)).toLocaleDateString('tr-TR') : '-'}
+                      {selectedOrder.order_date ? (new Date(selectedOrder.order_date)).toLocaleDateString('tr-TR') : '-'}
                     </div>
                   </div>
                   <div>
                     <div style={{ fontSize: '12px', color: '#64748b', fontWeight: '600', textTransform: 'uppercase' }}>Toplam</div>
                     <div style={{ fontSize: '16px', fontWeight: '700', color: '#059669', marginTop: '4px' }}>
-                      {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: selectedOrder.currency || 'TRY' }).format(selectedOrder.totalAmount || 0)}
+                      {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: selectedOrder.currency || 'TRY' }).format(selectedOrder.total_amount || 0)}
                     </div>
                   </div>
                   
@@ -2320,7 +2320,7 @@ export default function OrdersTabContent() {
                         <span style={{ marginLeft: '8px', fontSize: '14px', color: '#1f2937', fontWeight: 600 }}>Oluşturma</span>
                         <div style={{ width: '32px', height: '2px', background: '#e5e7eb', marginLeft: '16px' }}></div>
                       </div>
-                      <div style={{ fontSize: '14px', marginTop: '8px' }}>{selectedOrder.orderDate ? (new Date(selectedOrder.orderDate)).toLocaleDateString('tr-TR') : '—'}</div>
+                      <div style={{ fontSize: '14px', marginTop: '8px' }}>{selectedOrder.order_date ? (new Date(selectedOrder.order_date)).toLocaleDateString('tr-TR') : '—'}</div>
                     </div>
                     {/* Step 2 */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', marginRight: '24px' }}>
@@ -2329,7 +2329,7 @@ export default function OrdersTabContent() {
                         <span style={{ marginLeft: '8px', fontSize: '14px', color: '#6b7280', fontWeight: 400 }}>Tahmini Teslim</span>
                         <div style={{ width: '32px', height: '2px', background: '#e5e7eb', marginLeft: '16px' }}></div>
                       </div>
-                      <div style={{ fontSize: '14px', marginTop: '8px' }}>{selectedOrder.expectedDeliveryDate ? (new Date(selectedOrder.expectedDeliveryDate)).toLocaleDateString('tr-TR') : '—'}</div>
+                      <div style={{ fontSize: '14px', marginTop: '8px' }}>{selectedOrder.expected_delivery_date ? (new Date(selectedOrder.expected_delivery_date)).toLocaleDateString('tr-TR') : '—'}</div>
                     </div>
                     {/* Step 3 */}
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', marginRight: 0 }}>
@@ -2346,13 +2346,13 @@ export default function OrdersTabContent() {
                     <div style={{ marginTop: '4px' }}>
                       {(() => {
                         const today = new Date()
-                        const deliveryDate = selectedOrder.expectedDeliveryDate ? new Date(selectedOrder.expectedDeliveryDate) : null
+                        const deliveryDate = selectedOrder.expected_delivery_date ? new Date(selectedOrder.expected_delivery_date) : null
                         let status = 'hesaplanıyor'
                         let daysRemaining = 0
                         if (deliveryDate && !isNaN(deliveryDate.getTime())) {
                           const timeDiff = deliveryDate.getTime() - today.getTime()
                           daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24))
-                          if (selectedOrder.orderStatus === 'Teslim Edildi') status = 'teslim-edildi'
+                          if (selectedOrder.order_status === 'Teslim Edildi') status = 'teslim-edildi'
                           else if (daysRemaining < 0) status = 'gecikmiş'
                           else if (daysRemaining === 0) status = 'bugün-teslim'
                           else if (daysRemaining <= 7) status = 'bu-hafta-teslim'
@@ -2386,7 +2386,7 @@ export default function OrdersTabContent() {
                       type="button"
                       onClick={() => {
                         try { localStorage.setItem('bk_active_tab', 'suppliers'); } catch {}
-                        const supplierId = selectedOrder.supplierId || selectedOrder.supplierCode || ''
+                        const supplierId = selectedOrder.supplier_id || selectedOrder.supplierCode || ''
                         const url = `materials.html#suppliers-tab&supplier-${encodeURIComponent(supplierId)}`
                         window.open(url, '_blank')
                       }}
@@ -2397,11 +2397,11 @@ export default function OrdersTabContent() {
                   </div>
                   <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                     <span className="detail-label" style={{ fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>Tedarikçi ID/Kodu:</span>
-                    <div style={{ flex: '1 1 0%' }}>{selectedOrder.supplierId || selectedOrder.supplierCode || '—'}</div>
+                    <div style={{ flex: '1 1 0%' }}>{selectedOrder.supplier_id || selectedOrder.supplierCode || '—'}</div>
                   </div>
                   <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                     <span className="detail-label" style={{ fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>Tedarikçi Adı:</span>
-                    <div style={{ flex: '1 1 0%', fontWeight: 600 }}>{selectedOrder.supplierName || '—'}</div>
+                    <div style={{ flex: '1 1 0%', fontWeight: 600 }}>{selectedOrder.supplier_name || '—'}</div>
                   </div>
                 </div>
                 {/* Not/Referans Kartı */}
@@ -2415,7 +2415,7 @@ export default function OrdersTabContent() {
 
               <div style={{ marginBottom: '16px', padding: '12px', background: '#fff', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
                 <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
-                  Sipariş Satırları ({selectedOrder.items?.length || selectedOrder.itemCount || 0})
+                  Sipariş Satırları ({selectedOrder.items?.length || selectedOrder.item_count || 0})
                 </h3>
                 {selectedOrderLoading ? (
                   <p style={{ padding: '12px 0', color: '#6b7280' }}>Satırlar yükleniyor...</p>

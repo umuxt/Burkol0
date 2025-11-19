@@ -170,16 +170,34 @@ async function permanentDeleteMaterial(req, res) {
 async function updateStock(req, res) {
   try {
     const { code } = req.params
-    const { stockChange, reservedChange, wipReservedChange } = req.body
+    const { stockChange, reservedChange, wipReservedChange, quantity, operation } = req.body
+
+    console.log('📦 Stock update request:', { code, body: req.body })
+
+    if (!code) {
+      return res.status(400).json({ error: 'Material code is required' })
+    }
+
+    // Support both old format (stockChange) and new format (quantity + operation)
+    let actualStockChange = stockChange || 0
+    if (quantity !== undefined && operation) {
+      actualStockChange = operation === 'add' ? Number(quantity) : -Number(quantity)
+    }
 
     const updatedMaterial = await Materials.updateMaterialStock(
       code,
-      stockChange || 0,
+      actualStockChange,
       reservedChange || 0,
       wipReservedChange || 0
     )
 
-    res.json(updatedMaterial)
+    res.json({
+      message: 'Stock updated successfully',
+      material: updatedMaterial,
+      previousStock: updatedMaterial.stock - actualStockChange,
+      newStock: updatedMaterial.stock,
+      quantityAdded: actualStockChange
+    })
   } catch (error) {
     console.error('Error updating stock:', error)
     res.status(500).json({ error: 'Failed to update stock' })
@@ -231,6 +249,19 @@ async function getMaterialsBySupplier(req, res) {
   }
 }
 
+/**
+ * GET /api/categories - Get all material categories
+ */
+async function getCategories(req, res) {
+  try {
+    const categories = await Materials.getAllCategories()
+    res.json({ categories })
+  } catch (error) {
+    console.error('Error getting categories:', error)
+    res.status(500).json({ error: 'Failed to get categories' })
+  }
+}
+
 // ================================
 // ROUTE SETUP
 // ================================
@@ -248,6 +279,9 @@ export function setupMaterialsRoutes(app) {
   // Stock management
   app.patch('/api/materials/:code/stock', requireAuth, updateStock)
   app.get('/api/stock', requireAuth, getStockOverview)
+
+  // Categories
+  app.get('/api/categories', requireAuth, getCategories)
 
   // Query operations
   app.get('/api/materials/category/:category', requireAuth, getMaterialsByCategory)

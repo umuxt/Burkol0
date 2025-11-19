@@ -2,7 +2,7 @@ import React from 'react'
 
 export default function MaterialsDashboard({ materials = [] }) {
   const totalMaterials = materials.length;
-  const lowStockMaterials = materials.filter(m => m.stock <= m.reorderPoint).length;
+  const lowStockMaterials = materials.filter(m => m.stock <= m.reorder_point).length;
 
   return (
     <section className="materials-dashboard is-inline">

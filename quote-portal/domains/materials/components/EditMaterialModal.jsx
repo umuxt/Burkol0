@@ -174,7 +174,7 @@ export default function EditMaterialModal({
         category: material.category || '',
         unit: material.unit || '',
         stock: safeNumber(material.stock),
-        reorderPoint: safeNumber(material.reorderPoint),
+        reorderPoint: safeNumber(material.reorder_point),
         costPrice: safeNumber(material.costPrice),
         sellPrice: safeNumber(material.sellPrice),
         supplier: material.supplier || '',

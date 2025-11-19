@@ -347,6 +347,21 @@ export async function getMaterialStats() {
     throw error
   }
 }
+/**
+ * Get all material categories
+ */
+export async function getAllCategories() {
+  try {
+    const categories = await db(CATEGORIES_TABLE)
+      .select('*')
+      .orderBy('name', 'asc')
+    
+    return categories
+  } catch (error) {
+    console.error('❌ Error getting categories:', error)
+    throw error
+  }
+}
 
 export default {
   getAllMaterials,
@@ -360,5 +375,6 @@ export default {
   updateMaterialStock,
   deleteMaterial,
   hardDeleteMaterial,
-  getMaterialStats
+  getMaterialStats,
+  getAllCategories
 }

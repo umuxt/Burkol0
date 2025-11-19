@@ -538,7 +538,7 @@ export default function SuppliersTable({
         code: finalCode,
         createdAt: new Date(),
         suppliers: selectedSupplier ? [selectedSupplier.id] : [],
-        reorderPoint: newMaterial.reorderPoint ? parseFloat(newMaterial.reorderPoint) : 0,
+        reorder_point: newMaterial.reorderPoint ? parseFloat(newMaterial.reorderPoint) : 0,
         stockLevel: newMaterial.stockLevel ? parseFloat(newMaterial.stockLevel) : 0,
         stock: newMaterial.stockLevel ? parseFloat(newMaterial.stockLevel) : 0, // stock alanı da ekle
         costPrice: newMaterial.costPrice ? parseFloat(newMaterial.costPrice) : 0,

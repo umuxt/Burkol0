@@ -109,7 +109,7 @@ export default function StocksTabContent({
       getTypeLabel(material.type),
       material.unit || '',
       material.stock || 0,
-      material.reorderPoint || 0,
+      material.reorder_point || 0,
       material.reserved || 0,
       material.available || material.stock || 0,
       material.costPrice || 0,

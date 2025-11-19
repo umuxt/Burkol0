@@ -291,8 +291,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         }
         
         setSelectedMaterials([newMaterial]);
-        // Move to step 2 to show the added material
-        setCurrentStep(2);
+        // Don't auto-advance to step 2 - let user fill in order details first
       }
     }
   }, [formData.supplierId, materials, selectedMaterials.length, suppliers, formData.expectedDeliveryDate, deliveredRecordMode]);

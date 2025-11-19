@@ -207,8 +207,15 @@ function MaterialsApp() {
       }
     }
 
-    if (filters.lowStock && material.stock > material.reorderPoint) {
-      return false;
+    // Low stock filter: show only materials where stock < reorderPoint
+    if (filters.lowStock) {
+      const stockLevel = parseFloat(material.stock) || 0;
+      const reorderLevel = parseFloat(material.reorder_point) || 0;
+      
+      // Gizle: stok >= reorder point olanları
+      if (stockLevel >= reorderLevel) {
+        return false;
+      }
     }
 
     return true;
