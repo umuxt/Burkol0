@@ -5,6 +5,7 @@
 
 import db from '../connection.js';
 import Materials from './materials.js';
+import StockMovements from './stockMovements.js';
 
 const OrderItems = {
   /**
@@ -150,6 +151,32 @@ const OrderItems = {
         0  // wipReservedChange
       );
       
+      // Create stock movement record for audit trail
+      const movement = await StockMovements.createMovement({
+        materialId: item.material_id,
+        materialCode: item.material_code,
+        materialName: item.material_name,
+        type: 'in', // Order delivery = stock in
+        subType: 'order_delivery',
+        status: 'completed',
+        quantity: parseFloat(item.quantity),
+        unit: item.unit,
+        stockBefore: parseFloat(previousStock?.stock || 0),
+        stockAfter: parseFloat(stockUpdate.stock),
+        unitCost: parseFloat(item.unit_price || 0),
+        totalCost: parseFloat(item.total_price || 0),
+        currency: 'TRY',
+        reference: item.order_code,
+        referenceType: 'order_delivery',
+        location: 'Warehouse',
+        notes: `Order delivery: ${item.order_code} - Item ${item.item_code}`,
+        reason: 'Order item delivered',
+        movementDate: actualDeliveryDate,
+        approved: true,
+        userId: deliveredBy,
+        userName: deliveredBy
+      });
+      
       await trx.commit();
       
       return {
@@ -160,7 +187,8 @@ const OrderItems = {
           previousStock: parseFloat(previousStock?.stock || 0),
           newStock: parseFloat(stockUpdate.stock),
           quantityAdded: parseFloat(item.quantity)
-        }
+        },
+        movement
       };
       
     } catch (error) {

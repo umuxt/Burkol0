@@ -151,8 +151,43 @@ router.get('/orders', async (req, res) => {
       includeItems: true
     });
     
+    // Convert snake_case to camelCase for frontend
+    const normalizedOrders = orders.map(order => ({
+      ...order,
+      orderStatus: order.order_status,
+      orderCode: order.order_code,
+      orderSequence: order.order_sequence,
+      supplierId: order.supplier_id,
+      supplierName: order.supplier_name,
+      orderDate: order.order_date,
+      expectedDeliveryDate: order.expected_delivery_date,
+      totalAmount: order.total_amount,
+      itemCount: order.item_count,
+      createdBy: order.created_by,
+      createdAt: order.created_at,
+      updatedAt: order.updated_at,
+      items: (order.items || []).map(item => ({
+        ...item,
+        itemCode: item.item_code,
+        itemSequence: item.item_sequence,
+        orderId: item.order_id,
+        orderCode: item.order_code,
+        materialId: item.material_id,
+        materialCode: item.material_code,
+        materialName: item.material_name,
+        unitPrice: item.unit_price,
+        totalPrice: item.total_price,
+        itemStatus: item.item_status,
+        expectedDeliveryDate: item.expected_delivery_date,
+        actualDeliveryDate: item.actual_delivery_date,
+        deliveredBy: item.delivered_by,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at
+      }))
+    }));
+    
     // Update cache
-    const response = { orders };
+    const response = { orders: normalizedOrders };
     cache.orders.data = response;
     cache.orders.ts = now;
     const etag = buildEtag(response);
@@ -306,7 +341,43 @@ router.get('/orders/:orderId', async (req, res) => {
     }
     
     const order = await Orders.getOrderById(orderId);
-    res.json(order);
+    
+    // Convert snake_case to camelCase for frontend
+    const normalizedOrder = {
+      ...order,
+      orderStatus: order.order_status,
+      orderCode: order.order_code,
+      orderSequence: order.order_sequence,
+      supplierId: order.supplier_id,
+      supplierName: order.supplier_name,
+      orderDate: order.order_date,
+      expectedDeliveryDate: order.expected_delivery_date,
+      totalAmount: order.total_amount,
+      itemCount: order.item_count,
+      createdBy: order.created_by,
+      createdAt: order.created_at,
+      updatedAt: order.updated_at,
+      items: (order.items || []).map(item => ({
+        ...item,
+        itemCode: item.item_code,
+        itemSequence: item.item_sequence,
+        orderId: item.order_id,
+        orderCode: item.order_code,
+        materialId: item.material_id,
+        materialCode: item.material_code,
+        materialName: item.material_name,
+        unitPrice: item.unit_price,
+        totalPrice: item.total_price,
+        itemStatus: item.item_status,
+        expectedDeliveryDate: item.expected_delivery_date,
+        actualDeliveryDate: item.actual_delivery_date,
+        deliveredBy: item.delivered_by,
+        createdAt: item.created_at,
+        updatedAt: item.updated_at
+      }))
+    };
+    
+    res.json(normalizedOrder);
     
   } catch (error) {
     if (error.message === 'Order not found') {
@@ -434,12 +505,32 @@ router.put('/orders/:orderId/items/:itemId', async (req, res) => {
     // Get updated order to return current status
     const updatedOrder = await Orders.getOrderById(orderId);
     
+    // Normalize item response
+    const normalizedItem = {
+      ...updatedItem,
+      itemCode: updatedItem.item_code,
+      itemSequence: updatedItem.item_sequence,
+      orderId: updatedItem.order_id,
+      orderCode: updatedItem.order_code,
+      materialId: updatedItem.material_id,
+      materialCode: updatedItem.material_code,
+      materialName: updatedItem.material_name,
+      unitPrice: updatedItem.unit_price,
+      totalPrice: updatedItem.total_price,
+      itemStatus: updatedItem.item_status,
+      expectedDeliveryDate: updatedItem.expected_delivery_date,
+      actualDeliveryDate: updatedItem.actual_delivery_date,
+      deliveredBy: updatedItem.delivered_by,
+      createdAt: updatedItem.created_at,
+      updatedAt: updatedItem.updated_at
+    };
+    
     // Invalidate cache
     invalidateOrdersCache('item_updated');
     
     res.json({
       message: 'Order item updated successfully',
-      item: updatedItem,
+      item: normalizedItem,
       order_status: updatedOrder.order_status,
       order_statusChanged: true
     });

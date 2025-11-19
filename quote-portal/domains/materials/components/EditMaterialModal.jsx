@@ -378,6 +378,25 @@ export default function EditMaterialModal({
       sellPrice: parseFloat(formData.sellPrice) || 0
     };
 
+    // ✅ Supplier name'i ID'ye çevir (backend primary_supplier_id integer bekliyor)
+    if (formData.supplier) {
+      // Eğer formData.supplier zaten number ise direkt kullan
+      if (typeof formData.supplier === 'number') {
+        materialData.primarySupplierId = formData.supplier;
+      } else {
+        // String ise supplier listesinden ID'yi bul
+        const supplierObj = suppliers?.find(s => 
+          s.name === formData.supplier || 
+          s.id === parseInt(formData.supplier)
+        );
+        if (supplierObj) {
+          materialData.primarySupplierId = supplierObj.id;
+        }
+      }
+      // supplier field'ını kaldır (backend primary_supplier_id kullanıyor)
+      delete materialData.supplier;
+    }
+
     onSave(materialData, showNewCategory ? newCategory : null);
     
     // Kaydet işleminden sonra kilitli moda dön

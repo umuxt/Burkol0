@@ -1878,17 +1878,6 @@ export default function OrdersTabContent() {
     setUpdatingItemIds(prev => [...new Set([...prev, itemId])])
 
     try {
-      // Directly call the stock update logic if becoming delivered
-      const isBecomingDelivered = newStatus === 'Teslim Edildi' && item.itemStatus !== 'Teslim Edildi';
-      
-      console.log('🔍 DEBUG: Item status update check:', {
-        newStatus: newStatus,
-        oldStatus: item.itemStatus,
-        isBecomingDelivered: isBecomingDelivered,
-        materialCode: item.material_code,
-        quantity: item.quantity
-      });
-
       // Backend API ile item status güncelle
       console.log('🚀 DEBUG: Making API call...')
       const response = await fetchWithTimeout(`/api/orders/${orderId}/items/${itemId}`, {
@@ -1935,31 +1924,45 @@ export default function OrdersTabContent() {
         apiSuccess: true
       })
 
+      // ✅ KRITIK: Stok artışını sadece "Teslim Edildi" status değişikliğinde yap
+      // Backend'den gelen updatedItem.itemStatus ile kontrol et (artık camelCase)
+      const isBecomingDelivered = updatedItem.itemStatus === 'Teslim Edildi' && newStatus === 'Teslim Edildi';
+      
+      console.log('🔍 DEBUG: Stock update check:', {
+        updatedItemStatus: updatedItem.itemStatus,
+        requestedStatus: newStatus,
+        isBecomingDelivered,
+        materialCode: updatedItem.materialCode,
+        quantity: updatedItem.quantity
+      });
+
       // If item is delivered, update material stock via backend API
       if (isBecomingDelivered) {
         console.log('🚀 DEBUG: Starting stock update for delivered item:', {
-          materialCode: item.material_code,
-          quantity: item.quantity,
+          materialCode: updatedItem.materialCode,
+          quantity: updatedItem.quantity,
           orderId: orderId,
-          itemId: item.id
+          itemId: updatedItem.id
         });
         
         try {
-          console.log('� DEBUG: Making API call to:', `/api/materials/${item.material_code}/stock`);
+          console.log('📦 DEBUG: Making API call to:', `/api/materials/${updatedItem.materialCode}/stock`);
           
-          const response = await fetch(`/api/materials/${item.material_code}/stock`, {
+          const response = await fetch(`/api/materials/${updatedItem.materialCode}/stock`, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${localStorage.getItem('bk_admin_token') || ''}`
             },
             body: JSON.stringify({
-              quantity: item.quantity,
+              quantity: updatedItem.quantity,
               operation: 'add',
               orderId: orderId,
-              itemId: item.id,
-              movementType: 'delivery',
-              notes: `Sipariş kalemi teslimi: ${item.materialName} (${item.quantity} ${item.unit || 'adet'})`
+              orderCode: updatedItem.orderCode, // ✅ Order code eklendi
+              itemId: updatedItem.id,
+              movementType: 'order_delivery',
+              notes: `Sipariş kalemi teslimi: ${updatedItem.materialName} (${updatedItem.quantity} ${updatedItem.unit || 'adet'})`,
+              reason: `Order delivery: ${updatedItem.orderCode}`
             })
           });
 
@@ -1973,15 +1976,15 @@ export default function OrdersTabContent() {
 
           const result = await response.json();
           console.log('✅ DEBUG: API success response:', result);
-          console.log(`✅ Stock updated via API for ${item.material_code}: ${result.previousStock} → ${result.newStock}`);
+          console.log(`✅ Stock updated via API for ${updatedItem.materialCode}: ${result.previousStock} → ${result.newStock}`);
           
           // Dispatch unified global stock update events
           // Primary: materialStockUpdated (used by useMaterials for instant local + force refresh)
           window.dispatchEvent(new CustomEvent('materialStockUpdated', {
             detail: {
-              materialCode: item.material_code,
+              materialCode: updatedItem.materialCode,
               newStock: result.newStock,
-              quantity: item.quantity,
+              quantity: updatedItem.quantity,
               operation: 'add',
               context: 'orders-tab-item-delivery'
             }
@@ -1990,7 +1993,7 @@ export default function OrdersTabContent() {
           // Backward compatibility: stockUpdated (kept for existing listeners)
           window.dispatchEvent(new CustomEvent('stockUpdated', {
             detail: {
-              materialCode: item.material_code,
+              materialCode: updatedItem.materialCode,
               previousStock: result.previousStock,
               newStock: result.newStock
             }

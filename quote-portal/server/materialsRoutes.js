@@ -1,5 +1,6 @@
 // Materials Routes - PostgreSQL Integration
 import Materials from '../db/models/materials.js'
+import StockMovements from '../db/models/stockMovements.js'
 import { requireAuth } from './auth.js'
 
 // ================================
@@ -94,6 +95,13 @@ async function createMaterial(req, res) {
 async function updateMaterial(req, res) {
   try {
     const { id } = req.params
+    
+    // Get current material before update (for stock comparison)
+    const currentMaterial = await Materials.getMaterialById(id)
+    if (!currentMaterial) {
+      return res.status(404).json({ error: 'Material not found' })
+    }
+    
     const updates = {
       code: req.body.code,
       name: req.body.name,
@@ -125,6 +133,52 @@ async function updateMaterial(req, res) {
     }
 
     const updatedMaterial = await Materials.updateMaterial(id, updates)
+    
+    // ✅ Check if stock was manually changed
+    const previousStock = currentMaterial.stock
+    const newStock = updatedMaterial.stock
+    const stockChanged = previousStock !== newStock
+    
+    if (stockChanged) {
+      console.log('📦 Manual stock change detected:', {
+        material: updatedMaterial.code,
+        previousStock,
+        newStock,
+        change: newStock - previousStock
+      })
+      
+      // Create stock movement record for manual adjustment
+      try {
+        const stockChange = newStock - previousStock
+        const movementData = {
+          materialId: updatedMaterial.id,
+          materialCode: updatedMaterial.code,
+          materialName: updatedMaterial.name,
+          type: stockChange >= 0 ? 'in' : 'out',
+          subType: 'manual_adjustment',
+          status: 'completed',
+          quantity: Math.abs(stockChange),
+          unit: updatedMaterial.unit || 'adet',
+          stockBefore: previousStock,
+          stockAfter: newStock,
+          warehouse: 'Warehouse',
+          location: updatedMaterial.storage || 'Main',
+          notes: `Manuel stok düzeltmesi: ${stockChange >= 0 ? '+' : ''}${stockChange} ${updatedMaterial.unit}`,
+          reason: 'Manual stock adjustment via edit',
+          movementDate: new Date(),
+          approved: true,
+          userId: req.user?.uid || 'system',
+          userName: req.user?.email || updates.updated_by || 'system'
+        }
+
+        const movement = await StockMovements.createMovement(movementData)
+        console.log('✅ Manual stock movement created:', movement.id)
+      } catch (movementError) {
+        console.error('❌ Failed to create stock movement:', movementError)
+        // Don't fail the request if movement fails
+      }
+    }
+    
     res.json(updatedMaterial)
   } catch (error) {
     console.error('Error updating material:', error)
@@ -170,12 +224,30 @@ async function permanentDeleteMaterial(req, res) {
 async function updateStock(req, res) {
   try {
     const { code } = req.params
-    const { stockChange, reservedChange, wipReservedChange, quantity, operation } = req.body
+    const { 
+      stockChange, 
+      reservedChange, 
+      wipReservedChange, 
+      quantity, 
+      operation,
+      orderId,
+      orderCode,
+      itemId,
+      movementType,
+      notes,
+      reason
+    } = req.body
 
     console.log('📦 Stock update request:', { code, body: req.body })
 
     if (!code) {
       return res.status(400).json({ error: 'Material code is required' })
+    }
+
+    // Get material details before update
+    const material = await Materials.getMaterialByCode(code)
+    if (!material) {
+      return res.status(404).json({ error: 'Material not found' })
     }
 
     // Support both old format (stockChange) and new format (quantity + operation)
@@ -184,6 +256,10 @@ async function updateStock(req, res) {
       actualStockChange = operation === 'add' ? Number(quantity) : -Number(quantity)
     }
 
+    const previousStock = material.stock
+    const newStock = previousStock + actualStockChange
+
+    // Update stock
     const updatedMaterial = await Materials.updateMaterialStock(
       code,
       actualStockChange,
@@ -191,11 +267,51 @@ async function updateStock(req, res) {
       wipReservedChange || 0
     )
 
+    // ✅ Create stock movement record
+    try {
+      const movementData = {
+        materialId: material.id,
+        materialCode: material.code,
+        materialName: material.name,
+        type: actualStockChange >= 0 ? 'in' : 'out',
+        subType: movementType || (actualStockChange >= 0 ? 'manual_adjustment' : 'manual_adjustment'),
+        status: 'completed',
+        quantity: Math.abs(actualStockChange),
+        unit: material.unit || 'adet',
+        stockBefore: previousStock,
+        stockAfter: newStock,
+        warehouse: 'Warehouse',
+        location: material.location || 'Main',
+        notes: notes || `Stock ${operation || 'adjustment'}: ${actualStockChange >= 0 ? '+' : ''}${actualStockChange} ${material.unit}`,
+        reason: reason || (orderCode ? `Order delivery: ${orderCode}` : 'Manual adjustment'),
+        movementDate: new Date(),
+        approved: true,
+        userId: req.user?.uid || 'system',
+        userName: req.user?.email || 'system'
+      }
+
+      // Add reference if order-related (use orderCode if available, otherwise orderId)
+      if (orderCode) {
+        movementData.reference = orderCode // ✅ Use full order code (ORD-2025-0007)
+        movementData.referenceType = 'order_delivery'
+      } else if (orderId) {
+        movementData.reference = `ORD-${orderId}` // Fallback to old format
+        movementData.referenceType = 'order_delivery'
+      }
+
+      const movement = await StockMovements.createMovement(movementData)
+      console.log('✅ Stock movement created:', movement.id)
+
+    } catch (movementError) {
+      console.error('❌ Failed to create stock movement:', movementError)
+      // Don't fail the request if movement fails, just log it
+    }
+
     res.json({
       message: 'Stock updated successfully',
       material: updatedMaterial,
-      previousStock: updatedMaterial.stock - actualStockChange,
-      newStock: updatedMaterial.stock,
+      previousStock: previousStock,
+      newStock: newStock,
       quantityAdded: actualStockChange
     })
   } catch (error) {

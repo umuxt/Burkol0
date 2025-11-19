@@ -170,7 +170,12 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
     });
     
     if (formData.supplierId && suppliers && materials) {
-      const selectedSupplier = suppliers.find(s => s.id === formData.supplierId)
+      // ✅ supplierId string olabilir, number'a çevir
+      const supplierIdNum = typeof formData.supplierId === 'string' 
+        ? parseInt(formData.supplierId, 10) 
+        : formData.supplierId;
+        
+      const selectedSupplier = suppliers.find(s => s.id === supplierIdNum)
       console.log('🔍 AddOrderModal: Seçilen tedarikçi:', {
         supplier: selectedSupplier,
         hasSuppliedMaterials: !!selectedSupplier?.suppliedMaterials,
@@ -392,24 +397,30 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
   // Handle supplier selection
   const handleSupplierChange = (supplierId) => {
     console.log('🔥 handleSupplierChange çağrıldı:', supplierId);
-    const supplier = (filteredSuppliers || suppliers).find(s => s.id === supplierId)
+    // ✅ supplierId string olabilir, number'a çevir
+    const supplierIdNum = typeof supplierId === 'string' ? parseInt(supplierId, 10) : supplierId;
+    const supplier = (filteredSuppliers || suppliers).find(s => s.id === supplierIdNum)
     console.log('🔥 Bulunan supplier:', supplier);
     setFormData(prev => ({
       ...prev,
-      supplierId,
+      supplierId: supplierIdNum, // ✅ Number olarak kaydet
       supplierName: supplier ? supplier.name || supplier.companyName : ''
     }))
     setSelectedMaterials([])
     setAvailableMaterials([])
     setSupplierMaterials([])
     setSupplierMaterialsError(null)
-    console.log('🔥 FormData güncellendi, yeni supplierId:', supplierId);
+    console.log('🔥 FormData güncellendi, yeni supplierId:', supplierIdNum);
   }
 
   // Add material to order
   const addMaterial = (material) => {
     // Get supplier-specific pricing if available
-    const supplier = suppliers.find(s => s.id === formData.supplierId)
+    // ✅ supplierId number'a çevir
+    const supplierIdNum = typeof formData.supplierId === 'string' 
+      ? parseInt(formData.supplierId, 10) 
+      : formData.supplierId;
+    const supplier = suppliers.find(s => s.id === supplierIdNum)
     const supplierMaterial = supplier?.suppliedMaterials?.find(sm => sm.materialCode === material.code)
 
     const occurrenceCount = selectedMaterials.filter(m => m.materialCode === material.code).length
