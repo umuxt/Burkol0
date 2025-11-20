@@ -338,6 +338,208 @@ function calculatePlannedOutput(node, planQuantity = 1) {
  * @param {string} planId - Production plan ID
  * @returns {Promise<Array>} Array of task execution states
  */
+async function getPlanExecutionState(planId) {
+  const db = getFirestore();
+  
+  // Fetch plan document
+  const planDoc = await db.collection('mes-production-plans').doc(planId).get();
+  if (!planDoc.exists) {
+    throw new Error(`Plan not found: ${planId}`);
+  }
+  
+  const planData = planDoc.data();
+  const nodes = planData.nodes || [];
+  const materialSummary = planData.materialSummary || {};
+  
+  // Fetch all assignments for this plan
+  const assignmentsSnapshot = await db.collection('mes-worker-assignments')
+    .where('planId', '==', planId)
+    .get();
+  
+  const assignments = new Map();
+  assignmentsSnapshot.docs.forEach(doc => {
+    const data = doc.data();
+    if (data.nodeId) {
+      assignments.set(data.nodeId, { id: doc.id, ...data });
+    }
+  });
+  
+  // Fetch workers and stations for availability check
+  const [workersSnapshot, stationsSnapshot, substationsSnapshot] = await Promise.all([
+    db.collection('mes-workers').get(),
+    db.collection('mes-stations').get(),
+    db.collection('mes-substations').get()
+  ]);
+  
+  const workers = new Map();
+  workersSnapshot.docs.forEach(doc => {
+    workers.set(doc.id, { id: doc.id, ...doc.data() });
+  });
+  
+  const stations = new Map();
+  stationsSnapshot.docs.forEach(doc => {
+    stations.set(doc.id, { id: doc.id, ...doc.data() });
+  });
+  
+  const substations = new Map();
+  substationsSnapshot.docs.forEach(doc => {
+    substations.set(doc.id, { id: doc.id, ...doc.data() });
+  });
+  
+  // Build completion status map for predecessor checks
+  const completedNodes = new Set();
+  assignments.forEach((assignment, nodeId) => {
+    if (assignment.status === 'completed') {
+      completedNodes.add(nodeId);
+    }
+  });
+  
+  // Process each node
+  const tasks = nodes.map(node => {
+    const nodeId = node.nodeId;
+    const assignment = assignments.get(nodeId);
+    const workerId = node.assignedWorkerId || assignment?.workerId;
+    
+    // Get stationId from assignedStations array (schema-compliant: stationId or id)
+    const stationId = (Array.isArray(node.assignedStations) && (node.assignedStations[0]?.stationId || node.assignedStations[0]?.id)) 
+      || assignment?.stationId;
+    
+    // Check prerequisites
+    const predecessorsDone = Array.isArray(node.predecessors)
+      ? node.predecessors.every(predId => completedNodes.has(predId))
+      : true;
+    
+    const worker = workerId ? workers.get(workerId) : null;
+    const workerAvailable = !workerId || !worker 
+      ? true // No worker assigned yet, or worker doesn't exist
+      : !worker.currentTask || worker.currentTask.planId === planId && worker.currentTask.nodeId === nodeId;
+    
+    // Check substation availability (instead of station)
+    // Substations track actual machine workload, not the general station category
+    const substationId = assignment?.substationId || null;
+    const substation = substationId ? substations.get(substationId) : null;
+    const substationAvailable = !substationId || !substation
+      ? true // No substation assigned yet, or substation doesn't exist
+      : !substation.currentOperation || substation.currentOperation === nodeId;
+    
+    // DEBUG: Substation check details
+    if (substationId) {
+      console.log(`   🔧 Substation ${substationId} check:`);
+      console.log(`      Substation exists: ${!!substation}`);
+      console.log(`      Substation currentOperation: ${substation?.currentOperation}`);
+      console.log(`      Node ID: ${nodeId}`);
+      console.log(`      Match: ${substation?.currentOperation === nodeId}`);
+      console.log(`      Available: ${substationAvailable}`);
+    }
+    
+    // Global material check (per plan, not per node yet)
+    const materialsReady = !materialSummary.hasShortages;
+    
+    // DEBUG: Log prerequisite checks for this node
+    console.log(`🔍 getPlanExecutionState - Node ${nodeId}:`);
+    console.log(`   Predecessors: ${JSON.stringify(node.predecessors || [])}`);
+    console.log(`   predecessorsDone: ${predecessorsDone}, completedNodes: [${Array.from(completedNodes).join(', ')}]`);
+    console.log(`   workerAvailable: ${workerAvailable}, workerId: ${workerId}`);
+    console.log(`   substationAvailable: ${substationAvailable}, substationId: ${substationId}`);
+    console.log(`   materialsReady: ${materialsReady}`);
+    console.log(`   assignment status: ${assignment?.status || 'no assignment'}`);
+    
+    // Determine task status
+    let status = 'pending';
+    
+    if (assignment) {
+      // Status from assignment takes precedence
+      if (assignment.status === 'completed') {
+        status = 'completed';
+      } else if (assignment.status === 'in_progress') {
+        status = 'in_progress';
+      } else if (assignment.status === 'paused') {
+        status = 'paused';
+      } else if (assignment.status === 'pending') {
+        // Check if ready or blocked
+        if (predecessorsDone && workerAvailable && substationAvailable && materialsReady) {
+          status = 'ready';
+        } else {
+          status = 'blocked';
+        }
+      }
+    } else {
+      // No assignment yet - check if can be started
+      if (predecessorsDone && workerAvailable && substationAvailable && materialsReady) {
+        status = 'ready';
+      } else {
+        status = 'blocked';
+      }
+    }
+    
+    return {
+      planId,
+      nodeId: nodeId,
+      name: node.name,
+      operationId: node.operationId,
+      operationName: node.operationName,
+      
+      // Resource assignments
+      workerId,
+      workerName: node.workerName,
+      stationId,
+      stationName: node.stationName,
+      substationId,
+      substationCode: substation?.code || null,
+      
+      // Substation workload info (for busy status display)
+      substationCurrentOperation: substation?.currentOperation || null,
+      substationCurrentWorkPackageId: substation?.currentWorkPackageId || null,
+      substationCurrentExpectedEnd: substation?.currentExpectedEnd || null,
+      
+      // Status and prerequisites
+      status,
+      prerequisites: {
+        predecessorsDone,
+        workerAvailable,
+        substationAvailable,
+        stationAvailable: substationAvailable, // Alias for frontend compatibility
+        materialsReady
+      },
+      
+      // Pause metadata (to differentiate plan pause vs worker pause)
+      pauseContext: assignment?.pauseContext || null,
+      pauseReason: assignment?.pauseReason || null,
+      pausedBy: assignment?.pausedBy || null,
+      pausedByName: assignment?.pausedByName || null,
+      pausedAt: assignment?.pausedAt || null,
+      
+      // Scheduling timing
+      expectedStart: assignment?.expectedStart || assignment?.plannedStart || null,
+      priority: assignment?.priority || 2, // 1=Low, 2=Normal, 3=High
+      estimatedNominalTime: node.estimatedNominalTime,
+      estimatedEffectiveTime: node.estimatedEffectiveTime,
+      
+      // Assignment details (if exists)
+      assignmentId: assignment?.id || null,
+      assignedAt: assignment?.createdAt || null,
+      actualStart: assignment?.actualStart || null,
+      actualEnd: assignment?.actualEnd || null,
+      
+      // Predecessor info for UI
+      predecessors: node.predecessors || [],
+      
+      // Material output info
+      hasOutputs: node.hasOutputs,
+      outputCode: node.outputCode,
+      outputQty: node.outputQty
+    };
+  });
+  
+  // Sort by expectedStart time (FIFO)
+  tasks.sort((a, b) => {
+    const aTime = a.expectedStart ? new Date(a.expectedStart).getTime() : 0;
+    const bTime = b.expectedStart ? new Date(b.expectedStart).getTime() : 0;
+    return aTime - bTime;
+  });
+  
+  return tasks;
+}
 
 // ============================================================================
 // OPERATIONS ROUTES
@@ -1556,6 +1758,84 @@ function validateProductionPlanNodes(nodes) {
 }
 
 // POST /api/mes/production-plans/next-id - Generate next sequential plan id (PPL-MMYY-XXX)
+router.post('/production-plans/next-id', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const db = getFirestore();
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0'); // 01-12
+    const year = String(now.getFullYear()).slice(-2); // Last 2 digits of year (25 for 2025)
+    const monthYear = `${month}${year}`;
+    const pad = (n) => String(n).padStart(3, '0'); // Changed to 3 digits for XXX format
+    const counterRef = db.collection('mes-counters').doc(`plan-${monthYear}`);
+
+    const id = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(counterRef);
+      let next = 1;
+      if (snap.exists) {
+        const data = snap.data() || {};
+        next = Number.isFinite(data.next) ? data.next : 1;
+      }
+      const newId = `PPL-${monthYear}-${pad(next)}`;
+      tx.set(counterRef, { next: next + 1, updatedAt: new Date() }, { merge: true });
+      return newId;
+    });
+
+    return { id };
+  }, res);
+});
+
+// ============================================================================
+// FIREBASE LEGACY ROUTES - DEPRECATED (Keeping for reference during migration)
+// ============================================================================
+// OLD Firebase GET /production-plans - MIGRATED TO SQL (see line ~9812)
+// Removed: Use new SQL endpoint below
+
+// OLD Firebase POST /production-plans - MIGRATED TO SQL (see line ~9873)
+// Removed: Use new SQL endpoint below
+
+// OLD Firebase PUT /production-plans/:id - MIGRATED TO SQL (see line ~9999)
+// Removed: Use new SQL endpoint below
+// (Large Firebase update logic with material consumption removed)
+
+// OLD Firebase DELETE /production-plans/:id - MIGRATED TO SQL (see line ~10033)
+// Removed: Use new SQL endpoint below
+
+// GET /api/mes/production-plans/:id/tasks - Get task execution states with prerequisites
+router.get('/production-plans/:id/tasks', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { id } = req.params;
+    
+    if (!id) {
+      const e = new Error('plan_id_required');
+      e.status = 400;
+      throw e;
+    }
+    
+    const tasks = await getPlanExecutionState(id);
+    return { tasks };
+  }, res);
+});
+
+// ============================================================================
+// TEMPLATES ROUTES - ✅ MIGRATED TO SQL (STEP 10)
+// ============================================================================
+// NOTE: Templates are production plans with status='template'
+// They use the same mes.production_plans table, just filtered by status
+
+// GET /api/mes/templates - Get all templates (SQL)
+router.get('/templates', withAuth, async (req, res) => {
+  try {
+    const templates = await db('mes.production_plans as p')
+      .select(
+        'p.id',
+        'p.work_order_code',
+        'p.quote_id',
+        'p.status',
+        'p.created_at',
+        db.raw('count(n.id)::integer as node_count')
+      )
+      .leftJoin('mes.production_plan_nodes as n', 'n.plan_id', 'p.id')
+      .where('p.status', 'template')
       .groupBy('p.id')
       .orderBy('p.created_at', 'desc');
     
@@ -1851,6 +2131,56 @@ router.post('/materials/check-availability', withAuth, async (req, res) => {
 // ============================================================================
 // HELPER: Update approved quote production state (internal use)
 // ============================================================================
+async function updateApprovedQuoteProductionState(orderCode, productionState, updatedBy = 'system') {
+  if (!orderCode || !productionState) {
+    console.warn('updateApprovedQuoteProductionState: orderCode or productionState missing');
+    return { success: false, reason: 'missing_parameters' };
+  }
+  
+  // Validate production state
+  const validStates = [
+    'Üretim Onayı Bekliyor',
+    'Üretiliyor',
+    'Üretim Durduruldu', 
+    'Üretim Tamamlandı',
+    'İptal Edildi'
+  ];
+  
+  if (!validStates.includes(productionState)) {
+    console.warn(`updateApprovedQuoteProductionState: invalid state '${productionState}'`);
+    return { success: false, reason: 'invalid_state' };
+  }
+  
+  try {
+    const db = getFirestore();
+    const col = db.collection('mes-approved-quotes');
+    
+    // Find document by orderCode (workOrderCode field)
+    const snapshot = await col.where('workOrderCode', '==', orderCode).limit(1).get();
+    
+    if (snapshot.empty) {
+      console.log(`updateApprovedQuoteProductionState: order '${orderCode}' not found in approved quotes`);
+      return { success: false, reason: 'not_found' };
+    }
+    
+    const doc = snapshot.docs[0];
+    const now = new Date().toISOString();
+    
+    // Update production state with history
+    await doc.ref.update({
+      productionState,
+      updatedAt: now,
+      productionStateHistory: admin.firestore.FieldValue.arrayUnion({
+        state: productionState,
+        timestamp: now,
+        updatedBy
+      })
+    });
+    
+    console.log(`✓ Updated approved quote '${orderCode}' to state '${productionState}'`);
+    return { success: true, orderCode, productionState };
+  } catch (error) {
+    console.error(`updateApprovedQuoteProductionState error for '${orderCode}':`, error);
     return { success: false, reason: 'firestore_error', error: error.message };
   }
 }
@@ -2162,6 +2492,384 @@ router.post('/worker-assignments/:id/complete', withAuth, async (req, res) => {
 
 // GET /api/mes/worker-portal/tasks - Get active tasks for worker
 router.get('/worker-portal/tasks', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const db = getFirestore();
+    
+    // Get workerId from query param (required)
+    const workerId = req.query.workerId;
+    
+    if (!workerId) {
+      const e = new Error('Worker ID is required. Please provide ?workerId=<id> parameter');
+      e.status = 400;
+      e.code = 'worker_id_required';
+      throw e;
+    }
+    
+    // Verify worker exists
+    const workerDoc = await db.collection('mes-workers').doc(workerId).get();
+    if (!workerDoc.exists) {
+      const e = new Error('worker_not_found');
+      e.status = 404;
+      e.code = 'worker_not_found';
+      throw e;
+    }
+    
+    const workerData = workerDoc.data();
+    
+    // Get all assignments for this worker with active statuses
+    const assignmentsSnapshot = await db.collection('mes-worker-assignments')
+      .where('workerId', '==', workerId)
+      .get();
+    
+    if (assignmentsSnapshot.empty) {
+      return { tasks: [], nextTaskId: null };
+    }
+    
+    // Get unique plan IDs and station IDs to fetch additional data
+    const planIds = [...new Set(assignmentsSnapshot.docs.map(doc => doc.data().planId))];
+    const stationIds = [...new Set(assignmentsSnapshot.docs.map(doc => doc.data().stationId).filter(Boolean))];
+    
+    // Fetch execution states for all plans (to get accurate prerequisites)
+    const planStatesMap = new Map();
+    for (const planId of planIds) {
+      try {
+        const planState = await getPlanExecutionState(planId);
+        planStatesMap.set(planId, planState);
+      } catch (err) {
+        console.error(`Failed to fetch plan state ${planId}:`, err);
+      }
+    }
+    
+    // Fetch plans
+    const plansMap = new Map();
+    for (const planId of planIds) {
+      try {
+        const planDoc = await db.collection('mes-production-plans').doc(planId).get();
+        if (planDoc.exists) {
+          plansMap.set(planId, planDoc.data());
+        }
+      } catch (err) {
+        console.error(`Failed to fetch plan ${planId}:`, err);
+      }
+    }
+    
+    // Fetch stations
+    const stationsMap = new Map();
+    if (stationIds.length > 0) {
+      const stationsSnapshot = await db.collection('mes-stations').where('__name__', 'in', stationIds).get();
+      stationsSnapshot.docs.forEach(doc => {
+        stationsMap.set(doc.id, doc.data());
+      });
+    }
+    
+    // Build tasks from assignments
+    const allTasks = [];
+    
+    for (const doc of assignmentsSnapshot.docs) {
+      const assignment = { id: doc.id, ...doc.data() };
+      
+      // Skip only completed tasks; keep cancelled_pending_report for scrap reporting
+      if (assignment.status === 'completed' || assignment.status === 'cancelled') {
+        continue;
+      }
+      
+      const plan = plansMap.get(assignment.planId);
+      const station = assignment.stationId ? stationsMap.get(assignment.stationId) : null;
+      
+      // Get execution state for this plan
+      const planState = planStatesMap.get(assignment.planId);
+      
+      // Find node state from plan execution state
+      let nodeState = null;
+      if (planState && planState.taskStates) {
+        nodeState = planState.taskStates.find(ts => ts.nodeId === assignment.nodeId);
+      }
+      
+      // Find node info from plan's nodes array
+      let nodeInfo = null;
+      if (plan && plan.nodes && assignment.nodeId) {
+        nodeInfo = plan.nodes.find(node => node.nodeId === assignment.nodeId);
+      }
+      
+      // Build task object
+      const task = {
+        // Assignment info
+        assignmentId: assignment.id,
+        planId: assignment.planId,
+        workOrderCode: assignment.workOrderCode || plan?.workOrderCode || 'Unknown',
+        nodeId: assignment.nodeId,
+        status: assignment.status || 'pending',
+        
+        // Priority system (PROMPT 2-4, 11)
+        priority: assignment.priority || 2, // 1=Low, 2=Normal, 3=High
+        expectedStart: assignment.expectedStart || assignment.plannedStart || null,
+        optimizedIndex: assignment.optimizedIndex || null,
+        optimizedStart: assignment.optimizedStart || null,
+        schedulingMode: assignment.schedulingMode || 'fifo',
+        isUrgent: assignment.isUrgent || false,
+        
+        // Worker info
+        workerId: assignment.workerId,
+        workerName: workerData.name,
+        
+        // Station info
+        stationId: assignment.stationId,
+        stationName: station?.name || 'Belirsiz',
+        substationId: nodeState?.substationId || assignment.substationId || null,
+        substationCode: nodeState?.substationCode || assignment.substationCode || null,
+        
+        // Substation workload info (for busy status display)
+        substationCurrentOperation: nodeState?.substationCurrentOperation || null,
+        substationCurrentWorkPackageId: nodeState?.substationCurrentWorkPackageId || null,
+        substationCurrentExpectedEnd: nodeState?.substationCurrentExpectedEnd || null,
+        
+        // Task details from node
+        name: nodeInfo?.name || 'İsimsiz Görev',
+        operationId: nodeInfo?.operationId,
+        operationName: nodeInfo?.operationName,
+        estimatedNominalTime: nodeInfo?.estimatedNominalTime || 0,
+        estimatedEffectiveTime: nodeInfo?.estimatedEffectiveTime || 0,
+        
+        // Timing
+        assignedAt: assignment.createdAt,
+        actualStart: assignment.actualStart?.toDate ? assignment.actualStart.toDate().toISOString() : assignment.actualStart || null,
+        actualEnd: assignment.actualEnd?.toDate ? assignment.actualEnd.toDate().toISOString() : assignment.actualEnd || null,
+        plannedStart: nodeState?.plannedStart || assignment.plannedStart || null,
+        plannedEnd: nodeState?.plannedEnd || assignment.plannedEnd || null,
+        
+        // Pause metadata (to differentiate plan pause vs worker pause)
+        pauseContext: assignment.pauseContext || null,
+        pauseReason: assignment.pauseReason || null,
+        pausedBy: assignment.pausedBy || null,
+        pausedByName: assignment.pausedByName || null,
+        pausedAt: assignment.pausedAt || null,
+        
+        // Prerequisites from execution state (accurate real-time check)
+        prerequisites: nodeState?.prerequisites || {
+          predecessorsDone: true,
+          workerAvailable: true,
+          substationAvailable: true,
+          stationAvailable: true,
+          materialsReady: !plan?.materialSummary?.hasShortages
+        },
+        
+        // Predecessor info for UI
+        predecessors: nodeInfo?.predecessors || [],
+        
+        // Material info (for fire counter system)
+        preProductionReservedAmount: assignment.preProductionReservedAmount || {},
+        materialInputs: nodeInfo?.materialInputs || assignment.materialInputs || {},
+        
+        // Material output info
+        hasOutputs: nodeInfo?.hasOutputs || false,
+        outputCode: nodeInfo?.outputCode,
+        outputQty: nodeInfo?.outputQty,
+        plannedOutput: assignment.plannedOutput || {}
+      };
+      
+      allTasks.push(task);
+    }
+    
+    // Sort by expectedStart (FIFO scheduling)
+    allTasks.sort((a, b) => {
+      const aTime = a.expectedStart ? new Date(a.expectedStart).getTime() : 0;
+      const bTime = b.expectedStart ? new Date(b.expectedStart).getTime() : 0;
+      return aTime - bTime;
+    });
+    
+    // ✅ Initialize canStart=false for all tasks
+    allTasks.forEach(task => {
+      task.canStart = false;
+    });
+    
+    // ✅ canStart logic: WORKER-LEVEL FIFO (not per work order)
+    // Filter active tasks (pending/ready/in-progress) across ALL work orders
+    const activeTasks = allTasks.filter(t => 
+      t.status === 'pending' || t.status === 'in-progress' || t.status === 'in_progress' || t.status === 'ready'
+    );
+    
+    // Already sorted by expectedStart above
+    
+    // Find first pending/ready task
+    const firstPendingIndex = activeTasks.findIndex(t => t.status === 'pending' || t.status === 'ready');
+    
+    // Set canStart: isUrgent=true -> all can start, otherwise only first pending
+    activeTasks.forEach((task, index) => {
+      if (task.status === 'in-progress' || task.status === 'in_progress') {
+        task.canStart = false; // Already started
+      } else {
+        // ✅ Worker can start: urgent tasks OR first pending task (FIFO)
+        task.canStart = task.isUrgent || (index === firstPendingIndex);
+      }
+    });
+    
+    // Find next task (first pending or ready task)
+    const nextTask = allTasks.find(t => t.status === 'pending' || t.status === 'ready');
+    const nextTaskId = nextTask?.assignmentId || null;
+    
+    return { tasks: allTasks, nextTaskId };
+  }, res);
+});
+
+// ============================================================================
+// MIGRATION ENDPOINT FOR ASSIGNMENT IDS
+// ============================================================================
+// POST /api/mes/migrate-assignment-ids - Migrate existing assignment IDs to work order format
+router.post('/migrate-assignment-ids', withAuth, async (req, res) => {
+  await handleFirestoreOperation(async () => {
+    const { dryRun = true } = req.body;
+    const userEmail = req.user?.email || 'system';
+    
+    console.log(`🚀 Starting assignment ID migration (${dryRun ? 'DRY RUN' : 'LIVE'})`);
+    
+    const db = getFirestore();
+    
+    // Fetch all assignments
+    const assignmentsSnapshot = await db.collection('mes-worker-assignments').get();
+    const assignments = assignmentsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ref: doc.ref,
+      ...doc.data()
+    }));
+    
+    console.log(`Found ${assignments.length} assignments to process`);
+    
+    if (assignments.length === 0) {
+      return { success: true, message: 'No assignments found', migrations: [] };
+    }
+    
+    // Get unique plan IDs to fetch plan data
+    const planIds = [...new Set(assignments.map(a => a.planId).filter(Boolean))];
+    
+    // Fetch plan data to get work order codes
+    const plansMap = new Map();
+    for (const planId of planIds) {
+      try {
+        const planDoc = await db.collection('mes-production-plans').doc(planId).get();
+        if (planDoc.exists) {
+          const planData = planDoc.data();
+          plansMap.set(planId, planData);
+        }
+      } catch (error) {
+        console.warn(`Failed to fetch plan ${planId}:`, error.message);
+      }
+    }
+    
+    // Group assignments by work order code and prepare migrations
+    const assignmentGroups = new Map();
+    const counters = new Map();
+    const migrations = [];
+    
+    for (const assignment of assignments) {
+      const plan = plansMap.get(assignment.planId);
+      const workOrderCode = plan?.orderCode || assignment.workOrderCode || assignment.planId || 'UNKNOWN';
+      
+      if (!assignmentGroups.has(workOrderCode)) {
+        assignmentGroups.set(workOrderCode, []);
+      }
+      assignmentGroups.get(workOrderCode).push(assignment);
+    }
+    
+    // Generate new IDs for each work order group
+    for (const [workOrderCode, workOrderAssignments] of assignmentGroups) {
+      for (const assignment of workOrderAssignments) {
+        const oldId = assignment.id;
+        
+        // Skip if already in new format
+        if (oldId.startsWith(workOrderCode + '-') && /\d{2}$/.test(oldId)) {
+          continue;
+        }
+        
+        // Generate new ID
+        const counterKey = `workpackage-${workOrderCode}`;
+        let counter = counters.get(counterKey) || 0;
+        counter++;
+        counters.set(counterKey, counter);
+        
+        const newId = `${workOrderCode}-${String(counter).padStart(2, '0')}`;
+        
+        migrations.push({
+          oldId,
+          newId,
+          workOrderCode,
+          assignment
+        });
+      }
+    }
+    
+    console.log(`Migration plan: ${migrations.length} assignments to migrate`);
+    
+    if (dryRun) {
+      return {
+        success: true,
+        dryRun: true,
+        totalAssignments: assignments.length,
+        migrationsNeeded: migrations.length,
+        workOrdersAffected: assignmentGroups.size,
+        migrations: migrations.map(m => ({ oldId: m.oldId, newId: m.newId, workOrderCode: m.workOrderCode }))
+      };
+    }
+    
+    // Execute migrations in batches
+    const BATCH_SIZE = 450;
+    let processedCount = 0;
+    
+    for (let i = 0; i < migrations.length; i += BATCH_SIZE) {
+      const batch = migrations.slice(i, i + BATCH_SIZE);
+      const firestoreBatch = db.batch();
+      
+      for (const migration of batch) {
+        const { oldId, newId, assignment } = migration;
+        
+        // Create new document
+        const newRef = db.collection('mes-worker-assignments').doc(newId);
+        const newData = { ...assignment };
+        newData.id = newId;
+        delete newData.ref;
+        firestoreBatch.set(newRef, newData);
+        
+        // Delete old document
+        firestoreBatch.delete(assignment.ref);
+      }
+      
+      await firestoreBatch.commit();
+      processedCount += batch.length;
+      console.log(`Migrated batch: ${processedCount}/${migrations.length}`);
+    }
+    
+    // Update counters
+    const counterBatch = db.batch();
+    for (const [counterKey, count] of counters) {
+      const counterRef = db.collection('mes-counters').doc(counterKey);
+      counterBatch.set(counterRef, { 
+        next: count + 1, 
+        updatedAt: new Date(),
+        migratedAt: new Date(),
+        migratedBy: userEmail
+      }, { merge: true });
+    }
+    await counterBatch.commit();
+    
+    console.log(`✅ Migration completed: ${processedCount} assignments migrated`);
+    
+    return {
+      success: true,
+      dryRun: false,
+      totalAssignments: assignments.length,
+      migrated: processedCount,
+      workOrdersAffected: assignmentGroups.size,
+      countersUpdated: counters.size,
+      migratedBy: userEmail,
+      migratedAt: new Date().toISOString()
+    };
+  }, res);
+});
+
+// ============================================================================
+// WORK PACKAGE (ASSIGNMENT) UPDATE ENDPOINT
+// ============================================================================
+// PATCH /api/mes/work-packages/:id - Update work package with actions
+// This is the unified endpoint for all task state changes: start, pause, station_error, complete
 // Replaces the old /worker-portal/tasks endpoint for consistency
 router.patch('/work-packages/:id', withAuth, async (req, res) => {
   await handleFirestoreOperation(async () => {
