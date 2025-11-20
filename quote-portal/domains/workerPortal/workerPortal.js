@@ -10,6 +10,7 @@ import {
   getStatusLabel,
   canWorkerStartTasks
 } from '../../shared/utils/workerStatus.js';
+import { showLotPreviewModal } from './components/lotPreviewModal.js';
 
 // ============================================================================
 // STATE MANAGEMENT
@@ -66,6 +67,72 @@ async function init() {
     };
   } catch (err) {
     console.warn('BroadcastChannel not available:', err);
+  }
+  
+  // ========================================================================
+  // STEP 9: Real-time SSE Connection for Worker Assignment Updates
+  // ========================================================================
+  // Connect to Server-Sent Events stream for real-time task notifications
+  // This replaces polling and provides instant updates when:
+  // - New tasks are assigned
+  // - Task status changes
+  // - Priorities are adjusted
+  // - Tasks are cancelled
+  try {
+    console.log(`📡 Connecting to SSE stream for worker ${workerId}...`);
+    
+    const eventSource = new EventSource(`/api/mes/stream/assignments?workerId=${encodeURIComponent(workerId)}`);
+    
+    // Connection opened
+    eventSource.addEventListener('connected', (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        console.log(`✅ SSE connected to channel: ${data.channel}`);
+      } catch (err) {
+        console.warn('Failed to parse SSE connected event:', err);
+      }
+    });
+    
+    // Receive assignment updates
+    eventSource.addEventListener('message', (e) => {
+      try {
+        const notification = JSON.parse(e.data);
+        console.log('📬 SSE notification received:', notification);
+        
+        // Check if this update is for current worker
+        if (notification.workerId === workerId || notification.worker_id === workerId) {
+          console.log(`🔄 Assignment update for worker ${workerId}, reloading tasks...`);
+          
+          // Reload tasks to reflect changes
+          loadWorkerTasks();
+          
+          // Show toast notification for significant events
+          if (notification.operation === 'INSERT') {
+            showNotification('🆕 Yeni görev atandı!', 'info');
+          } else if (notification.operation === 'UPDATE' && notification.status === 'cancelled') {
+            showNotification('❌ Görev iptal edildi', 'warning');
+          }
+        }
+      } catch (err) {
+        console.error('Failed to process SSE message:', err);
+      }
+    });
+    
+    // Handle errors (EventSource will auto-reconnect)
+    eventSource.onerror = (error) => {
+      console.error('❌ SSE connection error:', error);
+      console.log('🔄 EventSource will attempt to reconnect automatically...');
+      // Browser handles reconnection automatically
+    };
+    
+    // Store for cleanup
+    window._workerPortalSSE = eventSource;
+    
+    console.log('✅ SSE stream initialized successfully');
+    
+  } catch (err) {
+    console.error('Failed to initialize SSE stream:', err);
+    // Continue without SSE - app will work with manual refresh
   }
 }
 
@@ -225,7 +292,24 @@ async function loadLotPreviews() {
 // TASK ACTIONS
 // ============================================================================
 
-async function startTask(assignmentId) {
+/**
+ * Show lot preview modal and start task on confirmation
+ * STEP 11: Material Reservation - Lot Preview UI Integration
+ */
+async function startTaskWithLotPreview(assignmentId) {
+  console.log(`🚀 Starting task with lot preview: ${assignmentId}`);
+  
+  // Show lot preview modal
+  await showLotPreviewModal(assignmentId, async (confirmedAssignmentId) => {
+    // User confirmed, proceed with starting task
+    await startTaskDirectly(confirmedAssignmentId);
+  });
+}
+
+/**
+ * Start task directly (called after lot preview confirmation)
+ */
+async function startTaskDirectly(assignmentId) {
   try {
     const result = await updateWorkPackage(assignmentId, { action: 'start' });
     
@@ -1410,19 +1494,36 @@ function renderTaskList() {
     `;
   }
   
-  // ✅ PROMPT 11: Sort by expectedStart (FIFO) or optimizedStart (optimized mode)
+  // ========================================================================
+  // STEP 9: FIFO Task Queue Sorting
+  // ========================================================================
+  // Sort tasks by FIFO order (expectedStart or optimizedStart)
+  // This ensures workers see tasks in the correct production sequence
   const sortedTasks = [...state.tasks].sort((a, b) => {
+    // Urgent tasks always come first
+    if (a.isUrgent !== b.isUrgent) {
+      return a.isUrgent ? -1 : 1;
+    }
+    
+    // Then sort by expected start time (FIFO)
     const aStart = new Date(a.optimizedStart || a.expectedStart || a.plannedStart).getTime();
     const bStart = new Date(b.optimizedStart || b.expectedStart || b.plannedStart).getTime();
     return aStart - bStart;
   });
   
-  // Find first ready/pending task
+  // ========================================================================
+  // STEP 9: Identify Next Task (FIFO Position #1)
+  // ========================================================================
+  // Find the first ready/pending task - this is the ONLY task that can start
+  // All other tasks must wait until this one is started/completed (FIFO enforcement)
   const nextTask = sortedTasks.find(t => t.status === 'ready' || t.status === 'pending');
   
+  // Assign FIFO positions to ready/pending tasks
+  let fifoPosition = 1;
   const rows = sortedTasks.map(task => {
     const isNextTask = nextTask && task.assignmentId === nextTask.assignmentId;
-    return renderTaskRow(task, isNextTask);
+    const currentFifoPosition = (task.status === 'ready' || task.status === 'pending') ? fifoPosition++ : null;
+    return renderTaskRow(task, isNextTask, currentFifoPosition);
   }).join('');
   
   return `
@@ -1453,9 +1554,22 @@ function renderTaskList() {
   `;
 }
 
-function renderTaskRow(task, isNextTask) {
+function renderTaskRow(task, isNextTask, fifoPosition) {
   const statusInfo = getStatusInfo(task.status);
-  const priorityBadge = isNextTask ? '<span class="priority-badge">Öncelikli</span>' : '';
+  
+  // ========================================================================
+  // STEP 9: FIFO Position Badge (#1, #2, #3...)
+  // ========================================================================
+  // Show queue position for ready/pending tasks
+  // Position #1 is highlighted in green and has "ŞİMDİ BAŞLAT" button
+  const fifoBadge = fifoPosition 
+    ? `<span class="fifo-position-badge ${fifoPosition === 1 ? 'fifo-next' : 'fifo-waiting'}">#${fifoPosition}</span>` 
+    : '';
+  
+  // Priority badge (for urgent tasks)
+  const priorityBadge = task.isUrgent 
+    ? '<span class="priority-badge urgent-badge">⭐ ÖNCELİKLİ</span>' 
+    : (isNextTask ? '<span class="priority-badge">Sırada</span>' : '');
   
   // Show paused banner based on pause context
   let pausedBannerHtml = '';
@@ -1510,19 +1624,28 @@ function renderTaskRow(task, isNextTask) {
   // Lot consumption preview (for ready/pending tasks with lot tracking)
   const lotPreviewHtml = renderLotPreview(task);
   
-  // ✅ PROMPT 11: Priority badge based on priority field (1=Low, 2=Normal, 3=High)
+  // Priority badge based on priority field (1=Low, 2=Normal, 3=High)
   const priorityLabels = {1: 'DÜŞÜK', 2: 'NORMAL', 3: 'YÜKSEK'};
   const priorityColors = {1: 'priority-low', 2: 'priority-normal', 3: 'priority-high'};
   const priority = task.priority || 2; // Default to normal
   const priorityBadgeHtml = `<span class="priority-level-badge ${priorityColors[priority]}">${priorityLabels[priority]}</span>`;
   
-  // ✅ Urgent class for card highlighting
+  // ========================================================================
+  // STEP 9: Urgent Task Highlighting
+  // ========================================================================
+  // Urgent tasks get special styling (red border, star icon)
   const urgentClass = task.isUrgent ? 'urgent-card' : '';
   
+  // ========================================================================
+  // STEP 9: Next Task Highlighting (#1 in FIFO queue)
+  // ========================================================================
+  // First task in queue gets green border and "ŞİMDİ BAŞLAT" button
+  const nextTaskClass = isNextTask ? 'next-task-card' : '';
+  
   return `
-    <tr class="task-row ${task.status === 'paused' ? 'task-paused' : ''} ${urgentClass}" data-assignment-id="${task.assignmentId}">
+    <tr class="task-row ${task.status === 'paused' ? 'task-paused' : ''} ${urgentClass} ${nextTaskClass}" data-assignment-id="${task.assignmentId}">
       <td>
-        <div class="priority-index">#${task.workPackageId?.split('-').pop() || '?'}</div>
+        <div class="priority-index">${fifoBadge || '#' + (task.workPackageId?.split('-').pop() || '?')}</div>
       </td>
       <td>
         <span class="status-badge status-${task.status}">${statusInfo.icon} ${statusInfo.label}</span>
@@ -1559,7 +1682,7 @@ function renderTaskRow(task, isNextTask) {
         </div>
       </td>
       <td>
-        ${renderTaskActions(task)}
+        ${renderTaskActions(task, isNextTask, fifoPosition)}
       </td>
     </tr>
   `;
@@ -1919,10 +2042,10 @@ function renderPrerequisites(prerequisites, task) {
   return `<div class="task-blockers">${items.join(' • ')}</div>`;
 }
 
-function renderTaskActions(task) {
+function renderTaskActions(task, isNextTask, fifoPosition) {
   const actions = [];
   
-  // ✅ Urgent badge (yeni)
+  // Urgent badge
   if (task.isUrgent) {
     actions.push(`<span class="urgent-badge">🚨 Acil</span>`);
   }
@@ -1945,7 +2068,12 @@ function renderTaskActions(task) {
     !task.prerequisites.materialsReady
   );
   
-  // ✅ Check canStart flag (backend'den gelen değer, undefined ise false)
+  // ========================================================================
+  // STEP 9: FIFO Enforcement - Only position #1 can start
+  // ========================================================================
+  // Check canStart flag (backend value) - undefined means false
+  // canStart = false → task must wait in queue
+  // isNextTask = true → this is FIFO position #1 (can start if no other blocks)
   const cannotStartYet = (task.canStart === false) && (task.status === 'pending' || task.status === 'ready');
   
   // Build tooltip for blocked reasons
@@ -1954,8 +2082,8 @@ function renderTaskActions(task) {
     blockTooltip = `title="İşçi durumu görev başlatmaya uygun değil: ${workCheck.reason || 'Bilinmeyen sebep'}"`;
   } else if (isPlanPaused) {
     blockTooltip = `title="Admin tarafından durduruldu"`;
-  } else if (cannotStartYet) {
-    blockTooltip = `title="⏳ Sırada bekliyor - Önceki görevler tamamlanmalı"`;
+  } else if (cannotStartYet && !isNextTask) {
+    blockTooltip = `title="⏳ FIFO Sırası #${fifoPosition || '?'} - Önce #1 tamamlanmalı"`;
   } else if (isBlocked) {
     const reasons = [];
     if (!task.prerequisites.predecessorsDone) reasons.push('Önceki görevler tamamlanmadı');
@@ -1975,19 +2103,33 @@ function renderTaskActions(task) {
     `);
   }
   
-  // Start button - for ready OR pending tasks (and not paused, blocked, or worker unavailable)
+  // ========================================================================
+  // STEP 9: Start Button with FIFO Position #1 Highlighting
+  // ========================================================================
+  // Show different button text and style for FIFO position #1
   if (task.status === 'ready' || task.status === 'pending') {
     const disabled = (isBlocked || isPlanPaused || workerUnavailable || cannotStartYet) ? 'disabled' : '';
     
-    // ✅ Waiting text for tasks that cannot start yet
-    if (cannotStartYet) {
+    if (cannotStartYet && !isNextTask) {
+      // Task waiting in queue (not position #1)
       actions.push(`
         <button class="action-btn action-start disabled" data-action="start" data-id="${task.assignmentId}" disabled ${blockTooltip}>
           ▶️ Başla
         </button>
-        <small class="waiting-text">⏳ Sırada bekliyor</small>
+        <small class="waiting-text">⏳ Sırada #${fifoPosition || '?'}</small>
+      `);
+    } else if (isNextTask && !disabled) {
+      // ========================================================================
+      // STEP 9: "ŞİMDİ BAŞLAT" Button for FIFO Position #1
+      // ========================================================================
+      // This is the next task in FIFO queue - show green highlighted button
+      actions.push(`
+        <button class="action-btn action-start action-start-now" data-action="start" data-id="${task.assignmentId}">
+          🚀 ŞİMDİ BAŞLAT
+        </button>
       `);
     } else {
+      // Regular start button (blocked or not next in queue)
       actions.push(`
         <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}" ${disabled} ${blockTooltip}>
           ▶️ Başla
@@ -2067,7 +2209,8 @@ function attachEventListeners() {
       
       switch (action) {
         case 'start':
-          await startTask(assignmentId);
+          // STEP 11: Show lot preview modal before starting
+          await startTaskWithLotPreview(assignmentId);
           break;
         case 'pause':
           await pauseTask(assignmentId);

@@ -928,6 +928,84 @@
   box-shadow: 0 4px 12px rgba(255, 68, 68, 0.25) !important;
 }
 
+/* ============================================================================
+   STEP 9: FIFO TASK QUEUE STYLES
+   ============================================================================ */
+
+/* FIFO Position Badge (#1, #2, #3...) */
+.fifo-position-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  min-width: 40px;
+  margin: 0 auto;
+}
+
+/* FIFO Position #1 - Green (Next Task) */
+.fifo-position-badge.fifo-next {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  animation: pulse-next 2s infinite;
+}
+
+@keyframes pulse-next {
+  0%, 100% { 
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3); 
+  }
+  50% { 
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.5); 
+  }
+}
+
+/* FIFO Position #2+ - Gray (Waiting) */
+.fifo-position-badge.fifo-waiting {
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
+  color: white;
+  box-shadow: 0 1px 4px rgba(107, 114, 128, 0.2);
+}
+
+/* Next Task Card (FIFO #1) - Green Border */
+.task-row.next-task-card {
+  border-left: 4px solid #10b981 !important;
+  background: linear-gradient(to right, #f0fdf4, #ffffff) !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15) !important;
+}
+
+.task-row.next-task-card:hover {
+  background: linear-gradient(to right, #dcfce7, #ffffff) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25) !important;
+}
+
+/* "ŞİMDİ BAŞLAT" Button - Green Highlighted */
+.action-btn.action-start-now {
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  font-size: 15px !important;
+  padding: 10px 20px !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3) !important;
+  animation: pulse-start-now 2s infinite;
+}
+
+.action-btn.action-start-now:hover {
+  background: linear-gradient(135deg, #059669, #047857) !important;
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4) !important;
+  transform: translateY(-2px) !important;
+}
+
+@keyframes pulse-start-now {
+  0%, 100% { 
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); 
+  }
+  50% { 
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5); 
+  }
+}
+
 /* Disabled Button */
 .action-btn.disabled,
 .action-btn:disabled {
@@ -953,4 +1031,5 @@
   margin-top: 4px;
   text-align: center;
 }
+
 

@@ -13,6 +13,19 @@ import {
   releaseMaterialReservations,
   markMaterialsConsumed 
 } from './utils/lotConsumption.js';
+import {
+  getWorkerNextTask,
+  getWorkerTaskQueue,
+  getWorkerTaskStats,
+  startTask,
+  completeTask,
+  hasTasksInQueue
+} from './utils/fifoScheduler.js';
+import {
+  createSSEStream,
+  createWorkerFilter,
+  createPlanFilter
+} from './utils/sseStream.js';
 
 const require = createRequire(import.meta.url);
 const planSchema = require('./models/ProductionPlanSchema.json');
@@ -8657,19 +8670,23 @@ router.post('/assignments/:assignmentId/start', withAuth, async (req, res) => {
  * GET /api/mes/assignments/:assignmentId/lot-preview
  * Preview which lots will be consumed (without actually reserving)
  * 
+ * STEP 7 ENHANCEMENT: Automatically fetches material requirements from node
+ * 
  * Query params:
- * - materialRequirements: JSON string of material requirements
+ * - materialRequirements: JSON string (optional - if not provided, fetched from node)
  * 
  * Response:
  * {
+ *   success: true,
+ *   assignmentId: 'WO-001-001',
  *   materials: [
  *     {
  *       materialCode: 'M-00-001',
  *       materialName: 'Çelik Sac',
  *       requiredQty: 100,
  *       lotsToConsume: [
- *         { lotNumber: 'LOT-M-00-001-001', lotDate: '2025-11-01', consumeQty: 50 },
- *         { lotNumber: 'LOT-M-00-001-002', lotDate: '2025-11-15', consumeQty: 50 }
+ *         { lotNumber: 'LOT-M-00-001-001', lotDate: '2025-11-01', qty: 50 },
+ *         { lotNumber: 'LOT-M-00-001-002', lotDate: '2025-11-15', qty: 50 }
  *       ],
  *       totalAvailable: 250,
  *       sufficient: true
@@ -8677,13 +8694,30 @@ router.post('/assignments/:assignmentId/start', withAuth, async (req, res) => {
  *   ]
  * }
  */
-router.get('/assignments/:assignmentId/lot-preview', withAuth, async (req, res) => {
+router.get('/assignments/:assignmentId/lot-preview', async (req, res) => {
   try {
     const { assignmentId } = req.params;
     
-    // Parse material requirements from query string or body
+    console.log(`🔍 [FIFO] Lot preview for assignment: ${assignmentId}`);
+    
+    // Get assignment details to fetch node_id and plan_id
+    const assignment = await db('mes.worker_assignments')
+      .select('node_id', 'plan_id')
+      .where('id', assignmentId)
+      .first();
+    
+    if (!assignment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Assignment not found'
+      });
+    }
+    
+    // Get material requirements from node (or use provided ones)
     let materialRequirements = [];
+    
     if (req.query.materialRequirements) {
+      // Use provided material requirements
       try {
         materialRequirements = JSON.parse(req.query.materialRequirements);
       } catch (e) {
@@ -8692,9 +8726,18 @@ router.get('/assignments/:assignmentId/lot-preview', withAuth, async (req, res) 
           error: 'Invalid materialRequirements format' 
         });
       }
+    } else {
+      // Fetch from node_material_inputs
+      materialRequirements = await db('mes.node_material_inputs')
+        .select(
+          'material_code as materialCode',
+          'quantity as requiredQty'
+        )
+        .where('node_id', parseInt(assignment.node_id))
+        .where('plan_id', assignment.plan_id);
     }
     
-    console.log(`🔍 [MES] Lot preview for assignment: ${assignmentId}`);
+    console.log(`📋 [FIFO] Found ${materialRequirements.length} material requirement(s) for preview`);
     
     // Get lot consumption preview (read-only, no reservation)
     const preview = await getLotConsumptionPreview(materialRequirements);
@@ -8706,7 +8749,7 @@ router.get('/assignments/:assignmentId/lot-preview', withAuth, async (req, res) 
     });
     
   } catch (error) {
-    console.error('❌ [MES] Error generating lot preview:', error);
+    console.error('❌ [FIFO] Error generating lot preview:', error);
     res.status(500).json({ 
       success: false,
       error: 'Failed to generate lot preview',
@@ -8807,6 +8850,889 @@ router.post('/assignments/:assignmentId/complete', withAuth, async (req, res) =>
       success: false,
       error: 'Failed to complete assignment',
       details: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// FIFO TASK SCHEDULING ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/mes/workers/:workerId/tasks/next
+ * Get the next task for a worker using FIFO scheduling
+ * 
+ * Response: Single task object or null
+ * Performance: < 5ms (uses idx_fifo_queue)
+ */
+router.get('/workers/:workerId/tasks/next', async (req, res) => {
+  try {
+    const { workerId } = req.params;
+    
+    const nextTask = await getWorkerNextTask(workerId);
+    
+    if (!nextTask) {
+      return res.json({
+        success: true,
+        task: null,
+        message: 'No tasks available in queue'
+      });
+    }
+    
+    res.json({
+      success: true,
+      task: nextTask
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting next task:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get next task',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/mes/workers/:workerId/tasks/queue
+ * Get full task queue for a worker in FIFO order
+ * 
+ * Query params:
+ * - limit: Max tasks to return (default: 10)
+ * 
+ * Response: Array of tasks with FIFO positions
+ */
+router.get('/workers/:workerId/tasks/queue', async (req, res) => {
+  try {
+    const { workerId } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    
+    const queue = await getWorkerTaskQueue(workerId, limit);
+    const stats = await getWorkerTaskStats(workerId);
+    
+    res.json({
+      success: true,
+      workerId,
+      queue,
+      stats,
+      queueLength: queue.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting task queue:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get task queue',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/mes/workers/:workerId/tasks/stats
+ * Get task statistics for a worker
+ * 
+ * Response: Task counts, workload estimates, etc.
+ */
+router.get('/workers/:workerId/tasks/stats', async (req, res) => {
+  try {
+    const { workerId } = req.params;
+    
+    const stats = await getWorkerTaskStats(workerId);
+    
+    res.json({
+      success: true,
+      workerId,
+      stats
+    });
+    
+  } catch (error) {
+    console.error('❌ Error getting task stats:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get task stats',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/mes/assignments/:assignmentId/start
+ * Start a task (pending/ready → in_progress)
+ * 
+ * STEP 7 INTEGRATION: Now includes FIFO lot-based material consumption!
+ * 
+ * Body:
+ * - workerId: Worker ID (for verification)
+ * 
+ * Side effects:
+ * - Gets material requirements from production plan node
+ * - Reserves materials with FIFO lot consumption
+ * - Creates stock_movements (type='out') for consumed lots
+ * - Creates assignment_material_reservations records
+ * - Updates materials.stock and wip_reserved aggregates
+ * - Updates status to in_progress
+ * - Sets actual_start timestamp
+ * - Triggers real-time notification
+ * 
+ * Response:
+ * {
+ *   success: true,
+ *   assignment: { ... updated assignment ... },
+ *   materialReservation: {
+ *     success: true,
+ *     reservations: [
+ *       {
+ *         materialCode: 'M-00-001',
+ *         lotsConsumed: [
+ *           { lotNumber: 'LOT-M-00-001-001', lotDate: '2025-11-01', qty: 50 },
+ *           { lotNumber: 'LOT-M-00-001-002', lotDate: '2025-11-15', qty: 50 }
+ *         ],
+ *         totalReserved: 100,
+ *         partialReservation: false
+ *       }
+ *     ],
+ *     warnings: []
+ *   }
+ * }
+ */
+router.post('/assignments/:assignmentId/start', async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    const { workerId } = req.body;
+    
+    if (!workerId) {
+      return res.status(400).json({
+        success: false,
+        error: 'workerId is required'
+      });
+    }
+    
+    console.log(`🚀 [FIFO] Starting task ${assignmentId} for worker ${workerId}`);
+    
+    // Start task with integrated lot consumption
+    const result = await startTask(assignmentId, workerId);
+    
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    
+    // Log material consumption details
+    if (result.materialReservation && result.materialReservation.reservations.length > 0) {
+      console.log(`📦 [FIFO] Reserved ${result.materialReservation.reservations.length} material(s) with FIFO lot consumption`);
+      
+      result.materialReservation.reservations.forEach(r => {
+        console.log(`   - ${r.materialCode}: ${r.totalReserved} from ${r.lotsConsumed.length} lot(s)`);
+      });
+      
+      if (result.materialReservation.warnings.length > 0) {
+        console.warn(`⚠️  [FIFO] Warnings:`, result.materialReservation.warnings);
+      }
+    }
+    
+    res.json({
+      ...result,
+      message: result.materialReservation.warnings.length > 0
+        ? 'Task started with warnings (partial material reservations)'
+        : 'Task started successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ [FIFO] Error starting task:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to start task',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/mes/assignments/:assignmentId/complete
+ * Complete a task (in_progress → completed)
+ * 
+ * STEP 7 INTEGRATION: Now marks materials as consumed!
+ * 
+ * Body:
+ * - workerId: Worker ID (for verification)
+ * - quantityProduced: Number (optional)
+ * - defectQuantity: Number (optional)
+ * - qualityOk: Boolean (optional, default: true)
+ * - notes: String (optional)
+ * 
+ * Side effects:
+ * - Marks reserved materials as 'consumed'
+ * - Updates consumed_qty in assignment_material_reservations
+ * - Updates status to completed
+ * - Sets actual_end timestamp
+ * - Records completion data
+ * - Triggers real-time notification
+ * 
+ * Response:
+ * {
+ *   success: true,
+ *   assignment: { ... updated assignment ... },
+ *   materialsConsumed: 3  // Number of material reservations marked as consumed
+ * }
+ */
+router.post('/assignments/:assignmentId/complete', async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    const { workerId, quantityProduced, defectQuantity, qualityOk, notes } = req.body;
+    
+    if (!workerId) {
+      return res.status(400).json({
+        success: false,
+        error: 'workerId is required'
+      });
+    }
+    
+    console.log(`✅ [FIFO] Completing task ${assignmentId} for worker ${workerId}`);
+    
+    // Complete task with integrated material consumption
+    const result = await completeTask(assignmentId, workerId, {
+      quantityProduced,
+      defectQuantity,
+      qualityOk,
+      notes
+    });
+    
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+    
+    // Log material consumption
+    if (result.materialsConsumed > 0) {
+      console.log(`📦 [FIFO] Marked ${result.materialsConsumed} material reservation(s) as consumed`);
+    }
+    
+    res.json({
+      ...result,
+      message: `Task completed successfully${result.materialsConsumed > 0 ? ` (${result.materialsConsumed} materials consumed)` : ''}`
+    });
+    
+  } catch (error) {
+    console.error('❌ [FIFO] Error completing task:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to complete task',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/mes/workers/:workerId/has-tasks
+ * Quick check if worker has any tasks in queue
+ * 
+ * Response: { hasTasks: boolean }
+ * Use case: Dashboard widgets, availability indicators
+ */
+router.get('/workers/:workerId/has-tasks', async (req, res) => {
+  try {
+    const { workerId } = req.params;
+    
+    const hasTasks = await hasTasksInQueue(workerId);
+    
+    res.json({
+      success: true,
+      workerId,
+      hasTasks
+    });
+    
+  } catch (error) {
+    console.error('❌ Error checking task queue:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check task queue',
+      details: error.message
+    });
+  }
+});
+
+// ============================================================================
+// STEP 8: REAL-TIME SSE ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/mes/stream/assignments
+ * Real-time stream of worker assignment changes
+ * 
+ * Server-Sent Events (SSE) endpoint that streams PostgreSQL notifications
+ * for assignment table changes (INSERT, UPDATE, DELETE).
+ * 
+ * Query params:
+ * - workerId: Filter events for specific worker (optional)
+ * 
+ * Event format:
+ * event: message
+ * data: {
+ *   "operation": "UPDATE",
+ *   "table": "worker_assignments",
+ *   "id": "assignment-id",
+ *   "planId": "plan-id",
+ *   "nodeId": "node-id",
+ *   "workerId": "worker-id",
+ *   "status": "in_progress",
+ *   "timestamp": 1700000000
+ * }
+ * 
+ * Frontend usage:
+ * ```javascript
+ * const eventSource = new EventSource('/api/mes/stream/assignments?workerId=W-001');
+ * eventSource.addEventListener('message', (e) => {
+ *   const data = JSON.parse(e.data);
+ *   console.log('Assignment updated:', data);
+ * });
+ * ```
+ */
+router.get('/stream/assignments', (req, res) => {
+  const { workerId } = req.query;
+
+  console.log(`🌊 [SSE] New assignment stream connection${workerId ? ` for worker ${workerId}` : ''}`);
+
+  // Create filter if workerId provided
+  const filter = workerId ? createWorkerFilter(workerId) : null;
+
+  // Create SSE stream
+  const stream = createSSEStream(res, 'mes_assignment_updates', { filter });
+
+  // Start streaming
+  stream.start();
+});
+
+/**
+ * GET /api/mes/stream/plans
+ * Real-time stream of production plan changes
+ * 
+ * Streams notifications when production plans are created, updated, or deleted.
+ * 
+ * Query params:
+ * - planId: Filter events for specific plan (optional)
+ * 
+ * Event format:
+ * event: message
+ * data: {
+ *   "operation": "UPDATE",
+ *   "table": "production_plans",
+ *   "id": "plan-id",
+ *   "planId": "plan-id",
+ *   "status": "in_progress",
+ *   "orderCode": "WO-001",
+ *   "timestamp": 1700000000
+ * }
+ * 
+ * Frontend usage:
+ * ```javascript
+ * const eventSource = new EventSource('/api/mes/stream/plans');
+ * eventSource.addEventListener('message', (e) => {
+ *   const data = JSON.parse(e.data);
+ *   if (data.operation === 'UPDATE') {
+ *     updatePlanStatus(data.planId, data.status);
+ *   }
+ * });
+ * ```
+ */
+router.get('/stream/plans', (req, res) => {
+  const { planId } = req.query;
+
+  console.log(`🌊 [SSE] New plan stream connection${planId ? ` for plan ${planId}` : ''}`);
+
+  // Create filter if planId provided
+  const filter = planId ? createPlanFilter(planId) : null;
+
+  // Create SSE stream
+  const stream = createSSEStream(res, 'mes_plan_updates', { filter });
+
+  // Start streaming
+  stream.start();
+});
+
+/**
+ * GET /api/mes/stream/workers
+ * Real-time stream of worker status changes
+ * 
+ * Streams notifications when worker status, availability, or current task changes.
+ * 
+ * Query params:
+ * - workerId: Filter events for specific worker (optional)
+ * 
+ * Event format:
+ * event: message
+ * data: {
+ *   "operation": "UPDATE",
+ *   "table": "workers",
+ *   "id": "worker-id",
+ *   "workerId": "worker-id",
+ *   "status": "active",
+ *   "currentTaskPlanId": "plan-id",
+ *   "currentTaskNodeId": "node-id",
+ *   "timestamp": 1700000000
+ * }
+ * 
+ * Use cases:
+ * - Worker portal: Show current task and availability
+ * - Production monitoring: Track worker utilization
+ * - Real-time dashboard: Worker status indicators
+ * 
+ * Frontend usage:
+ * ```javascript
+ * const eventSource = new EventSource('/api/mes/stream/workers?workerId=W-001');
+ * eventSource.addEventListener('message', (e) => {
+ *   const data = JSON.parse(e.data);
+ *   updateWorkerStatus(data.workerId, data.status);
+ * });
+ * 
+ * // Handle connection events
+ * eventSource.addEventListener('connected', (e) => {
+ *   console.log('SSE connected:', e.data);
+ * });
+ * 
+ * eventSource.addEventListener('error', (e) => {
+ *   console.error('SSE error:', e);
+ *   // Will auto-reconnect
+ * });
+ * ```
+ */
+router.get('/stream/workers', (req, res) => {
+  const { workerId } = req.query;
+
+  console.log(`🌊 [SSE] New worker stream connection${workerId ? ` for worker ${workerId}` : ''}`);
+
+  // Create filter if workerId provided
+  const filter = workerId ? createWorkerFilter(workerId) : null;
+
+  // Create SSE stream
+  const stream = createSSEStream(res, 'mes_worker_updates', { filter });
+
+  // Start streaming
+  stream.start();
+});
+
+/**
+ * GET /api/mes/stream/test
+ * Test SSE endpoint for development
+ * 
+ * Sends a test event every 5 seconds with incrementing counter.
+ * Useful for testing SSE connection without database triggers.
+ * 
+ * Frontend usage:
+ * ```javascript
+ * const eventSource = new EventSource('/api/mes/stream/test');
+ * eventSource.onmessage = (e) => {
+ *   console.log('Test event:', JSON.parse(e.data));
+ * };
+ * ```
+ */
+router.get('/stream/test', (req, res) => {
+  console.log('🧪 [SSE] Test stream connection');
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  let counter = 0;
+  const interval = setInterval(() => {
+    res.write(`data: ${JSON.stringify({ 
+      counter: ++counter, 
+      timestamp: Date.now(),
+      message: 'Test event from SSE stream'
+    })}\n\n`);
+  }, 5000);
+
+  res.on('close', () => {
+    clearInterval(interval);
+    console.log('🧪 [SSE] Test stream closed');
+  });
+});
+
+// ============================================================================
+// STEP 10: POLYMORPHIC ENTITY RELATIONS API
+// ============================================================================
+// Generic API for querying entity relationships (replaces 6 junction tables)
+// Supports: worker→station, worker→operation, station→operation,
+//           node→station, node→substation, node→predecessor
+
+/**
+ * GET /api/mes/entity-relations
+ * Query polymorphic entity relations
+ * 
+ * Query params:
+ * - sourceType: 'worker' | 'station' | 'node'
+ * - sourceId: ID of source entity
+ * - relationType: 'station' | 'operation' | 'substation' | 'material' | 'predecessor'
+ * - targetId: (optional) Filter by specific target
+ * 
+ * Examples:
+ * - GET /api/mes/entity-relations?sourceType=node&sourceId=node-123&relationType=station
+ *   Returns all stations assigned to node-123 (with priority field)
+ * 
+ * - GET /api/mes/entity-relations?sourceType=worker&sourceId=W-001&relationType=station
+ *   Returns all stations worker W-001 can work at
+ * 
+ * - GET /api/mes/entity-relations?sourceType=station&sourceId=ST-001&relationType=operation
+ *   Returns all operations available on station ST-001
+ */
+router.get('/entity-relations', withAuth, async (req, res) => {
+  try {
+    const { sourceType, sourceId, relationType, targetId } = req.query;
+
+    // Validation
+    if (!sourceType || !sourceId || !relationType) {
+      return res.status(400).json({
+        error: 'Missing required parameters: sourceType, sourceId, relationType'
+      });
+    }
+
+    const validSourceTypes = ['worker', 'station', 'node'];
+    const validRelationTypes = ['station', 'operation', 'substation', 'material', 'predecessor'];
+
+    if (!validSourceTypes.includes(sourceType)) {
+      return res.status(400).json({
+        error: `Invalid sourceType. Must be one of: ${validSourceTypes.join(', ')}`
+      });
+    }
+
+    if (!validRelationTypes.includes(relationType)) {
+      return res.status(400).json({
+        error: `Invalid relationType. Must be one of: ${validRelationTypes.join(', ')}`
+      });
+    }
+
+    // Build query
+    let query = db('mes_entity_relations')
+      .where({
+        source_type: sourceType,
+        source_id: sourceId,
+        relation_type: relationType
+      })
+      .select(
+        'id',
+        'source_type',
+        'source_id',
+        'relation_type',
+        'target_id',
+        'priority',
+        'quantity',
+        'unit_ratio',
+        'is_derived',
+        'created_at',
+        'updated_at'
+      );
+
+    // Optional target filter
+    if (targetId) {
+      query = query.where('target_id', targetId);
+    }
+
+    // Order by priority (if applicable)
+    query = query.orderBy('priority', 'asc').orderBy('created_at', 'asc');
+
+    const relations = await query;
+
+    // Join with target entity to get names
+    const enrichedRelations = await Promise.all(
+      relations.map(async (relation) => {
+        let targetName = null;
+        let targetDetails = null;
+
+        try {
+          // Get target entity details based on relation type
+          if (relation.relation_type === 'station') {
+            const station = await db('mes_stations')
+              .where('id', relation.target_id)
+              .first('id', 'name', 'code', 'type');
+            if (station) {
+              targetName = station.name;
+              targetDetails = station;
+            }
+          } else if (relation.relation_type === 'operation') {
+            const operation = await db('mes_operations')
+              .where('id', relation.target_id)
+              .first('id', 'name', 'code', 'type');
+            if (operation) {
+              targetName = operation.name;
+              targetDetails = operation;
+            }
+          } else if (relation.relation_type === 'substation') {
+            const substation = await db('mes_substations')
+              .where('id', relation.target_id)
+              .first('id', 'name', 'code', 'station_id');
+            if (substation) {
+              targetName = substation.name;
+              targetDetails = substation;
+            }
+          } else if (relation.relation_type === 'predecessor') {
+            const node = await db('mes_production_plan_nodes')
+              .where('id', relation.target_id)
+              .first('id', 'name', 'operation_id');
+            if (node) {
+              targetName = node.name;
+              targetDetails = node;
+            }
+          }
+        } catch (err) {
+          console.warn(`Failed to fetch target details for ${relation.relation_type} ${relation.target_id}:`, err.message);
+        }
+
+        return {
+          id: relation.id,
+          sourceType: relation.source_type,
+          sourceId: relation.source_id,
+          relationType: relation.relation_type,
+          targetId: relation.target_id,
+          targetName,
+          targetDetails,
+          priority: relation.priority,
+          quantity: relation.quantity,
+          unitRatio: relation.unit_ratio,
+          isDerived: relation.is_derived,
+          createdAt: relation.created_at,
+          updatedAt: relation.updated_at
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      count: enrichedRelations.length,
+      relations: enrichedRelations
+    });
+
+  } catch (err) {
+    console.error('❌ [API] Failed to fetch entity relations:', err);
+    res.status(500).json({
+      error: 'Failed to fetch entity relations',
+      details: err.message
+    });
+  }
+});
+
+/**
+ * POST /api/mes/entity-relations
+ * Create a new entity relation
+ * 
+ * Body:
+ * {
+ *   sourceType: 'node',
+ *   sourceId: 'node-123',
+ *   relationType: 'station',
+ *   targetId: 'ST-001',
+ *   priority: 1,  // Optional
+ *   quantity: 100,  // Optional (for materials)
+ *   unitRatio: 1.5  // Optional (for material conversions)
+ * }
+ */
+router.post('/entity-relations', withAuth, async (req, res) => {
+  try {
+    const {
+      sourceType,
+      sourceId,
+      relationType,
+      targetId,
+      priority,
+      quantity,
+      unitRatio,
+      isDerived
+    } = req.body;
+
+    // Validation
+    if (!sourceType || !sourceId || !relationType || !targetId) {
+      return res.status(400).json({
+        error: 'Missing required fields: sourceType, sourceId, relationType, targetId'
+      });
+    }
+
+    // Insert relation
+    const [relation] = await db('mes_entity_relations')
+      .insert({
+        source_type: sourceType,
+        source_id: sourceId,
+        relation_type: relationType,
+        target_id: targetId,
+        priority: priority || null,
+        quantity: quantity || null,
+        unit_ratio: unitRatio || null,
+        is_derived: isDerived || false,
+        created_at: new Date(),
+        updated_at: new Date()
+      })
+      .returning('*');
+
+    res.status(201).json({
+      success: true,
+      relation: {
+        id: relation.id,
+        sourceType: relation.source_type,
+        sourceId: relation.source_id,
+        relationType: relation.relation_type,
+        targetId: relation.target_id,
+        priority: relation.priority,
+        quantity: relation.quantity,
+        unitRatio: relation.unit_ratio,
+        isDerived: relation.is_derived,
+        createdAt: relation.created_at,
+        updatedAt: relation.updated_at
+      }
+    });
+
+  } catch (err) {
+    console.error('❌ [API] Failed to create entity relation:', err);
+    
+    // Handle UNIQUE constraint violation
+    if (err.code === '23505') {
+      return res.status(409).json({
+        error: 'This relation already exists',
+        details: err.message
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to create entity relation',
+      details: err.message
+    });
+  }
+});
+
+/**
+ * PUT /api/mes/entity-relations/:id
+ * Update an entity relation (primarily for priority changes)
+ * 
+ * Body:
+ * {
+ *   priority: 2  // Update priority
+ * }
+ */
+router.put('/entity-relations/:id', withAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { priority, quantity, unitRatio } = req.body;
+
+    const updateData = {
+      updated_at: new Date()
+    };
+
+    if (priority !== undefined) updateData.priority = priority;
+    if (quantity !== undefined) updateData.quantity = quantity;
+    if (unitRatio !== undefined) updateData.unit_ratio = unitRatio;
+
+    const [updatedRelation] = await db('mes_entity_relations')
+      .where('id', id)
+      .update(updateData)
+      .returning('*');
+
+    if (!updatedRelation) {
+      return res.status(404).json({
+        error: 'Entity relation not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      relation: {
+        id: updatedRelation.id,
+        sourceType: updatedRelation.source_type,
+        sourceId: updatedRelation.source_id,
+        relationType: updatedRelation.relation_type,
+        targetId: updatedRelation.target_id,
+        priority: updatedRelation.priority,
+        quantity: updatedRelation.quantity,
+        unitRatio: updatedRelation.unit_ratio,
+        updatedAt: updatedRelation.updated_at
+      }
+    });
+
+  } catch (err) {
+    console.error('❌ [API] Failed to update entity relation:', err);
+    res.status(500).json({
+      error: 'Failed to update entity relation',
+      details: err.message
+    });
+  }
+});
+
+/**
+ * DELETE /api/mes/entity-relations/:id
+ * Delete an entity relation
+ */
+router.delete('/entity-relations/:id', withAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const deleted = await db('mes_entity_relations')
+      .where('id', id)
+      .del();
+
+    if (deleted === 0) {
+      return res.status(404).json({
+        error: 'Entity relation not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Entity relation deleted successfully'
+    });
+
+  } catch (err) {
+    console.error('❌ [API] Failed to delete entity relation:', err);
+    res.status(500).json({
+      error: 'Failed to delete entity relation',
+      details: err.message
+    });
+  }
+});
+
+/**
+ * POST /api/mes/entity-relations/batch
+ * Create or update multiple relations at once
+ * Used for drag-drop priority reordering
+ * 
+ * Body:
+ * {
+ *   relations: [
+ *     { id: 1, priority: 1 },
+ *     { id: 2, priority: 2 },
+ *     { id: 3, priority: 3 }
+ *   ]
+ * }
+ */
+router.post('/entity-relations/batch', withAuth, async (req, res) => {
+  try {
+    const { relations } = req.body;
+
+    if (!relations || !Array.isArray(relations)) {
+      return res.status(400).json({
+        error: 'Missing or invalid relations array'
+      });
+    }
+
+    // Update all relations in a transaction
+    await db.transaction(async (trx) => {
+      for (const relation of relations) {
+        if (relation.id && relation.priority !== undefined) {
+          await trx('mes_entity_relations')
+            .where('id', relation.id)
+            .update({
+              priority: relation.priority,
+              updated_at: new Date()
+            });
+        }
+      }
+    });
+
+    res.json({
+      success: true,
+      message: `${relations.length} relations updated successfully`
+    });
+
+  } catch (err) {
+    console.error('❌ [API] Failed to batch update relations:', err);
+    res.status(500).json({
+      error: 'Failed to batch update relations',
+      details: err.message
     });
   }
 });

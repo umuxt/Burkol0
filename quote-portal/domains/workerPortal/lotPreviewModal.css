@@ -1,0 +1,512 @@
+/**
+ * LOT PREVIEW MODAL STYLES
+ * STEP 11: Material Reservation - Lot Preview UI
+ */
+
+/* Modal Overlay */
+.lot-preview-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modal Container */
+.lot-preview-modal {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 700px;
+  width: 90%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Modal Header */
+.lot-preview-modal-header {
+  padding: 20px 24px;
+  border-bottom: 2px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 12px 12px 0 0;
+}
+
+.lot-preview-modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0c4a6e;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lot-preview-close-btn {
+  background: transparent;
+  border: none;
+  font-size: 24px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  line-height: 1;
+}
+
+.lot-preview-close-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #374151;
+  transform: scale(1.1);
+}
+
+/* Modal Content */
+.lot-preview-modal-content {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 200px;
+}
+
+/* Materials Section */
+.lot-preview-materials {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Material Card */
+.lot-preview-material {
+  background: #f9fafb;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.2s;
+}
+
+.lot-preview-material.sufficient {
+  border-color: #10b981;
+  background: #f0fdf4;
+}
+
+.lot-preview-material.insufficient {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+/* Material Header */
+.lot-preview-material-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.lot-preview-material-name {
+  flex: 1;
+  font-size: 15px;
+  color: #111827;
+  font-weight: 600;
+}
+
+.lot-preview-material-name .material-code {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 400;
+  margin-left: 6px;
+}
+
+.lot-preview-material-qty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.lot-preview-material-qty .required-qty {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.lot-preview-material-qty .available-qty {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.lot-preview-material.sufficient .available-qty {
+  color: #059669;
+}
+
+.lot-preview-material.insufficient .available-qty {
+  color: #d97706;
+  font-weight: 600;
+}
+
+/* Lot List Section */
+.lot-preview-lots {
+  margin-top: 8px;
+}
+
+.lot-preview-lots-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4b5563;
+  margin-bottom: 8px;
+}
+
+.lot-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Lot Item */
+.lot-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.lot-item:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  transform: translateX(2px);
+}
+
+/* Oldest Lot (FIFO Priority) */
+.lot-item.lot-oldest {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  font-weight: 600;
+}
+
+.lot-item.lot-oldest:hover {
+  background: #dbeafe;
+  border-color: #2563eb;
+}
+
+.lot-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.lot-number {
+  font-weight: 600;
+  color: #1f2937;
+  min-width: 100px;
+}
+
+.lot-date {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.lot-arrow {
+  color: #9ca3af;
+  margin: 0 4px;
+}
+
+.lot-consume {
+  color: #059669;
+  font-weight: 600;
+}
+
+.lot-available {
+  color: #9ca3af;
+  font-size: 11px;
+}
+
+/* Insufficient Warning */
+.lot-preview-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #92400e;
+}
+
+.lot-preview-warning .warning-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.lot-preview-warning .warning-text {
+  flex: 1;
+}
+
+.lot-preview-warning strong {
+  color: #b45309;
+}
+
+/* Warnings Section */
+.lot-preview-warnings-section {
+  margin-top: 16px;
+  padding: 14px;
+  background: #fef3c7;
+  border: 2px solid #f59e0b;
+  border-radius: 8px;
+}
+
+.lot-preview-warnings-section .warnings-header {
+  font-size: 14px;
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 10px;
+}
+
+.lot-preview-warnings-section .warnings-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lot-preview-warnings-section .warnings-list li {
+  font-size: 13px;
+  color: #b45309;
+  padding-left: 20px;
+  position: relative;
+}
+
+.lot-preview-warnings-section .warnings-list li::before {
+  content: '•';
+  position: absolute;
+  left: 6px;
+  font-weight: bold;
+}
+
+/* No Lots Message */
+.lot-preview-no-lots {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.lot-preview-no-lots .no-lots-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.lot-preview-no-lots .no-lots-message {
+  font-size: 15px;
+  color: #4b5563;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.lot-preview-no-lots .no-lots-submessage {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+/* Error Display */
+.lot-preview-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+}
+
+.lot-preview-error .error-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.lot-preview-error .error-message {
+  font-size: 15px;
+  color: #dc2626;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.lot-preview-error .error-details {
+  font-size: 13px;
+  color: #991b1b;
+  background: #fee2e2;
+  padding: 10px 14px;
+  border-radius: 6px;
+  max-width: 400px;
+  word-break: break-word;
+}
+
+/* Modal Footer */
+.lot-preview-modal-footer {
+  padding: 16px 24px;
+  border-top: 2px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background: #f9fafb;
+  border-radius: 0 0 12px 12px;
+}
+
+.lot-preview-cancel-btn,
+.lot-preview-confirm-btn {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.lot-preview-cancel-btn {
+  background: #ffffff;
+  color: #374151;
+  border: 2px solid #d1d5db;
+}
+
+.lot-preview-cancel-btn:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+  transform: translateY(-1px);
+}
+
+.lot-preview-confirm-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  border: 2px solid #059669;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.lot-preview-confirm-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  border-color: #047857;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.lot-preview-confirm-btn:disabled {
+  background: #d1d5db;
+  color: #9ca3af;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Loading State */
+.lot-preview-confirm-btn:disabled:not([disabled]) {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  color: #ffffff;
+  cursor: wait;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .lot-preview-modal {
+    width: 95%;
+    max-height: 90vh;
+  }
+  
+  .lot-preview-modal-header {
+    padding: 16px 20px;
+  }
+  
+  .lot-preview-modal-header h3 {
+    font-size: 16px;
+  }
+  
+  .lot-preview-modal-content {
+    padding: 20px;
+  }
+  
+  .lot-preview-material-header {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .lot-preview-material-qty {
+    align-items: flex-start;
+  }
+  
+  .lot-item {
+    flex-wrap: wrap;
+    font-size: 12px;
+  }
+  
+  .lot-number {
+    min-width: auto;
+  }
+}
+
+/* Accessibility */
+.lot-preview-modal:focus {
+  outline: 3px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Print Styles */
+@media print {
+  .lot-preview-modal-overlay {
+    position: static;
+    background: none;
+  }
+  
+  .lot-preview-modal {
+    box-shadow: none;
+    max-width: 100%;
+    max-height: none;
+  }
+  
+  .lot-preview-close-btn,
+  .lot-preview-modal-footer {
+    display: none;
+  }
+}

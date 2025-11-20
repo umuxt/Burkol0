@@ -1,0 +1,411 @@
+/**
+ * ============================================================================
+ * STEP 10: ENTITY RELATIONS STYLES
+ * ============================================================================
+ * Polymorphic entity relations UI styles
+ * - Priority badges (green #1, gray #2+)
+ * - Drag-drop visual feedback
+ * - Relation cards
+ */
+
+/* ============================================================================
+   ENTITY RELATION SECTION
+   ============================================================================ */
+
+.entity-relation-section {
+  background: white;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.entity-relation-section .section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.entity-relation-section .section-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--foreground, #111827);
+  margin: 0;
+}
+
+.entity-relation-section .section-description {
+  background: var(--muted, #f9fafb);
+  border-left: 3px solid var(--primary, #3b82f6);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  border-radius: 6px;
+}
+
+.entity-relation-section .section-description p {
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.entity-relation-section .section-description strong {
+  color: var(--foreground, #111827);
+}
+
+.entity-relation-section .section-description em {
+  color: var(--muted-foreground, #9ca3af);
+  font-size: 12px;
+}
+
+/* ============================================================================
+   RELATIONS LIST
+   ============================================================================ */
+
+.relations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.relation-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: white;
+  border: 2px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.relation-row:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* ============================================================================
+   PRIORITY BADGES
+   ============================================================================ */
+
+/* Primary Station (#1) - Green */
+.relation-row.priority-primary {
+  border-left: 4px solid #10b981 !important;
+  background: linear-gradient(to right, #f0fdf4, #ffffff) !important;
+}
+
+.relation-row.priority-primary:hover {
+  background: linear-gradient(to right, #dcfce7, #ffffff) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15) !important;
+}
+
+.priority-badge.priority-primary {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+/* Fallback Stations (#2+) - Gray */
+.relation-row.priority-fallback {
+  border-left: 4px solid #9ca3af !important;
+}
+
+.priority-badge.priority-fallback {
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ============================================================================
+   DRAG HANDLE
+   ============================================================================ */
+
+.drag-handle {
+  cursor: grab;
+  color: var(--muted-foreground, #9ca3af);
+  font-size: 20px;
+  line-height: 1;
+  user-select: none;
+  padding: 4px;
+  transition: color 0.2s ease;
+}
+
+.drag-handle:hover {
+  color: var(--foreground, #111827);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.relation-row.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+.relations-list.editable .drag-handle {
+  display: block;
+}
+
+.relations-list:not(.editable) .drag-handle {
+  display: none;
+}
+
+/* ============================================================================
+   RELATION INFO
+   ============================================================================ */
+
+.relation-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.relation-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground, #111827);
+}
+
+.relation-details {
+  font-size: 13px;
+  color: var(--muted-foreground, #6b7280);
+  margin-left: 8px;
+}
+
+/* ============================================================================
+   ACTION BUTTONS
+   ============================================================================ */
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background: var(--muted, #f3f4f6);
+}
+
+.btn-delete:hover {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+/* ============================================================================
+   EMPTY STATE
+   ============================================================================ */
+
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--muted-foreground, #6b7280);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ============================================================================
+   MODAL STYLES
+   ============================================================================ */
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+.modal-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--foreground, #111827);
+  margin: 0;
+}
+
+.modal-close {
+  background: transparent;
+  border: none;
+  font-size: 28px;
+  color: var(--muted-foreground, #9ca3af);
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background: var(--muted, #f3f4f6);
+  color: var(--foreground, #111827);
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.modal-body label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--foreground, #111827);
+  margin-bottom: 8px;
+  margin-top: 16px;
+}
+
+.modal-body label:first-child {
+  margin-top: 0;
+}
+
+.modal-body .form-control {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 6px;
+  font-size: 14px;
+  color: var(--foreground, #111827);
+  transition: all 0.2s ease;
+}
+
+.modal-body .form-control:focus {
+  outline: none;
+  border-color: var(--primary, #3b82f6);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background: var(--primary, #3b82f6);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.btn-secondary {
+  background: var(--muted, #f3f4f6);
+  color: var(--foreground, #111827);
+}
+
+.btn-secondary:hover {
+  background: #e5e7eb;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .entity-relation-section {
+    padding: 16px;
+  }
+
+  .relation-row {
+    padding: 12px;
+  }
+
+  .drag-handle {
+    font-size: 16px;
+  }
+
+  .relation-name {
+    font-size: 14px;
+  }
+
+  .relation-details {
+    font-size: 12px;
+  }
+
+  .modal-content {
+    width: 95%;
+  }
+}
+
+/* ============================================================================
+   ANIMATIONS
+   ============================================================================ */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.relation-row {
+  animation: fadeIn 0.3s ease;
+}
+
+.modal {
+  animation: fadeIn 0.2s ease;
+}
