@@ -1833,131 +1833,193 @@ router.get('/production-plans/:id/tasks', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// TEMPLATES ROUTES
+// TEMPLATES ROUTES - ✅ MIGRATED TO SQL (STEP 10)
 // ============================================================================
+// NOTE: Templates are production plans with status='template'
+// They use the same mes.production_plans table, just filtered by status
 
-// GET /api/mes/templates - Get templates from the same collection using status/type flag
+// GET /api/mes/templates - Get all templates (SQL)
 router.get('/templates', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore();
-    // Prefer status == 'template' when available; otherwise filter client-side
-    let templates = [];
-    try {
-      const snapshot = await db.collection('mes-production-plans')
-        .where('status', '==', 'template')
-        .orderBy('createdAt', 'desc')
-        .get();
-      templates = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    } catch (e) {
-      // Fallback without where (in case of missing index) and filter in memory
-      const snapshot = await db.collection('mes-production-plans').orderBy('createdAt', 'desc').get();
-      const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      templates = all.filter(t => (t.status || t.type || '').toString().toLowerCase() === 'template');
-    }
-    return { templates };
-  }, res);
+  try {
+    const templates = await db('mes.production_plans as p')
+      .select(
+        'p.id',
+        'p.work_order_code',
+        'p.quote_id',
+        'p.status',
+        'p.created_at',
+        db.raw('count(n.id)::integer as node_count')
+      )
+      .leftJoin('mes.production_plan_nodes as n', 'n.plan_id', 'p.id')
+      .where('p.status', 'template')
+      .groupBy('p.id')
+      .orderBy('p.created_at', 'desc');
+    
+    console.log(`📋 Templates: Found ${templates.length} templates`);
+    
+    res.json({ templates });
+  } catch (error) {
+    console.error('❌ Error fetching templates:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch templates',
+      details: error.message 
+    });
+  }
 });
 
-// POST /api/mes/templates - Create template in mes-production-plans with status = 'template'
+// POST /api/mes/templates - Create template (SQL)
+// Templates are just production plans with status='template'
+// They can be copied to create real production plans
 router.post('/templates', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const template = req.body;
-    if (!template.id) {
-      throw new Error('Template ID is required');
-    }
-
-    const db = getFirestore();
-    const now = new Date()
-    const parts = formatDateParts(now)
-    const actorEmail = (req.user && req.user.email) || null
-    const actorName = (req.user && (req.user.name || req.user.userName)) || null
-    // Normalize createdAt to Date
-    const createdAtDate = template.createdAt ? new Date(template.createdAt) : now
-    const createdParts = formatDateParts(createdAtDate)
+  const { workOrderCode, quoteId, nodes } = req.body;
+  
+  if (!workOrderCode) {
+    return res.status(400).json({ error: 'Work order code is required' });
+  }
+  
+  const trx = await db.transaction();
+  
+  try {
+    // 1. Generate plan ID (same ID system as production plans)
+    const [{ max_id }] = await trx('mes.production_plans')
+      .max('id as max_id');
+    const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
+    const planId = `PLAN-${nextNum.toString().padStart(3, '0')}`;
     
-    // Apply output code suffixes for finished products if nodes exist
-    const templateData = { ...template };
-    if (templateData.nodes && Array.isArray(templateData.nodes)) {
-      templateData.nodes = applyOutputCodeSuffixes(templateData.nodes);
-    }
+    console.log(`📋 Creating template: ${planId}`);
     
-    await db.collection('mes-production-plans').doc(template.id).set({
-      ...templateData,
-      status: (template.status || 'template'),
-      createdAt: createdAtDate,
-      updatedAt: now,
-      createdDate: template.createdDate || createdParts.date,
-      createdTime: template.createdTime || createdParts.time,
-      updatedDate: parts.date,
-      updatedTime: parts.time,
-      // Track template edit info
-      lastModifiedAt: now,
-      lastModifiedDate: parts.date,
-      lastModifiedTime: parts.time,
-      ...(actorEmail ? { lastModifiedBy: actorEmail, updatedBy: actorEmail } : {}),
-      ...(actorName ? { lastModifiedByName: actorName, updatedByName: actorName } : {}),
-      // Also keep owner/createdBy for listing
-      ...(!template.owner ? (actorEmail ? { owner: actorEmail } : {}) : {}),
-      ...(!template.createdBy ? (actorEmail ? { createdBy: actorEmail } : {}) : {}),
-      ...(!template.ownerName ? (actorName ? { ownerName: actorName } : {}) : {}),
-      ...(!template.createdByName ? (actorName ? { createdByName: actorName } : {}) : {})
-    }, { merge: true });
-
-    // Safety: if a legacy collection 'mes-templates' exists and was written by old client, remove duplicate
-    try {
-      const legacyRef = db.collection('mes-templates').doc(template.id)
-      const legacySnap = await legacyRef.get()
-      if (legacySnap.exists) {
-        await legacyRef.delete()
-        console.log(`[MES] Removed legacy duplicate from mes-templates: ${template.id}`)
+    // 2. Create template header - just a plan with status='template'
+    await trx('mes.production_plans').insert({
+      id: planId,
+      work_order_code: workOrderCode,
+      quote_id: quoteId || null,
+      status: 'template', // Only difference from regular plans
+      created_at: trx.fn.now()
+    });
+    
+    // 2. Insert nodes if provided (templates can have pre-defined workflows)
+    if (nodes && Array.isArray(nodes) && nodes.length > 0) {
+      // Apply output code suffixes for finished products
+      const processedNodes = applyOutputCodeSuffixes(nodes);
+      
+      for (const node of processedNodes) {
+        // Insert node
+        const [nodeRecord] = await trx('mes.production_plan_nodes')
+          .insert({
+            plan_id: planId,
+            node_id: `${planId}-node-${node.sequenceOrder || node.nodeId}`,
+            work_order_code: workOrderCode,
+            name: node.name,
+            operation_id: node.operationId,
+            output_code: node.outputCode,
+            output_qty: node.outputQty || 1,
+            output_unit: node.outputUnit || 'adet',
+            nominal_time: node.nominalTime || 0,
+            efficiency: node.efficiency || 0.85,
+            effective_time: node.effectiveTime || Math.ceil((node.nominalTime || 0) / (node.efficiency || 0.85)),
+            sequence_order: node.sequenceOrder || node.nodeId,
+            assignment_mode: node.assignmentMode || 'auto',
+            created_at: trx.fn.now()
+          })
+          .returning('id');
+        
+        const nodeId = nodeRecord.id;
+        
+        // Insert material inputs if any
+        if (node.materialInputs && node.materialInputs.length > 0) {
+          const materialInputs = node.materialInputs.map(m => ({
+            node_id: nodeId,
+            material_code: m.materialCode,
+            required_quantity: m.requiredQuantity,
+            unit_ratio: m.unitRatio || 1.0,
+            is_derived: m.isDerived || false,
+            created_at: trx.fn.now()
+          }));
+          
+          await trx('mes.node_material_inputs').insert(materialInputs);
+        }
+        
+        // Insert station assignments if any
+        if (node.stationIds && node.stationIds.length > 0) {
+          const stationAssignments = node.stationIds.map((stId, idx) => ({
+            node_id: nodeId,
+            station_id: stId,
+            priority: idx + 1,
+            created_at: trx.fn.now()
+          }));
+          
+          await trx('mes.node_stations').insert(stationAssignments);
+        }
       }
-    } catch (e) {
-      // best-effort cleanup, ignore
     }
-
-    return { success: true, id: template.id };
-  }, res);
+    
+    await trx.commit();
+    
+    console.log(`✅ Template created: ${planId}${nodes ? ` with ${nodes.length} nodes` : ''}`);
+    
+    res.json({ 
+      success: true, 
+      id: planId,
+      nodeCount: nodes ? nodes.length : 0,
+      message: `Template ${planId} created successfully`
+    });
+    
+  } catch (error) {
+    await trx.rollback();
+    
+    // Handle duplicate key error
+    if (error.code === '23505') { // PostgreSQL unique violation
+      return res.status(409).json({ 
+        error: 'Template with this work order code already exists',
+        workOrderCode
+      });
+    }
+    
+    console.error('❌ Error creating template:', error);
+    res.status(500).json({ 
+      error: 'Failed to create template',
+      details: error.message 
+    });
+  }
 });
 
-// DELETE /api/mes/templates/:id - Delete template from mes-production-plans
+// DELETE /api/mes/templates/:id - Delete template (SQL)
 router.delete('/templates/:id', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id } = req.params;
-    const db = getFirestore();
-    await db.collection('mes-production-plans').doc(id).delete();
-    // Best-effort cleanup in legacy collection too
-    try { await db.collection('mes-templates').doc(id).delete() } catch {}
-    return { success: true, id };
-  }, res);
-});
-
-// One-time migration endpoint: move any legacy 'mes-templates' docs into 'mes-production-plans'
-router.post('/templates/migrate-from-legacy', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore()
-    const legacyCol = db.collection('mes-templates')
-    let migrated = 0
-    let removed = 0
-    try {
-      const snap = await legacyCol.get()
-      for (const doc of snap.docs) {
-        const data = doc.data() || {}
-        const id = doc.id
-        await db.collection('mes-production-plans').doc(id).set({
-          ...data,
-          status: (data.status || 'template'),
-          migratedAt: new Date()
-        }, { merge: true })
-        migrated++
-        await legacyCol.doc(id).delete()
-        removed++
-      }
-    } catch (e) {
-      console.warn('[MES] Legacy templates migration issue:', e?.message)
+  const { id } = req.params;
+  
+  try {
+    // Verify it's a template before deleting
+    const [template] = await db('mes.production_plans')
+      .where({ id, status: 'template' })
+      .select('id');
+    
+    if (!template) {
+      return res.status(404).json({ 
+        error: 'Template not found or not a template' 
+      });
     }
-    return { success: true, migrated, removed }
-  }, res)
-})
+    
+    // Delete template (CASCADE will delete related nodes)
+    await db('mes.production_plans')
+      .where({ id })
+      .delete();
+    
+    console.log(`✅ Template deleted: ${id}`);
+    
+    res.json({ 
+      success: true, 
+      id,
+      message: `Template ${id} deleted successfully`
+    });
+    
+  } catch (error) {
+    console.error('❌ Error deleting template:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete template',
+      details: error.message 
+    });
+  }
+});
 
 // ============================================================================
 // MATERIALS ROUTES
@@ -9081,6 +9143,7 @@ async function findAvailableWorkerWithSkills(trx, requiredSkills, stationId) {
 /**
  * GET /api/mes/production-plans
  * List all production plans with summary info
+ * Excludes templates (status='template')
  */
 router.get('/production-plans', withAuth, async (req, res) => {
   try {
@@ -9095,6 +9158,7 @@ router.get('/production-plans', withAuth, async (req, res) => {
         db.raw('count(n.id)::integer as node_count')
       )
       .leftJoin('mes.production_plan_nodes as n', 'n.plan_id', 'p.id')
+      .where('p.status', '!=', 'template') // Exclude templates
       .groupBy('p.id')
       .orderBy('p.created_at', 'desc');
     
@@ -9304,6 +9368,25 @@ router.delete('/production-plans/:id', withAuth, async (req, res) => {
   const trx = await db.transaction();
   
   try {
+    // Check if plan exists and get launch status
+    const [plan] = await trx('mes.production_plans')
+      .where('id', req.params.id)
+      .select('id', 'status', 'launched_at');
+    
+    if (!plan) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+    
+    // Prevent deletion of launched plans
+    if (plan.launched_at) {
+      await trx.rollback();
+      return res.status(400).json({ 
+        error: 'Cannot delete launched plan',
+        details: 'Plan has been launched and cannot be deleted'
+      });
+    }
+    
     // Get node IDs first
     const nodes = await trx('mes.production_plan_nodes')
       .where('plan_id', req.params.id)
@@ -9326,14 +9409,9 @@ router.delete('/production-plans/:id', withAuth, async (req, res) => {
       .where('plan_id', req.params.id)
       .delete();
     
-    const deleted = await trx('mes.production_plans')
+    await trx('mes.production_plans')
       .where('id', req.params.id)
       .delete();
-    
-    if (!deleted) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Plan not found' });
-    }
     
     await trx.commit();
     

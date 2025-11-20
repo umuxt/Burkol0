@@ -1,8 +1,8 @@
 # 🔄 MES API COMPLETE MIGRATION GUIDE - Firebase to PostgreSQL
 ## 3-Phase API Geçiş Kılavuzu (Clean Start - No Data Transfer)
 
-**Tarih:** 20 Kasım 2025  
-**Durum:** ✅ PHASE 1-2 IN PROGRESS (49/65 endpoints, 75%) | ✅ STEP 9 Complete  
+**Tarih:** 21 Kasım 2025  
+**Durum:** 🎉 PHASE 2 COMPLETE (44/65 endpoints, 67.7%) | ✅ STEP 10 Complete  
 **Hedef:** Firebase API → PostgreSQL API (65 endpoints, 3 phases, clean start)
 
 ---
@@ -2537,9 +2537,71 @@ curl -X DELETE http://localhost:3000/api/mes/work-packages/1/scrap/input_damaged
 
 ---
 
-### STEP 10: Templates (3 endpoints)
+### STEP 10: Templates (3 endpoints) ✅ COMPLETE
 
-**Placeholder** - Will be implemented after Work Packages
+**Dosya:** `server/mesRoutes.js` (Lines 1842-2020)
+
+**Mimari:** Templates are production plans with `status='template'`. Same table (`mes.production_plans`), different status.
+
+**Migration:**
+- ✅ **GET /templates** → Query with `WHERE status='template'`
+- ✅ **POST /templates** → Insert with `status='template'`, auto-generate PLAN-XXX ID
+- ✅ **DELETE /templates/:id** → Delete with status validation
+
+**Template Workflow:**
+1. **Save as Template** → POST /templates (creates new plan with status='template')
+2. **Edit Template + Save** → PUT /production-plans/:id (converts template to production by changing status)
+3. **Copy as Template** → POST /templates (copies production plan nodes, sets status='template')
+
+**Schema:**
+- Same as production-plans: `id, work_order_code, quote_id, status, created_at`
+- Nodes in `mes.production_plan_nodes` table
+- No separate template table needed!
+
+**Key Differences from Production Plans:**
+- Templates: `status='template'` (editable, no WO linkage required)
+- Production: `status='production'` (ready for launch, locked)
+
+**Critical Fixes Applied:**
+1. ✅ **GET /production-plans** - Excludes templates (`WHERE status != 'template'`)
+2. ✅ **DELETE /production-plans** - Prevents deletion of launched plans (`launched_at` check)
+
+**Test Results:**
+```bash
+# Create template
+curl -X POST http://localhost:3000/api/mes/templates \
+  -d '{"workOrderCode":"WO-2025-001","quoteId":"Q-2025-001"}'
+# ✅ Response: {"success":true,"id":"PLAN-009","nodeCount":0}
+
+# Get templates (only templates)
+curl http://localhost:3000/api/mes/templates
+# ✅ Response: {"templates":[{"id":"PLAN-009","status":"template",...}]}
+
+# Get production plans (excludes templates)
+curl http://localhost:3000/api/mes/production-plans
+# ✅ Response: [...] (PLAN-009 not included, only production plans)
+
+# Delete template
+curl -X DELETE http://localhost:3000/api/mes/templates/PLAN-009
+# ✅ Response: {"success":true}
+
+# Try to delete production plan via templates (fails - wrong status)
+curl -X DELETE http://localhost:3000/api/mes/templates/PLAN-008
+# ✅ Response: {"error":"Template not found or not a template"}
+
+# Try to delete launched plan (fails - launched_at not null)
+curl -X DELETE http://localhost:3000/api/mes/production-plans/PLAN-008
+# ✅ Response: {"error":"Cannot delete launched plan"}
+```
+
+**Beklenen Sonuç:**
+- ✅ 3 endpoint SQL kullanıyor
+- ✅ Templates = production plans with different status
+- ✅ Same ID system (PLAN-XXX)
+- ✅ Template→Production conversion via PUT /production-plans/:id
+- ✅ No separate table needed
+- ✅ Production-plans excludes templates
+- ✅ Launched plans protected from deletion
 
 ---
 
@@ -2561,28 +2623,33 @@ Materials, Alerts, Metrics, Master Data endpoints - basit CRUD pattern'leri.
 - [x] STEP 5: Approved Quotes GET (1 endpoint)
 - [x] **Total: 19/19 endpoints ✅**
 
-### Phase 2: Production Core (25 endpoints) 🔄 IN PROGRESS (17/25)
+### Phase 2: Production Core (25 endpoints) ✅ COMPLETE
 
 - [x] STEP 6: Work Orders (5 endpoints) ✅
 - [x] STEP 7: Production Plans (8 endpoints) ✅ **MOST COMPLEX**
 - [x] STEP 8: Worker Assignments (4 endpoints) ✅
-- [ ] STEP 9: Work Packages (6 endpoints) ⏳ **NEXT**
-- [ ] STEP 10: Templates (2 endpoints)
-- [ ] **Progress: 17/25 endpoints (68%)**
+- [x] STEP 9: Work Packages (6 endpoints) ✅
+- [x] STEP 10: Templates (3 endpoints) ✅ **Templates are plans with status='template'**
+- [x] **Total: 25/25 endpoints ✅**
 
-### Phase 3: Supporting Features (12 endpoints) ⏳ PENDING
+**🎉 PHASE 2 COMPLETE!**
+
+### Phase 3: Supporting Features (21 endpoints) ⏳ NEXT
 
 - [ ] Materials (4 endpoints)
 - [ ] Master Data (2 endpoints)
-- [ ] Templates GET (1 endpoint)
 - [ ] Alerts (1 endpoint)
 - [ ] Metrics (2 endpoints)
-- [ ] Approved Quotes POST (2 endpoints)
+- [ ] Approved Quotes CRUD (remaining endpoints)
+- [ ] Other supporting endpoints
 
 ### Overall Migration Status
 
-**Total Endpoints:** 60  
-**Completed:** 31 (52%) ✅  
+**Total Endpoints:** 65  
+**Completed:** 44 (67.7%) ✅  
+**Phase 1:** 19/19 (100%) ✅  
+**Phase 2:** 25/25 (100%) ✅  
+**Phase 3:** 0/21 (0%) ⏳  
 **In Progress:** STEP 9 - Work Packages  
 **Remaining:** 29 endpoints
 
@@ -2659,19 +2726,24 @@ Materials, Alerts, Metrics, Master Data endpoints - basit CRUD pattern'leri.
 
 Tüm bu adımlar tamamlandığında:
 
-✅ **60 API endpoint tamamen SQL'de**
-✅ **Firebase dependency kaldırıldı**
-✅ **Transaction management robust**
-✅ **Error handling comprehensive**
-✅ **MES sistemi %100 PostgreSQL'de çalışıyor**
+✅ **Phase 1 COMPLETE: 19/19 endpoints (100%)**  
+✅ **Phase 2 COMPLETE: 25/25 endpoints (100%)**  
+⏳ **Phase 3 IN PROGRESS: 0/21 endpoints (0%)**  
+📊 **Overall Progress: 44/65 endpoints (67.7%)**
 
-**Sonraki Adım:** Frontend migration (ayrı guide)
+**Tamamlanan:**
+- ✅ Firebase dependency removed from Phases 1-2
+- ✅ Transaction management implemented
+- ✅ Error handling comprehensive
+- ✅ Master data & Production core %100 PostgreSQL'de
+
+**Sonraki Adım:** Phase 3 - Supporting Features Migration
 
 ---
 
-**Son Güncelleme:** 20 Kasım 2025  
-**Versiyon:** 2.1 - Phase 2 In Progress (31/60 endpoints complete)  
-**Durum:** 🔄 Active Development - STEP 9 Ready
+**Son Güncelleme:** 21 Kasım 2025  
+**Versiyon:** 3.0 - Phase 2 Complete (44/65 endpoints)  
+**Durum:** 🎉 PHASE 2 COMPLETE - Ready for Phase 3
 
 **Hazırlayan:** AI Assistant  
 **Takip Eden:** Copilot (step-by-step execution)
