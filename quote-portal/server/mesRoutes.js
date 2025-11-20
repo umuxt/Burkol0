@@ -2168,19 +2168,13 @@ router.post('/materials/check-availability', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// ORDERS ROUTES
+// ORDERS ROUTES - REMOVED (STEP 14)
 // ============================================================================
-
-// GET /api/mes/orders - Get all MES orders from Firestore (no mock)
-router.get('/orders', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore();
-    // Read from 'mes-orders' collection if present; otherwise return empty list
-    const snapshot = await db.collection('mes-orders').get();
-    const orders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    return { orders };
-  }, res);
-});
+// ❌ GET /orders endpoint REMOVED
+// Reason: MES uses mes.work_orders, not mes-orders
+// mes-orders collection was never used in production
+// Materials orders are in materials.orders (supplier orders)
+// This endpoint served no purpose and caused confusion
 
 // ============================================================================
 // HELPER: Update approved quote production state (internal use)
