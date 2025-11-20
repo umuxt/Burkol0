@@ -21,7 +21,7 @@
 
 ---
 
-## 🏗️ OPTIMAL SCHEMA DESIGN (18 Tables)
+## 🏗️ OPTIMAL SCHEMA DESIGN (19 Tables - WITH LOT TRACKING)
 
 ### Category A: Master Data (7 tables) - NO CHANGES
 *Core entities that define the system*
@@ -32,19 +32,19 @@
 4. **mes_operations** - Operation types
 5. **mes_approved_quotes** - Approved orders
 6. **mes_settings** - System configuration
-7. **materials.materials** - Material master data
+7. **materials.materials** - Material master data ✅ LOT SUMMARY FIELDS ADDED
 
-### Category B: Transaction Data (5 tables) - OPTIMIZED
+### Category B: Transaction Data (5 tables) - OPTIMIZED + LOT TRACKING
 
 8. **mes_production_plans** - Production plans ✅ NO JSONB
 9. **mes_production_plan_nodes** - Plan operations (extracted from JSONB)
-10. **mes_worker_assignments** - Task assignments ✅ FIFO FIELDS ADDED
+10. **mes_worker_assignments** - Task assignments ✅ FIFO FIELDS ADDED (Migration 028)
 11. **mes_work_orders** - Work order headers
-12. **materials.stock_movements** - Material movements ✅ PARTIAL RESERVATION ADDED
+12. **materials.stock_movements** - Material movements ✅ LOT TRACKING + PARTIAL RESERVATION (Migration 030, 031)
 
 ### Category C: Relationships (4 tables) - POLYMORPHIC CONSOLIDATION
 
-13. **mes_entity_relations** - Unified polymorphic relationship table
+13. **mes_entity_relations** - Unified polymorphic relationship table (TO BE CREATED - Migration 032)
     - Replaces: worker_stations, worker_operations, station_operations
     - Replaces: node_stations, node_substations, node_predecessors
     - **Saves 6 tables** (9 → 3)
@@ -55,10 +55,11 @@
 15. **mes_plan_material_requirements** - Plan-level material summary
 16. **mes_plan_wip_outputs** - Plan WIP outputs
 
-### Category D: Supporting Tables (2 tables)
+### Category D: Supporting Tables (3 tables)
 
 17. **mes_alerts** - System alerts
 18. **mes_counters** - ID generators (will be replaced by sequences)
+19. **mes_assignment_material_reservations** - Material reservations per assignment ✅ CREATED (Migration 029)
 
 ---
 
@@ -545,40 +546,92 @@ EXECUTE FUNCTION update_worker_on_assignment_start();
 
 ---
 
-## 🚀 IMPLEMENTATION ROADMAP
+## 🚀 IMPLEMENTATION ROADMAP - UPDATED WITH LOT TRACKING
 
-### Phase 1: Core Schema (Migrations 022-029)
+### ✅ COMPLETED MIGRATIONS (022-031)
 
-1. ✅ **022** - Create polymorphic entity_relations table
+**Phase 1: Core Schema (Migrations 022-027)** - COMPLETE ✅
+1. ✅ **022** - Create junction tables (worker_stations, worker_operations, station_operations, node_stations, node_substations, node_predecessors)
 2. ✅ **023** - Create production_plan_nodes (extract JSONB)
 3. ✅ **024** - Modify production_plans (remove JSONB columns)
 4. ✅ **025** - Create PostgreSQL sequences
 5. ✅ **026** - Create LISTEN/NOTIFY triggers
 6. ✅ **027** - Create material summary tables
-7. 🆕 **028** - Add FIFO fields to assignments
-8. 🆕 **029** - Create assignment_material_reservations table
-9. 🆕 **030** - Add FIFO fields to stock_movements
 
-### Phase 2: Constraints & Indexes
+**Phase 2: FIFO & Material Tracking (Migrations 028-030)** - COMPLETE ✅
+7. ✅ **028** - Add FIFO fields to assignments (12 timing fields)
+8. ✅ **029** - Create assignment_material_reservations table
+9. ✅ **030** - Add partial reservation to stock_movements
 
-- Add all CHECK constraints
-- Create partial indexes for FIFO
-- Add FK constraints with proper ON DELETE actions
-- Create triggers for denormalized data
+**Phase 3: Lot Tracking (Migration 031)** - COMPLETE ✅
+10. ✅ **031** - Add lot tracking to inventory system (9 fields in stock_movements, 4 in order_items, 3 in materials)
 
-### Phase 3: Migration Scripts
+---
 
-- Backfill expected_start from existing data
-- Convert JSONB pre_production_reserved_amount → table rows
-- Validate data integrity
-- Performance benchmarks
+### 🔄 PENDING MIGRATIONS (032-035) - TO BE IMPLEMENTED
 
-### Phase 4: Application Layer
+**Phase 4: Polymorphic Consolidation (Migration 032-033)**
 
-- Update API endpoints to use new schema
-- Implement FIFO queries with proper indexes
-- Add transaction wrappers for complex operations
-- Real-time notifications via SSE
+**032: Create Polymorphic Entity Relations**
+- Create mes_entity_relations table
+- Consolidate 6 junction tables into polymorphic design
+- Status: ⏳ TO BE CREATED
+
+**033: Migrate Data to Polymorphic Relations**
+- Migrate data from 6 junction tables to mes_entity_relations
+- Verify data integrity
+- Status: ⏳ TO BE CREATED
+
+**034: Drop Old Junction Tables**
+- Drop mes_worker_stations
+- Drop mes_worker_operations
+- Drop mes_station_operations
+- Drop mes_node_stations
+- Drop mes_node_substations
+- Drop mes_node_predecessors
+- Status: ⏳ TO BE CREATED
+
+**035: Update Indexes and Constraints**
+- Create partial indexes for polymorphic queries
+- Add CHECK constraints for data validation
+- Optimize query performance
+- Status: ⏳ TO BE CREATED
+
+---
+
+### 📋 BACKEND IMPLEMENTATION (After Migrations)
+
+**Phase 5: Backend API Updates**
+- Update queries to use mes_entity_relations
+- Implement FIFO task scheduling logic
+- Implement lot-based material consumption
+- Add real-time SSE endpoints
+
+**Phase 6: Frontend Integration**
+- Worker portal FIFO task list
+- Production planning with polymorphic relations
+- Lot tracking UI components
+- Real-time updates via SSE
+
+---
+
+## 🎯 CURRENT STATUS SUMMARY
+
+| Component | Status | Migration | Notes |
+|-----------|--------|-----------|-------|
+| **Junction Tables** | ✅ Created | 022 | Will be replaced by polymorphic |
+| **Production Plan Nodes** | ✅ Created | 023 | JSONB extracted |
+| **JSONB Removal** | ✅ Complete | 024 | Full normalization |
+| **Sequences** | ✅ Created | 025 | PostgreSQL sequences |
+| **Real-time Triggers** | ✅ Created | 026 | LISTEN/NOTIFY |
+| **Material Summary** | ✅ Created | 027 | Plan-level aggregates |
+| **FIFO Fields** | ✅ Added | 028 | 12 timing fields |
+| **Material Reservations** | ✅ Created | 029 | Assignment-level tracking |
+| **Partial Reservations** | ✅ Added | 030 | Stock movements |
+| **Lot Tracking** | ✅ Complete | 031 | Full lot traceability |
+| **Polymorphic Relations** | ⏳ Pending | 032-035 | Next phase |
+| **Backend APIs** | ⏳ Pending | - | After polymorphic |
+| **Frontend UI** | ⏳ Pending | - | After backend |
 
 ---
 
