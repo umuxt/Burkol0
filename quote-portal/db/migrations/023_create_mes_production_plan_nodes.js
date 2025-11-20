@@ -19,19 +19,20 @@
 
 export function up(knex) {
   return knex.schema
+    .withSchema('mes')
     // Main production plan nodes table
-    .createTable('mes_production_plan_nodes', (table) => {
+    .createTable('production_plan_nodes', (table) => {
       table.increments('id').primary();
       
       // Node identification
       table.string('node_id', 100).notNullable(); // nodeId from Firebase (e.g., "node-1")
       table.string('plan_id', 100).notNullable()
-        .references('id').inTable('mes_production_plans').onDelete('CASCADE');
+        .references('id').inTable('mes.production_plans').onDelete('CASCADE');
       
       // Operation details
       table.string('name', 255).notNullable();
       table.string('operation_id', 100)
-        .references('id').inTable('mes_operations').onDelete('SET NULL');
+        .references('id').inTable('mes.operations').onDelete('SET NULL');
       
       // Timing
       table.integer('nominal_time').notNullable(); // minutes
@@ -41,7 +42,7 @@ export function up(knex) {
       // Assignment
       table.string('assignment_mode', 20).defaultTo('auto'); // 'auto' or 'manual'
       table.string('assigned_worker_id', 100)
-        .references('id').inTable('mes_workers').onDelete('SET NULL');
+        .references('id').inTable('mes.workers').onDelete('SET NULL');
       
       // Output definition
       table.string('output_code', 100); // Material code for output (e.g., "WIP-001F")
@@ -70,12 +71,12 @@ export function up(knex) {
     })
     
     // Node-Station assignments (many-to-many with priority)
-    .createTable('mes_node_stations', (table) => {
+    .createTable('node_stations', (table) => {
       table.increments('id').primary();
       table.integer('node_id').notNullable()
-        .references('id').inTable('mes_production_plan_nodes').onDelete('CASCADE');
+        .references('id').inTable('mes.production_plan_nodes').onDelete('CASCADE');
       table.string('station_id', 100).notNullable()
-        .references('id').inTable('mes_stations').onDelete('CASCADE');
+        .references('id').inTable('mes.stations').onDelete('CASCADE');
       
       table.integer('priority').defaultTo(1); // 1=primary, 2=fallback, etc.
       
@@ -85,12 +86,12 @@ export function up(knex) {
     })
     
     // Node-Substation assignments (many-to-many)
-    .createTable('mes_node_substations', (table) => {
+    .createTable('node_substations', (table) => {
       table.increments('id').primary();
       table.integer('node_id').notNullable()
-        .references('id').inTable('mes_production_plan_nodes').onDelete('CASCADE');
+        .references('id').inTable('mes.production_plan_nodes').onDelete('CASCADE');
       table.string('substation_id', 100).notNullable()
-        .references('id').inTable('mes_substations').onDelete('CASCADE');
+        .references('id').inTable('mes.substations').onDelete('CASCADE');
       
       table.unique(['node_id', 'substation_id']);
       table.index('node_id');
@@ -98,10 +99,10 @@ export function up(knex) {
     })
     
     // Node material inputs (one-to-many)
-    .createTable('mes_node_material_inputs', (table) => {
+    .createTable('node_material_inputs', (table) => {
       table.increments('id').primary();
       table.integer('node_id').notNullable()
-        .references('id').inTable('mes_production_plan_nodes').onDelete('CASCADE');
+        .references('id').inTable('mes.production_plan_nodes').onDelete('CASCADE');
       
       table.string('material_code', 100).notNullable(); // References materials.code (SQL)
       table.decimal('required_quantity', 10, 2).notNullable();
@@ -115,12 +116,12 @@ export function up(knex) {
     })
     
     // Node predecessors (dependency graph, many-to-many)
-    .createTable('mes_node_predecessors', (table) => {
+    .createTable('node_predecessors', (table) => {
       table.increments('id').primary();
       table.integer('node_id').notNullable()
-        .references('id').inTable('mes_production_plan_nodes').onDelete('CASCADE');
+        .references('id').inTable('mes.production_plan_nodes').onDelete('CASCADE');
       table.integer('predecessor_node_id').notNullable()
-        .references('id').inTable('mes_production_plan_nodes').onDelete('CASCADE');
+        .references('id').inTable('mes.production_plan_nodes').onDelete('CASCADE');
       
       table.unique(['node_id', 'predecessor_node_id']);
       table.index('node_id');
@@ -130,9 +131,10 @@ export function up(knex) {
 
 export function down(knex) {
   return knex.schema
-    .dropTableIfExists('mes_node_predecessors')
-    .dropTableIfExists('mes_node_material_inputs')
-    .dropTableIfExists('mes_node_substations')
-    .dropTableIfExists('mes_node_stations')
-    .dropTableIfExists('mes_production_plan_nodes');
+    .withSchema('mes')
+    .dropTableIfExists('node_predecessors')
+    .dropTableIfExists('node_material_inputs')
+    .dropTableIfExists('node_substations')
+    .dropTableIfExists('node_stations')
+    .dropTableIfExists('production_plan_nodes');
 }

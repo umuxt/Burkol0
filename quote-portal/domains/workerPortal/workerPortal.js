@@ -96,6 +96,9 @@ async function loadWorkerTasks() {
     state.tasks = tasks;
     state.nextTaskId = result.nextTaskId || null;
     
+    // Load lot preview for ready/pending tasks
+    await loadLotPreviews();
+    
     // Debug: Log first task to check data
     if (state.tasks.length > 0) {
       console.log('📊 First task data:', {
@@ -157,6 +160,64 @@ async function loadWorkerTasks() {
     state.error = err.message;
     state.loading = false;
     render();
+  }
+}
+
+// ============================================================================
+// LOT PREVIEW LOADING
+// ============================================================================
+
+async function loadLotPreviews() {
+  try {
+    // Only load previews for ready/pending tasks
+    const tasksNeedingPreview = state.tasks.filter(t => 
+      (t.status === 'ready' || t.status === 'pending') && 
+      (t.preProductionReservedAmount || t.materialInputs)
+    );
+    
+    if (tasksNeedingPreview.length === 0) {
+      console.log('📦 No tasks need lot preview');
+      return;
+    }
+    
+    console.log(`📦 Loading lot previews for ${tasksNeedingPreview.length} tasks...`);
+    
+    // Load lot previews in parallel
+    await Promise.all(tasksNeedingPreview.map(async (task) => {
+      try {
+        // Build material requirements from task data
+        const materialInputs = task.preProductionReservedAmount || task.materialInputs || {};
+        const materialRequirements = Object.entries(materialInputs).map(([code, qty]) => ({
+          materialCode: code,
+          requiredQty: parseFloat(qty) || 0
+        }));
+        
+        if (materialRequirements.length === 0) {
+          return;
+        }
+        
+        // Fetch lot preview from API
+        const queryString = encodeURIComponent(JSON.stringify(materialRequirements));
+        const response = await fetch(`/api/mes/assignments/${task.assignmentId}/lot-preview?materialRequirements=${queryString}`);
+        
+        if (!response.ok) {
+          console.warn(`Failed to load lot preview for ${task.assignmentId}`);
+          task.lotPreview = { materials: [], error: 'Yüklenemedi' };
+          return;
+        }
+        
+        const data = await response.json();
+        task.lotPreview = data;
+        
+        console.log(`✅ Lot preview loaded for ${task.assignmentId}:`, data.materials?.length || 0, 'materials');
+      } catch (error) {
+        console.error(`Error loading lot preview for ${task.assignmentId}:`, error);
+        task.lotPreview = { materials: [], error: error.message };
+      }
+    }));
+    
+  } catch (error) {
+    console.error('Error loading lot previews:', error);
   }
 }
 
@@ -1446,6 +1507,9 @@ function renderTaskRow(task, isNextTask) {
   // Material preview (inputs → outputs)
   const materialPreviewHtml = renderMaterialPreview(task);
   
+  // Lot consumption preview (for ready/pending tasks with lot tracking)
+  const lotPreviewHtml = renderLotPreview(task);
+  
   // ✅ PROMPT 11: Priority badge based on priority field (1=Low, 2=Normal, 3=High)
   const priorityLabels = {1: 'DÜŞÜK', 2: 'NORMAL', 3: 'YÜKSEK'};
   const priorityColors = {1: 'priority-low', 2: 'priority-normal', 3: 'priority-high'};
@@ -1476,6 +1540,7 @@ function renderTaskRow(task, isNextTask) {
           </div>
           ${renderOperationalDetails(task)}
           ${materialPreviewHtml}
+          ${lotPreviewHtml}
           ${renderPrerequisites(task.prerequisites, task)}
           ${pausedBannerHtml}
           ${blockReasonsHtml}
@@ -1697,6 +1762,71 @@ function renderMaterialPreview(task) {
   materialsHtml += '</div>';
   
   return materialsHtml;
+}
+
+function renderLotPreview(task) {
+  // Only show lot preview for ready/pending tasks that haven't started yet
+  if (task.status !== 'ready' && task.status !== 'pending') {
+    return '';
+  }
+  
+  // Check if lot preview data is loaded
+  if (!task.lotPreview) {
+    return '';
+  }
+  
+  const { materials, error } = task.lotPreview;
+  
+  if (error) {
+    return `
+      <div class="lot-preview" style="margin-top: 6px; padding: 6px 8px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b;">
+        <div style="font-size: 11px; color: #92400e;">
+          <span style="font-weight: 600;">⚠️ Lot önizleme yüklenemedi:</span> ${error}
+        </div>
+      </div>
+    `;
+  }
+  
+  if (!materials || materials.length === 0) {
+    return '';
+  }
+  
+  // Check if any material has lot tracking
+  const hasLots = materials.some(m => m.lotsToConsume && m.lotsToConsume.length > 0);
+  
+  if (!hasLots) {
+    return ''; // No lot tracking data available
+  }
+  
+  let lotHtml = '<div class="lot-preview" style="margin-top: 6px; padding: 8px 10px; background: #f0f9ff; border-radius: 4px; border-left: 3px solid #0ea5e9;">';
+  lotHtml += '<div style="font-size: 11px; font-weight: 600; color: #0c4a6e; margin-bottom: 6px;">📦 Tüketilecek Lotlar (FIFO):</div>';
+  
+  for (const material of materials) {
+    if (!material.lotsToConsume || material.lotsToConsume.length === 0) continue;
+    
+    lotHtml += `<div style="margin-bottom: 6px;">`;
+    lotHtml += `<div style="font-size: 10px; color: #075985; font-weight: 600;">${material.materialName || material.materialCode}:</div>`;
+    
+    for (const lot of material.lotsToConsume) {
+      const lotDate = lot.lotDate ? new Date(lot.lotDate).toLocaleDateString('tr-TR') : '-';
+      lotHtml += `<div style="font-size: 10px; color: #0369a1; margin-left: 8px;">
+        • ${lot.lotNumber} (${lotDate}) → ${lot.consumeQty} ${material.unit || 'adet'}
+      </div>`;
+    }
+    
+    // Show warning if insufficient
+    if (!material.sufficient) {
+      lotHtml += `<div style="font-size: 10px; color: #c2410c; margin-left: 8px; margin-top: 2px;">
+        ⚠️ Yetersiz stok (Var: ${material.totalAvailable}, Gerek: ${material.requiredQty})
+      </div>`;
+    }
+    
+    lotHtml += `</div>`;
+  }
+  
+  lotHtml += '</div>';
+  
+  return lotHtml;
 }
 
 

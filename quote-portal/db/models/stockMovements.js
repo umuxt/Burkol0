@@ -12,6 +12,11 @@ const StockMovements = {
    * @param {Object} movementData - Movement information
    * @returns {Object} Created movement
    */
+  /**
+   * Create a stock movement record with lot tracking support
+   * @param {Object} movementData - Movement data
+   * @returns {Object} Created movement
+   */
   async createMovement(movementData) {
     const {
       materialId,
@@ -46,7 +51,19 @@ const StockMovements = {
       movementDate = new Date(),
       approved = true,
       userId,
-      userName
+      userName,
+      // Lot tracking fields (Phase 2)
+      lotNumber,
+      lotDate,
+      supplierLotCode,
+      manufacturingDate,
+      expiryDate,
+      nodeSequence,
+      // Partial reservation fields
+      requestedQuantity,
+      partialReservation,
+      warning,
+      assignmentId
     } = movementData;
     
     const [movement] = await db('materials.stock_movements')
@@ -78,7 +95,19 @@ const StockMovements = {
         movement_date: movementDate,
         approved,
         user_id: userId,
-        user_name: userName
+        user_name: userName,
+        // Lot tracking fields
+        lot_number: lotNumber || null,
+        lot_date: lotDate || null,
+        supplier_lot_code: supplierLotCode || null,
+        manufacturing_date: manufacturingDate || null,
+        expiry_date: expiryDate || null,
+        node_sequence: nodeSequence || null,
+        // Partial reservation fields
+        requested_quantity: requestedQuantity || null,
+        partial_reservation: partialReservation || false,
+        warning: warning || null,
+        assignment_id: assignmentId || null
       })
       .returning('*');
     

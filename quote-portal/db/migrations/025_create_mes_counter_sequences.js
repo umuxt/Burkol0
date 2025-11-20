@@ -44,7 +44,7 @@ export function up(knex) {
       
       -- Check if there are any plans for this month
       SELECT SUBSTRING(id FROM 5 FOR 4) INTO last_plan_month
-      FROM mes.mes_production_plans
+      FROM mes.production_plans
       WHERE id LIKE 'PPL-' || month_year || '-%'
       ORDER BY created_at DESC
       LIMIT 1;
@@ -68,7 +68,7 @@ export function up(knex) {
     BEGIN
       -- Count existing assignments for this work order
       SELECT COUNT(*) + 1 INTO next_num
-      FROM mes.mes_worker_assignments
+      FROM mes.worker_assignments
       WHERE work_order_code = $1;
       
       RETURN work_order_code || '-' || LPAD(next_num::TEXT, 3, '0');

@@ -10,6 +10,7 @@ import Orders from '../db/models/orders.js';
 import OrderItems from '../db/models/orderItems.js';
 import Materials from '../db/models/materials.js';
 import Suppliers from '../db/models/suppliers.js';
+import { generateLotNumber } from './utils/lotGenerator.js';
 
 const router = express.Router();
 
@@ -551,6 +552,21 @@ router.put('/orders/:orderId/items/:itemId', async (req, res) => {
  * PUT /api/orders/:orderId/items/:itemId/deliver - Deliver item and update stock
  * This is the critical endpoint that links orders to inventory
  */
+/**
+ * PUT /api/orders/:orderId/items/:itemId/deliver
+ * Mark item as delivered and update stock with lot tracking support
+ * 
+ * Request body:
+ * {
+ *   deliveryData: {
+ *     actualDeliveryDate: Date,
+ *     notes: string,
+ *     supplierLotCode: string (optional),
+ *     manufacturingDate: Date (optional),
+ *     expiryDate: Date (optional)
+ *   }
+ * }
+ */
 router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
   try {
     const orderId = parseInt(req.params.orderId, 10);
@@ -561,11 +577,34 @@ router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
       return res.status(400).json({ error: 'Invalid order or item ID' });
     }
     
+    // Validate optional lot dates
+    if (deliveryData?.manufacturingDate && deliveryData?.expiryDate) {
+      const mfgDate = new Date(deliveryData.manufacturingDate);
+      const expDate = new Date(deliveryData.expiryDate);
+      const today = new Date();
+      
+      if (mfgDate > today) {
+        return res.status(400).json({ error: 'Manufacturing date cannot be in the future' });
+      }
+      
+      if (expDate <= today) {
+        return res.status(400).json({ error: 'Expiry date must be in the future' });
+      }
+      
+      if (expDate <= mfgDate) {
+        return res.status(400).json({ error: 'Expiry date must be after manufacturing date' });
+      }
+    }
+    
     // Deliver item (updates stock automatically)
     const result = await OrderItems.deliverItem(itemId, {
       deliveredBy: req.user?.email || 'system',
       actualDeliveryDate: deliveryData?.actualDeliveryDate || new Date(),
-      notes: deliveryData?.notes
+      notes: deliveryData?.notes,
+      // Lot tracking fields (optional)
+      supplierLotCode: deliveryData?.supplierLotCode,
+      manufacturingDate: deliveryData?.manufacturingDate,
+      expiryDate: deliveryData?.expiryDate
     });
     
     // Update order status based on item statuses
@@ -578,6 +617,7 @@ router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
       message: 'Item delivered successfully',
       item: result.item,
       stockUpdate: result.stockUpdate,
+      lotNumber: result.lotNumber, // Generated lot number
       orderStatus: updatedOrder.order_status
     });
     

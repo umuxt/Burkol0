@@ -11,13 +11,14 @@
 
 export function up(knex) {
   return knex.schema
+    .withSchema('mes')
     // Worker-Station assignments (many-to-many)
-    .createTable('mes_worker_stations', (table) => {
+    .createTable('worker_stations', (table) => {
       table.increments('id').primary();
       table.string('worker_id', 100).notNullable()
-        .references('id').inTable('mes_workers').onDelete('CASCADE');
+        .references('id').inTable('mes.workers').onDelete('CASCADE');
       table.string('station_id', 100).notNullable()
-        .references('id').inTable('mes_stations').onDelete('CASCADE');
+        .references('id').inTable('mes.stations').onDelete('CASCADE');
       
       table.timestamp('assigned_at').defaultTo(knex.fn.now());
       
@@ -27,12 +28,12 @@ export function up(knex) {
     })
     
     // Worker-Operation qualifications (many-to-many)
-    .createTable('mes_worker_operations', (table) => {
+    .createTable('worker_operations', (table) => {
       table.increments('id').primary();
       table.string('worker_id', 100).notNullable()
-        .references('id').inTable('mes_workers').onDelete('CASCADE');
+        .references('id').inTable('mes.workers').onDelete('CASCADE');
       table.string('operation_id', 100).notNullable()
-        .references('id').inTable('mes_operations').onDelete('CASCADE');
+        .references('id').inTable('mes.operations').onDelete('CASCADE');
       
       table.timestamp('qualified_at').defaultTo(knex.fn.now());
       
@@ -42,12 +43,12 @@ export function up(knex) {
     })
     
     // Station-Operation capabilities (many-to-many)
-    .createTable('mes_station_operations', (table) => {
+    .createTable('station_operations', (table) => {
       table.increments('id').primary();
       table.string('station_id', 100).notNullable()
-        .references('id').inTable('mes_stations').onDelete('CASCADE');
+        .references('id').inTable('mes.stations').onDelete('CASCADE');
       table.string('operation_id', 100).notNullable()
-        .references('id').inTable('mes_operations').onDelete('CASCADE');
+        .references('id').inTable('mes.operations').onDelete('CASCADE');
       
       table.timestamp('created_at').defaultTo(knex.fn.now());
       
@@ -59,7 +60,8 @@ export function up(knex) {
 
 export function down(knex) {
   return knex.schema
-    .dropTableIfExists('mes_station_operations')
-    .dropTableIfExists('mes_worker_operations')
-    .dropTableIfExists('mes_worker_stations');
+    .withSchema('mes')
+    .dropTableIfExists('station_operations')
+    .dropTableIfExists('worker_operations')
+    .dropTableIfExists('worker_stations');
 }

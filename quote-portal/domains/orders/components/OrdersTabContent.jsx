@@ -4,6 +4,7 @@ import AddOrderModal from './AddOrderModal.jsx'
 import OrdersFilters from './OrdersFilters.jsx'
 import { fetchWithTimeout, withAuth } from '../../../shared/lib/api.js'
 import { materialsService } from '../../materials/services/materials-service.js'
+import { API } from '../../../shared/lib/api.js'
 
 // Shared helpers for delivery status across list and modal
 function getDeliveryStatusColor(status) {
@@ -634,7 +635,8 @@ function OrdersTable({
                               cursor: 'pointer'
                             }}
                           >
-                            {['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi'].map(status => (
+                            {/* Note: "Teslim Edildi" removed from order-level dropdown - use item-level delivery for lot tracking */}
+                            {['Onay Bekliyor', 'Onaylandı', 'Yolda', 'İptal Edildi'].map(status => (
                               <option key={status} value={status}>{status}</option>
                             ))}
                           </select>
@@ -740,6 +742,17 @@ export default function OrdersTabContent() {
       return next
     })
   }
+  
+  // Delivery modal state for lot tracking
+  const [deliveryModalOpen, setDeliveryModalOpen] = useState(false)
+  const [deliveryModalItem, setDeliveryModalItem] = useState(null)
+  const [deliveryFormData, setDeliveryFormData] = useState({
+    actualDeliveryDate: new Date().toISOString().split('T')[0],
+    supplierLotCode: '',
+    manufacturingDate: '',
+    expiryDate: '',
+    notes: ''
+  })
 
   // CSV Export for current tab (or selected orders if any)
   const handleExportCSV = () => {
@@ -1407,7 +1420,9 @@ export default function OrdersTabContent() {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const ORDER_STATUS_OPTIONS = ['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi']
+  // ORDER-LEVEL: "Teslim Edildi" removed - use item-level delivery for lot tracking
+  const ORDER_STATUS_OPTIONS = ['Onay Bekliyor', 'Onaylandı', 'Yolda', 'İptal Edildi']
+  // ITEM-LEVEL: "Teslim Edildi" allowed - triggers lot tracking modal
   const ITEM_STATUS_OPTIONS = ['Onay Bekliyor', 'Onaylandı', 'Yolda', 'Teslim Edildi', 'İptal Edildi']
   const [updatingItemIds, setUpdatingItemIds] = useState([])
   const [itemStatusUpdates, setItemStatusUpdates] = useState({}) // Optimistic updates for item statuses
@@ -1708,6 +1723,13 @@ export default function OrdersTabContent() {
       return;
     }
     
+    // PREVENT bulk "Teslim Edildi" - must use item-level delivery for lot tracking
+    if (newStatus === 'Teslim Edildi') {
+      console.log('❌ BLOCKED: Order-level "Teslim Edildi" not allowed. Use item-level delivery for lot tracking.')
+      alert('⚠️ Sipariş seviyesinden toplu teslim edilemez!\n\nLot takibi için her ürünü ayrı ayrı teslim edin.');
+      return;
+    }
+    
     console.log('🔄 Proceeding with order status update...')
     
     try {
@@ -1838,6 +1860,21 @@ export default function OrdersTabContent() {
     if (!newStatus || newStatus === item.itemStatus) {
       console.log('❌ Early return: no status change needed');
       return
+    }
+    
+    // 🎯 LOT TRACKING: Open delivery modal for "Teslim Edildi" status
+    if (newStatus === 'Teslim Edildi') {
+      console.log('📦 Opening delivery modal for lot tracking');
+      setDeliveryModalItem({ orderId, item });
+      setDeliveryFormData({
+        actualDeliveryDate: new Date().toISOString().split('T')[0],
+        supplierLotCode: '',
+        manufacturingDate: '',
+        expiryDate: '',
+        notes: ''
+      });
+      setDeliveryModalOpen(true);
+      return;
     }
 
     // Item identifier - id, itemCode, lineId veya index-based
@@ -2072,6 +2109,96 @@ export default function OrdersTabContent() {
       alert(`Item status güncellenemedi: ${error.message}`)
     } finally {
       setUpdatingItemIds(prev => prev.filter(id => id !== itemId))
+    }
+  }
+  
+  // 🎯 LOT TRACKING: Handle delivery with lot data
+  const handleDeliverItem = async () => {
+    if (!deliveryModalItem) return;
+    
+    const { orderId, item } = deliveryModalItem;
+    const itemId = item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`;
+    
+    // Validate form data
+    const today = new Date().toISOString().split('T')[0];
+    
+    if (deliveryFormData.manufacturingDate && deliveryFormData.manufacturingDate > today) {
+      alert('Üretim tarihi bugünden ileri olamaz');
+      return;
+    }
+    
+    if (deliveryFormData.expiryDate && deliveryFormData.expiryDate <= today) {
+      alert('Son kullanma tarihi bugünden sonra olmalıdır');
+      return;
+    }
+    
+    if (deliveryFormData.manufacturingDate && deliveryFormData.expiryDate && 
+        deliveryFormData.expiryDate <= deliveryFormData.manufacturingDate) {
+      alert('Son kullanma tarihi üretim tarihinden sonra olmalıdır');
+      return;
+    }
+    
+    setDeliveryLoading(true);
+    
+    try {
+      console.log('📦 Delivering item with lot tracking:', {
+        orderId,
+        itemId,
+        deliveryData: deliveryFormData
+      });
+      
+      // Call the delivery endpoint with lot tracking data
+      const result = await API.deliverOrderItem(orderId, itemId, {
+        deliveryData: {
+          actualDeliveryDate: deliveryFormData.actualDeliveryDate,
+          supplierLotCode: deliveryFormData.supplierLotCode || null,
+          manufacturingDate: deliveryFormData.manufacturingDate || null,
+          expiryDate: deliveryFormData.expiryDate || null,
+          notes: deliveryFormData.notes || null
+        }
+      });
+      
+      console.log('✅ Item delivered successfully:', result);
+      
+      // Show success message with lot number
+      if (result.lotNumber) {
+        alert(`✅ Teslimat kaydedildi\nLot Numarası: ${result.lotNumber}`);
+      } else {
+        alert('✅ Teslimat kaydedildi');
+      }
+      
+      // Close modal
+      setDeliveryModalOpen(false);
+      setDeliveryModalItem(null);
+      
+      // Refresh orders
+      await refreshOrders();
+      
+      // Refresh selected order if open
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrderLoading(true);
+        try {
+          const orderResponse = await fetchWithTimeout(`/api/orders/${orderId}?t=${Date.now()}`, {
+            headers: withAuth()
+          });
+          
+          if (orderResponse.ok) {
+            const orderData = await orderResponse.json();
+            const refreshed = orderData.order || orderData;
+            setSelectedOrder(refreshed);
+          }
+        } catch (detailError) {
+          console.error('❌ Error refreshing order details:', detailError);
+        } finally {
+          setSelectedOrderLoading(false);
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Error delivering item:', error);
+      alert(`Teslimat kaydedilemedi: ${error.message}`);
+    } finally {
+      setDeliveryLoading(false);
     }
   }
 
@@ -2529,6 +2656,174 @@ export default function OrdersTabContent() {
           </div>
         </div>
       </div>
+      )}
+      
+      {/* 📦 LOT TRACKING: Delivery Modal */}
+      {deliveryModalOpen && deliveryModalItem && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999
+          }}
+          onClick={() => !deliveryLoading && setDeliveryModalOpen(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '500px',
+              width: '90%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ marginBottom: '20px', borderBottom: '1px solid #e5e7eb', paddingBottom: '16px' }}>
+              <h2 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                📦 Malzeme Teslim Al
+              </h2>
+              <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                <div><strong>Malzeme:</strong> {deliveryModalItem.item.materialName} ({deliveryModalItem.item.materialCode})</div>
+                <div><strong>Miktar:</strong> {deliveryModalItem.item.quantity} adet</div>
+              </div>
+            </div>
+            
+            {/* Form Fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Delivery Date */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                  Teslim Tarihi <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <input
+                  type="date"
+                  className="mes-filter-input"
+                  value={deliveryFormData.actualDeliveryDate}
+                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, actualDeliveryDate: e.target.value }))}
+                  max={new Date().toISOString().split('T')[0]}
+                  required
+                  disabled={deliveryLoading}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              
+              {/* Supplier Lot Code */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                  Tedarikçi Lot/Batch Kodu <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                </label>
+                <input
+                  type="text"
+                  className="mes-filter-input"
+                  placeholder="Örn: BATCH-2025-001"
+                  value={deliveryFormData.supplierLotCode}
+                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, supplierLotCode: e.target.value }))}
+                  maxLength={100}
+                  disabled={deliveryLoading}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              
+              {/* Manufacturing Date */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                  Üretim Tarihi <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                </label>
+                <input
+                  type="date"
+                  className="mes-filter-input"
+                  value={deliveryFormData.manufacturingDate}
+                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, manufacturingDate: e.target.value }))}
+                  max={new Date().toISOString().split('T')[0]}
+                  disabled={deliveryLoading}
+                  style={{ width: '100%' }}
+                />
+                <small style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                  Üretim tarihi bugünden ileri olamaz
+                </small>
+              </div>
+              
+              {/* Expiry Date */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                  Son Kullanma Tarihi <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                </label>
+                <input
+                  type="date"
+                  className="mes-filter-input"
+                  value={deliveryFormData.expiryDate}
+                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, expiryDate: e.target.value }))}
+                  min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                  disabled={deliveryLoading}
+                  style={{ width: '100%' }}
+                />
+                <small style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                  Son kullanma tarihi bugünden sonra olmalıdır
+                </small>
+              </div>
+              
+              {/* Notes */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                  Notlar <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                </label>
+                <textarea
+                  className="mes-filter-input"
+                  placeholder="Teslimata dair ek notlar..."
+                  value={deliveryFormData.notes}
+                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  rows={3}
+                  disabled={deliveryLoading}
+                  style={{ width: '100%', resize: 'vertical' }}
+                />
+              </div>
+              
+              {/* Info Message */}
+              <div style={{
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '6px',
+                padding: '12px',
+                fontSize: '12px',
+                color: '#1e40af'
+              }}>
+                <strong>ℹ️ Bilgi:</strong> Lot numarası otomatik olarak oluşturulacaktır.<br />
+                Format: <code style={{ background: '#dbeafe', padding: '2px 4px', borderRadius: '3px' }}>LOT-{'{'}malzeme_kodu{'}'}-{'{'}YYYYMMDD{'}'}-{'{'}sıra{'}'}</code>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div style={{ marginTop: '24px', display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
+              <button
+                className="mes-filter-button"
+                onClick={() => setDeliveryModalOpen(false)}
+                disabled={deliveryLoading}
+                style={{ padding: '8px 16px' }}
+              >
+                İptal
+              </button>
+              <button
+                className="mes-primary-action"
+                onClick={handleDeliverItem}
+                disabled={deliveryLoading || !deliveryFormData.actualDeliveryDate}
+                style={{ padding: '8px 16px' }}
+              >
+                {deliveryLoading ? '⏳ Kaydediliyor...' : '✅ Teslimi Kaydet'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

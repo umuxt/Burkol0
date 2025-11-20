@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import useMaterialProcurementHistory from '../hooks/useMaterialProcurementHistory.js'
 import useMaterialProductionHistory from '../hooks/useMaterialProductionHistory.js'
+import useMaterialLots from '../hooks/useMaterialLots.js'
 import { useSuppliers } from '../hooks/useSuppliers'
 import { 
   getEffectiveMaterialStatus, 
@@ -234,6 +235,9 @@ export default function EditMaterialModal({
 
   // Production history: load on demand for all materials
   const { items: productionItems, loading: productionLoading, error: productionError, loadHistory: loadProductionHistory, isLoadedForMaterial: isProductionLoaded } = useMaterialProductionHistory(material)
+
+  // Lot inventory: load on demand (lazy-loading pattern)
+  const { lots, loading: lotsLoading, error: lotsError, loadLots, hasLoaded: lotsHasLoaded } = useMaterialLots(material)
 
   // useEffect kaldırıldı - tedarik geçmişi sadece butona tıklandığında yüklenecek
 
@@ -1026,6 +1030,130 @@ export default function EditMaterialModal({
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+          
+          {/* Lot Envanteri - Lot tracking inventory section */}
+          <div className="lot-inventory-section mes-section-card" style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <h3 style={{ margin: 0 }}>📦 Lot Envanteri</h3>
+              <button
+                type="button"
+                className="mes-primary-action"
+                onClick={() => {
+                  if (material?.code) {
+                    console.log('🔄 Lot envanteri yükleniyor...', material.code);
+                    loadLots();
+                  }
+                }}
+                disabled={lotsLoading || !material?.code}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  cursor: lotsLoading || !material?.code ? 'not-allowed' : 'pointer',
+                  opacity: lotsLoading || !material?.code ? 0.6 : 1
+                }}
+              >
+                {lotsLoading ? '⏳ Yükleniyor...' : '🔄 Lot Bilgilerini Yükle'}
+              </button>
+            </div>
+            
+            {lotsError && (
+              <div className="alert alert-danger" style={{ marginBottom: '12px' }}>
+                ❌ Hata: {lotsError}
+              </div>
+            )}
+            
+            <div className="mes-table-container" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              <table className="custom-table">
+                <thead>
+                  <tr>
+                    <th>FIFO Sıra</th>
+                    <th>Lot Numarası</th>
+                    <th>Lot Tarihi</th>
+                    <th>Tedarikçi Lot Kodu</th>
+                    <th>Üretim Tarihi</th>
+                    <th>Son Kullanma</th>
+                    <th>Bakiye</th>
+                    <th>Durum</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lotsLoading && !lotsHasLoaded ? (
+                    <tr>
+                      <td colSpan="8" className="no-data">Lot envanteri yükleniyor...</td>
+                    </tr>
+                  ) : lotsError ? (
+                    <tr>
+                      <td colSpan="8" className="no-data text-danger">
+                        Lot bilgileri yüklenemedi
+                      </td>
+                    </tr>
+                  ) : lots && lots.length > 0 ? (
+                    lots.map((lot, index) => {
+                      const lotDate = lot.lotDate ? new Date(lot.lotDate) : null;
+                      const mfgDate = lot.manufacturingDate ? new Date(lot.manufacturingDate) : null;
+                      const expDate = lot.expiryDate ? new Date(lot.expiryDate) : null;
+                      
+                      return (
+                        <tr key={lot.lotNumber || index}>
+                          <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                            #{lot.fifoOrder}
+                          </td>
+                          <td style={{ fontFamily: 'monospace', fontSize: '13px' }}>
+                            {lot.lotNumber || '-'}
+                          </td>
+                          <td>
+                            {lotDate ? lotDate.toLocaleDateString('tr-TR') : '-'}
+                          </td>
+                          <td>
+                            {lot.supplierLotCode || '-'}
+                          </td>
+                          <td>
+                            {mfgDate ? mfgDate.toLocaleDateString('tr-TR') : '-'}
+                          </td>
+                          <td>
+                            {expDate ? expDate.toLocaleDateString('tr-TR') : '-'}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                            {Number(lot.balance).toLocaleString('tr-TR', { 
+                              minimumFractionDigits: 2, 
+                              maximumFractionDigits: 2 
+                            })}
+                          </td>
+                          <td>
+                            {lot.status === 'active' ? (
+                              <span className="badge badge-success mes-status-active">
+                                Aktif
+                              </span>
+                            ) : lot.status === 'expiring_soon' ? (
+                              <span className="badge badge-warning mes-status-warning">
+                                Yakında Sona Erecek
+                              </span>
+                            ) : lot.status === 'expired' ? (
+                              <span className="badge badge-danger mes-status-error">
+                                Süresi Dolmuş
+                              </span>
+                            ) : (
+                              <span className="badge badge-secondary">
+                                {lot.status || '-'}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="8" className="no-data">
+                        {lotsHasLoaded ? 'Henüz lot kaydı bulunmuyor' : 'Lot bilgilerini yüklemek için butona tıklayın'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
           

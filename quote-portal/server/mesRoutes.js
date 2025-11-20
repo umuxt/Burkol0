@@ -7,6 +7,12 @@ import { adjustMaterialStock, consumeMaterials } from './materialsRoutes.js'
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { createRequire } from 'module';
+import { 
+  reserveMaterialsWithLotTracking, 
+  getLotConsumptionPreview,
+  releaseMaterialReservations,
+  markMaterialsConsumed 
+} from './utils/lotConsumption.js';
 
 const require = createRequire(import.meta.url);
 const planSchema = require('./models/ProductionPlanSchema.json');
@@ -8504,6 +8510,304 @@ router.post('/metrics/reset', withAuth, async (req, res) => {
   } catch (error) {
     console.error('Metrics reset error:', error);
     res.status(500).json({ error: 'metrics_reset_failed', message: error.message });
+  }
+});
+
+// ============================================================================
+// LOT TRACKING ENDPOINTS (Phase 2)
+// ============================================================================
+
+/**
+ * POST /api/mes/assignments/:assignmentId/start
+ * Start a production task with FIFO lot consumption
+ * 
+ * Request body:
+ * {
+ *   materialRequirements: [
+ *     { materialCode: 'M-00-001', requiredQty: 100 },
+ *     { materialCode: 'M-00-002', requiredQty: 50 }
+ *   ]
+ * }
+ * 
+ * Response:
+ * {
+ *   success: true,
+ *   assignmentId: 'WO-001-001',
+ *   startTime: '2025-11-20T10:30:00Z',
+ *   lotsConsumed: [
+ *     {
+ *       materialCode: 'M-00-001',
+ *       lotsUsed: [
+ *         { lotNumber: 'LOT-M-00-001-001', qty: 50 },
+ *         { lotNumber: 'LOT-M-00-001-002', qty: 50 }
+ *       ]
+ *     }
+ *   ],
+ *   warnings: []
+ * }
+ */
+router.post('/assignments/:assignmentId/start', withAuth, async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    const { materialRequirements = [] } = req.body;
+    
+    console.log(`🚀 [MES] Starting task: ${assignmentId}`);
+    console.log(`📋 [MES] Material requirements:`, JSON.stringify(materialRequirements, null, 2));
+    
+    // Validate assignment exists (in Firebase for now)
+    const db = getFirestore();
+    const assignmentRef = db.collection('mes-worker-assignments').doc(assignmentId);
+    const assignmentDoc = await assignmentRef.get();
+    
+    if (!assignmentDoc.exists) {
+      return res.status(404).json({ 
+        success: false,
+        error: 'Assignment not found' 
+      });
+    }
+    
+    const assignmentData = assignmentDoc.data();
+    
+    // Check if already started
+    if (assignmentData.status === 'in_progress' || assignmentData.status === 'completed') {
+      return res.status(400).json({ 
+        success: false,
+        error: `Assignment already ${assignmentData.status}` 
+      });
+    }
+    
+    // Reserve materials with FIFO lot tracking
+    let lotResult = { success: true, reservations: [], warnings: [] };
+    
+    if (materialRequirements.length > 0) {
+      lotResult = await reserveMaterialsWithLotTracking(
+        assignmentId,
+        materialRequirements
+      );
+      
+      if (!lotResult.success) {
+        console.error(`❌ [MES] Material reservation failed for ${assignmentId}:`, lotResult.error);
+        return res.status(500).json({
+          success: false,
+          error: 'Material reservation failed',
+          details: lotResult.error
+        });
+      }
+      
+      if (lotResult.warnings.length > 0) {
+        console.warn(`⚠️  [MES] Warnings during material reservation:`, lotResult.warnings);
+      }
+    }
+    
+    // Update assignment status
+    const startTime = new Date();
+    await assignmentRef.update({
+      status: 'in_progress',
+      actual_start: startTime,
+      material_reservation_status: materialRequirements.length > 0 ? 'reserved' : 'not_required',
+      updated_at: admin.firestore.FieldValue.serverTimestamp(),
+      updated_by: req.user?.email || 'system'
+    });
+    
+    // Update worker's current task (if worker assigned)
+    if (assignmentData.workerId) {
+      await db.collection('mes-workers').doc(assignmentData.workerId).update({
+        current_task_assignment_id: assignmentId,
+        status: 'working',
+        updated_at: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    
+    console.log(`✅ [MES] Task started successfully: ${assignmentId}`);
+    
+    // Format response with lot consumption details
+    const lotsConsumed = lotResult.reservations.map(res => ({
+      materialCode: res.materialCode,
+      lotsUsed: res.lotsConsumed.map(lot => ({
+        lotNumber: lot.lotNumber,
+        qty: lot.qty,
+        lotDate: lot.lotDate
+      })),
+      totalReserved: res.totalReserved,
+      partialReservation: res.partialReservation
+    }));
+    
+    res.json({
+      success: true,
+      assignmentId,
+      startTime: startTime.toISOString(),
+      lotsConsumed,
+      warnings: lotResult.warnings,
+      message: lotResult.warnings.length > 0 
+        ? 'Task started with warnings (partial reservations)'
+        : 'Task started successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ [MES] Error starting assignment:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to start assignment',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/mes/assignments/:assignmentId/lot-preview
+ * Preview which lots will be consumed (without actually reserving)
+ * 
+ * Query params:
+ * - materialRequirements: JSON string of material requirements
+ * 
+ * Response:
+ * {
+ *   materials: [
+ *     {
+ *       materialCode: 'M-00-001',
+ *       materialName: 'Çelik Sac',
+ *       requiredQty: 100,
+ *       lotsToConsume: [
+ *         { lotNumber: 'LOT-M-00-001-001', lotDate: '2025-11-01', consumeQty: 50 },
+ *         { lotNumber: 'LOT-M-00-001-002', lotDate: '2025-11-15', consumeQty: 50 }
+ *       ],
+ *       totalAvailable: 250,
+ *       sufficient: true
+ *     }
+ *   ]
+ * }
+ */
+router.get('/assignments/:assignmentId/lot-preview', withAuth, async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    
+    // Parse material requirements from query string or body
+    let materialRequirements = [];
+    if (req.query.materialRequirements) {
+      try {
+        materialRequirements = JSON.parse(req.query.materialRequirements);
+      } catch (e) {
+        return res.status(400).json({ 
+          success: false,
+          error: 'Invalid materialRequirements format' 
+        });
+      }
+    }
+    
+    console.log(`🔍 [MES] Lot preview for assignment: ${assignmentId}`);
+    
+    // Get lot consumption preview (read-only, no reservation)
+    const preview = await getLotConsumptionPreview(materialRequirements);
+    
+    res.json({
+      success: true,
+      assignmentId,
+      ...preview
+    });
+    
+  } catch (error) {
+    console.error('❌ [MES] Error generating lot preview:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to generate lot preview',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/mes/assignments/:assignmentId/cancel
+ * Cancel a task and release reserved materials
+ */
+router.post('/assignments/:assignmentId/cancel', withAuth, async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    
+    console.log(`🚫 [MES] Cancelling assignment: ${assignmentId}`);
+    
+    // Release material reservations
+    const releaseResult = await releaseMaterialReservations(assignmentId);
+    
+    if (!releaseResult.success) {
+      console.error(`❌ [MES] Failed to release reservations:`, releaseResult.error);
+    }
+    
+    // Update assignment status
+    const db = getFirestore();
+    await db.collection('mes-worker-assignments').doc(assignmentId).update({
+      status: 'cancelled',
+      material_reservation_status: 'released',
+      cancelled_at: admin.firestore.FieldValue.serverTimestamp(),
+      cancelled_by: req.user?.email || 'system'
+    });
+    
+    console.log(`✅ [MES] Assignment cancelled: ${assignmentId}`);
+    
+    res.json({
+      success: true,
+      assignmentId,
+      message: releaseResult.message || 'Assignment cancelled successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ [MES] Error cancelling assignment:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to cancel assignment',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/mes/assignments/:assignmentId/complete
+ * Complete a task and mark materials as consumed
+ */
+router.post('/assignments/:assignmentId/complete', withAuth, async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    const { outputQuantity, defectQuantity = 0, notes } = req.body;
+    
+    console.log(`✅ [MES] Completing assignment: ${assignmentId}`);
+    
+    // Mark materials as consumed
+    const consumeResult = await markMaterialsConsumed(assignmentId);
+    
+    if (!consumeResult.success) {
+      console.error(`❌ [MES] Failed to mark materials consumed:`, consumeResult.error);
+    }
+    
+    // Update assignment status
+    const db = getFirestore();
+    const endTime = new Date();
+    await db.collection('mes-worker-assignments').doc(assignmentId).update({
+      status: 'completed',
+      actual_end: endTime,
+      material_reservation_status: 'consumed',
+      output_quantity: outputQuantity || null,
+      defect_quantity: defectQuantity || 0,
+      completion_notes: notes || null,
+      completed_at: admin.firestore.FieldValue.serverTimestamp(),
+      completed_by: req.user?.email || 'system'
+    });
+    
+    console.log(`✅ [MES] Assignment completed: ${assignmentId}`);
+    
+    res.json({
+      success: true,
+      assignmentId,
+      endTime: endTime.toISOString(),
+      materialsConsumed: consumeResult.updated || 0,
+      message: 'Assignment completed successfully'
+    });
+    
+  } catch (error) {
+    console.error('❌ [MES] Error completing assignment:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to complete assignment',
+      details: error.message 
+    });
   }
 });
 

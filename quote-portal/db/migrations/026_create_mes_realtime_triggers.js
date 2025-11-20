@@ -135,27 +135,27 @@ export function up(knex) {
     
     -- Production plans
     CREATE TRIGGER plan_change_trigger
-    AFTER INSERT OR UPDATE OR DELETE ON mes.mes_production_plans
+    AFTER INSERT OR UPDATE OR DELETE ON mes.production_plans
     FOR EACH ROW EXECUTE FUNCTION mes.notify_plan_change();
     
     -- Worker assignments
     CREATE TRIGGER assignment_change_trigger
-    AFTER INSERT OR UPDATE OR DELETE ON mes.mes_worker_assignments
+    AFTER INSERT OR UPDATE OR DELETE ON mes.worker_assignments
     FOR EACH ROW EXECUTE FUNCTION mes.notify_assignment_change();
     
     -- Workers
     CREATE TRIGGER worker_change_trigger
-    AFTER INSERT OR UPDATE OR DELETE ON mes.mes_workers
+    AFTER INSERT OR UPDATE OR DELETE ON mes.workers
     FOR EACH ROW EXECUTE FUNCTION mes.notify_worker_change();
     
     -- Production plan nodes
     CREATE TRIGGER node_change_trigger
-    AFTER INSERT OR UPDATE OR DELETE ON mes.mes_production_plan_nodes
+    AFTER INSERT OR UPDATE OR DELETE ON mes.production_plan_nodes
     FOR EACH ROW EXECUTE FUNCTION mes.notify_node_change();
     
     -- Substations
     CREATE TRIGGER substation_change_trigger
-    AFTER INSERT OR UPDATE OR DELETE ON mes.mes_substations
+    AFTER INSERT OR UPDATE OR DELETE ON mes.substations
     FOR EACH ROW EXECUTE FUNCTION mes.notify_station_change();
     
     -- ========================================================================
@@ -178,11 +178,11 @@ export function up(knex) {
 export function down(knex) {
   return knex.raw(`
     -- Drop triggers
-    DROP TRIGGER IF EXISTS substation_change_trigger ON mes.mes_substations;
-    DROP TRIGGER IF EXISTS node_change_trigger ON mes.mes_production_plan_nodes;
-    DROP TRIGGER IF EXISTS worker_change_trigger ON mes.mes_workers;
-    DROP TRIGGER IF EXISTS assignment_change_trigger ON mes.mes_worker_assignments;
-    DROP TRIGGER IF EXISTS plan_change_trigger ON mes.mes_production_plans;
+    DROP TRIGGER IF EXISTS substation_change_trigger ON mes.substations;
+    DROP TRIGGER IF EXISTS node_change_trigger ON mes.production_plan_nodes;
+    DROP TRIGGER IF EXISTS worker_change_trigger ON mes.workers;
+    DROP TRIGGER IF EXISTS assignment_change_trigger ON mes.worker_assignments;
+    DROP TRIGGER IF EXISTS plan_change_trigger ON mes.production_plans;
     
     -- Drop functions
     DROP FUNCTION IF EXISTS mes.notify_station_change();

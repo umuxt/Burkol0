@@ -10,13 +10,9 @@
  */
 
 export function up(knex) {
-  return knex.schema
+  return knex.schema.withSchema('mes')
     // 1. Modify mes_workers
-    .alterTable('mes_workers', (table) => {
-      // Drop array columns (data moved to junction tables)
-      table.dropColumn('assigned_stations');
-      table.dropColumn('qualified_operations');
-      
+    .alterTable('workers', (table) => {
       // Add current task tracking (replaces currentTask object)
       table.string('current_task_plan_id', 100);
       table.string('current_task_node_id', 100);
@@ -28,27 +24,21 @@ export function up(knex) {
     })
     
     // 2. Modify mes_stations
-    .alterTable('mes_stations', (table) => {
-      // Drop operation_ids array (moved to mes_station_operations)
-      table.dropColumn('operation_ids');
-      
+    .alterTable('stations', (table) => {
       // Add name columns
       table.string('created_by_name', 255);
       table.string('updated_by_name', 255);
     })
     
     // 3. Modify mes_operations
-    .alterTable('mes_operations', (table) => {
-      // Drop station_ids array (moved to mes_station_operations)
-      table.dropColumn('station_ids');
-      
+    .alterTable('operations', (table) => {
       // Add name columns
       table.string('created_by_name', 255);
       table.string('updated_by_name', 255);
     })
     
     // 4. Modify mes_substations
-    .alterTable('mes_substations', (table) => {
+    .alterTable('substations', (table) => {
       // Add current operation tracking
       table.string('current_operation', 100); // nodeId of current operation
       
@@ -58,7 +48,7 @@ export function up(knex) {
     })
     
     // 5. Modify mes_production_plans
-    .alterTable('mes_production_plans', (table) => {
+    .alterTable('production_plans', (table) => {
       // Drop nodes JSONB (moved to mes_production_plan_nodes table)
       table.dropColumn('nodes');
       
@@ -83,9 +73,9 @@ export function up(knex) {
 }
 
 export function down(knex) {
-  return knex.schema
+  return knex.schema.withSchema('mes')
     // Rollback mes_production_plans
-    .alterTable('mes_production_plans', (table) => {
+    .alterTable('production_plans', (table) => {
       table.jsonb('nodes'); // Restore nodes
       table.jsonb('material_summary');
       table.jsonb('metadata');
@@ -100,28 +90,28 @@ export function down(knex) {
     })
     
     // Rollback mes_substations
-    .alterTable('mes_substations', (table) => {
+    .alterTable('substations', (table) => {
       table.dropColumn('current_operation');
       table.dropColumn('created_by_name');
       table.dropColumn('updated_by_name');
     })
     
     // Rollback mes_operations
-    .alterTable('mes_operations', (table) => {
+    .alterTable('operations', (table) => {
       table.jsonb('station_ids');
       table.dropColumn('created_by_name');
       table.dropColumn('updated_by_name');
     })
     
     // Rollback mes_stations
-    .alterTable('mes_stations', (table) => {
+    .alterTable('stations', (table) => {
       table.jsonb('operation_ids');
       table.dropColumn('created_by_name');
       table.dropColumn('updated_by_name');
     })
     
     // Rollback mes_workers
-    .alterTable('mes_workers', (table) => {
+    .alterTable('workers', (table) => {
       table.jsonb('assigned_stations');
       table.jsonb('qualified_operations');
       table.dropColumn('current_task_plan_id');

@@ -587,14 +587,14 @@ npm run migrate:status
 
 **Prompt for Copilot:**
 ```
-Create migration 029: Create mes_assignment_material_reservations table.
+Create migration 029: Create mes.assignment_material_reservations table.
 
 Reference: MES-ULTIMATE-DATABASE-ARCHITECTURE.md section "Decision 2: FIFO Fields"
 
 Requirements:
-1. Create table mes_assignment_material_reservations:
+1. Create table mes.assignment_material_reservations (using mes schema):
    - id SERIAL PRIMARY KEY
-   - assignment_id VARCHAR(100) FK to mes_worker_assignments(id) ON DELETE CASCADE
+   - assignment_id VARCHAR(100) FK to mes.mes_worker_assignments(id) ON DELETE CASCADE
    - material_code VARCHAR(100) NOT NULL
    - pre_production_qty DECIMAL(10,2) NOT NULL (calculated at plan launch)
    - actual_reserved_qty DECIMAL(10,2) (reserved at task start)
@@ -614,6 +614,8 @@ Requirements:
 5. Add FK to materials.materials(code) ON DELETE RESTRICT
 
 File: quote-portal/db/migrations/029_create_assignment_material_reservations.js
+
+IMPORTANT: Use knex.schema.withSchema('mes').createTable('assignment_material_reservations', ...) to create table in mes schema.
 
 Include detailed comments about 2-phase commit pattern (pre-production calculation → actual reservation → consumption).
 ```
@@ -721,11 +723,13 @@ Add to materials.materials:
 - nearest_expiry_date DATE (for expiry alerts)
 
 **Part 4: Enhance assignment_material_reservations**
-Add to mes_assignment_material_reservations:
+Add to mes.assignment_material_reservations:
 - lot_number VARCHAR(100) (which lot was consumed)
 
 Index:
 - idx_assignment_lot: (assignment_id, lot_number)
+
+IMPORTANT: Use knex.schema.withSchema('mes').alterTable('assignment_material_reservations', ...) to modify table in mes schema.
 
 **Part 5: Create trigger for lot summary**
 Create PostgreSQL trigger that updates materials.active_lot_count, oldest_lot_date, nearest_expiry_date when stock_movements are inserted/updated.
@@ -795,7 +799,7 @@ If any errors occur, analyze the error and fix the migration file.
 \d mes_worker_assignments
 
 -- Verify material reservations table
-\d mes_assignment_material_reservations
+\d mes.assignment_material_reservations
 
 -- Verify lot fields in stock_movements
 \d materials.stock_movements
@@ -872,7 +876,7 @@ Create async function reserveMaterialsWithLotTracking(assignmentId, materialRequ
    a. Query available lots (FIFO order by lot_date ASC)
    b. Calculate consumption from oldest lots first
    c. Create stock_movements (type='out') for each lot consumed
-   d. Insert into mes_assignment_material_reservations with lot_number
+   d. Insert into mes.assignment_material_reservations with lot_number
    e. Handle partial reservations (warn if insufficient stock)
 3. Update materials.stock and wip_reserved aggregates
 4. Update assignment status to 'in_progress'
@@ -1118,25 +1122,25 @@ Validation:
 
 ---
 
-### STEP 12: Create Frontend - Lot Inventory View (45 minutes)
+### STEP 12: Integrate Lot Inventory into Material Detail Modal (45 minutes)
 
 **Prompt for Copilot:**
 ```
-Create new view to show lot-level inventory.
+Add lot inventory section to Material Detail modal.
 
 Reference: PHASE-1-2-IMPLEMENTATION-GUIDE.md section "UI/UX Changes - Stock Check Screen"
 
-Create new page or section: Lot Inventory
+Instead of creating a new page, integrate lot inventory into the existing Material Detail modal (EditMaterialModal.jsx) for better UX - this centralizes all material-related data (general info, suppliers, lot inventory, production history, procurement history) in one place.
 
 Requirements:
 
-1. Create API endpoint GET /api/materials/lots:
+1. Create API endpoint GET /api/materials/:code/lots:
    Query:
    SELECT 
-     sm.material_code,
-     m.name as material_name,
      sm.lot_number,
      sm.lot_date,
+     sm.supplier_lot_code,
+     sm.manufacturing_date,
      sm.expiry_date,
      SUM(CASE WHEN sm.type='in' THEN sm.quantity ELSE -sm.quantity END) as lot_balance,
      CASE
@@ -1146,46 +1150,63 @@ Requirements:
      END as lot_status,
      ROW_NUMBER() OVER (PARTITION BY sm.material_code ORDER BY sm.lot_date) as fifo_order
    FROM materials.stock_movements sm
-   JOIN materials.materials m ON m.code = sm.material_code
-   WHERE sm.lot_number IS NOT NULL
-   GROUP BY sm.material_code, m.name, sm.lot_number, sm.lot_date, sm.expiry_date
-   HAVING SUM(...) > 0
-   ORDER BY sm.material_code, sm.lot_date;
+   WHERE sm.material_code = :code AND sm.lot_number IS NOT NULL
+   GROUP BY sm.lot_number, sm.lot_date, sm.supplier_lot_code, sm.manufacturing_date, sm.expiry_date
+   HAVING SUM(CASE WHEN sm.type='in' THEN sm.quantity ELSE -sm.quantity END) > 0
+   ORDER BY sm.lot_date ASC;
 
-2. Create HTML table with columns:
-   - Material
-   - Lot Number
-   - Lot Date
-   - Balance
-   - Expiry Date
-   - Status (badge: active/expiring_soon/expired)
-   - FIFO Order (#1, #2, #3...)
+2. Create custom hook quote-portal/domains/materials/hooks/useMaterialLots.js:
+   - Lazy loading pattern (matches existing useMaterialProcurementHistory)
+   - loadLots(materialCode) function
+   - Returns { lots, loading, error, loadLots }
 
-3. Color coding:
-   - Green: active
-   - Yellow: expiring_soon
-   - Red: expired
+3. Add section to EditMaterialModal.jsx (between suppliers and production history):
+   - Section header: "📦 Lot Envanteri"
+   - Load button: "🔄 Lot Bilgilerini Yükle" (follows existing lazy-loading pattern)
+   - Table with columns:
+     * Lot Numarası (Lot Number)
+     * Lot Tarihi (Lot Date)
+     * Tedarikçi Lot Kodu (Supplier Lot Code)
+     * Üretim Tarihi (Manufacturing Date)
+     * Son Kullanma (Expiry Date)
+     * Bakiye (Balance)
+     * Durum (Status badge)
+     * FIFO Sıra (FIFO Order: #1, #2, #3...)
 
-4. Filter options:
-   - By material
-   - By status
-   - Show expired (checkbox)
+4. Color coding for status badges:
+   - Green (mes-status-active): active lots
+   - Yellow (mes-status-warning): expiring_soon (<30 days)
+   - Red (mes-status-error): expired lots
 
-File: quote-portal/pages/lot-inventory.html or add to materials.html
+5. MES design system styling:
+   - Use existing .mes-section-card classes
+   - Use .mes-primary-action for load button
+   - Use .mes-table-container for table
+   - Match styling of Production History and Procurement History sections
+
+Files to modify:
+- quote-portal/server/materialsRoutes.js (add GET /:code/lots endpoint)
+- quote-portal/domains/materials/hooks/useMaterialLots.js (create new)
+- quote-portal/domains/materials/components/EditMaterialModal.jsx (add section)
 ```
 
 **Expected Output:**
-- New GET /api/materials/lots endpoint
-- HTML table showing lot-level stock
+- New GET /api/materials/:code/lots endpoint in materialsRoutes.js
+- New useMaterialLots.js hook following existing patterns
+- New "Lot Envanteri" section in Material Detail modal
+- Lazy-loading with "Yükle" button (matches existing UI pattern)
+- Table showing lot-level stock with FIFO order
 - Status badges with color coding
-- Filters for material and status
 
 **Success Criteria:**
-- ✅ Shows all active lots
-- ✅ FIFO order displayed (oldest first)
-- ✅ Expiry warnings visible
+- ✅ Lot inventory integrated into Material Detail modal (not a new page)
+- ✅ Follows existing lazy-loading section pattern
+- ✅ Shows all active lots for specific material
+- ✅ FIFO order displayed (oldest first: #1, #2, #3...)
+- ✅ Expiry warnings visible (color-coded badges)
 - ✅ Balance calculated correctly (sum of in - out)
-- ✅ Filter by material works
+- ✅ MES design system styling applied
+- ✅ Consistent with Production History and Procurement History UI
 
 ---
 
@@ -1310,7 +1331,7 @@ Commands:
 
 **Test 6: UI Validation**
 1. Order delivery form accepts lot data
-2. Lot inventory view shows lots
+2. Material Detail modal lot inventory section shows lots (lazy-loaded)
 3. Worker portal shows lot preview
 4. FIFO order displayed correctly (#1, #2, #3)
 
@@ -1352,24 +1373,26 @@ Create summary document with:
 
 **File 2: API-CHANGES.md**
 Document all API changes:
-- New request fields (lot data)
-- New response fields (lot consumption)
-- New endpoints (lot inventory, lot preview)
-- Backward compatibility notes
+- New request fields (lot data in order delivery)
+- New response fields (lot consumption in production start)
+- New endpoints:
+  * GET /api/materials/:code/lots (material-specific lot inventory)
+  * GET /api/mes/assignments/:assignmentId/lot-preview (FIFO consumption preview)
+- Backward compatibility notes (all lot fields nullable)
 
 **File 3: DATABASE-SCHEMA.md**
 Update with final schema including lot fields:
-- Table diagrams
+- Table diagrams (note: mes.assignment_material_reservations in mes schema)
 - Field descriptions
 - Index strategy
 - Trigger documentation
 
 **File 4: USER-GUIDE.md (Turkish)**
 Create user guide for lot tracking features:
-- Sipariş tesliminde lot bilgisi girme
-- Lot bazında stok görüntüleme
-- Üretimde lot tüketimi takibi
-- FIFO mantığı açıklaması
+- Sipariş tesliminde lot bilgisi girme (Order Delivery modal)
+- Lot bazında stok görüntüleme (Material Detail modal → Lot Envanteri sekmesi)
+- Üretimde lot tüketimi takibi (Worker Portal lot preview)
+- FIFO mantığı açıklaması (en eski lot önce tüketilir)
 - Screenshots (placeholders)
 
 Include version number: Phase 1+2 (v1.0)
@@ -1408,11 +1431,11 @@ After completing all 15 steps, verify:
 - [ ] lotConsumption.js created
 - [ ] Order delivery endpoint updated
 - [ ] Production start endpoint updated
-- [ ] 2 new API endpoints (lot inventory, lot preview)
+- [ ] 2 new API endpoints (GET /api/materials/:code/lots, GET /api/mes/assignments/:assignmentId/lot-preview)
 
 ### Frontend
 - [ ] Order delivery form updated
-- [ ] Lot inventory view created
+- [ ] Lot inventory section integrated into Material Detail modal
 - [ ] Worker portal lot preview added
 - [ ] All UI shows lot data
 

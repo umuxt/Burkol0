@@ -6,12 +6,12 @@
  */
 
 export function up(knex) {
-  return knex.schema
+  return knex.schema.withSchema('mes')
     // Material Requirements - Aggregated material needs per plan
-    .createTable('mes_plan_material_requirements', (table) => {
+    .createTable('plan_material_requirements', (table) => {
       table.increments('id').primary();
       table.string('plan_id', 100).notNullable()
-        .references('id').inTable('mes_production_plans').onDelete('CASCADE');
+        .references('id').inTable('mes.production_plans').onDelete('CASCADE');
       
       table.string('material_code', 100).notNullable();
       table.string('material_name', 255);
@@ -27,10 +27,10 @@ export function up(knex) {
     })
     
     // WIP Outputs - Materials produced by this plan
-    .createTable('mes_plan_wip_outputs', (table) => {
+    .createTable('plan_wip_outputs', (table) => {
       table.increments('id').primary();
       table.string('plan_id', 100).notNullable()
-        .references('id').inTable('mes_production_plans').onDelete('CASCADE');
+        .references('id').inTable('mes.production_plans').onDelete('CASCADE');
       
       table.string('wip_code', 100).notNullable();
       table.string('wip_name', 255);
@@ -47,7 +47,7 @@ export function up(knex) {
       // Foreign key to node
       table.foreign('source_node_id')
         .references('id')
-        .inTable('mes_production_plan_nodes')
+        .inTable('mes.production_plan_nodes')
         .onDelete('SET NULL');
     });
   
@@ -56,7 +56,7 @@ export function up(knex) {
 }
 
 export function down(knex) {
-  return knex.schema
-    .dropTableIfExists('mes_plan_wip_outputs')
-    .dropTableIfExists('mes_plan_material_requirements');
+  return knex.schema.withSchema('mes')
+    .dropTableIfExists('plan_wip_outputs')
+    .dropTableIfExists('plan_material_requirements');
 }

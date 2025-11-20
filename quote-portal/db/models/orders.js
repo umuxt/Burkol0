@@ -169,6 +169,11 @@ const Orders = {
    * @returns {Object} Updated order
    */
   async updateOrder(orderId, updates) {
+    // VALIDATION: Prevent order-level "Teslim Edildi" - must use item-level delivery for lot tracking
+    if (updates.order_status === 'Teslim Edildi') {
+      throw new Error('Order-level "Teslim Edildi" not allowed. Use item-level delivery for lot tracking.');
+    }
+    
     const allowedFields = [
       'supplier_id',
       'supplier_name',

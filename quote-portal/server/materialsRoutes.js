@@ -1,6 +1,7 @@
 // Materials Routes - PostgreSQL Integration
 import Materials from '../db/models/materials.js'
 import StockMovements from '../db/models/stockMovements.js'
+import db from '../db/connection.js'
 import { requireAuth } from './auth.js'
 
 // ================================
@@ -365,6 +366,73 @@ async function getMaterialsBySupplier(req, res) {
   }
 }
 
+// ================================
+// LOT TRACKING
+// ================================
+
+/**
+ * GET /api/materials/:code/lots - Get lot inventory for a specific material
+ * Returns all active lots with FIFO order, balance, and expiry status
+ */
+async function getMaterialLots(req, res) {
+  try {
+    const { code } = req.params
+    
+    console.log('📦 Fetching lots for material:', code)
+
+    // Check if lot_number column exists in stock_movements table
+    // If not, return empty array (lot tracking not yet implemented)
+    const columnCheckQuery = `
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_schema = 'materials' 
+        AND table_name = 'stock_movements' 
+        AND column_name = 'lot_number'
+    `
+    
+    const columnCheck = await db.raw(columnCheckQuery)
+    
+    if (columnCheck.rows.length === 0) {
+      console.log('⚠️ Lot tracking not yet implemented (lot_number column does not exist)')
+      return res.json({ lots: [] })
+    }
+
+    // Query stock_movements for lot-level inventory
+    // Aggregate by lot_number, calculate balance, determine status
+    const query = `
+      SELECT 
+        sm.lot_number,
+        sm.lot_date,
+        sm.supplier_lot_code,
+        sm.manufacturing_date,
+        sm.expiry_date,
+        SUM(CASE WHEN sm.type = 'in' THEN sm.quantity ELSE -sm.quantity END) as lot_balance,
+        CASE
+          WHEN sm.expiry_date < CURRENT_DATE THEN 'expired'
+          WHEN sm.expiry_date < CURRENT_DATE + INTERVAL '30 days' THEN 'expiring_soon'
+          ELSE 'active'
+        END as lot_status,
+        ROW_NUMBER() OVER (PARTITION BY sm.material_code ORDER BY sm.lot_date) as fifo_order
+      FROM materials.stock_movements sm
+      WHERE sm.material_code = ? 
+        AND sm.lot_number IS NOT NULL
+      GROUP BY sm.lot_number, sm.lot_date, sm.supplier_lot_code, sm.manufacturing_date, sm.expiry_date, sm.material_code
+      HAVING SUM(CASE WHEN sm.type = 'in' THEN sm.quantity ELSE -sm.quantity END) > 0
+      ORDER BY sm.lot_date ASC
+    `
+
+    const result = await db.raw(query, [code])
+    const lots = result.rows || []
+
+    console.log(`✅ Found ${lots.length} active lots for material ${code}`)
+
+    res.json({ lots })
+  } catch (error) {
+    console.error('❌ Error getting material lots:', error)
+    res.status(500).json({ error: 'Failed to get material lots' })
+  }
+}
+
 /**
  * GET /api/categories - Get all material categories
  */
@@ -402,6 +470,9 @@ export function setupMaterialsRoutes(app) {
   // Query operations
   app.get('/api/materials/category/:category', requireAuth, getMaterialsByCategory)
   app.get('/api/materials/supplier/:supplierId', requireAuth, getMaterialsBySupplier)
+
+  // Lot inventory
+  app.get('/api/materials/:code/lots', requireAuth, getMaterialLots)
 
   // TODO: Stock movements tracking (future enhancement)
   // app.get('/api/stockMovements', requireAuth, getStockMovements)

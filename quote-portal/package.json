@@ -16,6 +16,7 @@
     "test:mes": "node --test tests/mesRoutes.test.js tests/mesIntegration.test.js",
     "test:mes:unit": "node --test tests/mesRoutes.test.js",
     "test:mes:integration": "node --test tests/mesIntegration.test.js",
+    "test:lot": "node --test tests/lot-tracking-test.js",
     "test:smoke": "node scripts/firestore-smoke-test.js",
     "test:watch": "node test-automation.js --watch",
     "test:safari": "node safari-test.js",
