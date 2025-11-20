@@ -1800,566 +1800,21 @@ router.post('/production-plans/next-id', withAuth, async (req, res) => {
   }, res);
 });
 
-// GET /api/mes/production-plans - Get production plans (exclude templates)
-router.get('/production-plans', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore();
-    // Fetch all then filter out templates to avoid relying on composite indexes
-    const snapshot = await db.collection('mes-production-plans').orderBy('createdAt', 'desc').get();
-    const all = snapshot.docs.map(doc => {
-      const plan = { id: doc.id, ...doc.data() };
-      return plan;
-    });
-    const productionPlans = all.filter(p => (p.status || p.type || '').toString().toLowerCase() !== 'template');
-    return { productionPlans };
-  }, res);
-});
+// ============================================================================
+// FIREBASE LEGACY ROUTES - DEPRECATED (Keeping for reference during migration)
+// ============================================================================
+// OLD Firebase GET /production-plans - MIGRATED TO SQL (see line ~9812)
+// Removed: Use new SQL endpoint below
 
-// POST /api/mes/production-plans - Create production plan
-router.post('/production-plans', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const productionPlan = req.body;
-    const { assignments } = productionPlan; // Extract assignments from plan data
-    
-    // Validate plan schema (controlled by feature flag)
-    if (featureFlags.ENABLE_VALIDATION) {
-      if (!validatePlan(productionPlan)) {
-        metrics.increment('validation_error_count');
-        console.error('❌ Plan validation failed:', validatePlan.errors);
-        // Return error and stop execution (prevents circular JSON error)
-        throw Object.assign(
-          new Error('Invalid plan schema'),
-          { status: 400, code: 'validation_error', validationErrors: validatePlan.errors }
-        );
-      }
-    } else {
-      console.warn('⚠️ Validation disabled by feature flag - accepting plan without validation');
-    }
-    
-    if (!productionPlan.id) {
-      throw new Error('Production plan ID is required');
-    }
+// OLD Firebase POST /production-plans - MIGRATED TO SQL (see line ~9873)
+// Removed: Use new SQL endpoint below
 
-    // ========================================================================
-    // VALIDATE PRODUCTION PLAN NODES (CANONICAL SCHEMA)
-    // ========================================================================
-    
-    // Debug: Log first node to see what's received
-    if (productionPlan.nodes && productionPlan.nodes.length > 0) {
-      console.log('🔍 Backend received node 0:', JSON.stringify(productionPlan.nodes[0], null, 2));
-    }
-    
-    const validation = validateProductionPlanNodes(
-      productionPlan.nodes || []
-    );
-    
-    if (!validation.valid) {
-      const error = new Error('Production plan validation failed');
-      error.status = 400;
-      error.code = 'validation_error';
-      error.validationErrors = validation.errors;
-      error.message = `Validation failed: ${validation.errors.join('; ')}`;
-      throw error;
-    }
+// OLD Firebase PUT /production-plans/:id - MIGRATED TO SQL (see line ~9999)
+// Removed: Use new SQL endpoint below
+// (Large Firebase update logic with material consumption removed)
 
-    const db = getFirestore();
-    const now = new Date();
-    const parts = formatDateParts(now);
-    const actorEmail = (req.user && req.user.email) || null;
-    const actorName = (req.user && (req.user.name || req.user.userName)) || null;
-    const createdBy = actorEmail || actorName || null;
-
-    // ========================================================================
-    // ENRICH NODES WITH ESTIMATED START/END TIMES (CANONICAL)
-    // ========================================================================
-    // Add estimated timing information to nodes based on:
-    // 1. Node nominalTime and efficiency → effectiveTime
-    // 2. Predecessor dependencies
-    // 3. Worker schedule constraints (if available)
-    
-    const enrichedNodes = await enrichNodesWithEstimatedTimes(
-      productionPlan.nodes || [],
-      productionPlan,
-      db
-    );
-    
-    // Apply output code suffixes for finished products ('F' suffix)
-    const nodesWithSuffixes = applyOutputCodeSuffixes(enrichedNodes);
-    
-    // Remove assignments from plan data to avoid storing in plan document
-    const planData = { ...productionPlan };
-    planData.nodes = nodesWithSuffixes;
-    delete planData.assignments;
-    
-    // Handle 'released' status - add release metadata
-    if (productionPlan.status === 'released') {
-      planData.releasedAt = now;
-      planData.releasedBy = actorEmail || createdBy;
-      planData.releasedByName = actorName || createdBy || null;
-    }
-
-    // Check if status is 'production' and autoAssign is true
-    const shouldAutoAssign = productionPlan.status === 'production' && productionPlan.autoAssign === true && assignments && Array.isArray(assignments);
-
-    if (shouldAutoAssign) {
-      // Use transaction for consistency
-      const result = await db.runTransaction(async (transaction) => {
-        // Create the plan
-        const planRef = db.collection('mes-production-plans').doc(productionPlan.id);
-        transaction.set(planRef, {
-          ...planData,
-          createdAt: now,
-          updatedAt: now,
-          createdDate: productionPlan.createdDate || parts.date,
-          createdTime: productionPlan.createdTime || parts.time,
-          updatedDate: parts.date,
-          updatedTime: parts.time,
-          createdBy: actorEmail || createdBy,
-          createdByName: actorName || createdBy || null,
-          updatedBy: actorEmail || createdBy,
-          updatedByName: actorName || createdBy || null
-        }, { merge: true });
-
-        // Generate assignment IDs (simple sequential numbering within plan)
-        const workOrderCode = productionPlan.orderCode || productionPlan.id;
-        const assignmentIds = generateWorkPackageIds(workOrderCode, assignments.length);
-
-        // Create assignments with work order-based IDs
-        assignments.forEach((assignment, index) => {
-          const assignmentId = assignmentIds[index];
-          const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
-          
-          transaction.set(docRef, {
-            id: assignmentId,
-            planId: productionPlan.id,
-            workOrderCode: workOrderCode,
-            nodeId: assignment.nodeId || null,
-            workerId: assignment.workerId || null,
-            stationId: assignment.stationId || null,
-            subStationCode: assignment.subStationCode || null,
-            start: assignment.start ? new Date(assignment.start) : null,
-            end: assignment.end ? new Date(assignment.end) : null,
-            status: assignment.status || 'pending',
-            createdAt: now,
-            updatedAt: now,
-            createdBy: actorEmail || 'system'
-          });
-        })
-
-        return { success: true, id: productionPlan.id, assignmentsCreated: assignments.length };
-      });
-
-      return result;
-    } else {
-      // Normal creation without assignments
-      await db.collection('mes-production-plans').doc(productionPlan.id).set({
-        ...planData,
-        createdAt: now,
-        updatedAt: now,
-        createdDate: productionPlan.createdDate || parts.date,
-        createdTime: productionPlan.createdTime || parts.time,
-        updatedDate: parts.date,
-        updatedTime: parts.time,
-        createdBy: actorEmail || createdBy,
-        createdByName: actorName || createdBy || null,
-        updatedBy: actorEmail || createdBy,
-        updatedByName: actorName || createdBy || null
-      }, { merge: true });
-      
-      // If status is 'released' and orderCode exists, update approved quote production state
-      if (productionPlan.status === 'released' && productionPlan.orderCode) {
-        // Async update - don't block response
-        updateApprovedQuoteProductionState(
-          productionPlan.orderCode, 
-          'Üretiliyor',
-          actorEmail || 'system'
-        ).catch(err => {
-          console.error('Failed to update approved quote state on plan release:', err);
-        });
-      }
-
-      return { success: true, id: productionPlan.id };
-    }
-  }, res);
-});
-
-// PUT /api/mes/production-plans/:id - Update production plan
-router.put('/production-plans/:id', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id } = req.params;
-    const updates = req.body;
-    const { assignments } = updates; // Extract assignments from updates to avoid storing in plan doc
-
-    // ========================================================================
-    // VALIDATE PRODUCTION PLAN SCHEMA
-    // ========================================================================
-    // Validate plan schema if full plan object is provided (controlled by feature flag)
-    if (updates.nodes && updates.id) {
-      if (featureFlags.ENABLE_VALIDATION) {
-        if (!validatePlan(updates)) {
-          metrics.increment('validation_error_count');
-          console.error('❌ Plan update validation failed:', validatePlan.errors);
-          return res.status(400).json({ 
-            error: 'Invalid plan schema', 
-            details: validatePlan.errors 
-          });
-        }
-      } else {
-        console.warn('⚠️ Validation disabled by feature flag - accepting plan update without validation');
-      }
-      
-    }
-
-    // ========================================================================
-    // VALIDATE PRODUCTION PLAN NODES (CANONICAL SCHEMA)
-    // ========================================================================
-    if (updates.nodes) {
-      
-      const validation = validateProductionPlanNodes(
-        updates.nodes || []
-      );
-      
-      if (!validation.valid) {
-        const error = new Error('Production plan validation failed');
-        error.status = 400;
-        error.code = 'validation_error';
-        error.validationErrors = validation.errors;
-        error.message = `Validation failed: ${validation.errors.join('; ')}`;
-        throw error;
-      }
-    }
-
-    const db = getFirestore();
-    const updatedByEmail = (req.user && req.user.email) || null;
-    const updatedByName = (req.user && (req.user.name || req.user.userName)) || null;
-    const now = new Date();
-    const parts = formatDateParts(now);
-
-    // Remove assignments from updates to avoid storing in plan document
-    const planUpdates = { ...updates };
-    delete planUpdates.assignments;
-    
-    // Apply output code suffixes for finished products if nodes are being updated
-    if (planUpdates.nodes && Array.isArray(planUpdates.nodes)) {
-      planUpdates.nodes = applyOutputCodeSuffixes(planUpdates.nodes);
-    }
-    
-    // Check if status is transitioning to 'released' - add release metadata
-    if (updates.status === 'released') {
-      // Get current plan to check if it wasn't already released
-      const currentPlanRef = db.collection('mes-production-plans').doc(id);
-      const currentPlanSnap = await currentPlanRef.get();
-      const currentPlan = currentPlanSnap.exists ? currentPlanSnap.data() : null;
-      
-      // Only set releasedAt/releasedBy if not already set (first release)
-      if (!currentPlan || !currentPlan.releasedAt) {
-        planUpdates.releasedAt = now;
-        planUpdates.releasedBy = updatedByEmail || 'system';
-        planUpdates.releasedByName = updatedByName || null;
-      }
-    }
-
-    // Check if status is changing to 'production' and autoAssign is true
-    const shouldAutoAssign = updates.status === 'production' && updates.autoAssign === true && assignments && Array.isArray(assignments);
-
-    if (shouldAutoAssign) {
-      // Use transaction to ensure consistency between plan update and assignments
-      const result = await db.runTransaction(async (transaction) => {
-        // Update the plan
-        const planRef = db.collection('mes-production-plans').doc(id);
-        transaction.set(planRef, {
-          ...planUpdates,
-          updatedAt: now,
-          updatedDate: parts.date,
-          updatedTime: parts.time,
-          ...(updatedByEmail ? { updatedBy: updatedByEmail } : {}),
-          ...(updatedByName ? { updatedByName } : {})
-        }, { merge: true });
-
-        // Delete existing assignments for this plan
-        const existingQuery = db.collection('mes-worker-assignments').where('planId', '==', id);
-        const existingSnapshot = await transaction.get(existingQuery);
-        
-        existingSnapshot.docs.forEach(doc => {
-          transaction.delete(doc.ref);
-        });
-
-        // Generate assignment IDs (simple sequential numbering within plan)
-        const workOrderCode = updates.orderCode || planUpdates.orderCode || id;
-        const assignmentIds = generateWorkPackageIds(workOrderCode, assignments.length);
-
-        // Create new assignments with work order-based IDs
-        assignments.forEach((assignment, index) => {
-          const assignmentId = assignmentIds[index];
-          const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
-          
-          transaction.set(docRef, {
-            id: assignmentId,
-            planId: id,
-            workOrderCode: workOrderCode,
-            nodeId: assignment.nodeId || null,
-            workerId: assignment.workerId || null,
-            stationId: assignment.stationId || null,
-            subStationCode: assignment.subStationCode || null,
-            start: assignment.start ? new Date(assignment.start) : null,
-            end: assignment.end ? new Date(assignment.end) : null,
-            status: assignment.status || 'pending',
-            createdAt: now,
-            updatedAt: now,
-            createdBy: updatedByEmail || 'system'
-          });
-        })
-
-        return { success: true, id, assignmentsCreated: assignments.length };
-      });
-
-      return result;
-    } else {
-      // Normal update without assignments
-      await db.collection('mes-production-plans').doc(id).set({
-        ...planUpdates,
-        updatedAt: now,
-        updatedDate: parts.date,
-        updatedTime: parts.time,
-        ...(updatedByEmail ? { updatedBy: updatedByEmail } : {}),
-        ...(updatedByName ? { updatedByName } : {})
-      }, { merge: true });
-      
-      // If status is transitioning to 'released' and orderCode exists, update approved quote
-      if (updates.status === 'released' && updates.orderCode) {
-        // Async update - don't block response
-        updateApprovedQuoteProductionState(
-          updates.orderCode, 
-          'Üretiliyor',
-          updatedByEmail || 'system'
-        ).catch(err => {
-          console.error('Failed to update approved quote state on plan release:', err);
-        });
-      }
-      
-      // ========================================================================
-      // AUTOMATIC MATERIAL CONSUMPTION & WIP PRODUCTION ON PLAN RELEASE
-      // ========================================================================
-      // When a production plan transitions to 'released' status, the system
-      // automatically processes material movements based on the materialSummary
-      // stored in the plan document.
-      //
-      // MATERIAL SUMMARY STRUCTURE:
-      // - materialSummary.materialInputs: All input materials (raw + derived WIP)
-      //   Each item: { materialCode, name, requiredQuantity, unit, isDerived }
-      // - materialSummary.wipOutputs: All WIP materials produced by plan nodes
-      //   Each item: { code, name, quantity, unit, nodeId, operationId }
-      //
-      // CONSUMPTION FLOW:
-      // 1. Raw Materials: Consumed from stock (negative delta)
-      //    - Base raw materials (steel, plastic, etc.)
-      //    - Derived WIP materials (semi-finished products from previous operations)
-      //    - WIP consumption is tracked in material.consumedBy array
-      //
-      // 2. WIP Production: Added to stock (positive delta)
-      //    - Creates WIP material if doesn't exist
-      //    - Sets metadata: type='wip', category='WIP', consumedBy=[]
-      //    - Links to source plan/node/operation
-      //
-      // ERROR HANDLING:
-      // - Continues on individual material errors (continueOnError: true)
-      // - Insufficient stock errors are logged but don't fail the release
-      // - Results stored in plan.stockMovements for audit trail
-      // ========================================================================
-      
-      // If status is transitioning to 'released', process material consumption and WIP production
-      if (updates.status === 'released') {
-        try {
-          // Get the full plan data to access materialSummary
-          const planRef = db.collection('mes-production-plans').doc(id);
-          const planSnap = await planRef.get();
-          const planData = planSnap.exists ? planSnap.data() : null;
-          
-          if (planData && planData.materialSummary) {
-            console.log(`🏭 Processing material movements for plan ${id}...`);
-            
-            const materialSummary = planData.materialSummary;
-            const stockResults = { materialInputs: null, wipOutputs: null };
-            
-            // 1. Consume material inputs (negative delta)
-            // NOTE: This includes both base raw materials and derived WIP materials
-            // consumed as inputs. WIP materials will be tracked in their consumedBy array.
-            if (Array.isArray(materialSummary.materialInputs) && materialSummary.materialInputs.length > 0) {
-              const consumptionList = materialSummary.materialInputs.map(mat => ({
-                code: mat.materialCode || mat.code,
-                qty: mat.requiredQuantity || mat.qty || 0,
-                reason: `production_plan_${id}`,
-                nodeId: null // Could be enhanced to track per-node consumption
-              }));
-              
-              stockResults.materialInputs = await consumeMaterials(consumptionList, {
-                userId: updatedByEmail || 'system',
-                orderId: planData.orderCode || id,
-                planId: id, // Pass planId for WIP consumption tracking
-                continueOnError: true // Continue even if some materials fail
-              });
-              
-              console.log(
-                `✓ Material inputs: ${stockResults.materialInputs.consumed.length} consumed, ` +
-                `${stockResults.materialInputs.failed.length} failed`
-              );
-              
-              // Log WIP consumption separately for visibility
-              const wipConsumed = stockResults.materialInputs.consumed.filter(m => m.isWIP);
-              if (wipConsumed.length > 0) {
-                console.log(`  └─ WIP materials consumed: ${wipConsumed.map(w => w.material).join(', ')}`);
-              }
-            }
-            
-            // 2. Produce WIP outputs (positive delta)
-            if (Array.isArray(materialSummary.wipOutputs) && materialSummary.wipOutputs.length > 0) {
-              const wipResults = { produced: [], failed: [] };
-              
-              for (const wip of materialSummary.wipOutputs) {
-                const wipCode = wip.code || wip.id;
-                const wipQty = parseFloat(wip.quantity || 0);
-                
-                if (!wipCode || wipQty <= 0) continue;
-                
-                try {
-                  // Try to produce the WIP material
-                  const result = await adjustMaterialStock(wipCode, wipQty, {
-                    reason: `wip_production_plan_${id}`,
-                    userId: updatedByEmail || 'system',
-                    orderId: planData.orderCode || id
-                  });
-                  
-                  wipResults.produced.push({
-                    material: result.materialCode,
-                    name: result.materialName,
-                    qty: wipQty,
-                    previousStock: result.previousStock,
-                    newStock: result.newStock
-                  });
-                  
-                } catch (error) {
-                  // If WIP doesn't exist, create it
-                  if (error.message.includes('not found')) {
-                    try {
-                      console.log(`📦 Creating new semi-finished material: ${wipCode}`);
-                      
-                      const newWipRef = db.collection('materials').doc(wipCode);
-                      await newWipRef.set({
-                        code: wipCode,
-                        name: wip.name || wipCode,
-                        type: 'semi_finished', // Semi-finished product type
-                        category: 'SEMI_FINISHED',
-                        stock: wipQty,
-                        unit: wip.unit || 'pcs',
-                        status: 'Aktif',
-                        produced: true,
-                        createdAt: now,
-                        updatedAt: now,
-                        createdBy: updatedByEmail || 'system',
-                        source: 'production_plan',
-                        sourcePlanId: id,
-                        sourceNodeId: wip.nodeId || null,
-                        sourceOperationId: wip.operationId || null,
-                        consumedBy: [], // Initialize empty array for consumption tracking
-                        productionHistory: [] // Initialize empty array for production history
-                      });
-                      
-                      wipResults.produced.push({
-                        material: wipCode,
-                        name: wip.name || wipCode,
-                        qty: wipQty,
-                        previousStock: 0,
-                        newStock: wipQty,
-                        created: true
-                      });
-                      
-                    } catch (createError) {
-                      console.error(`Failed to create WIP ${wipCode}:`, createError.message);
-                      wipResults.failed.push({
-                        material: wipCode,
-                        qty: wipQty,
-                        error: createError.message
-                      });
-                    }
-                  } else {
-                    wipResults.failed.push({
-                      material: wipCode,
-                      qty: wipQty,
-                      error: error.message
-                    });
-                  }
-                }
-              }
-              
-              stockResults.wipOutputs = wipResults;
-              console.log(
-                `✓ WIP outputs: ${wipResults.produced.length} produced, ` +
-                `${wipResults.failed.length} failed`
-              );
-            }
-            
-            // Log summary
-            if (stockResults.materialInputs || stockResults.wipOutputs) {
-              console.log(`✅ Material movements completed for plan ${id}`);
-              
-              // Optionally store the stock movement results in the plan document for audit
-              await planRef.update({
-                stockMovements: {
-                  timestamp: now,
-                  materialInputs: stockResults.materialInputs,
-                  wipOutputs: stockResults.wipOutputs
-                }
-              });
-            }
-          }
-        } catch (stockError) {
-          // Log error but don't fail the plan release
-          console.error(`⚠️ Material movements failed for plan ${id}:`, stockError.message);
-          
-          // Store the error in the plan document
-          await db.collection('mes-production-plans').doc(id).update({
-            stockMovementError: {
-              timestamp: now,
-              error: stockError.message
-            }
-          });
-        }
-      }
-
-      return { success: true, id };
-    }
-  }, res);
-});
-
-// DELETE /api/mes/production-plans/:id - Delete production plan
-router.delete('/production-plans/:id', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id } = req.params;
-    const db = getFirestore();
-    const planRef = db.collection('mes-production-plans').doc(id);
-    
-    // Get plan data before deletion to check orderCode and status
-    const planSnap = await planRef.get();
-    const planData = planSnap.exists ? planSnap.data() : null;
-    
-    // Delete the plan
-    await planRef.delete();
-    
-    // Optional: Rollback approved quote state if plan was released
-    if (planData && planData.status === 'released' && planData.orderCode) {
-      // Async rollback - don't block response
-      updateApprovedQuoteProductionState(
-        planData.orderCode,
-        'Üretim Onayı Bekliyor',
-        req.user?.email || 'system'
-      ).catch(err => {
-        console.error('Failed to rollback approved quote state on plan deletion:', err);
-      });
-    }
-    
-    return { success: true, id };
-  }, res);
-});
+// OLD Firebase DELETE /production-plans/:id - MIGRATED TO SQL (see line ~10033)
+// Removed: Use new SQL endpoint below
 
 // GET /api/mes/production-plans/:id/tasks - Get task execution states with prerequisites
 router.get('/production-plans/:id/tasks', withAuth, async (req, res) => {
@@ -5397,7 +4852,11 @@ router.get('/substations/:id/details', withAuth, async (req, res) => {
  * - Runs auto-assignment engine for all nodes
  * - Creates worker assignments
  * - Updates plan and quote status
+ * 
+ * DEPRECATED: Firebase version - MIGRATED TO SQL (see line ~9536)
+ * Disabled to prevent conflict with new SQL endpoint
  */
+/* DISABLED - OLD FIREBASE LAUNCH
 router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
   const { planId } = req.params;
   const { workOrderCode } = req.body;
@@ -7004,12 +6463,10 @@ async function assignNodeResources(
 // ============================================================================
 
 /**
- * POST /api/mes/production-plans/:planId/pause
- * Pause all assignments for a production plan
- * - Sets all assignment statuses to 'paused'
- * - Preserves actualStart for in-progress tasks
- * - Clears worker.currentTask and station.currentOperation
+ * OLD Firebase POST /production-plans/:planId/pause - MIGRATED TO SQL (see line ~10249)
+ * Removed: Use new SQL endpoint below
  */
+/* REMOVED - OLD FIREBASE ROUTE
 router.post('/production-plans/:planId/pause', withAuth, async (req, res) => {
   const { planId } = req.params;
   
@@ -7172,12 +6629,10 @@ router.post('/production-plans/:planId/pause', withAuth, async (req, res) => {
 });
 
 /**
- * POST /api/mes/production-plans/:planId/resume
- * Resume all paused assignments for a production plan
- * - Sets paused assignments back to 'ready' or 'pending'
- * - If actualStart exists, set to 'in-progress'
- * - Does NOT automatically assign to workers/stations (worker portal handles that)
+ * OLD Firebase POST /production-plans/:planId/resume - MIGRATED TO SQL (see line ~10281)
+ * Removed: Use new SQL endpoint below
  */
+/* REMOVED - OLD FIREBASE ROUTE
 router.post('/production-plans/:planId/resume', withAuth, async (req, res) => {
   const { planId } = req.params;
   
@@ -9708,6 +9163,1746 @@ router.post('/entity-relations/batch', withAuth, async (req, res) => {
     res.status(500).json({
       error: 'Failed to batch update relations',
       details: err.message
+    });
+  }
+});
+
+// ============================================================================
+// PRODUCTION PLANS API - STEP 7
+// ============================================================================
+// Lifecycle: Design → Launch → Execute
+// - Design: Create plan with nodes (draft status)
+// - Launch: Assign workers and substations (active status)
+// - Execute: Workers complete tasks
+// ============================================================================
+
+/**
+ * Helper: Get plan with all nodes and related data
+ */
+async function getPlanWithNodes(planId) {
+  const plan = await db('mes.production_plans')
+    .where('id', planId)
+    .first();
+  
+  if (!plan) return null;
+  
+  // Get nodes with aggregated materials and stations
+  const nodes = await db('mes.production_plan_nodes as n')
+    .select('n.*')
+    .where('n.plan_id', planId)
+    .orderBy('n.sequence_order');
+  
+  // For each node, fetch materials and stations separately
+  for (const node of nodes) {
+    // Get material inputs
+    const materialInputs = await db('mes.node_material_inputs')
+      .where('node_id', node.id)
+      .select('material_code as materialCode', 'required_quantity as requiredQuantity', 
+              'unit_ratio as unitRatio', 'is_derived as isDerived');
+    
+    node.material_inputs = materialInputs;
+    
+    // Get assigned stations
+    const stations = await db('mes.node_stations')
+      .where('node_id', node.id)
+      .select('station_id as stationId', 'priority')
+      .orderBy('priority');
+    
+    node.assigned_stations = stations;
+  }
+  
+  return { ...plan, nodes };
+}
+
+/**
+ * Helper: Find worker with required skills for a station
+ */
+async function findAvailableWorkerWithSkills(trx, requiredSkills, stationId) {
+  if (!requiredSkills || requiredSkills.length === 0) {
+    // No skills required, get any available worker
+    return await trx('mes.workers')
+      .where('is_active', true)
+      .first();
+  }
+  
+  // Find workers with matching skills
+  const workers = await trx('mes.workers')
+    .where('is_active', true)
+    .whereRaw('skills::jsonb ?| ?', [requiredSkills]);
+  
+  if (workers.length === 0) return null;
+  
+  // Prefer workers already assigned to this station
+  const stationWorkers = await trx('mes_entity_relations')
+    .where('source_type', 'worker')
+    .where('relation_type', 'station')
+    .where('target_id', stationId)
+    .pluck('source_id');
+  
+  const preferredWorker = workers.find(w => 
+    stationWorkers.includes(w.id)
+  );
+  
+  return preferredWorker || workers[0] || null;
+}
+
+/**
+ * GET /api/mes/production-plans
+ * List all production plans with summary info
+ */
+router.get('/production-plans', withAuth, async (req, res) => {
+  try {
+    const plans = await db('mes.production_plans as p')
+      .select(
+        'p.id',
+        'p.work_order_code',
+        'p.quote_id',
+        'p.status',
+        'p.created_at',
+        'p.launched_at',
+        db.raw('count(n.id)::integer as node_count')
+      )
+      .leftJoin('mes.production_plan_nodes as n', 'n.plan_id', 'p.id')
+      .groupBy('p.id')
+      .orderBy('p.created_at', 'desc');
+    
+    res.json(plans);
+  } catch (error) {
+    console.error('❌ Error fetching production plans:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch production plans',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/mes/production-plans
+ * Create production plan with nodes, materials, and stations
+ * 
+ * Body:
+ * {
+ *   workOrderCode: "WO-001",
+ *   quoteId: "Q-2025-001",
+ *   nodes: [
+ *     {
+ *       name: "Kesim",
+ *       operationId: "OP-001",
+ *       outputCode: "WIP-Kesim-M12",
+ *       outputQty: 1000,
+ *       outputUnit: "adet",
+ *       nominalTime: 120,
+ *       efficiency: 0.85,
+ *       sequenceOrder: 1,
+ *       stationIds: ["ST-Kesim-001", "ST-Kesim-002"],
+ *       materialInputs: [
+ *         {
+ *           materialCode: "M-001",
+ *           requiredQuantity: 100,
+ *           unitRatio: 1.0,
+ *           isDerived: false
+ *         }
+ *       ]
+ *     }
+ *   ]
+ * }
+ */
+router.post('/production-plans', withAuth, async (req, res) => {
+  const { workOrderCode, quoteId, nodes } = req.body;
+  
+  // Validation
+  if (!workOrderCode || !quoteId || !nodes || !Array.isArray(nodes)) {
+    return res.status(400).json({ 
+      error: 'Missing required fields: workOrderCode, quoteId, nodes' 
+    });
+  }
+  
+  const trx = await db.transaction();
+  
+  try {
+    // 1. Generate plan ID
+    const [{ max_id }] = await trx('mes.production_plans')
+      .max('id as max_id');
+    const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
+    const planId = `PLAN-${nextNum.toString().padStart(3, '0')}`;
+    
+    console.log(`📋 Creating production plan: ${planId}`);
+    
+    // 2. Create plan header
+    await trx('mes.production_plans').insert({
+      id: planId,
+      work_order_code: workOrderCode,
+      quote_id: quoteId,
+      status: 'draft',
+      created_at: trx.fn.now()
+    });
+    
+    // 3. Insert nodes with materials and stations
+    for (const node of nodes) {
+      // 3a. Insert node
+      const [nodeRecord] = await trx('mes.production_plan_nodes')
+        .insert({
+          plan_id: planId,
+          node_id: `${planId}-node-${node.sequenceOrder}`,
+          work_order_code: workOrderCode, // Add work_order_code for easy access
+          name: node.name,
+          operation_id: node.operationId,
+          output_code: node.outputCode,
+          output_qty: node.outputQty,
+          output_unit: node.outputUnit,
+          nominal_time: node.nominalTime,
+          efficiency: node.efficiency || 0.85,
+          effective_time: Math.ceil(node.nominalTime / (node.efficiency || 0.85)),
+          sequence_order: node.sequenceOrder,
+          assignment_mode: 'auto',
+          created_at: trx.fn.now()
+        })
+        .returning('id');
+      
+      const nodeId = nodeRecord.id;
+      
+      // 3b. Insert material inputs
+      if (node.materialInputs && node.materialInputs.length > 0) {
+        const materialInputs = node.materialInputs.map(m => ({
+          node_id: nodeId,
+          material_code: m.materialCode,
+          required_quantity: m.requiredQuantity,
+          unit_ratio: m.unitRatio || 1.0,
+          is_derived: m.isDerived || false,
+          created_at: trx.fn.now()
+        }));
+        
+        await trx('mes.node_material_inputs').insert(materialInputs);
+      }
+      
+      // 3c. Insert station assignments
+      if (node.stationIds && node.stationIds.length > 0) {
+        const stationAssignments = node.stationIds.map((stId, idx) => ({
+          node_id: nodeId,
+          station_id: stId,
+          priority: idx + 1,
+          created_at: trx.fn.now()
+        }));
+        
+        await trx('mes.node_stations').insert(stationAssignments);
+      }
+    }
+    
+    await trx.commit();
+    
+    console.log(`✅ Production plan created: ${planId} with ${nodes.length} nodes`);
+    
+    // 4. Fetch and return complete plan
+    const plan = await getPlanWithNodes(planId);
+    res.json(plan);
+    
+  } catch (error) {
+    await trx.rollback();
+    console.error('❌ Error creating production plan:', error);
+    res.status(500).json({ 
+      error: 'Failed to create production plan',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/mes/production-plans/:id
+ * Get plan details with all nodes
+ */
+router.get('/production-plans/:id', withAuth, async (req, res) => {
+  try {
+    const plan = await getPlanWithNodes(req.params.id);
+    
+    if (!plan) {
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+    
+    res.json(plan);
+  } catch (error) {
+    console.error('❌ Error fetching plan:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch plan',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * PUT /api/mes/production-plans/:id
+ * Update plan header (not nodes)
+ * 
+ * Body: { workOrderCode?, quoteId?, status? }
+ */
+router.put('/production-plans/:id', withAuth, async (req, res) => {
+  const { id } = req.params;
+  const { workOrderCode, quoteId, status } = req.body;
+  
+  try {
+    const [updated] = await db('mes.production_plans')
+      .where('id', id)
+      .update({
+        work_order_code: workOrderCode,
+        quote_id: quoteId,
+        status,
+        updated_at: db.fn.now()
+      })
+      .returning('*');
+    
+    if (!updated) {
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+    
+    console.log(`✅ Updated production plan: ${id}`);
+    res.json(updated);
+  } catch (error) {
+    console.error('❌ Error updating plan:', error);
+    res.status(500).json({ 
+      error: 'Failed to update plan',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * DELETE /api/mes/production-plans/:id
+ * Delete plan and all related data (CASCADE)
+ */
+router.delete('/production-plans/:id', withAuth, async (req, res) => {
+  const trx = await db.transaction();
+  
+  try {
+    // Get node IDs first
+    const nodes = await trx('mes.production_plan_nodes')
+      .where('plan_id', req.params.id)
+      .select('id');
+    
+    const nodeIds = nodes.map(n => n.id);
+    
+    // Delete in correct order (FK constraints)
+    if (nodeIds.length > 0) {
+      await trx('mes.node_stations')
+        .whereIn('node_id', nodeIds)
+        .delete();
+      
+      await trx('mes.node_material_inputs')
+        .whereIn('node_id', nodeIds)
+        .delete();
+    }
+    
+    await trx('mes.production_plan_nodes')
+      .where('plan_id', req.params.id)
+      .delete();
+    
+    const deleted = await trx('mes.production_plans')
+      .where('id', req.params.id)
+      .delete();
+    
+    if (!deleted) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+    
+    await trx.commit();
+    
+    console.log(`✅ Deleted production plan: ${req.params.id}`);
+    res.json({ success: true, id: req.params.id });
+    
+  } catch (error) {
+    await trx.rollback();
+    console.error('❌ Error deleting plan:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete plan',
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// PHASE 2: NODE MANAGEMENT ENDPOINTS
+// ============================================================================
+
+/**
+ * POST /api/mes/production-plans/:planId/nodes
+ * Add new node to existing plan
+ */
+router.post('/production-plans/:planId/nodes', withAuth, async (req, res) => {
+  const { planId } = req.params;
+  const { name, operationId, outputCode, outputQty, outputUnit, nominalTime, efficiency, sequenceOrder, stationIds, materialInputs } = req.body;
+  
+  const trx = await db.transaction();
+  
+  try {
+    // Verify plan exists and is draft
+    const plan = await trx('mes.production_plans')
+      .where('id', planId)
+      .where('status', 'draft')
+      .first();
+    
+    if (!plan) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Plan not found or not in draft status' });
+    }
+    
+    // Insert node
+    const [nodeRecord] = await trx('mes.production_plan_nodes')
+      .insert({
+        plan_id: planId,
+        node_id: `${planId}-node-${sequenceOrder}`,
+        work_order_code: plan.work_order_code,
+        name,
+        operation_id: operationId,
+        output_code: outputCode,
+        output_qty: outputQty,
+        output_unit: outputUnit,
+        nominal_time: nominalTime,
+        efficiency: efficiency || 1.0,
+        effective_time: Math.ceil(nominalTime / (efficiency || 1.0)),
+        sequence_order: sequenceOrder,
+        assignment_mode: 'auto',
+        created_at: trx.fn.now()
+      })
+      .returning('*');
+    
+    // Insert material inputs
+    if (materialInputs && materialInputs.length > 0) {
+      const materials = materialInputs.map(m => ({
+        node_id: nodeRecord.id,
+        material_code: m.materialCode,
+        required_quantity: m.requiredQuantity,
+        unit_ratio: m.unitRatio || 1.0,
+        is_derived: m.isDerived || false,
+        created_at: trx.fn.now()
+      }));
+      await trx('mes.node_material_inputs').insert(materials);
+    }
+    
+    // Insert station assignments
+    if (stationIds && stationIds.length > 0) {
+      const stations = stationIds.map((stId, idx) => ({
+        node_id: nodeRecord.id,
+        station_id: stId,
+        priority: idx + 1,
+        created_at: trx.fn.now()
+      }));
+      await trx('mes.node_stations').insert(stations);
+    }
+    
+    await trx.commit();
+    
+    console.log(`✅ Node added to plan ${planId}: ${name}`);
+    res.json(nodeRecord);
+    
+  } catch (error) {
+    await trx.rollback();
+    console.error('❌ Error adding node:', error);
+    res.status(500).json({ error: 'Failed to add node', details: error.message });
+  }
+});
+
+/**
+ * PUT /api/mes/production-plans/:planId/nodes/:nodeId
+ * Update existing node
+ */
+router.put('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res) => {
+  const { planId, nodeId } = req.params;
+  const { name, nominalTime, efficiency, outputQty, stationIds, materialInputs } = req.body;
+  
+  const trx = await db.transaction();
+  
+  try {
+    // Verify plan is draft
+    const plan = await trx('mes.production_plans')
+      .where('id', planId)
+      .where('status', 'draft')
+      .first();
+    
+    if (!plan) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Plan not found or not in draft status' });
+    }
+    
+    // Update node
+    const updateData = {
+      updated_at: trx.fn.now()
+    };
+    
+    if (name) updateData.name = name;
+    if (nominalTime) {
+      updateData.nominal_time = nominalTime;
+      updateData.effective_time = Math.ceil(nominalTime / (efficiency || 1.0));
+    }
+    if (efficiency) {
+      updateData.efficiency = efficiency;
+      updateData.effective_time = Math.ceil(updateData.nominal_time / efficiency);
+    }
+    if (outputQty) updateData.output_qty = outputQty;
+    
+    const [updated] = await trx('mes.production_plan_nodes')
+      .where('id', nodeId)
+      .where('plan_id', planId)
+      .update(updateData)
+      .returning('*');
+    
+    if (!updated) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    
+    // Update stations if provided
+    if (stationIds) {
+      await trx('mes.node_stations').where('node_id', nodeId).delete();
+      
+      if (stationIds.length > 0) {
+        const stations = stationIds.map((stId, idx) => ({
+          node_id: nodeId,
+          station_id: stId,
+          priority: idx + 1,
+          created_at: trx.fn.now()
+        }));
+        await trx('mes.node_stations').insert(stations);
+      }
+    }
+    
+    // Update materials if provided
+    if (materialInputs) {
+      await trx('mes.node_material_inputs').where('node_id', nodeId).delete();
+      
+      if (materialInputs.length > 0) {
+        const materials = materialInputs.map(m => ({
+          node_id: nodeId,
+          material_code: m.materialCode,
+          required_quantity: m.requiredQuantity,
+          unit_ratio: m.unitRatio || 1.0,
+          is_derived: m.isDerived || false,
+          created_at: trx.fn.now()
+        }));
+        await trx('mes.node_material_inputs').insert(materials);
+      }
+    }
+    
+    await trx.commit();
+    
+    console.log(`✅ Node updated: ${updated.name}`);
+    res.json(updated);
+    
+  } catch (error) {
+    await trx.rollback();
+    console.error('❌ Error updating node:', error);
+    res.status(500).json({ error: 'Failed to update node', details: error.message });
+  }
+});
+
+/**
+ * DELETE /api/mes/production-plans/:planId/nodes/:nodeId
+ * Delete node from plan
+ */
+router.delete('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res) => {
+  const { planId, nodeId } = req.params;
+  
+  const trx = await db.transaction();
+  
+  try {
+    // Verify plan is draft
+    const plan = await trx('mes.production_plans')
+      .where('id', planId)
+      .where('status', 'draft')
+      .first();
+    
+    if (!plan) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Plan not found or not in draft status' });
+    }
+    
+    // Delete node (cascade will handle materials and stations)
+    const deleted = await trx('mes.production_plan_nodes')
+      .where('id', nodeId)
+      .where('plan_id', planId)
+      .delete();
+    
+    if (!deleted) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    
+    await trx.commit();
+    
+    console.log(`✅ Node deleted from plan ${planId}`);
+    res.json({ success: true, nodeId });
+    
+  } catch (error) {
+    await trx.rollback();
+    console.error('❌ Error deleting node:', error);
+    res.status(500).json({ error: 'Failed to delete node', details: error.message });
+  }
+});
+
+// ============================================================================
+// PHASE 3: ENHANCED LAUNCH ALGORITHM - HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * Calculate earliest available slot in a schedule
+ */
+function calculateEarliestSlot(schedule, afterTime) {
+  if (schedule.length === 0) return afterTime;
+  
+  const sorted = schedule.sort((a, b) => b.end - a.end);
+  const lastEnd = sorted[0].end;
+  
+  return lastEnd > afterTime ? lastEnd : afterTime;
+}
+
+/**
+ * Find earliest available substation from station options
+ */
+async function findEarliestSubstation(trx, stationOptions, scheduleMap, afterTime) {
+  let bestSubstation = null;
+  let earliestTime = null;
+  
+  for (const stOpt of stationOptions) {
+    const substations = await trx('mes.substations')
+      .where('station_id', stOpt.station_id)
+      .where('is_active', true);
+    
+    for (const sub of substations) {
+      const schedule = scheduleMap.get(sub.id) || [];
+      const availableAt = calculateEarliestSlot(schedule, afterTime);
+      
+      if (!earliestTime || availableAt < earliestTime) {
+        bestSubstation = sub;
+        earliestTime = availableAt;
+      }
+    }
+  }
+  
+  return { 
+    substation: bestSubstation, 
+    availableAt: earliestTime || afterTime 
+  };
+}
+
+/**
+ * Get shift blocks for specific day from personal_schedule
+ */
+function getShiftBlocksForDay(schedule, dayOfWeek) {
+  if (!schedule) return [];
+  
+  // Standard model: shifts: [{ id: '1', blocks: { monday: [...] } }]
+  if (Array.isArray(schedule.shifts)) {
+    const shift = schedule.shifts.find(s => s.id === '1');
+    return shift?.blocks?.[dayOfWeek] || [];
+  }
+  
+  // Aggregated model: shiftBlocks: { 'shift-monday': [...] }
+  const aggregated = schedule.shiftBlocks?.[`shift-${dayOfWeek}`];
+  if (Array.isArray(aggregated)) return aggregated;
+  
+  // Split-by-lane: shiftByLane: { '1': { monday: [...] } }
+  const byLane = schedule.shiftByLane?.['1']?.[dayOfWeek];
+  if (Array.isArray(byLane)) return byLane;
+  
+  return [];
+}
+
+/**
+ * Check if time slot falls within shift blocks
+ */
+function isWithinShiftBlocks(startTime, durationMinutes, shiftBlocks) {
+  if (shiftBlocks.length === 0) return true; // No restrictions
+  
+  const startHour = startTime.getHours() + startTime.getMinutes() / 60;
+  const endHour = startHour + durationMinutes / 60;
+  
+  for (const block of shiftBlocks) {
+    if (!block.start || !block.end) continue;
+    
+    const [blockStartH, blockStartM] = block.start.split(':').map(Number);
+    const [blockEndH, blockEndM] = block.end.split(':').map(Number);
+    
+    const blockStart = blockStartH + blockStartM / 60;
+    const blockEnd = blockEndH + blockEndM / 60;
+    
+    // Task must fit entirely within one shift block
+    if (startHour >= blockStart && endHour <= blockEnd) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Find worker with skill check and shift availability
+ */
+async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTime, duration) {
+  const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][startTime.getDay()];
+  
+  // Get workers with matching skills (or all if no skills required)
+  let query = trx('mes.workers').where('is_active', true);
+  
+  if (requiredSkills && requiredSkills.length > 0) {
+    query = query.whereRaw('skills::jsonb ?| ?', [requiredSkills]);
+  }
+  
+  const workers = await query;
+  
+  // Filter by shift availability
+  for (const worker of workers) {
+    const schedule = worker.personal_schedule;
+    const shiftBlocks = getShiftBlocksForDay(schedule, dayOfWeek);
+    
+    if (isWithinShiftBlocks(startTime, duration, shiftBlocks)) {
+      return worker;
+    }
+  }
+  
+  // If no shift match, return first available worker (fallback)
+  return workers[0] || null;
+}
+
+/**
+ * Topological sort for parallel execution
+ */
+function topologicalSort(nodes, predecessors) {
+  const graph = new Map();
+  const inDegree = new Map();
+  
+  nodes.forEach(n => {
+    graph.set(n.id, []);
+    inDegree.set(n.id, 0);
+  });
+  
+  predecessors.forEach(p => {
+    graph.get(p.predecessor_node_id).push(p.node_id);
+    inDegree.set(p.node_id, inDegree.get(p.node_id) + 1);
+  });
+  
+  const queue = nodes.filter(n => inDegree.get(n.id) === 0).map(n => n.id);
+  const order = [];
+  
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+    order.push(nodeId);
+    
+    for (const neighbor of graph.get(nodeId)) {
+      inDegree.set(neighbor, inDegree.get(neighbor) - 1);
+      if (inDegree.get(neighbor) === 0) {
+        queue.push(neighbor);
+      }
+    }
+  }
+  
+  return order;
+}
+
+/**
+ * Calculate number of parallel execution paths
+ */
+function calculateParallelPaths(executionOrder, predecessors) {
+  const levels = new Map();
+  let maxLevel = 0;
+  
+  for (const nodeId of executionOrder) {
+    const preds = predecessors.filter(p => p.node_id === nodeId);
+    
+    if (preds.length === 0) {
+      levels.set(nodeId, 0);
+    } else {
+      const predLevels = preds.map(p => levels.get(p.predecessor_node_id) || 0);
+      const level = Math.max(...predLevels) + 1;
+      levels.set(nodeId, level);
+      maxLevel = Math.max(maxLevel, level);
+    }
+  }
+  
+  return maxLevel + 1;
+}
+
+// ============================================================================
+// PHASE 3: ENHANCED LAUNCH ENDPOINT
+// ============================================================================
+
+/**
+ * POST /api/mes/production-plans/:id/launch
+ * Launch plan with enhanced algorithm:
+ * - Shift-aware worker scheduling
+ * - Queue management
+ * - Parallel node execution
+ * - Skill-based matching
+ * - Summary response
+ */
+router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
+  const { id } = req.params;
+  const trx = await db.transaction();
+  
+  try {
+    // 🔒 CRITICAL: Lock tables to prevent concurrent launches
+    // Only ONE launch can run at a time across entire system
+    await trx.raw('LOCK TABLE mes.worker_assignments IN EXCLUSIVE MODE');
+    await trx.raw('LOCK TABLE mes.substations IN EXCLUSIVE MODE');
+    
+    console.log(`🔒 Acquired exclusive locks for launch of ${id}`);
+    
+    // 1. Validate plan
+    const plan = await trx('mes.production_plans')
+      .where('id', id)
+      .where('status', 'draft')
+      .first();
+    
+    if (!plan) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Plan not found or already launched' });
+    }
+    
+    console.log(`🚀 Launching production plan: ${id}`);
+    
+    // 2. Load nodes and dependency graph
+    const nodes = await trx('mes.production_plan_nodes')
+      .where('plan_id', id)
+      .orderBy('sequence_order');
+    
+    const predecessors = await trx('mes.node_predecessors')
+      .whereIn('node_id', nodes.map(n => n.id));
+    
+    // 3. Topological sort for execution order
+    const executionOrder = topologicalSort(nodes, predecessors);
+    
+    // 4. Initialize tracking maps
+    const workerSchedule = new Map();      // workerId → [{ start, end, seq }]
+    const substationSchedule = new Map();  // substationId → [{ start, end }]
+    const nodeCompletionTimes = new Map(); // nodeId → estimatedEnd
+    const assignments = [];
+    let queuedCount = 0;
+    
+    // 5. Process nodes in topological order
+    for (const nodeId of executionOrder) {
+      const node = nodes.find(n => n.id === nodeId);
+      
+      // 5a. Calculate earliest start (wait for predecessors)
+      const predecessorIds = predecessors
+        .filter(p => p.node_id === nodeId)
+        .map(p => p.predecessor_node_id);
+      
+      let earliestStart = new Date();
+      for (const predId of predecessorIds) {
+        const predEnd = nodeCompletionTimes.get(predId);
+        if (predEnd && predEnd > earliestStart) {
+          earliestStart = predEnd;
+        }
+      }
+      
+      // 5b. Get station options
+      const stationOptions = await trx('mes.node_stations')
+        .where('node_id', node.id)
+        .orderBy('priority');
+      
+      // 5c. Find earliest available substation
+      const { substation, availableAt } = await findEarliestSubstation(
+        trx,
+        stationOptions,
+        substationSchedule,
+        earliestStart
+      );
+      
+      if (!substation) {
+        throw new Error(`No substation for node ${node.name}`);
+      }
+      
+      // 5d. Get operation skills
+      const operation = await trx('mes.operations')
+        .where('id', node.operation_id)
+        .first();
+      
+      const requiredSkills = operation?.skills || [];
+      
+      // 5e. Find worker with shift check
+      const worker = await findWorkerWithShiftCheck(
+        trx,
+        requiredSkills,
+        substation.station_id,
+        availableAt,
+        node.effective_time
+      );
+      
+      if (!worker) {
+        throw new Error(`No worker for ${node.name} at ${availableAt}`);
+      }
+      
+      // 5f. Calculate worker queue position
+      const workerQueue = workerSchedule.get(worker.id) || [];
+      const sequenceNumber = workerQueue.length + 1;
+      
+      // 5g. Determine actual start (max of worker and substation)
+      const workerAvailableAt = workerQueue.length > 0
+        ? workerQueue[workerQueue.length - 1].end
+        : availableAt;
+      
+      const actualStart = new Date(Math.max(
+        workerAvailableAt.getTime(),
+        availableAt.getTime()
+      ));
+      
+      const actualEnd = new Date(
+        actualStart.getTime() + node.effective_time * 60000
+      );
+      
+      const isQueued = sequenceNumber > 1;
+      if (isQueued) queuedCount++;
+      
+      // 5h. Create worker assignment (now uses INTEGER foreign key)
+      await trx('mes.worker_assignments').insert({
+        plan_id: id,
+        work_order_code: plan.work_order_code,
+        node_id: node.id, // INTEGER foreign key to production_plan_nodes.id
+        worker_id: worker.id,
+        substation_id: substation.id,
+        operation_id: node.operation_id,
+        status: isQueued ? 'queued' : 'pending',
+        estimated_start_time: actualStart,
+        estimated_end_time: actualEnd,
+        sequence_number: sequenceNumber,
+        created_at: trx.fn.now()
+      });
+      
+      // 5i. Update node
+      await trx('mes.production_plan_nodes')
+        .where('id', node.id)
+        .update({
+          assigned_worker_id: worker.id,
+          estimated_start_time: actualStart,
+          estimated_end_time: actualEnd,
+          updated_at: trx.fn.now()
+        });
+      
+      // 5j. Update schedules
+      workerQueue.push({ start: actualStart, end: actualEnd, sequenceNumber });
+      workerSchedule.set(worker.id, workerQueue);
+      
+      const subSchedule = substationSchedule.get(substation.id) || [];
+      subSchedule.push({ start: actualStart, end: actualEnd });
+      substationSchedule.set(substation.id, subSchedule);
+      
+      nodeCompletionTimes.set(node.id, actualEnd);
+      
+      // 5k. Reserve substation
+      await trx('mes.substations')
+        .where('id', substation.id)
+        .update({
+          status: 'reserved',
+          current_assignment_id: node.id,
+          assigned_worker_id: worker.id,
+          current_operation: node.operation_id,
+          reserved_at: trx.fn.now(),
+          updated_at: trx.fn.now()
+        });
+      
+      // 5l. Track for response
+      assignments.push({
+        nodeId: node.node_id,
+        nodeName: node.name,
+        workerId: worker.id,
+        workerName: worker.name,
+        substationId: substation.id,
+        substationName: substation.name,
+        estimatedStart: actualStart,
+        estimatedEnd: actualEnd,
+        sequenceNumber,
+        isQueued
+      });
+      
+      console.log(`   ✓ ${node.name}: ${worker.name} @ ${substation.name} (seq ${sequenceNumber})`);
+    }
+    
+    // 6. Update plan status
+    await trx('mes.production_plans')
+      .where('id', id)
+      .update({
+        status: 'active',
+        launched_at: trx.fn.now()
+      });
+    
+    await trx.commit();
+    
+    console.log(`✅ Plan launched: ${id} with ${nodes.length} nodes`);
+    
+    // 7. Build summary response
+    const allStarts = assignments.map(a => a.estimatedStart);
+    const allEnds = assignments.map(a => a.estimatedEnd);
+    const minStart = new Date(Math.min(...allStarts.map(d => d.getTime())));
+    const maxEnd = new Date(Math.max(...allEnds.map(d => d.getTime())));
+    
+    res.json({
+      planId: id,
+      status: 'active',
+      launchedAt: new Date(),
+      summary: {
+        totalNodes: nodes.length,
+        assignedNodes: assignments.length,
+        totalWorkers: workerSchedule.size,
+        totalSubstations: substationSchedule.size,
+        estimatedStartTime: minStart,
+        estimatedEndTime: maxEnd,
+        estimatedDuration: Math.ceil((maxEnd - minStart) / 60000),
+        parallelPaths: calculateParallelPaths(executionOrder, predecessors)
+      },
+      assignments,
+      queuedTasks: queuedCount,
+      warnings: []
+    });
+    
+  } catch (error) {
+    await trx.rollback();
+    console.error('❌ Error launching plan:', error);
+    res.status(500).json({ 
+      error: 'Failed to launch plan',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/mes/production-plans/:id/pause
+ * Pause active plan
+ */
+router.post('/production-plans/:id/pause', withAuth, async (req, res) => {
+  try {
+    const [updated] = await db('mes.production_plans')
+      .where('id', req.params.id)
+      .where('status', 'active')
+      .update({ 
+        status: 'paused',
+        paused_at: db.fn.now() 
+      })
+      .returning('*');
+    
+    if (!updated) {
+      return res.status(400).json({ 
+        error: 'Plan not found or not active' 
+      });
+    }
+    
+    console.log(`⏸️  Paused production plan: ${req.params.id}`);
+    res.json(updated);
+  } catch (error) {
+    console.error('❌ Error pausing plan:', error);
+    res.status(500).json({ 
+      error: 'Failed to pause plan',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/mes/production-plans/:id/resume
+ * Resume paused plan
+ */
+router.post('/production-plans/:id/resume', withAuth, async (req, res) => {
+  try {
+    const [updated] = await db('mes.production_plans')
+      .where('id', req.params.id)
+      .where('status', 'paused')
+      .update({ 
+        status: 'active',
+        resumed_at: db.fn.now() 
+      })
+      .returning('*');
+    
+    if (!updated) {
+      return res.status(400).json({ 
+        error: 'Plan not found or not paused' 
+      });
+    }
+    
+    console.log(`▶️  Resumed production plan: ${req.params.id}`);
+    res.json(updated);
+  } catch (error) {
+    console.error('❌ Error resuming plan:', error);
+    res.status(500).json({ 
+      error: 'Failed to resume plan',
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
+// PHASE 2: NODE DESIGN - Node Management Endpoints
+// ============================================================================
+
+/**
+ * GET /api/mes/production-plans/:planId/nodes
+ * List all nodes for a production plan with materials and stations
+ */
+router.get('/production-plans/:planId/nodes', withAuth, async (req, res) => {
+  try {
+    const { planId } = req.params;
+    
+    // Check plan exists
+    const plan = await db('mes.production_plans')
+      .where('id', planId)
+      .first();
+    
+    if (!plan) {
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+    
+    // Get nodes with materials and stations
+    const nodes = await db('mes.production_plan_nodes as n')
+      .where('n.plan_id', planId)
+      .leftJoin('mes.operations as op', 'n.operation_id', 'op.id')
+      .select(
+        'n.*',
+        'op.name as operation_name'
+      )
+      .orderBy('n.sequence_order');
+    
+    // Get materials for each node
+    const materials = await db('mes.node_material_inputs')
+      .whereIn('node_id', nodes.map(n => n.id));
+    
+    // Get stations for each node
+    const stations = await db('mes.node_stations as ns')
+      .whereIn('ns.node_id', nodes.map(n => n.id))
+      .leftJoin('mes.stations as s', 'ns.station_id', 's.id')
+      .select(
+        'ns.node_id',
+        'ns.station_id',
+        'ns.priority',
+        's.name as station_name'
+      )
+      .orderBy('ns.priority');
+    
+    // Assemble response
+    const nodesWithDetails = nodes.map(node => ({
+      ...node,
+      material_inputs: materials
+        .filter(m => m.node_id === node.id)
+        .map(m => ({
+          materialCode: m.material_code,
+          requiredQuantity: m.required_quantity,
+          unitRatio: m.unit_ratio,
+          isDerived: m.is_derived
+        })),
+      assigned_stations: stations
+        .filter(s => s.node_id === node.id)
+        .map(s => ({
+          stationId: s.station_id,
+          stationName: s.station_name,
+          priority: s.priority
+        }))
+    }));
+    
+    console.log(`✅ Fetched ${nodesWithDetails.length} nodes for plan: ${planId}`);
+    res.json(nodesWithDetails);
+    
+  } catch (error) {
+    console.error('❌ Error fetching nodes:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch nodes',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/mes/production-plans/:planId/nodes
+ * Add a new node to an existing plan (only if status = draft)
+ */
+router.post('/production-plans/:planId/nodes', withAuth, async (req, res) => {
+  const trx = await db.transaction();
+  
+  try {
+    const { planId } = req.params;
+    const nodeData = req.body;
+    
+    // Check plan exists and is in draft
+    const plan = await trx('mes.production_plans')
+      .where('id', planId)
+      .first();
+    
+    if (!plan) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+    
+    if (plan.status !== 'draft') {
+      await trx.rollback();
+      return res.status(400).json({ 
+        error: 'Can only add nodes to draft plans',
+        currentStatus: plan.status 
+      });
+    }
+    
+    // Calculate next sequence order
+    const lastNode = await trx('mes.production_plan_nodes')
+      .where('plan_id', planId)
+      .orderBy('sequence_order', 'desc')
+      .first();
+    
+    const sequenceOrder = nodeData.sequence_order || (lastNode ? lastNode.sequence_order + 1 : 1);
+    
+    // Calculate effective time
+    const effectiveTime = nodeData.nominal_time / (nodeData.efficiency || 0.85);
+    
+    // Insert node
+    const [node] = await trx('mes.production_plan_nodes')
+      .insert({
+        plan_id: planId,
+        node_id: nodeData.node_id || `${planId}-node-${sequenceOrder}`,
+        name: nodeData.name,
+        operation_id: nodeData.operation_id,
+        nominal_time: nodeData.nominal_time,
+        efficiency: nodeData.efficiency || 0.85,
+        effective_time: effectiveTime,
+        assignment_mode: nodeData.assignment_mode || 'auto',
+        output_code: nodeData.output_code,
+        output_qty: nodeData.output_qty,
+        output_unit: nodeData.output_unit,
+        sequence_order: sequenceOrder,
+        work_order_code: plan.work_order_code
+      })
+      .returning('*');
+    
+    // Insert material inputs
+    if (nodeData.materialInputs && nodeData.materialInputs.length > 0) {
+      const materialInserts = nodeData.materialInputs.map(mat => ({
+        node_id: node.id,
+        material_code: mat.materialCode,
+        required_quantity: mat.requiredQuantity,
+        unit_ratio: mat.unitRatio || 1.0,
+        is_derived: mat.isDerived || false
+      }));
+      
+      await trx('mes.node_material_inputs').insert(materialInserts);
+    }
+    
+    // Insert station assignments
+    if (nodeData.stationIds && nodeData.stationIds.length > 0) {
+      const stationInserts = nodeData.stationIds.map((stationId, idx) => ({
+        node_id: node.id,
+        station_id: stationId,
+        priority: idx + 1
+      }));
+      
+      await trx('mes.node_stations').insert(stationInserts);
+    }
+    
+    await trx.commit();
+    
+    console.log(`✅ Added node: ${node.name} to plan ${planId}`);
+    
+    // Return node with details
+    const nodeWithDetails = await getPlanWithNodes(planId);
+    const addedNode = nodeWithDetails.nodes.find(n => n.id === node.id);
+    
+    res.json(addedNode);
+    
+  } catch (error) {
+    await trx.rollback();
+    console.error('❌ Error adding node:', error);
+    res.status(500).json({ 
+      error: 'Failed to add node',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/mes/production-plans/:planId/nodes/:nodeId
+ * Get single node with full details
+ */
+router.get('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res) => {
+  try {
+    const { planId, nodeId } = req.params;
+    
+    // Get node (nodeId can be numeric id or node_id string)
+    const node = await db('mes.production_plan_nodes as n')
+      .where('n.plan_id', planId)
+      .where(function() {
+        this.where('n.id', nodeId).orWhere('n.node_id', nodeId);
+      })
+      .leftJoin('mes.operations as op', 'n.operation_id', 'op.id')
+      .select(
+        'n.*',
+        'op.name as operation_name',
+        'op.skills as operation_skills'
+      )
+      .first();
+    
+    if (!node) {
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    
+    // Get material inputs
+    const materials = await db('mes.node_material_inputs')
+      .where('node_id', node.id)
+      .select('*');
+    
+    // Get assigned stations
+    const stations = await db('mes.node_stations as ns')
+      .where('ns.node_id', node.id)
+      .leftJoin('mes.stations as s', 'ns.station_id', 's.id')
+      .select(
+        'ns.station_id',
+        'ns.priority',
+        's.name as station_name',
+        's.description as station_description'
+      )
+      .orderBy('ns.priority');
+    
+    // Assemble response
+    const nodeDetails = {
+      ...node,
+      material_inputs: materials.map(m => ({
+        materialCode: m.material_code,
+        requiredQuantity: m.required_quantity,
+        unitRatio: m.unit_ratio,
+        isDerived: m.is_derived
+      })),
+      assigned_stations: stations.map(s => ({
+        stationId: s.station_id,
+        stationName: s.station_name,
+        stationDescription: s.station_description,
+        priority: s.priority
+      }))
+    };
+    
+    res.json(nodeDetails);
+    
+  } catch (error) {
+    console.error('❌ Error fetching node:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch node',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * PUT /api/mes/production-plans/:planId/nodes/:nodeId
+ * Update node (only if plan status = draft)
+ */
+router.put('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res) => {
+  const trx = await db.transaction();
+  
+  try {
+    const { planId, nodeId } = req.params;
+    const updates = req.body;
+    
+    // Check plan is in draft
+    const plan = await trx('mes.production_plans')
+      .where('id', planId)
+      .first();
+    
+    if (!plan) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+    
+    if (plan.status !== 'draft') {
+      await trx.rollback();
+      return res.status(400).json({ 
+        error: 'Can only update nodes in draft plans',
+        currentStatus: plan.status 
+      });
+    }
+    
+    // Get node
+    const node = await trx('mes.production_plan_nodes')
+      .where('plan_id', planId)
+      .where(function() {
+        this.where('id', nodeId).orWhere('node_id', nodeId);
+      })
+      .first();
+    
+    if (!node) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    
+    // Prepare update data
+    const updateData = {};
+    if (updates.name) updateData.name = updates.name;
+    if (updates.operation_id) updateData.operation_id = updates.operation_id;
+    if (updates.nominal_time) {
+      updateData.nominal_time = updates.nominal_time;
+      updateData.effective_time = updates.nominal_time / (updates.efficiency || node.efficiency || 0.85);
+    }
+    if (updates.efficiency) {
+      updateData.efficiency = updates.efficiency;
+      updateData.effective_time = (updates.nominal_time || node.nominal_time) / updates.efficiency;
+    }
+    if (updates.output_code) updateData.output_code = updates.output_code;
+    if (updates.output_qty) updateData.output_qty = updates.output_qty;
+    if (updates.output_unit) updateData.output_unit = updates.output_unit;
+    if (updates.sequence_order) updateData.sequence_order = updates.sequence_order;
+    if (updates.assignment_mode) updateData.assignment_mode = updates.assignment_mode;
+    
+    updateData.updated_at = trx.fn.now();
+    
+    // Update node
+    await trx('mes.production_plan_nodes')
+      .where('id', node.id)
+      .update(updateData);
+    
+    // Update materials if provided
+    if (updates.materialInputs) {
+      await trx('mes.node_material_inputs')
+        .where('node_id', node.id)
+        .delete();
+      
+      if (updates.materialInputs.length > 0) {
+        const materialInserts = updates.materialInputs.map(mat => ({
+          node_id: node.id,
+          material_code: mat.materialCode,
+          required_quantity: mat.requiredQuantity,
+          unit_ratio: mat.unitRatio || 1.0,
+          is_derived: mat.isDerived || false
+        }));
+        
+        await trx('mes.node_material_inputs').insert(materialInserts);
+      }
+    }
+    
+    // Update stations if provided
+    if (updates.stationIds) {
+      await trx('mes.node_stations')
+        .where('node_id', node.id)
+        .delete();
+      
+      if (updates.stationIds.length > 0) {
+        const stationInserts = updates.stationIds.map((stationId, idx) => ({
+          node_id: node.id,
+          station_id: stationId,
+          priority: idx + 1
+        }));
+        
+        await trx('mes.node_stations').insert(stationInserts);
+      }
+    }
+    
+    await trx.commit();
+    
+    console.log(`✅ Updated node: ${nodeId} in plan ${planId}`);
+    
+    // Return updated node
+    const updatedNode = await db('mes.production_plan_nodes')
+      .where('id', node.id)
+      .first();
+    
+    res.json(updatedNode);
+    
+  } catch (error) {
+    await trx.rollback();
+    console.error('❌ Error updating node:', error);
+    res.status(500).json({ 
+      error: 'Failed to update node',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * DELETE /api/mes/production-plans/:planId/nodes/:nodeId
+ * Delete node (only if plan status = draft)
+ */
+router.delete('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res) => {
+  const trx = await db.transaction();
+  
+  try {
+    const { planId, nodeId } = req.params;
+    
+    // Check plan is in draft
+    const plan = await trx('mes.production_plans')
+      .where('id', planId)
+      .first();
+    
+    if (!plan) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Plan not found' });
+    }
+    
+    if (plan.status !== 'draft') {
+      await trx.rollback();
+      return res.status(400).json({ 
+        error: 'Can only delete nodes from draft plans',
+        currentStatus: plan.status 
+      });
+    }
+    
+    // Get node
+    const node = await trx('mes.production_plan_nodes')
+      .where('plan_id', planId)
+      .where(function() {
+        this.where('id', nodeId).orWhere('node_id', nodeId);
+      })
+      .first();
+    
+    if (!node) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    
+    // Delete related data (CASCADE handles most, but explicit for clarity)
+    await trx('mes.node_stations')
+      .where('node_id', node.id)
+      .delete();
+    
+    await trx('mes.node_material_inputs')
+      .where('node_id', node.id)
+      .delete();
+    
+    // Delete node
+    await trx('mes.production_plan_nodes')
+      .where('id', node.id)
+      .delete();
+    
+    await trx.commit();
+    
+    console.log(`🗑️  Deleted node: ${nodeId} from plan ${planId}`);
+    res.json({ 
+      success: true,
+      message: 'Node deleted successfully',
+      nodeId: nodeId
+    });
+    
+  } catch (error) {
+    await trx.rollback();
+    console.error('❌ Error deleting node:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete node',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/mes/nodes/:nodeId/materials
+ * Add material input to a node
+ */
+router.post('/nodes/:nodeId/materials', withAuth, async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const { materialCode, requiredQuantity, unitRatio, isDerived } = req.body;
+    
+    // Get node and verify plan is draft
+    const node = await db('mes.production_plan_nodes as n')
+      .join('mes.production_plans as p', 'n.plan_id', 'p.id')
+      .where('n.id', nodeId)
+      .select('n.*', 'p.status as plan_status', 'p.work_order_code')
+      .first();
+    
+    if (!node) {
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    
+    if (node.plan_status !== 'draft') {
+      return res.status(400).json({ 
+        error: 'Can only modify materials in draft plans' 
+      });
+    }
+    
+    // Check if material already exists
+    const existing = await db('mes.node_material_inputs')
+      .where('node_id', nodeId)
+      .where('material_code', materialCode)
+      .first();
+    
+    if (existing) {
+      return res.status(400).json({ 
+        error: 'Material already added to this node' 
+      });
+    }
+    
+    // Insert material
+    const [material] = await db('mes.node_material_inputs')
+      .insert({
+        node_id: nodeId,
+        material_code: materialCode,
+        required_quantity: requiredQuantity,
+        unit_ratio: unitRatio || 1.0,
+        is_derived: isDerived || false
+      })
+      .returning('*');
+    
+    console.log(`✅ Added material ${materialCode} to node ${nodeId}`);
+    res.json(material);
+    
+  } catch (error) {
+    console.error('❌ Error adding material:', error);
+    res.status(500).json({ 
+      error: 'Failed to add material',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * DELETE /api/mes/nodes/:nodeId/materials/:materialCode
+ * Remove material input from a node
+ */
+router.delete('/nodes/:nodeId/materials/:materialCode', withAuth, async (req, res) => {
+  try {
+    const { nodeId, materialCode } = req.params;
+    
+    // Verify plan is draft
+    const node = await db('mes.production_plan_nodes as n')
+      .join('mes.production_plans as p', 'n.plan_id', 'p.id')
+      .where('n.id', nodeId)
+      .select('p.status as plan_status')
+      .first();
+    
+    if (!node) {
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    
+    if (node.plan_status !== 'draft') {
+      return res.status(400).json({ 
+        error: 'Can only modify materials in draft plans' 
+      });
+    }
+    
+    // Delete material
+    const deleted = await db('mes.node_material_inputs')
+      .where('node_id', nodeId)
+      .where('material_code', materialCode)
+      .delete();
+    
+    if (deleted === 0) {
+      return res.status(404).json({ error: 'Material not found in node' });
+    }
+    
+    console.log(`🗑️  Removed material ${materialCode} from node ${nodeId}`);
+    res.json({ 
+      success: true,
+      message: 'Material removed successfully' 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error removing material:', error);
+    res.status(500).json({ 
+      error: 'Failed to remove material',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * POST /api/mes/nodes/:nodeId/stations
+ * Assign station option to a node
+ */
+router.post('/nodes/:nodeId/stations', withAuth, async (req, res) => {
+  try {
+    const { nodeId } = req.params;
+    const { stationId, priority } = req.body;
+    
+    // Get node and verify plan is draft
+    const node = await db('mes.production_plan_nodes as n')
+      .join('mes.production_plans as p', 'n.plan_id', 'p.id')
+      .where('n.id', nodeId)
+      .select('p.status as plan_status')
+      .first();
+    
+    if (!node) {
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    
+    if (node.plan_status !== 'draft') {
+      return res.status(400).json({ 
+        error: 'Can only modify stations in draft plans' 
+      });
+    }
+    
+    // Check if station already assigned
+    const existing = await db('mes.node_stations')
+      .where('node_id', nodeId)
+      .where('station_id', stationId)
+      .first();
+    
+    if (existing) {
+      return res.status(400).json({ 
+        error: 'Station already assigned to this node' 
+      });
+    }
+    
+    // Calculate priority if not provided
+    let stationPriority = priority;
+    if (!stationPriority) {
+      const lastStation = await db('mes.node_stations')
+        .where('node_id', nodeId)
+        .orderBy('priority', 'desc')
+        .first();
+      
+      stationPriority = lastStation ? lastStation.priority + 1 : 1;
+    }
+    
+    // Insert station assignment
+    const [station] = await db('mes.node_stations')
+      .insert({
+        node_id: nodeId,
+        station_id: stationId,
+        priority: stationPriority
+      })
+      .returning('*');
+    
+    console.log(`✅ Assigned station ${stationId} to node ${nodeId}`);
+    res.json(station);
+    
+  } catch (error) {
+    console.error('❌ Error assigning station:', error);
+    res.status(500).json({ 
+      error: 'Failed to assign station',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * DELETE /api/mes/nodes/:nodeId/stations/:stationId
+ * Remove station option from a node
+ */
+router.delete('/nodes/:nodeId/stations/:stationId', withAuth, async (req, res) => {
+  try {
+    const { nodeId, stationId } = req.params;
+    
+    // Verify plan is draft
+    const node = await db('mes.production_plan_nodes as n')
+      .join('mes.production_plans as p', 'n.plan_id', 'p.id')
+      .where('n.id', nodeId)
+      .select('p.status as plan_status')
+      .first();
+    
+    if (!node) {
+      return res.status(404).json({ error: 'Node not found' });
+    }
+    
+    if (node.plan_status !== 'draft') {
+      return res.status(400).json({ 
+        error: 'Can only modify stations in draft plans' 
+      });
+    }
+    
+    // Delete station assignment
+    const deleted = await db('mes.node_stations')
+      .where('node_id', nodeId)
+      .where('station_id', stationId)
+      .delete();
+    
+    if (deleted === 0) {
+      return res.status(404).json({ error: 'Station not found in node' });
+    }
+    
+    console.log(`🗑️  Removed station ${stationId} from node ${nodeId}`);
+    res.json({ 
+      success: true,
+      message: 'Station removed successfully' 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error removing station:', error);
+    res.status(500).json({ 
+      error: 'Failed to remove station',
+      details: error.message 
     });
   }
 });
