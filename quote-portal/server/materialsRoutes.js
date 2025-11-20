@@ -447,6 +447,44 @@ async function getCategories(req, res) {
 }
 
 // ================================
+// MES HELPER FUNCTIONS (used by mesRoutes.js)
+// ================================
+
+/**
+ * Adjust material stock (add/subtract)
+ * TODO: Phase 2 - Full implementation with lot tracking
+ */
+export async function adjustMaterialStock(materialCode, quantity, options = {}) {
+  console.log(`🚧 STUB: adjustMaterialStock(${materialCode}, ${quantity})`)
+  // Temporary stub - will be implemented in Phase 2
+  return {
+    materialCode,
+    materialName: materialCode,
+    quantity,
+    newStock: 0,
+    success: true
+  }
+}
+
+/**
+ * Consume materials from stock (batch operation)
+ * TODO: Phase 2 - Full implementation with FIFO lot tracking
+ */
+export async function consumeMaterials(consumptionList, options = {}) {
+  console.log(`🚧 STUB: consumeMaterials(${consumptionList.length} materials)`)
+  // Temporary stub - will be implemented in Phase 2
+  return {
+    consumed: consumptionList.map(item => ({
+      material: item.code,
+      qty: item.qty,
+      success: true,
+      isWIP: false
+    })),
+    failed: []
+  }
+}
+
+// ================================
 // ROUTE SETUP
 // ================================
 

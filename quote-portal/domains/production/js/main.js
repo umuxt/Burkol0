@@ -10,7 +10,7 @@ import { openAddStationModal, resetAllStations, editStation, closeStationModal, 
 import { initializeOperationsUI, openAddOperationModal, editOperation, deleteOperation, saveOperation, closeOperationModal, showOperationDetail, closeOperationDetail, editOperationFromDetail, deleteOperationFromDetail, openOperationTypesModal, closeOperationTypesModal, addOperationTypeFromModal, editOperationType, deleteOperationTypeConfirm, toggleOperationTypeDropdown, selectOperationTypeFromDropdown, addNewOperationTypeFromInput } from './operations.js';
 import { openHelp, closeHelp, switchHelpTab, toggleFAQ, initHelp } from './help.js';
 import { initializeApprovedQuotesUI, showApprovedQuoteDetail, closeApprovedQuoteDetail, toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter, toggleAQPlanType, applyOverdueFilter, applyQuickDateFilter, sortApprovedQuotes } from './approvedQuotes.js';
-import { initMasterDataUI, addSkillFromSettings, renameSkill, deleteSkill, activateSkillRow, onSkillNameInput, cancelSkillEdit, onSkillsSearchInput, onOperationsSearchInput, activateOperationRow, onOperationDefectRateInput, cancelOperationEdit, saveOperationEdit, deleteOperationFromMaster } from './masterData.js';
+import { initMasterDataUI, addSkillFromSettings, renameSkill, deleteSkill, activateSkillRow, onSkillNameInput, cancelSkillEdit, onSkillsSearchInput, openSkillModal, closeSkillModal, saveNewSkillFromModal, onOperationsSearchInput, activateOperationRow, onOperationDefectRateInput, cancelOperationEdit, saveOperationEdit, deleteOperationFromMaster } from './masterData.js';
 import { toggleMobileNav, closeMobileNav } from './mobile.js';
 import { API_BASE, withAuth } from '../../../shared/lib/api.js';
 import { getMasterData, invalidateMasterDataCache } from './mesApi.js';
@@ -144,6 +144,7 @@ Object.assign(window, {
   openHelp, closeHelp, switchHelpTab, toggleFAQ,
   // master data (skills)
   addSkillFromSettings, renameSkill, deleteSkill, activateSkillRow, onSkillNameInput, cancelSkillEdit, onSkillsSearchInput,
+  openSkillModal, closeSkillModal, saveNewSkillFromModal,
   // master data (operations)
   onOperationsSearchInput, activateOperationRow, onOperationDefectRateInput, cancelOperationEdit, saveOperationEdit, deleteOperationFromMaster,
   // time management

@@ -33,6 +33,79 @@
 
 ---
 
+## ⚠️ CRITICAL SCHEMA CLARIFICATION
+
+### Orders Tables - KARIŞIKLIĞI ÖNLE!
+
+**🗑️ KALDIRILDI (Migration 037):**
+- `mes.orders` - Bu tablo migration 014'te yanlışlıkla oluşturulmuş, hiç kullanılmamış ve kaldırıldı.
+
+**✅ DOĞRU KULLANIM:**
+
+1. **`materials.orders`** - Tedarikçi Siparişleri (Malzeme Satın Alma)
+   - Format: `ORD-2025-0001`, `ORD-2025-0002`
+   - Amaç: Hammadde/malzeme tedarikçilerden satın alma
+   - İlişkili Tablo: `materials.order_items` (sipariş kalemleri)
+   - Kullanım: Materials modülü, satın alma işlemleri
+
+2. **`mes.work_orders`** - Üretim İş Emirleri (Production Work Orders)
+   - Format: `WO-001`, `WO-002`, `WO-003`
+   - Amaç: Üretim planlaması ve iş emri yönetimi
+   - İlişkili: `mes.production_plans`, `mes.approved_quotes`
+   - Kullanım: MES modülü, üretim takibi
+
+**💡 HATIRLATMA:**
+- "orders" kelimesini gördüğünüzde kontekse dikkat edin!
+- Materials context → `materials.orders` kullan
+- MES/Production context → `mes.work_orders` kullan
+- Migration 037 ile `mes.orders` temizlendi, karışıklık giderildi.
+
+### Skills Reference System - KEY-BASED!
+
+**✅ YENİ SİSTEM (Migration 038):**
+- `mes.skills` - Centralized skill definitions table
+
+**🎯 NASIL ÇALIŞIR:**
+
+1. **Skills Table Structure:**
+   ```sql
+   mes.skills (
+     id: skill-001, skill-002, skill-003...
+     name: "TIG Kaynağı", "Freze", "Montaj"
+     description: "Tungsten Inert Gas kaynağı"
+     is_active: boolean
+   )
+   ```
+
+2. **Reference System:**
+   - Workers → `skills: ["skill-001", "skill-003"]`
+   - Stations → `capabilities: ["skill-001", "skill-002"]`
+   - Operations → `skills: ["skill-005"]`
+   - Frontend → "TIG Kaynağı, Freze, Montaj" (names)
+   - Backend → `["skill-001", "skill-003", "skill-005"]` (keys)
+
+3. **Matching Algorithm:**
+   ```javascript
+   Worker: ["skill-001", "skill-003"]
+   Station: ["skill-001", "skill-002"]
+   Match: skill-001 ✓ (TIG Kaynağı)
+   ```
+
+**💡 BENEFITS:**
+- ✅ Company-specific skill sets (her şirket kendi yeteneklerini tanımlar)
+- ✅ Easy renaming ("Kaynak" → "TIG Kaynağı" tüm referanslar otomatik güncellenir)
+- ✅ Simple matching (string comparison: key === key)
+- ✅ Delete protection (kullanımdaki skill silinemez)
+- ✅ i18n ready (gelecekte name_en, name_tr eklenebilir)
+
+**🔧 CRUD Endpoints:**
+- GET /api/mes/skills - List all skills
+- POST /api/mes/skills - Create new skill (auto-generated ID)
+- PUT /api/mes/skills/:id - Update skill name/description
+- DELETE /api/mes/skills/:id - Soft delete (protected if in use)
+
+---
+
 ## 📊 CURRENT STATE ANALYSIS
 
 ### Database Status
@@ -41,8 +114,13 @@
 |-----------|--------|-------------|
 | 022-031 | ✅ Complete | All tables created, FIFO + lot tracking ready |
 | 032-035 | ⏳ Pending | Polymorphic consolidation (optional) |
+| 036 | ✅ Complete | Removed duplicate employee_id from workers |
+| 037 | ✅ Complete | Dropped unused mes.orders table (cleanup) |
+| 038 | ✅ Complete | Skills reference table (key-based system) |
 
 **Mevcut Tablolar: 25** (Target: 19 after polymorphic)
+**Son Temizlik:** mes.orders kaldırıldı, tek orders kaynağı materials.orders
+**Skills System:** Key-based reference (skill-001, skill-002) - Company customizable
 
 ### API Endpoints Status
 
@@ -70,7 +148,7 @@
 
 ## 🚀 3-PHASE MIGRATION ROADMAP
 
-### **PHASE 1: CORE MASTER DATA (Week 1)** - 15 Endpoints
+### **PHASE 1: CORE MASTER DATA (Week 1)** - 19 Endpoints
 
 **Priority:** 🔴 CRITICAL - Foundation for everything else
 
@@ -78,10 +156,13 @@
 1. Operations CRUD (2 endpoints)
 2. Workers CRUD (4 endpoints) 
 3. Stations CRUD (4 endpoints)
-4. Substations CRUD (4 endpoints)
-5. Approved Quotes (1 endpoint - GET only)
+4. **Skills CRUD (4 endpoints)** - 🆕 KEY-BASED SYSTEM
+5. Substations CRUD (4 endpoints)
+6. Approved Quotes (1 endpoint - GET only)
 
 **Why First:** Master data must exist before production planning
+
+**🆕 Skills System:** Key-based reference table for company-customizable skill sets
 
 ---
 
@@ -481,6 +562,239 @@ Test aynı mantık.
 
 ---
 
+### STEP 3.5: Skills CRUD (4 endpoints) - 🆕 KEY-BASED REFERENCE SYSTEM
+
+**⚠️ ÖNEMLİ:** Bu adım Migration 038 ile eklendi. Skills artık key-based (skill-001, skill-002) olarak saklanıyor.
+
+**Copilot'a Verilecek Prompt:**
+
+```
+MES Skills API migration: Implement Key-Based Reference System
+
+Dosya: quote-portal/server/mesRoutes.js
+
+IMPLEMENT edilecek endpoints (YENİ SİSTEM):
+1. GET /api/mes/skills
+2. POST /api/mes/skills
+3. PUT /api/mes/skills/:id
+4. DELETE /api/mes/skills/:id
+
+ÖZELLİKLER:
+- Key-based IDs (skill-001, skill-002, skill-003...)
+- Company-customizable names and descriptions
+- Delete protection (can't delete if in use)
+- Usage tracking (workers, stations, operations)
+- Auto ID generation
+
+YENİ KOD:
+```javascript
+// GET /api/mes/skills - Get all skills
+router.get('/skills', withAuth, async (req, res) => {
+  try {
+    const skills = await db('mes.skills')
+      .select('id', 'name', 'description', 'is_active', 'created_at', 'updated_at')
+      .where('is_active', true)
+      .orderBy('name');
+    
+    res.json(skills);
+  } catch (error) {
+    console.error('Error fetching skills:', error);
+    res.status(500).json({ error: 'Failed to fetch skills' });
+  }
+});
+
+// POST /api/mes/skills - Create new skill
+router.post('/skills', withAuth, async (req, res) => {
+  const { name, description } = req.body;
+  
+  if (!name) {
+    return res.status(400).json({ error: 'Skill name is required' });
+  }
+  
+  try {
+    // Generate skill-xxx ID
+    const [{ max_id }] = await db('mes.skills').max('id as max_id');
+    const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
+    const newId = `skill-${nextNum.toString().padStart(3, '0')}`;
+    
+    const result = await db('mes.skills')
+      .insert({
+        id: newId,
+        name,
+        description,
+        is_active: true,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+        created_by: req.user?.email || 'system'
+      })
+      .returning(['id', 'name', 'description', 'is_active', 'created_at']);
+    
+    res.json(result[0]);
+  } catch (error) {
+    console.error('Error creating skill:', error);
+    res.status(500).json({ error: 'Failed to create skill' });
+  }
+});
+
+// PUT /api/mes/skills/:id - Update skill
+router.put('/skills/:id', withAuth, async (req, res) => {
+  const { id } = req.params;
+  const { name, description } = req.body;
+  
+  try {
+    const result = await db('mes.skills')
+      .where({ id })
+      .update({
+        name,
+        description,
+        updated_at: db.fn.now(),
+        updated_by: req.user?.email || 'system'
+      })
+      .returning(['id', 'name', 'description', 'is_active', 'updated_at']);
+    
+    if (result.length === 0) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+    
+    res.json(result[0]);
+  } catch (error) {
+    console.error('Error updating skill:', error);
+    res.status(500).json({ error: 'Failed to update skill' });
+  }
+});
+
+// DELETE /api/mes/skills/:id - Soft delete with protection
+router.delete('/skills/:id', withAuth, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Check if skill is in use
+    const [workersCount] = await db('mes.workers')
+      .whereRaw('skills::jsonb @> ?', [JSON.stringify([id])])
+      .count('* as count');
+    
+    const [stationsCount] = await db('mes.stations')
+      .whereRaw('capabilities::jsonb @> ?', [JSON.stringify([id])])
+      .count('* as count');
+    
+    const [operationsCount] = await db('mes.operations')
+      .whereRaw('skills::jsonb @> ?', [JSON.stringify([id])])
+      .count('* as count');
+    
+    const totalUsage = parseInt(workersCount.count) + parseInt(stationsCount.count) + parseInt(operationsCount.count);
+    
+    if (totalUsage > 0) {
+      return res.status(400).json({ 
+        error: 'Cannot delete skill in use',
+        usage: {
+          workers: parseInt(workersCount.count),
+          stations: parseInt(stationsCount.count),
+          operations: parseInt(operationsCount.count)
+        }
+      });
+    }
+    
+    // Soft delete
+    const result = await db('mes.skills')
+      .where({ id })
+      .update({
+        is_active: false,
+        updated_at: db.fn.now(),
+        updated_by: req.user?.email || 'system'
+      })
+      .returning('id');
+    
+    if (result.length === 0) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+    
+    res.json({ success: true, id: result[0].id });
+  } catch (error) {
+    console.error('Error deleting skill:', error);
+    res.status(500).json({ error: 'Failed to delete skill' });
+  }
+});
+```
+
+Özel Notlar:
+- Auto ID generation (skill-009, skill-010...)
+- Delete protection (kullanımdaki skill silinemez)
+- Usage tracking (workers/stations/operations)
+- Soft delete pattern
+- Audit trail (created_by, updated_by)
+
+Test:
+```bash
+# Get all skills
+curl http://localhost:3000/api/mes/skills
+
+# Create skill with name AND description
+curl -X POST http://localhost:3000/api/mes/skills \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Boyama","description":"Elektrostatik toz boya uygulaması"}'
+
+# Update skill
+curl -X PUT http://localhost:3000/api/mes/skills/skill-009 \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Elektrostatik Boyama","description":"Toz boya ve fırınlama"}'
+
+# Try delete (will fail if in use)
+curl -X DELETE http://localhost:3000/api/mes/skills/skill-001
+```
+```
+
+**Beklenen Sonuç:**
+- ✅ 4 endpoint SQL kullanıyor
+- ✅ Key-based ID generation (skill-001, skill-002)
+- ✅ Delete protection working
+- ✅ Usage tracking active
+- ✅ Name + Description fields supported
+
+**🎯 FRONTEND INTEGRATION:**
+
+1. **Skill Creation Form:**
+   ```html
+   <form>
+     <input name="name" placeholder="Skill Name" required />
+     <textarea name="description" placeholder="Description (optional)"></textarea>
+     <button>Create Skill</button>
+   </form>
+   ```
+
+2. **Skill Display:**
+   ```javascript
+   // Load skills from API
+   const skills = await fetch('/api/mes/skills').then(r => r.json());
+   
+   // Show in dropdown
+   skills.forEach(skill => {
+     dropdown.add(new Option(skill.name, skill.id));
+   });
+   ```
+
+3. **Worker/Station Assignment:**
+   ```javascript
+   // When creating worker, store skill keys
+   const workerData = {
+     name: "Ahmet Yılmaz",
+     skills: ["skill-001", "skill-003", "skill-005"] // Keys, not names!
+   };
+   
+   // Display with names
+   const skillMap = {};
+   skills.forEach(s => skillMap[s.id] = s.name);
+   const displayNames = workerData.skills.map(key => skillMap[key]);
+   // → "TIG Kaynağı, Freze, Montaj"
+   ```
+
+**📝 MIGRATION 038:**
+Bu adım için Migration 038 zaten uygulandı:
+- mes.skills tablosu oluşturuldu
+- Default skills (skill-001 to skill-008) eklendi
+- Mevcut worker/station data skill keys'e migrate edildi
+
+---
+
 ### STEP 4: Substations Endpoints (4 endpoints)
 
 **Copilot'a Verilecek Prompt:**
@@ -676,12 +990,27 @@ Basit GET query. POST endpoints Phase 3'te.
 - [ ] STEP 1: Operations (2 endpoints) migrated
 - [ ] STEP 2: Workers (4 endpoints) migrated
 - [ ] STEP 3: Stations (4 endpoints) migrated
+- [ ] STEP 3.5: Skills CRUD (4 endpoints) implemented - 🆕 KEY-BASED SYSTEM
 - [ ] STEP 4: Substations (4 endpoints) migrated
 - [ ] STEP 5: Approved Quotes GET (1 endpoint) migrated
-- [ ] Total: 15 endpoints migrated
+- [ ] Total: 19 endpoints migrated
 - [ ] Firebase imports removed from migrated endpoints
+- [ ] Skills reference system working
 - [ ] All tests passing
 - [ ] Manual testing completed
+
+**Skills System Validation:**
+```bash
+# Test skills CRUD
+curl http://localhost:3000/api/mes/skills
+curl -X POST http://localhost:3000/api/mes/skills \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test Skill","description":"Test description"}'
+
+# Verify key-based references
+curl http://localhost:3000/api/mes/workers
+# Check that skills field contains: ["skill-001", "skill-003"] (keys, not names)
+```
 
 **Verification:**
 ```bash
@@ -699,10 +1028,16 @@ grep -n "getFirestore()" server/mesRoutes.js | wc -l
 
 ### STEP 6: Work Orders CRUD (5 endpoints)
 
+**⚠️ ÖNEMLI:** Bu `mes.work_orders` tablosudur (üretim iş emirleri). 
+`materials.orders` ile karıştırmayın (o tedarikçi siparişleri için)!
+
 **Copilot'a Verilecek Prompt:**
 
 ```
 MES Work Orders API migration: Firebase → SQL
+
+ÖNEMLİ: mes.work_orders kullan (üretim iş emirleri).
+materials.orders DEĞİL (o tedarikçi siparişleri)!
 
 Dosya: quote-portal/server/mesRoutes.js
 
@@ -717,13 +1052,15 @@ YENİ KOD:
 ```javascript
 router.get('/work-orders', withAuth, async (req, res) => {
   try {
+    // NOTE: mes.work_orders = üretim iş emirleri (WO-001 format)
+    // NOT materials.orders (tedarikçi siparişleri ORD-2025-0001 format)
     const result = await pool.query(`
       SELECT 
         wo.*,
         q.customer_name,
         q.product_name,
         (SELECT COUNT(*) FROM mes_production_plans WHERE work_order_code = wo.code) as plan_count
-      FROM mes_work_orders wo
+      FROM mes.work_orders wo
       LEFT JOIN mes_approved_quotes q ON q.work_order_code = wo.code
       ORDER BY wo.created_at DESC
     `);
@@ -747,9 +1084,9 @@ router.post('/work-orders', withAuth, async (req, res) => {
     `);
     const code = codeResult.rows[0].code;
     
-    // Create work order
+    // Create work order (üretim iş emri)
     const result = await client.query(`
-      INSERT INTO mes_work_orders (
+      INSERT INTO mes.work_orders (
         code, quote_id, quantity, due_date, notes,
         status, created_at
       ) 
@@ -774,7 +1111,7 @@ router.put('/work-orders/:id', withAuth, async (req, res) => {
   
   try {
     const result = await pool.query(`
-      UPDATE mes_work_orders 
+      UPDATE mes.work_orders 
       SET 
         quantity = COALESCE($1, quantity),
         due_date = COALESCE($2, due_date),
@@ -801,7 +1138,7 @@ router.delete('/work-orders/:id', withAuth, async (req, res) => {
   
   try {
     const result = await pool.query(`
-      DELETE FROM mes_work_orders 
+      DELETE FROM mes.work_orders 
       WHERE id = $1 
       RETURNING id
     `, [id]);

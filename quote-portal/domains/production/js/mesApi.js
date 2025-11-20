@@ -564,6 +564,68 @@ export async function addSkill(name) {
   return skill
 }
 
+// ========================================
+// SQL-BASED SKILLS API (NEW)
+// ========================================
+
+// Get skills from SQL (mes.skills table)
+export async function getSkillsFromSQL(force = false) {
+  const res = await fetch(`${API_BASE}/api/mes/skills`, { headers: withAuth() })
+  if (!res.ok) throw new Error(`skills_load_failed ${res.status}`)
+  const data = await res.json()
+  return Array.isArray(data) ? data : []
+}
+
+// Create skill in SQL with name and description
+export async function createSkillInSQL(name, description = '') {
+  const trimmedName = String(name || '').trim()
+  if (!trimmedName) throw new Error('skill_name_required')
+  
+  const res = await fetch(`${API_BASE}/api/mes/skills`, {
+    method: 'POST',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ name: trimmedName, description: String(description || '').trim() })
+  })
+  
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'skill_create_failed' }))
+    throw new Error(error.error || `skill_create_failed ${res.status}`)
+  }
+  
+  return await res.json()
+}
+
+// Update skill in SQL (name and/or description)
+export async function updateSkillInSQL(skillId, name, description) {
+  const res = await fetch(`${API_BASE}/api/mes/skills/${skillId}`, {
+    method: 'PUT',
+    headers: withAuth({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ name, description })
+  })
+  
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'skill_update_failed' }))
+    throw new Error(error.error || `skill_update_failed ${res.status}`)
+  }
+  
+  return await res.json()
+}
+
+// Delete skill from SQL (soft delete with protection)
+export async function deleteSkillFromSQL(skillId) {
+  const res = await fetch(`${API_BASE}/api/mes/skills/${skillId}`, {
+    method: 'DELETE',
+    headers: withAuth()
+  })
+  
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: 'skill_delete_failed' }))
+    throw new Error(error.error || `skill_delete_failed ${res.status}`)
+  }
+  
+  return await res.json()
+}
+
 // Operation Types CRUD
 export function nextOperationTypeCode(operationTypes) {
   let max = 0

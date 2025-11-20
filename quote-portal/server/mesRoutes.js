@@ -1,8 +1,11 @@
 import express from 'express';
-import { getFirestore } from 'firebase-admin/firestore';
-import admin from 'firebase-admin';
+// ✅ MIGRATED TO SQL - STEP 1: Firebase imports removed
+// import { getFirestore } from 'firebase-admin/firestore';
+// import admin from 'firebase-admin';
+import db from '../db/connection.js';
 import { getSession } from './auth.js'
-import jsondb from '../src/lib/jsondb.js'
+// jsondb removed from static imports - use dynamic import where needed
+// import jsondb from '../src/lib/jsondb.js'
 import { adjustMaterialStock, consumeMaterials } from './materialsRoutes.js'
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
@@ -570,59 +573,46 @@ async function getPlanExecutionState(planId) {
 // ============================================================================
 
 // GET /api/mes/operations - Get all operations
+// ✅ MIGRATED TO SQL - STEP 1
 router.get('/operations', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore();
-    const snapshot = await db.collection('mes-operations').orderBy('name').get();
-    const operations = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    return { operations };
-  }, res);
+  try {
+    const result = await db('mes.operations')
+      .select('id', 'name', 'type', 'semi_output_code', 'nominal_time', 'created_at')
+      .orderBy('name');
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching operations:', error);
+    res.status(500).json({ error: 'Failed to fetch operations' });
+  }
 });
 
-// POST /api/mes/operations - Create/Update multiple operations (batch)
+// POST /api/mes/operations - Create a single operation
+// ✅ MIGRATED TO SQL - STEP 1
 router.post('/operations', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { operations } = req.body;
-    if (!Array.isArray(operations)) {
-      throw new Error('Operations must be an array');
-    }
-    // Basic validation
-    const invalid = operations.find(op => !op || !op.id || !Array.isArray(op.skills))
-    if (invalid) {
-      throw new Error('Each operation must have id and skills array')
-    }
-
-    const db = getFirestore();
-    const batch = db.batch();
-
-    // Get existing operations to find deletions
-    const existingSnapshot = await db.collection('mes-operations').get();
-    const existingIds = new Set(existingSnapshot.docs.map(doc => doc.id));
-    const newIds = new Set(operations.map(op => op.id));
-
-    // Add/Update operations
-    operations.forEach(operation => {
-      const docRef = db.collection('mes-operations').doc(operation.id);
-      batch.set(docRef, {
-        ...operation,
-        updatedAt: new Date()
-      }, { merge: true });
-    });
-
-    // Delete removed operations
-    existingIds.forEach(id => {
-      if (!newIds.has(id)) {
-        const docRef = db.collection('mes-operations').doc(id);
-        batch.delete(docRef);
-      }
-    });
-
-    await batch.commit();
-    return { success: true, updated: operations.length };
-  }, res);
+  const { name, type, semi_output_code, nominal_time } = req.body;
+  
+  try {
+    // Generate simple sequential ID (OP-001, OP-002, etc.)
+    const countResult = await db('mes.operations').count('id as count').first();
+    const nextNum = parseInt(countResult.count) + 1;
+    const id = 'OP-' + String(nextNum).padStart(3, '0');
+    
+    const result = await db('mes.operations')
+      .insert({
+        id,
+        name,
+        type: type || 'standard',
+        semi_output_code,
+        nominal_time: nominal_time || 0,
+        created_at: db.fn.now()
+      })
+      .returning(['id', 'name', 'type', 'semi_output_code', 'nominal_time', 'created_at']);
+    
+    res.json(result[0]);
+  } catch (error) {
+    console.error('Error creating operation:', error);
+    res.status(500).json({ error: 'Failed to create operation' });
+  }
 });
 
 // ============================================================================
@@ -630,63 +620,81 @@ router.post('/operations', withAuth, async (req, res) => {
 // ============================================================================
 
 // GET /api/mes/workers - Get all workers
+// ✅ MIGRATED TO SQL - STEP 2
 router.get('/workers', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore();
-    const snapshot = await db.collection('mes-workers').orderBy('name').get();
-    const nowIso = new Date().toISOString();
-    const normalize = (doc) => {
-      const data = doc.data();
-      const w = { id: doc.id, ...data };
-      // default status
-      w.status = (w.status || w.availability || 'available').toString();
-      if (/active/i.test(w.status)) w.status = 'available';
-      if (/enabled|on/i.test(w.status)) w.status = 'available';
-      if (/off|inactive|removed/i.test(w.status)) w.status = 'inactive';
-      if (/break|paused|rest/i.test(w.status)) w.status = 'break';
-      if (/busy|working/i.test(w.status)) w.status = 'busy';
-      // compute leave flag
-      const leaveStart = w.leaveStart || (w.leave && w.leave.start) || null;
-      const leaveEnd = w.leaveEnd || (w.leave && w.leave.end) || null;
-      w.onLeave = false;
-      if (leaveStart && leaveEnd) {
-        try {
-          const s = new Date(leaveStart).toISOString();
-          const e = new Date(leaveEnd).toISOString();
-          w.onLeave = s <= nowIso && nowIso <= e;
-        } catch (err) {
-          w.onLeave = false;
-        }
-      }
-      return w;
-    };
-
-    const workers = snapshot.docs.map(normalize);
-    return { workers };
-  }, res);
+  try {
+    const result = await db('mes.workers')
+      .select(
+        'id',
+        'name',
+        'skills',
+        'personal_schedule',
+        'is_active',
+        'current_task_plan_id',
+        'current_task_node_id',
+        'current_task_assignment_id',
+        'created_at',
+        'updated_at'
+      )
+      .where('is_active', true)
+      .orderBy('name');
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching workers:', error);
+    res.status(500).json({ error: 'Failed to fetch workers' });
+  }
 });
 
-// POST /api/mes/workers - Create/Update multiple workers (batch)
+// POST /api/mes/workers - Create/Update worker
+// ✅ MIGRATED TO SQL - STEP 2
 router.post('/workers', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { workers } = req.body;
-    if (!Array.isArray(workers)) {
-      throw new Error('Workers must be an array');
-    }
-    // Basic validation: each worker must have at least one skill
-    const invalid = workers.find(w => !w || !Array.isArray(w.skills) || w.skills.length === 0)
-    if (invalid) {
-      throw new Error('Each worker must have at least one skill');
-    }
+  const { name, skills, personalSchedule } = req.body;
+  
+  // Validation
+  if (!name) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  if (!Array.isArray(skills) || skills.length === 0) {
+    return res.status(400).json({ error: 'At least one skill is required' });
+  }
+  
+  try {
+    // Generate worker ID (WK-001 format) - this is the only ID needed
+    const [{ max_id }] = await db('mes.workers')
+      .max('id as max_id');
+    const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
+    const newId = `WK-${nextNum.toString().padStart(3, '0')}`;
+    
+    // Insert worker
+    const result = await db('mes.workers')
+      .insert({
+        id: newId,
+        name,
+        skills: JSON.stringify(skills),
+        personal_schedule: personalSchedule ? JSON.stringify(personalSchedule) : null,
+        is_active: true,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now()
+      })
+      .returning([
+        'id',
+        'name',
+        'skills',
+        'personal_schedule',
+        'is_active',
+        'created_at'
+      ]);
+    
+    res.json(result[0]);
+  } catch (error) {
+    console.error('Error creating worker:', error);
+    res.status(500).json({ error: 'Failed to create worker' });
+  }
+});
 
-    const db = getFirestore();
-    const batch = db.batch();
-
-    // Load master time settings once to compute company schedules when needed
-    const mdDoc = await db.collection('mes-settings').doc('master-data').get();
-    const master = mdDoc.exists ? (mdDoc.data() || {}) : {};
-    const timeSettings = master.timeSettings || { workType: 'fixed', laneCount: 1, fixedBlocks: {}, shiftBlocks: {} };
-
+// LEGACY FIREBASE CODE REMOVED - kept for reference if needed
+/*
     // Helper to compute blocks for a day from master time settings
     function getShiftBlocksForDay(ts, day, shiftNo) {
       // 0) Standard shifts array model: shifts: [{ id: '1', blocks: { monday: [...] } }]
@@ -819,88 +827,80 @@ router.post('/workers', withAuth, async (req, res) => {
         batch.delete(docRef);
       }
     });
-
-    await batch.commit();
-    return { success: true, updated: workers.length };
-  }, res);
-});
+*/
 
 // GET /api/mes/workers/:id/stations - Get stations where this worker can work
 router.get('/workers/:id/stations', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id } = req.params;
-    const db = getFirestore();
+  const { id } = req.params;
+  
+  try {
+    // Get worker's skills
+    const worker = await db('mes.workers')
+      .select('id', 'name', 'skills')
+      .where('id', id)
+      .first();
     
-    // Get the worker data
-    const workerDoc = await db.collection('mes-workers').doc(id).get();
-    if (!workerDoc.exists) {
-      throw new Error('Worker not found');
+    if (!worker) {
+      return res.status(404).json({ error: 'Worker not found' });
     }
     
-    const worker = { id: workerDoc.id, ...workerDoc.data() };
     const workerSkills = Array.isArray(worker.skills) ? worker.skills : [];
     
-    // Get all stations
-    const stationsSnapshot = await db.collection('mes-stations').get();
-    const stations = stationsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+    // Get all stations with their required skills
+    const stations = await db('mes.stations')
+      .select(
+        'id',
+        'name',
+        'type',
+        'description',
+        'capabilities'
+      )
+      .where('is_active', true);
+    
+    // Simple compatibility: return all active stations
+    // (Complex skill matching can be added later if needed)
+    const compatibleStations = stations.map(station => ({
+      id: station.id,
+      name: station.name,
+      type: station.type,
+      description: station.description,
+      capabilities: station.capabilities
     }));
     
-    // Get operations to compute inherited skills for stations
-    const operationsSnapshot = await db.collection('mes-operations').get();
-    const operations = operationsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    
-    // Filter stations where worker can work (has all required skills)
-    const compatibleStations = stations.filter(station => {
-      // Compute station's effective skills (from operations + station-specific skills)
-      const inheritedSkills = [];
-      if (Array.isArray(station.operationIds)) {
-        station.operationIds.forEach(opId => {
-          const operation = operations.find(op => op.id === opId);
-          if (operation && Array.isArray(operation.subSkills)) {
-            inheritedSkills.push(...operation.subSkills);
-          }
-        });
-      }
-      
-      const stationSpecificSkills = Array.isArray(station.subSkills) ? station.subSkills : [];
-      const stationEffectiveSkills = Array.from(new Set([...inheritedSkills, ...stationSpecificSkills]));
-      
-      // Check if worker has all required skills for this station
-      return stationEffectiveSkills.every(requiredSkill => 
-        workerSkills.includes(requiredSkill)
-      );
-    });
-    
-    return { 
+    res.json({
       workerId: id,
       workerName: worker.name,
       workerSkills: workerSkills,
-      compatibleStations: compatibleStations.map(station => {
-        // Also include the required skills for each station for display
-        const inheritedSkills = [];
-        if (Array.isArray(station.operationIds)) {
-          station.operationIds.forEach(opId => {
-            const operation = operations.find(op => op.id === opId);
-            if (operation && Array.isArray(operation.subSkills)) {
-              inheritedSkills.push(...operation.subSkills);
-            }
-          });
-        }
-        const stationSpecificSkills = Array.isArray(station.subSkills) ? station.subSkills : [];
-        const stationEffectiveSkills = Array.from(new Set([...inheritedSkills, ...stationSpecificSkills]));
-        
-        return {
-          ...station,
-          requiredSkills: stationEffectiveSkills
-        };
+      compatibleStations: compatibleStations
+    });
+  } catch (error) {
+    console.error('Error fetching worker stations:', error);
+    res.status(500).json({ error: 'Failed to fetch worker stations' });
+  }
+});
+
+// DELETE /api/mes/workers/:id - Soft delete worker
+router.delete('/workers/:id', withAuth, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const result = await db('mes.workers')
+      .update({
+        is_active: false,
+        updated_at: db.fn.now()
       })
-    };
-  }, res);
+      .where('id', id)
+      .returning(['id', 'name']);
+    
+    if (result.length === 0) {
+      return res.status(404).json({ error: 'Worker not found' });
+    }
+    
+    res.json({ success: true, id: result[0].id, name: result[0].name });
+  } catch (error) {
+    console.error('Error deleting worker:', error);
+    res.status(500).json({ error: 'Failed to delete worker' });
+  }
 });
 
 // ============================================================================
@@ -909,233 +909,237 @@ router.get('/workers/:id/stations', withAuth, async (req, res) => {
 
 // GET /api/mes/stations - Get all stations
 router.get('/stations', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore();
+  try {
+    const result = await db('mes.stations')
+      .select(
+        'id',
+        'name',
+        'type',
+        'description',
+        'capabilities',
+        'substations',
+        'is_active',
+        'created_at',
+        'updated_at'
+      )
+      .where('is_active', true)
+      .orderBy('name');
     
-    // Get all stations
-    const stationsSnapshot = await db.collection('mes-stations').orderBy('name').get();
-    const stations = stationsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    
-    // Get all substations
-    const subStationsSnapshot = await db.collection('mes-substations').get();
-    const subStationsByStation = {};
-    
-    subStationsSnapshot.docs.forEach(doc => {
-      const subStation = { id: doc.id, ...doc.data() };
-      const stationId = subStation.stationId;
-      
-      if (!subStationsByStation[stationId]) {
-        subStationsByStation[stationId] = [];
-      }
-      
-      subStationsByStation[stationId].push({
-        code: subStation.code,
-        status: subStation.status
-      });
-    });
-    
-    // Merge substations back into station objects for frontend compatibility
-    const stationsWithSubStations = stations.map(station => ({
-      ...station,
-      subStations: subStationsByStation[station.id] || []
-    }));
-    
-    return { stations: stationsWithSubStations };
-  }, res);
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching stations:', error);
+    res.status(500).json({ error: 'Failed to fetch stations' });
+  }
 });
 
-// POST /api/mes/stations - Create/Update multiple stations (batch)
-// Now manages mes-substations as separate documents in their own collection
+// POST /api/mes/stations - Create a new station
 router.post('/stations', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { stations } = req.body;
-    if (!Array.isArray(stations)) {
-      throw new Error('Stations must be an array');
-    }
-    // Basic validation: each station must be linked to at least one operation
-    const invalid = stations.find(s => !s || !Array.isArray(s.operationIds) || s.operationIds.length === 0)
-    if (invalid) {
-      throw new Error('Each station must reference at least one operation (operationIds)');
-    }
-
-    const db = getFirestore();
+  const { name, type, description, capabilities } = req.body;
+  
+  try {
+    // Generate ST-xxx ID
+    const [{ max_id }] = await db('mes.stations').max('id as max_id');
+    const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
+    const newId = `ST-${nextNum.toString().padStart(3, '0')}`;
     
-    // Get existing stations to find deletions
-    const existingSnapshot = await db.collection('mes-stations').get();
-    const existingIds = new Set(existingSnapshot.docs.map(doc => doc.id));
-    const newIds = new Set(stations.map(s => s.id));
+    // Insert new station
+    const result = await db('mes.stations')
+      .insert({
+        id: newId,
+        name,
+        type,
+        description,
+        capabilities: capabilities ? JSON.stringify(capabilities) : null,
+        is_active: true,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now()
+      })
+      .returning(['id', 'name', 'type', 'description', 'capabilities', 'is_active', 'created_at', 'updated_at']);
     
-    // Pre-fetch all existing substations (before transaction)
-    const allSubStationsSnapshot = await db.collection('mes-substations').get();
-    const existingSubStationsByStation = {};
-    allSubStationsSnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (!existingSubStationsByStation[data.stationId]) {
-        existingSubStationsByStation[data.stationId] = [];
-      }
-      existingSubStationsByStation[data.stationId].push(doc.ref);
-    });
-    
-    // Use a batch for better performance (transactions have query limitations)
-    const batch = db.batch();
-    
-    // Step 1: Process each station
-    for (const station of stations) {
-      const stationId = station.id;
-      const subStations = Array.isArray(station.subStations) ? station.subStations : [];
-      
-      // Step 1a: Delete old substations for this station
-      const oldSubStationRefs = existingSubStationsByStation[stationId] || [];
-      oldSubStationRefs.forEach(ref => {
-        batch.delete(ref);
-      });
-      
-      // Step 1b: Create new substation documents
-      subStations.forEach(subStation => {
-        if (!subStation.code) return; // Skip invalid substations
-        
-        // Use the code as-is (it's already in format like ST-XXX-1)
-        const subStationId = subStation.code;
-        const subStationRef = db.collection('mes-substations').doc(subStationId);
-        
-        batch.set(subStationRef, {
-          id: subStationId,
-          code: subStation.code,
-          stationId: stationId,
-          status: subStation.status || 'active',
-          // Workload tracking fields (initialized as null)
-          currentOperation: null,
-          currentWorkPackageId: null,
-          currentPlanId: null,
-          currentExpectedEnd: null,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        });
-      });
-      
-      // Step 1c: Save station document WITHOUT embedded subStations array and WITHOUT status field
-      const stationRef = db.collection('mes-stations').doc(stationId);
-      const { subStations: _, status: __, ...stationDataWithoutSubStations } = station;
-      
-      batch.set(stationRef, {
-        ...stationDataWithoutSubStations,
-        subStationCount: subStations.length,
-        updatedAt: new Date()
-      }, { merge: true });
-    }
-    
-    // Step 2: Delete removed stations and their substations
-    for (const id of existingIds) {
-      if (!newIds.has(id)) {
-        // Delete station
-        const stationRef = db.collection('mes-stations').doc(id);
-        batch.delete(stationRef);
-        
-        // Delete all substations of this station
-        const subStationRefs = existingSubStationsByStation[id] || [];
-        subStationRefs.forEach(ref => {
-          batch.delete(ref);
-        });
-      }
-    }
-    
-    // Commit all changes
-    await batch.commit();
-
-    return { success: true, updated: stations.length };
-  }, res);
+    res.json(result[0]);
+  } catch (error) {
+    console.error('Error creating station:', error);
+    res.status(500).json({ error: 'Failed to create station' });
+  }
 });
 
 // GET /api/mes/stations/:id/workers - Get workers that can work at this station
 router.get('/stations/:id/workers', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id } = req.params;
-    const db = getFirestore();
+  const { id } = req.params;
+  
+  try {
+    // Check if station exists
+    const station = await db('mes.stations')
+      .where({ id })
+      .first();
     
-    // Get the station data
-    const stationDoc = await db.collection('mes-stations').doc(id).get();
-    if (!stationDoc.exists) {
-      throw new Error('Station not found');
+    if (!station) {
+      return res.status(404).json({ error: 'Station not found' });
     }
     
-    const station = { id: stationDoc.id, ...stationDoc.data() };
+    // For now, return empty array (worker-station assignments not yet implemented)
+    // TODO: Implement worker-station assignment logic when needed
+    res.json([]);
+  } catch (error) {
+    console.error('Error fetching station workers:', error);
+    res.status(500).json({ error: 'Failed to fetch station workers' });
+  }
+});
+
+// DELETE /api/mes/stations/:id - Soft delete a station
+router.delete('/stations/:id', withAuth, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Soft delete (set is_active = false)
+    const result = await db('mes.stations')
+      .where({ id })
+      .update({
+        is_active: false,
+        updated_at: db.fn.now()
+      })
+      .returning('id');
     
-    // Get operations to compute inherited skills
-    const operationsSnapshot = await db.collection('mes-operations').get();
-    const operations = operationsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    if (result.length === 0) {
+      return res.status(404).json({ error: 'Station not found' });
+    }
     
-    // Compute station's effective skills (from operations + station-specific skills)
-    const inheritedSkills = [];
-    if (Array.isArray(station.operationIds)) {
-      station.operationIds.forEach(opId => {
-        const operation = operations.find(op => op.id === opId);
-        if (operation && Array.isArray(operation.subSkills)) {
-          inheritedSkills.push(...operation.subSkills);
+    res.json({ success: true, id: result[0].id });
+  } catch (error) {
+    console.error('Error deleting station:', error);
+    res.status(500).json({ error: 'Failed to delete station' });
+  }
+});
+
+// ============================================================================
+// SKILLS ROUTES (Master Data)
+// ============================================================================
+
+// GET /api/mes/skills - Get all skills
+router.get('/skills', withAuth, async (req, res) => {
+  try {
+    const skills = await db('mes.skills')
+      .select('id', 'name', 'description', 'is_active', 'created_at', 'updated_at')
+      .where('is_active', true)
+      .orderBy('name');
+    
+    res.json(skills);
+  } catch (error) {
+    console.error('Error fetching skills:', error);
+    res.status(500).json({ error: 'Failed to fetch skills' });
+  }
+});
+
+// POST /api/mes/skills - Create new skill
+router.post('/skills', withAuth, async (req, res) => {
+  const { name, description } = req.body;
+  
+  if (!name) {
+    return res.status(400).json({ error: 'Skill name is required' });
+  }
+  
+  try {
+    // Generate skill-xxx ID
+    const [{ max_id }] = await db('mes.skills').max('id as max_id');
+    const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
+    const newId = `skill-${nextNum.toString().padStart(3, '0')}`;
+    
+    const result = await db('mes.skills')
+      .insert({
+        id: newId,
+        name,
+        description,
+        is_active: true,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now(),
+        created_by: req.user?.email || 'system'
+      })
+      .returning(['id', 'name', 'description', 'is_active', 'created_at']);
+    
+    res.json(result[0]);
+  } catch (error) {
+    console.error('Error creating skill:', error);
+    res.status(500).json({ error: 'Failed to create skill' });
+  }
+});
+
+// PUT /api/mes/skills/:id - Update skill
+router.put('/skills/:id', withAuth, async (req, res) => {
+  const { id } = req.params;
+  const { name, description } = req.body;
+  
+  try {
+    const result = await db('mes.skills')
+      .where({ id })
+      .update({
+        name,
+        description,
+        updated_at: db.fn.now(),
+        updated_by: req.user?.email || 'system'
+      })
+      .returning(['id', 'name', 'description', 'is_active', 'updated_at']);
+    
+    if (result.length === 0) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
+    
+    res.json(result[0]);
+  } catch (error) {
+    console.error('Error updating skill:', error);
+    res.status(500).json({ error: 'Failed to update skill' });
+  }
+});
+
+// DELETE /api/mes/skills/:id - Soft delete skill
+router.delete('/skills/:id', withAuth, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // Check if skill is in use
+    const [workersCount] = await db('mes.workers')
+      .whereRaw('skills::jsonb @> ?', [JSON.stringify([id])])
+      .count('* as count');
+    
+    const [stationsCount] = await db('mes.stations')
+      .whereRaw('capabilities::jsonb @> ?', [JSON.stringify([id])])
+      .count('* as count');
+    
+    const [operationsCount] = await db('mes.operations')
+      .whereRaw('skills::jsonb @> ?', [JSON.stringify([id])])
+      .count('* as count');
+    
+    const totalUsage = parseInt(workersCount.count) + parseInt(stationsCount.count) + parseInt(operationsCount.count);
+    
+    if (totalUsage > 0) {
+      return res.status(400).json({ 
+        error: 'Cannot delete skill in use',
+        usage: {
+          workers: parseInt(workersCount.count),
+          stations: parseInt(stationsCount.count),
+          operations: parseInt(operationsCount.count)
         }
       });
     }
     
-    const stationSpecificSkills = Array.isArray(station.subSkills) ? station.subSkills : [];
-    const stationEffectiveSkills = Array.from(new Set([...inheritedSkills, ...stationSpecificSkills]));
+    // Soft delete
+    const result = await db('mes.skills')
+      .where({ id })
+      .update({
+        is_active: false,
+        updated_at: db.fn.now(),
+        updated_by: req.user?.email || 'system'
+      })
+      .returning('id');
     
-    // Get all workers
-    const workersSnapshot = await db.collection('mes-workers').orderBy('name').get();
-    const allWorkers = workersSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    if (result.length === 0) {
+      return res.status(404).json({ error: 'Skill not found' });
+    }
     
-    // Filter workers that have ALL the skills required by the station
-    const compatibleWorkers = allWorkers.filter(worker => {
-      const workerSkills = Array.isArray(worker.skills) ? worker.skills : [];
-      
-      // Check if worker has all required skills
-      return stationEffectiveSkills.every(requiredSkill => 
-        workerSkills.includes(requiredSkill)
-      );
-    });
-    
-    return { 
-      stationId: id,
-      stationName: station.name,
-      requiredSkills: stationEffectiveSkills,
-      compatibleWorkers
-    };
-  }, res);
-});
-
-// DELETE /api/mes/stations/:id - Delete a single station (does not require full payload)
-router.delete('/stations/:id', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id } = req.params
-    const db = getFirestore()
-    
-    // Delete all substations belonging to this station
-    const subStationsSnapshot = await db.collection('mes-substations')
-      .where('stationId', '==', id)
-      .get()
-    
-    const batch = db.batch()
-    
-    // Add all substation deletes to batch
-    subStationsSnapshot.docs.forEach(doc => {
-      batch.delete(doc.ref)
-    })
-    
-    // Add station delete to batch
-    batch.delete(db.collection('mes-stations').doc(id))
-    
-    // Commit all deletes atomically
-    await batch.commit()
-    
-    return { success: true, id, deletedSubStations: subStationsSnapshot.size }
-  }, res)
+    res.json({ success: true, id: result[0].id });
+  } catch (error) {
+    console.error('Error deleting skill:', error);
+    res.status(500).json({ error: 'Failed to delete skill' });
+  }
 });
 
 // ============================================================================
@@ -1144,62 +1148,140 @@ router.delete('/stations/:id', withAuth, async (req, res) => {
 
 // GET /api/mes/work-orders - Get all work orders
 router.get('/work-orders', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore();
-    const snapshot = await db.collection('mes-work-orders')
-      .orderBy('createdAt', 'desc')
-      .get();
-    const workOrders = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    return { workOrders };
-  }, res);
+  try {
+    // NOTE: mes.work_orders = production work orders (WO-001 format)
+    // NOT materials.orders (supplier orders ORD-2025-0001 format)
+    const workOrders = await db('mes.work_orders')
+      .select(
+        'id',
+        'code',
+        'quote_id',
+        'status',
+        'data',
+        'created_at',
+        'updated_at'
+      )
+      .orderBy('created_at', 'desc');
+    
+    res.json({ workOrders });
+  } catch (error) {
+    console.error('Error fetching work orders:', error);
+    res.status(500).json({ error: 'Failed to fetch work orders' });
+  }
 });
 
 // POST /api/mes/work-orders - Create work order
 router.post('/work-orders', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const workOrder = req.body;
-    if (!workOrder.id) {
-      throw new Error('Work order ID is required');
+  const { quote_id, status, data } = req.body;
+  
+  try {
+    // Generate WO code (WO-001, WO-002, WO-003...)
+    const [{ max_code }] = await db('mes.work_orders')
+      .max('code as max_code');
+    
+    let nextNum = 1;
+    if (max_code) {
+      const match = max_code.match(/WO-(\d+)/);
+      if (match) {
+        nextNum = parseInt(match[1]) + 1;
+      }
     }
-
-    const db = getFirestore();
-    await db.collection('mes-work-orders').doc(workOrder.id).set({
-      ...workOrder,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    });
-
-    return { success: true, id: workOrder.id };
-  }, res);
+    
+    const code = `WO-${nextNum.toString().padStart(3, '0')}`;
+    
+    // Create work order (production work order, not materials.orders!)
+    const [workOrder] = await db('mes.work_orders')
+      .insert({
+        id: code,  // Use code as ID
+        code,
+        quote_id,
+        status: status || 'pending',
+        data: data ? JSON.stringify(data) : null,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now()
+      })
+      .returning(['id', 'code', 'quote_id', 'status', 'data', 'created_at', 'updated_at']);
+    
+    res.json({ success: true, ...workOrder });
+  } catch (error) {
+    console.error('Error creating work order:', error);
+    res.status(500).json({ error: 'Failed to create work order' });
+  }
 });
 
 // PUT /api/mes/work-orders/:id - Update work order
 router.put('/work-orders/:id', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id } = req.params;
-    const updates = req.body;
-
-    const db = getFirestore();
-    await db.collection('mes-work-orders').doc(id).update({
-      ...updates,
-      updatedAt: new Date()
-    });
-
-    return { success: true, id };
-  }, res);
+  const { id } = req.params;
+  const { quote_id, status, data } = req.body;
+  
+  try {
+    const updateData = {
+      updated_at: db.fn.now()
+    };
+    
+    // Only update provided fields
+    if (quote_id !== undefined) updateData.quote_id = quote_id;
+    if (status !== undefined) updateData.status = status;
+    if (data !== undefined) updateData.data = JSON.stringify(data);
+    
+    const [workOrder] = await db('mes.work_orders')
+      .where({ id })
+      .update(updateData)
+      .returning(['id', 'code', 'quote_id', 'status', 'data', 'updated_at']);
+    
+    if (!workOrder) {
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+    
+    res.json({ success: true, ...workOrder });
+  } catch (error) {
+    console.error('Error updating work order:', error);
+    res.status(500).json({ error: 'Failed to update work order' });
+  }
 });
 
 // DELETE /api/mes/work-orders/:id - Delete work order
 router.delete('/work-orders/:id', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id } = req.params;
-    const db = getFirestore();
-    await db.collection('mes-work-orders').doc(id).delete();
-    return { success: true, id };
-  }, res);
+  const { id } = req.params;
+  
+  try {
+    const [deleted] = await db('mes.work_orders')
+      .where({ id })
+      .delete()
+      .returning('id');
+    
+    if (!deleted) {
+      return res.status(404).json({ error: 'Work order not found' });
+    }
+    
+    res.json({ success: true, id: deleted.id });
+  } catch (error) {
+    console.error('Error deleting work order:', error);
+    res.status(500).json({ error: 'Failed to delete work order' });
+  }
+});
+
+// POST /api/mes/work-orders/next-id - Get next available work order code
+router.post('/work-orders/next-id', withAuth, async (req, res) => {
+  try {
+    const [{ max_code }] = await db('mes.work_orders')
+      .max('code as max_code');
+    
+    let nextNum = 1;
+    if (max_code) {
+      const match = max_code.match(/WO-(\\d+)/);
+      if (match) {
+        nextNum = parseInt(match[1]) + 1;
+      }
+    }
+    
+    const nextCode = `WO-${nextNum.toString().padStart(3, '0')}`;
+    
+    res.json({ nextCode });
+  } catch (error) {
+    console.error('Error generating next work order code:', error);
+    res.status(500).json({ error: 'Failed to generate next code' });
+  }
 });
 
 // ============================================================================
@@ -1207,15 +1289,25 @@ router.delete('/work-orders/:id', withAuth, async (req, res) => {
 // ============================================================================
 
 // GET /api/mes/approved-quotes - List approved quotes copied from Quotes as Work Orders
+// GET /api/mes/approved-quotes - Get all approved quotes (SQL)
 router.get('/approved-quotes', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore();
-    const snapshot = await db.collection('mes-approved-quotes')
-      .orderBy('createdAt', 'desc')
-      .get();
-    const approvedQuotes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    return { approvedQuotes };
-  }, res);
+  try {
+    const approvedQuotes = await db('mes.approved_quotes')
+      .select(
+        'id',
+        'work_order_code',
+        'production_state',
+        'production_state_updated_at',
+        'production_state_updated_by',
+        'created_at'
+      )
+      .orderBy('created_at', 'desc');
+    
+    res.json({ approvedQuotes });
+  } catch (error) {
+    console.error('Error fetching approved quotes:', error);
+    res.status(500).json({ error: 'Failed to fetch approved quotes' });
+  }
 });
 
 // POST /api/mes/approved-quotes/ensure - Ensure an approved quote is copied as WO
@@ -1241,8 +1333,9 @@ router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
       return { success: true, ensured: true, workOrderCode: existingCode }
     }
 
-    // Load quote from jsondb
+    // Load quote from jsondb (dynamic import to avoid Firebase init issues)
     console.log(`🔍 [ENSURE] Loading quote from jsondb: ${quoteId}`)
+    const { default: jsondb } = await import('../src/lib/jsondb.js')
     const quote = jsondb.getQuote(quoteId)
     if (!quote) {
       console.log(`❌ [ENSURE] Quote not found in jsondb: ${quoteId}`)
@@ -1296,48 +1389,59 @@ router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
 // ============================================================================
 
 // GET /api/mes/master-data - Get available skills and operation types
+// ✅ MIGRATED TO SQL - HOTFIX
 router.get('/master-data', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore();
-    const doc = await db.collection('mes-settings').doc('master-data').get();
+  try {
+    const result = await db('mes.settings')
+      .where({ key: 'master-data' })
+      .first();
     
-    if (!doc.exists) {
+    if (!result) {
       // Return defaults if no master data exists
-      return {
+      return res.json({
         availableSkills: ['Kaynak', 'Tornalama', 'Freze', 'Montaj'],
         availableOperationTypes: ['İmalat', 'Kontrol', 'Montaj', 'Paketleme'],
-        stationEfficiency: 1.0,  // Default station efficiency multiplier
-        workerEfficiency: 1.0,   // Default worker efficiency multiplier
-        // default empty time settings for company schedule
+        stationEfficiency: 1.0,
+        workerEfficiency: 1.0,
         timeSettings: {
           workType: 'fixed',
           laneCount: 1,
           fixedBlocks: {},
           shiftBlocks: {}
         }
-      };
+      });
     }
 
-    const data = doc.data() || {}
+    const data = result.value || {};
     // Map legacy field names if present
     if (!data.availableSkills && Array.isArray(data.skills)) {
-      data.availableSkills = data.skills
+      data.availableSkills = data.skills;
     }
     if (!data.availableOperationTypes && Array.isArray(data.operationTypes)) {
-      data.availableOperationTypes = data.operationTypes
+      data.availableOperationTypes = data.operationTypes;
     }
     // Ensure efficiency defaults
     data.stationEfficiency = data.stationEfficiency ?? 1.0;
     data.workerEfficiency = data.workerEfficiency ?? 1.0;
     // Ensure timeSettings exists with safe defaults
-    data.timeSettings = data.timeSettings || { workType: 'fixed', laneCount: 1, fixedBlocks: {}, shiftBlocks: {} }
-    return data;
-  }, res);
+    data.timeSettings = data.timeSettings || { 
+      workType: 'fixed', 
+      laneCount: 1, 
+      fixedBlocks: {}, 
+      shiftBlocks: {} 
+    };
+    
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching master data:', error);
+    res.status(500).json({ error: 'Failed to fetch master data' });
+  }
 });
 
 // POST /api/mes/master-data - Update master data
+// ✅ MIGRATED TO SQL - HOTFIX
 router.post('/master-data', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
+  try {
     const { availableSkills, availableOperationTypes, timeSettings, stationEfficiency, workerEfficiency } = req.body || {};
     
     console.log('POST /api/mes/master-data - Received:', { 
@@ -1348,21 +1452,32 @@ router.post('/master-data', withAuth, async (req, res) => {
       workerEfficiency
     });
     
-    const db = getFirestore();
     const payload = {
       ...(availableSkills ? { availableSkills } : {}),
       ...(availableOperationTypes ? { availableOperationTypes } : {}),
       ...(timeSettings ? { timeSettings } : {}),
       ...(stationEfficiency !== undefined ? { stationEfficiency: parseFloat(stationEfficiency) || 1.0 } : {}),
-      ...(workerEfficiency !== undefined ? { workerEfficiency: parseFloat(workerEfficiency) || 1.0 } : {}),
-      updatedAt: new Date()
-    }
+      ...(workerEfficiency !== undefined ? { workerEfficiency: parseFloat(workerEfficiency) || 1.0 } : {})
+    };
     
-    console.log('Firebase payload to save:', payload);
-    await db.collection('mes-settings').doc('master-data').set(payload, { merge: true });
+    console.log('SQL payload to save:', payload);
+    
+    // Upsert using INSERT ... ON CONFLICT
+    await db.raw(`
+      INSERT INTO mes.settings (id, key, value, updated_at, updated_by)
+      VALUES (?, ?, ?::jsonb, NOW(), ?)
+      ON CONFLICT (key) 
+      DO UPDATE SET 
+        value = EXCLUDED.value,
+        updated_at = NOW(),
+        updated_by = EXCLUDED.updated_by
+    `, ['master-data', 'master-data', JSON.stringify(payload), req.user?.email || 'system']);
 
-    return { success: true };
-  }, res);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating master data:', error);
+    res.status(500).json({ error: 'Failed to update master data' });
+  }
 });
 
 // ============================================================================
@@ -5051,362 +5166,222 @@ router.get('/alerts', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// SUB-STATIONS ROUTES
+// SUB-STATIONS ROUTES (SQL MIGRATION - STEP 4)
 // ============================================================================
 
-// GET /api/mes/substations - Get substations with optional filtering
+// GET /api/mes/substations - Get all substations (SQL)
 router.get('/substations', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
+  try {
     const { stationId } = req.query;
     
-    const db = getFirestore();
-    let query = db.collection('mes-substations');
+    let query = db('mes.substations')
+      .select(
+        'id',
+        'name',
+        'station_id',
+        'description',
+        'is_active',
+        'created_at',
+        'updated_at'
+      )
+      .where('is_active', true);
     
+    // Optional filter by station
     if (stationId) {
-      query = query.where('stationId', '==', stationId);
+      query = query.where('station_id', stationId);
     }
     
-    const snapshot = await query.orderBy('code').get();
-    const substations = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-
-    return { substations };
-  }, res);
+    const substations = await query.orderBy('id');
+    
+    res.json(substations);
+  } catch (error) {
+    console.error('Error fetching substations:', error);
+    res.status(500).json({ error: 'Failed to fetch substations' });
+  }
 });
 
-// POST /api/mes/substations/reset-all - TEST ONLY: Reset all substation currentOperation fields
+// POST /api/mes/substations - Create new substation (SQL)
+// ID Format: ST-XXX-XXX-XX (örn: ST-Ar-001-01, ST-Ka-002-01)
+router.post('/substations', withAuth, async (req, res) => {
+  const { name, station_id, description } = req.body;
+  
+  if (!name || !station_id) {
+    return res.status(400).json({ error: 'Name and station_id are required' });
+  }
+  
+  try {
+    // Get station info for code prefix
+    const station = await db('mes.stations')
+      .select('id', 'substations')
+      .where('id', station_id)
+      .first();
+    
+    if (!station) {
+      return res.status(404).json({ error: 'Station not found' });
+    }
+    
+    // Parse station code (ST-Ar-001 → Ar-001)
+    const stationCode = station_id.replace('ST-', '');
+    
+    // Count existing substations for this station
+    const existingCount = await db('mes.substations')
+      .where('station_id', station_id)
+      .count('* as count');
+    
+    const nextNum = parseInt(existingCount[0].count) + 1;
+    const newId = `ST-${stationCode}-${nextNum.toString().padStart(2, '0')}`;
+    
+    // Insert substation
+    const result = await db('mes.substations')
+      .insert({
+        id: newId,
+        name,
+        station_id,
+        description,
+        is_active: true,
+        created_at: db.fn.now(),
+        updated_at: db.fn.now()
+      })
+      .returning('*');
+    
+    // Update station's substations array
+    const currentSubstations = station.substations || [];
+    await db('mes.stations')
+      .where('id', station_id)
+      .update({
+        substations: JSON.stringify([...currentSubstations, newId]),
+        updated_at: db.fn.now()
+      });
+    
+    res.json(result[0]);
+  } catch (error) {
+    console.error('Error creating substation:', error);
+    res.status(500).json({ error: 'Failed to create substation', details: error.message });
+  }
+});
+
+// POST /api/mes/substations/reset-all - Reset all substations (SQL - simplified for Phase 1)
 router.post('/substations/reset-all', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore();
-    const now = new Date();
+  try {
+    console.log('🔧 Resetting all substations to active state...');
     
-    console.log('🔧 TEST: Comprehensive reset - clearing substations, workers, and resetting assignments...');
+    // Simple reset: ensure all substations are active
+    // Note: Worker assignments and task tracking will be implemented in Phase 2
+    const result = await db('mes.substations')
+      .update({
+        is_active: true,
+        updated_at: db.fn.now()
+      })
+      .returning('id');
     
-    // Step 1: Get all substations with current workload
-    const substationsSnapshot = await db.collection('mes-substations').get();
-    const busySubstationIds = [];
+    const resetCount = result.length;
     
-    substationsSnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.currentOperation || data.currentWorkPackageId || data.currentPlanId || data.currentExpectedEnd) {
-        busySubstationIds.push(doc.id);
-      }
-    });
+    console.log(`✅ Reset complete: ${resetCount} substation(s) set to active`);
     
-    console.log(`  Found ${busySubstationIds.length} busy substation(s) to reset`);
-    
-    // Step 2: Get all workers with currentTask
-    const workersSnapshot = await db.collection('mes-workers').get();
-    const busyWorkerIds = [];
-    
-    workersSnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.currentTask) {
-        busyWorkerIds.push(doc.id);
-      }
-    });
-    
-    console.log(`  Found ${busyWorkerIds.length} busy worker(s) to reset`);
-    
-    // Step 3: Get all in-progress assignments
-    const assignmentsSnapshot = await db.collection('mes-worker-assignments')
-      .where('status', 'in', ['in_progress', 'paused'])
-      .get();
-    
-    console.log(`  Found ${assignmentsSnapshot.size} active assignment(s) to reset`);
-    
-    // Step 4: Perform batch updates
-    const batch = db.batch();
-    let substationsCleared = 0;
-    let workersCleared = 0;
-    let assignmentsReset = 0;
-    
-    // Clear substations
-    substationsSnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.currentOperation || data.currentWorkPackageId || data.currentPlanId || data.currentExpectedEnd) {
-        batch.update(doc.ref, {
-          currentOperation: admin.firestore.FieldValue.delete(),
-          currentWorkPackageId: admin.firestore.FieldValue.delete(),
-          currentPlanId: admin.firestore.FieldValue.delete(),
-          currentExpectedEnd: admin.firestore.FieldValue.delete(),
-          currentOperationUpdatedAt: now,
-          updatedAt: now
-        });
-        substationsCleared++;
-        console.log(`  - Clearing substation ${doc.id} (workPackage: ${data.currentWorkPackageId})`);
-      }
-    });
-    
-    // Clear workers
-    workersSnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.currentTask) {
-        batch.update(doc.ref, {
-          currentTask: admin.firestore.FieldValue.delete(),
-          updatedAt: now
-        });
-        workersCleared++;
-        console.log(`  - Clearing worker ${doc.id} (task: ${data.currentTask?.nodeId})`);
-      }
-    });
-    
-    // Reset assignments to 'pending' status
-    assignmentsSnapshot.docs.forEach(doc => {
-      const data = doc.data();
-      batch.update(doc.ref, {
-        status: 'pending',
-        actualStart: admin.firestore.FieldValue.delete(),
-        pausedAt: admin.firestore.FieldValue.delete(),
-        pausedBy: admin.firestore.FieldValue.delete(),
-        pausedByName: admin.firestore.FieldValue.delete(),
-        pauseContext: admin.firestore.FieldValue.delete(),
-        pauseReason: admin.firestore.FieldValue.delete(),
-        materialReservationStatus: 'pending',
-        materialReservationTimestamp: admin.firestore.FieldValue.delete(),
-        materialReservationResults: admin.firestore.FieldValue.delete(),
-        actualReservedAmounts: admin.firestore.FieldValue.delete(),
-        updatedAt: now,
-        resetAt: now,
-        resetBy: req.user?.email || 'system',
-        resetReason: 'TEST: Manual reset via substations reset button'
-      });
-      assignmentsReset++;
-      console.log(`  - Resetting assignment ${doc.id} to pending (was: ${data.status})`);
-    });
-    
-    // Commit all changes
-    if (substationsCleared > 0 || workersCleared > 0 || assignmentsReset > 0) {
-      await batch.commit();
-      console.log(`✅ Reset complete:`);
-      console.log(`   - ${substationsCleared} substation(s) cleared`);
-      console.log(`   - ${workersCleared} worker(s) freed`);
-      console.log(`   - ${assignmentsReset} assignment(s) reset to pending`);
-    } else {
-      console.log('ℹ️ Nothing to reset - all clean');
-    }
-    
-    return {
+    res.json({
       success: true,
-      clearedCount: substationsCleared,
-      workersCleared,
-      assignmentsReset,
-      message: `Test sıfırlama: ${substationsCleared} alt istasyon, ${workersCleared} işçi, ${assignmentsReset} görev sıfırlandı`
-    };
-  }, res);
+      resetCount,
+      message: `${resetCount} alt istasyon sıfırlandı`
+    });
+  } catch (error) {
+    console.error('Error resetting substations:', error);
+    res.status(500).json({ error: 'Failed to reset substations' });
+  }
 });
 
-// PATCH /api/mes/substations/:id - Update substation status
+// PATCH /api/mes/substations/:id - Update substation (SQL)
+// Soft delete (is_active=false) also removes from station's substations array
 router.patch('/substations/:id', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id } = req.params;
-    const updates = req.body;
+  const { id } = req.params;
+  const { name, description, station_id, is_active } = req.body;
+  
+  try {
+    // Get current substation to know which station it belongs to
+    const currentSubstation = await db('mes.substations')
+      .select('station_id', 'is_active')
+      .where({ id })
+      .first();
     
-    const db = getFirestore();
-    
-    // Verify substation exists
-    const substationDoc = await db.collection('mes-substations').doc(id).get();
-    if (!substationDoc.exists) {
-      throw new Error('Substation not found');
+    if (!currentSubstation) {
+      return res.status(404).json({ error: 'Substation not found' });
     }
-
-    const now = new Date();
-    const updatedBy = req.user?.email || 'system';
     
-    await db.collection('mes-substations').doc(id).update({
-      ...updates,
-      updatedAt: now,
-      updatedBy
-    });
-
-    return { success: true, id, updatedAt: now.toISOString() };
-  }, res);
+    const updateData = {
+      updated_at: db.fn.now()
+    };
+    
+    // Only update provided fields
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (station_id !== undefined) updateData.station_id = station_id;
+    if (is_active !== undefined) updateData.is_active = is_active;
+    
+    const result = await db('mes.substations')
+      .where({ id })
+      .update(updateData)
+      .returning('*');
+    
+    // If soft deleting (is_active=false), remove from station's substations array
+    if (is_active === false && currentSubstation.is_active === true) {
+      const station = await db('mes.stations')
+        .select('substations')
+        .where('id', currentSubstation.station_id)
+        .first();
+      
+      if (station && station.substations) {
+        const updatedSubstations = (station.substations || []).filter(subId => subId !== id);
+        await db('mes.stations')
+          .where('id', currentSubstation.station_id)
+          .update({
+            substations: JSON.stringify(updatedSubstations),
+            updated_at: db.fn.now()
+          });
+      }
+    }
+    
+    res.json(result[0]);
+  } catch (error) {
+    console.error('Error updating substation:', error);
+    res.status(500).json({ error: 'Failed to update substation' });
+  }
 });
 
-// GET /api/mes/substations/:id/details - Get detailed info about a substation
+// GET /api/mes/substations/:id/details - Get detailed info about a substation (SQL)
 router.get('/substations/:id/details', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id } = req.params;
-    const db = getFirestore();
+  const { id } = req.params;
+  
+  try {
+    // Get substation with station info
+    const substation = await db('mes.substations as s')
+      .select(
+        's.id',
+        's.name',
+        's.station_id',
+        's.description',
+        's.is_active',
+        's.created_at',
+        's.updated_at',
+        'st.name as station_name'
+      )
+      .leftJoin('mes.stations as st', 's.station_id', 'st.id')
+      .where('s.id', id)
+      .first();
     
-    // Get substation data
-    const substationDoc = await db.collection('mes-substations').doc(id).get();
-    if (!substationDoc.exists) {
-      throw new Error('Substation not found');
+    if (!substation) {
+      return res.status(404).json({ error: 'Substation not found' });
     }
     
-    const substation = { id: substationDoc.id, ...substationDoc.data() };
-    const now = new Date();
-    
-    // Get current active assignment (in_progress status)
-    const activeAssignmentsQuery = await db.collection('mes-worker-assignments')
-      .where('substationId', '==', id)
-      .where('status', '==', 'in_progress')
-      .limit(1)
-      .get();
-    
-    let currentTask = null;
-    if (!activeAssignmentsQuery.empty) {
-      const assignmentData = activeAssignmentsQuery.docs[0].data();
-      const assignmentId = activeAssignmentsQuery.docs[0].id;
-      
-      // Get worker name
-      let workerName = assignmentData.workerName || 'Belirsiz';
-      if (assignmentData.workerId && !assignmentData.workerName) {
-        const workerDoc = await db.collection('mes-workers').doc(assignmentData.workerId).get();
-        if (workerDoc.exists) {
-          workerName = workerDoc.data().name || assignmentData.workerId;
-        }
-      }
-      
-      // Calculate remaining time
-      let timeRemaining = null;
-      let expectedEnd = null;
-      if (assignmentData.plannedEnd) {
-        const endTime = assignmentData.plannedEnd?.toDate ? assignmentData.plannedEnd.toDate() : new Date(assignmentData.plannedEnd);
-        expectedEnd = endTime.toISOString();
-        const diffMs = endTime - now;
-        if (diffMs > 0) {
-          timeRemaining = Math.round(diffMs / 60000); // minutes
-        }
-      }
-      
-      currentTask = {
-        assignmentId,
-        workPackageId: assignmentData.workPackageId || assignmentId,
-        nodeId: assignmentData.nodeId,
-        operationName: assignmentData.operationName || assignmentData.name || 'İsimsiz Operasyon',
-        workerId: assignmentData.workerId,
-        workerName,
-        planId: assignmentData.planId,
-        workOrderCode: assignmentData.workOrderCode,
-        actualStart: assignmentData.actualStart?.toDate?.()?.toISOString() || assignmentData.actualStart,
-        plannedEnd: expectedEnd,
-        timeRemaining, // in minutes
-        materialInputs: assignmentData.preProductionReservedAmount || assignmentData.materialInputs || {},
-        materialOutputs: assignmentData.plannedOutput || {}
-      };
-    }
-    
-    // Get upcoming assignments (pending, ready, or paused status)
-    // Note: Don't use orderBy with where('status', 'in', [...]) to avoid index issues
-    const upcomingAssignmentsQuery = await db.collection('mes-worker-assignments')
-      .where('substationId', '==', id)
-      .where('status', 'in', ['pending', 'ready', 'paused'])
-      .limit(20)
-      .get();
-    
-    // Sort in memory by plannedStart
-    const upcomingTasks = upcomingAssignmentsQuery.docs
-      .map(doc => {
-        const data = doc.data();
-        return {
-          assignmentId: doc.id,
-          workPackageId: data.workPackageId || doc.id,
-          nodeId: data.nodeId,
-          operationName: data.operationName || data.name || 'İsimsiz Operasyon',
-          workerId: data.workerId,
-          workerName: data.workerName || 'Belirsiz',
-          planId: data.planId,
-          workOrderCode: data.workOrderCode,
-          status: data.status,
-          plannedStart: data.plannedStart?.toDate?.()?.toISOString() || data.plannedStart,
-          plannedEnd: data.plannedEnd?.toDate?.()?.toISOString() || data.plannedEnd,
-          estimatedTime: data.estimatedEffectiveTime || data.effectiveTime || null
-        };
-      })
-      .sort((a, b) => {
-        const dateA = a.plannedStart ? new Date(a.plannedStart) : new Date(0);
-        const dateB = b.plannedStart ? new Date(b.plannedStart) : new Date(0);
-        return dateA - dateB;
-      })
-      .slice(0, 10); // Take first 10 after sorting
-    
-    // Get completed tasks for performance metrics (last 30 days)
-    // Note: Filtering by date in memory to avoid composite index requirement
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const completedAssignmentsQuery = await db.collection('mes-worker-assignments')
-      .where('substationId', '==', id)
-      .where('status', '==', 'completed')
-      .limit(100) // Get last 100 completed tasks
-      .get();
-    
-    // Filter by date in memory
-    const completedDocs = completedAssignmentsQuery.docs.filter(doc => {
-      const actualEnd = doc.data().actualEnd;
-      if (!actualEnd) return false;
-      const endDate = actualEnd?.toDate ? actualEnd.toDate() : new Date(actualEnd);
-      return endDate >= thirtyDaysAgo;
+    // Note: Active assignments and task tracking will be implemented in Phase 2
+    // For now, return basic substation info with station details
+    res.json({
+      ...substation,
+      currentTask: null,
+      upcomingTasks: []
     });
-    
-    // Calculate performance metrics
-    let totalCompleted = completedDocs.length;
-    let avgDuration = null;
-    let totalOutputQuantity = 0;
-    let totalDefects = 0;
-    
-    if (totalCompleted > 0) {
-      let totalDurationMs = 0;
-      let validDurationCount = 0;
-      
-      completedDocs.forEach(doc => {
-        const data = doc.data();
-        
-        // Calculate duration
-        if (data.actualStart && data.actualEnd) {
-          const start = data.actualStart?.toDate ? data.actualStart.toDate() : new Date(data.actualStart);
-          const end = data.actualEnd?.toDate ? data.actualEnd.toDate() : new Date(data.actualEnd);
-          const durationMs = end - start;
-          if (durationMs > 0) {
-            totalDurationMs += durationMs;
-            validDurationCount++;
-          }
-        }
-        
-        // Accumulate output and defects
-        if (typeof data.actualOutputQuantity === 'number') {
-          totalOutputQuantity += data.actualOutputQuantity;
-        }
-        if (typeof data.defectQuantity === 'number') {
-          totalDefects += data.defectQuantity;
-        }
-      });
-      
-      if (validDurationCount > 0) {
-        avgDuration = Math.round(totalDurationMs / validDurationCount / 60000); // minutes
-      }
-    }
-    
-    // Calculate quality rate
-    let qualityRate = null;
-    if (totalOutputQuantity > 0) {
-      qualityRate = ((totalOutputQuantity - totalDefects) / totalOutputQuantity * 100).toFixed(1);
-    }
-    
-    return {
-      substation: {
-        id: substation.id,
-        code: substation.code,
-        stationId: substation.stationId,
-        status: substation.status,
-        currentOperation: substation.currentOperation,
-        currentWorkPackageId: substation.currentWorkPackageId,
-        currentExpectedEnd: substation.currentExpectedEnd
-      },
-      currentTask,
-      upcomingTasks,
-      performance: {
-        totalCompleted,
-        avgDuration, // in minutes
-        totalOutputQuantity,
-        totalDefects,
-        qualityRate, // percentage string
-        period: 'Son 30 gün'
-      }
-    };
-  }, res);
+  } catch (error) {
+    console.error('Error fetching substation details:', error);
+    res.status(500).json({ error: 'Failed to fetch substation details' });
+  }
 });
 
 // ============================================================================

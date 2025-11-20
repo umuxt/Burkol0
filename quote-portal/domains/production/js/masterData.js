@@ -1,5 +1,5 @@
 // Skills and Operations master-data UI for Settings view
-import { getMasterData, saveMasterData, addSkill, getOperations, saveOperations } from './mesApi.js'
+import { getMasterData, saveMasterData, addSkill, getOperations, saveOperations, getSkillsFromSQL, createSkillInSQL, updateSkillInSQL, deleteSkillFromSQL } from './mesApi.js'
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
 
 let skillsState = []
@@ -13,13 +13,13 @@ let activeOperationId = null
 let operationsQuery = ''
 
 export async function initMasterDataUI() {
-  // Initialize Skills
+  // Initialize Skills (SQL-based)
   const skillsHost = document.getElementById('skills-management')
   if (skillsHost) {
     skillsHost.innerHTML = '<div style="color:#888;">Loading skills...</div>'
     try {
-      const md = await getMasterData()
-      skillsState = md.skills || []
+      // Load from SQL (mes.skills table)
+      skillsState = await getSkillsFromSQL()
       renderSkills(skillsHost)
     } catch (e) {
       console.error('Skills load error', e)
@@ -45,12 +45,12 @@ function renderSkills(host) {
   const q = (skillsQuery || '').toLowerCase()
   const filtered = q ? skillsState.filter(s => String(s.name || '').toLowerCase().includes(q)) : skillsState
   const rowsMarkup = filtered.length === 0
-    ? `<tr class="mes-table-row is-empty"><td class="mes-empty-cell text-center" colspan="1"><em>Skill bulunamadı</em></td></tr>`
+    ? `<tr class="mes-table-row is-empty"><td class="mes-empty-cell text-center" colspan="2"><em>Skill bulunamadı</em></td></tr>`
     : filtered.map(s => `
       <tr class="mes-table-row" data-skill-row="${escapeHtml(s.id)}" onclick="activateSkillRow('${escapeHtml(s.id)}')">
         <td>
           <div class="skill-row" style="display:inline-flex; align-items:center; gap:8px;">
-            <span data-skill-label="${escapeHtml(s.id)}" style="display:inline-block;">${escapeHtml(s.name)}</span>
+            <span data-skill-label="${escapeHtml(s.id)}" style="display:inline-block; font-weight: 500;">${escapeHtml(s.name)}</span>
             <input data-skill-id="${escapeHtml(s.id)}" value="${escapeHtml(s.name)}"
                    oninput="onSkillNameInput('${escapeHtml(s.id)}')"
                    style="display:none; width:auto; flex:0 0 220px; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-size:0.9em;" />
@@ -64,6 +64,7 @@ function renderSkills(host) {
             </div>
           </div>
         </td>
+        <td style="color:#6b7280; font-size:0.85em;">${escapeHtml(s.description || '')}</td>
       </tr>`).join('')
 
   host.innerHTML = `
@@ -80,12 +81,48 @@ function renderSkills(host) {
                 Ad <span class="mes-sort-icon">↕</span>
               </button>
             </th>
+            <th style="min-width: 300px;">
+              <button type="button" class="mes-sort-button" style="cursor: default;">
+                Açıklama <span class="mes-sort-icon">↕</span>
+              </button>
+            </th>
           </tr>
         </thead>
         <tbody class="mes-table-body">
           ${rowsMarkup}
         </tbody>
       </table>
+    </div>
+    <!-- Skill Create Modal -->
+    <div id="skill-create-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.4); z-index:9999; align-items:center; justify-content:center;" onclick="if(event.target.id==='skill-create-modal') closeSkillModal()">
+      <div style="background:white; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.1); padding:20px; min-width:400px; max-width:500px;" onclick="event.stopPropagation()">
+        <h4 style="margin:0 0 16px; font-size:16px; font-weight:600; color:#000;">Yeni Skill Ekle</h4>
+        
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:13px; font-weight:500; margin-bottom:4px; color:#000;">Skill Adı *</label>
+          <input id="skill-modal-name" type="text" placeholder="Örn: TIG Kaynağı" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:4px; font-size:14px;" />
+        </div>
+        
+        <div style="margin-bottom:16px;">
+          <label style="display:block; font-size:13px; font-weight:500; margin-bottom:4px; color:#000;">Açıklama (opsiyonel)</label>
+          <textarea id="skill-modal-description" placeholder="Skill hakkında detaylı açıklama..." rows="3" style="width:100%; padding:8px; border:1px solid #d1d5db; border-radius:4px; font-size:14px; resize:vertical;"></textarea>
+        </div>
+        
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button onclick="saveNewSkillFromModal()" style="display:flex; align-items:center; gap:6px; padding:8px 16px; background:#000; color:#fff; border:none; border-radius:4px; font-size:14px; cursor:pointer;">
+            <span style="display:flex; align-items:center;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            </span>
+            <span>Skill Kaydet</span>
+          </button>
+          <button onclick="closeSkillModal()" style="display:flex; align-items:center; gap:6px; padding:8px 16px; background:#f3f4f6; color:#374151; border:1px solid #d1d5db; border-radius:4px; font-size:14px; cursor:pointer;">
+            <span style="display:flex; align-items:center;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+            </span>
+            <span>İptal</span>
+          </button>
+        </div>
+      </div>
     </div>
   `
 
@@ -226,19 +263,80 @@ export function onSkillsSearchInput() {
 }
 
 export async function addSkillFromSettings() {
+  // Open modal with prefilled name from search input
   const input = document.getElementById('skill-new-name')
-  const name = input?.value?.trim()
-  if (!name) { showWarningToast('Skill adı gerekli'); return }
+  const searchValue = input?.value?.trim() || ''
+  openSkillModal(searchValue)
+}
+
+// Open skill creation modal
+export function openSkillModal(prefillName = '') {
+  const modal = document.getElementById('skill-create-modal')
+  const nameInput = document.getElementById('skill-modal-name')
+  const descInput = document.getElementById('skill-modal-description')
+  
+  if (!modal || !nameInput || !descInput) return
+  
+  // Prefill name, clear description
+  nameInput.value = prefillName
+  descInput.value = ''
+  
+  // Show modal
+  modal.style.display = 'flex'
+  
+  // Focus name input
+  setTimeout(() => {
+    nameInput.focus()
+    if (prefillName) {
+      // Select all if prefilled
+      nameInput.select()
+    }
+  }, 100)
+}
+
+// Close skill creation modal
+export function closeSkillModal() {
+  const modal = document.getElementById('skill-create-modal')
+  if (modal) modal.style.display = 'none'
+}
+
+// Save new skill from modal (SQL backend)
+export async function saveNewSkillFromModal() {
+  const nameInput = document.getElementById('skill-modal-name')
+  const descInput = document.getElementById('skill-modal-description')
+  const searchInput = document.getElementById('skill-new-name')
+  
+  const name = nameInput?.value?.trim()
+  const description = descInput?.value?.trim() || ''
+  
+  if (!name) {
+    showWarningToast('Skill adı gerekli')
+    nameInput?.focus()
+    return
+  }
+  
   try {
-    const created = await addSkill(name)
+    // Create skill in SQL
+    const created = await createSkillInSQL(name, description)
+    
+    // Add to local state
     skillsState.push(created)
-    input.value = ''
+    
+    // Clear search input and query
+    if (searchInput) searchInput.value = ''
     skillsQuery = ''
-    renderSkills(document.getElementById('skills-management'))
-    showSuccessToast('Skill eklendi')
+    
+    // Close modal
+    closeSkillModal()
+    
+    // Re-render skills list
+    const host = document.getElementById('skills-management')
+    if (host) renderSkills(host)
+    
+    showSuccessToast(`Skill "${created.name}" eklendi`)
   } catch (e) {
-    console.error('addSkill error', e)
-    showErrorToast('Skill eklenemedi')
+    console.error('createSkill error', e)
+    showErrorToast(e.message === 'skill_name_required' ? 'Skill adı gerekli' : 'Skill eklenemedi')
   }
 }
 
@@ -247,12 +345,20 @@ export async function renameSkill(skillId) {
   if (!input) return
   const name = input.value.trim()
   if (!name) { showWarningToast('Skill adı gerekli'); return }
+  
   try {
     const idx = skillsState.findIndex(s => s.id === skillId)
     if (idx < 0) return
-    skillsState[idx] = { ...skillsState[idx], name }
-    await saveMasterData({ skills: skillsState, operationTypes: [] })
+    
+    const currentSkill = skillsState[idx]
+    
+    // Update skill in SQL (keep existing description)
+    const updated = await updateSkillInSQL(skillId, name, currentSkill.description || '')
+    
+    // Update local state
+    skillsState[idx] = updated
     activeSkillId = null
+    
     renderSkills(document.getElementById('skills-management'))
     showSuccessToast('Skill güncellendi')
   } catch (e) {
@@ -262,16 +368,30 @@ export async function renameSkill(skillId) {
 }
 
 export async function deleteSkill(skillId) {
-  if (!confirm('Bu skill silinsin mi?')) return
+  const skill = skillsState.find(s => s.id === skillId)
+  const skillName = skill?.name || skillId
+  
+  if (!confirm(`"${skillName}" skill'i silmek istediğinizden emin misiniz?`)) return
+  
   try {
+    // Delete from SQL (has usage protection)
+    await deleteSkillFromSQL(skillId)
+    
+    // Remove from local state
     skillsState = skillsState.filter(s => s.id !== skillId)
-    await saveMasterData({ skills: skillsState, operationTypes: [] })
     activeSkillId = null
+    
     renderSkills(document.getElementById('skills-management'))
     showSuccessToast('Skill silindi')
   } catch (e) {
     console.error('delete skill error', e)
-    showErrorToast('Skill silinemedi')
+    
+    // Check if it's a usage protection error
+    if (e.message.includes('Cannot delete skill in use')) {
+      showErrorToast('Bu skill kullanımda olduğu için silinemez')
+    } else {
+      showErrorToast('Skill silinemedi')
+    }
   }
 }
 

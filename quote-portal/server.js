@@ -168,16 +168,35 @@ app.use('/api/mes', async (req, res, next) => {
   try {
     if (!mesRouterMiddleware) {
       if (!mesRouterPromise) {
-        mesRouterPromise = import('./server/mesRoutes.js').then(m => m.default)
-        console.log('✅ MES routes bootstrapped on-demand')
+        console.log('🔄 Importing MES routes...')
+        mesRouterPromise = import('./server/mesRoutes.js')
+          .then(m => {
+            console.log('📦 MES module imported:', Object.keys(m))
+            if (!m.default) {
+              throw new Error('MES routes module has no default export')
+            }
+            console.log('✅ MES routes bootstrapped on-demand')
+            return m.default
+          })
+          .catch(err => {
+            console.error('❌ MES route import failed:', err)
+            console.error('Stack trace:', err.stack)
+            throw err
+          })
       }
       const mesRouter = await mesRouterPromise
       mesRouterMiddleware = mesRouter
     }
     return mesRouterMiddleware(req, res, next)
   } catch (e) {
-    console.warn('⚠️ MES routes not initialized:', e?.message)
-    return res.status(500).json({ error: 'MES init failed' })
+    console.error('❌ MES routes initialization error:', e)
+    console.error('Error message:', e?.message)
+    console.error('Error stack:', e?.stack)
+    return res.status(500).json({ 
+      error: 'MES init failed',
+      details: e?.message,
+      stack: process.env.NODE_ENV === 'development' ? e?.stack : undefined
+    })
   }
 })
 
