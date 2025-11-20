@@ -171,6 +171,33 @@ function generateWorkPackageIds(workOrderCode, assignmentsCount) {
   return ids;
 }
 
+// Helper function to handle Firestore operations
+async function handleFirestoreOperation(operation, res) {
+  try {
+    const result = await operation();
+    res.json(result);
+  } catch (error) {
+    console.error('Firestore operation error:', error);
+    
+    // Use error properties if available (status, code)
+    const status = error.status || 500;
+    const errorCode = error.code || 'internal_server_error';
+    
+    // Build response object (avoid circular references)
+    const errorResponse = { 
+      error: errorCode,
+      message: error.message
+    };
+    
+    // Add validation errors if available (but avoid circular refs)
+    if (error.validationErrors && Array.isArray(error.validationErrors)) {
+      errorResponse.details = error.validationErrors;
+    }
+    
+    res.status(status).json(errorResponse);
+  }
+}
+
 // ============================================================================
 // MATERIAL RESERVATION HELPERS
 // ============================================================================
@@ -780,6 +807,27 @@ router.post('/workers', withAuth, async (req, res) => {
 
     // Add/Update workers
     workers.forEach(worker => {
+      const payload = sanitizeWorkerPayload(worker);
+      const docRef = db.collection('mes-workers').doc(payload.id);
+      // Delete legacy/duplicate schedule fields to enforce single weekly schedule source
+      const deletes = {
+        schedule: admin.firestore.FieldValue.delete(),
+        companySchedule: admin.firestore.FieldValue.delete(),
+        personalScheduleOld: admin.firestore.FieldValue.delete(),
+        companyTimeSettings: admin.firestore.FieldValue.delete(),
+        timeSource: admin.firestore.FieldValue.delete()
+      };
+      batch.set(docRef, { ...deletes, ...payload }, { merge: true });
+    });
+
+    // Delete removed workers
+    existingIds.forEach(id => {
+      if (!newIds.has(id)) {
+        const docRef = db.collection('mes-workers').doc(id);
+        batch.delete(docRef);
+      }
+    });
+*/
 
 // GET /api/mes/workers/:id/stations - Get stations where this worker can work
 router.get('/workers/:id/stations', withAuth, async (req, res) => {
@@ -4796,6 +4844,482 @@ router.get('/substations/:id/details', withAuth, async (req, res) => {
  * - Creates worker assignments
  * - Updates plan and quote status
  * 
+ * DEPRECATED: Firebase version - MIGRATED TO SQL (see line ~9536)
+ * Disabled to prevent conflict with new SQL endpoint
+ */
+/* DISABLED - OLD FIREBASE LAUNCH
+router.post('/production-plans/:planId/launch', withAuth, async (req, res) => {
+  const { planId } = req.params;
+  const { workOrderCode } = req.body;
+  
+  try {
+    const db = getFirestore();
+    const userEmail = req.user?.email || 'system';
+    
+    // ========================================================================
+    // 1. INPUT VALIDATION
+    // ========================================================================
+    
+    if (!planId || !workOrderCode) {
+      return res.status(400).json({
+        error: 'validation_error',
+        message: 'planId and workOrderCode are required'
+      });
+    }
+    
+    // Fetch plan document
+    const planRef = db.collection('mes-production-plans').doc(planId);
+    const planSnap = await planRef.get();
+    
+    if (!planSnap.exists) {
+      return res.status(404).json({
+        error: 'plan_not_found',
+        message: `Production plan ${planId} not found`
+      });
+    }
+    
+    let planData = planSnap.data();
+    
+    // Check if plan is already launched
+    if (planData.launchStatus === 'launched') {
+      return res.status(409).json({
+        error: 'already_launched',
+        message: 'This plan has already been launched',
+        launchedAt: planData.launchedAt,
+        launchedBy: planData.launchedBy
+      });
+    }
+    
+    // Check if plan is cancelled
+    if (planData.status === 'cancelled') {
+      return res.status(422).json({
+        error: 'plan_cancelled',
+        message: 'Cannot launch a cancelled plan'
+      });
+    }
+    
+    // Validate plan status is 'production'
+    if (planData.status !== 'production') {
+      return res.status(422).json({
+        error: 'invalid_status',
+        message: `Plan status must be 'production', got '${planData.status}'`
+      });
+    }
+    
+    // Fetch approved quote
+    const quotesSnapshot = await db.collection('mes-approved-quotes')
+      .where('workOrderCode', '==', workOrderCode)
+      .limit(1)
+      .get();
+    
+    if (quotesSnapshot.empty) {
+      return res.status(404).json({
+        error: 'approved_quote_not_found',
+        message: `${workOrderCode} için onaylı teklif bulunamadı. Önce quote'u Approved Quotes listesine ekleyin.`,
+        workOrderCode
+      });
+    }
+    
+    const quoteDoc = quotesSnapshot.docs[0];
+    const quoteData = quoteDoc.data();
+    
+    // ========================================================================
+    // 2. LOAD PLAN NODES AND BUILD EXECUTION GRAPH
+    // ========================================================================
+    
+    const nodesToUse = planData.nodes || [];
+    
+    console.log(`📊 Total nodes to process: ${nodesToUse.length}`);
+    if (nodesToUse.length > 0) {
+      const sampleNode = nodesToUse[0];
+      console.log(`📊 Sample node structure:`, {
+        id: sampleNode.nodeId,
+        hasNodeId: !!sampleNode.nodeId,
+        hasMaterialInputs: !!(sampleNode.materialInputs && sampleNode.materialInputs.length > 0),
+        hasOutputQty: !!sampleNode.outputQty,
+        materialInputsCount: sampleNode.materialInputs ? sampleNode.materialInputs.length : 0
+      });
+    }
+    
+    if (nodesToUse.length === 0) {
+      return res.status(422).json({
+        error: 'empty_plan',
+        message: 'Cannot launch plan with no operations'
+      });
+    }
+    
+    // Build execution order using topological sort
+    const executionOrder = buildTopologicalOrder(nodesToUse);
+    
+    if (executionOrder.error) {
+      return res.status(400).json({
+        error: 'execution_graph_error',
+        message: executionOrder.error,
+        details: executionOrder.details
+      });
+    }
+    
+    // ========================================================================
+    // 3. LOAD LIVE DATA FOR ASSIGNMENT ENGINE
+    // ========================================================================
+    
+    // First, get all workers to check their status values
+    const allWorkersSnapshot = await db.collection('mes-workers').get();
+    const allWorkers = allWorkersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    console.log(`📊 Total workers in DB: ${allWorkers.length}`);
+    if (allWorkers.length > 0) {
+      console.log(`📊 Sample worker statuses:`, allWorkers.slice(0, 3).map(w => ({ name: w.name, status: w.status })));
+    }
+    
+    // Load all workers/stations/substations, but don't rely on a specific string value
+    // for the worker status at query time (some records may use different conventions).
+    const [workersSnapshot, stationsSnapshot, substationsSnapshot] = await Promise.all([
+      db.collection('mes-workers').get(),
+      db.collection('mes-stations').where('status', '==', 'active').get(),
+      db.collection('mes-substations').where('status', '==', 'active').get()
+    ]);
+
+    const rawWorkers = workersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const stations = stationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const substations = substationsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Normalize worker status and filter out workers that cannot be auto-assigned.
+    // New status enum: 'available', 'busy', 'break', 'inactive'
+    const nowIso = new Date().toISOString();
+    function isOnLeave(w) {
+      // Support several possible field shapes for backwards compatibility
+      const leaveStart = w.leaveStart || (w.leave && w.leave.start) || null;
+      const leaveEnd = w.leaveEnd || (w.leave && w.leave.end) || null;
+      if (!leaveStart || !leaveEnd) return false;
+      try {
+        const s = new Date(leaveStart).toISOString();
+        const e = new Date(leaveEnd).toISOString();
+        return s <= nowIso && nowIso <= e;
+      } catch (err) {
+        return false;
+      }
+    }
+
+    const workers = rawWorkers.map(w => {
+      const copy = { ...w };
+      // Provide default status = 'available' for older records
+      copy.status = (copy.status || copy.availability || 'available').toString();
+      // Normalize some common legacy values
+      if (/active/i.test(copy.status)) copy.status = 'available';
+      if (/enabled|on/i.test(copy.status)) copy.status = 'available';
+      if (/off|inactive|removed/i.test(copy.status)) copy.status = 'inactive';
+      if (/break|paused|rest/i.test(copy.status)) copy.status = 'break';
+      if (/busy|working/i.test(copy.status)) copy.status = 'busy';
+      // Attach computed onLeave flag
+      copy.onLeave = isOnLeave(copy);
+      return copy;
+    });
+
+    // Only workers with status 'available' or 'busy' and not on leave are eligible for auto-assignment
+    const eligibleWorkers = workers.filter(w => (w.status === 'available' || w.status === 'busy') && !w.onLeave);
+
+    console.log(`✅ Total workers in DB: ${rawWorkers.length}`);
+    console.log(`✅ Eligible workers for assignment: ${eligibleWorkers.length}`);
+
+    if (eligibleWorkers.length === 0) {
+      // Provide helpful debug info in the response to aid troubleshooting
+      return res.status(422).json({
+        error: 'no_workers',
+        message: 'No eligible workers available for assignment. Check worker.status and leave windows.',
+        totalWorkers: rawWorkers.length,
+        sample: workers.slice(0, 10).map(w => ({ id: w.id, name: w.name, status: w.status, onLeave: w.onLeave }))
+      });
+    }
+    
+    if (stations.length === 0) {
+      return res.status(422).json({
+        error: 'no_stations',
+        message: 'No active stations available for assignment'
+      });
+    }
+    
+    // ========================================================================
+    // 4. MATERIAL VALIDATION (NON-BLOCKING - WARNINGS ONLY)
+    // ========================================================================
+    
+    const planQuantity = planData.quantity || 1;
+    const materialValidation = await validateMaterialAvailabilityForLaunch(
+      planData,
+      planQuantity,
+      db
+    );
+    
+    // Material shortages are now warnings, not errors
+    // Store warnings in response but continue with launch
+    const materialWarnings = materialValidation.warnings || [];
+    
+    if (materialWarnings.length > 0) {
+      console.warn(`⚠️ Material shortages detected (${materialWarnings.length} items) - proceeding with launch`);
+    }
+    
+    // ========================================================================
+    // 5. RUN AUTO-ASSIGNMENT ENGINE FOR EACH NODE
+    // ========================================================================
+    
+    const assignments = [];
+    const assignmentErrors = [];
+    const assignmentWarnings = [];
+    
+    // Track assignments in this run to avoid conflicts
+    const workerSchedule = new Map(); // workerId -> [{ start, end }]
+    const substationSchedule = new Map(); // substationId -> [{ start, end }]
+    const nodeEndTimes = new Map(); // nodeId -> plannedEnd timestamp (for dependency tracking)
+    
+    // Process nodes in topological order
+    for (const nodeId of executionOrder.order) {
+      const node = nodesToUse.find(n => n.nodeId === nodeId);
+      if (!node) {
+        assignmentErrors.push({
+          nodeId,
+          error: 'node_not_found',
+          message: `Node ${nodeId} referenced in execution order but not found in plan`
+        });
+        continue;
+      }
+      
+      try {
+        const assignment = await assignNodeResources(
+          node,
+          eligibleWorkers,
+          stations,
+          substations,
+          workerSchedule,
+          substationSchedule,
+          planData,
+          nodeEndTimes, // Pass predecessor tracking map
+          db // Pass db for fetching operations
+        );
+        
+        if (assignment.error) {
+          assignmentErrors.push({
+            nodeId: node.nodeId,
+            nodeName: node.name,
+            error: assignment.error,
+            message: assignment.message,
+            details: assignment.details
+          });
+        } else {
+          assignments.push(assignment);
+          
+          // Track node end time for successor dependencies
+          nodeEndTimes.set(node.nodeId, new Date(assignment.plannedEnd));
+          
+          // Track warnings
+          if (assignment.warnings && assignment.warnings.length > 0) {
+            assignmentWarnings.push({
+              nodeId: node.nodeId,
+              nodeName: node.name,
+              warnings: assignment.warnings
+            });
+          }
+          
+          // Update schedules to avoid conflicts
+          const workerId = assignment.workerId;
+          const substationId = assignment.substationId; // Use substation ID, not station ID
+          
+          if (!workerSchedule.has(workerId)) {
+            workerSchedule.set(workerId, []);
+          }
+          workerSchedule.get(workerId).push({
+            start: new Date(assignment.plannedStart),
+            end: new Date(assignment.plannedEnd)
+          });
+          
+          // CRITICAL FIX: Track substation schedule, not station schedule
+          // This allows multiple substations of the same station to work in parallel
+          if (substationId) {
+            if (!substationSchedule.has(substationId)) {
+              substationSchedule.set(substationId, []);
+            }
+            substationSchedule.get(substationId).push({
+              start: new Date(assignment.plannedStart),
+              end: new Date(assignment.plannedEnd)
+            });
+          }
+        }
+      } catch (error) {
+        assignmentErrors.push({
+          nodeId: node.nodeId,
+          nodeName: node.name,
+          error: 'assignment_exception',
+          message: error.message
+        });
+      }
+    }
+    
+    // If any node failed assignment, abort
+    if (assignmentErrors.length > 0) {
+      return res.status(422).json({
+        error: 'assignment_failed',
+        message: `Failed to assign resources for ${assignmentErrors.length} operation(s)`,
+        errors: assignmentErrors,
+        warnings: assignmentWarnings
+      });
+    }
+    
+    // ========================================================================
+    // 6. CREATE WORKER ASSIGNMENTS IN BATCH
+    // ========================================================================
+    
+    const batch = db.batch();
+    const now = new Date();
+    
+    // Delete any stray assignments for this plan/WO (cleanup)
+    const existingAssignments = await db.collection('mes-worker-assignments')
+      .where('planId', '==', planId)
+      .where('workOrderCode', '==', workOrderCode)
+      .get();
+    
+    existingAssignments.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    
+    // Generate all work package IDs at once (simple sequential numbering)
+    const assignmentIds = generateWorkPackageIds(workOrderCode, assignments.length);
+    
+    // Create new assignments with work order-based IDs
+    for (let i = 0; i < assignments.length; i++) {
+      const assignment = assignments[i];
+      const workPackageId = assignmentIds[i];
+      const assignmentRef = db.collection('mes-worker-assignments').doc(workPackageId);
+      
+      // Prepare complete assignment document with required fields
+      const completeAssignment = {
+        ...assignment,
+        id: workPackageId,
+        workPackageId: workPackageId,  // ✅ Add explicit workPackageId field
+        planId,
+        workOrderCode,
+        nodeId: assignment.nodeId,  // Direct access - no normalization needed
+        substationId: assignment.substationId || null,  // ✅ Explicit null
+        
+        // FIFO scheduling fields
+        expectedStart: assignment.plannedStart,
+        priority: 2,  // Default: Normal priority (1=Low, 2=Normal, 3=High)
+        optimizedIndex: null,  // Not optimized yet
+        optimizedStart: null,  // No optimization result
+        schedulingMode: 'fifo',  // Default scheduling mode
+        
+        isUrgent: false,  // Default to normal priority
+        createdAt: now,
+        createdBy: userEmail,
+        updatedAt: now
+      };
+      
+      // Validate assignment schema (now with id and planId)
+      if (!validateAssignment(completeAssignment)) {
+        const errors = validateAssignment.errors || [];
+        console.error(`❌ Invalid assignment schema for ${workPackageId}:`, errors);
+        
+        // Check for critical errors
+        const criticalErrors = errors.filter(err => 
+          err.keyword === 'required' || err.keyword === 'type'
+        );
+        
+        if (criticalErrors.length > 0) {
+          throw new Error(
+            `Schema validation failed for ${workPackageId}: ${
+              criticalErrors.map(e => `${e.instancePath} ${e.message}`).join(', ')
+            }`
+          );
+        }
+        // Continue anyway for non-critical errors but log for monitoring
+      }
+      
+      // DEBUG: Log assignment data being saved
+      console.log(`🔍 DEBUG - Creating assignment ${workPackageId}:`);
+      console.log(`   nodeId:`, completeAssignment.nodeId);
+      console.log(`   substationId:`, completeAssignment.substationId);
+      console.log(`   expectedStart:`, completeAssignment.expectedStart);
+      console.log(`   priority:`, completeAssignment.priority);
+      console.log(`   optimizedIndex:`, completeAssignment.optimizedIndex);
+      console.log(`   schedulingMode:`, completeAssignment.schedulingMode);
+      console.log(`   isUrgent:`, completeAssignment.isUrgent);
+      console.log(`   preProductionReservedAmount:`, assignment.preProductionReservedAmount);
+      console.log(`   plannedOutput:`, assignment.plannedOutput);
+      console.log(`   materialReservationStatus:`, assignment.materialReservationStatus);
+      
+      batch.set(assignmentRef, completeAssignment);
+    }
+    
+    // Update plan document with launch status
+    batch.update(planRef, {
+      launchStatus: 'launched',
+      launchedAt: now,
+      launchedBy: userEmail,
+      assignmentCount: assignments.length,
+      lastLaunchShortage: admin.firestore.FieldValue.delete(), // Clear any previous shortage
+      updatedAt: now
+    });
+    
+    // Update approved quote production state
+    batch.update(quoteDoc.ref, {
+      productionState: 'Üretiliyor',
+      productionStateUpdatedAt: now,
+      productionStateUpdatedBy: userEmail
+    });
+    
+    // Commit all changes atomically
+    await batch.commit();
+    
+    // ========================================================================
+    // 7. EMIT EVENT FOR FRONTEND REFRESH
+    // ========================================================================
+    
+    // Note: In a production setup, you would use Server-Sent Events, WebSocket,
+    // or a pub/sub mechanism. For now, frontend will poll or check on navigation.
+    console.log(`✓ Plan ${planId} launched with ${assignments.length} assignments`);
+    
+    // ========================================================================
+    // 8. RETURN SUCCESS RESPONSE (with material warnings if any)
+    // ========================================================================
+    
+    const response = {
+      success: true,
+      planId,
+      workOrderCode,
+      assignmentCount: assignments.length,
+      assignmentIds,
+      warnings: assignmentWarnings.length > 0 ? assignmentWarnings : undefined,
+      launchedAt: now.toISOString(),
+      launchedBy: userEmail,
+      message: `Plan launched successfully with ${assignments.length} assignments`
+    };
+    
+    // Add material warnings to response if any
+    if (materialWarnings.length > 0) {
+      response.warnings = {
+        materialShortages: materialWarnings,
+        assignmentWarnings: assignmentWarnings.length > 0 ? assignmentWarnings : undefined
+      };
+    }
+    
+    return res.status(200).json(response);
+    
+  } catch (error) {
+    console.error('Launch plan error:', error);
+    
+    // Check for specific error types
+    if (error.status) {
+      return res.status(error.status).json({
+        error: error.code || 'launch_error',
+        message: error.message
+      });
+    }
+    
+    return res.status(500).json({
+      error: 'internal_error',
+      message: 'Failed to launch production plan',
+      details: error.message
+    });
+  }
+});
+
 // ============================================================================
 // URGENT PRIORITY MANAGEMENT
 // ============================================================================
