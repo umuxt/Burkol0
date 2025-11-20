@@ -2,7 +2,7 @@
 ## 3-Phase API Geçiş Kılavuzu (Clean Start - No Data Transfer)
 
 **Tarih:** 21 Kasım 2025  
-**Durum:** 🔥 PHASE 3 IN PROGRESS (47/64 endpoints, 73.4%) | ✅ STEP 12 Complete  
+**Durum:** 🔥 PHASE 3 NEAR COMPLETE (49/64 endpoints, 76.6%) | ✅ STEP 13 Complete  
 **Hedef:** Firebase API → PostgreSQL API (64 endpoints, 3 phases, clean start)
 
 ---
@@ -2745,22 +2745,100 @@ curl -X POST http://localhost:3000/api/mes/materials/check-availability \
 
 ---
 
-### STEP 13: Approved Quotes (2 endpoints)
+### STEP 13: Approved Quotes (2 endpoints) ✅ COMPLETE
 
-**Endpoints:**
-- POST `/approved-quotes/ensure` - Copy quote to approved WO
-- PATCH `/approved-quotes/:workOrderCode/production-state` - Update production state
+**Dosya:** `server/mesRoutes.js` (Lines 1314-1410, 2211-2280)
 
-**Current State:** Firebase (`mes-approved-quotes` collection)
+**Migration:**
+- ✅ **POST /approved-quotes/ensure** → SQL transaction with jsondb integration
+- ✅ **PATCH /approved-quotes/:workOrderCode/production-state** → SQL update with history
 
-**Target Table:** `mes.approved_quotes` (already exists!)
+**Table:** `mes.approved_quotes` (migration 013 + 049)
 
-**Migration Plan:**
-1. Ensure endpoint - Check if WO exists, create if not
-2. Production state update - PATCH with state history
-3. Integration with jsondb for quote loading
+**Schema:**
+```sql
+mes.approved_quotes (
+  id: varchar(100) PRIMARY KEY,
+  work_order_code: varchar(100) UNIQUE,
+  quote_id: varchar(100),
+  
+  -- Customer info
+  customer: varchar(255),
+  company: varchar(255),
+  email: varchar(255),
+  phone: varchar(100),
+  
+  -- Delivery & pricing
+  delivery_date: varchar(50),
+  price: decimal(15,2),
+  
+  -- Production state
+  production_state: varchar(50),
+  production_state_updated_at: timestamp,
+  production_state_updated_by: varchar(255),
+  production_state_history: jsonb,
+  
+  -- Quote snapshot
+  quote_snapshot: jsonb,
+  
+  -- Timestamps
+  created_at: timestamp,
+  updated_at: timestamp
+)
+```
 
-**Schema:** Already exists (check migrations)
+**POST /ensure Features:**
+1. Check if WO already exists (by quote_id)
+2. Load quote from jsondb
+3. Validate quote status (approved/onaylandı/onaylandi)
+4. Validate delivery date exists
+5. Generate next WO code (WO-001, WO-002...)
+6. Insert with quote snapshot
+7. Transaction rollback on any error
+
+**PATCH /production-state Features:**
+1. Validate production state (5 valid states)
+2. Find approved quote by work_order_code
+3. Append to production_state_history array
+4. Update state, timestamp, updated_by
+5. Return success with updated state
+
+**Valid Production States:**
+- Üretim Onayı Bekliyor
+- Üretiliyor
+- Üretim Durduruldu
+- Üretim Tamamlandı
+- İptal Edildi
+
+**Test:**
+```bash
+# Get all approved quotes
+curl http://localhost:3000/api/mes/approved-quotes
+# ✅ Response: {"approvedQuotes":[...]} (2 existing)
+
+# Ensure quote (requires valid quote in jsondb)
+curl -X POST http://localhost:3000/api/mes/approved-quotes/ensure \
+  -H "Content-Type: application/json" \
+  -d '{"quoteId":"quote-123"}'
+
+# Update production state
+curl -X PATCH http://localhost:3000/api/mes/approved-quotes/WO-001/production-state \
+  -H "Content-Type: application/json" \
+  -d '{"productionState":"Üretiliyor"}'
+```
+
+**Beklenen Sonuç:**
+- ✅ Firebase dependency removed
+- ✅ SQL transaction with rollback
+- ✅ Jsondb integration preserved
+- ✅ WO code auto-generation (WO-XXX format)
+- ✅ Production state validation
+- ✅ History tracking with jsonb array
+- ✅ Error handling comprehensive
+
+**Migration 049:**
+- Added 10 fields to approved_quotes table
+- Indexes on quote_id, customer, delivery_date
 
 ---
 
@@ -2809,11 +2887,11 @@ curl -X POST http://localhost:3000/api/mes/materials/check-availability \
 
 - [x] STEP 11: Alerts (1 endpoint) ✅
 - [x] STEP 12: Materials (2 endpoints) ✅ **POST removed - not MES responsibility**
-- [ ] STEP 13: Approved Quotes (2 endpoints) ⏳
-- [ ] STEP 14: Orders Cleanup (1 endpoint - DELETE) ⏳
+- [x] STEP 13: Approved Quotes (2 endpoints) ✅
+- [ ] STEP 14: Orders Cleanup (1 endpoint - DELETE) ⏳ **NEXT**
 - [x] Master Data: Already SQL ✅
 - [x] Metrics: In-memory, no migration ✅
-- [ ] **Total: 3/7 endpoints (42.9%) ⏳**
+- [ ] **Total: 5/7 endpoints (71.4%) ⏳**
 
 - [x] STEP 11: Alerts (1 endpoint) ✅ **COMPLETE**
 - [ ] STEP 12: Materials (3 endpoints) ⏳ **NEXT**
@@ -2825,13 +2903,13 @@ curl -X POST http://localhost:3000/api/mes/materials/check-availability \
 ### Overall Migration Status
 
 **Total Endpoints:** 64  
-**Completed:** 47 (73.4%) ✅  
+**Completed:** 49 (76.6%) ✅  
 **Phase 1:** 19/19 (100%) ✅  
 **Phase 2:** 25/25 (100%) ✅  
-**Phase 3:** 3/7 (42.9%) ⏳
+**Phase 3:** 5/7 (71.4%) ⏳
 
-**Remaining:** 4 endpoints (Approved Quotes + Orders cleanup)  
-**In Progress:** STEP 13 - Approved Quotes (NEXT)  
+**Remaining:** 2 endpoints (Orders cleanup + final verification)  
+**In Progress:** STEP 14 - Orders Cleanup (NEXT)  
 **Removed:** POST /materials (not MES responsibility)
 
 **Database Migrations:**
@@ -2909,8 +2987,8 @@ Tüm bu adımlar tamamlandığında:
 
 ✅ **Phase 1 COMPLETE: 19/19 endpoints (100%)**  
 ✅ **Phase 2 COMPLETE: 25/25 endpoints (100%)**  
-⏳ **Phase 3 IN PROGRESS: 3/7 endpoints (42.9%)**  
-📊 **Overall Progress: 47/64 endpoints (73.4%)**
+⏳ **Phase 3 IN PROGRESS: 5/7 endpoints (71.4%)**  
+📊 **Overall Progress: 49/64 endpoints (76.6%)**
 
 **Tamamlanan:**
 - ✅ Firebase dependency removed from Phases 1-2
@@ -2923,8 +3001,8 @@ Tüm bu adımlar tamamlandığında:
 ---
 
 **Son Güncelleme:** 21 Kasım 2025  
-**Versiyon:** 3.1 - Phase 3 In Progress (47/64 endpoints)  
-**Durum:** 🔥 STEP 12 COMPLETE - Materials Migration Done
+**Versiyon:** 3.2 - Phase 3 Near Complete (49/64 endpoints)  
+**Durum:** 🔥 STEP 13 COMPLETE - Approved Quotes Migration Done
 
 **Hazırlayan:** AI Assistant  
 **Takip Eden:** Copilot (step-by-step execution)

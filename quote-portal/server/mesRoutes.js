@@ -1310,79 +1310,111 @@ router.get('/approved-quotes', withAuth, async (req, res) => {
   }
 });
 
-// POST /api/mes/approved-quotes/ensure - Ensure an approved quote is copied as WO
+// POST /api/mes/approved-quotes/ensure - Ensure an approved quote is copied as WO (SQL)
 router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { quoteId } = req.body || {}
-    console.log(`🔍 [ENSURE] Starting WO creation for quote: ${quoteId}`)
+  const trx = await db.transaction();
+  
+  try {
+    const { quoteId } = req.body || {};
+    console.log(`🔍 [ENSURE] Starting WO creation for quote: ${quoteId}`);
     
     if (!quoteId) {
-      console.log('❌ [ENSURE] No quoteId provided')
-      return { success: false, error: 'quoteId_required' }
+      await trx.rollback();
+      console.log('❌ [ENSURE] No quoteId provided');
+      return res.status(400).json({ success: false, error: 'quoteId_required' });
     }
 
-    const db = getFirestore();
-    const col = db.collection('mes-approved-quotes')
-
-    // Already exists?
-    console.log(`🔍 [ENSURE] Checking if WO already exists for quote: ${quoteId}`)
-    const existsSnap = await col.where('quoteId', '==', quoteId).limit(1).get()
-    if (!existsSnap.empty) {
-      const existingCode = existsSnap.docs[0].id
-      console.log(`ℹ️ [ENSURE] WO already exists: ${existingCode}`)
-      return { success: true, ensured: true, workOrderCode: existingCode }
-    }
-
-    // Load quote from jsondb (dynamic import to avoid Firebase init issues)
-    console.log(`🔍 [ENSURE] Loading quote from jsondb: ${quoteId}`)
-    const { default: jsondb } = await import('../src/lib/jsondb.js')
-    const quote = jsondb.getQuote(quoteId)
-    if (!quote) {
-      console.log(`❌ [ENSURE] Quote not found in jsondb: ${quoteId}`)
-      const e = new Error('quote_not_found'); e.status = 404; throw e
-    }
-    console.log(`✅ [ENSURE] Quote loaded: ${quote.id} | Status: ${quote.status}`)
+    // Check if WO already exists
+    console.log(`🔍 [ENSURE] Checking if WO already exists for quote: ${quoteId}`);
+    const [existing] = await trx('mes.approved_quotes')
+      .where({ quote_id: quoteId })
+      .select('work_order_code')
+      .limit(1);
     
-    const st = String(quote.status || '').toLowerCase()
+    if (existing) {
+      await trx.rollback();
+      console.log(`ℹ️ [ENSURE] WO already exists: ${existing.work_order_code}`);
+      return res.json({ 
+        success: true, 
+        ensured: true, 
+        workOrderCode: existing.work_order_code 
+      });
+    }
+
+    // Load quote from jsondb
+    console.log(`🔍 [ENSURE] Loading quote from jsondb: ${quoteId}`);
+    const { default: jsondb } = await import('../src/lib/jsondb.js');
+    const quote = jsondb.getQuote(quoteId);
+    
+    if (!quote) {
+      await trx.rollback();
+      console.log(`❌ [ENSURE] Quote not found in jsondb: ${quoteId}`);
+      return res.status(404).json({ success: false, error: 'quote_not_found' });
+    }
+    
+    console.log(`✅ [ENSURE] Quote loaded: ${quote.id} | Status: ${quote.status}`);
+    
+    // Validate quote status
+    const st = String(quote.status || '').toLowerCase();
     if (!(st === 'approved' || st === 'onaylandı' || st === 'onaylandi')) {
-      console.log(`❌ [ENSURE] Quote not approved. Status: ${quote.status}`)
-      return { success: false, error: 'quote_not_approved', status: quote.status || null }
+      await trx.rollback();
+      console.log(`❌ [ENSURE] Quote not approved. Status: ${quote.status}`);
+      return res.status(400).json({ 
+        success: false, 
+        error: 'quote_not_approved', 
+        status: quote.status || null 
+      });
     }
 
-    // Delivery date required to ensure approved quote is usable in MES
+    // Validate delivery date
     if (!quote.deliveryDate || String(quote.deliveryDate).trim() === '') {
-      console.log(`❌ [ENSURE] Delivery date missing`)
-      return { success: false, error: 'delivery_date_required' }
+      await trx.rollback();
+      console.log(`❌ [ENSURE] Delivery date missing`);
+      return res.status(400).json({ success: false, error: 'delivery_date_required' });
     }
-    console.log(`✅ [ENSURE] Delivery date: ${quote.deliveryDate}`)
+    console.log(`✅ [ENSURE] Delivery date: ${quote.deliveryDate}`);
 
-    // Generate next WO code using centralized counter
-    console.log(`🔢 [ENSURE] Generating WO code...`)
-    const code = await generateWorkOrderCode(db);
-    console.log(`✅ [ENSURE] Generated WO code: ${code}`)
+    // Generate next WO code using mes.work_orders counter
+    const [{ max_code }] = await trx('mes.work_orders')
+      .max('code as max_code');
+    
+    const nextNum = max_code ? parseInt(max_code.split('-')[1]) + 1 : 1;
+    const code = `WO-${nextNum.toString().padStart(3, '0')}`;
+    
+    console.log(`✅ [ENSURE] Generated WO code: ${code}`);
 
-    const approvedDoc = {
-      workOrderCode: code,
-      quoteId,
-      status: 'approved',
+    // Insert into approved_quotes
+    await trx('mes.approved_quotes').insert({
+      id: code,
+      work_order_code: code,
+      quote_id: quoteId,
+      production_state: 'Üretim Onayı Bekliyor',
       customer: quote.name || quote.customer || null,
       company: quote.company || null,
       email: quote.email || null,
       phone: quote.phone || null,
-      deliveryDate: quote.deliveryDate || null,
+      delivery_date: quote.deliveryDate || null,
       price: quote.price ?? quote.calculatedPrice ?? null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      quoteSnapshot: quote
-    }
+      quote_snapshot: quote,
+      created_at: trx.fn.now()
+    });
 
-    console.log(`💾 [ENSURE] Saving WO to Firestore: ${code}`)
-    await col.doc(code).set(approvedDoc, { merge: true })
-    console.log(`✅ [ENSURE] WO successfully created: ${code} for quote ${quoteId}`)
+    await trx.commit();
     
-    return { success: true, ensured: true, workOrderCode: code }
-  }, res)
-})
+    console.log(`✅ [ENSURE] WO successfully created: ${code} for quote ${quoteId}`);
+    
+    res.json({ success: true, ensured: true, workOrderCode: code });
+    
+  } catch (error) {
+    await trx.rollback();
+    console.error('❌ [ENSURE] Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to ensure approved quote',
+      details: error.message 
+    });
+  }
+});
 
 // ============================================================================
 // MASTER DATA ROUTES
@@ -2207,18 +2239,18 @@ async function updateApprovedQuoteProductionState(orderCode, productionState, up
   }
 }
 
-// PATCH /api/mes/approved-quotes/:workOrderCode/production-state - Update production state
+// PATCH /api/mes/approved-quotes/:workOrderCode/production-state - Update production state (SQL)
 router.patch('/approved-quotes/:workOrderCode/production-state', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
+  try {
     const { workOrderCode } = req.params;
     const { productionState } = req.body || {};
     
     if (!workOrderCode) {
-      const e = new Error('workOrderCode_required'); e.status = 400; throw e;
+      return res.status(400).json({ error: 'workOrderCode_required' });
     }
     
     if (!productionState) {
-      const e = new Error('productionState_required'); e.status = 400; throw e;
+      return res.status(400).json({ error: 'productionState_required' });
     }
     
     // Validate production state
@@ -2231,42 +2263,59 @@ router.patch('/approved-quotes/:workOrderCode/production-state', withAuth, async
     ];
     
     if (!validStates.includes(productionState)) {
-      const e = new Error('invalid_production_state'); e.status = 400; throw e;
+      return res.status(400).json({ error: 'invalid_production_state' });
     }
     
-    const db = getFirestore();
-    const col = db.collection('mes-approved-quotes');
+    // Find and update approved quote
+    const [approvedQuote] = await db('mes.approved_quotes')
+      .where({ work_order_code: workOrderCode })
+      .select('id', 'production_state', 'production_state_history');
     
-    // Find document by workOrderCode
-    const snapshot = await col.where('workOrderCode', '==', workOrderCode).limit(1).get();
-    
-    if (snapshot.empty) {
-      const e = new Error(`${workOrderCode} için onaylı teklif bulunamadı. Quotes ekranından bu work order'ı oluşturup tekrar deneyin.`);
-      e.status = 404;
-      e.code = 'approved_quote_not_found';
-      throw e;
+    if (!approvedQuote) {
+      return res.status(404).json({ 
+        error: `${workOrderCode} için onaylı teklif bulunamadı. Quotes ekranından bu work order'ı oluşturup tekrar deneyin.`,
+        code: 'approved_quote_not_found'
+      });
     }
     
-    const doc = snapshot.docs[0];
+    // Build history entry
+    const historyEntry = {
+      state: productionState,
+      timestamp: new Date().toISOString(),
+      updatedBy: req.user?.email || 'system'
+    };
+    
+    // Append to history array (PostgreSQL jsonb append)
+    const currentHistory = approvedQuote.production_state_history || [];
+    const updatedHistory = [...currentHistory, historyEntry];
     
     // Update production state
-    await doc.ref.update({
-      productionState,
-      updatedAt: new Date().toISOString(),
-      productionStateHistory: admin.firestore.FieldValue.arrayUnion({
-        state: productionState,
-        timestamp: new Date().toISOString(),
-        updatedBy: req.user?.email || 'system'
-      })
-    });
+    await db('mes.approved_quotes')
+      .where({ work_order_code: workOrderCode })
+      .update({
+        production_state: productionState,
+        production_state_updated_at: db.fn.now(),
+        production_state_updated_by: req.user?.email || 'system',
+        production_state_history: JSON.stringify(updatedHistory),
+        updated_at: db.fn.now()
+      });
     
-    return { 
-      success: true, 
+    console.log(`✅ Production state updated: ${workOrderCode} → ${productionState}`);
+    
+    res.json({
+      success: true,
       workOrderCode,
       productionState,
       updatedAt: new Date().toISOString()
-    };
-  }, res);
+    });
+    
+  } catch (error) {
+    console.error('❌ Error updating production state:', error);
+    res.status(500).json({ 
+      error: 'Failed to update production state',
+      details: error.message 
+    });
+  }
 });
 
 // ============================================================================
