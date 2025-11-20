@@ -2,8 +2,8 @@
 ## 3-Phase API Geçiş Kılavuzu (Clean Start - No Data Transfer)
 
 **Tarih:** 21 Kasım 2025  
-**Durum:** 🎉 PHASE 2 COMPLETE (44/65 endpoints, 67.7%) | ✅ STEP 10 Complete  
-**Hedef:** Firebase API → PostgreSQL API (65 endpoints, 3 phases, clean start)
+**Durum:** 🔥 PHASE 3 IN PROGRESS (47/64 endpoints, 73.4%) | ✅ STEP 12 Complete  
+**Hedef:** Firebase API → PostgreSQL API (64 endpoints, 3 phases, clean start)
 
 ---
 
@@ -197,21 +197,21 @@
 
 ---
 
-### **⏳ PHASE 3: SUPPORTING FEATURES (Week 3)** - 12 Endpoints
+### **⏳ PHASE 3: SUPPORTING FEATURES (Week 3)** - 7 Endpoints
 
 **Priority:** 🟡 MEDIUM - Nice to have, not blocking
 
 **Endpoints to Migrate:**
-1. Materials (4 endpoints)
-2. Master Data (2 endpoints)
-3. Templates GET (1 endpoint)
-4. Alerts (1 endpoint)
-5. Metrics (2 endpoints)
-6. Approved Quotes POST (2 endpoints)
+1. ✅ Alerts (1 endpoint) - COMPLETE
+2. ✅ Materials (2 endpoints) - COMPLETE (POST removed)
+3. ⏳ Approved Quotes (2 endpoints) - NEXT
+4. ⏳ Orders cleanup (1 endpoint - DELETE)
+5. ✅ Master Data - Already SQL (verified)
+6. ✅ Metrics - In-memory (no migration needed)
 
 **Why Last:** Can work without these initially
 
-**Overall Progress:** 49/65 endpoints (75%) ✅
+**Overall Progress:** 47/64 endpoints (73.4%) ✅
 
 ---
 
@@ -2667,23 +2667,81 @@ curl http://localhost:3000/api/mes/alerts?status=active
 
 ---
 
-### STEP 12: Materials (3 endpoints)
+### STEP 12: Materials (2 endpoints) ✅ COMPLETE
 
-**Endpoints:**
-- GET `/materials`
-- POST `/materials` (batch create/update/delete)
-- POST `/materials/check-availability`
+**Dosya:** `server/mesRoutes.js` (Lines 2033-2120)
 
-**Current State:** Firebase (`materials` collection)
+**❌ CRITICAL: POST /materials REMOVED**
+- MES sistemi malzeme CRUD yapmaz!
+- Malzemeler task complete'de otomatik oluşur (yarı mamül/bitmiş ürün)
+- Sadece stok sorgulama ve uygunluk kontrolü gerekli
 
-**Target Table:** `materials.materials` (already exists!)
+**Migration:**
+- ✅ **GET /materials** → SQL SELECT with ordering
+- ✅ **POST /materials/check-availability** → Stock query, shortage calculation
+- ❌ **POST /materials** → REMOVED (not MES responsibility)
 
-**Migration Plan:**
-1. GET - Simple SELECT with ordering
-2. POST - Batch upsert/delete with transaction
-3. Check-availability - Query stock, calculate shortages
+**Table:** `materials.materials` (migration 004)
 
-**Schema:** Already exists in migration `004_create_materials.js`
+**Schema:**
+```sql
+materials.materials (
+  id: serial PRIMARY KEY,
+  code: varchar(50) UNIQUE,
+  name: varchar(255),
+  type: varchar(50),              -- raw_material, semi_finished, finished_product
+  category: varchar(100),
+  stock: decimal(15,3),
+  reserved: decimal(15,3),
+  wip_reserved: decimal(15,3),
+  unit: varchar(20),
+  -- ... pricing, supplier, status fields
+)
+```
+
+**Yarı Mamül Flow:**
+1. Production plan node'unda `outputCode` belirlenir
+2. Task complete olunca output material yoksa → OLUŞTURULUR
+3. Type otomatik belirlenir: `semi_finished` veya `finished_product`
+4. Bitmiş ürün detection: Başka node tarafından input olarak kullanılmıyorsa → `finished_product`
+5. Bitmiş ürünlere 'F' suffix eklenir: "WIP-001" → "WIP-001F"
+
+**Check-Availability Logic:**
+```javascript
+// Available stock calculation
+const available = stock - reserved - wip_reserved;
+
+// Find material by code, id, or name
+const searchKeys = [
+  required.code?.toLowerCase(),
+  required.id?.toString().toLowerCase(),
+  required.name?.toLowerCase()
+].filter(Boolean);
+
+// Calculate shortage
+const shortage = Math.max(0, requiredQty - availableQty);
+```
+
+**Test:**
+```bash
+# Get all materials
+curl http://localhost:3000/api/mes/materials | jq '.materials | length'
+# ✅ Response: 9
+
+# Check availability
+curl -X POST http://localhost:3000/api/mes/materials/check-availability \
+  -H "Content-Type: application/json" \
+  -d '{"materials":[{"code":"M-001","required":100,"unit":"adet"}]}'
+# ✅ Response: {"allAvailable":true,"materials":[...],"shortages":[]}
+```
+
+**Beklenen Sonuç:**
+- ✅ GET returns all materials ordered by name
+- ✅ Check-availability calculates available = stock - reserved - wip_reserved
+- ✅ Multi-key lookup (code, id, name)
+- ✅ Shortage calculation and reporting
+- ✅ POST /materials removed (correct decision!)
+- ✅ Yarı mamül flow preserved in task complete logic
 
 ---
 
@@ -2747,7 +2805,15 @@ curl http://localhost:3000/api/mes/alerts?status=active
 
 **🎉 PHASE 2 COMPLETE!**
 
-### Phase 3: Supporting Features (8 endpoints) ⏳ IN PROGRESS (1/8)
+### Phase 3: Supporting Features (7 endpoints) ⏳ IN PROGRESS (3/7)
+
+- [x] STEP 11: Alerts (1 endpoint) ✅
+- [x] STEP 12: Materials (2 endpoints) ✅ **POST removed - not MES responsibility**
+- [ ] STEP 13: Approved Quotes (2 endpoints) ⏳
+- [ ] STEP 14: Orders Cleanup (1 endpoint - DELETE) ⏳
+- [x] Master Data: Already SQL ✅
+- [x] Metrics: In-memory, no migration ✅
+- [ ] **Total: 3/7 endpoints (42.9%) ⏳**
 
 - [x] STEP 11: Alerts (1 endpoint) ✅ **COMPLETE**
 - [ ] STEP 12: Materials (3 endpoints) ⏳ **NEXT**
@@ -2758,15 +2824,15 @@ curl http://localhost:3000/api/mes/alerts?status=active
 
 ### Overall Migration Status
 
-**Total Endpoints:** 65  
-**Completed:** 45 (69.2%) ✅  
+**Total Endpoints:** 64  
+**Completed:** 47 (73.4%) ✅  
 **Phase 1:** 19/19 (100%) ✅  
 **Phase 2:** 25/25 (100%) ✅  
-**Phase 3:** 1/8 (12.5%) ⏳
+**Phase 3:** 3/7 (42.9%) ⏳
 
-**Remaining:** 21 endpoints (not all need migration - some already SQL, some to be removed)  
-**In Progress:** STEP 9 - Work Packages  
-**Remaining:** 29 endpoints
+**Remaining:** 4 endpoints (Approved Quotes + Orders cleanup)  
+**In Progress:** STEP 13 - Approved Quotes (NEXT)  
+**Removed:** POST /materials (not MES responsibility)
 
 **Database Migrations:**
 - [x] Migrations 022-038 (Core schema)
@@ -2843,8 +2909,8 @@ Tüm bu adımlar tamamlandığında:
 
 ✅ **Phase 1 COMPLETE: 19/19 endpoints (100%)**  
 ✅ **Phase 2 COMPLETE: 25/25 endpoints (100%)**  
-⏳ **Phase 3 IN PROGRESS: 0/21 endpoints (0%)**  
-📊 **Overall Progress: 44/65 endpoints (67.7%)**
+⏳ **Phase 3 IN PROGRESS: 3/7 endpoints (42.9%)**  
+📊 **Overall Progress: 47/64 endpoints (73.4%)**
 
 **Tamamlanan:**
 - ✅ Firebase dependency removed from Phases 1-2
@@ -2857,8 +2923,8 @@ Tüm bu adımlar tamamlandığında:
 ---
 
 **Son Güncelleme:** 21 Kasım 2025  
-**Versiyon:** 3.0 - Phase 2 Complete (44/65 endpoints)  
-**Durum:** 🎉 PHASE 2 COMPLETE - Ready for Phase 3
+**Versiyon:** 3.1 - Phase 3 In Progress (47/64 endpoints)  
+**Durum:** 🔥 STEP 12 COMPLETE - Materials Migration Done
 
 **Hazırlayan:** AI Assistant  
 **Takip Eden:** Copilot (step-by-step execution)

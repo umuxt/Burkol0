@@ -2031,85 +2031,47 @@ router.delete('/templates/:id', withAuth, async (req, res) => {
 
 // GET /api/mes/materials - Get all materials from unified materials collection
 router.get('/materials', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const db = getFirestore();
-    const snapshot = await db.collection('materials')
-      .orderBy('name')
-      .get();
-    const materials = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
-    return { materials };
-  }, res);
-});
-
-// POST /api/mes/materials - Create/Update multiple materials (batch)
-router.post('/materials', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { materials } = req.body;
-    if (!Array.isArray(materials)) {
-      throw new Error('Materials must be an array');
-    }
-
-    const db = getFirestore();
-    const batch = db.batch();
-
-    // Get existing materials to find deletions
-    const existingSnapshot = await db.collection('materials').get();
-    const existingIds = new Set(existingSnapshot.docs.map(doc => doc.id));
-    const newIds = new Set(materials.map(m => m.id));
-
-    // Add/Update materials
-    materials.forEach(material => {
-      const docRef = db.collection('materials').doc(material.id);
-      batch.set(docRef, {
-        ...material,
-        updatedAt: new Date()
-      }, { merge: true });
+  try {
+    const materials = await db('materials.materials')
+      .select('*')
+      .orderBy('name');
+    
+    res.json({ materials });
+  } catch (error) {
+    console.error('❌ Materials GET Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch materials',
+      details: error.message 
     });
-
-    // Delete removed materials
-    existingIds.forEach(id => {
-      if (!newIds.has(id)) {
-        const docRef = db.collection('materials').doc(id);
-        batch.delete(docRef);
-      }
-    });
-
-    await batch.commit();
-    return { success: true, updated: materials.length };
-  }, res);
+  }
 });
 
 // POST /api/mes/materials/check-availability - Check material availability for production plan
 router.post('/materials/check-availability', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
+  try {
     const { materials: requiredMaterials } = req.body;
     
     if (!Array.isArray(requiredMaterials)) {
-      throw new Error('Required materials must be an array');
+      return res.status(400).json({ error: 'Required materials must be an array' });
     }
 
-    const db = getFirestore();
+    // Fetch all materials from PostgreSQL
+    const allMaterials = await db('materials.materials').select('*');
     
-    // Fetch materials from the unified materials collection only
-    // NOTE: 'mes-materials' collection has been removed - all data is in 'materials'
-    const snapshot = await db.collection('materials').get();
-    
-    // Build lookup maps by code, id, and name
+    // Build lookup map by code, id (auto-increment), and name
     const materialStockMap = new Map();
     
-    // Process materials
-    snapshot.docs.forEach(doc => {
-      const mat = { id: doc.id, ...doc.data() };
-      const stock = parseFloat(mat.stock || mat.available) || 0;
-      const code = mat.code || mat.id;
+    allMaterials.forEach(mat => {
+      const stock = parseFloat(mat.stock) || 0;
+      const reserved = parseFloat(mat.reserved) || 0;
+      const wipReserved = parseFloat(mat.wip_reserved) || 0;
+      const available = stock - reserved - wipReserved;
+      const code = mat.code;
       
       // Add to map with multiple keys for flexible lookup
-      if (code) materialStockMap.set(code.toLowerCase(), { ...mat, code, stock });
-      if (mat.id) materialStockMap.set(mat.id.toLowerCase(), { ...mat, code, stock });
-      if (mat.name) materialStockMap.set(mat.name.toLowerCase(), { ...mat, code, stock });
+      if (code) materialStockMap.set(code.toLowerCase(), { ...mat, code, stock: available });
+      if (mat.id) materialStockMap.set(mat.id.toString().toLowerCase(), { ...mat, code, stock: available });
+      if (mat.name) materialStockMap.set(mat.name.toLowerCase(), { ...mat, code, stock: available });
     });
 
     // Check each required material
@@ -2120,7 +2082,7 @@ router.post('/materials/check-availability', withAuth, async (req, res) => {
       let material = null;
       const searchKeys = [
         required.code?.toLowerCase(),
-        required.id?.toLowerCase(),
+        required.id?.toString().toLowerCase(),
         required.name?.toLowerCase()
       ].filter(Boolean);
       
@@ -2134,9 +2096,6 @@ router.post('/materials/check-availability', withAuth, async (req, res) => {
       const availableQty = material ? material.stock : 0;
       const shortage = Math.max(0, requiredQty - availableQty);
       const isAvailable = shortage === 0;
-      
-      // Placeholder for future reservation system
-      // Currently always true if material exists and is available
       const canReserve = material && isAvailable;
       
       return {
@@ -2149,7 +2108,7 @@ router.post('/materials/check-availability', withAuth, async (req, res) => {
         isAvailable,
         shortage,
         status: isAvailable ? 'ok' : 'shortage',
-        canReserve // Placeholder for future reservation feature
+        canReserve
       };
     });
 
@@ -2157,15 +2116,23 @@ router.post('/materials/check-availability', withAuth, async (req, res) => {
     const shortages = materialChecks.filter(check => !check.isAvailable);
     const canReserveAll = materialChecks.every(check => check.canReserve);
 
-    return {
+    console.log(`🔍 Materials Availability: ${materialChecks.length} checked, ${shortages.length} shortages`);
+
+    res.json({
       allAvailable,
-      canReserveAll, // Placeholder: true if all materials can be reserved
+      canReserveAll,
       materials: materialChecks,
       shortages,
       totalShortageItems: shortages.length,
       checkedAt: new Date().toISOString()
-    };
-  }, res);
+    });
+  } catch (error) {
+    console.error('❌ Materials Check-Availability Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to check material availability',
+      details: error.message 
+    });
+  }
 });
 
 // ============================================================================
