@@ -4537,32 +4537,46 @@ router.delete('/work-packages/:id/scrap/:scrapType/:materialCode/:quantity', wit
 // ALERTS ROUTES
 // ============================================================================
 
-// GET /api/mes/alerts - Get alerts with optional filtering
+// ============================================================================
+// ALERTS ROUTES (SQL MIGRATION - STEP 11)
+// ============================================================================
+
+// GET /api/mes/alerts - Get alerts with optional filtering (SQL)
 router.get('/alerts', withAuth, async (req, res) => {
   try {
     const { type, status, limit } = req.query;
     
-    const db = getFirestore();
-    
-    // Check if collection exists by attempting a simple query
-    let query = db.collection('mes-alerts');
+    let query = db('mes.alerts')
+      .select(
+        'id',
+        'type',
+        'severity',
+        'title',
+        'message',
+        'metadata',
+        'is_read',
+        'is_resolved',
+        'created_at',
+        'resolved_at',
+        'resolved_by'
+      );
     
     // Apply filters
     if (type) {
-      query = query.where('type', '==', type);
+      query = query.where('type', type);
     }
     
     if (status) {
-      query = query.where('status', '==', status);
+      // Map status to is_resolved/is_read flags
+      if (status === 'active') {
+        query = query.where('is_resolved', false);
+      } else if (status === 'resolved') {
+        query = query.where('is_resolved', true);
+      }
     }
     
     // Order by most recent
-    try {
-      query = query.orderBy('createdAt', 'desc');
-    } catch (err) {
-      // If orderBy fails (e.g., missing index), skip ordering
-      console.warn('Alert ordering failed, returning unordered results:', err.message);
-    }
+    query = query.orderBy('created_at', 'desc');
     
     // Apply limit
     if (limit) {
@@ -4572,37 +4586,17 @@ router.get('/alerts', withAuth, async (req, res) => {
       }
     }
     
-    // Execute query with error handling
-    let snapshot;
-    try {
-      snapshot = await query.get();
-    } catch (err) {
-      console.error('Failed to query alerts collection:', err);
-      return res.status(500).json({ 
-        code: 'alerts_load_failed', 
-        message: `Failed to load alerts: ${err.message}`,
-        alerts: [] // Return empty array as fallback
-      });
-    }
+    const alerts = await query;
     
-    // Handle empty collection
-    if (snapshot.empty) {
-      return res.status(200).json({ alerts: [] });
-    }
+    console.log(`📢 Alerts: Found ${alerts.length} alerts`);
     
-    const alerts = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt
-    }));
-    
-    return res.status(200).json({ alerts });
-  } catch (err) {
-    console.error('Unexpected error in alerts endpoint:', err);
-    return res.status(500).json({ 
-      code: 'alerts_load_failed', 
-      message: `Unexpected error: ${err.message}`,
-      alerts: []
+    res.json({ alerts });
+  } catch (error) {
+    console.error('❌ Error fetching alerts:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch alerts',
+      details: error.message,
+      alerts: [] // Return empty array as fallback
     });
   }
 });

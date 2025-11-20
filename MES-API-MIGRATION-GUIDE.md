@@ -2607,7 +2607,120 @@ curl -X DELETE http://localhost:3000/api/mes/production-plans/PLAN-008
 
 ## 📋 PHASE 3: SUPPORTING FEATURES MIGRATION
 
-Materials, Alerts, Metrics, Master Data endpoints - basit CRUD pattern'leri.
+Supporting endpoints that complement the core MES functionality.
+
+---
+
+### STEP 11: Alerts (1 endpoint) ✅ COMPLETE
+
+**Dosya:** `server/mesRoutes.js` (Lines 4540-4610)
+
+**Migration:**
+- ✅ **GET /alerts** → SQL query with filtering
+
+**Table:** `mes.alerts` (already existed from migration 013)
+
+**Schema:**
+```sql
+mes.alerts (
+  id: varchar(100) PRIMARY KEY,
+  type: varchar(50),              -- warning, error, info
+  severity: varchar(50),          -- low, medium, high, critical
+  title: varchar(255),
+  message: text,
+  metadata: jsonb,
+  is_read: boolean DEFAULT false,
+  is_resolved: boolean DEFAULT false,
+  created_at: timestamp,
+  resolved_at: timestamp,
+  resolved_by: varchar(255)
+)
+```
+
+**Features:**
+- Filter by type (optional)
+- Filter by status (active/resolved maps to is_resolved flag)
+- Limit results (optional)
+- Ordered by created_at DESC
+
+**Test:**
+```bash
+# Get all alerts
+curl http://localhost:3000/api/mes/alerts
+# ✅ Response: {"alerts":[]}
+
+# Filter by type
+curl http://localhost:3000/api/mes/alerts?type=material_shortage
+# ✅ Response: {"alerts":[]}
+
+# Filter by status
+curl http://localhost:3000/api/mes/alerts?status=active
+# ✅ Response: {"alerts":[]}
+```
+
+**Beklenen Sonuç:**
+- ✅ Firebase dependency removed
+- ✅ SQL query with proper filtering
+- ✅ Status mapping (active/resolved → is_resolved)
+- ✅ Returns empty array when no alerts
+- ✅ Error handling with fallback
+
+---
+
+### STEP 12: Materials (3 endpoints)
+
+**Endpoints:**
+- GET `/materials`
+- POST `/materials` (batch create/update/delete)
+- POST `/materials/check-availability`
+
+**Current State:** Firebase (`materials` collection)
+
+**Target Table:** `materials.materials` (already exists!)
+
+**Migration Plan:**
+1. GET - Simple SELECT with ordering
+2. POST - Batch upsert/delete with transaction
+3. Check-availability - Query stock, calculate shortages
+
+**Schema:** Already exists in migration `004_create_materials.js`
+
+---
+
+### STEP 13: Approved Quotes (2 endpoints)
+
+**Endpoints:**
+- POST `/approved-quotes/ensure` - Copy quote to approved WO
+- PATCH `/approved-quotes/:workOrderCode/production-state` - Update production state
+
+**Current State:** Firebase (`mes-approved-quotes` collection)
+
+**Target Table:** `mes.approved_quotes` (already exists!)
+
+**Migration Plan:**
+1. Ensure endpoint - Check if WO exists, create if not
+2. Production state update - PATCH with state history
+3. Integration with jsondb for quote loading
+
+**Schema:** Already exists (check migrations)
+
+---
+
+### STEP 14: Orders Cleanup (1 endpoint)
+
+**Endpoint:** GET `/orders`
+
+**Current State:** Firebase (`mes-orders` collection) ❌ WRONG
+
+**Action:** **DELETE** this endpoint
+
+**Reason:**
+- MES uses `mes.work_orders`, not `mes-orders`
+- FIFO system doesn't need separate orders tracking
+- Materials orders are in `materials.orders` (supplier orders)
+- This endpoint serves no purpose and causes confusion
+
+**Migration:** Remove the endpoint entirely
 
 ---
 
@@ -2634,22 +2747,24 @@ Materials, Alerts, Metrics, Master Data endpoints - basit CRUD pattern'leri.
 
 **🎉 PHASE 2 COMPLETE!**
 
-### Phase 3: Supporting Features (21 endpoints) ⏳ NEXT
+### Phase 3: Supporting Features (8 endpoints) ⏳ IN PROGRESS (1/8)
 
-- [ ] Materials (4 endpoints)
-- [ ] Master Data (2 endpoints)
-- [ ] Alerts (1 endpoint)
-- [ ] Metrics (2 endpoints)
-- [ ] Approved Quotes CRUD (remaining endpoints)
-- [ ] Other supporting endpoints
+- [x] STEP 11: Alerts (1 endpoint) ✅ **COMPLETE**
+- [ ] STEP 12: Materials (3 endpoints) ⏳ **NEXT**
+- [ ] STEP 13: Approved Quotes (2 endpoints)
+- [ ] STEP 14: Orders Cleanup (1 endpoint - DELETE)
+- [x] Master Data - Already SQL ✅ (verified)
+- [x] Metrics - In-memory ✅ (no migration needed)
 
 ### Overall Migration Status
 
 **Total Endpoints:** 65  
-**Completed:** 44 (67.7%) ✅  
+**Completed:** 45 (69.2%) ✅  
 **Phase 1:** 19/19 (100%) ✅  
 **Phase 2:** 25/25 (100%) ✅  
-**Phase 3:** 0/21 (0%) ⏳  
+**Phase 3:** 1/8 (12.5%) ⏳
+
+**Remaining:** 21 endpoints (not all need migration - some already SQL, some to be removed)  
 **In Progress:** STEP 9 - Work Packages  
 **Remaining:** 29 endpoints
 
