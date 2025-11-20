@@ -2241,278 +2241,225 @@ router.patch('/approved-quotes/:workOrderCode/production-state', withAuth, async
 });
 
 // ============================================================================
-// WORKER ASSIGNMENTS ROUTES
+// WORKER ASSIGNMENTS ROUTES - ✅ MIGRATED TO SQL (STEP 8)
 // ============================================================================
+// NOTE: Assignments are created by production-plans/:planId/launch endpoint
+// These endpoints manage existing assignments (view, start, complete)
 
-// POST /api/mes/worker-assignments/batch - Replace all assignments for a plan
-router.post('/worker-assignments/batch', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { planId, assignments } = req.body;
+// GET /api/mes/worker-assignments - Get all active assignments (supervisor dashboard)
+// ✅ MIGRATED TO SQL - STEP 8
+router.get('/worker-assignments', withAuth, async (req, res) => {
+  try {
+    const result = await db('mes.worker_assignments as wa')
+      .select(
+        'wa.*',
+        'w.name as worker_name',
+        's.name as substation_name',
+        'o.name as operation_name',
+        'p.id as plan_id',
+        'pn.name as node_name'
+      )
+      .join('mes.workers as w', 'w.id', 'wa.worker_id')
+      .join('mes.substations as s', 's.id', 'wa.substation_id')
+      .join('mes.operations as o', 'o.id', 'wa.operation_id')
+      .join('mes.production_plans as p', 'p.id', 'wa.plan_id')
+      .join('mes.production_plan_nodes as pn', 'pn.id', 'wa.node_id')
+      .whereIn('wa.status', ['pending', 'in_progress', 'queued'])
+      .orderBy('wa.estimated_start_time', 'asc');
     
-    if (!planId) {
-      throw new Error('planId is required');
-    }
-    
-    if (!Array.isArray(assignments)) {
-      throw new Error('assignments must be an array');
-    }
-
-    const db = getFirestore();
-    
-    // Validate worker and station IDs exist
-    const workerIds = [...new Set(assignments.map(a => a.workerId).filter(Boolean))];
-    const stationIds = [...new Set(assignments.map(a => a.stationId).filter(Boolean))];
-    
-    if (workerIds.length > 0) {
-      const workersSnapshot = await db.collection('mes-workers').where('__name__', 'in', workerIds).get();
-      const existingWorkerIds = new Set(workersSnapshot.docs.map(doc => doc.id));
-      const invalidWorkerIds = workerIds.filter(id => !existingWorkerIds.has(id));
-      if (invalidWorkerIds.length > 0) {
-        throw new Error(`Invalid worker IDs: ${invalidWorkerIds.join(', ')}`);
-      }
-    }
-    
-    if (stationIds.length > 0) {
-      const stationsSnapshot = await db.collection('mes-stations').where('__name__', 'in', stationIds).get();
-      const existingStationIds = new Set(stationsSnapshot.docs.map(doc => doc.id));
-      const invalidStationIds = stationIds.filter(id => !existingStationIds.has(id));
-      if (invalidStationIds.length > 0) {
-        throw new Error(`Invalid station IDs: ${invalidStationIds.join(', ')}`);
-      }
-    }
-
-    // Use transaction to ensure consistency
-    const result = await db.runTransaction(async (transaction) => {
-      // Delete existing assignments for this plan
-      const existingQuery = db.collection('mes-worker-assignments').where('planId', '==', planId);
-      const existingSnapshot = await transaction.get(existingQuery);
-      
-      existingSnapshot.docs.forEach(doc => {
-        transaction.delete(doc.ref);
-      });
-
-      // Fetch plan to get nodes and operation details
-      const planRef = db.collection('mes-production-plans').doc(planId);
-      const planDoc = await transaction.get(planRef);
-      
-      let planData = null;
-      let nodes = [];
-      let planQuantity = 1;
-      let operationsMap = new Map();
-      
-      if (planDoc.exists) {
-        planData = planDoc.data();
-        nodes = planData.nodes || [];
-        planQuantity = planData.quantity || 1;
-        
-        // Fetch operations to get expectedDefectRate
-        const operationsSnapshot = await db.collection('mes-operations').get();
-        operationsSnapshot.docs.forEach(doc => {
-          const opData = doc.data();
-          operationsMap.set(doc.id, opData);
-        });
-      }
-
-      // Generate assignment IDs (simple sequential numbering within plan)
-      const workOrderCode = planData?.orderCode || planId;
-      const assignmentIds = generateWorkPackageIds(workOrderCode, assignments.length);
-
-      // Create new assignments with material reservation calculations
-      const now = new Date();
-      const createdBy = req.user?.email || 'system';
-      
-      assignments.forEach((assignment, index) => {
-        const assignmentId = assignmentIds[index];
-        const docRef = db.collection('mes-worker-assignments').doc(assignmentId);
-        
-        // Find the node in nodes array
-        const node = nodes.find(n => n.nodeId === assignment.nodeId);
-        
-        // Get operation data for defect rate
-        const operation = node && node.operationId ? operationsMap.get(node.operationId) : null;
-        const expectedDefectRate = operation?.expectedDefectRate || 0;
-        
-        // Calculate material reservations
-        const preProductionReservedAmount = node 
-          ? calculatePreProductionReservedAmount(node, expectedDefectRate, planQuantity)
-          : {};
-        
-        const plannedOutput = node 
-          ? calculatePlannedOutput(node, planQuantity)
-          : {};
-        
-        transaction.set(docRef, {
-          id: assignmentId,
-          planId,
-          workOrderCode: workOrderCode,
-          nodeId: assignment.nodeId || null,
-          workerId: assignment.workerId || null,
-          stationId: assignment.stationId || null,
-          subStationCode: assignment.subStationCode || null,
-          start: assignment.start ? new Date(assignment.start) : null,
-          end: assignment.end ? new Date(assignment.end) : null,
-          status: assignment.status || 'pending',
-          // Material reservation fields
-          preProductionReservedAmount: Object.keys(preProductionReservedAmount).length > 0 
-            ? preProductionReservedAmount 
-            : null,
-          plannedOutput: Object.keys(plannedOutput).length > 0 
-            ? plannedOutput 
-            : null,
-          materialReservationStatus: 'pending', // pending, reserved, consumed
-          createdAt: now,
-          updatedAt: now,
-          createdBy
-        });
-      });
-
-      return { success: true, planId, assignmentCount: assignments.length };
-    });
-
-    return result;
-  }, res);
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching worker assignments:', error);
+    res.status(500).json({ error: 'Failed to fetch worker assignments' });
+  }
 });
 
-// POST /api/mes/worker-assignments/activate - Activate assignments for a released plan
-router.post('/worker-assignments/activate', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { planId, status } = req.body;
+// GET /api/mes/worker-assignments/:workerId - Get assignments for specific worker
+// ✅ MIGRATED TO SQL - STEP 8
+router.get('/worker-assignments/:workerId', withAuth, async (req, res) => {
+  const { workerId } = req.params;
+  
+  try {
+    const result = await db('mes.worker_assignments as wa')
+      .select(
+        'wa.*',
+        's.name as substation_name',
+        'o.name as operation_name',
+        'p.id as plan_id',
+        'pn.name as node_name',
+        'pn.output_code',
+        'pn.output_qty as node_quantity'
+      )
+      .join('mes.substations as s', 's.id', 'wa.substation_id')
+      .join('mes.operations as o', 'o.id', 'wa.operation_id')
+      .join('mes.production_plans as p', 'p.id', 'wa.plan_id')
+      .join('mes.production_plan_nodes as pn', 'pn.id', 'wa.node_id')
+      .where('wa.worker_id', workerId)
+      .whereIn('wa.status', ['pending', 'in_progress', 'queued'])
+      .orderBy('wa.sequence_number', 'asc');
     
-    if (!planId) {
-      throw new Error('planId is required');
-    }
-    
-    const assignmentStatus = status || 'active'; // Default to 'active' if not provided
-    
-    const db = getFirestore();
-    
-    // Fetch all assignments for this plan
-    const assignmentsSnapshot = await db.collection('mes-worker-assignments')
-      .where('planId', '==', planId)
-      .get();
-    
-    if (assignmentsSnapshot.empty) {
-      console.log(`No assignments found for plan ${planId}`);
-      return { success: true, planId, activatedCount: 0, message: 'No assignments to activate' };
-    }
-    
-    const assignments = assignmentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    
-    console.log(`Activating ${assignments.length} assignments for plan ${planId}`);
-    
-    // Use transaction to ensure consistency across workers and stations
-    const result = await db.runTransaction(async (transaction) => {
-      const updates = {
-        workersUpdated: 0,
-        stationsUpdated: 0,
-        workersMissing: [],
-        stationsMissing: []
-      };
-      
-      // Process each assignment
-      for (const assignment of assignments) {
-        const { workerId, stationId, nodeId, start } = assignment;
-        
-        // Update worker's currentTask
-        if (workerId) {
-          const workerRef = db.collection('mes-workers').doc(workerId);
-          const workerDoc = await transaction.get(workerRef);
-          
-          if (workerDoc.exists) {
-            transaction.update(workerRef, {
-              currentTask: {
-                planId,
-                nodeId: nodeId || null,
-                stationId: stationId || null,
-                start: start || null,
-                status: assignmentStatus
-              },
-              updatedAt: new Date()
-            });
-            updates.workersUpdated++;
-          } else {
-            console.warn(`Worker ${workerId} not found for assignment ${assignment.id}`);
-            updates.workersMissing.push(workerId);
-          }
-        }
-        
-        // Update station's currentOperation and currentWorker
-        if (stationId) {
-          const stationRef = db.collection('mes-stations').doc(stationId);
-          const stationDoc = await transaction.get(stationRef);
-          
-          if (stationDoc.exists) {
-            transaction.update(stationRef, {
-              currentOperation: nodeId || null,
-              currentWorker: workerId || null,
-              updatedAt: new Date()
-            });
-            updates.stationsUpdated++;
-          } else {
-            console.warn(`Station ${stationId} not found for assignment ${assignment.id}`);
-            updates.stationsMissing.push(stationId);
-          }
-        }
-      }
-      
-      return {
-        success: true,
-        planId,
-        activatedCount: assignments.length,
-        workersUpdated: updates.workersUpdated,
-        stationsUpdated: updates.stationsUpdated,
-        ...(updates.workersMissing.length > 0 && { workersMissing: updates.workersMissing }),
-        ...(updates.stationsMissing.length > 0 && { stationsMissing: updates.stationsMissing })
-      };
-    });
-    
-    console.log(`✓ Activated assignments for plan ${planId}:`, result);
-    return result;
-  }, res);
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching worker assignments:', error);
+    res.status(500).json({ error: 'Failed to fetch worker assignments' });
+  }
 });
 
-// GET /api/mes/workers/:id/assignments - Get worker assignments
-router.get('/workers/:id/assignments', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id } = req.params;
-    const { status } = req.query;
+// POST /api/mes/worker-assignments/:id/start - Worker starts a task
+// ✅ MIGRATED TO SQL - STEP 8
+router.post('/worker-assignments/:id/start', withAuth, async (req, res) => {
+  const { id } = req.params;
+  
+  const trx = await db.transaction();
+  try {
+    // Get assignment details
+    const [assignment] = await trx('mes.worker_assignments')
+      .where({ id })
+      .select('*');
     
-    const db = getFirestore();
-    
-    // Verify worker exists
-    const workerDoc = await db.collection('mes-workers').doc(id).get();
-    if (!workerDoc.exists) {
-      throw new Error('Worker not found');
-    }
-
-    // Build query with equality filters only
-    let query = db.collection('mes-worker-assignments').where('workerId', '==', id);
-    
-    if (status) {
-      query = query.where('status', '==', status);
+    if (!assignment) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Assignment not found' });
     }
     
-    const snapshot = await query.get();
-    const assignments = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      // Convert Firestore timestamps to ISO strings
-      start: doc.data().start?.toDate?.()?.toISOString() || doc.data().start,
-      end: doc.data().end?.toDate?.()?.toISOString() || doc.data().end,
-      createdAt: doc.data().createdAt?.toDate?.()?.toISOString() || doc.data().createdAt,
-      updatedAt: doc.data().updatedAt?.toDate?.()?.toISOString() || doc.data().updatedAt
-    }));
-
-    // Sort by start time in JavaScript (nulls last)
-    assignments.sort((a, b) => {
-      if (!a.start && !b.start) return 0;
-      if (!a.start) return 1;
-      if (!b.start) return -1;
-      return new Date(a.start).getTime() - new Date(b.start).getTime();
+    // Verify status is pending
+    if (assignment.status !== 'pending') {
+      await trx.rollback();
+      return res.status(400).json({ 
+        error: `Cannot start assignment with status ${assignment.status}` 
+      });
+    }
+    
+    // Update assignment to in_progress
+    await trx('mes.worker_assignments')
+      .where({ id })
+      .update({
+        status: 'in_progress',
+        started_at: trx.fn.now()
+      });
+    
+    // Update substation status
+    await trx('mes.substations')
+      .where({ id: assignment.substation_id })
+      .update({
+        status: 'in_use',
+        current_assignment_id: id,
+        updated_at: trx.fn.now()
+      });
+    
+    // Update node status
+    await trx('mes.production_plan_nodes')
+      .where({ id: assignment.node_id })
+      .update({
+        status: 'in_progress',
+        started_at: trx.fn.now()
+      });
+    
+    // TODO: Reserve materials (FIFO deduction)
+    // This will be implemented in materials management phase
+    
+    await trx.commit();
+    
+    res.json({ 
+      success: true, 
+      id,
+      status: 'in_progress',
+      startedAt: new Date()
     });
+  } catch (error) {
+    await trx.rollback();
+    console.error('Error starting assignment:', error);
+    res.status(500).json({ error: 'Failed to start assignment' });
+  }
+});
 
-    return { assignments };
-  }, res);
+// POST /api/mes/worker-assignments/:id/complete - Worker completes a task
+// ✅ MIGRATED TO SQL - STEP 8
+router.post('/worker-assignments/:id/complete', withAuth, async (req, res) => {
+  const { id } = req.params;
+  const { actualQuantity, notes } = req.body;
+  
+  const trx = await db.transaction();
+  try {
+    // Get assignment details
+    const [assignment] = await trx('mes.worker_assignments')
+      .where({ id })
+      .select('*');
+    
+    if (!assignment) {
+      await trx.rollback();
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+    
+    // Verify status is in_progress
+    if (assignment.status !== 'in_progress') {
+      await trx.rollback();
+      return res.status(400).json({ 
+        error: `Cannot complete assignment with status ${assignment.status}` 
+      });
+    }
+    
+    // Update assignment to completed
+    await trx('mes.worker_assignments')
+      .where({ id })
+      .update({
+        status: 'completed',
+        completed_at: trx.fn.now(),
+        actual_quantity: actualQuantity,
+        notes: notes
+      });
+    
+    // Free substation
+    await trx('mes.substations')
+      .where({ id: assignment.substation_id })
+      .update({
+        status: 'available',
+        current_assignment_id: null,
+        updated_at: trx.fn.now()
+      });
+    
+    // Update node status
+    await trx('mes.production_plan_nodes')
+      .where({ id: assignment.node_id })
+      .update({
+        status: 'completed',
+        completed_at: trx.fn.now(),
+        actual_quantity: actualQuantity
+      });
+    
+    // Activate next queued task for this worker (if any)
+    const [nextQueued] = await trx('mes.worker_assignments')
+      .where({
+        worker_id: assignment.worker_id,
+        status: 'queued'
+      })
+      .orderBy('sequence_number', 'asc')
+      .limit(1);
+    
+    if (nextQueued) {
+      await trx('mes.worker_assignments')
+        .where({ id: nextQueued.id })
+        .update({
+          status: 'pending'
+        });
+    }
+    
+    // TODO: Create WIP output record (lot tracking)
+    // This will be implemented in materials management phase
+    
+    await trx.commit();
+    
+    res.json({ 
+      success: true, 
+      id,
+      status: 'completed',
+      completedAt: new Date()
+    });
+  } catch (error) {
+    await trx.rollback();
+    console.error('Error completing assignment:', error);
+    res.status(500).json({ error: 'Failed to complete assignment' });
+  }
 });
 
 // ============================================================================
@@ -4366,184 +4313,162 @@ router.patch('/work-packages/:id', withAuth, async (req, res) => {
 // SCRAP MANAGEMENT ENDPOINTS
 // ============================================================================
 
-// POST /api/mes/work-packages/:id/scrap - Record scrap entry during task
+// POST /api/mes/work-packages/:id/scrap - Record scrap entry during task (SQL)
 router.post('/work-packages/:id/scrap', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id: assignmentId } = req.params;
-    const { scrapType, entry } = req.body;
-    
-    // Validate scrap type
-    const validTypes = ['input_damaged', 'production_scrap', 'output_scrap'];
-    if (!validTypes.includes(scrapType)) {
-      const e = new Error('Invalid scrap type');
-      e.status = 400;
-      throw e;
-    }
-    
-    // Validate entry
-    if (!entry || !entry.materialCode || !entry.quantity || entry.quantity <= 0) {
-      const e = new Error('Invalid scrap entry');
-      e.status = 400;
-      throw e;
-    }
-    
-    const db = getFirestore();
-    const assignmentRef = db.collection('mes-worker-assignments').doc(assignmentId);
-    
+  const { id: assignmentId } = req.params;
+  const { scrapType, entry } = req.body;
+  
+  // Validate scrap type
+  const validTypes = ['input_damaged', 'production_scrap', 'output_scrap'];
+  if (!validTypes.includes(scrapType)) {
+    return res.status(400).json({ error: 'Invalid scrap type' });
+  }
+  
+  // Validate entry
+  if (!entry || !entry.materialCode || !entry.quantity || entry.quantity <= 0) {
+    return res.status(400).json({ error: 'Invalid scrap entry' });
+  }
+  
+  try {
     // Get current assignment
-    const assignmentDoc = await assignmentRef.get();
-    if (!assignmentDoc.exists) {
-      const e = new Error('Assignment not found');
-      e.status = 404;
-      throw e;
+    const [assignment] = await db('mes.worker_assignments')
+      .where({ id: assignmentId })
+      .select('status', 'input_scrap_count', 'production_scrap_count', 'defect_quantity');
+    
+    if (!assignment) {
+      return res.status(404).json({ error: 'Assignment not found' });
     }
     
-    const assignment = assignmentDoc.data();
-    
-    // Check if task is in progress or just completed (allow scrap entry during completion modal)
+    // Check if task is in progress or just completed
     if (assignment.status !== 'in_progress' && assignment.status !== 'completed') {
-      const e = new Error('Task must be in progress or completed to record scrap');
-      e.status = 400;
-      throw e;
+      return res.status(400).json({ 
+        error: 'Task must be in progress or completed to record scrap' 
+      });
     }
     
-    // Generate counter field name (replace special chars for Firestore compatibility)
-    const safeCode = entry.materialCode.replace(/[^a-zA-Z0-9]/g, '_');
-    
-    // Update appropriate counter using atomic increment
-    const updateData = { updatedAt: new Date() };
+    // Update appropriate counter (JSONB)
+    const updateData = {};
     
     if (scrapType === 'input_damaged') {
-      const counterField = `inputScrapCount_${safeCode}`;
-      updateData[counterField] = admin.firestore.FieldValue.increment(entry.quantity);
+      const current = assignment.input_scrap_count || {};
+      current[entry.materialCode] = (current[entry.materialCode] || 0) + entry.quantity;
+      updateData.input_scrap_count = current;
       
     } else if (scrapType === 'production_scrap') {
-      const counterField = `productionScrapCount_${safeCode}`;
-      updateData[counterField] = admin.firestore.FieldValue.increment(entry.quantity);
+      const current = assignment.production_scrap_count || {};
+      current[entry.materialCode] = (current[entry.materialCode] || 0) + entry.quantity;
+      updateData.production_scrap_count = current;
       
     } else if (scrapType === 'output_scrap') {
-      // For output scrap, just update the defectQuantity
-      updateData.defectQuantity = admin.firestore.FieldValue.increment(entry.quantity);
+      updateData.defect_quantity = (assignment.defect_quantity || 0) + entry.quantity;
     }
     
-    // Save to database (atomic operation - no race condition)
-    await assignmentRef.update(updateData);
+    await db('mes.worker_assignments')
+      .where({ id: assignmentId })
+      .update(updateData);
     
     console.log(`✅ Scrap counter updated for assignment ${assignmentId}: ${scrapType}, +${entry.quantity} ${entry.materialCode}`);
     
-    return {
+    res.json({
       success: true,
       assignmentId,
       scrapType,
       materialCode: entry.materialCode,
       quantity: entry.quantity,
       operation: 'increment'
-    };
-    
-  }, res);
-});
-
-// GET /api/mes/work-packages/:id/scrap - Get current scrap log
-router.get('/work-packages/:id/scrap', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id: assignmentId } = req.params;
-    
-    const db = getFirestore();
-    const assignmentDoc = await db.collection('mes-worker-assignments').doc(assignmentId).get();
-    
-    if (!assignmentDoc.exists) {
-      const e = new Error('Assignment not found');
-      e.status = 404;
-      throw e;
-    }
-    
-    const assignment = assignmentDoc.data();
-    
-    // Parse counter fields from assignment
-    const inputScrapCounters = {};
-    const productionScrapCounters = {};
-    
-    Object.keys(assignment).forEach(key => {
-      if (key.startsWith('inputScrapCount_')) {
-        const materialCode = key.replace('inputScrapCount_', '').replace(/_/g, '-');
-        inputScrapCounters[materialCode] = assignment[key] || 0;
-      } else if (key.startsWith('productionScrapCount_')) {
-        const materialCode = key.replace('productionScrapCount_', '').replace(/_/g, '-');
-        productionScrapCounters[materialCode] = assignment[key] || 0;
-      }
     });
     
-    return {
-      assignmentId,
-      inputScrapCounters,
-      productionScrapCounters,
-      defectQuantity: assignment.defectQuantity || 0,
-      status: assignment.status
-    };
-    
-  }, res);
+  } catch (error) {
+    console.error('Error recording scrap:', error);
+    res.status(500).json({ error: 'Failed to record scrap' });
+  }
 });
 
-// DELETE /api/mes/work-packages/:id/scrap/:scrapType/:materialCode/:quantity - Decrease scrap counter (undo)
+// GET /api/mes/work-packages/:id/scrap - Get current scrap log (SQL)
+router.get('/work-packages/:id/scrap', withAuth, async (req, res) => {
+  const { id: assignmentId } = req.params;
+  
+  try {
+    const [assignment] = await db('mes.worker_assignments')
+      .where({ id: assignmentId })
+      .select('input_scrap_count', 'production_scrap_count', 'defect_quantity', 'status');
+    
+    if (!assignment) {
+      return res.status(404).json({ error: 'Assignment not found' });
+    }
+    
+    res.json({
+      assignmentId,
+      inputScrapCounters: assignment.input_scrap_count || {},
+      productionScrapCounters: assignment.production_scrap_count || {},
+      defectQuantity: assignment.defect_quantity || 0,
+      status: assignment.status
+    });
+    
+  } catch (error) {
+    console.error('Error fetching scrap:', error);
+    res.status(500).json({ error: 'Failed to fetch scrap counters' });
+  }
+});
+
+// DELETE /api/mes/work-packages/:id/scrap/:scrapType/:materialCode/:quantity - Decrease scrap counter (SQL)
 router.delete('/work-packages/:id/scrap/:scrapType/:materialCode/:quantity', withAuth, async (req, res) => {
-  await handleFirestoreOperation(async () => {
-    const { id: assignmentId, scrapType, materialCode, quantity } = req.params;
-    const decrementAmount = parseFloat(quantity);
+  const { id: assignmentId, scrapType, materialCode, quantity } = req.params;
+  const decrementAmount = parseFloat(quantity);
+  
+  if (isNaN(decrementAmount) || decrementAmount <= 0) {
+    return res.status(400).json({ error: 'Invalid quantity' });
+  }
+  
+  const validTypes = ['input_damaged', 'production_scrap', 'output_scrap'];
+  if (!validTypes.includes(scrapType)) {
+    return res.status(400).json({ error: 'Invalid scrap type' });
+  }
+  
+  try {
+    const [assignment] = await db('mes.worker_assignments')
+      .where({ id: assignmentId })
+      .select('input_scrap_count', 'production_scrap_count', 'defect_quantity');
     
-    if (isNaN(decrementAmount) || decrementAmount <= 0) {
-      const e = new Error('Invalid quantity');
-      e.status = 400;
-      throw e;
+    if (!assignment) {
+      return res.status(404).json({ error: 'Assignment not found' });
     }
     
-    const validTypes = ['input_damaged', 'production_scrap', 'output_scrap'];
-    if (!validTypes.includes(scrapType)) {
-      const e = new Error('Invalid scrap type');
-      e.status = 400;
-      throw e;
-    }
-    
-    const db = getFirestore();
-    const assignmentRef = db.collection('mes-worker-assignments').doc(assignmentId);
-    
-    const assignmentDoc = await assignmentRef.get();
-    if (!assignmentDoc.exists) {
-      const e = new Error('Assignment not found');
-      e.status = 404;
-      throw e;
-    }
-    
-    // Generate counter field name
-    const safeCode = materialCode.replace(/[^a-zA-Z0-9]/g, '_');
-    const updateData = { updatedAt: new Date() };
+    const updateData = {};
     
     if (scrapType === 'input_damaged') {
-      const counterField = `inputScrapCount_${safeCode}`;
-      updateData[counterField] = admin.firestore.FieldValue.increment(-decrementAmount);
+      const current = assignment.input_scrap_count || {};
+      current[materialCode] = Math.max(0, (current[materialCode] || 0) - decrementAmount);
+      updateData.input_scrap_count = current;
       
     } else if (scrapType === 'production_scrap') {
-      const counterField = `productionScrapCount_${safeCode}`;
-      updateData[counterField] = admin.firestore.FieldValue.increment(-decrementAmount);
+      const current = assignment.production_scrap_count || {};
+      current[materialCode] = Math.max(0, (current[materialCode] || 0) - decrementAmount);
+      updateData.production_scrap_count = current;
       
     } else if (scrapType === 'output_scrap') {
-      updateData.defectQuantity = admin.firestore.FieldValue.increment(-decrementAmount);
+      updateData.defect_quantity = Math.max(0, (assignment.defect_quantity || 0) - decrementAmount);
     }
     
-    // Save (atomic decrement)
-    await assignmentRef.update(updateData);
+    await db('mes.worker_assignments')
+      .where({ id: assignmentId })
+      .update(updateData);
     
     console.log(`✅ Scrap counter decreased for assignment ${assignmentId}: ${scrapType}, -${decrementAmount} ${materialCode}`);
     
-    return {
+    res.json({
       success: true,
       assignmentId,
       scrapType,
       materialCode,
       decrementAmount,
       operation: 'decrement'
-    };
+    });
     
-  }, res);
+  } catch (error) {
+    console.error('Error decreasing scrap:', error);
+    res.status(500).json({ error: 'Failed to decrease scrap counter' });
+  }
 });
 
 // ============================================================================
@@ -7309,262 +7234,169 @@ router.post('/production-plans/:planId/cancel-with-progress', withAuth, async (r
  * - stationId: filter by specific station
  * - limit: max results (default 100, max 500)
  */
+// GET /api/mes/work-packages - Dashboard view with full joins (SQL)
 router.get('/work-packages', withAuth, async (req, res) => {
   try {
-    const db = getFirestore();
     const { status, workerId, stationId, limit } = req.query;
     const maxResults = Math.min(parseInt(limit) || 100, 500);
     
-    // Fetch all assignments for launched plans
-    let assignmentsQuery = db.collection('mes-worker-assignments');
-    
-    // Apply status filter if specified
-    if (status) {
-      assignmentsQuery = assignmentsQuery.where('status', '==', status);
-    }
-    // No default filtering - return all statuses including completed/cancelled
-    // Frontend handles visibility via hideCompleted toggle
-    
-    if (workerId) {
-      assignmentsQuery = assignmentsQuery.where('workerId', '==', workerId);
-    }
-    
-    if (stationId) {
-      assignmentsQuery = assignmentsQuery.where('stationId', '==', stationId);
-    }
-    
-    assignmentsQuery = assignmentsQuery.limit(maxResults);
-    
-    const assignmentsSnapshot = await assignmentsQuery.get();
-    
-    console.log(`📦 Work Packages Query: Found ${assignmentsSnapshot.size} assignments (limit: ${maxResults})`);
-    
-    if (assignmentsSnapshot.empty) {
-      return res.status(200).json({
-        workPackages: [],
-        total: 0,
-        message: 'No active work packages found'
-      });
-    }
-    
-    // Collect unique IDs for batch fetching
-    const planIds = new Set();
-    const workerIds = new Set();
-    const stationIds = new Set();
-    const workOrderCodes = new Set();
-    
-    const assignments = assignmentsSnapshot.docs.map(doc => {
-      const data = doc.data();
-      if (data.planId) planIds.add(data.planId);
-      if (data.workerId) workerIds.add(data.workerId);
-      if (data.stationId) stationIds.add(data.stationId);
-      if (data.workOrderCode) workOrderCodes.add(data.workOrderCode);
-      return { id: doc.id, ...data };
-    });
-    
-    // Batch fetch related data
-    const [plansMap, workersMap, stationsMap, quotesMap] = await Promise.all([
-      fetchPlansMap(db, Array.from(planIds)),
-      fetchWorkersMap(db, Array.from(workerIds)),
-      fetchStationsMap(db, Array.from(stationIds)),
-      fetchQuotesMap(db, Array.from(workOrderCodes))
-    ]);
-    
-    // Enrich assignments with related data
-    const workPackages = assignments.map(assignment => {
-      const plan = plansMap.get(assignment.planId) || {};
-      const worker = workersMap.get(assignment.workerId) || {};
-      const station = stationsMap.get(assignment.stationId) || {};
-      const quote = quotesMap.get(assignment.workOrderCode) || {};
-      
-      // Determine material status (simplified for now)
-      let materialStatus = 'unknown';
-      if (plan.materialSummary) {
-        const hasShortages = plan.materialCheckResult && plan.materialCheckResult.hasShortages;
-        materialStatus = hasShortages ? 'short' : 'ok';
-      }
-      
-      return {
-        // Assignment core data
-        id: assignment.id,
-        assignmentId: assignment.id, // For compatibility with frontend code
-        workPackageId: assignment.workPackageId || assignment.id, // Work package ID
-        nodeId: assignment.nodeId,
-        nodeName: assignment.nodeName,
-        operationName: assignment.nodeName, // For compatibility
-        operationId: assignment.operationId,
-        status: assignment.status,
-        priority: assignment.priority || 2, // 1=Low, 2=Normal, 3=High
-        expectedStart: assignment.expectedStart || assignment.plannedStart || null,
-        optimizedStart: assignment.optimizedStart || null,
-        isUrgent: assignment.isUrgent || false,
-        
-        // Work order data
-        workOrderCode: assignment.workOrderCode,
-        customer: quote.customer || quote.name || '',
-        company: quote.company || '',
-        
-        // Plan data
-        planId: assignment.planId,
-        planName: plan.name || '',
-        planStatus: plan.status || '',
-        launchStatus: plan.launchStatus || '',
+    // Build query with filters
+    let query = db('mes.worker_assignments as wa')
+      .select(
+        // Assignment core
+        'wa.id',
+        'wa.node_id',
+        'wa.operation_id',
+        'wa.status',
+        'wa.priority',
+        'wa.is_urgent',
+        'wa.sequence_number',
         
         // Worker data
-        workerId: assignment.workerId,
-        workerName: assignment.workerName || worker.name || '',
-        workerSkills: worker.skills || [],
+        'wa.worker_id',
+        'w.name as worker_name',
+        'w.skills as worker_skills',
         
-        // Station data
-        stationId: assignment.stationId,
-        stationName: assignment.stationName || station.name || '',
-        subStationCode: assignment.subStationCode || assignment.substationCode || null,
-        substationId: assignment.substationId || null,
-        substationCode: assignment.substationCode || assignment.subStationCode || null,
+        // Station/Substation data
+        'wa.station_id',
+        'st.name as station_name',
+        'wa.substation_id',
+        's.name as substation_name',
         
-        // Material data - ADDED
-        preProductionReservedAmount: assignment.preProductionReservedAmount || {},
-        materialInputs: assignment.materialInputs || {},
-        plannedOutput: assignment.plannedOutput || {},
-        outputCode: assignment.outputCode || null,
-        actualReservedAmounts: assignment.actualReservedAmounts || {},
-        materialReservationStatus: assignment.materialReservationStatus || null,
+        // Operation data
+        'o.name as operation_name',
         
-        // Timing data
-        plannedStart: assignment.plannedStart ? (assignment.plannedStart.toDate ? assignment.plannedStart.toDate().toISOString() : assignment.plannedStart) : null,
-        plannedEnd: assignment.plannedEnd ? (assignment.plannedEnd.toDate ? assignment.plannedEnd.toDate().toISOString() : assignment.plannedEnd) : null,
-        actualStart: assignment.actualStart ? (assignment.actualStart.toDate ? assignment.actualStart.toDate().toISOString() : assignment.actualStart) : null,
-        actualEnd: assignment.actualEnd ? (assignment.actualEnd.toDate ? assignment.actualEnd.toDate().toISOString() : assignment.actualEnd) : null,
-        nominalTime: assignment.nominalTime || 0,
-        effectiveTime: assignment.effectiveTime || 0,
+        // Plan data
+        'wa.plan_id',
+        'pn.name as node_name',
+        'pn.output_code',
+        'pn.output_qty as node_quantity',
         
-        // Status flags
-        materialStatus,
-        isPaused: assignment.status === 'paused',
-        isBlocked: assignment.preconditions && assignment.preconditions.some(p => !p.met),
+        // Work order data
+        'wa.work_order_code',
+        'qq.customer_name as customer',
+        db.raw('NULL as product_name'), // TODO: Get from quote_items or form_data
+        
+        // Timing
+        'wa.estimated_start_time as expected_start',
+        'wa.estimated_end_time as planned_end',
+        'wa.started_at as actual_start',
+        'wa.completed_at as actual_end',
+        
+        // Material data
+        'wa.materials as material_inputs',
+        'wa.pre_production_reserved_amount',
+        'wa.actual_reserved_amounts',
+        'wa.material_reservation_status',
+        
+        // Scrap tracking
+        'wa.input_scrap_count',
+        'wa.production_scrap_count',
+        'wa.defect_quantity',
         
         // Metadata
-        createdAt: assignment.createdAt,
-        updatedAt: assignment.updatedAt
-      };
-    });
+        'wa.created_at',
+        'wa.actual_quantity',
+        'wa.notes'
+      )
+      .leftJoin('mes.workers as w', 'w.id', 'wa.worker_id')
+      .leftJoin('mes.stations as st', 'st.id', 'wa.station_id')
+      .leftJoin('mes.substations as s', 's.id', 'wa.substation_id')
+      .leftJoin('mes.operations as o', 'o.id', 'wa.operation_id')
+      .leftJoin('mes.production_plan_nodes as pn', 'pn.id', 'wa.node_id')
+      .leftJoin('mes.approved_quotes as aq', 'aq.work_order_code', 'wa.work_order_code')
+      .leftJoin('quotes.quotes as qq', 'qq.work_order_code', 'aq.work_order_code')
+      .orderBy('wa.estimated_start_time', 'asc')
+      .limit(maxResults);
     
-    // Sort by expectedStart (FIFO mode) or optimizedStart (optimized mode)
-    workPackages.sort((a, b) => {
-      // Use optimizedStart if available (optimization module), otherwise expectedStart (FIFO)
-      const aStart = a.optimizedStart || a.expectedStart || a.plannedStart;
-      const bStart = b.optimizedStart || b.expectedStart || b.plannedStart;
+    // Apply filters
+    if (status) {
+      query = query.where('wa.status', status);
+    }
+    if (workerId) {
+      query = query.where('wa.worker_id', workerId);
+    }
+    if (stationId) {
+      query = query.where('wa.station_id', stationId);
+    }
+    
+    const workPackages = await query;
+    
+    console.log(`📦 Work Packages Query: Found ${workPackages.length} assignments (limit: ${maxResults})`);
+    
+    // Transform to frontend format
+    const transformed = workPackages.map(wp => ({
+      id: wp.id,
+      assignmentId: wp.id,
+      workPackageId: wp.id,
+      nodeId: wp.node_id,
+      nodeName: wp.node_name,
+      operationName: wp.operation_name,
+      operationId: wp.operation_id,
+      status: wp.status,
+      priority: wp.priority || 2,
+      isUrgent: wp.is_urgent || false,
       
-      if (aStart && bStart) {
-        return new Date(aStart) - new Date(bStart);
-      }
-      return 0;
-    });
+      // Work order
+      workOrderCode: wp.work_order_code,
+      customer: wp.customer || '',
+      productName: wp.product_name || '',
+      
+      // Worker
+      workerId: wp.worker_id,
+      workerName: wp.worker_name,
+      workerSkills: wp.worker_skills || [],
+      
+      // Station
+      stationId: wp.station_id,
+      stationName: wp.station_name,
+      substationId: wp.substation_id,
+      substationCode: wp.substation_name,
+      
+      // Material
+      materialInputs: wp.material_inputs || {},
+      preProductionReservedAmount: wp.pre_production_reserved_amount || {},
+      actualReservedAmounts: wp.actual_reserved_amounts || {},
+      materialReservationStatus: wp.material_reservation_status,
+      outputCode: wp.output_code,
+      
+      // Timing
+      expectedStart: wp.expected_start,
+      plannedEnd: wp.planned_end,
+      actualStart: wp.actual_start,
+      actualEnd: wp.actual_end,
+      
+      // Scrap
+      inputScrapCount: wp.input_scrap_count || {},
+      productionScrapCount: wp.production_scrap_count || {},
+      defectQuantity: wp.defect_quantity || 0,
+      
+      // Status flags
+      isPaused: wp.status === 'paused',
+      materialStatus: wp.material_reservation_status === 'reserved' ? 'ok' : 'pending',
+      
+      // Metadata
+      createdAt: wp.created_at,
+      actualQuantity: wp.actual_quantity,
+      notes: wp.notes
+    }));
     
-    return res.status(200).json({
-      workPackages,
-      total: workPackages.length,
+    res.json({
+      workPackages: transformed,
+      total: transformed.length,
       filters: { status, workerId, stationId },
       timestamp: new Date().toISOString()
     });
     
   } catch (error) {
     console.error('Work packages fetch error:', error);
-    return res.status(500).json({
+    res.status(500).json({
       error: 'internal_error',
       message: 'Failed to fetch work packages',
       details: error.message
     });
   }
 });
-
-// Helper functions for batch fetching
-async function fetchPlansMap(db, planIds) {
-  if (planIds.length === 0) return new Map();
-  
-  const plansMap = new Map();
-  const chunks = chunkArray(planIds, 10); // Firestore 'in' limit is 10
-  
-  for (const chunk of chunks) {
-    const snapshot = await db.collection('mes-production-plans')
-      .where(admin.firestore.FieldPath.documentId(), 'in', chunk)
-      .get();
-    
-    snapshot.docs.forEach(doc => {
-      plansMap.set(doc.id, { id: doc.id, ...doc.data() });
-    });
-  }
-  
-  return plansMap;
-}
-
-async function fetchWorkersMap(db, workerIds) {
-  if (workerIds.length === 0) return new Map();
-  
-  const workersMap = new Map();
-  const chunks = chunkArray(workerIds, 10);
-  
-  for (const chunk of chunks) {
-    const snapshot = await db.collection('mes-workers')
-      .where(admin.firestore.FieldPath.documentId(), 'in', chunk)
-      .get();
-    
-    snapshot.docs.forEach(doc => {
-      workersMap.set(doc.id, { id: doc.id, ...doc.data() });
-    });
-  }
-  
-  return workersMap;
-}
-
-async function fetchStationsMap(db, stationIds) {
-  if (stationIds.length === 0) return new Map();
-  
-  const stationsMap = new Map();
-  const chunks = chunkArray(stationIds, 10);
-  
-  for (const chunk of chunks) {
-    const snapshot = await db.collection('mes-stations')
-      .where(admin.firestore.FieldPath.documentId(), 'in', chunk)
-      .get();
-    
-    snapshot.docs.forEach(doc => {
-      stationsMap.set(doc.id, { id: doc.id, ...doc.data() });
-    });
-  }
-  
-  return stationsMap;
-}
-
-async function fetchQuotesMap(db, workOrderCodes) {
-  if (workOrderCodes.length === 0) return new Map();
-  
-  const quotesMap = new Map();
-  const chunks = chunkArray(workOrderCodes, 10);
-  
-  for (const chunk of chunks) {
-    const snapshot = await db.collection('approved-quotes')
-      .where('workOrderCode', 'in', chunk)
-      .get();
-    
-    snapshot.docs.forEach(doc => {
-      const data = doc.data();
-      if (data.workOrderCode) {
-        quotesMap.set(data.workOrderCode, { id: doc.id, ...data });
-      }
-    });
-  }
-  
-  return quotesMap;
-}
-
-function chunkArray(array, size) {
-  const chunks = [];
-  for (let i = 0; i < array.length; i += size) {
-    chunks.push(array.slice(i, i + size));
-  }
-  return chunks;
-}
 
 // ============================================================================
 // SEMI-FINISHED CODE REGISTRY (Firestore-backed)
