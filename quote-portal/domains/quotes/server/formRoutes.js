@@ -14,6 +14,49 @@ import logger from './logger.js';
  */
 export function setupFormRoutes(app) {
   
+  // ==================== FORM CONFIG (ACTIVE TEMPLATE) ====================
+  
+  // Get active form configuration (backward compatibility endpoint)
+  app.get('/api/form-config', async (req, res) => {
+    try {
+      logger.info('GET /api/form-config - Fetching active form template');
+      
+      const template = await FormTemplates.getActive();
+      
+      if (!template) {
+        logger.warning('No active form template found');
+        return res.status(404).json({ error: 'No active form template found' });
+      }
+
+      // Get fields for the active template
+      const fields = await FormFields.getByTemplateId(template.id);
+      
+      // Format as legacy formConfig structure
+      const formConfig = {
+        formStructure: {
+          fields: fields.map(field => ({
+            id: field.field_code,
+            label: field.field_name,
+            type: field.field_type,
+            required: field.required,
+            options: field.options,
+            lookupTable: field.lookup_table,
+            defaultValue: field.default_value
+          }))
+        },
+        templateId: template.id,
+        templateCode: template.template_code,
+        version: template.version
+      };
+
+      logger.success(`Form config returned with ${fields.length} fields`);
+      res.json({ formConfig });
+    } catch (error) {
+      logger.error('Failed to fetch form config', { error: error.message });
+      res.status(500).json({ error: 'Failed to load form config', message: error.message });
+    }
+  });
+  
   // ==================== FORM TEMPLATES ====================
   
   // Get all templates

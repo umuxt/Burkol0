@@ -1,6 +1,6 @@
 // QuotesManager - Main quotes management component
 import React from 'react';
-import API from '../../../shared/lib/api.js'
+import API from '../api/quotesApi.js'
 import { priceApi } from '../api/index.js'
 import { statusLabel, procLabel, materialLabel } from '../../../shared/i18n.js'
 import { getTableColumns, getFieldValue, formatFieldValue } from '../lib/table-utils.js'
@@ -299,7 +299,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
 
   async function setItemStatus(itemId, newStatus) {
     try {
-      await API.updateQuoteStatus(itemId, newStatus)
+      await API.updateStatus(itemId, newStatus)
       
       // Update the detail item if it's currently being viewed
       if (detail && detail.id === itemId) {

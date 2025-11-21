@@ -1,9 +1,7 @@
-// Legacy compact quote form retained for reference; DynamicFormRenderer powers the live experience
-// Safe to remove once audits confirm no integrations render this component dynamically
-
-// Compact Quote Form - Modular multi-step form with validation and file upload
+// Compact Quote Form - Multi-step form with validation and file upload
+// Note: DynamicFormRenderer is the primary form implementation
 import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../../shared/i18n.js'
-import API from '../../../shared/lib/api.js'
+import API from '../api/quotesApi.js'
 import { uid } from '../../../shared/lib/utils.js'
 import Field from '../../../shared/components/ui/Field.js'
 import Modal from '../../../shared/components/ui/Modal.js'

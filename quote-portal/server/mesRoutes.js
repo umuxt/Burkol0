@@ -1169,121 +1169,84 @@ router.post('/work-orders/next-id', withAuth, async (req, res) => {
 // GET /api/mes/approved-quotes
 router.get('/approved-quotes', withAuth, async (req, res) => {
   try {
-    const approvedQuotes = await db('mes.approved_quotes')
+    // Fetch from work_orders table joined with quotes for customer info
+    const approvedQuotes = await db('mes.work_orders as wo')
+      .leftJoin('quotes.quotes as q', 'wo.quote_id', 'q.id')
       .select(
-        'id',
-        'work_order_code',
-        'production_state',
-        'production_state_updated_at',
-        'production_state_updated_by',
-        'created_at'
+        'wo.id',
+        'wo.code as work_order_code',
+        'wo.quote_id',
+        'wo.status as production_state',
+        'wo.updated_at as production_state_updated_at',
+        'wo.created_at',
+        'wo.data',
+        'q.customer_name',
+        'q.customer_company',
+        'q.customer_email'
       )
-      .orderBy('created_at', 'desc');
+      .orderBy('wo.created_at', 'desc');
     
+    console.log(`✅ Fetched ${approvedQuotes.length} work orders from mes.work_orders`);
     res.json({ approvedQuotes });
   } catch (error) {
-    console.error('Error fetching approved quotes:', error);
-    res.status(500).json({ error: 'Failed to fetch approved quotes' });
+    console.error('❌ Error fetching approved quotes:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch approved quotes', details: error.message });
   }
 });
 
-// POST /api/mes/approved-quotes/ensure - Ensure an approved quote is copied as WO (SQL)
+// POST /api/mes/approved-quotes/ensure - Ensure an approved quote is copied as WO (PostgreSQL)
 router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
-  const trx = await db.transaction();
-  
   try {
     const { quoteId } = req.body || {};
     console.log(`🔍 [ENSURE] Starting WO creation for quote: ${quoteId}`);
     
     if (!quoteId) {
-      await trx.rollback();
       console.log('❌ [ENSURE] No quoteId provided');
       return res.status(400).json({ success: false, error: 'quoteId_required' });
     }
 
-    // Check if WO already exists
+    // Check if WO already exists in quotes table
     console.log(`🔍 [ENSURE] Checking if WO already exists for quote: ${quoteId}`);
-    const [existing] = await trx('mes.approved_quotes')
-      .where({ quote_id: quoteId })
-      .select('work_order_code')
-      .limit(1);
+    const existingQuote = await db('quotes.quotes')
+      .where('id', quoteId)
+      .first('work_order_code', 'status');
     
-    if (existing) {
-      await trx.rollback();
-      console.log(`ℹ️ [ENSURE] WO already exists: ${existing.work_order_code}`);
+    if (!existingQuote) {
+      console.log(`❌ [ENSURE] Quote not found in PostgreSQL: ${quoteId}`);
+      return res.status(404).json({ success: false, error: 'quote_not_found' });
+    }
+
+    if (existingQuote.work_order_code) {
+      console.log(`ℹ️ [ENSURE] WO already exists: ${existingQuote.work_order_code}`);
       return res.json({ 
         success: true, 
         ensured: true, 
-        workOrderCode: existing.work_order_code 
+        workOrderCode: existingQuote.work_order_code 
       });
     }
 
-    // Load quote from jsondb
-    console.log(`🔍 [ENSURE] Loading quote from jsondb: ${quoteId}`);
-    const { default: jsondb } = await import('../src/lib/jsondb.js');
-    const quote = jsondb.getQuote(quoteId);
-    
-    if (!quote) {
-      await trx.rollback();
-      console.log(`❌ [ENSURE] Quote not found in jsondb: ${quoteId}`);
-      return res.status(404).json({ success: false, error: 'quote_not_found' });
-    }
-    
-    console.log(`✅ [ENSURE] Quote loaded: ${quote.id} | Status: ${quote.status}`);
-    
     // Validate quote status
-    const st = String(quote.status || '').toLowerCase();
+    const st = String(existingQuote.status || '').toLowerCase();
     if (!(st === 'approved' || st === 'onaylandı' || st === 'onaylandi')) {
-      await trx.rollback();
-      console.log(`❌ [ENSURE] Quote not approved. Status: ${quote.status}`);
+      console.log(`❌ [ENSURE] Quote not approved. Status: ${existingQuote.status}`);
       return res.status(400).json({ 
         success: false, 
         error: 'quote_not_approved', 
-        status: quote.status || null 
+        status: existingQuote.status || null 
       });
     }
 
-    // Validate delivery date
-    if (!quote.deliveryDate || String(quote.deliveryDate).trim() === '') {
-      await trx.rollback();
-      console.log(`❌ [ENSURE] Delivery date missing`);
-      return res.status(400).json({ success: false, error: 'delivery_date_required' });
-    }
-    console.log(`✅ [ENSURE] Delivery date: ${quote.deliveryDate}`);
-
-    // Generate next WO code using mes.work_orders counter
-    const [{ max_code }] = await trx('mes.work_orders')
-      .max('code as max_code');
-    
-    const nextNum = max_code ? parseInt(max_code.split('-')[1]) + 1 : 1;
-    const code = `WO-${nextNum.toString().padStart(3, '0')}`;
-    
-    console.log(`✅ [ENSURE] Generated WO code: ${code}`);
-
-    // Insert into approved_quotes
-    await trx('mes.approved_quotes').insert({
-      id: code,
-      work_order_code: code,
-      quote_id: quoteId,
-      production_state: 'Üretim Onayı Bekliyor',
-      customer: quote.name || quote.customer || null,
-      company: quote.company || null,
-      email: quote.email || null,
-      phone: quote.phone || null,
-      delivery_date: quote.deliveryDate || null,
-      price: quote.price ?? quote.calculatedPrice ?? null,
-      quote_snapshot: quote,
-      created_at: trx.fn.now()
+    // WO should have been created by Quotes.updateStatus()
+    // If not, something went wrong - return error
+    console.log(`⚠️ [ENSURE] Quote is approved but no WO found - may have failed during approval`);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'wo_creation_failed',
+      message: 'Work order should have been created during quote approval'
     });
-
-    await trx.commit();
-    
-    console.log(`✅ [ENSURE] WO successfully created: ${code} for quote ${quoteId}`);
-    
-    res.json({ success: true, ensured: true, workOrderCode: code });
     
   } catch (error) {
-    await trx.rollback();
     console.error('❌ [ENSURE] Error:', error);
     res.status(500).json({ 
       success: false, 

@@ -126,34 +126,7 @@ setupQuotesRoutes(app)
 setupFormRoutes(app)
 setupPriceRoutes(app)
 
-// Lazily bootstrap core quote routes on first access to avoid Firestore reads
-// NOTE: These are OLD Firebase-based routes, will be phased out
-let coreRoutesBootstrapped = false
-async function ensureCoreRoutes(req, res, next) {
-  try {
-    if (!coreRoutesBootstrapped) {
-      const apiRoutesMod = await import('./server/apiRoutes.js')
-      apiRoutesMod.setupQuoteRoutes(app, uploadsDir)
-      apiRoutesMod.setupExportRoutes(app)
-      apiRoutesMod.setupSettingsRoutes(app)
-      apiRoutesMod.setupFormConfigRoutes(app)
-      coreRoutesBootstrapped = true
-      console.log('✅ Core API routes bootstrapped on-demand')
-    }
-  } catch (e) {
-    console.error('❌ Failed to bootstrap core API routes:', e?.message)
-  } finally {
-    next()
-  }
-}
-
-// Only when these prefixes are hit, we initialize quote/settings routes
-app.use('/api/quotes', ensureCoreRoutes)
-app.use('/api/price-settings', ensureCoreRoutes)
-app.use('/api/form-fields', ensureCoreRoutes)
-app.use('/api/form-config', ensureCoreRoutes)
-app.use('/api/form-fields', ensureCoreRoutes)
-
+// Lazily bootstrap LEGACY settings routes (NOT quote routes - those are migrated to PostgreSQL)
 // Materials routes
 setupMaterialsRoutes(app)
 
