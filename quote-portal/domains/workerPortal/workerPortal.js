@@ -436,22 +436,31 @@ async function completeTask(assignmentId) {
   if (completionData === null) return; // User cancelled
   
   try {
+    // Backend expects: { workerId, quantityProduced, defectQuantity, qualityOk, notes }
+    // Note: Scrap counters are already tracked separately via POST /work-packages/:id/scrap
     const payload = { 
-      action: 'complete',
-      actualOutputQuantity: completionData.actualOutputQuantity,
+      workerId: task.workerId,
+      quantityProduced: completionData.actualOutputQuantity,
       defectQuantity: completionData.defectQuantity,
-      // Keep scrapQty for backward compatibility
-      scrapQty: completionData.defectQuantity
+      qualityOk: true,
+      notes: completionData.notes || ''
     };
     
-    // Include scrap counter details if available
-    if (completionData.scrapCounters) {
-      payload.scrapCounters = completionData.scrapCounters;
+    // Use FIFO complete endpoint
+    const response = await fetch(`/api/mes/assignments/${assignmentId}/complete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to complete task');
     }
+    const result = await response.json();
+    console.log('✅ Task completed successfully:', result);
     
-    await updateWorkPackage(assignmentId, payload);
     await loadWorkerTasks();
-    
     window.dispatchEvent(new CustomEvent('assignments:updated'));
     
     const message = completionData.defectQuantity > 0 
@@ -711,6 +720,189 @@ function showCompletionModal(task) {
     actualOutputInput.addEventListener('keypress', handleEnter);
     defectInput.addEventListener('keypress', handleEnter);
   });
+}
+
+// ============================================================================
+// TASK DETAIL MODAL
+// ============================================================================
+
+function showTaskDetailModal(assignmentId) {
+  const task = state.tasks.find(t => t.assignmentId === assignmentId);
+  if (!task) return;
+  
+  // Extract material information
+  const inputMaterials = task.plannedInputs ? 
+    Object.entries(task.plannedInputs).map(([code, qty]) => ({ code, qty })) : [];
+  const outputMaterials = task.plannedOutput ? 
+    Object.entries(task.plannedOutput).map(([code, qty]) => ({ code, qty })) : [];
+  
+  // Status and priority info
+  const statusInfo = getStatusInfo(task.status);
+  const priorityLabels = {1: 'DÜŞÜK', 2: 'NORMAL', 3: 'YÜKSEK'};
+  const priority = task.priority || 2;
+  
+  // Format times
+  const estimatedStart = formatTime(task.estimatedStartTime);
+  const estimatedEnd = formatTime(task.estimatedEndTime);
+  const actualStartTime = task.actualStart ? formatTime(task.actualStart) : '—';
+  const actualEndTime = task.actualEnd ? formatTime(task.actualEnd) : '—';
+  
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width: 700px;">
+      <div class="modal-header">
+        <h2 class="modal-title">📋 Görev Detayları</h2>
+        <button class="modal-close" onclick="this.closest('.modal-overlay').remove();">×</button>
+      </div>
+      <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
+        
+        <!-- Genel Bilgiler -->
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px;">
+            🔖 Genel Bilgiler
+          </h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Görev Adı:</span><br>
+              <span style="color: #111827; font-weight: 600;">${task.name || task.operationName || 'İsimsiz Görev'}</span>
+            </div>
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Durum:</span><br>
+              <span class="status-badge status-${task.status}">${statusInfo.icon} ${statusInfo.label}</span>
+            </div>
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Öncelik:</span><br>
+              <span style="color: #111827;">${priorityLabels[priority]}</span>
+            </div>
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">İstasyon:</span><br>
+              <span style="color: #111827;">${task.stationName || 'Belirsiz'}</span>
+            </div>
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Plan ID:</span><br>
+              <span style="color: #111827; font-family: monospace;">${task.planId || '—'}</span>
+            </div>
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Node ID:</span><br>
+              <span style="color: #111827; font-family: monospace;">${task.nodeId || '—'}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Malzemeler -->
+        ${inputMaterials.length > 0 || outputMaterials.length > 0 ? `
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px;">
+            📦 Malzemeler
+          </h3>
+          ${inputMaterials.length > 0 ? `
+          <div style="margin-bottom: 12px;">
+            <div style="font-size: 12px; color: #6b7280; font-weight: 500; margin-bottom: 6px;">GİRDİ:</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              ${inputMaterials.map(m => `
+                <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 6px 12px; border-radius: 6px; font-size: 12px;">
+                  <span style="color: #0c4a6e; font-weight: 600;">${m.code}</span>
+                  <span style="color: #075985; margin-left: 4px;">× ${m.qty}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          ` : ''}
+          ${outputMaterials.length > 0 ? `
+          <div>
+            <div style="font-size: 12px; color: #6b7280; font-weight: 500; margin-bottom: 6px;">ÇIKTI:</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              ${outputMaterials.map(m => `
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 6px 12px; border-radius: 6px; font-size: 12px;">
+                  <span style="color: #14532d; font-weight: 600;">${m.code}</span>
+                  <span style="color: #166534; margin-left: 4px;">× ${m.qty}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+          ` : ''}
+        </div>
+        ` : ''}
+        
+        <!-- Üretim Detayları -->
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px;">
+            ⚙️ Üretim Detayları
+          </h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Planlanan Miktar:</span><br>
+              <span style="color: #111827;">${task.outputQty || outputMaterials[0]?.qty || '—'}</span>
+            </div>
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Üretilen Miktar:</span><br>
+              <span style="color: #111827;">${task.actualQuantity || '—'}</span>
+            </div>
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Tahmini Süre:</span><br>
+              <span style="color: #111827;">${formatDuration(task.estimatedEffectiveTime || task.estimatedNominalTime)}</span>
+            </div>
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Gerçek Süre:</span><br>
+              <span style="color: #111827;">${task.actualDuration ? formatDuration(task.actualDuration) : '—'}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Zaman Bilgileri -->
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px;">
+            ⏰ Zaman Bilgileri
+          </h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px;">
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Tahmini Başlangıç:</span><br>
+              <span style="color: #111827;">${estimatedStart}</span>
+            </div>
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Tahmini Bitiş:</span><br>
+              <span style="color: #111827;">${estimatedEnd}</span>
+            </div>
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Gerçek Başlangıç:</span><br>
+              <span style="color: #111827;">${actualStartTime}</span>
+            </div>
+            <div>
+              <span style="color: #6b7280; font-weight: 500;">Gerçek Bitiş:</span><br>
+              <span style="color: #111827;">${actualEndTime}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Worker ID -->
+        ${task.workerId ? `
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1f2937; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px;">
+            👤 Atama Bilgisi
+          </h3>
+          <div style="font-size: 13px;">
+            <span style="color: #6b7280; font-weight: 500;">İşçi ID:</span><br>
+            <span style="color: #111827; font-family: monospace;">${task.workerId}</span>
+          </div>
+        </div>
+        ` : ''}
+        
+      </div>
+      <div class="modal-footer">
+        <button class="btn-primary" onclick="this.closest('.modal-overlay').remove();">Kapat</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Close on overlay click
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  };
 }
 
 // Legacy function for backward compatibility
@@ -1257,7 +1449,7 @@ async function decrementScrap(materialCode, scrapType, quantity) {
     
     // Sync to backend (atomic decrement)
     const response = await fetch(
-      `/api/mes/work-packages/${currentFireAssignment.assignmentId}/scrap/${scrapType}/${materialCode}/${quantity}`,
+      `/api/mes/work-packages/${currentFireAssignment.assignmentId}/scrap/${scrapType}/${encodeURIComponent(materialCode)}/${quantity}`,
       { method: 'DELETE' }
     );
     
@@ -2107,16 +2299,18 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
   // STEP 9: Start Button with FIFO Position #1 Highlighting
   // ========================================================================
   // Show different button text and style for FIFO position #1
+  // KURAL: SADECE next task (#1) veya urgent task aktif olabilir!
   if (task.status === 'ready' || task.status === 'pending') {
-    const disabled = (isBlocked || isPlanPaused || workerUnavailable || cannotStartYet) ? 'disabled' : '';
+    // Check if this task can be started (next in FIFO or urgent)
+    const canStartThis = isNextTask || task.isUrgent;
+    const disabled = !canStartThis || isBlocked || isPlanPaused || workerUnavailable;
     
-    if (cannotStartYet && !isNextTask) {
-      // Task waiting in queue (not position #1)
+    if (task.isUrgent && !disabled) {
+      // Urgent task - always active (red button)
       actions.push(`
-        <button class="action-btn action-start disabled" data-action="start" data-id="${task.assignmentId}" disabled ${blockTooltip}>
-          ▶️ Başla
+        <button class="action-btn action-start action-start-urgent" data-action="start" data-id="${task.assignmentId}">
+          ⭐ ÖNCELİKLİ BAŞLAT
         </button>
-        <small class="waiting-text">⏳ Sırada #${fifoPosition || '?'}</small>
       `);
     } else if (isNextTask && !disabled) {
       // ========================================================================
@@ -2129,11 +2323,12 @@ function renderTaskActions(task, isNextTask, fifoPosition) {
         </button>
       `);
     } else {
-      // Regular start button (blocked or not next in queue)
+      // Other tasks - ALWAYS DISABLED (FIFO enforcement)
       actions.push(`
-        <button class="action-btn action-start" data-action="start" data-id="${task.assignmentId}" ${disabled} ${blockTooltip}>
-          ▶️ Başla
+        <button class="action-btn action-start disabled" data-action="start" data-id="${task.assignmentId}" disabled title="Bu görevi başlatmak için sıradaki diğer görevleri tamamlayın">
+          ▶️ Sırada Bekliyor
         </button>
+        ${fifoPosition ? `<small class="waiting-text">⏳ Sıra #${fifoPosition}</small>` : ''}
       `);
     }
   }
@@ -2224,6 +2419,19 @@ function attachEventListeners() {
         case 'fire':
           await openFireModal(assignmentId);
           break;
+      }
+    });
+  });
+  
+  // Task row click - show detail modal
+  document.querySelectorAll('.task-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      // Ignore clicks on buttons
+      if (e.target.closest('.action-btn')) return;
+      
+      const assignmentId = row.dataset.assignmentId;
+      if (assignmentId) {
+        showTaskDetailModal(assignmentId);
       }
     });
   });

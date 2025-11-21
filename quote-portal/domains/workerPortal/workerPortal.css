@@ -133,6 +133,7 @@
 .task-table tbody tr {
   border-bottom: 1px solid var(--border, #e5e7eb);
   transition: background-color 0.15s;
+  cursor: pointer;
 }
 
 .task-table tbody tr:hover {
