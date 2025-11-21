@@ -1,6 +1,5 @@
 /**
  * Users Data Access Layer for PostgreSQL
- * Replaces Firebase users collection with PostgreSQL queries
  */
 
 import db from '../connection.js';

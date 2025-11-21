@@ -1,6 +1,5 @@
 /**
  * Sessions Data Access Layer for PostgreSQL
- * Replaces Firebase sessions collection with PostgreSQL queries
  */
 
 import db from '../connection.js';

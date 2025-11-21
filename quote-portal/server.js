@@ -35,7 +35,6 @@ import {
     deleteMaterialCategory,
     getMaterialCategoryUsage
 } from './server/materialCategoriesRoutes.js'
-import { addMigrationRoutes } from './server/migrationRoutes.js'
 import { testConnection } from './db/connection.js'
 import dotenv from 'dotenv'
 
@@ -174,20 +173,6 @@ app.use('/api/mes', async (req, res, next) => {
 })
 
 // Settings routes disabled
-
-// Optionally enable migration routes (avoids Firestore-heavy bootstrap by default)
-try {
-  if (process.env.MIGRATION_ROUTES_ENABLED === 'true') {
-    const jsondbMod = await import('./src/lib/jsondb.js')
-    const jsondb = jsondbMod.default || jsondbMod
-    addMigrationRoutes(app, jsondb)
-    console.log('✅ Migration routes enabled')
-  } else {
-    console.log('⏭️  Migration routes disabled (set MIGRATION_ROUTES_ENABLED=true to enable)')
-  }
-} catch (e) {
-  console.warn('⚠️ Migration routes not initialized:', e?.message)
-}
 
 // Setup suppliers routes (PostgreSQL)
 app.get('/api/suppliers', getAllSuppliers)

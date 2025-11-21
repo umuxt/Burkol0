@@ -263,7 +263,7 @@ export function setupAuthRoutes(app) {
       // Prod ortamında memory tabanlı session bulunamadığında 401 yerine
       // sadece uyarı logla ve devam et. Bu endpoint yalnızca listeleme amaçlıdır.
       // Not: Güvenlik açısından yine de token zorunlu.
-      console.warn('⚠️ Sessions: Token var ancak memory session bulunamadı; devam ediliyor (liste sadece Firebase verileriyle sınırlı olabilir).')
+      console.warn('⚠️ Sessions: Token var ancak memory session bulunamadı; PostgreSQL sessionları listeleniyor.')
     }
 
     try {

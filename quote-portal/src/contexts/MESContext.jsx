@@ -8,7 +8,7 @@ import { updateProductionState } from '../../domains/production/js/mesApi.js';
  * ============================================================================
  * 
  * Bu context MES sisteminin merkezi state yönetimini sağlar.
- * Backend API üzerinden Firebase Admin SDK ile haberleşir.
+ * Backend API üzerinden PostgreSQL veritabanı ile haberleşir.
  * 
  * API ENDPOINTS:
  * ============================================================================

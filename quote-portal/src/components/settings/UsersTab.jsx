@@ -495,7 +495,7 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
                     )
                   )
                 )),
-            // Firebase Admin Console button container
+            // Session history info
             React.createElement('div', {
               style: {
                 marginTop: '20px',
@@ -506,15 +506,13 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
                 textAlign: 'center'
               }
             },
-              React.createElement('button', {
-                onClick: () => window.open('https://console.firebase.google.com/u/0/project/burkolmetal-726f3/firestore/databases/-default-/data/~2Fsessions', '_blank'),
-                className: 'btn btn-info',
+              React.createElement('p', {
                 style: {
-                  padding: '2px',
-                  whiteSpace: 'nowrap',
+                  margin: 0,
+                  color: '#666',
                   fontSize: '14px'
                 }
-              }, 'Tüm session geçmişini görmek için Firebase Admin Console\'a göz atın')
+              }, 'Tüm kullanıcı oturumları PostgreSQL veritabanında saklanmaktadır.')
             )
           )
         : (users.length === 0 

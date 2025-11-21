@@ -249,7 +249,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
   async function refresh() {
     console.log('🔧 DEBUG: refresh() called')
     try {
-      // PostgreSQL migration: syncLocalQuotesToFirebase removed
+      // PostgreSQL: All quotes stored in database
       // All data now directly from PostgreSQL
       
       // Reload quotes using the same method as initial load

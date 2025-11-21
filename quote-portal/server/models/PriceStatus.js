@@ -18,7 +18,7 @@ class PriceStatus {
     errorMessage = null
   } = {}) {
     this.settingsVersion = settingsVersion  // Numeric price settings version used
-    this.settingsVersionId = settingsVersionId  // Canonical version ID in Firestore
+    this.settingsVersionId = settingsVersionId  // Canonical version ID in database
     this.formVersionId = formVersionId      // Form configuration version snapshot ID
     this.calculatedPrice = calculatedPrice  // Latest calculated price
     this.appliedPrice = appliedPrice        // Currently applied/displayed price
