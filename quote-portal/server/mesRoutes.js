@@ -5434,4 +5434,357 @@ router.delete('/nodes/:nodeId/stations/:stationId', withAuth, async (req, res) =
   }
 });
 
+// ============================================================================
+// ANALYTICS & DASHBOARD ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/mes/analytics/worker-utilization
+ * Real-time worker utilization metrics for Production Dashboard
+ * 
+ * Returns:
+ * - Active/Idle/Break distribution
+ * - Per-worker efficiency
+ * - Overall utilization rate
+ */
+router.get('/analytics/worker-utilization', withAuth, async (req, res) => {
+  try {
+    // Get all workers
+    const workers = await db('mes.workers')
+      .where('is_active', true)
+      .select('id', 'name');
+    
+    // Get current assignments (in-progress)
+    const activeAssignments = await db('mes.worker_assignments as wa')
+      .join('mes.workers as w', 'w.id', 'wa.worker_id')
+      .whereIn('wa.status', ['in_progress', 'ready'])
+      .select('wa.worker_id', 'w.name as worker_name')
+      .groupBy('wa.worker_id', 'w.name');
+    
+    const activeWorkerIds = new Set(activeAssignments.map(a => a.worker_id));
+    
+    const active = activeWorkerIds.size;
+    const total = workers.length;
+    const idle = total - active;
+    const utilizationRate = total > 0 ? (active / total) * 100 : 0;
+    
+    // Per-worker details
+    const perWorker = workers.map(w => ({
+      workerId: w.id,
+      name: w.name,
+      isActive: activeWorkerIds.has(w.id),
+      efficiency: 1.0 // Default efficiency since column doesn't exist
+    }));
+    
+    res.json({
+      active,
+      idle,
+      onBreak: 0, // TODO: Track break status
+      total,
+      utilizationRate: parseFloat(utilizationRate.toFixed(1)),
+      perWorker
+    });
+    
+  } catch (error) {
+    console.error('❌ Worker utilization analytics error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch worker utilization',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/mes/analytics/operation-bottlenecks
+ * Operation performance analysis for bottleneck detection
+ * 
+ * Returns:
+ * - Average time per operation
+ * - Operation instance counts
+ * - Top bottlenecks
+ */
+router.get('/analytics/operation-bottlenecks', withAuth, async (req, res) => {
+  try {
+    // Get completed assignments with timing
+    const completedAssignments = await db('mes.worker_assignments as wa')
+      .join('mes.operations as op', 'op.id', 'wa.operation_id')
+      .join('mes.production_plan_nodes as n', 'n.id', 'wa.node_id')
+      .where('wa.status', 'completed')
+      .whereNotNull('wa.started_at')
+      .whereNotNull('wa.completed_at')
+      .select(
+        'op.id as operation_id',
+        'op.name as operation_name',
+        'n.effective_time',
+        db.raw(`EXTRACT(EPOCH FROM (wa.completed_at - wa.started_at)) / 60 as actual_minutes`)
+      );
+    
+    // Aggregate by operation
+    const operationStats = {};
+    
+    completedAssignments.forEach(a => {
+      const opId = a.operation_id;
+      if (!operationStats[opId]) {
+        operationStats[opId] = {
+          operationId: opId,
+          operationName: a.operation_name,
+          totalTime: 0,
+          instances: 0,
+          estimatedTime: 0
+        };
+      }
+      
+      operationStats[opId].totalTime += parseFloat(a.actual_minutes) || 0;
+      operationStats[opId].estimatedTime += parseFloat(a.effective_time) || 0;
+      operationStats[opId].instances += 1;
+    });
+    
+    // Calculate averages and sort by average time
+    const operations = Object.values(operationStats)
+      .map(op => ({
+        ...op,
+        avgTime: op.instances > 0 ? op.totalTime / op.instances : 0,
+        avgEstimated: op.instances > 0 ? op.estimatedTime / op.instances : 0,
+        variance: op.instances > 0 ? ((op.totalTime / op.instances) - (op.estimatedTime / op.instances)) : 0
+      }))
+      .sort((a, b) => b.avgTime - a.avgTime);
+    
+    const topBottlenecks = operations.slice(0, 5);
+    
+    res.json({
+      operations,
+      topBottlenecks,
+      totalOperations: operations.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Operation bottleneck analytics error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch operation bottlenecks',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/mes/analytics/material-consumption
+ * Material stock levels and consumption tracking
+ * 
+ * Returns:
+ * - Current stock levels
+ * - Reserved amounts
+ * - Low stock warnings
+ */
+router.get('/analytics/material-consumption', withAuth, async (req, res) => {
+  try {
+    const materials = await db('materials.materials')
+      .select(
+        'code',
+        'name',
+        'stock',
+        'reserved',
+        'wip_reserved',
+        'unit',
+        'reorder_point',
+        'max_stock'
+      )
+      .where('is_active', true);
+    
+    const materialsWithStatus = materials.map(m => {
+      const stock = parseFloat(m.stock) || 0;
+      const reserved = parseFloat(m.reserved) || 0;
+      const wipReserved = parseFloat(m.wip_reserved) || 0;
+      const available = stock - reserved - wipReserved;
+      const reorderPoint = parseFloat(m.reorder_point) || 0;
+      const maxStock = parseFloat(m.max_stock) || 0;
+      
+      return {
+        code: m.code,
+        name: m.name,
+        stock,
+        reserved,
+        wipReserved,
+        available,
+        unit: m.unit || 'pcs',
+        reorderPoint,
+        maxStock,
+        isLowStock: available < reorderPoint,
+        stockLevel: reorderPoint > 0 ? (available / reorderPoint) * 100 : 100
+      };
+    });
+    
+    const lowStockWarnings = materialsWithStatus
+      .filter(m => m.isLowStock)
+      .sort((a, b) => a.stockLevel - b.stockLevel);
+    
+    res.json({
+      materials: materialsWithStatus,
+      lowStockWarnings,
+      totalMaterials: materialsWithStatus.length,
+      lowStockCount: lowStockWarnings.length
+    });
+    
+  } catch (error) {
+    console.error('❌ Material consumption analytics error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch material consumption',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/mes/analytics/production-velocity
+ * Production performance metrics (throughput, completion rate)
+ * 
+ * Returns:
+ * - Today's metrics
+ * - Weekly trend
+ * - Active/completed work orders
+ */
+router.get('/analytics/production-velocity', withAuth, async (req, res) => {
+  try {
+    const now = new Date();
+    const todayStart = new Date(now).setHours(0, 0, 0, 0);
+    const weekStart = new Date(now);
+    weekStart.setDate(weekStart.getDate() - 7);
+    
+    // Today's metrics
+    const todayPlans = await db('mes.production_plans')
+      .where('launched_at', '>=', new Date(todayStart))
+      .select('status')
+      .count('* as count')
+      .groupBy('status');
+    
+    const todayStats = {
+      launched: 0,
+      active: 0,
+      completed: 0
+    };
+    
+    todayPlans.forEach(p => {
+      const count = parseInt(p.count) || 0;
+      if (p.status === 'active') todayStats.active += count;
+      if (p.status === 'completed') todayStats.completed += count;
+      todayStats.launched += count;
+    });
+    
+    // Active work orders (all time)
+    const activeCount = await db('mes.production_plans')
+      .where('status', 'active')
+      .count('* as count')
+      .first();
+    
+    const completedCount = await db('mes.production_plans')
+      .where('status', 'completed')
+      .count('* as count')
+      .first();
+    
+    res.json({
+      today: todayStats,
+      overall: {
+        active: parseInt(activeCount?.count) || 0,
+        completed: parseInt(completedCount?.count) || 0
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Production velocity analytics error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch production velocity',
+      details: error.message 
+    });
+  }
+});
+
+/**
+ * GET /api/mes/analytics/master-timeline
+ * Master Gantt chart data for all active work orders
+ * 
+ * Query params:
+ * - startDate: Filter start date (optional)
+ * - endDate: Filter end date (optional)
+ * 
+ * Returns:
+ * - All active work orders with assignments
+ * - Timeline data for Gantt visualization
+ */
+router.get('/analytics/master-timeline', withAuth, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    // Get active production plans
+    let plansQuery = db('mes.production_plans')
+      .whereIn('status', ['active', 'paused']);
+    
+    if (startDate) {
+      plansQuery = plansQuery.where('launched_at', '>=', startDate);
+    }
+    if (endDate) {
+      plansQuery = plansQuery.where('launched_at', '<=', endDate);
+    }
+    
+    const plans = await plansQuery.select('id', 'work_order_code', 'status', 'launched_at');
+    
+    // Get assignments for these plans
+    const planIds = plans.map(p => p.id);
+    
+    if (planIds.length === 0) {
+      return res.json({ workOrders: [], conflicts: [] });
+    }
+    
+    const assignments = await db('mes.worker_assignments as wa')
+      .join('mes.workers as w', 'w.id', 'wa.worker_id')
+      .join('mes.substations as s', 's.id', 'wa.substation_id')
+      .join('mes.production_plan_nodes as n', 'n.id', 'wa.node_id')
+      .whereIn('wa.plan_id', planIds)
+      .select(
+        'wa.plan_id',
+        'wa.node_id',
+        'n.name as node_name',
+        'w.id as worker_id',
+        'w.name as worker_name',
+        's.id as substation_id',
+        's.name as substation_name',
+        'wa.status',
+        'wa.estimated_start_time',
+        'wa.estimated_end_time',
+        'wa.actual_start_time',
+        'wa.actual_end_time'
+      );
+    
+    // Group assignments by plan
+    const workOrders = plans.map(plan => ({
+      workOrderCode: plan.work_order_code,
+      status: plan.status,
+      launchedAt: plan.launched_at,
+      assignments: assignments
+        .filter(a => a.plan_id === plan.id)
+        .map(a => ({
+          nodeId: a.node_id,
+          nodeName: a.node_name,
+          workerId: a.worker_id,
+          workerName: a.worker_name,
+          substationId: a.substation_id,
+          substationName: a.substation_name,
+          status: a.status,
+          start: a.actual_start_time || a.estimated_start_time,
+          end: a.actual_end_time || a.estimated_end_time
+        }))
+    }));
+    
+    res.json({
+      workOrders,
+      conflicts: [] // TODO: Detect resource conflicts
+    });
+    
+  } catch (error) {
+    console.error('❌ Master timeline analytics error:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch master timeline',
+      details: error.message 
+    });
+  }
+});
+
 export default router;

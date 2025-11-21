@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Production Dashboard | Burkol MES</title>
+  <link rel="stylesheet" href="../domains/production/styles/production.css">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f8fafc;
+    }
+
+    .dashboard-container {
+      padding: 0;
+      max-width: 100%;
+      margin: 0;
+    }
+
+    .dashboard-header {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .dashboard-actions {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .mes-secondary-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 12px;
+      height: 30px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #ffffff;
+      color: #1e293b;
+      font-weight: 500;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.15s ease;
+    }
+
+    .mes-secondary-action:hover {
+      background: rgb(249, 250, 251);
+    }
+
+    .refresh-button {
+      height: 44px;
+      padding: 6px 16px;
+      border: 1px solid var(--border);
+      background: #ffffff;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      transition: background 0.15s ease;
+    }
+
+    .refresh-button:hover {
+      background: rgb(249, 250, 251);
+    }
+
+    .date-selector {
+      height: 30px !important;
+      padding: 3px 12px !important;
+      border: 1px solid var(--border) !important;
+      border-radius: 6px !important;
+      background: #ffffff !important;
+      font-size: 12px !important;
+      cursor: pointer !important;
+      font-weight: 500 !important;
+      display: inline-flex !important;
+      align-items: center !important;
+    }
+
+    /* KPI Cards Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .kpi-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+      transition: box-shadow 0.2s ease;
+    }
+
+    .kpi-card:hover {
+      box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.1);
+    }
+
+    .kpi-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .kpi-card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .kpi-card-icon.blue {
+      background: rgba(59, 130, 246, 0.1);
+      color: #3b82f6;
+    }
+
+    .kpi-card-icon.green {
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+    }
+
+    .kpi-card-icon.amber {
+      background: rgba(245, 158, 11, 0.1);
+      color: #f59e0b;
+    }
+
+    .kpi-card-icon.purple {
+      background: rgba(139, 92, 246, 0.1);
+      color: #8b5cf6;
+    }
+
+    .kpi-card-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted-foreground);
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+      line-height: 1.3;
+      word-wrap: break-word;
+    }
+
+    .kpi-card-value {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--foreground);
+      line-height: 1;
+    }
+
+    /* Charts Grid */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .chart-container {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    }
+
+    .chart-container h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--foreground);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .chart-canvas {
+      height: 300px;
+      position: relative;
+    }
+
+    /* Gantt Section */
+    .gantt-section {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+      margin-bottom: 24px;
+    }
+
+    .gantt-section h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--foreground);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #master-gantt-chart {
+      min-height: 400px;
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    /* Empty State */
+    .empty-state {
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--muted-foreground);
+      font-size: 14px;
+    }
+
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    /* Footer */
+    .dashboard-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+      border-top: 1px solid var(--border);
+      margin-top: 24px;
+      font-size: 12px;
+      color: var(--muted-foreground);
+    }
+
+
+
+    @media (max-width: 768px) {
+      .dashboard-container {
+        padding: 16px;
+      }
+      
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard-container">
+    <!-- Header -->
+    <div style="margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h1 style="font-size: 32px; font-weight: 700; margin: 0;">Production Analytics</h1>
+        <div style="display: flex; gap: 12px;">
+          <input type="date" class="date-selector" id="date-selector">
+          <button id="dashboard-refresh-btn" type="button" class="mes-secondary-action" onclick="refreshDashboard()">
+            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+            <span>Refresh</span>
+          </button>
+          <button type="button" class="mes-secondary-action" onclick="exportDashboardPDF()">
+            <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
+            <span>Export PDF</span>
+          </button>
+          <button type="button" class="mes-secondary-action" onclick="exportDashboardCSV()">
+            <i data-lucide="table" style="width: 14px; height: 14px;"></i>
+            <span>Export CSV</span>
+          </button>
+        </div>
+      </div>
+      <p style="margin: 0; font-size: 14px; color: #64748b; line-height: 1.5;">
+        Real-time production metrics, worker utilization, operation bottlenecks, and material consumption analytics.
+      </p>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card" id="active-wo-card">
+        <div class="kpi-card-header">
+          <div class="kpi-card-icon blue">
+            <i data-lucide="clipboard-list" style="width: 20px; height: 20px;"></i>
+          </div>
+          <div class="kpi-card-label">Active Work Orders</div>
+        </div>
+        <div class="kpi-card-value" id="kpi-active-wo">0</div>
+      </div>
+      
+      <div class="kpi-card" id="worker-util-card">
+        <div class="kpi-card-header">
+          <div class="kpi-card-icon green">
+            <i data-lucide="users" style="width: 20px; height: 20px;"></i>
+          </div>
+          <div class="kpi-card-label">Worker Utilization</div>
+        </div>
+        <div class="kpi-card-value" id="kpi-worker-util">0%</div>
+      </div>
+      
+      <div class="kpi-card" id="efficiency-card">
+        <div class="kpi-card-header">
+          <div class="kpi-card-icon amber">
+            <i data-lucide="zap" style="width: 20px; height: 20px;"></i>
+          </div>
+          <div class="kpi-card-label">Avg Efficiency</div>
+        </div>
+        <div class="kpi-card-value" id="kpi-efficiency">0%</div>
+      </div>
+      
+      <div class="kpi-card" id="velocity-card">
+        <div class="kpi-card-header">
+          <div class="kpi-card-icon purple">
+            <i data-lucide="trending-up" style="width: 20px; height: 20px;"></i>
+          </div>
+          <div class="kpi-card-label">Today's Launches</div>
+        </div>
+        <div class="kpi-card-value" id="kpi-velocity">0</div>
+      </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="charts-grid">
+      <div class="chart-container">
+        <h3>
+          <i data-lucide="pie-chart" style="width: 18px; height: 18px;"></i>
+          Worker Utilization
+        </h3>
+        <div class="chart-canvas">
+          <canvas id="worker-utilization-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <h3>
+          <i data-lucide="bar-chart-3" style="width: 18px; height: 18px;"></i>
+          Operation Bottlenecks
+        </h3>
+        <div class="chart-canvas">
+          <canvas id="bottleneck-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div style="margin-bottom: 24px;">
+      <div class="chart-container">
+        <h3>
+          <i data-lucide="package" style="width: 18px; height: 18px;"></i>
+          Material Stock Levels
+        </h3>
+        <div class="chart-canvas">
+          <canvas id="material-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gantt Timeline -->
+    <div class="gantt-section">
+      <h3>
+        <i data-lucide="gantt-chart" style="width: 18px; height: 18px;"></i>
+        Master Production Timeline
+      </h3>
+      <div id="master-gantt-chart"></div>
+    </div>
+
+    <!-- Footer -->
+    <div class="dashboard-footer">
+      <div>Last updated: <span id="last-updated">-</span></div>
+    </div>
+  </div>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  
+  <!-- Initialize Lucide Icons -->
+  <script>
+    lucide.createIcons();
+  </script>
+  
+  <!-- Dashboard Logic -->
+  <script type="module" src="../domains/production/js/mesProductionDashboard.js"></script>
+</body>
+</html>

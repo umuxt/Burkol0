@@ -285,6 +285,15 @@ export async function createProductionPlan(plan) {
   return await res.json()
 }
 
+// Get production plan details with nodes and materials
+export async function getProductionPlanDetails(planId) {
+  const res = await fetch(`${API_BASE}/api/mes/production-plans/${encodeURIComponent(planId)}`, {
+    headers: withAuth()
+  })
+  if (!res.ok) throw new Error(`production_plan_details_failed ${res.status}`)
+  return await res.json()
+}
+
 export async function createTemplate(template) {
   // Use dedicated templates endpoint; server records createdBy/owner and lastModifiedBy
   const payload = { ...template, status: 'template' }

@@ -22,6 +22,18 @@ function renderView(viewId) {
       content = generateModernDashboard(); 
       setTimeout(() => initDashboardWidgets(), 100);
       break;
+    case 'production-dashboard':
+      // Load production analytics dashboard as iframe
+      content = `
+        <div style="width: 100%; height: 100vh; overflow: hidden;">
+          <iframe 
+            src="/pages/mes-production-dashboard-tab.html" 
+            style="width: 100%; height: 100%; border: none;"
+            title="Production Analytics Dashboard"
+          ></iframe>
+        </div>
+      `;
+      break;
     case 'worker-panel': 
       content = generateWorkerPanel(); 
       setTimeout(() => initWorkPackagesWidget(), 100);

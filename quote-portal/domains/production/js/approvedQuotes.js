@@ -1,6 +1,8 @@
 // Approved Quotes listing (read-only). Uses backend API only.
 import { API_BASE, withAuth } from '../../../shared/lib/api.js'
-import { updateProductionState, launchProductionPlan, pauseProductionPlan, resumeProductionPlan, cancelProductionPlan, cancelProductionPlanWithProgress, getWorkPackages } from './mesApi.js'
+// Core MES API imports
+import { updateProductionState, launchProductionPlan, pauseProductionPlan, resumeProductionPlan, cancelProductionPlan, cancelProductionPlanWithProgress, getWorkPackages, getProductionPlanDetails, checkMesMaterialAvailability } from './mesApi.js'
+import { showEnhancedProductionMonitoring, cleanupSSEConnections } from './productionMonitoring.js'
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js'
 
 let quotesState = []
@@ -183,6 +185,79 @@ async function setProductionState(workOrderCode, newState, updateServer = true) 
 }
 
 /**
+ * Check material availability for a production plan
+ * Returns detailed shortage information without modifying any state
+ */
+async function checkPlanMaterialAvailability(plan) {
+  try {
+    // Fetch plan details with nodes and materials
+    const planDetails = await getProductionPlanDetails(plan.id);
+    const nodes = planDetails?.nodes || [];
+    
+    if (nodes.length === 0) {
+      return { allAvailable: true, shortages: [], hasCriticalShortages: false };
+    }
+    
+    // Aggregate materials from all nodes
+    const materialMap = new Map();
+    nodes.forEach(node => {
+      const materials = node.material_inputs || [];
+      materials.forEach(mat => {
+        if (!mat.materialCode || !mat.requiredQuantity) return;
+        
+        const key = mat.materialCode;
+        const qty = parseFloat(mat.requiredQuantity) || 0;
+        
+        if (qty <= 0) return;
+        
+        if (materialMap.has(key)) {
+          materialMap.get(key).required += qty;
+        } else {
+          materialMap.set(key, {
+            code: mat.materialCode,
+            required: qty,
+            unit: 'pcs'
+          });
+        }
+      });
+    });
+    
+    const requiredMaterials = Array.from(materialMap.values());
+    
+    if (requiredMaterials.length === 0) {
+      return { allAvailable: true, shortages: [], hasCriticalShortages: false };
+    }
+    
+    // Check availability via backend
+    const result = await checkMesMaterialAvailability(requiredMaterials);
+    
+    // Categorize shortages: critical if >50% missing
+    const criticalThreshold = 0.5;
+    const criticalShortages = (result.shortages || []).filter(s => 
+      s.shortage > s.required * criticalThreshold
+    );
+    
+    return {
+      allAvailable: result.allAvailable,
+      shortages: result.shortages || [],
+      hasCriticalShortages: criticalShortages.length > 0,
+      criticalShortages,
+      checkedAt: result.checkedAt
+    };
+    
+  } catch (error) {
+    console.error('Material availability check failed:', error);
+    // On error, don't block launch but warn user
+    return {
+      allAvailable: false,
+      shortages: [],
+      hasCriticalShortages: false,
+      error: error.message
+    };
+  }
+}
+
+/**
  * Start production: Launch the production plan with auto-assignment
  * Button is only enabled if quote has linked production plan with status=production and not yet launched
  */
@@ -196,7 +271,46 @@ async function startProduction(workOrderCode) {
       return;
     }
     
-    // Confirm launch
+    // 🆕 STEP 1: Check material availability BEFORE launching
+    console.log('🔍 Checking material availability for plan:', plan.id);
+    const materialCheck = await checkPlanMaterialAvailability(plan);
+    
+    // 🆕 STEP 2: Show material shortage warnings (if any)
+    if (!materialCheck.allAvailable && materialCheck.shortages.length > 0) {
+      const criticalList = materialCheck.hasCriticalShortages 
+        ? materialCheck.criticalShortages.map(s => 
+            `  🚨 ${s.code}: İhtiyaç ${s.required} ${s.unit}, Stok ${s.available} ${s.unit}\n     (Eksik: ${s.shortage} ${s.unit})`
+          ).join('\n')
+        : '';
+      
+      const minorList = materialCheck.shortages
+        .filter(s => !materialCheck.criticalShortages.includes(s))
+        .map(s => 
+          `  ⚠️ ${s.code}: İhtiyaç ${s.required} ${s.unit}, Stok ${s.available} ${s.unit}\n     (Eksik: ${s.shortage} ${s.unit})`
+        ).join('\n');
+      
+      const warningMessage = materialCheck.hasCriticalShortages
+        ? `🚨 KRİTİK MALZEME EKSİKLİĞİ\n\n${criticalList}\n${minorList ? '\n' + minorList : ''}`
+        : `⚠️ MALZEME UYARISI\n\n${minorList}`;
+      
+      const proceedWithShortages = confirm(
+        warningMessage +
+        `\n\nYine de üretimi başlatmak istiyor musunuz?\n` +
+        `(Üretim sırasında malzeme tedarik etmeniz gerekecek)`
+      );
+      
+      if (!proceedWithShortages) return; // User cancelled
+    }
+    
+    // 🆕 STEP 3: If material check failed (API error), warn but allow proceed
+    if (materialCheck.error) {
+      const proceedWithError = confirm(
+        `⚠️ Malzeme kontrolü yapılamadı:\n${materialCheck.error}\n\nYine de devam etmek istiyor musunuz?`
+      );
+      if (!proceedWithError) return;
+    }
+    
+    // STEP 4: Final confirmation
     const confirmed = confirm(
       `Üretimi Başlatmak İstediğinizden Emin misiniz?\n\n` +
       `İş Emri: ${workOrderCode}\n` +
@@ -217,25 +331,44 @@ async function startProduction(workOrderCode) {
       // Success! Update state to IN_PRODUCTION (update server)
       await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION, true);
       
-      // Build success message with warnings
-      let message = `Üretim başarıyla başlatıldı!\n\n${result.assignmentCount} atama oluşturuldu.`;
+      // Build success message with launch summary
+      const assignedCount = result.summary?.assignedNodes || result.assignments?.length || 0;
+      const totalWorkers = result.summary?.totalWorkers || 0;
+      const queuedCount = result.queuedTasks || 0;
+      const estimatedDuration = result.summary?.estimatedDuration || 0;
+      const parallelPaths = result.summary?.parallelPaths || 0;
       
-      // Check for material shortage warnings
+      let message = `🚀 Üretim başarıyla başlatıldı!\n\n`;
+      message += `✅ ${assignedCount} operasyon atandı\n`;
+      message += `👷 ${totalWorkers} işçi görevlendirildi\n`;
+      if (queuedCount > 0) {
+        message += `⏳ ${queuedCount} operasyon kuyrukta\n`;
+      }
+      if (estimatedDuration > 0) {
+        const hours = Math.floor(estimatedDuration / 60);
+        const mins = estimatedDuration % 60;
+        message += `⏱️ Tahmini süre: ${hours > 0 ? `${hours}s ${mins}dk` : `${mins}dk`}\n`;
+      }
+      if (parallelPaths > 1) {
+        message += `🔀 ${parallelPaths} paralel yol tespit edildi\n`;
+      }
+      
+      // Check for material shortage warnings (if backend adds this later)
       if (result.warnings && result.warnings.materialShortages && result.warnings.materialShortages.length > 0) {
         const shortageList = result.warnings.materialShortages.map(s => 
           `• ${s.nodeName || 'Node'} – ${s.materialCode}: İhtiyaç ${s.required} ${s.unit}, Stok ${s.available} ${s.unit}`
         ).join('\n');
         
-        message += `\n\n⚠️ Malzeme Eksiklikleri (Bilgilendirme):\n${shortageList}\n\nÜretim başladı; stokları en kısa sürede tamamlayın.`;
+        message += `\n⚠️ Malzeme Eksiklikleri (Bilgilendirme):\n${shortageList}\n\nÜretim başladı; stokları en kısa sürede tamamlayın.`;
       }
       
-      // Check for assignment warnings
+      // Check for assignment warnings (if backend adds this later)
       if (result.warnings && result.warnings.assignmentWarnings && result.warnings.assignmentWarnings.length > 0) {
         const warningList = result.warnings.assignmentWarnings.map(w => 
           `• ${w.nodeName}: ${w.warnings.join(', ')}`
         ).join('\n');
         
-        message += `\n\n⚠️ Atama Uyarıları:\n${warningList}`;
+        message += `\n⚠️ Atama Uyarıları:\n${warningList}`;
       }
       
       alert(message);
@@ -1306,180 +1439,35 @@ export async function showApprovedQuoteDetail(id) {
   // Hide extra columns while details are open
   setTableDetailMode(true)
 
-  // Fetch assignments asynchronously
-  try {
+  // Load enhanced production monitoring UI
+  const assignmentsSection = document.getElementById('assignments-section')
+  if (assignmentsSection) {
+    // Use enhanced monitoring UI with real-time updates
     const workOrderCode = q?.workOrderCode || q?.id
-    if (!workOrderCode) {
-      throw new Error('Work Order Code bulunamadı')
-    }
-
-    const { workPackages } = await getWorkPackages({ limit: 1000 })
+    const plan = productionPlansMap[workOrderCode]
     
-    // Filter assignments for this work order
-    const relatedAssignments = workPackages.filter(pkg => pkg.workOrderCode === workOrderCode)
-    
-    // DEBUG: Log first assignment to see structure
-    if (relatedAssignments.length > 0) {
-      console.log('🔍 DEBUG - First assignment structure:', relatedAssignments[0])
-      console.log('   preProductionReservedAmount:', relatedAssignments[0].preProductionReservedAmount)
-      console.log('   materialInputs:', relatedAssignments[0].materialInputs)
-      console.log('   plannedOutput:', relatedAssignments[0].plannedOutput)
-      console.log('   substationCode:', relatedAssignments[0].substationCode)
-      console.log('   substationId:', relatedAssignments[0].substationId)
-    }
-    
-    // Aggregate materials
-    const materialInputs = {}
-    const materialOutputs = {}
-    
-    relatedAssignments.forEach(assignment => {
-      // Aggregate inputs (try multiple field names)
-      const inputs = assignment.preProductionReservedAmount || assignment.materialInputs || assignment.inputs || {}
-      Object.entries(inputs).forEach(([code, qty]) => {
-        materialInputs[code] = (materialInputs[code] || 0) + Number(qty || 0)
-      })
-      
-      // Aggregate outputs
-      const outputs = assignment.plannedOutput || {}
-      Object.entries(outputs).forEach(([code, qty]) => {
-        materialOutputs[code] = (materialOutputs[code] || 0) + Number(qty || 0)
-      })
-      
-      // If no plannedOutput but has outputCode, add it
-      if (!Object.keys(outputs).length && assignment.outputCode) {
-        const outputQty = assignment.outputQty || assignment.plannedOutputQty || 0
-        if (outputQty > 0) {
-          materialOutputs[assignment.outputCode] = (materialOutputs[assignment.outputCode] || 0) + outputQty
-        }
-      }
-    })
-    
-    console.log('📊 Aggregated materials:')
-    console.log('   Inputs:', materialInputs)
-    console.log('   Outputs:', materialOutputs)
-
-    // Generate assignments HTML
-    const assignmentsSection = document.getElementById('assignments-section')
-    if (assignmentsSection) {
-      assignmentsSection.innerHTML = generateAssignmentsHTML(relatedAssignments, materialInputs, materialOutputs, esc)
-    }
-  } catch (error) {
-    console.error('Failed to load assignments:', error)
-    const assignmentsSection = document.getElementById('assignments-section')
-    if (assignmentsSection) {
+    if (plan) {
+      // Show enhanced monitoring with SSE integration
+      showEnhancedProductionMonitoring(workOrderCode, plan, 'assignments-section')
+    } else {
+      // No plan - show basic message
       assignmentsSection.innerHTML = `
-        <div style="font-weight:600; font-size:14px; margin-bottom:8px;">Work Packages</div>
-        <div style="text-align: center; padding: 20px; color: #ef4444;">
-          <i class="fa-solid fa-exclamation-triangle"></i> Yüklenemedi: ${esc(error.message)}
+        <div style="font-weight:600; font-size:14px; margin-bottom:8px;">🎯 Üretim İzleme</div>
+        <div style="text-align: center; padding: 20px; color: #6b7280; background: #f9fafb; border-radius: 4px;">
+          <i class="fa-solid fa-info-circle"></i> Henüz üretim planı oluşturulmamış
         </div>
       `
     }
   }
 }
 
-function generateAssignmentsHTML(assignments, materialInputs, materialOutputs, esc) {
-  const getStatusBadge = (status) => {
-    const statusMap = {
-      'pending': { label: 'Beklemede', bg: '#f3f4f6', color: '#374151' },
-      'ready': { label: 'Hazır', bg: '#fef3c7', color: '#92400e' },
-      'in-progress': { label: 'Devam Ediyor', bg: '#dbeafe', color: '#1e40af' },
-      'paused': { label: 'Duraklatıldı', bg: '#fee2e2', color: '#991b1b' },
-      'completed': { label: 'Tamamlandı', bg: '#d1fae5', color: '#065f46' },
-      'cancelled': { label: 'İptal', bg: '#f3f4f6', color: '#6b7280' }
-    }
-    const s = statusMap[status] || { label: status, bg: '#f3f4f6', color: '#374151' }
-    return `<span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: ${s.bg}; color: ${s.color};">${s.label}</span>`
-  }
-
-  const formatMaterials = (materials) => {
-    const entries = Object.entries(materials || {})
-    if (entries.length === 0) return '<span style="color: #9ca3af;">-</span>'
-    return entries.map(([code, qty]) => `${esc(code)}: ${qty}`).join(', ')
-  }
-
-  if (assignments.length === 0) {
-    return `
-      <div style="font-weight:600; font-size:14px; margin-bottom:8px;">Work Packages</div>
-      <div style="text-align: center; padding: 20px; color: #6b7280;">
-        <i class="fa-solid fa-info-circle"></i> Bu work order için henüz assignment oluşturulmamış
-      </div>
-    `
-  }
-
-  return `
-    <div style="font-weight:600; font-size:14px; margin-bottom:12px;">Work Packages (${assignments.length})</div>
-    
-    <!-- Material Summary -->
-    <div style="margin-bottom: 16px; padding: 10px; background: white; border-radius: 4px; border: 1px solid #e5e7eb;">
-      <div style="font-weight: 600; font-size: 12px; margin-bottom: 8px; color: #374151;">📦 Malzeme Özeti</div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-        <div>
-          <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Giriş Malzemeleri:</div>
-          <div style="font-size: 11px; color: #111827;">
-            ${Object.entries(materialInputs).length > 0 
-              ? Object.entries(materialInputs).map(([code, qty]) => 
-                  `<div>• ${esc(code)}: <strong>${qty}</strong></div>`
-                ).join('')
-              : '<span style="color: #9ca3af;">Yok</span>'}
-          </div>
-        </div>
-        <div>
-          <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px;">Çıkış Ürünleri:</div>
-          <div style="font-size: 11px; color: #111827;">
-            ${Object.entries(materialOutputs).length > 0
-              ? Object.entries(materialOutputs).map(([code, qty]) => 
-                  `<div>• ${esc(code)}: <strong>${qty}</strong></div>`
-                ).join('')
-              : '<span style="color: #9ca3af;">Yok</span>'}
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Assignments Table -->
-    <div style="overflow-x: auto;">
-      <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
-        <thead>
-          <tr style="background: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Package ID</th>
-            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Operasyon</th>
-            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">İşçi</th>
-            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">İstasyon</th>
-            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Durum</th>
-            <th style="padding: 6px 8px; text-align: left; font-weight: 600; color: #374151;">Malzemeler</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${assignments.map(a => `
-            <tr style="border-bottom: 1px solid #f3f4f6;">
-              <td style="padding: 6px 8px; font-family: monospace; font-size: 10px;">${esc(a.assignmentId || a.id)}</td>
-              <td style="padding: 6px 8px;">${esc(a.operationName || a.nodeName || '-')}</td>
-              <td style="padding: 6px 8px;">${esc(a.workerName || '-')}</td>
-              <td style="padding: 6px 8px;">
-                ${esc(a.stationName || '-')}
-                ${(a.substationCode || a.subStationCode) ? `<br><span style="font-size: 10px; color: #6b7280; font-weight: 500;">🔧 ${esc(a.substationCode || a.subStationCode)}</span>` : ''}
-              </td>
-              <td style="padding: 6px 8px;">${getStatusBadge(a.status)}</td>
-              <td style="padding: 6px 8px; font-size: 10px; color: #6b7280;">
-                <div style="margin-bottom: 2px;">
-                  <strong>In:</strong> ${formatMaterials(a.preProductionReservedAmount || a.materialInputs)}
-                </div>
-                <div>
-                  <strong>Out:</strong> ${formatMaterials(a.plannedOutput)}
-                </div>
-              </td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-  `
-}
-
 export function closeApprovedQuoteDetail() {
   const panel = document.getElementById('approved-quote-detail-panel')
   if (panel) panel.style.display = 'none'
   selectedQuoteId = null
+
+  // Cleanup SSE connections
+  cleanupSSEConnections()
 
   // Restore columns when details closed
   setTableDetailMode(false)
