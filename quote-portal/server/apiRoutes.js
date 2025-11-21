@@ -453,63 +453,7 @@ export function setupQuoteRoutes(app, uploadsDir) {
         }
       })
 
-      // If status changed to approved, create Approved Quote Work Order in MES storage
-      // ✅ ALWAYS create new WO, no duplicate check (immutable record keeping)
-      if (String(status).toLowerCase() === 'approved' || String(status).toLowerCase() === 'onaylandı' || String(status).toLowerCase() === 'onaylandi') {
-        console.log(`🔍 [STATUS UPDATE] Quote ${id} approved, creating WO...`)
-        try {
-          const db = getFirestore()
-          const col = db.collection('mes-approved-quotes')
-
-          // Generate next WO code using centralized counter (matches mesRoutes.js)
-          const counterRef = db.collection('mes-counters').doc('work-orders');
-          const code = await db.runTransaction(async (tx) => {
-            const snap = await tx.get(counterRef);
-            let next = 1;
-            
-            if (snap.exists) {
-              const data = snap.data() || {};
-              next = Number.isFinite(data.next) ? data.next : 1;
-            }
-            
-            const workOrderCode = `WO-${String(next).padStart(3, '0')}`;
-            
-            tx.set(counterRef, { 
-              next: next + 1, 
-              updatedAt: new Date(),
-              lastGenerated: workOrderCode
-            }, { merge: true });
-            
-            console.log(`🔢 Generated Work Order Code: ${workOrderCode}`);
-            return workOrderCode;
-          });
-
-          // Build snapshot (copy essential fields + full snapshot for reference)
-          const snapshot = readOne(id) || updated
-          const approvedDoc = {
-            workOrderCode: code,
-            quoteId: id,
-            status: 'approved',
-            customer: snapshot.name || snapshot.customer || null,
-            company: snapshot.company || null,
-            email: snapshot.email || null,
-            phone: snapshot.phone || null,
-            deliveryDate: snapshot.deliveryDate || null,
-            price: snapshot.price ?? snapshot.calculatedPrice ?? null,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            quoteSnapshot: snapshot
-          }
-
-          // Use WO code as document ID
-          console.log(`💾 [STATUS UPDATE] Saving WO to Firestore: ${code}`)
-          await col.doc(code).set(approvedDoc, { merge: true })
-          console.log(`✅ [STATUS UPDATE] Approved Quote WO created: ${code} for quote ${id}`)
-        } catch (e) {
-          console.error('❌ [STATUS UPDATE] Failed to create Approved Quote WO:', e)
-          // Don't fail the whole request, but log the error clearly
-        }
-      }
+      // PostgreSQL migration: Work order creation now handled by Quotes.updateStatus() in db/models/quotes.js
 
       res.json(updated)
     } catch (error) {

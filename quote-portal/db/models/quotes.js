@@ -1,5 +1,6 @@
 import db from '../db.js';
 import PriceFormulas from './priceFormulas.js';
+import WorkOrders from './workOrders.js';
 
 /**
  * Quotes Model
@@ -303,6 +304,26 @@ class Quotes {
       .where('id', id)
       .update(updateData)
       .returning('*');
+    
+    // Create MES work order when quote approved
+    if (status === 'approved' && quote) {
+      try {
+        console.log(`🔍 Quote ${id} approved, creating MES work order...`);
+        const workOrder = await WorkOrders.createFromQuote(id, quote);
+        console.log(`✅ Work order ${workOrder.code} created for quote ${id}`);
+        
+        // Store WO code in quote for reference
+        await db('quotes.quotes')
+          .where('id', id)
+          .update({
+            work_order_code: workOrder.code,
+            updated_at: db.fn.now()
+          });
+      } catch (error) {
+        console.error(`❌ Failed to create work order for quote ${id}:`, error);
+        // Don't fail the quote approval, just log the error
+      }
+    }
     
     return quote;
   }
