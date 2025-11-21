@@ -9,14 +9,14 @@ class FormTemplates {
   /**
    * Create a new form template
    */
-  static async create({ code, name, description, version = 1, createdBy }) {
+  static async create({ code, name, description, version = 1, is_active = false, createdBy }) {
     const [template] = await db('quotes.form_templates')
       .insert({
         code,
         name,
         description,
         version,
-        is_active: true,
+        is_active,
         created_by: createdBy,
         created_at: db.fn.now(),
         updated_at: db.fn.now()
@@ -236,12 +236,11 @@ class FormTemplates {
         throw new Error('Template not found');
       }
 
-      // Deactivate all other versions with same code
+      // Deactivate ALL templates (only one can be active at a time)
       await trx('quotes.form_templates')
-        .where('code', template.code)
         .update({ is_active: false, updated_at: db.fn.now() });
 
-      // Activate this version
+      // Activate this specific template
       await trx('quotes.form_templates')
         .where('id', templateId)
         .update({ is_active: true, updated_at: db.fn.now() });

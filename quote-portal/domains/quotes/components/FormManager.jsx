@@ -117,11 +117,18 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
 
   async function switchActiveTemplate() {
     try {
-      // Mevcut görüntülenen template'i aktif yap
+      console.log('🔄 Activating template:', currentTemplateId)
+      
+      // Backend will deactivate all other templates and activate this one
       await formsApi.activateTemplate(currentTemplateId)
       
-      setActiveTemplateId(currentTemplateId)
+      // Reload all templates to get updated isActive flags
       await loadAllTemplates()
+      
+      // Reload current form config to reflect changes
+      await loadFormConfig()
+      
+      setActiveTemplateId(currentTemplateId)
       
       showNotification('Aktif form değiştirildi!', 'success')
     } catch (e) {
