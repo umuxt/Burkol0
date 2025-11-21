@@ -35,17 +35,17 @@ export function setupFormRoutes(app) {
       const formConfig = {
         formStructure: {
           fields: fields.map(field => ({
-            id: field.field_code,
-            label: field.field_name,
-            type: field.field_type,
+            id: field.fieldCode,
+            label: field.fieldName,
+            type: field.fieldType,
             required: field.required,
             options: field.options,
-            lookupTable: field.lookup_table,
-            defaultValue: field.default_value
+            lookupTable: field.lookupTable,
+            defaultValue: field.defaultValue
           }))
         },
         templateId: template.id,
-        templateCode: template.template_code,
+        templateCode: template.templateCode,
         version: template.version
       };
 
@@ -138,7 +138,7 @@ export function setupFormRoutes(app) {
         name,
         description,
         version: version || 1,
-        is_active: isActive !== undefined ? isActive : false
+        isActive: isActive !== undefined ? isActive : false
       });
 
       logger.success(`Template created: ${template.id}`);
@@ -162,7 +162,7 @@ export function setupFormRoutes(app) {
       if (name !== undefined) updates.name = name;
       if (description !== undefined) updates.description = description;
       if (version !== undefined) updates.version = version;
-      if (isActive !== undefined) updates.is_active = isActive;
+      if (isActive !== undefined) updates.isActive = isActive;
 
       const template = await FormTemplates.update(id, updates);
       
@@ -349,14 +349,14 @@ export function setupFormRoutes(app) {
       logger.info(`PATCH /api/form-fields/${id}`);
 
       const updates = {};
-      if (fieldCode !== undefined) updates.field_code = fieldCode;
-      if (fieldName !== undefined) updates.field_name = fieldName;
-      if (fieldType !== undefined) updates.field_type = fieldType;
-      if (sortOrder !== undefined) updates.sort_order = sortOrder;
-      if (isRequired !== undefined) updates.is_required = isRequired;
-      if (validationRule !== undefined) updates.validation_rule = validationRule;
+      if (fieldCode !== undefined) updates.fieldCode = fieldCode;
+      if (fieldName !== undefined) updates.fieldName = fieldName;
+      if (fieldType !== undefined) updates.fieldType = fieldType;
+      if (sortOrder !== undefined) updates.sortOrder = sortOrder;
+      if (isRequired !== undefined) updates.isRequired = isRequired;
+      if (validationRule !== undefined) updates.validationRule = validationRule;
       if (placeholder !== undefined) updates.placeholder = placeholder;
-      if (defaultValue !== undefined) updates.default_value = defaultValue;
+      if (defaultValue !== undefined) updates.defaultValue = defaultValue;
 
       const field = await FormFields.update(id, updates);
       

@@ -11,7 +11,7 @@ export async function getAllUsers() {
   try {
     const users = await db('users')
       .select('*')
-      .orderBy('created_at', 'desc');
+      .orderBy('createdAt', 'desc');
     
     return users;
   } catch (error) {
@@ -57,23 +57,23 @@ export async function getUserById(id) {
  */
 export async function createUser(userData) {
   try {
-    // If password is provided, store it as plain_password for now
+    // If password is provided, store it as plainPassword for now
     const insertData = {
       email: userData.email,
       name: userData.name || userData.email.split('@')[0],
       role: userData.role || 'admin',
       active: userData.active !== false,
-      pw_hash: userData.pw_hash || null,
-      pw_salt: userData.pw_salt || null,
-      worker_id: userData.workerId || userData.worker_id || null,
-      created_at: db.fn.now()
+      pwHash: userData.pwHash || null,
+      pwSalt: userData.pwSalt || null,
+      workerId: userData.workerId || null,
+      createdAt: db.fn.now()
     };
     
     // Store plain password if provided (for migration compatibility)
     if (userData.password) {
-      insertData.plain_password = userData.password;
-    } else if (userData.plainPassword || userData.plain_password) {
-      insertData.plain_password = userData.plainPassword || userData.plain_password;
+      insertData.plainPassword = userData.password;
+    } else if (userData.plainPassword) {
+      insertData.plainPassword = userData.plainPassword;
     }
     
     const [user] = await db('users')
@@ -99,11 +99,11 @@ export async function updateUser(email, updates) {
         name: updates.name,
         role: updates.role,
         active: updates.active,
-        pw_hash: updates.pw_hash,
-        pw_salt: updates.pw_salt,
-        plain_password: updates.plainPassword || updates.plain_password,
-        worker_id: updates.workerId || updates.worker_id,
-        deactivated_at: updates.active === false ? db.fn.now() : null
+        pwHash: updates.pwHash,
+        pwSalt: updates.pwSalt,
+        plainPassword: updates.plainPassword,
+        workerId: updates.workerId,
+        deactivatedAt: updates.active === false ? db.fn.now() : null
       })
       .returning('*');
     
@@ -146,7 +146,7 @@ export async function deleteUser(email) {
       .where({ email })
       .update({
         active: false,
-        deactivated_at: db.fn.now()
+        deactivatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -180,28 +180,28 @@ export async function verifyUserCredentials(email, password, hashPassword) {
     }
     
     // Plain password check (for backward compatibility)
-    if (user.plain_password && user.plain_password === password) {
+    if (user.plainPassword && user.plainPassword === password) {
       console.log('✅ User verified with plain password:', email);
       return {
         id: user.id,
         email: user.email,
         role: user.role,
         name: user.name,
-        workerId: user.worker_id
+        workerId: user.workerId
       };
     }
     
     // Hash-based authentication
-    if (user.pw_hash && user.pw_salt && hashPassword) {
-      const { hash } = hashPassword(password, user.pw_salt);
-      if (hash === user.pw_hash) {
+    if (user.pwHash && user.pwSalt && hashPassword) {
+      const { hash } = hashPassword(password, user.pwSalt);
+      if (hash === user.pwHash) {
         console.log('✅ User verified with hash:', email);
         return {
           id: user.id,
           email: user.email,
           role: user.role,
           name: user.name,
-          workerId: user.worker_id
+          workerId: user.workerId
         };
       }
     }

@@ -201,7 +201,7 @@ async function getAvailableLots(materialCode, trx) {
       `),
       trx.raw('MIN(movement_date) as first_movement')
     )
-    .where('material_code', materialCode)
+    .where('materialCode', materialCode)
     .whereNotNull('lot_number')
     .groupBy('lot_number', 'lot_date')
     .havingRaw(`
@@ -327,7 +327,7 @@ async function createReservationRecords(assignmentId, materialCode, requiredQty,
     // Insert assignment_material_reservation
     const existingReservation = await trx('mes.assignment_material_reservations')
       .where('assignment_id', assignmentId)
-      .where('material_code', materialCode)
+      .where('materialCode', materialCode)
       .where('lot_number', lot.lotNumber)
       .first();
 
@@ -494,7 +494,7 @@ export async function releaseMaterialReservations(assignmentId) {
         // Get current material stock
         const material = await trx('materials.materials')
           .select('stock', 'wip_reserved')
-          .where('code', res.material_code)
+          .where('code', res.materialCode)
           .first();
 
         const stockBefore = parseFloat(material.stock);
@@ -502,7 +502,7 @@ export async function releaseMaterialReservations(assignmentId) {
 
         // Create reverse stock movement (IN)
         await trx('materials.stock_movements').insert({
-          material_code: res.material_code,
+          material_code: res.materialCode,
           type: 'in',
           quantity: res.actual_reserved_qty,
           stock_before: stockBefore,
@@ -515,7 +515,7 @@ export async function releaseMaterialReservations(assignmentId) {
 
         // Update material aggregates
         await trx('materials.materials')
-          .where('code', res.material_code)
+          .where('code', res.materialCode)
           .update({
             stock: trx.raw('stock + ?', [res.actual_reserved_qty]),
             wip_reserved: trx.raw('wip_reserved - ?', [res.actual_reserved_qty])

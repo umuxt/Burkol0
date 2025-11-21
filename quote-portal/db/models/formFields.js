@@ -12,18 +12,18 @@ class FormFields {
   static async create({ templateId, fieldCode, fieldName, fieldType, sortOrder = 0, isRequired = false, placeholder, helpText, validationRule, defaultValue }) {
     const [field] = await db('quotes.form_fields')
       .insert({
-        template_id: templateId,
-        field_code: fieldCode,
-        field_name: fieldName,
-        field_type: fieldType,
-        sort_order: sortOrder,
-        is_required: isRequired,
+        templateId: templateId,
+        fieldCode: fieldCode,
+        fieldName: fieldName,
+        fieldType: fieldType,
+        sortOrder: sortOrder,
+        isRequired: isRequired,
         placeholder,
-        help_text: helpText,
-        validation_rule: validationRule,
-        default_value: defaultValue,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
+        helpText: helpText,
+        validationRule: validationRule,
+        defaultValue: defaultValue,
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -35,8 +35,8 @@ class FormFields {
    */
   static async getByTemplateId(templateId) {
     const fields = await db('quotes.form_fields')
-      .where('template_id', templateId)
-      .orderBy('sort_order');
+      .where('templateId', templateId)
+      .orderBy('sortOrder');
     
     return fields;
   }
@@ -59,15 +59,15 @@ class FormFields {
     const [field] = await db('quotes.form_fields')
       .where('id', id)
       .update({
-        field_name: updates.fieldName,
-        field_type: updates.fieldType,
-        sort_order: updates.sortOrder,
-        is_required: updates.isRequired,
+        fieldName: updates.fieldName,
+        fieldType: updates.fieldType,
+        sortOrder: updates.sortOrder,
+        isRequired: updates.isRequired,
         placeholder: updates.placeholder,
-        help_text: updates.helpText,
-        validation_rule: updates.validationRule,
-        default_value: updates.defaultValue,
-        updated_at: db.fn.now()
+        helpText: updates.helpText,
+        validationRule: updates.validationRule,
+        defaultValue: updates.defaultValue,
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -91,14 +91,14 @@ class FormFields {
   static async addOption({ fieldId, optionValue, optionLabel, sortOrder = 0, isActive = true, priceValue = null }) {
     const [option] = await db('quotes.form_field_options')
       .insert({
-        field_id: fieldId,
-        option_value: optionValue,
-        option_label: optionLabel,
-        sort_order: sortOrder,
-        is_active: isActive,
-        price_value: priceValue,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
+        fieldId: fieldId,
+        optionValue: optionValue,
+        optionLabel: optionLabel,
+        sortOrder: sortOrder,
+        isActive: isActive,
+        priceValue: priceValue,
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -110,8 +110,8 @@ class FormFields {
    */
   static async getOptions(fieldId) {
     const options = await db('quotes.form_field_options')
-      .where('field_id', fieldId)
-      .orderBy('sort_order');
+      .where('fieldId', fieldId)
+      .orderBy('sortOrder');
     
     return options;
   }
@@ -123,12 +123,12 @@ class FormFields {
     const [option] = await db('quotes.form_field_options')
       .where('id', optionId)
       .update({
-        option_value: updates.optionValue,
-        option_label: updates.optionLabel,
-        sort_order: updates.sortOrder,
-        is_active: updates.isActive,
-        price_value: updates.priceValue,
-        updated_at: db.fn.now()
+        optionValue: updates.optionValue,
+        optionLabel: updates.optionLabel,
+        sortOrder: updates.sortOrder,
+        isActive: updates.isActive,
+        priceValue: updates.priceValue,
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -161,32 +161,32 @@ class FormFields {
         // Create field
         const [field] = await trx('quotes.form_fields')
           .insert({
-            template_id: templateId,
-            field_code: fieldInfo.fieldCode,
-            field_name: fieldInfo.fieldName,
-            field_type: fieldInfo.fieldType,
-            sort_order: fieldInfo.sortOrder || 0,
-            is_required: fieldInfo.isRequired || false,
+            templateId: templateId,
+            fieldCode: fieldInfo.fieldCode,
+            fieldName: fieldInfo.fieldName,
+            fieldType: fieldInfo.fieldType,
+            sortOrder: fieldInfo.sortOrder || 0,
+            isRequired: fieldInfo.isRequired || false,
             placeholder: fieldInfo.placeholder,
-            help_text: fieldInfo.helpText,
-            validation_rule: fieldInfo.validationRule,
-            default_value: fieldInfo.defaultValue,
-            created_at: db.fn.now(),
-            updated_at: db.fn.now()
+            helpText: fieldInfo.helpText,
+            validationRule: fieldInfo.validationRule,
+            defaultValue: fieldInfo.defaultValue,
+            createdAt: db.fn.now(),
+            updatedAt: db.fn.now()
           })
           .returning('*');
 
         // Create options if field is select/multiselect
         if (options && options.length > 0 && ['select', 'multiselect'].includes(fieldInfo.fieldType)) {
           const optionsToInsert = options.map((opt, idx) => ({
-            field_id: field.id,
-            option_value: opt.value,
-            option_label: opt.label,
-            sort_order: opt.sortOrder !== undefined ? opt.sortOrder : idx,
-            is_active: opt.isActive !== undefined ? opt.isActive : true,
-            price_value: opt.priceValue || null,
-            created_at: db.fn.now(),
-            updated_at: db.fn.now()
+            fieldId: field.id,
+            optionValue: opt.value,
+            optionLabel: opt.label,
+            sortOrder: opt.sortOrder !== undefined ? opt.sortOrder : idx,
+            isActive: opt.isActive !== undefined ? opt.isActive : true,
+            priceValue: opt.priceValue || null,
+            createdAt: db.fn.now(),
+            updatedAt: db.fn.now()
           }));
 
           await trx('quotes.form_field_options').insert(optionsToInsert);

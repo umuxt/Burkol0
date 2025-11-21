@@ -17,16 +17,16 @@ export async function getAllCategories() {
     const categories = await db(CATEGORIES_TABLE)
       .select(
         'materials.materials_categories.*',
-        db.raw('COUNT(materials.materials.id) as material_count')
+        db.raw('COUNT(materials.materials.id) as "materialCount"')
       )
       .leftJoin(MATERIALS_TABLE, 'materials.materials_categories.id', 'materials.materials.category')
       .groupBy('materials.materials_categories.id')
-      .orderBy('materials.materials_categories.sort_order', 'asc')
+      .orderBy('materials.materials_categories."sortOrder"', 'asc')
       .orderBy('materials.materials_categories.name', 'asc')
     
     return categories.map(c => ({
       ...c,
-      material_count: parseInt(c.material_count) || 0
+      materialCount: parseInt(c.materialCount) || 0
     }))
   } catch (error) {
     console.error('❌ Error getting all categories:', error)
@@ -41,8 +41,8 @@ export async function getActiveCategories() {
   try {
     const categories = await db(CATEGORIES_TABLE)
       .select('*')
-      .where({ is_active: true })
-      .orderBy('sort_order', 'asc')
+      .where({ isActive: true })
+      .orderBy('sortOrder', 'asc')
       .orderBy('name', 'asc')
     
     return categories
@@ -78,13 +78,13 @@ export async function createCategory(categoryData) {
         id: categoryData.id,
         name: categoryData.name,
         description: categoryData.description || null,
-        parent_category: categoryData.parent_category || categoryData.parentCategory || null,
+        parentCategory: categoryData.parent_category || categoryData.parentCategory || null,
         icon: categoryData.icon || null,
         color: categoryData.color || null,
-        sort_order: categoryData.sort_order || categoryData.sortOrder || 0,
-        is_active: categoryData.is_active !== false,
-        material_count: 0,
-        created_at: db.fn.now()
+        sortOrder: categoryData.sort_order || categoryData.sortOrder || 0,
+        isActive: categoryData.is_active !== false,
+        materialCount: 0,
+        createdAt: db.fn.now()
       })
       .returning('*')
     
@@ -102,21 +102,21 @@ export async function createCategory(categoryData) {
 export async function updateCategory(id, updates) {
   try {
     const updateData = {
-      updated_at: db.fn.now()
+      updatedAt: db.fn.now()
     }
     
     if (updates.name !== undefined) updateData.name = updates.name
     if (updates.description !== undefined) updateData.description = updates.description
-    if (updates.parent_category !== undefined) updateData.parent_category = updates.parent_category
-    if (updates.parentCategory !== undefined) updateData.parent_category = updates.parentCategory
+    if (updates.parent_category !== undefined) updateData.parentCategory = updates.parent_category
+    if (updates.parentCategory !== undefined) updateData.parentCategory = updates.parentCategory
     if (updates.icon !== undefined) updateData.icon = updates.icon
     if (updates.color !== undefined) updateData.color = updates.color
-    if (updates.sort_order !== undefined) updateData.sort_order = updates.sort_order
-    if (updates.sortOrder !== undefined) updateData.sort_order = updates.sortOrder
-    if (updates.is_active !== undefined) updateData.is_active = updates.is_active
-    if (updates.isActive !== undefined) updateData.is_active = updates.isActive
-    if (updates.material_count !== undefined) updateData.material_count = updates.material_count
-    if (updates.materialCount !== undefined) updateData.material_count = updates.materialCount
+    if (updates.sort_order !== undefined) updateData.sortOrder = updates.sort_order
+    if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder
+    if (updates.is_active !== undefined) updateData.isActive = updates.is_active
+    if (updates.isActive !== undefined) updateData.isActive = updates.isActive
+    if (updates.material_count !== undefined) updateData.materialCount = updates.material_count
+    if (updates.materialCount !== undefined) updateData.materialCount = updates.materialCount
     
     const [category] = await db(CATEGORIES_TABLE)
       .where({ id })
@@ -184,8 +184,8 @@ export async function updateCategoryMaterialCount(categoryId) {
     await db(CATEGORIES_TABLE)
       .where({ id: categoryId })
       .update({ 
-        material_count: count,
-        updated_at: db.fn.now()
+        materialCount: count,
+        updatedAt: db.fn.now()
       })
     
     console.log(`✅ Category ${categoryId} material count updated: ${count}`)

@@ -11,22 +11,22 @@ export async function createSession(sessionData) {
   try {
     const [session] = await db('sessions')
       .insert({
-        session_id: sessionData.sessionId,
+        sessionId: sessionData.sessionId,
         token: sessionData.token,
         email: sessionData.email,
-        user_name: sessionData.userName || sessionData.user_name,
-        worker_id: sessionData.workerId || sessionData.worker_id,
-        login_time: sessionData.loginTime || db.fn.now(),
-        login_date: sessionData.loginDate || db.raw('CURRENT_DATE'),
+        userName: sessionData.userName,
+        workerId: sessionData.workerId,
+        loginTime: sessionData.loginTime || db.fn.now(),
+        loginDate: sessionData.loginDate || db.raw('CURRENT_DATE'),
         expires: sessionData.expires,
-        last_activity_at: sessionData.lastActivityAt || sessionData.last_activity_at || db.fn.now(),
-        logout_time: sessionData.logoutTime || null,
-        is_active: sessionData.isActive !== false,
-        activity_log: JSON.stringify(sessionData.activityLog || [])
+        lastActivityAt: sessionData.lastActivityAt || db.fn.now(),
+        logoutTime: sessionData.logoutTime || null,
+        isActive: sessionData.isActive !== false,
+        activityLog: JSON.stringify(sessionData.activityLog || [])
       })
       .returning('*');
     
-    console.log('✅ Session created:', session.session_id);
+    console.log('✅ Session created:', session.sessionId);
     return normalizeSession(session);
   } catch (error) {
     console.error('❌ Error creating session:', error);
@@ -56,7 +56,7 @@ export async function getSessionByToken(token) {
 export async function getSessionById(sessionId) {
   try {
     const session = await db('sessions')
-      .where({ session_id: sessionId })
+      .where({ sessionId: sessionId })
       .first();
     
     return session ? normalizeSession(session) : null;
@@ -72,7 +72,7 @@ export async function getSessionById(sessionId) {
 export async function getAllSessions() {
   try {
     const sessions = await db('sessions')
-      .orderBy('login_time', 'desc');
+      .orderBy('loginTime', 'desc');
     
     return sessions.map(normalizeSession);
   } catch (error) {
@@ -87,9 +87,9 @@ export async function getAllSessions() {
 export async function updateSession(sessionId, updates) {
   try {
     const updateData = {
-      last_activity_at: updates.lastActivityAt || updates.last_activity_at,
-      is_active: updates.isActive !== undefined ? updates.isActive : undefined,
-      logout_time: updates.logoutTime || updates.logout_time,
+      lastActivityAt: updates.lastActivityAt,
+      isActive: updates.isActive !== undefined ? updates.isActive : undefined,
+      logoutTime: updates.logoutTime,
     };
     
     // Handle activity log append
@@ -97,7 +97,7 @@ export async function updateSession(sessionId, updates) {
       const existing = await getSessionById(sessionId);
       const existingLog = existing?.activityLog || [];
       const newLog = Array.isArray(updates.activityLog) ? updates.activityLog : [updates.activityLog];
-      updateData.activity_log = JSON.stringify([...existingLog, ...newLog]);
+      updateData.activityLog = JSON.stringify([...existingLog, ...newLog]);
     }
     
     // Remove undefined values
@@ -106,7 +106,7 @@ export async function updateSession(sessionId, updates) {
     });
     
     const [session] = await db('sessions')
-      .where({ session_id: sessionId })
+      .where({ sessionId: sessionId })
       .update(updateData)
       .returning('*');
     
@@ -114,7 +114,7 @@ export async function updateSession(sessionId, updates) {
       throw new Error('Session not found');
     }
     
-    console.log('✅ Session updated:', session.session_id);
+    console.log('✅ Session updated:', session.sessionId);
     return normalizeSession(session);
   } catch (error) {
     console.error('❌ Error updating session:', error);
@@ -131,13 +131,13 @@ export async function deleteSession(token) {
     const [session] = await db('sessions')
       .where({ token })
       .update({
-        is_active: false,
-        logout_time: db.fn.now()
+        isActive: false,
+        logoutTime: db.fn.now()
       })
       .returning('*');
     
     if (session) {
-      console.log('✅ Session deleted:', session.session_id);
+      console.log('✅ Session deleted:', session.sessionId);
     }
     
     return session ? normalizeSession(session) : null;
@@ -153,15 +153,15 @@ export async function deleteSession(token) {
 export async function deleteSessionById(sessionId) {
   try {
     const [session] = await db('sessions')
-      .where({ session_id: sessionId })
+      .where({ sessionId: sessionId })
       .update({
-        is_active: false,
-        logout_time: db.fn.now()
+        isActive: false,
+        logoutTime: db.fn.now()
       })
       .returning('*');
     
     if (session) {
-      console.log('✅ Session deleted by ID:', session.session_id);
+      console.log('✅ Session deleted by ID:', session.sessionId);
     }
     
     return session ? normalizeSession(session) : null;
@@ -178,10 +178,10 @@ export async function cleanupExpiredSessions() {
   try {
     const deleted = await db('sessions')
       .where('expires', '<', db.fn.now())
-      .andWhere({ is_active: true })
+      .andWhere({ isActive: true })
       .update({
-        is_active: false,
-        logout_time: db.fn.now()
+        isActive: false,
+        logoutTime: db.fn.now()
       });
     
     if (deleted > 0) {
@@ -202,20 +202,20 @@ function normalizeSession(session) {
   if (!session) return null;
   
   return {
-    sessionId: session.session_id,
+    sessionId: session.sessionId,
     token: session.token,
     email: session.email,
-    userName: session.user_name,
-    workerId: session.worker_id,
-    loginTime: session.login_time,
-    loginDate: session.login_date,
+    userName: session.userName,
+    workerId: session.workerId,
+    loginTime: session.loginTime,
+    loginDate: session.loginDate,
     expires: session.expires,
-    lastActivityAt: session.last_activity_at,
-    logoutTime: session.logout_time,
-    isActive: session.is_active,
-    activityLog: typeof session.activity_log === 'string' 
-      ? JSON.parse(session.activity_log) 
-      : (session.activity_log || [])
+    lastActivityAt: session.lastActivityAt,
+    logoutTime: session.logoutTime,
+    isActive: session.isActive,
+    activityLog: typeof session.activityLog === 'string' 
+      ? JSON.parse(session.activityLog) 
+      : (session.activityLog || [])
   };
 }
 

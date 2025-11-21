@@ -29,7 +29,7 @@ export function useMaterialProcurementHistory(material) {
 
   const materialKey = useMemo(() => {
     if (!material) return ''
-    // Firebase'de material.id === material.code kabulü ile tek anahtar
+    // Material procurement history from orders
     return String(material.id || material.code || '')
   }, [material])
 

@@ -233,15 +233,15 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
     
     const converted = {
       fields: (template.fields || []).map((field, index) => ({
-        id: field.field_code,
-        label: field.field_name,
-        type: field.field_type,
-        required: field.is_required || false,
+        id: field.fieldCode,
+        label: field.fieldName,
+        type: field.fieldType,
+        required: field.isRequired || false,
         placeholder: field.placeholder,
-        defaultValue: field.default_value,
+        defaultValue: field.defaultValue,
         display: {
-          formOrder: field.sort_order || index + 1,
-          tableOrder: field.sort_order || index + 1,
+          formOrder: field.sortOrder || index + 1,
+          tableOrder: field.sortOrder || index + 1,
           showInTable: true,
           showInFilter: false
         },

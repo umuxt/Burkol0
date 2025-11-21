@@ -56,18 +56,18 @@ export function setupPriceRoutes(app) {
       }
 
       // If form-based parameter, get price options from form_field_options
-      if (parameter.type === 'form' && parameter.form_field_code) {
+      if (parameter.type === 'form' && parameter.formFieldCode) {
         const priceOptions = await db('quotes.form_field_options as ffo')
-          .join('quotes.form_fields as ff', 'ff.id', 'ffo.field_id')
-          .where('ff.field_code', parameter.form_field_code)
-          .where('ffo.is_active', true)
+          .join('quotes.form_fields as ff', 'ff.id', 'ffo.fieldId')
+          .where('ff.fieldCode', parameter.formFieldCode)
+          .where('ffo.isActive', true)
           .select(
             'ffo.id',
-            'ffo.option_value',
-            'ffo.option_label',
-            'ffo.price_value'
+            'ffo.optionValue',
+            'ffo.optionLabel',
+            'ffo.priceValue'
           )
-          .orderBy('ffo.sort_order');
+          .orderBy('ffo.sortOrder');
 
         logger.success(`Parameter fetched with ${priceOptions.length} price options`);
         return res.json({ ...parameter, priceOptions });
@@ -286,10 +286,10 @@ export function setupPriceRoutes(app) {
         const formula = await PriceFormulas.createWithParameters({
           code,
           name,
-          formula_expression: formulaExpression,
+          formulaExpression: formulaExpression,
           description,
           version: version || '1.0',
-          is_active: isActive !== undefined ? isActive : false
+          isActive: isActive !== undefined ? isActive : false
         }, parameters);
 
         logger.success(`Formula created with ${parameters.length} parameters: ${formula.id}`);
@@ -299,10 +299,10 @@ export function setupPriceRoutes(app) {
       const formula = await PriceFormulas.create({
         code,
         name,
-        formula_expression: formulaExpression,
+        formulaExpression: formulaExpression,
         description,
         version: version || '1.0',
-        is_active: isActive !== undefined ? isActive : false
+        isActive: isActive !== undefined ? isActive : false
       });
 
       logger.success(`Formula created: ${formula.id}`);
@@ -324,10 +324,10 @@ export function setupPriceRoutes(app) {
       const updates = {};
       if (code !== undefined) updates.code = code;
       if (name !== undefined) updates.name = name;
-      if (formulaExpression !== undefined) updates.formula_expression = formulaExpression;
+      if (formulaExpression !== undefined) updates.formulaExpression = formulaExpression;
       if (description !== undefined) updates.description = description;
       if (version !== undefined) updates.version = version;
-      if (isActive !== undefined) updates.is_active = isActive;
+      if (isActive !== undefined) updates.isActive = isActive;
 
       const formula = await PriceFormulas.update(id, updates);
       
@@ -568,20 +568,20 @@ export function setupPriceRoutes(app) {
         code: `PRICE_SETTING_${Date.now()}`,
         name,
         description,
-        is_active: false,
+        isActive: false,
         version: 1
       });
 
       // Add parameters if provided
       if (parameters && parameters.length > 0) {
         const paramData = parameters.map(p => ({
-          setting_id: setting.id,
+          settingId: setting.id,
           code: p.id || p.code,
           name: p.name,
           type: p.type === 'form' ? 'form_lookup' : p.type,
-          fixed_value: p.type === 'fixed' ? (parseFloat(p.value || p.fixedValue) || 0) : null,
-          form_field_code: p.type === 'form' ? (p.formField || p.id) : null,
-          is_active: true
+          fixedValue: p.type === 'fixed' ? (parseFloat(p.value || p.fixedValue) || 0) : null,
+          formFieldCode: p.type === 'form' ? (p.formField || p.id) : null,
+          isActive: true
         }));
 
         await db('quotes.price_parameters').insert(paramData);
@@ -590,11 +590,11 @@ export function setupPriceRoutes(app) {
       // Add formula if provided
       if (formula && formula.trim()) {
         await db('quotes.price_formulas').insert({
-          setting_id: setting.id,
+          settingId: setting.id,
           code: 'MAIN_FORMULA',
           name: 'Main Pricing Formula',
-          formula_expression: formula,
-          is_active: true,
+          formulaExpression: formula,
+          isActive: true,
           version: 1
         });
       }
@@ -627,19 +627,19 @@ export function setupPriceRoutes(app) {
       if (parameters) {
         // Delete existing parameters for this setting
         await db('quotes.price_parameters')
-          .where({ setting_id: parseInt(id) })
+          .where({ settingId: parseInt(id) })
           .delete();
 
         // Insert new parameters
         if (parameters.length > 0) {
           const paramData = parameters.map(p => ({
-            setting_id: parseInt(id),
+            settingId: parseInt(id),
             code: p.id || p.code,
             name: p.name,
             type: p.type === 'form' ? 'form_lookup' : p.type,
-            fixed_value: p.type === 'fixed' ? (parseFloat(p.value || p.fixedValue) || 0) : null,
-            form_field_code: p.type === 'form' ? (p.formField || p.id) : null,
-            is_active: true
+            fixedValue: p.type === 'fixed' ? (parseFloat(p.value || p.fixedValue) || 0) : null,
+            formFieldCode: p.type === 'form' ? (p.formField || p.id) : null,
+            isActive: true
           }));
 
           await db('quotes.price_parameters').insert(paramData);
@@ -650,17 +650,17 @@ export function setupPriceRoutes(app) {
       if (formula !== undefined) {
         // Delete existing formula
         await db('quotes.price_formulas')
-          .where({ setting_id: parseInt(id) })
+          .where({ settingId: parseInt(id) })
           .delete();
 
         // Insert new formula if not empty
         if (formula && formula.trim()) {
           await db('quotes.price_formulas').insert({
-            setting_id: parseInt(id),
+            settingId: parseInt(id),
             code: 'MAIN_FORMULA',
             name: 'Main Pricing Formula',
-            formula_expression: formula,
-            is_active: true,
+            formulaExpression: formula,
+            isActive: true,
             version: 1
           });
         }

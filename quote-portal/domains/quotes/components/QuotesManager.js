@@ -12,7 +12,7 @@ import { FilterPopup } from '../../../src/components/modals/FilterPopup.js'
 import QuotesTabs from './QuotesTabs.jsx'
 import PricingManager from './PricingManager.jsx'
 import FormManager from './FormManager.jsx'
-import { showToast } from '../utils/toast.js'
+import { showToast } from '../../../shared/components/Toast.js'
 
 const { useState, useEffect, useMemo, useRef } = React;
 
@@ -503,14 +503,14 @@ function QuotesManager({ t, onLogout, showNotification }) {
         id: p.code,
         name: p.name,
         type: p.type === 'form_lookup' ? 'form' : p.type,
-        value: p.fixed_value,
-        formField: p.form_field_code,
-        lookupTable: p.lookup_table || []
+        value: p.fixedValue,
+        formField: p.formFieldCode,
+        lookupTable: p.lookupTable || []
       }))
 
       const priceSettings = {
         parameters: convertedParams,
-        formula: setting.formula?.formula_expression || ''
+        formula: setting.formula?.formulaExpression || ''
       }
 
       console.log('✅ Price settings loaded:', {

@@ -23,22 +23,22 @@ class WorkOrders {
         await trx('mes.counters').insert({
           id: 'work-orders',
           prefix: 'WO',
-          next_counter: 1,
+          nextCounter: 1,
           codes: JSON.stringify([]),
-          updated_at: db.fn.now()
+          updatedAt: db.fn.now()
         });
-        counter = { next_counter: 1 };
+        counter = { nextCounter: 1 };
       }
       
-      const nextNum = counter.next_counter || 1;
+      const nextNum = counter.nextCounter || 1;
       const code = `WO-${String(nextNum).padStart(3, '0')}`;
       
       // Update counter
       await trx('mes.counters')
         .where('id', 'work-orders')
         .update({
-          next_counter: nextNum + 1,
-          updated_at: db.fn.now()
+          nextCounter: nextNum + 1,
+          updatedAt: db.fn.now()
         });
       
       await trx.commit();
@@ -74,11 +74,11 @@ class WorkOrders {
     const workOrder = {
       id: code,
       code: code,
-      quote_id: quoteId,
+      quoteId: quoteId,
       status: 'approved',
-      production_state: 'pending',
-      production_state_updated_at: db.fn.now(),
-      production_state_history: JSON.stringify([{
+      productionState: 'pending',
+      productionStateUpdatedAt: db.fn.now(),
+      productionStateHistory: JSON.stringify([{
         state: 'pending',
         timestamp: new Date().toISOString(),
         note: 'Work order created from approved quote'
@@ -90,11 +90,11 @@ class WorkOrders {
         phone: quoteData.customer_phone || quoteData.phone,
         deliveryDate,
         price: quoteData.final_price ?? quoteData.price ?? quoteData.calculatedPrice,
-        formData: quoteData.formData || {},  // Form field values for production specs
-        quoteSnapshot: quoteData  // Complete quote backup
+        formData: quoteData.formData || {},
+        quoteSnapshot: quoteData
       }),
-      created_at: db.fn.now(),
-      updated_at: db.fn.now()
+      createdAt: db.fn.now(),
+      updatedAt: db.fn.now()
     };
     
     const [created] = await db('mes.work_orders')
@@ -119,7 +119,7 @@ class WorkOrders {
    */
   static async getByQuoteId(quoteId) {
     return await db('mes.work_orders')
-      .where('quote_id', quoteId)
+      .where('quoteId', quoteId)
       .first();
   }
 
@@ -128,7 +128,7 @@ class WorkOrders {
    */
   static async list({ status, limit = 100, offset = 0 } = {}) {
     let query = db('mes.work_orders')
-      .orderBy('created_at', 'desc')
+      .orderBy('createdAt', 'desc')
       .limit(limit)
       .offset(offset);
     
@@ -147,7 +147,7 @@ class WorkOrders {
       .where('code', code)
       .update({
         status,
-        updated_at: db.fn.now()
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -167,11 +167,11 @@ class WorkOrders {
     // Parse existing history
     let history = [];
     try {
-      history = typeof workOrder.production_state_history === 'string' 
-        ? JSON.parse(workOrder.production_state_history)
-        : (workOrder.production_state_history || []);
+      history = typeof workOrder.productionStateHistory === 'string' 
+        ? JSON.parse(workOrder.productionStateHistory)
+        : (workOrder.productionStateHistory || []);
     } catch (e) {
-      console.error('Failed to parse production_state_history:', e);
+      console.error('Failed to parse productionStateHistory:', e);
       history = [];
     }
 
@@ -188,11 +188,11 @@ class WorkOrders {
     const [updated] = await db('mes.work_orders')
       .where('code', code)
       .update({
-        production_state: newState,
-        production_state_updated_at: db.fn.now(),
-        production_state_updated_by: updatedBy,
-        production_state_history: JSON.stringify(history),
-        updated_at: db.fn.now()
+        productionState: newState,
+        productionStateUpdatedAt: db.fn.now(),
+        productionStateUpdatedBy: updatedBy,
+        productionStateHistory: JSON.stringify(history),
+        updatedAt: db.fn.now()
       })
       .returning('*');
 

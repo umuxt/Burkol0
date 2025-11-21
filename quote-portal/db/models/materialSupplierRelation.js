@@ -16,16 +16,16 @@ export async function addSupplierToMaterial(materialId, supplierId, options = {}
   try {
     const relation = await db(RELATION_TABLE)
       .insert({
-        material_id: materialId,
-        supplier_id: supplierId,
-        is_primary: options.is_primary || false,
-        cost_price: options.cost_price,
-        lead_time_days: options.lead_time_days,
-        minimum_order_quantity: options.minimum_order_quantity,
-        supplier_material_code: options.supplier_material_code,
+        materialId: materialId,
+        supplierId: supplierId,
+        isPrimary: options.isPrimary || options.is_primary || false,
+        costPrice: options.costPrice || options.cost_price,
+        leadTimeDays: options.leadTimeDays || options.lead_time_days,
+        minimumOrderQuantity: options.minimumOrderQuantity || options.minimum_order_quantity,
+        supplierMaterialCode: options.supplierMaterialCode || options.supplier_material_code,
         notes: options.notes
       })
-      .onConflict(['material_id', 'supplier_id'])
+      .onConflict(['materialId', 'supplierId'])
       .merge() // Update if exists
       .returning('*')
     
@@ -44,16 +44,16 @@ export async function getSuppliersForMaterial(materialId) {
     const suppliers = await db(RELATION_TABLE)
       .select(
         'materials.suppliers.*',
-        'material_supplier_relation.is_primary',
-        'material_supplier_relation.cost_price',
-        'material_supplier_relation.lead_time_days',
-        'material_supplier_relation.minimum_order_quantity',
-        'material_supplier_relation.supplier_material_code',
+        'material_supplier_relation.isPrimary',
+        'material_supplier_relation.costPrice',
+        'material_supplier_relation.leadTimeDays',
+        'material_supplier_relation.minimumOrderQuantity',
+        'material_supplier_relation.supplierMaterialCode',
         'material_supplier_relation.notes'
       )
-      .join(SUPPLIERS_TABLE, 'material_supplier_relation.supplier_id', 'materials.suppliers.id')
-      .where('material_supplier_relation.material_id', materialId)
-      .orderBy('material_supplier_relation.is_primary', 'desc') // Primary first
+      .join(SUPPLIERS_TABLE, 'material_supplier_relation.supplierId', 'materials.suppliers.id')
+      .where('material_supplier_relation.materialId', materialId)
+      .orderBy('material_supplier_relation.isPrimary', 'desc') // Primary first
     
     return suppliers
   } catch (error) {
@@ -70,12 +70,12 @@ export async function getMaterialsForSupplier(supplierId) {
     const materials = await db(RELATION_TABLE)
       .select(
         'materials.materials.*',
-        'material_supplier_relation.is_primary',
-        'material_supplier_relation.cost_price',
-        'material_supplier_relation.lead_time_days'
+        'material_supplier_relation.isPrimary',
+        'material_supplier_relation.costPrice',
+        'material_supplier_relation.leadTimeDays'
       )
-      .join(MATERIALS_TABLE, 'material_supplier_relation.material_id', 'materials.materials.id')
-      .where('material_supplier_relation.supplier_id', supplierId)
+      .join(MATERIALS_TABLE, 'material_supplier_relation.materialId', 'materials.materials.id')
+      .where('material_supplier_relation.supplierId', supplierId)
       .orderBy('materials.materials.code', 'asc')
     
     return materials
@@ -91,7 +91,7 @@ export async function getMaterialsForSupplier(supplierId) {
 export async function removeSupplierFromMaterial(materialId, supplierId) {
   try {
     const deleted = await db(RELATION_TABLE)
-      .where({ material_id: materialId, supplier_id: supplierId })
+      .where({ materialId: materialId, supplierId: supplierId })
       .del()
     
     return deleted > 0
@@ -108,13 +108,13 @@ export async function setPrimarySupplier(materialId, supplierId) {
   try {
     // First, unset all primary flags for this material
     await db(RELATION_TABLE)
-      .where('material_id', materialId)
-      .update({ is_primary: false })
+      .where('materialId', materialId)
+      .update({ isPrimary: false })
     
     // Then set the new primary
     const updated = await db(RELATION_TABLE)
-      .where({ material_id: materialId, supplier_id: supplierId })
-      .update({ is_primary: true })
+      .where({ materialId: materialId, supplierId: supplierId })
+      .update({ isPrimary: true })
       .returning('*')
     
     return updated[0]
@@ -131,10 +131,10 @@ export async function getPrimarySupplier(materialId) {
   try {
     const supplier = await db(RELATION_TABLE)
       .select('materials.suppliers.*')
-      .join(SUPPLIERS_TABLE, 'material_supplier_relation.supplier_id', 'materials.suppliers.id')
+      .join(SUPPLIERS_TABLE, 'material_supplier_relation.supplierId', 'materials.suppliers.id')
       .where({
-        'material_supplier_relation.material_id': materialId,
-        'material_supplier_relation.is_primary': true
+        'material_supplier_relation.materialId': materialId,
+        'material_supplier_relation.isPrimary': true
       })
       .first()
     

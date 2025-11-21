@@ -9,17 +9,17 @@ class FormTemplates {
   /**
    * Create a new form template
    */
-  static async create({ code, name, description, version = 1, is_active = false, createdBy }) {
+  static async create({ code, name, description, version = 1, isActive = false, is_active, createdBy }) {
     const [template] = await db('quotes.form_templates')
       .insert({
         code,
         name,
         description,
         version,
-        is_active,
-        created_by: createdBy,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
+        isActive: isActive || is_active || false,
+        createdBy: createdBy,
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -33,14 +33,14 @@ class FormTemplates {
     let query = db('quotes.form_templates');
 
     if (filters.isActive !== undefined) {
-      query = query.where('is_active', filters.isActive);
+      query = query.where('isActive', filters.isActive);
     }
 
     if (filters.code) {
       query = query.where('code', filters.code);
     }
 
-    const templates = await query.orderBy('created_at', 'desc');
+    const templates = await query.orderBy('createdAt', 'desc');
     return templates;
   }
 
@@ -71,7 +71,7 @@ class FormTemplates {
    */
   static async getActive() {
     const template = await db('quotes.form_templates')
-      .where('is_active', true)
+      .where('isActive', true)
       .orderBy('version', 'desc')
       .first();
     
@@ -86,7 +86,7 @@ class FormTemplates {
       .where('id', id)
       .update({
         ...updates,
-        updated_at: db.fn.now()
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -100,8 +100,8 @@ class FormTemplates {
     const [template] = await db('quotes.form_templates')
       .where('id', id)
       .update({
-        is_active: isActive,
-        updated_at: db.fn.now()
+        isActive: isActive,
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -131,33 +131,33 @@ class FormTemplates {
 
     // Get all fields for this template with their options
     const fields = await db('quotes.form_fields as ff')
-      .where('ff.template_id', templateId)
-      .leftJoin('quotes.form_field_options as ffo', 'ffo.field_id', 'ff.id')
+      .where('ff.templateId', templateId)
+      .leftJoin('quotes.form_field_options as ffo', 'ffo.fieldId', 'ff.id')
       .select(
         'ff.id',
-        'ff.field_code',
-        'ff.field_name',
-        'ff.field_type',
-        'ff.sort_order',
-        'ff.is_required',
+        'ff.fieldCode',
+        'ff.fieldName',
+        'ff.fieldType',
+        'ff.sortOrder',
+        'ff.isRequired',
         'ff.placeholder',
-        'ff.help_text',
-        'ff.validation_rule',
-        'ff.default_value',
+        'ff.helpText',
+        'ff.validationRule',
+        'ff.defaultValue',
         db.raw(`
           json_agg(
             json_build_object(
               'id', ffo.id,
-              'value', ffo.option_value,
-              'label', ffo.option_label,
-              'sortOrder', ffo.sort_order,
-              'isActive', ffo.is_active
-            ) ORDER BY ffo.sort_order
+              'value', ffo."optionValue",
+              'label', ffo."optionLabel",
+              'sortOrder', ffo."sortOrder",
+              'isActive', ffo."isActive"
+            ) ORDER BY ffo."sortOrder"
           ) FILTER (WHERE ffo.id IS NOT NULL) as options
         `)
       )
       .groupBy('ff.id')
-      .orderBy('ff.sort_order');
+      .orderBy('ff.sortOrder');
 
     return {
       ...template,
@@ -184,7 +184,7 @@ class FormTemplates {
       // Deactivate current template
       await trx('quotes.form_templates')
         .where('id', templateId)
-        .update({ is_active: false, updated_at: db.fn.now() });
+        .update({ isActive: false, updatedAt: db.fn.now() });
 
       // Create new version
       const [newTemplate] = await trx('quotes.form_templates')
@@ -193,11 +193,11 @@ class FormTemplates {
           name: name || currentTemplate.name,
           description: description || currentTemplate.description,
           version: currentTemplate.version + 1,
-          is_active: true,
-          supersedes_id: templateId,
-          created_by: createdBy,
-          created_at: db.fn.now(),
-          updated_at: db.fn.now()
+          isActive: true,
+          supersedesId: templateId,
+          createdBy: createdBy,
+          createdAt: db.fn.now(),
+          updatedAt: db.fn.now()
         })
         .returning('*');
 
@@ -238,12 +238,12 @@ class FormTemplates {
 
       // Deactivate ALL templates (only one can be active at a time)
       await trx('quotes.form_templates')
-        .update({ is_active: false, updated_at: db.fn.now() });
+        .update({ isActive: false, updatedAt: db.fn.now() });
 
       // Activate this specific template
       await trx('quotes.form_templates')
         .where('id', templateId)
-        .update({ is_active: true, updated_at: db.fn.now() });
+        .update({ isActive: true, updatedAt: db.fn.now() });
 
       await trx.commit();
       return await this.getById(templateId);

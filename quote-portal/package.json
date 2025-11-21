@@ -41,6 +41,7 @@
     "dotenv": "^17.2.3",
     "express": "^4.19.2",
     "formulajs": "^1.0.8",
+    "glob": "^13.0.0",
     "hot-formula-parser": "^4.0.0",
     "joi": "^18.0.1",
     "knex": "^3.1.0",

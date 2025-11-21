@@ -68,46 +68,46 @@ const StockMovements = {
     
     const [movement] = await db('materials.stock_movements')
       .insert({
-        material_id: materialId,
-        material_code: materialCode,
-        material_name: materialName,
+        materialId: materialId,
+        materialCode: materialCode,
+        materialName: materialName,
         type,
-        sub_type: subType,
+        subType: subType,
         status,
         quantity,
         unit,
-        stock_before: stockBefore,
-        stock_after: stockAfter,
-        actual_output: actualOutput,
-        defect_quantity: defectQuantity,
-        planned_output: plannedOutput,
-        unit_cost: unitCost,
-        total_cost: totalCost,
+        stockBefore: stockBefore,
+        stockAfter: stockAfter,
+        actualOutput: actualOutput,
+        defectQuantity: defectQuantity,
+        plannedOutput: plannedOutput,
+        unitCost: unitCost,
+        totalCost: totalCost,
         currency,
         reference,
-        reference_type: referenceType,
-        related_plan_id: relatedPlanId,
-        related_node_id: relatedNodeId,
+        referenceType: referenceType,
+        relatedPlanId: relatedPlanId,
+        relatedNodeId: relatedNodeId,
         warehouse,
         location,
         notes,
         reason,
-        movement_date: movementDate,
+        movementDate: movementDate,
         approved,
-        user_id: userId,
-        user_name: userName,
+        userId: userId,
+        userName: userName,
         // Lot tracking fields
-        lot_number: lotNumber || null,
-        lot_date: lotDate || null,
-        supplier_lot_code: supplierLotCode || null,
-        manufacturing_date: manufacturingDate || null,
-        expiry_date: expiryDate || null,
-        node_sequence: nodeSequence || null,
+        lotNumber: lotNumber || null,
+        lotDate: lotDate || null,
+        supplierLotCode: supplierLotCode || null,
+        manufacturingDate: manufacturingDate || null,
+        expiryDate: expiryDate || null,
+        nodeSequence: nodeSequence || null,
         // Partial reservation fields
-        requested_quantity: requestedQuantity || null,
-        partial_reservation: partialReservation || false,
+        requestedQuantity: requestedQuantity || null,
+        partialReservation: partialReservation || false,
         warning: warning || null,
-        assignment_id: assignmentId || null
+        assignmentId: assignmentId || null
       })
       .returning('*');
     
@@ -122,23 +122,23 @@ const StockMovements = {
    */
   async getMovementsByMaterial(materialId, filters = {}) {
     let query = db('materials.stock_movements')
-      .where({ material_id: materialId })
-      .orderBy('movement_date', 'desc');
+      .where({ materialId: materialId })
+      .orderBy('movementDate', 'desc');
     
     if (filters.type) {
       query = query.where('type', filters.type);
     }
     
     if (filters.subType) {
-      query = query.where('sub_type', filters.subType);
+      query = query.where('subType', filters.subType);
     }
     
     if (filters.startDate) {
-      query = query.where('movement_date', '>=', filters.startDate);
+      query = query.where('movementDate', '>=', filters.startDate);
     }
     
     if (filters.endDate) {
-      query = query.where('movement_date', '<=', filters.endDate);
+      query = query.where('movementDate', '<=', filters.endDate);
     }
     
     if (filters.limit) {
@@ -158,9 +158,9 @@ const StockMovements = {
     return await db('materials.stock_movements')
       .where({
         reference,
-        reference_type: referenceType
+        referenceType: referenceType
       })
-      .orderBy('movement_date', 'desc');
+      .orderBy('movementDate', 'desc');
   },
 
   /**
@@ -173,7 +173,7 @@ const StockMovements = {
     return await db('materials.stock_movements')
       .where({
         reference: assignmentId,
-        material_code: materialCode,
+        materialCode: materialCode,
         status: 'wip'
       })
       .first();
@@ -190,12 +190,12 @@ const StockMovements = {
       .where({ id: movementId })
       .update({
         type: 'out',
-        sub_type: 'production_consumption',
+        subType: 'production_consumption',
         status: 'production',
         quantity: updates.actualConsumption,
-        stock_after: updates.stockAfter,
+        stockAfter: updates.stockAfter,
         notes: updates.notes,
-        updated_at: new Date()
+        updatedAt: new Date()
       })
       .returning('*');
     
@@ -213,15 +213,15 @@ const StockMovements = {
     let query = db('materials.stock_movements');
     
     if (materialId) {
-      query = query.where('material_id', materialId);
+      query = query.where('materialId', materialId);
     }
     
     if (startDate) {
-      query = query.where('movement_date', '>=', startDate);
+      query = query.where('movementDate', '>=', startDate);
     }
     
     if (endDate) {
-      query = query.where('movement_date', '<=', endDate);
+      query = query.where('movementDate', '<=', endDate);
     }
     
     const [stats] = await query
@@ -253,7 +253,7 @@ const StockMovements = {
    */
   async getRecentMovements(limit = 50) {
     return await db('materials.stock_movements')
-      .orderBy('movement_date', 'desc')
+      .orderBy('movementDate', 'desc')
       .limit(limit);
   },
 
@@ -267,7 +267,7 @@ const StockMovements = {
       .where({ id: movementId })
       .update({
         status: 'cancelled',
-        updated_at: new Date()
+        updatedAt: new Date()
       });
     
     return deleted > 0;

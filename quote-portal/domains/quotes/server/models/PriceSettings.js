@@ -11,7 +11,7 @@ const PriceSettings = {
   async getAll() {
     return db('quotes.price_settings')
       .select('*')
-      .orderBy('created_at', 'desc');
+      .orderBy('createdAt', 'desc');
   },
 
   /**
@@ -19,7 +19,7 @@ const PriceSettings = {
    */
   async getActive() {
     return db('quotes.price_settings')
-      .where({ is_active: true })
+      .where({ isActive: true })
       .first();
   },
 
@@ -37,12 +37,12 @@ const PriceSettings = {
 
     // Get parameters for this setting
     const parameters = await db('quotes.price_parameters')
-      .where({ setting_id: id })
+      .where({ settingId: id })
       .select('*');
 
     // Get formula for this setting
     const formula = await db('quotes.price_formulas')
-      .where({ setting_id: id })
+      .where({ settingId: id })
       .first();
 
     return {
@@ -74,10 +74,10 @@ const PriceSettings = {
         code: data.code,
         name: data.name,
         description: data.description,
-        is_active: data.is_active || false,
+        isActive: data.isActive || data.is_active || false,
         version: data.version || 1,
-        created_by: data.created_by,
-        supersedes_id: data.supersedes_id || null
+        createdBy: data.createdBy || data.created_by,
+        supersedesId: data.supersedesId || data.supersedes_id || null
       })
       .returning('*');
 
@@ -92,7 +92,7 @@ const PriceSettings = {
       .where({ id })
       .update({
         ...data,
-        updated_at: db.fn.now()
+        updatedAt: db.fn.now()
       })
       .returning('*');
 
@@ -106,12 +106,12 @@ const PriceSettings = {
     await db.transaction(async (trx) => {
       // Deactivate all
       await trx('quotes.price_settings')
-        .update({ is_active: false });
+        .update({ isActive: false });
 
       // Activate selected
       await trx('quotes.price_settings')
         .where({ id })
-        .update({ is_active: true });
+        .update({ isActive: true });
     });
 
     return this.getWithDetails(id);
@@ -145,26 +145,26 @@ const PriceSettings = {
           code: currentSetting.code,
           name: newName || `${currentSetting.name} v${nextVersion}`,
           description: currentSetting.description,
-          is_active: false,
+          isActive: false,
           version: nextVersion,
-          created_by: currentSetting.created_by,
-          supersedes_id: currentSettingId
+          createdBy: currentSetting.createdBy,
+          supersedesId: currentSettingId
         })
         .returning('*');
 
       // Copy parameters
       const currentParams = await trx('quotes.price_parameters')
-        .where({ setting_id: currentSettingId });
+        .where({ settingId: currentSettingId });
 
       if (currentParams.length > 0) {
         const newParams = currentParams.map(p => ({
-          setting_id: newSetting.id,
+          settingId: newSetting.id,
           code: p.code,
           name: p.name,
           type: p.type,
-          fixed_value: p.fixed_value,
-          form_field_code: p.form_field_code,
-          is_active: p.is_active
+          fixedValue: p.fixedValue,
+          formFieldCode: p.formFieldCode,
+          isActive: p.isActive
         }));
 
         await trx('quotes.price_parameters').insert(newParams);
@@ -172,19 +172,19 @@ const PriceSettings = {
 
       // Copy formula
       const currentFormula = await trx('quotes.price_formulas')
-        .where({ setting_id: currentSettingId })
+        .where({ settingId: currentSettingId })
         .first();
 
       if (currentFormula) {
         await trx('quotes.price_formulas').insert({
-          setting_id: newSetting.id,
+          settingId: newSetting.id,
           code: currentFormula.code,
           name: currentFormula.name,
-          formula_expression: currentFormula.formula_expression,
+          formulaExpression: currentFormula.formulaExpression,
           description: currentFormula.description,
-          is_active: currentFormula.is_active,
+          isActive: currentFormula.isActive,
           version: currentFormula.version,
-          created_by: currentFormula.created_by
+          createdBy: currentFormula.createdBy
         });
       }
 
