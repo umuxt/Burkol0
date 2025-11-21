@@ -119,8 +119,8 @@ function QuotesManager({ t, onLogout, showNotification }) {
   }
 
   useEffect(() => {
-    // Clear localStorage to ensure only Firebase data is shown
-    console.log('🔧 Admin: Clearing localStorage quotes to show only Firebase data');
+    // Clear localStorage to ensure only PostgreSQL data is shown
+    console.log('🔧 Admin: Clearing localStorage quotes to show only PostgreSQL data');
     API.clearLocalStorageQuotes();
     loadQuotes();
   }, []);

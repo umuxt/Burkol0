@@ -54,16 +54,16 @@ export function isFixedValueParameter(parameter) {
   return parameter.type === 'fixed' && typeof parameter.value === 'number'
 }
 
-// Form alan bilgisini dinamik olarak alma
+// Form alan bilgisini dinamik olarak alma (PostgreSQL format)
 export function extractFieldInfoFromFormConfig(formFields) {
   if (!formFields || !Array.isArray(formFields)) return []
   
   return formFields.map(field => ({
-    value: field.id,
-    label: field.label,
-    hasOptions: field.hasOptions,
+    value: field.field_code || field.id,
+    label: field.field_name || field.label,
+    hasOptions: field.has_options || field.hasOptions,
     options: field.options || [],
-    type: field.type
+    type: field.field_type || field.type
   }))
 }
 

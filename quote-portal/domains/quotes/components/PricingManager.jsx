@@ -107,6 +107,16 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
     try {
       console.log('🔧 DEBUG: Loading form fields...')
       const template = await formsApi.getActiveTemplate()
+      
+      if (!template) {
+        console.warn('⚠️ No active form template found')
+        setFormFields([])
+        if (showNotification) {
+          showNotification('Aktif form bulunamadı - Önce Form Yönetimi\'nden bir form oluşturun', 'warning')
+        }
+        return
+      }
+      
       const dynamicFields = PricingUtils.extractFieldInfoFromFormConfig(template.fields || [])
       console.log('🔧 DEBUG: Processed fields:', dynamicFields)
       setFormFields(dynamicFields)
@@ -114,7 +124,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
       console.warn('⚠️ Form fields API error:', e.message)
       setFormFields([])
       if (showNotification) {
-        showNotification('API bağlantısı yok - Form alanları yüklenmedi', 'warning')
+        showNotification('Form alanları yüklenemedi: ' + e.message, 'warning')
       }
     } finally {
       setIsLoadingFields(false)
@@ -973,13 +983,13 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
               React.createElement('div', { className: 'pricing-alert pricing-alert-warning' },
                 React.createElement('strong', null, '⚠️ Form alanı bulunamadı'),
                 React.createElement('br'),
-                'Firebase\'de form konfigürasyonu bulunamadı. Önce Form Düzenleme menüsünden form alanları oluşturun.',
+                'Aktif form şablonu bulunamadı. Önce Form Düzenleme menüsünden form alanları oluşturun.',
                 React.createElement('br'),
                 React.createElement('small', null, 'Debug: formFields.length = ', formFields.length)
               ) :
               React.createElement('div', null,
                 React.createElement('div', { className: 'pricing-alert pricing-alert-info', style: { fontSize: '13px', padding: '8px', marginBottom: '8px' } },
-                  `✅ ${formFields.length} form alanı Firebase'den başarıyla yüklendi`
+                  `✅ ${formFields.length} form alanı yüklendi`
                 ),
                 React.createElement('select', {
                   value: selectedFormField,
@@ -1080,7 +1090,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
         ),
       
       isLoadingFields && React.createElement('div', { className: 'pricing-alert pricing-alert-info' },
-        '📝 Form alanları yükleniyor... Firebase\'den form konfigürasyonu çekiliyor.'
+        '📝 Form alanları yükleniyor...'
       ),
 
       // Parameters list with user-friendly IDs
