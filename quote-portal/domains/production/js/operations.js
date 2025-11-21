@@ -1,11 +1,19 @@
 // Operations management UI backed by backend API
-import { getOperations, saveOperations, normalizeOperation, genId, getMasterData, addSkill, addOperationType, updateOperationType, deleteOperationType, getWorkers } from './mesApi.js'
+import { getOperations, saveOperations, normalizeOperation, genId, getMasterData, addSkill, addOperationType, updateOperationType, deleteOperationType, getWorkers, getSkillsFromSQL } from './mesApi.js'
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
 
 let operationsState = []
 let editingOperationId = null
 let selectedOperationId = null
 let operationFilters = { query: '', skills: [] }
+let skillsCache = [] // Cache for SQL skills
+
+// Helper: Convert skill ID to name
+function getSkillName(skillId) {
+  if (!skillId) return skillId
+  const skill = skillsCache.find(s => s.id === skillId)
+  return skill ? skill.name : skillId
+}
 
 function computeFilteredOperations(list = operationsState, filters = operationFilters) {
   const source = Array.isArray(list) ? list : []
@@ -37,6 +45,7 @@ async function loadOperationsAndRender() {
     body.innerHTML = buildOperationsRows([], 'Loading operations...')
   }
   try {
+    skillsCache = await getSkillsFromSQL() // Load skills for ID→name mapping
     operationsState = await getOperations(true)
     renderOperations()
   } catch (e) {
@@ -119,15 +128,21 @@ function buildOperationsRows(list, emptyText, options = {}) {
       ? (legacy ? `${efficiencyPercent}%` : `<span class="badge badge-info">${efficiencyPercent}%</span>`)
       : (legacy ? '100%' : '<span class="mes-muted-text">100%</span>')
 
-    const skills = Array.isArray(op.skills)
-      ? op.skills
-      : (typeof op.skills === 'string'
+    const skills = (Array.isArray(op.skills)
+        ? op.skills
+        : typeof op.skills === 'string'
         ? op.skills.split(',').map(skill => skill.trim()).filter(Boolean)
         : [])
     const skillsMarkup = skills.length
       ? (legacy
-        ? skills.map(s => `<span class="badge badge-outline" style="margin-right:4px;">${escapeHtml(s)}</span>`).join('')
-        : `<div class="mes-tag-group">${skills.map(skill => `<span class="mes-tag">${escapeHtml(skill)}</span>`).join('')}</div>`)
+        ? skills.map(s => {
+            const skillName = getSkillName(s) // Convert ID to name
+            return `<span class="badge badge-outline" style="margin-right:4px;">${escapeHtml(skillName)}</span>`
+          }).join('')
+        : `<div class="mes-tag-group">${skills.map(skill => {
+            const skillName = getSkillName(skill) // Convert ID to name
+            return `<span class="mes-tag">${escapeHtml(skillName)}</span>`
+          }).join('')}</div>`)
       : (legacy
         ? '-'
         : '<span class="mes-muted-text">-</span>')
@@ -206,6 +221,27 @@ export async function showOperationDetail(id) {
   const defectRate = formatDefectRate(op.expectedDefectRate)
   const efficiencyPercent = op.defaultEfficiency ? Math.round(op.defaultEfficiency * 100) : 100
   const efficiencyDisplay = `${efficiencyPercent}% ${efficiencyPercent < 100 ? '(daha yavaş)' : efficiencyPercent > 100 ? '(daha hızlı)' : '(normal)'}`
+  
+  // Get skill names from SQL
+  let skillsDisplay = '-'
+  try {
+    const { getSkillsFromSQL } = await import('./mesApi.js')
+    const allSkills = await getSkillsFromSQL()
+    const skillMap = new Map(allSkills.map(s => [s.id, s.name]))
+    
+    if (Array.isArray(op.skills) && op.skills.length > 0) {
+      skillsDisplay = op.skills
+        .map(skillId => {
+          const skillName = skillMap.get(skillId) || skillId
+          return `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+        })
+        .join('')
+    }
+  } catch (e) {
+    console.error('Error loading skills for display:', e)
+    skillsDisplay = '<span style="font-size:12px; color: rgb(239,68,68);">Skills yüklenemedi</span>'
+  }
+  
   let supervisorHtml = ''
   try {
     if (op.supervisorId) {
@@ -239,7 +275,7 @@ export async function showOperationDetail(id) {
     </div>
     <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
       <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Gerekli Yetenekler</h3>
-      <div style="display:flex; flex-wrap:wrap; gap:6px;">${(Array.isArray(op.skills)?op.skills:[]).map(s => `<span style=\"background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;\">${escapeHtml(s)}</span>`).join('') || '<span style="font-size:12px; color: rgb(107,114,128);">-</span>'}</div>
+      <div style="display:flex; flex-wrap:wrap; gap:6px;">${skillsDisplay}</div>
     </div>
   `
 }
@@ -328,9 +364,7 @@ export async function saveOperation() {
     semiOutputCode: semiCode,
     expectedDefectRate,
     defaultEfficiency,
-    skills,
-    
-    active: true
+    skills
   })
   const idx = operationsState.findIndex(o => o.id === op.id)
   if (idx >= 0) operationsState[idx] = { ...operationsState[idx], ...op }
@@ -423,11 +457,20 @@ async function populateOperationSkillsBox() {
   if (!box) return
   box.innerHTML = '<div style="color:#888;">Loading skills...</div>'
   try {
-    const md = await getMasterData()
+    // ✅ Fetch skills from SQL instead of master data
+    const { getSkillsFromSQL } = await import('./mesApi.js')
+    const sqlSkills = await getSkillsFromSQL()
+    
+    // Build skill ID to name map
+    const skillIdToName = new Map(sqlSkills.map(s => [s.id, s.name]))
+    
     const selected = new Set(
       (document.getElementById('operation-skills-selected')?.value || '')
         .split('|').filter(Boolean)
     )
+    
+    // Convert selected IDs to names for display
+    const selectedNames = Array.from(selected).map(id => skillIdToName.get(id) || id)
     
     // Create modern skills interface similar to worker skills
     box.innerHTML = `
@@ -441,7 +484,7 @@ async function populateOperationSkillsBox() {
             </div>
             <div class="selected-skills-display" style="padding: 8px 12px; background: white; border-bottom: 1px solid var(--border); min-height: 20px; font-size: 12px;">
               ${selected.size > 0 ? 
-                Array.from(selected).map(skill => `<span style="display: inline-block; padding: 2px 6px; margin: 2px; background: rgb(248, 249, 250); border: 1px solid var(--border); border-radius: 4px; font-size: 11px;">${escapeHtml(skill)}</span>`).join('') :
+                selectedNames.map(name => `<span style="display: inline-block; padding: 2px 6px; margin: 2px; background: rgb(248, 249, 250); border: 1px solid var(--border); border-radius: 4px; font-size: 11px;">${escapeHtml(name)}</span>`).join('') :
                 '<span style="color: var(--muted-foreground); font-style: italic;">Henüz skill seçilmedi</span>'
               }
             </div>
@@ -455,11 +498,11 @@ async function populateOperationSkillsBox() {
     const grid = box.querySelector('#operation-skills-grid')
     const searchInput = box.querySelector('#operation-skills-search')
     
-    function renderSkills(filteredSkills = md.skills) {
+    function renderSkills(filteredSkills = sqlSkills) {
       grid.innerHTML = filteredSkills.map(s => {
-        const isSelected = selected.has(s.name)
+        const isSelected = selected.has(s.id)
         return `
-          <div class="skill-card" data-skill="${escapeHtml(s.name)}" style="
+          <div class="skill-card" data-skill-id="${escapeHtml(s.id)}" data-skill-name="${escapeHtml(s.name)}" style="
             padding: 4px 6px; 
             border: 1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}; 
             border-radius: 4px; 
@@ -480,17 +523,17 @@ async function populateOperationSkillsBox() {
       // Add click handlers
       grid.querySelectorAll('.skill-card').forEach(card => {
         card.onclick = () => {
-          const skillName = card.dataset.skill
+          const skillId = card.dataset.skillId
           const hidden = document.getElementById('operation-skills-selected')
           const parts = (hidden?.value || '').split('|').filter(Boolean)
           
-          if (selected.has(skillName)) {
-            selected.delete(skillName)
-            const index = parts.indexOf(skillName)
+          if (selected.has(skillId)) {
+            selected.delete(skillId)
+            const index = parts.indexOf(skillId)
             if (index > -1) parts.splice(index, 1)
           } else {
-            selected.add(skillName)
-            parts.push(skillName)
+            selected.add(skillId)
+            parts.push(skillId)
           }
           
           hidden.value = Array.from(new Set(parts)).join('|')
@@ -502,7 +545,7 @@ async function populateOperationSkillsBox() {
     // Search functionality
     searchInput.oninput = (e) => {
       const query = e.target.value.toLowerCase()
-      const filtered = md.skills.filter(s => s.name.toLowerCase().includes(query))
+      const filtered = sqlSkills.filter(s => s.name.toLowerCase().includes(query))
       renderSkills(filtered)
     }
     
@@ -516,30 +559,33 @@ async function populateOperationSkillsBox() {
         if (!name) return
         
         // Check if skill already exists
-        const existingSkill = md.skills.find(s => s.name.toLowerCase() === name.toLowerCase())
+        const { createSkillInSQL } = await import('./mesApi.js')
+        const existingSkill = sqlSkills.find(s => s.name.toLowerCase() === name.toLowerCase())
         if (existingSkill) {
           // Select existing skill
           const hidden = document.getElementById('operation-skills-selected')
           const parts = (hidden?.value || '').split('|').filter(Boolean)
-          if (!selected.has(existingSkill.name)) {
-            selected.add(existingSkill.name)
-            parts.push(existingSkill.name)
+          if (!selected.has(existingSkill.id)) {
+            selected.add(existingSkill.id)
+            parts.push(existingSkill.id)
             hidden.value = Array.from(new Set(parts)).join('|')
           }
           searchInput.value = ''
           populateOperationSkillsBox()
         } else {
-          // Create new skill
+          // Create new skill in SQL
           try {
-            const created = await addSkill(name)
+            const created = await createSkillInSQL(name)
             const hidden = document.getElementById('operation-skills-selected')
             const parts = (hidden?.value || '').split('|').filter(Boolean)
-            parts.push(created.name)
+            parts.push(created.id)
             hidden.value = Array.from(new Set(parts)).join('|')
             searchInput.value = ''
             await populateOperationSkillsBox()
+            showSuccessToast('Yeni skill eklendi')
           } catch (error) {
             console.error('Error adding skill:', error)
+            showErrorToast('Skill eklenirken hata oluştu')
           }
         }
       }

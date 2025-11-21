@@ -1,13 +1,21 @@
 // Station management backed by backend API using mesApi
-import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill, invalidateStationsCache, getStationWorkers, getSubstationDetails } from './mesApi.js'
+import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill, invalidateStationsCache, getStationWorkers, getSubstationDetails, getSkillsFromSQL } from './mesApi.js'
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
 import { API_BASE, withAuth } from '../../../shared/lib/api.js';
 
 let stationsState = []
 let operationsCache = []
+let skillsCache = [] // Cache for SQL skills
 export let editingStationId = null
 let activeOperationTypeTab = 'all' // Add active tab tracking
 let wasDetailPanelOpen = false // Track if detail panel was open before modal
+
+// Helper: Convert skill ID to name
+function getSkillName(skillId) {
+  if (!skillId) return skillId
+  const skill = skillsCache.find(s => s.id === skillId)
+  return skill ? skill.name : skillId
+}
 
 const SUB_STATION_STATUSES = ['active', 'maintenance', 'inactive']
 
@@ -68,6 +76,7 @@ async function loadStationsAndRender() {
   if (list) list.innerHTML = '<div style="padding:12px;color:#888;">Loading stations...</div>'
   try {
     operationsCache = await getOperations(true)
+    skillsCache = await getSkillsFromSQL() // Load skills for ID→name mapping
     stationsState = (await getStations()).map(station => normalizeStationForState(station))
     renderStations()
   } catch (e) {
@@ -248,9 +257,10 @@ function renderStations() {
       ? `<span class="mes-tag">+${opsLabels.length - 3}</span>`
       : ''
 
-    const skillsMarkup = effective.slice(0, 3).map(skill => `
-      <span class="mes-tag">${escapeHtml(skill)}</span>
-    `).join('')
+    const skillsMarkup = effective.slice(0, 3).map(skill => {
+      const skillName = getSkillName(skill) // Convert ID to name
+      return `<span class="mes-tag">${escapeHtml(skillName)}</span>`
+    }).join('')
 
     const skillsExtra = effective.length > 3
       ? `<span class="mes-tag">+${effective.length - 3}</span>`
@@ -676,40 +686,6 @@ export function openAddStationModal() {
 }
 
 // TEST ONLY: Reset all substation currentOperation fields
-export async function resetAllStations() {
-  if (!confirm('⚠️ TEST SIFIRLAMA\n\nTüm aktif üretim görevlerini sıfırlamak istediğinizden emin misiniz?\n\nBu işlem:\n- Alt istasyonları boşaltır\n- İşçileri serbest bırakır\n- Tüm görevleri "beklemede" durumuna getirir\n- Malzeme rezervasyonlarını iptal eder\n\nSadece test amaçlı kullanın!')) {
-    return;
-  }
-
-  try {
-    console.log('🔧 TEST: Resetting all substations and tasks...');
-    
-    const response = await fetch(`${API_BASE}/api/mes/substations/reset-all`, {
-      method: 'POST',
-      headers: withAuth({ 'Content-Type': 'application/json' })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data.success) {
-      console.log(`✅ Reset complete:`, data);
-      showSuccessToast(data.message || `Sıfırlama tamamlandı: ${data.clearedCount} alt istasyon, ${data.workersCleared} işçi, ${data.assignmentsReset} görev`);
-      
-      // Reload stations view to reflect changes
-      await loadStationsAndRender();
-    } else {
-      throw new Error(data.message || 'Reset failed');
-    }
-  } catch (error) {
-    console.error('❌ Substation reset error:', error);
-    showErrorToast(`Sıfırlama başarısız: ${error.message}`);
-  }
-}
-
 export async function showStationDetail(stationId) {
   const station = stationsState.find(s => s.id === stationId)
   if (!station) return
@@ -787,17 +763,19 @@ export async function showStationDetail(stationId) {
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
         <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
         <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-          ${effective.length > 0 ? effective.map(skill => 
-            `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(skill)}</span>`
-          ).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Yetenek tanımlanmamış</span>'}
+          ${effective.length > 0 ? effective.map(skill => {
+            const skillName = getSkillName(skill) // Convert ID to name
+            return `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+          }).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Yetenek tanımlanmamış</span>'}
         </div>
         ${stationSpecificSkills.length > 0 ? `
           <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
             <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px;">İstasyon Özel Yetenekleri:</div>
             <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-              ${stationSpecificSkills.map(skill => 
-                `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
-              ).join('')}
+              ${stationSpecificSkills.map(skill => {
+                const skillName = getSkillName(skill) // Convert ID to name
+                return `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+              }).join('')}
             </div>
           </div>
         ` : ''}
@@ -810,9 +788,10 @@ export async function showStationDetail(stationId) {
           <div style="margin-bottom: 12px; padding: 8px; background: rgb(249, 250, 251); border-radius: 4px; border: 1px solid rgb(229, 231, 235);">
             <div style="font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 4px;">Gerekli Yetenekler:</div>
             <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-              ${stationWorkersData.requiredSkills.map(skill => 
-                `<span style="background-color: rgb(219, 234, 254); color: rgb(30, 64, 175); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
-              ).join('')}
+              ${stationWorkersData.requiredSkills.map(skill => {
+                const skillName = getSkillName(skill) // Convert ID to name
+                return `<span style="background-color: rgb(219, 234, 254); color: rgb(30, 64, 175); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+              }).join('')}
             </div>
           </div>
         ` : ''}
@@ -825,9 +804,10 @@ export async function showStationDetail(stationId) {
                   <span style="font-size: 10px; color: rgb(107, 114, 128);">${escapeHtml(worker.status || 'available')}</span>
                 </div>
                 <div style="display: flex; flex-wrap: wrap; gap: 3px;">
-                  ${(worker.skills || []).map(skill => 
-                    `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: 500;">${escapeHtml(skill)}</span>`
-                  ).join('')}
+                  ${(worker.skills || []).map(skill => {
+                    const skillName = getSkillName(skill) // Convert ID to name
+                    return `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+                  }).join('')}
                 </div>
                 ${worker.station ? `
                   <div style="margin-top: 4px; font-size: 10px; color: rgb(107, 114, 128);">
@@ -897,17 +877,19 @@ export async function showStationDetail(stationId) {
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
         <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Yetenekler</h3>
         <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-          ${effective.length > 0 ? effective.map(skill => 
-            `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(skill)}</span>`
-          ).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Yetenek tanımlanmamış</span>'}
+          ${effective.length > 0 ? effective.map(skill => {
+            const skillName = getSkillName(skill) // Convert ID to name
+            return `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+          }).join('') : '<span style="color: var(--muted-foreground); font-style: italic;">Yetenek tanımlanmamış</span>'}
         </div>
         ${(station.subSkills || []).length > 0 ? `
           <div style="margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border);">
             <div style="font-size: 11px; color: var(--muted-foreground); margin-bottom: 4px;">İstasyon Özel Yetenekleri:</div>
             <div style="display: flex; flex-wrap: wrap; gap: 4px;">
-              ${(station.subSkills || []).map(skill => 
-                `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>`
-              ).join('')}
+              ${(station.subSkills || []).map(skill => {
+                const skillName = getSkillName(skill) // Convert ID to name
+                return `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skillName)}</span>`
+              }).join('')}
             </div>
           </div>
         ` : ''}
@@ -1383,7 +1365,8 @@ async function renderStationSubskillsBox(station) {
               const bgColor = isInherited ? 'rgb(219, 234, 254)' : 'rgb(252, 165, 165)'
               const textColor = isInherited ? 'rgb(30, 64, 175)' : 'rgb(127, 29, 29)'
               const title = isInherited ? 'Operasyondan miras alınan yetenek' : 'İstasyon özel yetenek'
-              return `<span style="background-color: ${bgColor}; color: ${textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; margin-right: 4px; margin-bottom: 4px; display: inline-block;" title="${title}">${escapeHtml(skill)}</span>`
+              const skillName = getSkillName(skill) // Convert ID to name
+              return `<span style="background-color: ${bgColor}; color: ${textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; margin-right: 4px; margin-bottom: 4px; display: inline-block;" title="${title}">${escapeHtml(skillName)}</span>`
             }).join('') : 
             '<span style="color: var(--muted-foreground); font-style: italic;">Henüz skill seçilmedi</span>'
           }

@@ -41,7 +41,8 @@ export async function getOperations(force = false) {
   const res = await fetch(`${API_BASE}/api/mes/operations`, { headers: withAuth() })
   if (!res.ok) throw new Error(`operations_load_failed ${res.status}`)
   const data = await res.json()
-  _operationsCache = Array.isArray(data?.operations) ? data.operations : []
+  // Backend returns array directly, not { operations: [...] }
+  _operationsCache = Array.isArray(data) ? data : []
   return _operationsCache
 }
 
@@ -53,6 +54,7 @@ export async function saveOperations(operations) {
     body: JSON.stringify(payload)
   })
   if (!res.ok) throw new Error(`operations_save_failed ${res.status}`)
+  // Update cache with normalized operations
   _operationsCache = payload.operations
   return true
 }
@@ -74,8 +76,7 @@ export function normalizeOperation(op) {
     defaultEfficiency: typeof op.defaultEfficiency === 'number' ? op.defaultEfficiency : 1.0,
     skills: Array.isArray(op.skills)
       ? op.skills
-      : (typeof op.skills === 'string' ? op.skills.split(',').map(s=>s.trim()).filter(Boolean) : []),
-    active: op.active !== false
+      : (typeof op.skills === 'string' ? op.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   }
 }
 
@@ -92,7 +93,8 @@ export async function getStations(force = false) {
   const res = await fetch(`${API_BASE}/api/mes/stations`, { headers: withAuth() })
   if (!res.ok) throw new Error(`stations_load_failed ${res.status}`)
   const data = await res.json()
-  _stationsCache = Array.isArray(data?.stations) ? data.stations.map(s => ({
+  // Backend now returns array directly (not {stations: [...]})
+  _stationsCache = Array.isArray(data) ? data.map(s => ({
     ...s,
     efficiency: typeof s.efficiency === 'number' ? s.efficiency : 1.0
   })) : []
@@ -130,14 +132,8 @@ export async function saveStations(stations) {
 
 export function normalizeStation(station, operations) {
   const stationId = station.id || genId('s-')
-  const opIds = Array.isArray(station.operationIds) ? station.operationIds : []
-  const subSkills = Array.isArray(station.subSkills)
-    ? station.subSkills
-    : (typeof station.subSkills === 'string' ? station.subSkills.split(',').map(s=>s.trim()).filter(Boolean) : [])
-  const inherited = computeStationInheritedSkills(opIds, operations)
-  const effectiveSkills = Array.from(new Set([ ...inherited, ...subSkills ]))
   
-  // Keep subStations as-is (backend will handle them)
+  // Process subStations for backend
   const subStations = Array.isArray(station.subStations)
     ? station.subStations.map(sub => {
         const code = String(sub?.code || '').trim()
@@ -147,23 +143,21 @@ export function normalizeStation(station, operations) {
       }).filter(Boolean)
     : []
   
-  const subStationCount = Number.isFinite(station.subStationCount)
-    ? Math.max(0, Number(station.subStationCount))
-    : subStations.length
-  
+  // Return fields for DB save + state management
   return {
     id: stationId,
     name: (station.name || '').trim(),
+    type: (station.type || '').trim(),
     description: (station.description || '').trim(),
     location: (station.location || '').trim(),
     status: station.status || 'active',
-    operationIds: opIds,
-    subSkills,
-    effectiveSkills,
     subStations,
-    subStationCount,
-    currentWorker: station.currentWorker || null,
-    currentOperation: station.currentOperation || null
+    // Save to DB as JSONB
+    operationIds: Array.isArray(station.operationIds) ? station.operationIds : [],
+    subSkills: Array.isArray(station.subSkills) ? station.subSkills : [],
+    // Computed fields (not saved to DB)
+    effectiveSkills: station.effectiveSkills || [],
+    subStationCount: Number.isFinite(station.subStationCount) ? Math.max(0, Number(station.subStationCount)) : subStations.length
   }
 }
 
@@ -197,7 +191,17 @@ export async function getStationWorkers(stationId) {
   const res = await fetch(`${API_BASE}/api/mes/stations/${stationId}/workers`, { headers: withAuth() })
   if (!res.ok) throw new Error(`station_workers_load_failed ${res.status}`)
   const data = await res.json()
-  return data
+  // Backend may return empty array, normalize to expected structure
+  if (Array.isArray(data)) {
+    return {
+      compatibleWorkers: data,
+      requiredSkills: []
+    }
+  }
+  return {
+    compatibleWorkers: data.compatibleWorkers || [],
+    requiredSkills: data.requiredSkills || []
+  }
 }
 
 // Get stations where a specific worker can work

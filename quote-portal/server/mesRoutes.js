@@ -297,9 +297,35 @@ function calculatePlannedOutput(node, planQuantity = 1) {
 router.get('/operations', withAuth, async (req, res) => {
   try {
     const result = await db('mes.operations')
-      .select('id', 'name', 'type', 'semi_output_code', 'nominal_time', 'created_at')
+      .select(
+        'id', 
+        'name', 
+        'type', 
+        'semi_output_code', 
+        'expected_defect_rate',
+        'default_efficiency',
+        'supervisor_id',
+        'skills',
+        'created_at',
+        'updated_at'
+      )
       .orderBy('name');
-    res.json(result);
+    
+    // Parse skills JSON and convert snake_case to camelCase for frontend
+    const operations = result.map(op => ({
+      id: op.id,
+      name: op.name,
+      type: op.type,
+      semiOutputCode: op.semi_output_code,
+      expectedDefectRate: op.expected_defect_rate,
+      defaultEfficiency: op.default_efficiency,
+      supervisorId: op.supervisor_id,
+      skills: typeof op.skills === 'string' ? JSON.parse(op.skills) : (op.skills || []),
+      createdAt: op.created_at,
+      updatedAt: op.updated_at
+    }));
+    
+    res.json(operations);
   } catch (error) {
     console.error('Error fetching operations:', error);
     res.status(500).json({ error: 'Failed to fetch operations' });
@@ -307,30 +333,50 @@ router.get('/operations', withAuth, async (req, res) => {
 });
 
 // POST /api/mes/operations
+// Save or update operations (batch operation)
 router.post('/operations', withAuth, async (req, res) => {
-  const { name, type, semi_output_code, nominal_time } = req.body;
+  const { operations } = req.body;
+  
+  if (!Array.isArray(operations)) {
+    return res.status(400).json({ error: 'operations array is required' });
+  }
   
   try {
-    // Generate simple sequential ID (OP-001, OP-002, etc.)
-    const countResult = await db('mes.operations').count('id as count').first();
-    const nextNum = parseInt(countResult.count) + 1;
-    const id = 'OP-' + String(nextNum).padStart(3, '0');
+    // Use transaction for batch upsert
+    await db.transaction(async (trx) => {
+      for (const op of operations) {
+        const operationData = {
+          id: op.id,
+          name: op.name,
+          type: op.type || 'General',
+          semi_output_code: op.semiOutputCode || null,
+          expected_defect_rate: op.expectedDefectRate || 0,
+          default_efficiency: op.defaultEfficiency || 1.0,
+          supervisor_id: op.supervisorId || null,
+          skills: JSON.stringify(op.skills || []),
+          updated_at: trx.fn.now()
+        };
+        
+        // Upsert: insert or update if exists
+        const exists = await trx('mes.operations').where({ id: op.id }).first();
+        
+        if (exists) {
+          await trx('mes.operations')
+            .where({ id: op.id })
+            .update(operationData);
+        } else {
+          await trx('mes.operations').insert({
+            ...operationData,
+            created_at: trx.fn.now()
+          });
+        }
+      }
+    });
     
-    const result = await db('mes.operations')
-      .insert({
-        id,
-        name,
-        type: type || 'standard',
-        semi_output_code,
-        nominal_time: nominal_time || 0,
-        created_at: db.fn.now()
-      })
-      .returning(['id', 'name', 'type', 'semi_output_code', 'nominal_time', 'created_at']);
-    
-    res.json(result[0]);
+    res.json({ success: true, operations });
   } catch (error) {
-    console.error('Error creating operation:', error);
-    res.status(500).json({ error: 'Failed to create operation' });
+    console.error('Error saving operations:', error);
+    res.status(500).json({ error: 'Failed to save operations' });
   }
 });
 
@@ -492,56 +538,79 @@ router.delete('/workers/:id', withAuth, async (req, res) => {
 // GET /api/mes/stations
 router.get('/stations', withAuth, async (req, res) => {
   try {
-    const result = await db('mes.stations')
-      .select(
-        'id',
-        'name',
-        'type',
-        'description',
-        'capabilities',
-        'substations',
-        'is_active',
-        'created_at',
-        'updated_at'
-      )
+    const rows = await db('mes.stations')
+      .select('*')
       .where('is_active', true)
       .orderBy('name');
     
-    res.json(result);
+    // Map DB columns → frontend camelCase
+    const mapped = rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      description: row.description,
+      location: row.location,
+      capabilities: row.capabilities,
+      subStations: row.substations || [],
+      operationIds: row.operation_ids || [],
+      subSkills: row.sub_skills || [],
+      status: row.is_active ? 'active' : 'inactive',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+    
+    res.json(mapped); // Return array directly
   } catch (error) {
     console.error('Error fetching stations:', error);
     res.status(500).json({ error: 'Failed to fetch stations' });
   }
 });
 
-// POST /api/mes/stations - Create a new station
+// POST /api/mes/stations - Batch upsert stations
 router.post('/stations', withAuth, async (req, res) => {
-  const { name, type, description, capabilities } = req.body;
+  const { stations } = req.body;
   
+  if (!Array.isArray(stations) || stations.length === 0) {
+    return res.status(400).json({ error: 'Invalid stations array' });
+  }
+
   try {
-    // Generate ST-xxx ID
-    const [{ max_id }] = await db('mes.stations').max('id as max_id');
-    const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
-    const newId = `ST-${nextNum.toString().padStart(3, '0')}`;
-    
-    // Insert new station
-    const result = await db('mes.stations')
-      .insert({
-        id: newId,
-        name,
-        type,
-        description,
-        capabilities: capabilities ? JSON.stringify(capabilities) : null,
-        is_active: true,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
-      })
-      .returning(['id', 'name', 'type', 'description', 'capabilities', 'is_active', 'created_at', 'updated_at']);
-    
-    res.json(result[0]);
+    const results = await db.transaction(async (trx) => {
+      const upserted = [];
+      
+      for (const station of stations) {
+        // Map frontend fields → DB columns
+        const dbRecord = {
+          id: station.id,
+          name: station.name,
+          type: station.type || null,
+          description: station.description || null,
+          location: station.location || null,
+          capabilities: station.capabilities ? JSON.stringify(station.capabilities) : null,
+          substations: station.subStations ? JSON.stringify(station.subStations) : '[]',
+          operation_ids: station.operationIds ? JSON.stringify(station.operationIds) : '[]',
+          sub_skills: station.subSkills ? JSON.stringify(station.subSkills) : '[]',
+          is_active: station.status === 'active',
+          updated_at: trx.fn.now()
+        };
+
+        // Upsert (INSERT ... ON CONFLICT UPDATE)
+        const [result] = await trx('mes.stations')
+          .insert({ ...dbRecord, created_at: trx.fn.now() })
+          .onConflict('id')
+          .merge(['name', 'type', 'description', 'location', 'capabilities', 'substations', 'operation_ids', 'sub_skills', 'is_active', 'updated_at'])
+          .returning('*');
+        
+        upserted.push(result);
+      }
+      
+      return upserted;
+    });
+
+    res.json(results);
   } catch (error) {
-    console.error('Error creating station:', error);
-    res.status(500).json({ error: 'Failed to create station' });
+    console.error('Error saving stations:', error);
+    res.status(500).json({ error: 'Failed to save stations' });
   }
 });
 
@@ -2199,135 +2268,60 @@ router.patch('/substations/:id', withAuth, async (req, res) => {
   }
 });
 
-// GET /api/mes/substations/:id/details - Get detailed info about a substation (SQL)
+// GET /api/mes/substations/:id/details - Get detailed info about a substation
 router.get('/substations/:id/details', withAuth, async (req, res) => {
-  const { id } = req.params;
+  const { id } = req.params; // This is the substation code like "ST-Cu-001-1"
   
   try {
-    // Get substation with station info
-    const substation = await db('mes.substations as s')
-      .select(
-        's.id',
-        's.name as code',
-        's.station_id as stationId',
-        's.description',
-        's.is_active',
-        's.created_at',
-        's.updated_at',
-        'st.name as station_name'
-      )
-      .leftJoin('mes.stations as st', 's.station_id', 'st.id')
-      .where('s.id', id)
+    // Substations are stored in stations.substations JSONB column
+    // Extract station_id from substation code (e.g., "ST-Cu-001-1" -> "ST-Cu-001")
+    const parts = id.split('-');
+    if (parts.length < 4) {
+      return res.status(400).json({ error: 'Invalid substation code format' });
+    }
+    
+    // Rebuild station ID from first 3 parts
+    const stationId = parts.slice(0, 3).join('-');
+    
+    // Get station with substations
+    const station = await db('mes.stations')
+      .select('id', 'name', 'substations')
+      .where('id', stationId)
       .first();
+    
+    if (!station) {
+      return res.status(404).json({ error: 'Station not found for substation' });
+    }
+
+    // Find the specific substation in the JSONB array
+    const substations = station.substations || [];
+    const substation = substations.find(s => s.code === id);
     
     if (!substation) {
       return res.status(404).json({ error: 'Substation not found' });
     }
 
-    // Get current active task
-    const currentTask = await db('mes.worker_assignments as wa')
-      .select(
-        'wa.id as assignmentId',
-        'wa.work_package_id as workPackageId',
-        'wa.operation_name as operationName',
-        'wa.status',
-        'wa.actual_start_time as actualStart',
-        'wa.planned_end_time as plannedEnd',
-        'wa.estimated_time as estimatedTime',
-        'wa.material_inputs as materialInputs',
-        'wa.material_outputs as materialOutputs',
-        'w.name as workerName'
-      )
-      .leftJoin('mes.workers as w', 'wa.worker_id', 'w.id')
-      .where('wa.substation_id', id)
-      .where('wa.status', 'active')
-      .first();
-
-    // Calculate time remaining if task is active
-    let currentTaskWithTime = null;
-    if (currentTask) {
-      const now = new Date();
-      const plannedEnd = currentTask.plannedEnd ? new Date(currentTask.plannedEnd) : null;
-      const timeRemaining = plannedEnd ? Math.max(0, Math.round((plannedEnd - now) / 60000)) : null;
-      
-      // Parse JSONB fields
-      const materialInputs = typeof currentTask.materialInputs === 'string' 
-        ? JSON.parse(currentTask.materialInputs) 
-        : currentTask.materialInputs || {};
-      const materialOutputs = typeof currentTask.materialOutputs === 'string' 
-        ? JSON.parse(currentTask.materialOutputs) 
-        : currentTask.materialOutputs || {};
-      
-      currentTaskWithTime = {
-        ...currentTask,
-        timeRemaining,
-        materialInputs,
-        materialOutputs
-      };
-    }
-
-    // Get upcoming tasks (pending, queued)
-    const upcomingTasks = await db('mes.worker_assignments as wa')
-      .select(
-        'wa.id as assignmentId',
-        'wa.work_package_id as workPackageId',
-        'wa.operation_name as operationName',
-        'wa.status',
-        'wa.planned_start_time as plannedStart',
-        'wa.estimated_time as estimatedTime',
-        'wa.sequence_number as sequenceNumber',
-        'w.name as workerName'
-      )
-      .leftJoin('mes.workers as w', 'wa.worker_id', 'w.id')
-      .where('wa.substation_id', id)
-      .whereIn('wa.status', ['pending', 'queued'])
-      .orderBy('wa.sequence_number', 'asc')
-      .limit(5);
-
-    // Get performance metrics (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const completedTasks = await db('mes.worker_assignments')
-      .where('substation_id', id)
-      .where('status', 'completed')
-      .where('actual_end_time', '>=', thirtyDaysAgo)
-      .select(
-        db.raw('COUNT(*) as total_completed'),
-        db.raw('AVG(EXTRACT(EPOCH FROM (actual_end_time - actual_start_time)) / 60) as avg_duration'),
-        db.raw('SUM(output_quantity) as total_output'),
-        db.raw('SUM(defect_quantity) as total_defects')
-      )
-      .first();
-
-    const totalCompleted = parseInt(completedTasks?.total_completed || 0);
-    const totalOutput = parseInt(completedTasks?.total_output || 0);
-    const totalDefects = parseInt(completedTasks?.total_defects || 0);
-    const avgDuration = completedTasks?.avg_duration ? Math.round(parseFloat(completedTasks.avg_duration)) : 0;
-    const qualityRate = totalOutput > 0 ? (((totalOutput - totalDefects) / totalOutput) * 100).toFixed(1) : null;
-
+    // Return substation details
+    // For now, return basic info - task assignments would need separate implementation
     res.json({
       substation: {
-        id: substation.id,
+        id: substation.code,
         code: substation.code,
-        stationId: substation.stationId,
-        stationName: substation.station_name,
-        description: substation.description,
-        status: substation.is_active ? 'active' : 'inactive'
+        stationId: station.id,
+        station_name: station.name,
+        status: substation.status || 'active',
+        description: null,
+        is_active: substation.status === 'active',
+        created_at: null,
+        updated_at: null
       },
-      currentTask: currentTaskWithTime,
-      upcomingTasks: upcomingTasks.map(task => ({
-        ...task,
-        materialInputs: task.materialInputs || {},
-        materialOutputs: task.materialOutputs || {}
-      })),
+      currentTask: null,
+      upcomingTasks: [],
       performance: {
-        totalCompleted,
-        avgDuration,
-        totalOutputQuantity: totalOutput,
-        totalDefects,
-        qualityRate,
-        period: 'Son 30 gün'
+        totalCompleted: 0,
+        avgCompletionTime: 0,
+        onTimeRate: 0,
+        defectRate: 0
       }
     });
   } catch (error) {
