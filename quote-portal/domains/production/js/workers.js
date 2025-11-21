@@ -1,6 +1,6 @@
 // Workers management backed by backend API (no direct Firebase client)
 import { API_BASE, withAuth } from '../../../shared/lib/api.js'
-import { getMasterData, getWorkerStations, getWorkerAssignments } from './mesApi.js'
+import { getMasterData, getWorkerStations, getWorkerAssignments, getSkillsFromSQL } from './mesApi.js'
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
 import { generateWeeklyTimeline } from './views.js'
 
@@ -8,6 +8,15 @@ let workersState = []
 let editingWorkerId = null
 let selectedWorkerId = null
 let workerFilters = { query: '', skills: [], statuses: [], hasConflict: false }
+
+// Skills cache for ID to name mapping
+let skillsCache = []
+
+// Helper to get skill name from ID
+function getSkillName(skillId) {
+  const skill = skillsCache.find(s => s.id === skillId)
+  return skill ? skill.name : skillId
+}
 
 export async function initializeWorkersUI() {
   initWorkerFilters()
@@ -65,15 +74,20 @@ export async function showWorkerDetail(id) {
   `
   
   try {
-    // Load compatible stations, worker assignments, and active tasks
-    const [workerStationsData, assignments, activeTasksHtml] = await Promise.all([
-      getWorkerStations(id),
-      getWorkerAssignments(id),
-      loadWorkerActiveTasks(id)
-    ])
+    // Load worker stations (this endpoint exists)
+    const workerStationsData = await getWorkerStations(id)
+    
+    // Try to load assignments, but don't fail if endpoint doesn't exist
+    let assignments = []
+    
+    try {
+      assignments = await getWorkerAssignments(id)
+    } catch (err) {
+      console.warn('Worker assignments endpoint not available:', err.message)
+    }
     
     // Populate detail content
-    detailContent.innerHTML = generateWorkerDetailContentWithStations(worker, workerStationsData, assignments, activeTasksHtml)
+    detailContent.innerHTML = generateWorkerDetailContentWithStations(worker, workerStationsData, assignments)
     
     // Update schedule status (Mesai Durumu) after content is rendered
     updateWorkerScheduleStatus(worker)
@@ -692,7 +706,7 @@ function generateWorkerDetailContent(worker) {
         <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Sahip Olunan Yetenekler</h3>
         <div style="display: flex; flex-wrap: wrap; gap: 4px;">
           ${skills.map(skill => `
-            <span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>
+            <span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(getSkillName(skill))}</span>
           `).join('')}
           ${skills.length === 0 ? '<span style="font-size: 12px; color: rgb(107, 114, 128);">Henüz yetenek atanmamış</span>' : ''}
         </div>
@@ -769,7 +783,7 @@ function generateCurrentTaskSection(worker) {
   `;
 }
 
-function generateWorkerDetailContentWithStations(worker, workerStationsData, assignments = [], activeTasksHtml = null) {
+function generateWorkerDetailContentWithStations(worker, workerStationsData, assignments = []) {
   const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   
   // Determine UI status from backend status + leave fields
@@ -887,7 +901,7 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
         <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Sahip Olunan Yetenekler</h3>
         <div style="display: flex; flex-wrap: wrap; gap: 4px;">
           ${skills.map(skill => `
-            <span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(skill)}</span>
+            <span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(getSkillName(skill))}</span>
           `).join('')}
           ${skills.length === 0 ? '<span style="font-size: 12px; color: rgb(107, 114, 128);">Henüz yetenek atanmamış</span>' : ''}
         </div>
@@ -912,7 +926,7 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
                 ` : ''}
                 <div style="display: flex; flex-wrap: wrap; gap: 3px;">
                   ${(station.requiredSkills || []).map(skill => 
-                    `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: 500;">${escapeHtml(skill)}</span>`
+                    `<span style="background-color: rgb(243, 244, 246); color: rgb(107, 114, 128); padding: 1px 4px; border-radius: 3px; font-size: 10px; font-weight: 500;">${escapeHtml(getSkillName(skill))}</span>`
                   ).join('')}
                 </div>
               </div>
@@ -940,17 +954,6 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
         </div>
         <div class="assignments-timeline">${generateAssignmentsTimeline(assignments)}</div>
       </div>
-
-      <!-- Aktif Görevler -->
-      ${activeTasksHtml ? `
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Aktif Görevler</h3>
-          <a href="/pages/worker-portal.html?workerId=${worker.id}" target="_blank" style="padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px; text-decoration: none; color: rgb(17, 24, 39);"><i class="fa-solid fa-hard-hat"></i> Portala Git</a>
-        </div>
-        ${activeTasksHtml}
-      </div>
-      ` : ''}
 
       <!-- Performans Bilgileri -->
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
@@ -1150,10 +1153,13 @@ async function loadWorkersAndRender() {
   const tbody = document.getElementById('workers-table-body')
   if (tbody) tbody.innerHTML = `<tr><td colspan="4"><em>Loading workers...</em></td></tr>`
   try {
+    // Load skills for ID to name mapping
+    skillsCache = await getSkillsFromSQL()
+    
     const res = await fetch(`${API_BASE}/api/mes/workers`, { headers: withAuth() })
     if (!res.ok) throw new Error(`Load failed: ${res.status}`)
     const data = await res.json()
-    workersState = Array.isArray(data?.workers) ? data.workers : []
+    workersState = Array.isArray(data) ? data : []
     await renderWorkersTable()
   } catch (e) {
     console.error('Workers load error:', e)
@@ -1223,7 +1229,7 @@ async function renderWorkersTable() {
     }
     
     const skillsMarkup = skills.length
-      ? `<div class="mes-tag-group">${skills.map(skill => `<span class="mes-tag">${escapeHtml(skill)}</span>`).join('')}</div>`
+      ? `<div class="mes-tag-group">${skills.map(skill => `<span class="mes-tag">${escapeHtml(getSkillName(skill))}</span>`).join('')}</div>`
       : `<span class="mes-muted-text">-</span>`
 
     return `
@@ -1772,17 +1778,18 @@ async function initializeSkillsInterface(selectedSkills = []) {
   originalSelect.style.display = 'none';
   
   try {
-    const masterData = await getMasterData();
-    if (!masterData?.skills) {
+    // Load skills from SQL database
+    const skills = await getSkillsFromSQL();
+    if (!skills || skills.length === 0) {
       showErrorToast('Skills verisi yüklenemedi');
       return;
     }
     
     // Create modern interface
-    const skillsInterface = createModernSkillsInterface(masterData.skills, selectedSkills);
+    const skillsInterface = createModernSkillsInterface(skills, selectedSkills);
     skillsContainer.appendChild(skillsInterface);
     
-    console.log('✅ Modern skills interface created');
+    console.log('✅ Modern skills interface created with', skills.length, 'skills');
   } catch (error) {
     console.error('❌ Skills interface error:', error);
     showErrorToast('Skills arayüzü oluşturulamadı');
@@ -1860,21 +1867,25 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     if (currentSelected.length === 0) {
       selectedDisplay.innerHTML = '<span style="color: var(--muted-foreground); font-style: italic;">Henüz skill seçilmedi</span>';
     } else {
-      selectedDisplay.innerHTML = currentSelected.map(skill => `
-        <span style="
-          display: inline-block;
-          background: var(--primary);
-          color: var(--primary-foreground);
-          padding: 2px 6px;
-          border-radius: 4px;
-          font-size: 11px;
-          font-weight: 500;
-          margin: 2px 4px 2px 0;
-          cursor: pointer;
-        " onclick="removeSkill('${skill}')" title="Kaldırmak için tıklayın">
-          ${escapeHtml(skill)} ×
-        </span>
-      `).join('');
+      selectedDisplay.innerHTML = currentSelected.map(skillId => {
+        const skill = allSkills.find(s => s.id === skillId);
+        const skillName = skill ? skill.name : skillId;
+        return `
+          <span style="
+            display: inline-block;
+            background: var(--primary);
+            color: var(--primary-foreground);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            margin: 2px 4px 2px 0;
+            cursor: pointer;
+          " onclick="removeSkill('${skillId}')" title="Kaldırmak için tıklayın">
+            ${escapeHtml(skillName)} ×
+          </span>
+        `;
+      }).join('');
     }
     
     // Update original select for form submission
@@ -1884,14 +1895,14 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
   function updateOriginalSelect() {
     const originalSelect = document.getElementById('worker-skills');
     originalSelect.innerHTML = allSkills.map(skill => 
-      `<option value="${escapeHtml(skill.name)}" ${currentSelected.includes(skill.name) ? 'selected' : ''}>
+      `<option value="${escapeHtml(skill.id)}" ${currentSelected.includes(skill.id) ? 'selected' : ''}>
         ${escapeHtml(skill.name)}
       </option>`
     ).join('');
   }
   
   function createSkillCard(skill) {
-    const isSelected = currentSelected.includes(skill.name);
+    const isSelected = currentSelected.includes(skill.id);
     
     const card = document.createElement('div');
     card.className = 'skill-card';
@@ -1931,17 +1942,17 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     });
     
     card.addEventListener('click', () => {
-      toggleSkill(skill.name);
+      toggleSkill(skill.id);
     });
     
     return card;
   }
   
-  function toggleSkill(skillName) {
-    if (currentSelected.includes(skillName)) {
-      currentSelected = currentSelected.filter(s => s !== skillName);
+  function toggleSkill(skillId) {
+    if (currentSelected.includes(skillId)) {
+      currentSelected = currentSelected.filter(s => s !== skillId);
     } else {
-      currentSelected.push(skillName);
+      currentSelected.push(skillId);
     }
     renderSkills();
     updateSelectedDisplay();
@@ -1951,7 +1962,7 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     // Only show NOT selected skills in the list below
     const normalized = String(filter || '').toLowerCase();
     const filteredSkills = allSkills
-      .filter(skill => !currentSelected.includes(skill.name))
+      .filter(skill => !currentSelected.includes(skill.id))
       .filter(skill => skill.name.toLowerCase().includes(normalized));
 
     // Sort alphabetically for easier scan
@@ -1968,9 +1979,9 @@ function createModernSkillsInterface(allSkills, selectedSkills) {
     renderSkills(e.target.value);
   });
   
-  // Global function for removing skills
-  window.removeSkill = (skillName) => {
-    currentSelected = currentSelected.filter(s => s !== skillName);
+  // Global function for removing skills (uses skill ID)
+  window.removeSkill = (skillId) => {
+    currentSelected = currentSelected.filter(s => s !== skillId);
     renderSkills();
     updateSelectedDisplay();
   };

@@ -387,10 +387,12 @@ router.post('/operations', withAuth, async (req, res) => {
 // GET /api/mes/workers
 router.get('/workers', withAuth, async (req, res) => {
   try {
-    const result = await db('mes.workers')
+    const results = await db('mes.workers')
       .select(
         'id',
         'name',
+        'email',
+        'phone',
         'skills',
         'personal_schedule',
         'is_active',
@@ -403,59 +405,191 @@ router.get('/workers', withAuth, async (req, res) => {
       .where('is_active', true)
       .orderBy('name');
     
-    res.json(result);
+    // Map snake_case to camelCase and parse JSONB
+    const workers = results.map(w => ({
+      id: w.id,
+      name: w.name,
+      email: w.email,
+      phone: w.phone,
+      skills: typeof w.skills === 'string' ? JSON.parse(w.skills) : w.skills,
+      personalSchedule: typeof w.personal_schedule === 'string' ? JSON.parse(w.personal_schedule) : w.personal_schedule,
+      isActive: w.is_active,
+      currentTaskPlanId: w.current_task_plan_id,
+      currentTaskNodeId: w.current_task_node_id,
+      currentTaskAssignmentId: w.current_task_assignment_id,
+      createdAt: w.created_at,
+      updatedAt: w.updated_at
+    }));
+    
+    res.json(workers);
   } catch (error) {
     console.error('Error fetching workers:', error);
     res.status(500).json({ error: 'Failed to fetch workers' });
   }
 });
 
-// POST /api/mes/workers
+// POST /api/mes/workers - Batch upsert
 router.post('/workers', withAuth, async (req, res) => {
-  const { name, skills, personalSchedule } = req.body;
+  const { workers } = req.body;
   
   // Validation
-  if (!name) {
-    return res.status(400).json({ error: 'Name is required' });
-  }
-  if (!Array.isArray(skills) || skills.length === 0) {
-    return res.status(400).json({ error: 'At least one skill is required' });
+  if (!Array.isArray(workers) || workers.length === 0) {
+    return res.status(400).json({ error: 'Workers array is required' });
   }
   
   try {
-    // Generate worker ID (WK-001 format) - this is the only ID needed
-    const [{ max_id }] = await db('mes.workers')
-      .max('id as max_id');
-    const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
-    const newId = `WK-${nextNum.toString().padStart(3, '0')}`;
+    const trx = await db.transaction();
     
-    // Insert worker
-    const result = await db('mes.workers')
-      .insert({
-        id: newId,
-        name,
-        skills: JSON.stringify(skills),
-        personal_schedule: personalSchedule ? JSON.stringify(personalSchedule) : null,
-        is_active: true,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
-      })
-      .returning([
-        'id',
-        'name',
-        'skills',
-        'personal_schedule',
-        'is_active',
-        'created_at'
-      ]);
-    
-    res.json(result[0]);
+    try {
+      for (const worker of workers) {
+        const { id, name, skills, personalSchedule, isActive, email, phone } = worker;
+        
+        // Validate required fields
+        if (!name) {
+          throw new Error('Worker name is required');
+        }
+        if (!Array.isArray(skills) || skills.length === 0) {
+          throw new Error('At least one skill is required');
+        }
+        
+        // Generate worker ID if not provided (WK-001 format)
+        let workerId = id;
+        if (!workerId) {
+          const [{ max_id }] = await trx('mes.workers').max('id as max_id');
+          const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
+          workerId = `WK-${nextNum.toString().padStart(3, '0')}`;
+        }
+        
+        // Map camelCase to snake_case for DB
+        const dbWorker = {
+          id: workerId,
+          name,
+          email: email || null,
+          phone: phone || null,
+          skills: JSON.stringify(skills),
+          personal_schedule: personalSchedule ? JSON.stringify(personalSchedule) : null,
+          is_active: isActive !== undefined ? isActive : true,
+          updated_at: trx.fn.now()
+        };
+        
+        // Upsert: insert or update if exists
+        const exists = await trx('mes.workers').where('id', workerId).first();
+        
+        if (exists) {
+          await trx('mes.workers')
+            .where('id', workerId)
+            .update(dbWorker);
+        } else {
+          await trx('mes.workers')
+            .insert({
+              ...dbWorker,
+              created_at: trx.fn.now()
+            });
+        }
+      }
+      
+      await trx.commit();
+      
+      // Return updated workers with field mapping
+      const results = await db('mes.workers')
+        .select('id', 'name', 'skills', 'personal_schedule', 'is_active', 'created_at', 'updated_at')
+        .whereIn('id', workers.map(w => w.id).filter(Boolean))
+        .orWhere(function() {
+          this.whereIn('name', workers.map(w => w.name));
+        });
+      
+      const mappedResults = results.map(w => ({
+        id: w.id,
+        name: w.name,
+        skills: typeof w.skills === 'string' ? JSON.parse(w.skills) : w.skills,
+        personalSchedule: typeof w.personal_schedule === 'string' ? JSON.parse(w.personal_schedule) : w.personal_schedule,
+        isActive: w.is_active,
+        createdAt: w.created_at,
+        updatedAt: w.updated_at
+      }));
+      
+      res.json(mappedResults);
+    } catch (error) {
+      await trx.rollback();
+      throw error;
+    }
   } catch (error) {
-    console.error('Error creating worker:', error);
-    res.status(500).json({ error: 'Failed to create worker' });
+    console.error('Error saving workers:', error);
+    res.status(500).json({ error: error.message || 'Failed to save workers' });
   }
 });
 
+
+// GET /api/mes/workers/:id/assignments - Get worker assignments
+router.get('/workers/:id/assignments', withAuth, async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.query; // 'active', 'pending', 'completed', etc.
+  
+  try {
+    // Get worker info
+    const worker = await db('mes.workers')
+      .select('id', 'name')
+      .where('id', id)
+      .first();
+    
+    if (!worker) {
+      return res.status(404).json({ error: 'Worker not found' });
+    }
+    
+    // Build query for assignments
+    let query = db('mes.worker_assignments')
+      .select(
+        'id',
+        'plan_id as planId',
+        'work_order_code as workOrderCode',
+        'node_id as nodeId',
+        'operation_id as operationId',
+        'worker_id as workerId',
+        'worker_name as workerName',
+        'station_id as stationId',
+        'substation_id as substationId',
+        'status',
+        'materials',
+        'quantity',
+        'priority',
+        'is_urgent as isUrgent',
+        'created_at as createdAt',
+        'assigned_at as assignedAt',
+        'started_at as startedAt',
+        'completed_at as completedAt',
+        'expected_start as expectedStart',
+        'planned_end as plannedEnd',
+        'estimated_start_time as estimatedStartTime',
+        'estimated_end_time as estimatedEndTime'
+      )
+      .where('worker_id', id)
+      .orderBy('expected_start', 'asc');
+    
+    // Filter by status if provided
+    if (status === 'active') {
+      query = query.whereIn('status', ['pending', 'ready', 'in-progress']);
+    } else if (status) {
+      query = query.where('status', status);
+    }
+    
+    const assignments = await query;
+    
+    // Parse JSONB fields
+    const parsedAssignments = assignments.map(assignment => ({
+      ...assignment,
+      materials: typeof assignment.materials === 'string' ? JSON.parse(assignment.materials) : assignment.materials
+    }));
+    
+    res.json({
+      workerId: id,
+      workerName: worker.name,
+      assignments: parsedAssignments
+    });
+  } catch (error) {
+    console.error('Error fetching worker assignments:', error);
+    res.status(500).json({ error: 'Failed to fetch worker assignments' });
+  }
+});
 
 // GET /api/mes/workers/:id/stations - Get stations where this worker can work
 router.get('/workers/:id/stations', withAuth, async (req, res) => {
@@ -594,12 +728,48 @@ router.post('/stations', withAuth, async (req, res) => {
           updated_at: trx.fn.now()
         };
 
-        // Upsert (INSERT ... ON CONFLICT UPDATE)
+        // Upsert station (INSERT ... ON CONFLICT UPDATE)
         const [result] = await trx('mes.stations')
           .insert({ ...dbRecord, created_at: trx.fn.now() })
           .onConflict('id')
           .merge(['name', 'type', 'description', 'location', 'capabilities', 'substations', 'operation_ids', 'sub_skills', 'is_active', 'updated_at'])
           .returning('*');
+        
+        // Sync substations to mes.substations table
+        if (Array.isArray(station.subStations) && station.subStations.length > 0) {
+          // Delete existing substations for this station that are no longer in the list
+          const newSubStationCodes = station.subStations.map(s => s.code);
+          await trx('mes.substations')
+            .where('station_id', station.id)
+            .whereNotIn('id', newSubStationCodes)
+            .delete();
+          
+          // Upsert each substation
+          for (const subStation of station.subStations) {
+            // Generate name from station name and substation code
+            // Example: "Kesim İstasyonu" + "ST-KA-001-01" → "Kesim İstasyonu - 01"
+            const subStationNumber = subStation.code.split('-').pop(); // Get last part (01, 02, etc.)
+            const subStationName = `${station.name} - ${subStationNumber}`;
+            
+            await trx('mes.substations')
+              .insert({
+                id: subStation.code,
+                name: subStationName,
+                station_id: station.id,
+                status: subStation.status || 'active',
+                is_active: subStation.status !== 'inactive',
+                created_at: trx.fn.now(),
+                updated_at: trx.fn.now()
+              })
+              .onConflict('id')
+              .merge(['name', 'status', 'is_active', 'updated_at']);
+          }
+        } else {
+          // If no substations, delete all existing ones for this station
+          await trx('mes.substations')
+            .where('station_id', station.id)
+            .delete();
+        }
         
         upserted.push(result);
       }
@@ -619,42 +789,102 @@ router.get('/stations/:id/workers', withAuth, async (req, res) => {
   const { id } = req.params;
   
   try {
-    // Check if station exists
+    // Get station with its required skills
     const station = await db('mes.stations')
-      .where({ id })
+      .select('id', 'name', 'sub_skills', 'operation_ids')
+      .where({ id, is_active: true })
       .first();
     
     if (!station) {
       return res.status(404).json({ error: 'Station not found' });
     }
     
-    // For now, return empty array (worker-station assignments not yet implemented)
-    res.json([]);
+    // Parse required skills (combination of sub_skills and inherited from operations)
+    const subSkills = Array.isArray(station.sub_skills) ? station.sub_skills : [];
+    const operationIds = Array.isArray(station.operation_ids) ? station.operation_ids : [];
+    
+    // Get skills from operations
+    let inheritedSkills = [];
+    if (operationIds.length > 0) {
+      const operations = await db('mes.operations')
+        .select('skills')
+        .whereIn('id', operationIds);
+      
+      operations.forEach(op => {
+        const opSkills = Array.isArray(op.skills) ? op.skills : [];
+        inheritedSkills.push(...opSkills);
+      });
+    }
+    
+    // Combine all required skills (unique)
+    const allRequiredSkills = Array.from(new Set([...subSkills, ...inheritedSkills]));
+    
+    // Get all active workers
+    const workers = await db('mes.workers')
+      .select('id', 'name', 'skills', 'email', 'phone')
+      .where('is_active', true)
+      .orderBy('name');
+    
+    // Filter workers who have at least one matching skill
+    const compatibleWorkers = workers
+      .map(w => ({
+        id: w.id,
+        name: w.name,
+        email: w.email,
+        phone: w.phone,
+        skills: Array.isArray(w.skills) ? w.skills : [],
+        matchingSkills: []
+      }))
+      .filter(worker => {
+        // Find matching skills
+        worker.matchingSkills = worker.skills.filter(skill => 
+          allRequiredSkills.includes(skill)
+        );
+        return worker.matchingSkills.length > 0;
+      })
+      .sort((a, b) => b.matchingSkills.length - a.matchingSkills.length); // Sort by skill match count
+    
+    res.json({
+      stationId: id,
+      stationName: station.name,
+      requiredSkills: allRequiredSkills,
+      compatibleWorkers: compatibleWorkers
+    });
   } catch (error) {
     console.error('Error fetching station workers:', error);
     res.status(500).json({ error: 'Failed to fetch station workers' });
   }
 });
 
-// DELETE /api/mes/stations/:id - Soft delete a station
+// DELETE /api/mes/stations/:id - Delete a station and its substations
 router.delete('/stations/:id', withAuth, async (req, res) => {
   const { id } = req.params;
   
   try {
-    // Soft delete (set is_active = false)
-    const result = await db('mes.stations')
-      .where({ id })
-      .update({
-        is_active: false,
-        updated_at: db.fn.now()
-      })
-      .returning('id');
+    const trx = await db.transaction();
     
-    if (result.length === 0) {
-      return res.status(404).json({ error: 'Station not found' });
+    try {
+      // First, delete all substations belonging to this station (hard delete)
+      await trx('mes.substations')
+        .where({ station_id: id })
+        .delete();
+      
+      // Then, delete the station (hard delete)
+      const deletedCount = await trx('mes.stations')
+        .where({ id })
+        .delete();
+      
+      if (deletedCount === 0) {
+        await trx.rollback();
+        return res.status(404).json({ error: 'Station not found' });
+      }
+      
+      await trx.commit();
+      res.json({ success: true, id });
+    } catch (error) {
+      await trx.rollback();
+      throw error;
     }
-    
-    res.json({ success: true, id: result[0].id });
   } catch (error) {
     console.error('Error deleting station:', error);
     res.status(500).json({ error: 'Failed to delete station' });

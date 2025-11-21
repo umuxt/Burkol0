@@ -171,12 +171,63 @@ export function computeStationInheritedSkills(opIds, operations) {
   return Array.from(new Set(skills))
 }
 
+// ============================================================================
+// WORKERS NORMALIZATION
+// ============================================================================
+
+export function normalizeWorker(worker) {
+  const workerId = worker.id || genId('WK-')
+  
+  // Normalize skills
+  const skills = Array.isArray(worker.skills) 
+    ? worker.skills 
+    : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
+  
+  // Normalize personalSchedule
+  let personalSchedule = null
+  if (worker.personalSchedule && typeof worker.personalSchedule === 'object') {
+    const mode = (worker.personalSchedule.mode === 'personal' || worker.personalSchedule.mode === 'company') 
+      ? worker.personalSchedule.mode 
+      : 'company'
+    personalSchedule = { mode }
+    if (worker.personalSchedule.shiftNo) {
+      personalSchedule.shiftNo = worker.personalSchedule.shiftNo
+    }
+    if (mode === 'personal' && worker.personalSchedule.blocks) {
+      personalSchedule.blocks = worker.personalSchedule.blocks
+    }
+  }
+  
+  return {
+    id: workerId,
+    name: (worker.name || '').trim(),
+    skills,
+    personalSchedule,
+    isActive: worker.isActive !== undefined ? worker.isActive : true,
+    status: worker.status || 'available',
+    // Optional fields
+    email: worker.email || '',
+    phone: worker.phone || '',
+    currentTaskPlanId: worker.currentTaskPlanId || null,
+    currentTaskNodeId: worker.currentTaskNodeId || null,
+    currentTaskAssignmentId: worker.currentTaskAssignmentId || null,
+    // Leave fields
+    leaveStart: worker.leaveStart || null,
+    leaveEnd: worker.leaveEnd || null,
+    leaveReason: worker.leaveReason || null
+  }
+}
+
+// ============================================================================
+// WORKERS API
+// ============================================================================
+
 export async function getWorkers(force = false) {
   if (!force && Array.isArray(_workersCache)) return _workersCache
   const res = await fetch(`${API_BASE}/api/mes/workers`, { headers: withAuth() })
   if (!res.ok) throw new Error(`workers_load_failed ${res.status}`)
   const data = await res.json()
-  _workersCache = Array.isArray(data?.workers) ? data.workers : []
+  _workersCache = Array.isArray(data) ? data : []
   // normalize skills and efficiency
   _workersCache = _workersCache.map(w => ({
     ...w,

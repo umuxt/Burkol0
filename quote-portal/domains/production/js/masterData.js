@@ -401,7 +401,7 @@ function renderOperations(host) {
   const filtered = q ? operationsState.filter(op => String(op.name || '').toLowerCase().includes(q)) : operationsState
 
   const rowsMarkup = filtered.length === 0
-    ? `<tr class="mes-table-row is-empty"><td colspan="3" class="mes-empty-cell text-center"><em>Operasyon bulunamadı</em></td></tr>`
+    ? `<tr class="mes-table-row is-empty"><td colspan="4" class="mes-empty-cell text-center"><em>Operasyon bulunamadı</em></td></tr>`
     : filtered.map(op => {
         const rawRate = Number(op.expectedDefectRate)
         const safeRate = Number.isFinite(rawRate) ? rawRate : 0
@@ -414,6 +414,14 @@ function renderOperations(host) {
           }
         }
         const defectLabel = `${formattedRate}%`
+        
+        // Format efficiency as percentage (0-200%)
+        const rawEfficiency = Number(op.defaultEfficiency)
+        const safeEfficiency = Number.isFinite(rawEfficiency) && rawEfficiency > 0 ? rawEfficiency : 1.0
+        const normalizedEfficiency = Math.max(0.1, Math.min(2.0, safeEfficiency)) // Between 0.1 and 2.0
+        const efficiencyPercentage = normalizedEfficiency * 100 // Convert to percentage
+        const efficiencyLabel = efficiencyPercentage.toFixed(0) + '%'
+        
         return `
           <tr class="mes-table-row" data-operation-row="${escapeHtml(op.id)}" onclick="activateOperationRow('${escapeHtml(op.id)}')">
             <td>
@@ -427,6 +435,14 @@ function renderOperations(host) {
                 <span data-operation-defect-label="${escapeHtml(op.id)}" style="display:inline-block; font-size: 0.9em;">${escapeHtml(defectLabel)}</span>
                 <input data-operation-defect-id="${escapeHtml(op.id)}" type="number" min="0" step="0.1" value="${escapeHtml(String(normalizedRate))}"
                        oninput="onOperationDefectRateInput('${escapeHtml(op.id)}')"
+                       style="display:none; width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:0.8em; text-align:center;" />
+              </div>
+            </td>
+            <td class="text-center">
+              <div class="operation-row" style="display:inline-flex; align-items:center; justify-content:center; gap:8px;">
+                <span data-operation-efficiency-label="${escapeHtml(op.id)}" style="display:inline-block; font-size: 0.9em;">${escapeHtml(efficiencyLabel)}</span>
+                <input data-operation-efficiency-id="${escapeHtml(op.id)}" type="number" min="10" max="200" step="1" value="${escapeHtml(String(efficiencyPercentage))}"
+                       oninput="onOperationEfficiencyInput('${escapeHtml(op.id)}')"
                        style="display:none; width:60px; padding:4px 6px; border:1px solid var(--border); border-radius:4px; font-size:0.8em; text-align:center;" />
                 <button data-operation-save="${escapeHtml(op.id)}" onclick="event.stopPropagation(); saveOperationEdit('${escapeHtml(op.id)}')" style="display:none; font-size:0.75em; padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">✓</button>
                 <button data-operation-cancel="${escapeHtml(op.id)}" onclick="event.stopPropagation(); cancelOperationEdit('${escapeHtml(op.id)}')" style="display:none; font-size:0.75em; padding:2px 6px; border:1px solid var(--border); background:white; border-radius:4px; cursor:pointer;">✗</button>
@@ -446,6 +462,7 @@ function renderOperations(host) {
             <th style="min-width: 150px; text-align:left; font-size: 0.85em;">Operasyon Adı</th>
             <th style="min-width: 80px; text-align:center; font-size: 0.85em;">Çıktı Kodu</th>
             <th style="min-width: 80px; text-align:center; font-size: 0.85em;">Fire Oranı (%)</th>
+            <th style="min-width: 80px; text-align:center; font-size: 0.85em;">Verimlilik %</th>
           </tr>
         </thead>
         <tbody class="mes-table-body">
@@ -470,14 +487,18 @@ export function activateOperationRow(operationId) {
   
   activeOperationId = operationId
   
-  // Only show input field and buttons for defect rate (read-only for name and output code)
+  // Show input fields and buttons for both defect rate and efficiency
   const defectLabel = document.querySelector(`span[data-operation-defect-label="${CSS.escape(operationId)}"]`)
   const defectInput = document.querySelector(`input[data-operation-defect-id="${CSS.escape(operationId)}"]`)
+  const efficiencyLabel = document.querySelector(`span[data-operation-efficiency-label="${CSS.escape(operationId)}"]`)
+  const efficiencyInput = document.querySelector(`input[data-operation-efficiency-id="${CSS.escape(operationId)}"]`)
   const saveBtn = document.querySelector(`button[data-operation-save="${CSS.escape(operationId)}"]`)
   const cancelBtn = document.querySelector(`button[data-operation-cancel="${CSS.escape(operationId)}"]`)
 
   if (defectLabel) defectLabel.style.display = 'none'
   if (defectInput) defectInput.style.display = 'inline-block'
+  if (efficiencyLabel) efficiencyLabel.style.display = 'none'
+  if (efficiencyInput) efficiencyInput.style.display = 'inline-block'
   if (saveBtn) saveBtn.style.display = 'inline-block'
   if (cancelBtn) cancelBtn.style.display = 'inline-block'
 }
@@ -495,24 +516,43 @@ export function onOperationDefectRateInput(operationId) {
   }
 }
 
+export function onOperationEfficiencyInput(operationId) {
+  // Enable/disable save button based on input (10-200%)
+  const efficiencyInput = document.querySelector(`input[data-operation-efficiency-id="${CSS.escape(operationId)}"]`)
+  const saveBtn = document.querySelector(`button[data-operation-save="${CSS.escape(operationId)}"]`)
+  if (saveBtn) {
+    const value = efficiencyInput?.value
+    const isValid = value !== '' && !isNaN(parseFloat(value)) && parseFloat(value) >= 10 && parseFloat(value) <= 200
+    saveBtn.disabled = !isValid
+    saveBtn.style.opacity = isValid ? '1' : '0.5'
+    saveBtn.style.cursor = isValid ? 'pointer' : 'not-allowed'
+  }
+}
+
 export function cancelOperationEdit(operationId) {
   activeOperationId = null
   
-  // Hide input field, show label (only for defect rate)
+  // Hide input fields, show labels for both defect rate and efficiency
   const defectLabel = document.querySelector(`span[data-operation-defect-label="${CSS.escape(operationId)}"]`)
   const defectInput = document.querySelector(`input[data-operation-defect-id="${CSS.escape(operationId)}"]`)
+  const efficiencyLabel = document.querySelector(`span[data-operation-efficiency-label="${CSS.escape(operationId)}"]`)
+  const efficiencyInput = document.querySelector(`input[data-operation-efficiency-id="${CSS.escape(operationId)}"]`)
   const saveBtn = document.querySelector(`button[data-operation-save="${CSS.escape(operationId)}"]`)
   const cancelBtn = document.querySelector(`button[data-operation-cancel="${CSS.escape(operationId)}"]`)
 
   if (defectLabel) defectLabel.style.display = 'inline-block'
   if (defectInput) defectInput.style.display = 'none'
+  if (efficiencyLabel) efficiencyLabel.style.display = 'inline-block'
+  if (efficiencyInput) efficiencyInput.style.display = 'none'
   if (saveBtn) saveBtn.style.display = 'none'
   if (cancelBtn) cancelBtn.style.display = 'none'
 }
 
 export async function saveOperationEdit(operationId) {
   const defectInput = document.querySelector(`input[data-operation-defect-id="${CSS.escape(operationId)}"]`)
+  const efficiencyInput = document.querySelector(`input[data-operation-efficiency-id="${CSS.escape(operationId)}"]`)
   const defectRateStr = defectInput?.value || '0'
+  const efficiencyStr = efficiencyInput?.value || '100'
   
   let expectedDefectRate = 0
   if (defectRateStr) {
@@ -524,23 +564,35 @@ export async function saveOperationEdit(operationId) {
     expectedDefectRate = parsed
   }
   
+  let defaultEfficiency = 1.0
+  if (efficiencyStr) {
+    const parsed = parseFloat(efficiencyStr)
+    if (isNaN(parsed) || parsed < 10 || parsed > 200) {
+      showWarningToast('Verimlilik 10% ile 200% arasında olmalıdır')
+      return
+    }
+    // Convert percentage to decimal (100% = 1.0)
+    defaultEfficiency = parsed / 100
+  }
+  
   try {
     const idx = operationsState.findIndex(op => op.id === operationId)
     if (idx < 0) return
     
-    // Only update defect rate, keep other fields unchanged
+    // Update both defect rate and efficiency
     operationsState[idx] = { 
       ...operationsState[idx], 
-      expectedDefectRate
+      expectedDefectRate,
+      defaultEfficiency
     }
     
     await saveOperations(operationsState)
     activeOperationId = null
     renderOperations(document.getElementById('operations-management'))
-    showSuccessToast('Fire oranı güncellendi')
+    showSuccessToast('Operasyon güncellendi')
   } catch (e) {
     console.error('save operation error', e)
-    showErrorToast('Fire oranı güncellenemedi')
+    showErrorToast('Operasyon güncellenemedi')
   }
 }
 

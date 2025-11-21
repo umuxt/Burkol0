@@ -1343,7 +1343,8 @@ async function renderStationSubskillsBox(station) {
   
   container.innerHTML = '<div style="color:#888;">Loading skills...</div>'
   try {
-    const md = await getMasterData()
+    // Load skills from SQL database
+    const skills = await getSkillsFromSQL()
     const selected = new Set(Array.isArray(station.subSkills) ? station.subSkills : [])
     
     // Get inherited skills from operations
@@ -1360,12 +1361,12 @@ async function renderStationSubskillsBox(station) {
         </div>
         <div class="selected-skills-display" style="padding: 8px 12px; background: white; border-bottom: 1px solid var(--border); min-height: 20px; font-size: 12px;">
           ${selected.size > 0 ? 
-            Array.from(selected).map(skill => {
-              const isInherited = inheritedSet.has(skill)
+            Array.from(selected).map(skillId => {
+              const isInherited = inheritedSet.has(skillId)
               const bgColor = isInherited ? 'rgb(219, 234, 254)' : 'rgb(252, 165, 165)'
               const textColor = isInherited ? 'rgb(30, 64, 175)' : 'rgb(127, 29, 29)'
               const title = isInherited ? 'Operasyondan miras alınan yetenek' : 'İstasyon özel yetenek'
-              const skillName = getSkillName(skill) // Convert ID to name
+              const skillName = getSkillName(skillId) // Convert ID to name
               return `<span style="background-color: ${bgColor}; color: ${textColor}; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; margin-right: 4px; margin-bottom: 4px; display: inline-block;" title="${title}">${escapeHtml(skillName)}</span>`
             }).join('') : 
             '<span style="color: var(--muted-foreground); font-style: italic;">Henüz skill seçilmedi</span>'
@@ -1376,14 +1377,14 @@ async function renderStationSubskillsBox(station) {
           <button id="station-skill-add" style="padding: 6px 8px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 12px;">+ Ekle</button>
         </div>
         <div class="skills-grid" style="max-height: 200px; overflow-y: auto; padding: 8px; display: grid; grid-template-columns: repeat(2, minmax(0px, 1fr)); gap: 6px;" id="station-skills-grid">
-          ${md.skills.map(s => {
-            const checked = selected.has(s.name) ? 'checked' : ''
-            const isInherited = inheritedSet.has(s.name)
+          ${skills.map(s => {
+            const checked = selected.has(s.id) ? 'checked' : ''
+            const isInherited = inheritedSet.has(s.id)
             const disabled = isInherited ? 'disabled' : ''
             const opacity = isInherited ? 'opacity: 0.6;' : ''
             const title = isInherited ? 'Bu yetenek operasyondan miras alınmıştır ve değiştirilemez' : ''
             return `<label style="display: flex; align-items: center; gap: 8px; padding: 4px; cursor: ${isInherited ? 'not-allowed' : 'pointer'}; font-size: 12px; ${opacity}" title="${title}">
-              <input type="checkbox" value="${escapeHtml(s.name)}" ${checked} ${disabled} onchange="updateStationSkillsDisplay()" style="margin: 0;">
+              <input type="checkbox" value="${escapeHtml(s.id)}" ${checked} ${disabled} onchange="updateStationSkillsDisplay()" style="margin: 0;">
               <span style="flex: 1;">${escapeHtml(s.name)}</span>
               ${isInherited ? '<span style="font-size: 10px; color: rgb(107, 114, 128);">(miras)</span>' : ''}
             </label>`
@@ -1400,8 +1401,8 @@ async function renderStationSubskillsBox(station) {
         if (!name) return
         try {
           const created = await addSkill(name)
-          // Auto-check the newly added skill by updating selected set
-          station.subSkills = Array.from(new Set([...(station.subSkills||[]), created.name]))
+          // Auto-check the newly added skill by updating selected set with skill ID
+          station.subSkills = Array.from(new Set([...(station.subSkills||[]), created.id]))
           await renderStationSubskillsBox(station)
           inp.value = ''
         } catch {}
@@ -1428,9 +1429,10 @@ function updateStationSkillsDisplay() {
   
   if (display) {
     display.innerHTML = selected.length > 0 ? 
-      selected.map(skill => 
-        `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; margin-right: 4px; margin-bottom: 4px; display: inline-block;">${escapeHtml(skill)}</span>`
-      ).join('') : 
+      selected.map(skillId => {
+        const skillName = getSkillName(skillId) // Convert ID to name
+        return `<span style="background-color: rgb(252, 165, 165); color: rgb(127, 29, 29); padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; margin-right: 4px; margin-bottom: 4px; display: inline-block;">${escapeHtml(skillName)}</span>`
+      }).join('') : 
       '<span style="color: var(--muted-foreground); font-style: italic;">Henüz skill seçilmedi</span>'
   }
 }
