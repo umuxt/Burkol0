@@ -62,10 +62,10 @@ export async function createMaterialCategory(req, res) {
             id: categoryId,
             name: name.trim(),
             description: req.body.description || null,
-            parent_category: req.body.parent_category || req.body.parentCategory || null,
+            parentCategory: req.body.parentCategory || req.body.parent_category || null,
             icon: req.body.icon || null,
             color: req.body.color || null,
-            sort_order: req.body.sort_order || req.body.sortOrder || 0
+            sortOrder: req.body.sortOrder || req.body.sort_order || 0
         })
         
         res.status(201).json(newCategory)
@@ -88,10 +88,10 @@ export async function updateMaterialCategory(req, res) {
         const updatedCategory = await MaterialCategories.updateCategory(id, {
             name: name.trim(),
             description: req.body.description,
-            parent_category: req.body.parent_category || req.body.parentCategory,
+            parentCategory: req.body.parentCategory || req.body.parent_category,
             icon: req.body.icon,
             color: req.body.color,
-            sort_order: req.body.sort_order || req.body.sortOrder
+            sortOrder: req.body.sortOrder || req.body.sort_order
         })
         
         res.json(updatedCategory)

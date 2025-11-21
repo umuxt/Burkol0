@@ -61,25 +61,25 @@ async function createMaterial(req, res) {
       subcategory: req.body.subcategory,
       stock: req.body.stock,
       reserved: req.body.reserved,
-      wip_reserved: req.body.wip_reserved || req.body.wipReserved,
-      reorder_point: req.body.reorder_point || req.body.reorderPoint,
-      max_stock: req.body.max_stock || req.body.maxStock,
+      wipReserved: req.body.wipReserved || req.body.wip_reserved,
+      reorderPoint: req.body.reorderPoint || req.body.reorder_point,
+      maxStock: req.body.maxStock || req.body.max_stock,
       unit: req.body.unit,
-      cost_price: req.body.cost_price || req.body.costPrice,
-      average_cost: req.body.average_cost || req.body.averageCost,
+      costPrice: req.body.costPrice || req.body.cost_price,
+      averageCost: req.body.averageCost || req.body.average_cost,
       currency: req.body.currency,
-      primary_supplier_id: req.body.primary_supplier_id || req.body.primarySupplierId || req.body.supplier,
+      primarySupplierId: req.body.primarySupplierId || req.body.primary_supplier_id || req.body.supplier,
       barcode: req.body.barcode,
-      qr_code: req.body.qr_code || req.body.qrCode,
+      qrCode: req.body.qrCode || req.body.qr_code,
       status: req.body.status,
-      is_active: req.body.is_active !== false,
-      scrap_type: req.body.scrap_type || req.body.scrapType,
-      parent_material: req.body.parent_material || req.body.parentMaterial,
+      isActive: req.body.isActive !== undefined ? req.body.isActive : (req.body.is_active !== false),
+      scrapType: req.body.scrapType || req.body.scrap_type,
+      parentMaterial: req.body.parentMaterial || req.body.parent_material,
       specifications: req.body.specifications,
       storage: req.body.storage,
-      production_history: req.body.production_history || req.body.productionHistory,
-      suppliers_data: req.body.suppliers_data || req.body.suppliersData,
-      created_by: req.body.created_by || req.body.createdBy || req.user?.email
+      productionHistory: req.body.productionHistory || req.body.production_history,
+      suppliersData: req.body.suppliersData || req.body.suppliers_data,
+      createdBy: req.body.createdBy || req.body.created_by || req.user?.email
     }
 
     const newMaterial = await Materials.createMaterial(materialData)
@@ -112,25 +112,25 @@ async function updateMaterial(req, res) {
       subcategory: req.body.subcategory,
       stock: req.body.stock,
       reserved: req.body.reserved,
-      wip_reserved: req.body.wip_reserved || req.body.wipReserved,
-      reorder_point: req.body.reorder_point || req.body.reorderPoint,
-      max_stock: req.body.max_stock || req.body.maxStock,
+      wipReserved: req.body.wipReserved || req.body.wip_reserved,
+      reorderPoint: req.body.reorderPoint || req.body.reorder_point,
+      maxStock: req.body.maxStock || req.body.max_stock,
       unit: req.body.unit,
-      cost_price: req.body.cost_price || req.body.costPrice,
-      average_cost: req.body.average_cost || req.body.averageCost,
+      costPrice: req.body.costPrice || req.body.cost_price,
+      averageCost: req.body.averageCost || req.body.average_cost,
       currency: req.body.currency,
-      primary_supplier_id: req.body.primary_supplier_id || req.body.primarySupplierId || req.body.supplier,
+      primarySupplierId: req.body.primarySupplierId || req.body.primary_supplier_id || req.body.supplier,
       barcode: req.body.barcode,
-      qr_code: req.body.qr_code || req.body.qrCode,
+      qrCode: req.body.qrCode || req.body.qr_code,
       status: req.body.status,
-      is_active: req.body.is_active,
-      scrap_type: req.body.scrap_type || req.body.scrapType,
-      parent_material: req.body.parent_material || req.body.parentMaterial,
+      isActive: req.body.isActive,
+      scrapType: req.body.scrapType || req.body.scrap_type,
+      parentMaterial: req.body.parentMaterial || req.body.parent_material,
       specifications: req.body.specifications,
       storage: req.body.storage,
-      production_history: req.body.production_history || req.body.productionHistory,
-      suppliers_data: req.body.suppliers_data || req.body.suppliersData,
-      updated_by: req.body.updated_by || req.body.updatedBy || req.user?.email
+      productionHistory: req.body.productionHistory || req.body.production_history,
+      suppliersData: req.body.suppliersData || req.body.suppliers_data,
+      updatedBy: req.body.updatedBy || req.body.updated_by || req.user?.email
     }
 
     const updatedMaterial = await Materials.updateMaterial(id, updates)
@@ -446,6 +446,57 @@ async function getCategories(req, res) {
   }
 }
 
+/**
+ * GET /api/stockMovements - Get stock movements for a material
+ * Query params: materialCode, type, subType, startDate, endDate, limit
+ */
+async function getStockMovements(req, res) {
+  try {
+    const { materialCode, type, subType, startDate, endDate, limit } = req.query
+
+    if (!materialCode) {
+      return res.status(400).json({ error: 'materialCode is required' })
+    }
+
+    console.log(`📊 Fetching stock movements for material: ${materialCode}`)
+
+    // Build the query
+    let query = db('materials.stock_movements')
+      .where({ materialCode })
+      .orderBy('movementDate', 'desc')
+
+    // Apply filters
+    if (type) {
+      query = query.where('type', type)
+    }
+
+    if (subType) {
+      query = query.where('subType', subType)
+    }
+
+    if (startDate) {
+      query = query.where('movementDate', '>=', startDate)
+    }
+
+    if (endDate) {
+      query = query.where('movementDate', '<=', endDate)
+    }
+
+    if (limit) {
+      query = query.limit(parseInt(limit, 10))
+    }
+
+    const movements = await query
+
+    console.log(`✅ Found ${movements.length} stock movements for ${materialCode}`)
+
+    res.json({ movements })
+  } catch (error) {
+    console.error('Error getting stock movements:', error)
+    res.status(500).json({ error: 'Failed to get stock movements' })
+  }
+}
+
 // ================================
 // MES HELPER FUNCTIONS (used by mesRoutes.js)
 // ================================
@@ -512,6 +563,6 @@ export function setupMaterialsRoutes(app) {
   // Lot inventory
   app.get('/api/materials/:code/lots', requireAuth, getMaterialLots)
 
-  // TODO: Stock movements tracking (future enhancement)
-  // app.get('/api/stockMovements', requireAuth, getStockMovements)
+  // Stock movements tracking
+  app.get('/api/stockMovements', requireAuth, getStockMovements)
 }

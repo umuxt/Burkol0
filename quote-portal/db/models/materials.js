@@ -27,11 +27,11 @@ export async function getAllMaterials() {
             'materials.suppliers.id',
             'materials.suppliers.code',
             'materials.suppliers.name',
-            'material_supplier_relation.isPrimary'
+            'materials.material_supplier_relation.isPrimary'
           )
-          .join('materials.suppliers', 'material_supplier_relation.supplierId', 'materials.suppliers.id')
-          .where('material_supplier_relation.materialId', material.id)
-          .orderBy('material_supplier_relation.isPrimary', 'desc')
+          .join('materials.suppliers', 'materials.material_supplier_relation.supplierId', '=', 'materials.suppliers.id')
+          .where('materials.material_supplier_relation.materialId', material.id)
+          .orderBy('materials.material_supplier_relation.isPrimary', 'desc')
         
         return {
           ...material,
@@ -66,11 +66,11 @@ export async function getActiveMaterials() {
             'materials.suppliers.id',
             'materials.suppliers.code',
             'materials.suppliers.name',
-            'material_supplier_relation.isPrimary'
+            'materials.material_supplier_relation.isPrimary'
           )
-          .join('materials.suppliers', 'material_supplier_relation.supplierId', 'materials.suppliers.id')
-          .where('material_supplier_relation.materialId', material.id)
-          .orderBy('material_supplier_relation.isPrimary', 'desc')
+          .join('materials.suppliers', 'materials.material_supplier_relation.supplierId', '=', 'materials.suppliers.id')
+          .where('materials.material_supplier_relation.materialId', material.id)
+          .orderBy('materials.material_supplier_relation.isPrimary', 'desc')
         
         return {
           ...material,

@@ -166,11 +166,13 @@ const Orders = {
    * Update order header
    * @param {number} orderId - Order ID
    * @param {Object} updates - Fields to update
+   * @param {Object} options - Update options (internal: allow system updates)
    * @returns {Object} Updated order
    */
-  async updateOrder(orderId, updates) {
-    // VALIDATION: Prevent order-level "Teslim Edildi" - must use item-level delivery for lot tracking
-    if (updates.order_status === 'Teslim Edildi' || updates.orderStatus === 'Teslim Edildi') {
+  async updateOrder(orderId, updates, options = {}) {
+    // VALIDATION: Prevent manual order-level "Teslim Edildi" - must use item-level delivery for lot tracking
+    // But allow internal/automatic updates from updateOrderStatus
+    if (updates.orderStatus === 'Teslim Edildi' && !options._internal) {
       throw new Error('Order-level "Teslim Edildi" not allowed. Use item-level delivery for lot tracking.');
     }
     
@@ -183,14 +185,10 @@ const Orders = {
     ];
     
     const filteredUpdates = {};
-    // Handle both camelCase and snake_case inputs
-    if (updates.supplier_id !== undefined) filteredUpdates.supplierId = updates.supplier_id;
+    // Only accept camelCase - database is camelCase
     if (updates.supplierId !== undefined) filteredUpdates.supplierId = updates.supplierId;
-    if (updates.supplier_name !== undefined) filteredUpdates.supplierName = updates.supplier_name;
     if (updates.supplierName !== undefined) filteredUpdates.supplierName = updates.supplierName;
-    if (updates.order_status !== undefined) filteredUpdates.orderStatus = updates.order_status;
     if (updates.orderStatus !== undefined) filteredUpdates.orderStatus = updates.orderStatus;
-    if (updates.expected_delivery_date !== undefined) filteredUpdates.expectedDeliveryDate = updates.expected_delivery_date;
     if (updates.expectedDeliveryDate !== undefined) filteredUpdates.expectedDeliveryDate = updates.expectedDeliveryDate;
     if (updates.notes !== undefined) filteredUpdates.notes = updates.notes;
     
@@ -206,9 +204,8 @@ const Orders = {
     }
     
     // If order status changed, propagate to all items
-    if (updates.order_status || updates.orderStatus) {
-      const orderStatus = updates.orderStatus || updates.order_status;
-      const itemStatus = this._mapOrderStatusToItemStatus(orderStatus);
+    if (updates.orderStatus) {
+      const itemStatus = this._mapOrderStatusToItemStatus(updates.orderStatus);
       if (itemStatus) {
         await db('materials.order_items')
           .where({ orderId: orderId })
@@ -276,7 +273,7 @@ const Orders = {
       orderStatus = 'Taslak';
     }
     
-    return await this.updateOrder(orderId, { order_status: orderStatus });
+    return await this.updateOrder(orderId, { orderStatus: orderStatus }, { _internal: true });
   },
 
   /**

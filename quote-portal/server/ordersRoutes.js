@@ -152,40 +152,8 @@ router.get('/orders', async (req, res) => {
       includeItems: true
     });
     
-    // Convert snake_case to camelCase for frontend
-    const normalizedOrders = orders.map(order => ({
-      ...order,
-      orderStatus: order.order_status,
-      orderCode: order.order_code,
-      orderSequence: order.order_sequence,
-      supplierId: order.supplier_id,
-      supplierName: order.supplier_name,
-      orderDate: order.order_date,
-      expectedDeliveryDate: order.expected_delivery_date,
-      totalAmount: order.total_amount,
-      itemCount: order.item_count,
-      createdBy: order.created_by,
-      createdAt: order.created_at,
-      updatedAt: order.updated_at,
-      items: (order.items || []).map(item => ({
-        ...item,
-        itemCode: item.item_code,
-        itemSequence: item.item_sequence,
-        orderId: item.order_id,
-        orderCode: item.order_code,
-        materialId: item.material_id,
-        materialCode: item.material_code,
-        materialName: item.material_name,
-        unitPrice: item.unit_price,
-        totalPrice: item.total_price,
-        itemStatus: item.item_status,
-        expectedDeliveryDate: item.expected_delivery_date,
-        actualDeliveryDate: item.actual_delivery_date,
-        deliveredBy: item.delivered_by,
-        createdAt: item.created_at,
-        updatedAt: item.updated_at
-      }))
-    }));
+    // Database already returns camelCase, no conversion needed
+    const normalizedOrders = orders;
     
     // Update cache
     const response = { orders: normalizedOrders };
@@ -265,15 +233,15 @@ router.get('/orders/materials/active', async (req, res) => {
     // Get pending deliveries
     const pendingItems = await OrderItems.getPendingDeliveries();
     
-    // Group by material
+    // Group by material (database already returns camelCase)
     const materialsMap = new Map();
     for (const item of pendingItems) {
-      const key = item.material_id;
+      const key = item.materialId;
       if (!materialsMap.has(key)) {
         materialsMap.set(key, {
-          materialId: item.material_id,
-          materialCode: item.material_code,
-          materialName: item.material_name,
+          materialId: item.materialId,
+          materialCode: item.materialCode,
+          materialName: item.materialName,
           unit: item.unit,
           totalQuantity: 0,
           orderCount: 0,
@@ -284,11 +252,11 @@ router.get('/orders/materials/active', async (req, res) => {
       const material = materialsMap.get(key);
       material.totalQuantity += parseFloat(item.quantity);
       material.orders.push({
-        orderId: item.order_id,
-        orderCode: item.order_code,
+        orderId: item.orderId,
+        orderCode: item.orderCode,
         quantity: item.quantity,
-        expectedDeliveryDate: item.expected_delivery_date,
-        itemStatus: item.item_status
+        expectedDeliveryDate: item.expectedDeliveryDate,
+        itemStatus: item.itemStatus
       });
       material.orderCount = material.orders.length;
     }
@@ -343,42 +311,8 @@ router.get('/orders/:orderId', async (req, res) => {
     
     const order = await Orders.getOrderById(orderId);
     
-    // Convert snake_case to camelCase for frontend
-    const normalizedOrder = {
-      ...order,
-      orderStatus: order.order_status,
-      orderCode: order.order_code,
-      orderSequence: order.order_sequence,
-      supplierId: order.supplier_id,
-      supplierName: order.supplier_name,
-      orderDate: order.order_date,
-      expectedDeliveryDate: order.expected_delivery_date,
-      totalAmount: order.total_amount,
-      itemCount: order.item_count,
-      createdBy: order.created_by,
-      createdAt: order.created_at,
-      updatedAt: order.updated_at,
-      items: (order.items || []).map(item => ({
-        ...item,
-        itemCode: item.item_code,
-        itemSequence: item.item_sequence,
-        orderId: item.order_id,
-        orderCode: item.order_code,
-        materialId: item.material_id,
-        materialCode: item.material_code,
-        materialName: item.material_name,
-        unitPrice: item.unit_price,
-        totalPrice: item.total_price,
-        itemStatus: item.item_status,
-        expectedDeliveryDate: item.expected_delivery_date,
-        actualDeliveryDate: item.actual_delivery_date,
-        deliveredBy: item.delivered_by,
-        createdAt: item.created_at,
-        updatedAt: item.updated_at
-      }))
-    };
-    
-    res.json(normalizedOrder);
+    // Database already returns camelCase, no conversion needed
+    res.json(order);
     
   } catch (error) {
     if (error.message === 'Order not found') {
@@ -406,7 +340,7 @@ router.get('/orders/:orderId/delivery-status', async (req, res) => {
     const items = await OrderItems.getItemsByOrder(orderId);
     
     const statusCounts = items.reduce((acc, item) => {
-      acc[item.item_status] = (acc[item.item_status] || 0) + 1;
+      acc[item.itemStatus] = (acc[item.itemStatus] || 0) + 1;
       return acc;
     }, {});
     
@@ -490,8 +424,7 @@ router.put('/orders/:orderId/items/:itemId', async (req, res) => {
       return res.status(400).json({ error: 'Updates are required' });
     }
     
-    // Normalize field names (support both camelCase and snake_case)
-    const itemStatus = updates.itemStatus || updates.item_status;
+    const itemStatus = updates.itemStatus;
     
     // Update item
     const updatedItem = await OrderItems.updateItemStatus(
@@ -506,34 +439,15 @@ router.put('/orders/:orderId/items/:itemId', async (req, res) => {
     // Get updated order to return current status
     const updatedOrder = await Orders.getOrderById(orderId);
     
-    // Normalize item response
-    const normalizedItem = {
-      ...updatedItem,
-      itemCode: updatedItem.item_code,
-      itemSequence: updatedItem.item_sequence,
-      orderId: updatedItem.order_id,
-      orderCode: updatedItem.order_code,
-      materialId: updatedItem.material_id,
-      materialCode: updatedItem.material_code,
-      materialName: updatedItem.material_name,
-      unitPrice: updatedItem.unit_price,
-      totalPrice: updatedItem.total_price,
-      itemStatus: updatedItem.item_status,
-      expectedDeliveryDate: updatedItem.expected_delivery_date,
-      actualDeliveryDate: updatedItem.actual_delivery_date,
-      deliveredBy: updatedItem.delivered_by,
-      createdAt: updatedItem.created_at,
-      updatedAt: updatedItem.updated_at
-    };
-    
+    // Database already returns camelCase, no conversion needed
     // Invalidate cache
     invalidateOrdersCache('item_updated');
     
     res.json({
       message: 'Order item updated successfully',
-      item: normalizedItem,
-      order_status: updatedOrder.order_status,
-      order_statusChanged: true
+      item: updatedItem,
+      orderStatus: updatedOrder.orderStatus,
+      orderStatusChanged: true
     });
     
   } catch (error) {
@@ -618,7 +532,7 @@ router.put('/orders/:orderId/items/:itemId/deliver', async (req, res) => {
       item: result.item,
       stockUpdate: result.stockUpdate,
       lotNumber: result.lotNumber, // Generated lot number
-      orderStatus: updatedOrder.order_status
+      orderStatus: updatedOrder.orderStatus
     });
     
   } catch (error) {

@@ -70,17 +70,17 @@ export async function generateLotNumber(materialCode, date = new Date()) {
       // Query existing lots for this material and date
       // Pattern: LOT-{materialCode}-{YYYYMMDD}-%
       const existingLots = await trx('materials.stock_movements')
-        .select('lot_number')
-        .where('material_code', materialCode)
-        .where('lot_number', 'like', `${prefix}-%`)
-        .orderBy('lot_number', 'desc')
+        .select('lotNumber')
+        .where('materialCode', materialCode)
+        .where('lotNumber', 'like', `${prefix}-%`)
+        .orderBy('lotNumber', 'desc')
         .limit(1);
 
       let nextSequence = 1;
 
       if (existingLots.length > 0) {
         // Extract sequence from existing lot number
-        const lastLot = existingLots[0].lot_number;
+        const lastLot = existingLots[0].lotNumber;
         const parts = lastLot.split('-');
         const lastSeq = parseInt(parts[parts.length - 1], 10);
         
@@ -228,17 +228,17 @@ export async function getLotsForMaterial(materialCode) {
   try {
     const lots = await db('materials.stock_movements')
       .select(
-        'lot_number',
-        'lot_date',
+        'lotNumber',
+        'lotDate',
         db.raw(`
           SUM(CASE WHEN type = 'in' THEN quantity ELSE -quantity END) as balance
         `)
       )
-      .where('material_code', materialCode)
-      .whereNotNull('lot_number')
-      .groupBy('lot_number', 'lot_date')
+      .where('materialCode', materialCode)
+      .whereNotNull('lotNumber')
+      .groupBy('lotNumber', 'lotDate')
       .havingRaw('SUM(CASE WHEN type = ? THEN quantity ELSE -quantity END) > 0', ['in'])
-      .orderBy('lot_date', 'asc');
+      .orderBy('lotDate', 'asc');
 
     return lots;
 
@@ -257,7 +257,7 @@ export async function getLotsForMaterial(materialCode) {
 export async function lotNumberExists(lotNumber) {
   try {
     const result = await db('materials.stock_movements')
-      .where('lot_number', lotNumber)
+      .where('lotNumber', lotNumber)
       .first();
 
     return !!result;

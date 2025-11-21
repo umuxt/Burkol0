@@ -8,90 +8,90 @@ export function up(knex) {
     // Orders table under materials schema (part of materials/inventory system)
     .withSchema('materials').createTable('orders', (table) => {
       table.increments('id').primary();
-      table.string('order_code', 50).unique().notNullable(); // ORD-2025-0001
-      table.integer('order_sequence').notNullable();
+      table.string('orderCode', 50).unique().notNullable(); // ORD-2025-0001
+      table.integer('orderSequence').notNullable();
       
       // Supplier relationship
-      table.integer('supplier_id').unsigned();
-      table.foreign('supplier_id')
+      table.integer('supplierId').unsigned();
+      table.foreign('supplierId')
         .references('id')
         .inTable('materials.suppliers')
         .onDelete('RESTRICT'); // Can't delete supplier with active orders
-      table.string('supplier_name', 255); // Denormalized - maps to suppliers.name
+      table.string('supplierName', 255); // Denormalized - maps to suppliers.name
       
       // Order details
-      table.string('order_status', 50).defaultTo('Taslak');
-      table.timestamp('order_date').defaultTo(knex.fn.now());
-      table.date('expected_delivery_date');
+      table.string('orderStatus', 50).defaultTo('Taslak');
+      table.timestamp('orderDate').defaultTo(knex.fn.now());
+      table.date('expectedDeliveryDate');
       
       // Financial
-      table.decimal('total_amount', 15, 2).defaultTo(0);
+      table.decimal('totalAmount', 15, 2).defaultTo(0);
       table.string('currency', 3).defaultTo('TRY');
-      table.integer('item_count').defaultTo(0);
+      table.integer('itemCount').defaultTo(0);
       
       // Additional info
       table.text('notes');
       
       // Audit fields
-      table.string('created_by', 100);
-      table.timestamp('created_at').defaultTo(knex.fn.now());
-      table.timestamp('updated_at').defaultTo(knex.fn.now());
+      table.string('createdBy', 100);
+      table.timestamp('createdAt').defaultTo(knex.fn.now());
+      table.timestamp('updatedAt').defaultTo(knex.fn.now());
       
       // Indexes
-      table.index('supplier_id');
-      table.index('order_status');
-      table.index('order_date');
-      table.index(['order_date', 'order_status']); // Composite for reporting
+      table.index('supplierId');
+      table.index('orderStatus');
+      table.index('orderDate');
+      table.index(['orderDate', 'orderStatus']); // Composite for reporting
     })
     
     // Order items table under materials schema
     .withSchema('materials').createTable('order_items', (table) => {
       table.increments('id').primary();
-      table.string('item_code', 50).unique().notNullable(); // item-01, item-02
-      table.integer('item_sequence').notNullable();
+      table.string('itemCode', 50).unique().notNullable(); // item-01, item-02
+      table.integer('itemSequence').notNullable();
       
       // Order relationship
-      table.integer('order_id').unsigned().notNullable();
-      table.foreign('order_id')
+      table.integer('orderId').unsigned().notNullable();
+      table.foreign('orderId')
         .references('id')
         .inTable('materials.orders')
         .onDelete('CASCADE'); // Delete items when order deleted
-      table.string('order_code', 50).notNullable(); // Denormalized
+      table.string('orderCode', 50).notNullable(); // Denormalized
       
       // Material relationship
-      table.integer('material_id').unsigned().notNullable();
-      table.foreign('material_id')
+      table.integer('materialId').unsigned().notNullable();
+      table.foreign('materialId')
         .references('id')
         .inTable('materials.materials')
         .onDelete('RESTRICT'); // Can't delete material with order items
-      table.string('material_code', 50).notNullable(); // Denormalized - maps to materials.code
-      table.string('material_name', 255); // Denormalized - maps to materials.name
+      table.string('materialCode', 50).notNullable(); // Denormalized - maps to materials.code
+      table.string('materialName', 255); // Denormalized - maps to materials.name
       
       // Quantity and pricing
       table.decimal('quantity', 15, 3).notNullable();
       table.string('unit', 20);
-      table.decimal('unit_price', 15, 2);
-      table.decimal('total_price', 15, 2);
+      table.decimal('unitPrice', 15, 2);
+      table.decimal('totalPrice', 15, 2);
       
       // Item status tracking
-      table.string('item_status', 50).defaultTo('Onay Bekliyor');
-      table.date('expected_delivery_date');
-      table.timestamp('actual_delivery_date');
-      table.string('delivered_by', 100);
+      table.string('itemStatus', 50).defaultTo('Onay Bekliyor');
+      table.date('expectedDeliveryDate');
+      table.timestamp('actualDeliveryDate');
+      table.string('deliveredBy', 100);
       
       // Additional info
       table.text('notes');
       
       // Audit fields
-      table.timestamp('created_at').defaultTo(knex.fn.now());
-      table.timestamp('updated_at').defaultTo(knex.fn.now());
+      table.timestamp('createdAt').defaultTo(knex.fn.now());
+      table.timestamp('updatedAt').defaultTo(knex.fn.now());
       
       // Indexes for performance
-      table.index('order_id'); // Fast lookup by order
-      table.index('material_id'); // Fast lookup by material
-      table.index('item_status'); // Fast filtering by status
-      table.index('actual_delivery_date'); // Stock movement tracking
-      table.index(['order_id', 'item_status']); // Order status calculation
+      table.index('orderId'); // Fast lookup by order
+      table.index('materialId'); // Fast lookup by material
+      table.index('itemStatus'); // Fast filtering by status
+      table.index('actualDeliveryDate'); // Stock movement tracking
+      table.index(['orderId', 'itemStatus']); // Order status calculation
     })
     
     // Create function to generate order code under materials schema

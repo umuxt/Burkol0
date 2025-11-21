@@ -17,9 +17,9 @@ export async function getAllSuppliers() {
     const suppliers = await db(SUPPLIERS_TABLE)
       .select(
         'materials.suppliers.*',
-        db.raw('COUNT(DISTINCT material_supplier_relation."materialId") as "suppliedMaterialsCount"')
+        db.raw('COUNT(DISTINCT materials.material_supplier_relation."materialId") as "suppliedMaterialsCount"')
       )
-      .leftJoin('materials.material_supplier_relation', 'materials.suppliers.id', 'material_supplier_relation.supplierId')
+      .leftJoin('materials.material_supplier_relation', 'materials.suppliers.id', '=', 'materials.material_supplier_relation.supplierId')
       .groupBy('materials.suppliers.id')
       .orderBy('materials.suppliers.code', 'asc')
     
@@ -33,11 +33,11 @@ export async function getAllSuppliers() {
             'materials.materials.name',
             'materials.materials.category',
             'materials.materials.unit',
-            'material_supplier_relation.isPrimary',
-            'material_supplier_relation.costPrice'
+            'materials.material_supplier_relation.isPrimary',
+            'materials.material_supplier_relation.costPrice'
           )
-          .join('materials.materials', 'material_supplier_relation.materialId', 'materials.materials.id')
-          .where('material_supplier_relation.supplierId', supplier.id)
+          .join('materials.materials', 'materials.material_supplier_relation.materialId', '=', 'materials.materials.id')
+          .where('materials.material_supplier_relation.supplierId', supplier.id)
           .orderBy('materials.materials.code', 'asc')
         
         return {
@@ -196,11 +196,11 @@ export async function createSupplier(supplierData, suppliedMaterials = []) {
       const relations = suppliedMaterials.map(material => ({
         materialId: material.id,
         supplierId: supplier.id,
-        isPrimary: material.is_primary || material.isPrimary || false,
-        costPrice: material.cost_price || material.costPrice || null,
-        leadTimeDays: material.lead_time_days || material.leadTime || material.leadTimeDays || null,
-        minimumOrderQuantity: material.minimum_order_quantity || material.minimumOrderQuantity || null,
-        supplierMaterialCode: material.supplier_material_code || material.supplierMaterialCode || null,
+        isPrimary: material.isPrimary || false,
+        costPrice: material.costPrice || null,
+        leadTimeDays: material.leadTimeDays || null,
+        minimumOrderQuantity: material.minimumOrderQuantity || null,
+        supplierMaterialCode: material.supplierMaterialCode || null,
         notes: material.notes || null,
         createdAt: db.fn.now(),
         updatedAt: db.fn.now()
@@ -320,11 +320,11 @@ export async function updateSupplier(id, updates, suppliedMaterials = null) {
         const relations = suppliedMaterials.map(material => ({
           materialId: material.id,
           supplierId: id,
-          isPrimary: material.is_primary || material.isPrimary || false,
-          costPrice: material.cost_price || material.costPrice || null,
-          leadTimeDays: material.lead_time_days || material.leadTime || material.leadTimeDays || null,
-          minimumOrderQuantity: material.minimum_order_quantity || material.minimumOrderQuantity || null,
-          supplierMaterialCode: material.supplier_material_code || material.supplierMaterialCode || null,
+          isPrimary: material.isPrimary || false,
+          costPrice: material.costPrice || null,
+          leadTimeDays: material.leadTimeDays || null,
+          minimumOrderQuantity: material.minimumOrderQuantity || null,
+          supplierMaterialCode: material.supplierMaterialCode || null,
           notes: material.notes || null,
           createdAt: db.fn.now(),
           updatedAt: db.fn.now()

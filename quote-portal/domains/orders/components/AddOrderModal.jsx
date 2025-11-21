@@ -137,10 +137,23 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         setSupplierMaterialsLoading(true)
         setSupplierMaterialsError(null)
         const response = await getMaterialsForSupplier(formData.supplierId)
+        console.log('🔍 AddOrderModal: API response from getMaterialsForSupplier:', {
+          supplierId: formData.supplierId,
+          responseType: typeof response,
+          isArray: Array.isArray(response),
+          count: Array.isArray(response) ? response.length : 'N/A',
+          firstItem: Array.isArray(response) && response.length > 0 ? response[0] : null
+        });
         if (!isCancelled) {
-          setSupplierMaterials(Array.isArray(response) ? response : [])
+          const materialsToSet = Array.isArray(response) ? response : []
+          console.log('🔍 AddOrderModal: Setting supplierMaterials:', {
+            count: materialsToSet.length,
+            materials: materialsToSet
+          });
+          setSupplierMaterials(materialsToSet)
         }
       } catch (error) {
+        console.error('❌ AddOrderModal: Error fetching supplier materials:', error);
         if (!isCancelled) {
           setSupplierMaterials([])
           setSupplierMaterialsError(error.message)
@@ -253,7 +266,7 @@ export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecord
         hasMaterials: !!materials
       });
     }
-  }, [formData.supplierId, suppliers, materials])
+  }, [formData.supplierId, suppliers, materials, supplierMaterials])
 
   // Debug: availableMaterials state'ini takip et
   useEffect(() => {

@@ -21,7 +21,7 @@ export async function getAllCategories() {
       )
       .leftJoin(MATERIALS_TABLE, 'materials.materials_categories.id', 'materials.materials.category')
       .groupBy('materials.materials_categories.id')
-      .orderBy('materials.materials_categories."sortOrder"', 'asc')
+      .orderBy('materials.materials_categories.sortOrder', 'asc')
       .orderBy('materials.materials_categories.name', 'asc')
     
     return categories.map(c => ({
