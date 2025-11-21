@@ -72,15 +72,8 @@ const metrics = {
   }
 };
 
-// ============================================================================
-// CANONICAL SCHEMA ENFORCEMENT
-// ============================================================================
-// Backend expects: node.nodeId, node.nominalTime, node.successor
-// Frontend sanitizes before sending (see planDesigner.js sanitizeNodesForBackend)
-
 console.log('✅ MES Routes module loaded');
 
-// Middleware to authenticate requests (reuse existing auth)
 function withAuth(req, res, next) {
   // Basic token presence check
   const token = req.headers.authorization?.replace('Bearer ', '') || ''
@@ -116,8 +109,6 @@ function formatDateParts(d) {
   }
 }
 
-// Generate work package IDs for all assignments in a plan
-// Format: WO-001-01, WO-001-02, WO-001-03...
 function generateWorkPackageIds(workOrderCode, assignmentsCount) {
   if (!workOrderCode) {
     throw new Error('workOrderCode is required for generating work package IDs');
@@ -172,12 +163,7 @@ function applyOutputCodeSuffixes(nodes) {
 
 /**
  * Calculate pre-production reserved amounts for a work package
- * Takes into account the expected defect rate and input/output ratio
- * 
- * NEW LOGIC:
- * 1. Calculate input/output ratio for each material
- * 2. Calculate expected defects in output units
- * 3. Convert to input units using the ratio
+ * Takes into account expected defect rate and input/output ratio
  * 
  * Example:
  * - Output: 100 units, Defect Rate: 1%
@@ -304,11 +290,10 @@ function calculatePlannedOutput(node, planQuantity = 1) {
  */
 
 // ============================================================================
-// OPERATIONS ROUTES
+// OPERATIONS
 // ============================================================================
 
-// GET /api/mes/operations - Get all operations
-// ✅ MIGRATED TO SQL - STEP 1
+// GET /api/mes/operations
 router.get('/operations', withAuth, async (req, res) => {
   try {
     const result = await db('mes.operations')
@@ -321,8 +306,7 @@ router.get('/operations', withAuth, async (req, res) => {
   }
 });
 
-// POST /api/mes/operations - Create a single operation
-// ✅ MIGRATED TO SQL - STEP 1
+// POST /api/mes/operations
 router.post('/operations', withAuth, async (req, res) => {
   const { name, type, semi_output_code, nominal_time } = req.body;
   
@@ -351,11 +335,10 @@ router.post('/operations', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// WORKERS ROUTES
+// WORKERS
 // ============================================================================
 
-// GET /api/mes/workers - Get all workers
-// ✅ MIGRATED TO SQL - STEP 2
+// GET /api/mes/workers
 router.get('/workers', withAuth, async (req, res) => {
   try {
     const result = await db('mes.workers')
@@ -381,8 +364,7 @@ router.get('/workers', withAuth, async (req, res) => {
   }
 });
 
-// POST /api/mes/workers - Create/Update worker
-// ✅ MIGRATED TO SQL - STEP 2
+// POST /api/mes/workers
 router.post('/workers', withAuth, async (req, res) => {
   const { name, skills, personalSchedule } = req.body;
   
@@ -504,10 +486,10 @@ router.delete('/workers/:id', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// STATIONS ROUTES
+// STATIONS
 // ============================================================================
 
-// GET /api/mes/stations - Get all stations
+// GET /api/mes/stations
 router.get('/stations', withAuth, async (req, res) => {
   try {
     const result = await db('mes.stations')
@@ -578,7 +560,6 @@ router.get('/stations/:id/workers', withAuth, async (req, res) => {
     }
     
     // For now, return empty array (worker-station assignments not yet implemented)
-    // TODO: Implement worker-station assignment logic when needed
     res.json([]);
   } catch (error) {
     console.error('Error fetching station workers:', error);
@@ -612,10 +593,10 @@ router.delete('/stations/:id', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// SKILLS ROUTES (Master Data)
+// SKILLS (Master Data)
 // ============================================================================
 
-// GET /api/mes/skills - Get all skills
+// GET /api/mes/skills
 router.get('/skills', withAuth, async (req, res) => {
   try {
     const skills = await db('mes.skills')
@@ -743,14 +724,12 @@ router.delete('/skills/:id', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// WORK ORDERS ROUTES
+// WORK ORDERS
 // ============================================================================
 
-// GET /api/mes/work-orders - Get all work orders
+// GET /api/mes/work-orders
 router.get('/work-orders', withAuth, async (req, res) => {
   try {
-    // NOTE: mes.work_orders = production work orders (WO-001 format)
-    // NOT materials.orders (supplier orders ORD-2025-0001 format)
     const workOrders = await db('mes.work_orders')
       .select(
         'id',
@@ -885,11 +864,10 @@ router.post('/work-orders/next-id', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// APPROVED QUOTES ROUTES (Read-only listing for Production Planning)
+// APPROVED QUOTES
 // ============================================================================
 
-// GET /api/mes/approved-quotes - List approved quotes copied from Quotes as Work Orders
-// GET /api/mes/approved-quotes - Get all approved quotes (SQL)
+// GET /api/mes/approved-quotes
 router.get('/approved-quotes', withAuth, async (req, res) => {
   try {
     const approvedQuotes = await db('mes.approved_quotes')
@@ -1070,8 +1048,7 @@ router.get('/master-data', withAuth, async (req, res) => {
   }
 });
 
-// POST /api/mes/master-data - Update master data
-// ✅ MIGRATED TO SQL - HOTFIX
+// POST /api/mes/master-data
 router.post('/master-data', withAuth, async (req, res) => {
   try {
     const { availableSkills, availableOperationTypes, timeSettings, stationEfficiency, workerEfficiency } = req.body || {};
@@ -1113,11 +1090,11 @@ router.post('/master-data', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// PRODUCTION PLANS ROUTES
+// PRODUCTION PLANS
 // ============================================================================
 
 /**
- * Validate production plan nodes for completeness and data integrity (CANONICAL SCHEMA)
+ * Validate production plan nodes for completeness and data integrity
  * Ensures all nodes have required fields before plan can be saved
  * 
  * @param {Array} nodes - Array of plan nodes (canonical schema)
@@ -1227,12 +1204,10 @@ function validateProductionPlanNodes(nodes) {
 }
 
 // ============================================================================
-// TEMPLATES ROUTES (SQL MIGRATION - STEP 10)
+// TEMPLATES
 // ============================================================================
-// Templates are just production plans with status='template'
-// Same table, different status - no separate template table needed!
 
-// GET /api/mes/templates - Get all templates (SQL)
+// GET /api/mes/templates
 router.get('/templates', withAuth, async (req, res) => {
   try {
     const templates = await db('mes.production_plans as p')
@@ -1261,9 +1236,7 @@ router.get('/templates', withAuth, async (req, res) => {
   }
 });
 
-// POST /api/mes/templates - Create template (SQL)
-// Templates are just production plans with status='template'
-// They can be copied to create real production plans
+// POST /api/mes/templates
 router.post('/templates', withAuth, async (req, res) => {
   const { workOrderCode, quoteId, nodes } = req.body;
   
@@ -1377,7 +1350,7 @@ router.post('/templates', withAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/mes/templates/:id - Delete template (SQL)
+// DELETE /api/mes/templates/:id
 router.delete('/templates/:id', withAuth, async (req, res) => {
   const { id } = req.params;
   
@@ -1524,16 +1497,7 @@ router.post('/materials/check-availability', withAuth, async (req, res) => {
   }
 });
 
-// ============================================================================
-// ORDERS ROUTES - REMOVED (STEP 14)
-// ============================================================================
-// ❌ GET /orders endpoint REMOVED
-// Reason: MES uses mes.work_orders, not mes-orders
-// mes-orders collection was never used in production
-// Materials orders are in materials.orders (supplier orders)
-// This endpoint served no purpose and caused confusion
-
-// PATCH /api/mes/approved-quotes/:workOrderCode/production-state - Update production state (SQL)
+// PATCH /api/mes/approved-quotes/:workOrderCode/production-state
 router.patch('/approved-quotes/:workOrderCode/production-state', withAuth, async (req, res) => {
   try {
     const { workOrderCode } = req.params;
@@ -1677,8 +1641,7 @@ router.get('/worker-assignments/:workerId', withAuth, async (req, res) => {
   }
 });
 
-// POST /api/mes/worker-assignments/:id/start - Worker starts a task
-// ✅ MIGRATED TO SQL - STEP 8
+// POST /api/mes/worker-assignments/:id/start
 router.post('/worker-assignments/:id/start', withAuth, async (req, res) => {
   const { id } = req.params;
   
@@ -1727,9 +1690,6 @@ router.post('/worker-assignments/:id/start', withAuth, async (req, res) => {
         started_at: trx.fn.now()
       });
     
-    // TODO: Reserve materials (FIFO deduction)
-    // This will be implemented in materials management phase
-    
     await trx.commit();
     
     res.json({ 
@@ -1745,8 +1705,7 @@ router.post('/worker-assignments/:id/start', withAuth, async (req, res) => {
   }
 });
 
-// POST /api/mes/worker-assignments/:id/complete - Worker completes a task
-// ✅ MIGRATED TO SQL - STEP 8
+// POST /api/mes/worker-assignments/:id/complete
 router.post('/worker-assignments/:id/complete', withAuth, async (req, res) => {
   const { id } = req.params;
   const { actualQuantity, notes } = req.body;
@@ -1835,10 +1794,10 @@ router.post('/worker-assignments/:id/complete', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// SCRAP MANAGEMENT ENDPOINTS
+// SCRAP MANAGEMENT
 // ============================================================================
 
-// POST /api/mes/work-packages/:id/scrap - Record scrap entry during task (SQL)
+// POST /api/mes/work-packages/:id/scrap
 router.post('/work-packages/:id/scrap', withAuth, async (req, res) => {
   const { id: assignmentId } = req.params;
   const { scrapType, entry } = req.body;
@@ -1909,7 +1868,7 @@ router.post('/work-packages/:id/scrap', withAuth, async (req, res) => {
   }
 });
 
-// GET /api/mes/work-packages/:id/scrap - Get current scrap log (SQL)
+// GET /api/mes/work-packages/:id/scrap
 router.get('/work-packages/:id/scrap', withAuth, async (req, res) => {
   const { id: assignmentId } = req.params;
   
@@ -1936,7 +1895,7 @@ router.get('/work-packages/:id/scrap', withAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/mes/work-packages/:id/scrap/:scrapType/:materialCode/:quantity - Decrease scrap counter (SQL)
+// DELETE /api/mes/work-packages/:id/scrap/:scrapType/:materialCode/:quantity
 router.delete('/work-packages/:id/scrap/:scrapType/:materialCode/:quantity', withAuth, async (req, res) => {
   const { id: assignmentId, scrapType, materialCode, quantity } = req.params;
   const decrementAmount = parseFloat(quantity);
@@ -1997,14 +1956,10 @@ router.delete('/work-packages/:id/scrap/:scrapType/:materialCode/:quantity', wit
 });
 
 // ============================================================================
-// ALERTS ROUTES
+// ALERTS
 // ============================================================================
 
-// ============================================================================
-// ALERTS ROUTES (SQL MIGRATION - STEP 11)
-// ============================================================================
-
-// GET /api/mes/alerts - Get alerts with optional filtering (SQL)
+// GET /api/mes/alerts
 router.get('/alerts', withAuth, async (req, res) => {
   try {
     const { type, status, limit } = req.query;
@@ -2065,10 +2020,10 @@ router.get('/alerts', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// SUB-STATIONS ROUTES (SQL MIGRATION - STEP 4)
+// SUB-STATIONS
 // ============================================================================
 
-// GET /api/mes/substations - Get all substations (SQL)
+// GET /api/mes/substations
 router.get('/substations', withAuth, async (req, res) => {
   try {
     const { stationId } = req.query;
@@ -2165,7 +2120,6 @@ router.post('/substations/reset-all', withAuth, async (req, res) => {
     console.log('🔧 Resetting all substations to active state...');
     
     // Simple reset: ensure all substations are active
-    // Note: Worker assignments and task tracking will be implemented in Phase 2
     const result = await db('mes.substations')
       .update({
         is_active: true,
@@ -2254,8 +2208,8 @@ router.get('/substations/:id/details', withAuth, async (req, res) => {
     const substation = await db('mes.substations as s')
       .select(
         's.id',
-        's.name',
-        's.station_id',
+        's.name as code',
+        's.station_id as stationId',
         's.description',
         's.is_active',
         's.created_at',
@@ -2269,13 +2223,112 @@ router.get('/substations/:id/details', withAuth, async (req, res) => {
     if (!substation) {
       return res.status(404).json({ error: 'Substation not found' });
     }
-    
-    // Note: Active assignments and task tracking will be implemented in Phase 2
-    // For now, return basic substation info with station details
+
+    // Get current active task
+    const currentTask = await db('mes.worker_assignments as wa')
+      .select(
+        'wa.id as assignmentId',
+        'wa.work_package_id as workPackageId',
+        'wa.operation_name as operationName',
+        'wa.status',
+        'wa.actual_start_time as actualStart',
+        'wa.planned_end_time as plannedEnd',
+        'wa.estimated_time as estimatedTime',
+        'wa.material_inputs as materialInputs',
+        'wa.material_outputs as materialOutputs',
+        'w.name as workerName'
+      )
+      .leftJoin('mes.workers as w', 'wa.worker_id', 'w.id')
+      .where('wa.substation_id', id)
+      .where('wa.status', 'active')
+      .first();
+
+    // Calculate time remaining if task is active
+    let currentTaskWithTime = null;
+    if (currentTask) {
+      const now = new Date();
+      const plannedEnd = currentTask.plannedEnd ? new Date(currentTask.plannedEnd) : null;
+      const timeRemaining = plannedEnd ? Math.max(0, Math.round((plannedEnd - now) / 60000)) : null;
+      
+      // Parse JSONB fields
+      const materialInputs = typeof currentTask.materialInputs === 'string' 
+        ? JSON.parse(currentTask.materialInputs) 
+        : currentTask.materialInputs || {};
+      const materialOutputs = typeof currentTask.materialOutputs === 'string' 
+        ? JSON.parse(currentTask.materialOutputs) 
+        : currentTask.materialOutputs || {};
+      
+      currentTaskWithTime = {
+        ...currentTask,
+        timeRemaining,
+        materialInputs,
+        materialOutputs
+      };
+    }
+
+    // Get upcoming tasks (pending, queued)
+    const upcomingTasks = await db('mes.worker_assignments as wa')
+      .select(
+        'wa.id as assignmentId',
+        'wa.work_package_id as workPackageId',
+        'wa.operation_name as operationName',
+        'wa.status',
+        'wa.planned_start_time as plannedStart',
+        'wa.estimated_time as estimatedTime',
+        'wa.sequence_number as sequenceNumber',
+        'w.name as workerName'
+      )
+      .leftJoin('mes.workers as w', 'wa.worker_id', 'w.id')
+      .where('wa.substation_id', id)
+      .whereIn('wa.status', ['pending', 'queued'])
+      .orderBy('wa.sequence_number', 'asc')
+      .limit(5);
+
+    // Get performance metrics (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const completedTasks = await db('mes.worker_assignments')
+      .where('substation_id', id)
+      .where('status', 'completed')
+      .where('actual_end_time', '>=', thirtyDaysAgo)
+      .select(
+        db.raw('COUNT(*) as total_completed'),
+        db.raw('AVG(EXTRACT(EPOCH FROM (actual_end_time - actual_start_time)) / 60) as avg_duration'),
+        db.raw('SUM(output_quantity) as total_output'),
+        db.raw('SUM(defect_quantity) as total_defects')
+      )
+      .first();
+
+    const totalCompleted = parseInt(completedTasks?.total_completed || 0);
+    const totalOutput = parseInt(completedTasks?.total_output || 0);
+    const totalDefects = parseInt(completedTasks?.total_defects || 0);
+    const avgDuration = completedTasks?.avg_duration ? Math.round(parseFloat(completedTasks.avg_duration)) : 0;
+    const qualityRate = totalOutput > 0 ? (((totalOutput - totalDefects) / totalOutput) * 100).toFixed(1) : null;
+
     res.json({
-      ...substation,
-      currentTask: null,
-      upcomingTasks: []
+      substation: {
+        id: substation.id,
+        code: substation.code,
+        stationId: substation.stationId,
+        stationName: substation.station_name,
+        description: substation.description,
+        status: substation.is_active ? 'active' : 'inactive'
+      },
+      currentTask: currentTaskWithTime,
+      upcomingTasks: upcomingTasks.map(task => ({
+        ...task,
+        materialInputs: task.materialInputs || {},
+        materialOutputs: task.materialOutputs || {}
+      })),
+      performance: {
+        totalCompleted,
+        avgDuration,
+        totalOutputQuantity: totalOutput,
+        totalDefects,
+        qualityRate,
+        period: 'Son 30 gün'
+      }
     });
   } catch (error) {
     console.error('Error fetching substation details:', error);
@@ -2381,12 +2434,6 @@ function buildTopologicalOrder(nodes) {
   return { order, success: true };
 }
 
-
-/**
- * Validate material availability for plan launch
- * NOTE: Uses unified 'materials' collection (mes-materials has been removed)
- * DEPRECATED: Use validateMaterialAvailabilityForLaunch instead (non-blocking)
- */
 
 /**
  * Helper function: Adjust start time to next valid work block
@@ -4046,226 +4093,9 @@ router.delete('/production-plans/:id', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// PHASE 2: NODE MANAGEMENT ENDPOINTS
 // ============================================================================
-
-/**
- * POST /api/mes/production-plans/:planId/nodes
- * Add new node to existing plan
- */
-router.post('/production-plans/:planId/nodes', withAuth, async (req, res) => {
-  const { planId } = req.params;
-  const { name, operationId, outputCode, outputQty, outputUnit, nominalTime, efficiency, sequenceOrder, stationIds, materialInputs } = req.body;
-  
-  const trx = await db.transaction();
-  
-  try {
-    // Verify plan exists and is draft
-    const plan = await trx('mes.production_plans')
-      .where('id', planId)
-      .where('status', 'draft')
-      .first();
-    
-    if (!plan) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Plan not found or not in draft status' });
-    }
-    
-    // Insert node
-    const [nodeRecord] = await trx('mes.production_plan_nodes')
-      .insert({
-        plan_id: planId,
-        node_id: `${planId}-node-${sequenceOrder}`,
-        work_order_code: plan.work_order_code,
-        name,
-        operation_id: operationId,
-        output_code: outputCode,
-        output_qty: outputQty,
-        output_unit: outputUnit,
-        nominal_time: nominalTime,
-        efficiency: efficiency || 1.0,
-        effective_time: Math.ceil(nominalTime / (efficiency || 1.0)),
-        sequence_order: sequenceOrder,
-        assignment_mode: 'auto',
-        created_at: trx.fn.now()
-      })
-      .returning('*');
-    
-    // Insert material inputs
-    if (materialInputs && materialInputs.length > 0) {
-      const materials = materialInputs.map(m => ({
-        node_id: nodeRecord.id,
-        material_code: m.materialCode,
-        required_quantity: m.requiredQuantity,
-        unit_ratio: m.unitRatio || 1.0,
-        is_derived: m.isDerived || false,
-        created_at: trx.fn.now()
-      }));
-      await trx('mes.node_material_inputs').insert(materials);
-    }
-    
-    // Insert station assignments
-    if (stationIds && stationIds.length > 0) {
-      const stations = stationIds.map((stId, idx) => ({
-        node_id: nodeRecord.id,
-        station_id: stId,
-        priority: idx + 1,
-        created_at: trx.fn.now()
-      }));
-      await trx('mes.node_stations').insert(stations);
-    }
-    
-    await trx.commit();
-    
-    console.log(`✅ Node added to plan ${planId}: ${name}`);
-    res.json(nodeRecord);
-    
-  } catch (error) {
-    await trx.rollback();
-    console.error('❌ Error adding node:', error);
-    res.status(500).json({ error: 'Failed to add node', details: error.message });
-  }
-});
-
-/**
- * PUT /api/mes/production-plans/:planId/nodes/:nodeId
- * Update existing node
- */
-router.put('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res) => {
-  const { planId, nodeId } = req.params;
-  const { name, nominalTime, efficiency, outputQty, stationIds, materialInputs } = req.body;
-  
-  const trx = await db.transaction();
-  
-  try {
-    // Verify plan is draft
-    const plan = await trx('mes.production_plans')
-      .where('id', planId)
-      .where('status', 'draft')
-      .first();
-    
-    if (!plan) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Plan not found or not in draft status' });
-    }
-    
-    // Update node
-    const updateData = {
-      updated_at: trx.fn.now()
-    };
-    
-    if (name) updateData.name = name;
-    if (nominalTime) {
-      updateData.nominal_time = nominalTime;
-      updateData.effective_time = Math.ceil(nominalTime / (efficiency || 1.0));
-    }
-    if (efficiency) {
-      updateData.efficiency = efficiency;
-      updateData.effective_time = Math.ceil(updateData.nominal_time / efficiency);
-    }
-    if (outputQty) updateData.output_qty = outputQty;
-    
-    const [updated] = await trx('mes.production_plan_nodes')
-      .where('id', nodeId)
-      .where('plan_id', planId)
-      .update(updateData)
-      .returning('*');
-    
-    if (!updated) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Node not found' });
-    }
-    
-    // Update stations if provided
-    if (stationIds) {
-      await trx('mes.node_stations').where('node_id', nodeId).delete();
-      
-      if (stationIds.length > 0) {
-        const stations = stationIds.map((stId, idx) => ({
-          node_id: nodeId,
-          station_id: stId,
-          priority: idx + 1,
-          created_at: trx.fn.now()
-        }));
-        await trx('mes.node_stations').insert(stations);
-      }
-    }
-    
-    // Update materials if provided
-    if (materialInputs) {
-      await trx('mes.node_material_inputs').where('node_id', nodeId).delete();
-      
-      if (materialInputs.length > 0) {
-        const materials = materialInputs.map(m => ({
-          node_id: nodeId,
-          material_code: m.materialCode,
-          required_quantity: m.requiredQuantity,
-          unit_ratio: m.unitRatio || 1.0,
-          is_derived: m.isDerived || false,
-          created_at: trx.fn.now()
-        }));
-        await trx('mes.node_material_inputs').insert(materials);
-      }
-    }
-    
-    await trx.commit();
-    
-    console.log(`✅ Node updated: ${updated.name}`);
-    res.json(updated);
-    
-  } catch (error) {
-    await trx.rollback();
-    console.error('❌ Error updating node:', error);
-    res.status(500).json({ error: 'Failed to update node', details: error.message });
-  }
-});
-
-/**
- * DELETE /api/mes/production-plans/:planId/nodes/:nodeId
- * Delete node from plan
- */
-router.delete('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res) => {
-  const { planId, nodeId } = req.params;
-  
-  const trx = await db.transaction();
-  
-  try {
-    // Verify plan is draft
-    const plan = await trx('mes.production_plans')
-      .where('id', planId)
-      .where('status', 'draft')
-      .first();
-    
-    if (!plan) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Plan not found or not in draft status' });
-    }
-    
-    // Delete node (cascade will handle materials and stations)
-    const deleted = await trx('mes.production_plan_nodes')
-      .where('id', nodeId)
-      .where('plan_id', planId)
-      .delete();
-    
-    if (!deleted) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Node not found' });
-    }
-    
-    await trx.commit();
-    
-    console.log(`✅ Node deleted from plan ${planId}`);
-    res.json({ success: true, nodeId });
-    
-  } catch (error) {
-    await trx.rollback();
-    console.error('❌ Error deleting node:', error);
-    res.status(500).json({ error: 'Failed to delete node', details: error.message });
-  }
-});
-
+// ENHANCED LAUNCH ALGORITHM - HELPER FUNCTIONS
 // ============================================================================
-// PHASE 3: ENHANCED LAUNCH ALGORITHM - HELPER FUNCTIONS
 // ============================================================================
 
 /**
@@ -4446,18 +4276,9 @@ function calculateParallelPaths(executionOrder, predecessors) {
   return maxLevel + 1;
 }
 
-// ============================================================================
-// PHASE 3: ENHANCED LAUNCH ENDPOINT
-// ============================================================================
-
 /**
  * POST /api/mes/production-plans/:id/launch
- * Launch plan with enhanced algorithm:
- * - Shift-aware worker scheduling
- * - Queue management
- * - Parallel node execution
- * - Skill-based matching
- * - Summary response
+ * Launch plan with enhanced algorithm
  */
 router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
   const { id } = req.params;
@@ -4753,7 +4574,9 @@ router.post('/production-plans/:id/resume', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// PHASE 2: NODE DESIGN - Node Management Endpoints
+// ============================================================================
+// NODE MANAGEMENT
+// ============================================================================
 // ============================================================================
 
 /**

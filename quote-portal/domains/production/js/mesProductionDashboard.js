@@ -7,6 +7,15 @@ let charts = {
   material: null
 };
 
+// SSE connections for real-time updates
+let eventSources = {
+  assignments: null,
+  plans: null,
+  workers: null
+};
+
+let isInitialized = false;
+
 // Initialize dashboard on load
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Dashboard DOM loaded, starting data load...');
@@ -15,11 +24,190 @@ document.addEventListener('DOMContentLoaded', async () => {
     bottleneck: document.getElementById('bottleneck-chart'),
     material: document.getElementById('material-chart')
   });
-  await loadDashboardData();
   
-  // Auto-refresh every 30 seconds
-  setInterval(loadDashboardData, 30000);
+  // Initial load
+  await loadDashboardData();
+  isInitialized = true;
+  
+  // Connect to SSE streams for real-time updates
+  connectSSEStreams();
+  
+  // Fallback polling every 5 minutes (in case SSE disconnects)
+  setInterval(loadDashboardData, 300000);
 });
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  disconnectSSEStreams();
+});
+
+// Connect to SSE streams
+function connectSSEStreams() {
+  console.log('🔌 Connecting to SSE streams...');
+  
+  // Assignments stream - triggers on task start/complete
+  connectSSE('assignments', '/stream/assignments', (data) => {
+    console.log('📨 SSE: Assignment updated', data);
+    if (isInitialized) {
+      // Refresh relevant metrics
+      refreshWorkerUtilization();
+      refreshProductionVelocity();
+    }
+  });
+  
+  // Plans stream - triggers on plan launch/pause/resume
+  connectSSE('plans', '/stream/plans', (data) => {
+    console.log('📨 SSE: Plan updated', data);
+    if (isInitialized) {
+      // Refresh timeline and velocity
+      refreshMasterTimeline();
+      refreshProductionVelocity();
+    }
+  });
+  
+  // Workers stream - triggers on worker status change
+  connectSSE('workers', '/stream/workers', (data) => {
+    console.log('📨 SSE: Worker updated', data);
+    if (isInitialized) {
+      // Refresh utilization chart
+      refreshWorkerUtilization();
+    }
+  });
+}
+
+// Generic SSE connection helper with auto-reconnect
+function connectSSE(name, endpoint, onMessage) {
+  const url = `${API_BASE}/api/mes${endpoint}`;
+  
+  // Close existing connection if any
+  if (eventSources[name]) {
+    eventSources[name].close();
+  }
+  
+  const eventSource = new EventSource(url);
+  
+  eventSource.onopen = () => {
+    console.log(`✅ SSE connected: ${name}`);
+    updateSSEStatus();
+  };
+  
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      onMessage(data);
+    } catch (error) {
+      console.error(`SSE parse error (${name}):`, error);
+    }
+  };
+  
+  eventSource.onerror = (error) => {
+    console.error(`❌ SSE error (${name}):`, error);
+    eventSource.close();
+    updateSSEStatus();
+    
+    // Auto-reconnect after 5 seconds
+    setTimeout(() => {
+      console.log(`🔄 Reconnecting SSE: ${name}`);
+      connectSSE(name, endpoint, onMessage);
+    }, 5000);
+  };
+  
+  eventSources[name] = eventSource;
+}
+
+// Update SSE status indicator in UI
+function updateSSEStatus() {
+  const statusEl = document.getElementById('sse-status');
+  const statusText = document.getElementById('sse-status-text');
+  
+  if (!statusEl || !statusText) return;
+  
+  // Count connected streams
+  const connected = Object.values(eventSources).filter(es => 
+    es && es.readyState === EventSource.OPEN
+  ).length;
+  
+  const total = Object.keys(eventSources).length;
+  
+  if (connected === total && connected > 0) {
+    statusEl.className = 'sse-status connected';
+    statusText.textContent = `Live (${connected}/${total})`;
+  } else if (connected > 0) {
+    statusEl.className = 'sse-status';
+    statusText.textContent = `Connecting (${connected}/${total})`;
+  } else {
+    statusEl.className = 'sse-status disconnected';
+    statusText.textContent = 'Offline';
+  }
+}
+
+// Disconnect all SSE streams
+function disconnectSSEStreams() {
+  Object.keys(eventSources).forEach(name => {
+    if (eventSources[name]) {
+      eventSources[name].close();
+      eventSources[name] = null;
+      console.log(`🔌 SSE disconnected: ${name}`);
+    }
+  });
+}
+
+// Partial refresh functions (more efficient than full reload)
+async function refreshWorkerUtilization() {
+  try {
+    const utilization = await fetchAnalytics('/analytics/worker-utilization');
+    
+    // Update KPI card
+    document.getElementById('kpi-worker-util').textContent = `${utilization.utilizationRate}%`;
+    
+    // Calculate average efficiency
+    const activeWorkers = utilization.perWorker.filter(w => w.isActive);
+    const avgEfficiency = activeWorkers.length > 0
+      ? (activeWorkers.reduce((sum, w) => sum + w.efficiency, 0) / activeWorkers.length * 100)
+      : 0;
+    document.getElementById('kpi-efficiency').textContent = `${avgEfficiency.toFixed(0)}%`;
+    
+    // Update chart
+    renderWorkerUtilizationChart(utilization);
+    
+    // Update timestamp
+    updateTimestamp();
+  } catch (error) {
+    console.error('Worker utilization refresh failed:', error);
+  }
+}
+
+async function refreshProductionVelocity() {
+  try {
+    const velocity = await fetchAnalytics('/analytics/production-velocity');
+    
+    // Update KPI cards
+    document.getElementById('kpi-active-wo').textContent = velocity.overall.active;
+    document.getElementById('kpi-velocity').textContent = velocity.today.launched;
+    
+    // Update timestamp
+    updateTimestamp();
+  } catch (error) {
+    console.error('Production velocity refresh failed:', error);
+  }
+}
+
+async function refreshMasterTimeline() {
+  try {
+    const timeline = await fetchAnalytics('/analytics/master-timeline');
+    renderMasterGantt(timeline);
+    
+    // Update timestamp
+    updateTimestamp();
+  } catch (error) {
+    console.error('Master timeline refresh failed:', error);
+  }
+}
+
+function updateTimestamp() {
+  const timestamp = new Date().toLocaleString('tr-TR');
+  document.getElementById('last-updated').textContent = timestamp;
+}
 
 // Refresh button handler
 window.refreshDashboard = async () => {

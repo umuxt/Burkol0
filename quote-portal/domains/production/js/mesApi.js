@@ -22,7 +22,6 @@ function isReload() {
   try {
     const nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0]
     if (nav) return nav.type === 'reload'
-    // Legacy fallback
     const legacy = performance.navigation && performance.navigation.type
     return legacy === 1
   } catch { return false }
@@ -209,10 +208,10 @@ export async function getWorkerStations(workerId) {
   return data
 }
 
-// Materials API
-// NOTE: All materials are now stored in the unified 'materials' collection.
-// The 'mes-materials' collection has been removed from the codebase.
-// This function fetches materials from the single source of truth: 'materials'
+// ============================================================================
+// MATERIALS API
+// ============================================================================
+
 export async function getMaterials(force = false) {
   if (!force && Array.isArray(_materialsCache)) return _materialsCache
   // Use shared Materials API (Firestore 'materials' collection)
@@ -224,14 +223,12 @@ export async function getMaterials(force = false) {
   return _materialsCache
 }
 
-// Get general materials list (alias for getMaterials for consistency)
-// NOTE: This is now identical to getMaterials since we use a single 'materials' collection
+// Alias for getMaterials
 export async function getGeneralMaterials(force = false) {
   return getMaterials(force);
 }
 
-// Check material availability via MES API
-// NOTE: This endpoint queries the unified 'materials' collection only
+// Check material availability for production plans
 export async function checkMesMaterialAvailability(requiredMaterials) {
   try {
     // requiredMaterials format: [{code, name, required, unit}]
@@ -274,7 +271,10 @@ export async function checkMesMaterialAvailability(requiredMaterials) {
   }
 }
 
-// Production Plans API
+// ============================================================================
+// PRODUCTION PLANS API
+// ============================================================================
+
 export async function createProductionPlan(plan) {
   const res = await fetch(`${API_BASE}/api/mes/production-plans`, {
     method: 'POST',
@@ -366,12 +366,7 @@ export async function getNextProductionPlanId(year) {
   }
 }
 
-// Generate next template id: tpl-plan-YYYY-xxxxx
-// (No separate template id; we use production plan next-id for all)
-
 // Create or update a material
-// NOTE: Materials are stored in the unified 'materials' collection.
-// The 'mes-materials' collection has been removed.
 export async function createOrUpdateMaterial(material) {
   const res = await fetch(`${API_BASE}/api/materials`, {
     method: 'POST',
@@ -385,9 +380,7 @@ export async function createOrUpdateMaterial(material) {
   return data
 }
 
-// Upsert a produced WIP material from a plan node
-// NOTE: This creates/updates the WIP material definition. Actual stock movements
-// happen during plan release via the stock adjustment system.
+// Create or update WIP material from plan node
 export async function upsertProducedWipFromNode(node, ops = [], stations = []) {
   if (!node || !node.semiCode) return null
   const station = Array.isArray(stations)
@@ -434,7 +427,10 @@ export async function upsertProducedWipFromNode(node, ops = [], stations = []) {
 
 export function genId(prefix = '') { return `${prefix}${Math.random().toString(36).slice(2, 9)}` }
 
-// Worker assignments API
+// ============================================================================
+// WORKER ASSIGNMENTS API
+// ============================================================================
+
 export async function getWorkerAssignments(workerId, status = 'active') {
   const params = new URLSearchParams();
   if (status) params.append('status', status);
@@ -446,7 +442,10 @@ export async function getWorkerAssignments(workerId, status = 'active') {
   return data.assignments || [];
 }
 
-// Substations API
+// ============================================================================
+// SUBSTATIONS API
+// ============================================================================
+
 export async function getSubstations(stationId = null) {
   const params = new URLSearchParams();
   if (stationId) params.append('stationId', stationId);
@@ -489,7 +488,10 @@ export async function activateWorkerAssignments(planId, status = 'active') {
   return await response.json();
 }
 
-// Master Data (skills, operation types)
+// ============================================================================
+// MASTER DATA API
+// ============================================================================
+
 let _masterDataCache = null
 const MD_CHANGED_EVENT = 'master-data:changed'
 const MD_INVALIDATED_EVENT = 'master-data:invalidated'
@@ -689,7 +691,10 @@ export function invalidateStationsCache() {
   try { window.dispatchEvent(new CustomEvent(STATIONS_INVALIDATED_EVENT, { detail: { source: 'production' } })) } catch {}
 }
 
-// Approved Quotes (Work Orders) API
+// ============================================================================
+// APPROVED QUOTES (WORK ORDERS) API
+// ============================================================================
+
 export async function getApprovedQuotes() {
   const res = await fetch(`${API_BASE}/api/mes/approved-quotes?_t=${Date.now()}`, { headers: withAuth() })
   if (!res.ok) throw new Error(`approved_quotes_load_failed ${res.status}`)
@@ -1150,7 +1155,7 @@ if (typeof window !== 'undefined') {
 // ============================================================================
 
 /**
- * Get preview of semi-finished product code without committing
+ * Preview semi-finished product code
  * @param {Object} payload - { operationId, operationCode, stationId, materials: [{ id, qty, unit }] }
  * @returns {Promise<Object>} - { code, reserved, message? }
  */
