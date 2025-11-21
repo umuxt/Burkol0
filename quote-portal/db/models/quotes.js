@@ -55,21 +55,21 @@ class Quotes {
       const [quote] = await trx('quotes.quotes')
         .insert({
           id: quoteId,
-          customer_name: customerName,
-          customer_email: customerEmail,
-          customer_phone: customerPhone,
-          customer_company: customerCompany,
-          customer_address: customerAddress,
-          delivery_date: deliveryDate,
-          form_template_id: formTemplateId,
-          price_formula_id: priceFormulaId,
-          form_template_version: formTemplateVersion,
-          price_formula_version: priceFormulaVersion,
+          customerName: customerName,
+          customerEmail: customerEmail,
+          customerPhone: customerPhone,
+          customerCompany: customerCompany,
+          customerAddress: customerAddress,
+          deliveryDate: deliveryDate,
+          formTemplateId: formTemplateId,
+          priceFormulaId: priceFormulaId,
+          formTemplateVersion: formTemplateVersion,
+          priceFormulaVersion: priceFormulaVersion,
           status: 'new',
           notes,
-          created_by: createdBy,
-          created_at: db.fn.now(),
-          updated_at: db.fn.now()
+          createdBy: createdBy,
+          createdAt: db.fn.now(),
+          updatedAt: db.fn.now()
         })
         .returning('*');
 
@@ -86,11 +86,11 @@ class Quotes {
         await trx('quotes.quotes')
           .where('id', quoteId)
           .update({
-            calculated_price: calculation.totalPrice,
-            final_price: calculation.totalPrice,
-            last_calculated_at: db.fn.now(),
-            needs_recalculation: false,
-            price_status: 'current'
+            calculatedPrice: calculation.totalPrice,
+            finalPrice: calculation.totalPrice,
+            lastCalculatedAt: db.fn.now(),
+            needsRecalculation: false,
+            priceStatus: 'current'
           });
       }
 
@@ -114,21 +114,21 @@ class Quotes {
       .first();
 
     const fields = await trx('quotes.form_fields')
-      .where('template_id', quote.form_template_id)
-      .select('id', 'field_code');
+      .where('templateId', quote.formTemplateId)
+      .select('id', 'fieldCode');
 
     const formDataEntries = Object.entries(formData).map(([fieldCode, value]) => {
-      const field = fields.find(f => f.field_code === fieldCode);
+      const field = fields.find(f => f.fieldCode === fieldCode);
       if (!field) {
         return null;
       }
       return {
-        quote_id: quoteId,
-        field_id: field.id,
-        field_code: fieldCode,
-        field_value: String(value),
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
+        quoteId: quoteId,
+        fieldId: field.id,
+        fieldCode: fieldCode,
+        fieldValue: String(value),
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now()
       };
     }).filter(Boolean);
 
@@ -159,22 +159,22 @@ class Quotes {
     }
 
     if (filters.customerEmail) {
-      query = query.where('customer_email', filters.customerEmail);
+      query = query.where('customerEmail', filters.customerEmail);
     }
 
     if (filters.customerCompany) {
-      query = query.whereILike('customer_company', `%${filters.customerCompany}%`);
+      query = query.whereILike('customerCompany', `%${filters.customerCompany}%`);
     }
 
     if (filters.fromDate) {
-      query = query.where('created_at', '>=', filters.fromDate);
+      query = query.where('createdAt', '>=', filters.fromDate);
     }
 
     if (filters.toDate) {
-      query = query.where('created_at', '<=', filters.toDate);
+      query = query.where('createdAt', '<=', filters.toDate);
     }
 
-    const quotes = await query.orderBy('created_at', 'desc');
+    const quotes = await query.orderBy('createdAt', 'desc');
     return quotes;
   }
 
@@ -192,12 +192,12 @@ class Quotes {
 
     // Get form data
     const formData = await db('quotes.quote_form_data')
-      .where('quote_id', id)
-      .select('field_code', 'field_value');
+      .where('quoteId', id)
+      .select('fieldCode', 'fieldValue');
     
     const formDataObj = {};
     formData.forEach(item => {
-      formDataObj[item.field_code] = item.field_value;
+      formDataObj[item.fieldCode] = item.fieldValue;
     });
 
     // Get price calculation details
@@ -206,8 +206,8 @@ class Quotes {
 
     // Get files
     const files = await db('quotes.quote_files')
-      .where('quote_id', id)
-      .orderBy('created_at');
+      .where('quoteId', id)
+      .orderBy('createdAt');
 
     return {
       ...quote,
@@ -227,16 +227,16 @@ class Quotes {
       const updateData = {};
       
       // Update basic fields
-      if (updates.customerName) updateData.customer_name = updates.customerName;
-      if (updates.customerEmail) updateData.customer_email = updates.customerEmail;
-      if (updates.customerPhone) updateData.customer_phone = updates.customerPhone;
-      if (updates.customerCompany) updateData.customer_company = updates.customerCompany;
-      if (updates.customerAddress) updateData.customer_address = updates.customerAddress;
-      if (updates.deliveryDate !== undefined) updateData.delivery_date = updates.deliveryDate;
+      if (updates.customerName) updateData.customerName = updates.customerName;
+      if (updates.customerEmail) updateData.customerEmail = updates.customerEmail;
+      if (updates.customerPhone) updateData.customerPhone = updates.customerPhone;
+      if (updates.customerCompany) updateData.customerCompany = updates.customerCompany;
+      if (updates.customerAddress) updateData.customerAddress = updates.customerAddress;
+      if (updates.deliveryDate !== undefined) updateData.deliveryDate = updates.deliveryDate;
       if (updates.notes !== undefined) updateData.notes = updates.notes;
-      if (updates.updatedBy) updateData.updated_by = updates.updatedBy;
+      if (updates.updatedBy) updateData.updatedBy = updates.updatedBy;
       
-      updateData.updated_at = db.fn.now();
+      updateData.updatedAt = db.fn.now();
 
       const [quote] = await trx('quotes.quotes')
         .where('id', id)
@@ -247,24 +247,24 @@ class Quotes {
       if (updates.formData) {
         // Delete old form data
         await trx('quotes.quote_form_data')
-          .where('quote_id', id)
+          .where('quoteId', id)
           .delete();
         
         // Insert new form data
         await this._saveFormData(trx, id, updates.formData);
 
         // Recalculate price if formula exists
-        if (quote.price_formula_id) {
-          const calculation = await PriceFormulas.calculatePrice(quote.price_formula_id, updates.formData);
+        if (quote.priceFormulaId) {
+          const calculation = await PriceFormulas.calculatePrice(quote.priceFormulaId, updates.formData);
           
           await trx('quotes.quotes')
             .where('id', id)
             .update({
-              calculated_price: calculation.totalPrice,
-              final_price: quote.manual_price || calculation.totalPrice,
-              last_calculated_at: db.fn.now(),
-              needs_recalculation: false,
-              price_status: quote.manual_price ? 'manual' : 'current'
+              calculatedPrice: calculation.totalPrice,
+              finalPrice: quote.manualPrice || calculation.totalPrice,
+              lastCalculatedAt: db.fn.now(),
+              needsRecalculation: false,
+              priceStatus: quote.manualPrice ? 'manual' : 'current'
             });
 
           // Note: quote_price_details table removed - details not stored anymore
@@ -273,7 +273,7 @@ class Quotes {
           await trx('quotes.quotes')
             .where('id', id)
             .update({
-              needs_recalculation: true
+              needsRecalculation: true
             });
         }
       }
@@ -293,13 +293,13 @@ class Quotes {
   static async updateStatus(id, status, updatedBy) {
     const updateData = {
       status,
-      updated_by: updatedBy,
-      updated_at: db.fn.now()
+      updatedBy: updatedBy,
+      updatedAt: db.fn.now()
     };
 
     if (status === 'approved') {
-      updateData.approved_at = db.fn.now();
-      updateData.approved_by = updatedBy;
+      updateData.approvedAt = db.fn.now();
+      updateData.approvedBy = updatedBy;
     }
 
     const [quote] = await db('quotes.quotes')
@@ -322,8 +322,8 @@ class Quotes {
         await db('quotes.quotes')
           .where('id', id)
           .update({
-            work_order_code: workOrder.code,
-            updated_at: db.fn.now()
+            workOrderCode: workOrder.code,
+            updatedAt: db.fn.now()
           });
       } catch (error) {
         console.error(`❌ Failed to create work order for quote ${id}:`, error);
@@ -341,12 +341,12 @@ class Quotes {
     const [quote] = await db('quotes.quotes')
       .where('id', id)
       .update({
-        manual_price: manualPrice,
-        manual_price_reason: reason,
-        final_price: manualPrice,
-        price_status: 'manual',
-        updated_by: updatedBy,
-        updated_at: db.fn.now()
+        manualPrice: manualPrice,
+        manualPriceReason: reason,
+        finalPrice: manualPrice,
+        priceStatus: 'manual',
+        updatedBy: updatedBy,
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -359,16 +359,16 @@ class Quotes {
   static async addFile({ quoteId, fileType, fileName, filePath, mimeType, fileSize, description, uploadedBy }) {
     const [file] = await db('quotes.quote_files')
       .insert({
-        quote_id: quoteId,
-        file_type: fileType,
-        file_name: fileName,
-        file_path: filePath,
-        mime_type: mimeType,
-        file_size: fileSize,
+        quoteId: quoteId,
+        fileType: fileType,
+        fileName: fileName,
+        filePath: filePath,
+        mimeType: mimeType,
+        fileSize: fileSize,
         description,
-        uploaded_by: uploadedBy,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
+        uploadedBy: uploadedBy,
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -404,22 +404,22 @@ class Quotes {
     let query = db('quotes.quotes');
 
     if (filters.fromDate) {
-      query = query.where('created_at', '>=', filters.fromDate);
+      query = query.where('createdAt', '>=', filters.fromDate);
     }
 
     if (filters.toDate) {
-      query = query.where('created_at', '<=', filters.toDate);
+      query = query.where('createdAt', '<=', filters.toDate);
     }
 
     const stats = await query
       .select(
-        db.raw('COUNT(*) as total_quotes'),
-        db.raw("COUNT(*) FILTER (WHERE status = 'new') as new_quotes"),
-        db.raw("COUNT(*) FILTER (WHERE status = 'pending') as pending_quotes"),
-        db.raw("COUNT(*) FILTER (WHERE status = 'approved') as approved_quotes"),
-        db.raw("COUNT(*) FILTER (WHERE status = 'rejected') as rejected_quotes"),
-        db.raw('SUM(final_price) as total_value'),
-        db.raw("SUM(final_price) FILTER (WHERE status = 'approved') as approved_value")
+        db.raw('COUNT(*) as "totalQuotes"'),
+        db.raw("COUNT(*) FILTER (WHERE status = 'new') as \"newQuotes\""),
+        db.raw("COUNT(*) FILTER (WHERE status = 'pending') as \"pendingQuotes\""),
+        db.raw("COUNT(*) FILTER (WHERE status = 'approved') as \"approvedQuotes\""),
+        db.raw("COUNT(*) FILTER (WHERE status = 'rejected') as \"rejectedQuotes\""),
+        db.raw('SUM("finalPrice") as "totalValue"'),
+        db.raw("SUM(\\\"finalPrice\\\") FILTER (WHERE status = 'approved') as \"approvedValue\"")
       )
       .first();
 
@@ -433,16 +433,16 @@ class Quotes {
     let query = db('quotes.quotes');
 
     if (criteria.formTemplateId) {
-      query = query.where('form_template_id', criteria.formTemplateId);
+      query = query.where('formTemplateId', criteria.formTemplateId);
     }
 
     if (criteria.priceFormulaId) {
-      query = query.where('price_formula_id', criteria.priceFormulaId);
+      query = query.where('priceFormulaId', criteria.priceFormulaId);
     }
 
     const count = await query.update({
-      needs_recalculation: true,
-      updated_at: db.fn.now()
+      needsRecalculation: true,
+      updatedAt: db.fn.now()
     });
 
     return count;
@@ -453,9 +453,9 @@ class Quotes {
    */
   static async getNeedingRecalculation() {
     const quotes = await db('quotes.quotes')
-      .where('needs_recalculation', true)
+      .where('needsRecalculation', true)
       .whereNotIn('status', ['cancelled', 'rejected'])
-      .orderBy('created_at', 'desc');
+      .orderBy('createdAt', 'desc');
     
     return quotes;
   }
@@ -469,32 +469,32 @@ class Quotes {
     try {
       const quote = await trx('quotes.quotes').where('id', id).first();
       
-      if (!quote || !quote.price_formula_id) {
+      if (!quote || !quote.priceFormulaId) {
         throw new Error('Quote not found or has no formula');
       }
 
       // Get form data
       const formDataRows = await trx('quotes.quote_form_data')
-        .where('quote_id', id);
+        .where('quoteId', id);
       
       const formData = {};
       formDataRows.forEach(row => {
-        formData[row.field_code] = row.field_value;
+        formData[row.fieldCode] = row.fieldValue;
       });
 
       // Calculate price
-      const calculation = await PriceFormulas.calculatePrice(quote.price_formula_id, formData);
+      const calculation = await PriceFormulas.calculatePrice(quote.priceFormulaId, formData);
       
       // Update quote
       await trx('quotes.quotes')
         .where('id', id)
         .update({
-          calculated_price: calculation.totalPrice,
-          final_price: quote.manual_price || calculation.totalPrice,
-          last_calculated_at: db.fn.now(),
-          needs_recalculation: false,
-          price_status: quote.manual_price ? 'manual' : 'current',
-          updated_at: db.fn.now()
+          calculatedPrice: calculation.totalPrice,
+          finalPrice: quote.manualPrice || calculation.totalPrice,
+          lastCalculatedAt: db.fn.now(),
+          needsRecalculation: false,
+          priceStatus: quote.manualPrice ? 'manual' : 'current',
+          updatedAt: db.fn.now()
         });
 
       await trx.commit();

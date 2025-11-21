@@ -14,13 +14,13 @@ class PriceFormulas {
       .insert({
         code,
         name,
-        formula_expression: formulaExpression,
+        formulaExpression: formulaExpression,
         description,
         version,
-        is_active: isActive,
-        created_by: createdBy,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
+        isActive: isActive,
+        createdBy: createdBy,
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -34,14 +34,14 @@ class PriceFormulas {
     let query = db('quotes.price_formulas');
 
     if (filters.isActive !== undefined) {
-      query = query.where('is_active', filters.isActive);
+      query = query.where('isActive', filters.isActive);
     }
 
     if (filters.code) {
       query = query.where('code', filters.code);
     }
 
-    const formulas = await query.orderBy('created_at', 'desc');
+    const formulas = await query.orderBy('createdAt', 'desc');
     return formulas;
   }
 
@@ -72,7 +72,7 @@ class PriceFormulas {
    */
   static async getActive() {
     const formula = await db('quotes.price_formulas')
-      .where('is_active', true)
+      .where('isActive', true)
       .orderBy('version', 'desc')
       .first();
     
@@ -87,10 +87,10 @@ class PriceFormulas {
       .where('id', id)
       .update({
         name: updates.name,
-        formula_expression: updates.formulaExpression,
+        formulaExpression: updates.formulaExpression,
         description: updates.description,
-        is_active: updates.isActive,
-        updated_at: db.fn.now()
+        isActive: updates.isActive,
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -110,19 +110,27 @@ class PriceFormulas {
 
   /**
    * Link parameter to formula
+   * DEPRECATED: price_formula_parameters table removed in migration 021
+   * Parameters are now parsed from formula_expression
    */
   static async addParameter({ formulaId, parameterId, sortOrder = 0 }) {
+    // Table removed - this method is deprecated
+    console.warn('DEPRECATED: PriceFormulas.addParameter() - price_formula_parameters table removed');
+    return null;
+    
+    /* DEAD CODE - table removed
     const [link] = await db('quotes.price_formula_parameters')
       .insert({
-        formula_id: formulaId,
-        parameter_id: parameterId,
-        sort_order: sortOrder,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
+        formulaId: formulaId,
+        parameterId: parameterId,
+        sortOrder: sortOrder,
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
     return link;
+    */
   }
 
   /**
@@ -310,13 +318,13 @@ class PriceFormulas {
         .insert({
           code,
           name,
-          formula_expression: formulaExpression,
+          formulaExpression: formulaExpression,
           description,
           version: version || 1,
-          is_active: isActive !== undefined ? isActive : true,
-          created_by: createdBy,
-          created_at: db.fn.now(),
-          updated_at: db.fn.now()
+          isActive: isActive !== undefined ? isActive : true,
+          createdBy: createdBy,
+          createdAt: db.fn.now(),
+          updatedAt: db.fn.now()
         })
         .returning('*');
 
@@ -372,21 +380,21 @@ class PriceFormulas {
       // Deactivate current formula
       await trx('quotes.price_formulas')
         .where('id', formulaId)
-        .update({ is_active: false, updated_at: db.fn.now() });
+        .update({ isActive: false, updatedAt: db.fn.now() });
 
       // Create new version
       const [newFormula] = await trx('quotes.price_formulas')
         .insert({
           code: currentFormula.code,
           name: name || currentFormula.name,
-          formula_expression: formulaExpression || currentFormula.formula_expression,
+          formulaExpression: formulaExpression || currentFormula.formulaExpression,
           description: description || currentFormula.description,
           version: currentFormula.version + 1,
-          is_active: true,
-          supersedes_id: formulaId,
-          created_by: createdBy,
-          created_at: db.fn.now(),
-          updated_at: db.fn.now()
+          isActive: true,
+          supersedesId: formulaId,
+          createdBy: createdBy,
+          createdAt: db.fn.now(),
+          updatedAt: db.fn.now()
         })
         .returning('*');
 
@@ -428,12 +436,12 @@ class PriceFormulas {
       // Deactivate all other versions with same code
       await trx('quotes.price_formulas')
         .where('code', formula.code)
-        .update({ is_active: false, updated_at: db.fn.now() });
+        .update({ isActive: false, updatedAt: db.fn.now() });
 
       // Activate this version
       await trx('quotes.price_formulas')
         .where('id', formulaId)
-        .update({ is_active: true, updated_at: db.fn.now() });
+        .update({ isActive: true, updatedAt: db.fn.now() });
 
       await trx.commit();
       return await this.getById(formulaId);

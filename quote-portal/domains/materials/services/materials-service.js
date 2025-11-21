@@ -1,5 +1,4 @@
 // Materials Service - Backend API kullanarak
-// Backend API ile Firebase Admin SDK, frontend'de API call'lar yapıyoruz
 
 import { fetchWithTimeout } from '../../../shared/lib/api.js'
 

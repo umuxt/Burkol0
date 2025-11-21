@@ -17,9 +17,9 @@ export async function getAllSuppliers() {
     const suppliers = await db(SUPPLIERS_TABLE)
       .select(
         'materials.suppliers.*',
-        db.raw('COUNT(DISTINCT material_supplier_relation.material_id) as supplied_materials_count')
+        db.raw('COUNT(DISTINCT material_supplier_relation."materialId") as "suppliedMaterialsCount"')
       )
-      .leftJoin('materials.material_supplier_relation', 'materials.suppliers.id', 'material_supplier_relation.supplier_id')
+      .leftJoin('materials.material_supplier_relation', 'materials.suppliers.id', 'material_supplier_relation.supplierId')
       .groupBy('materials.suppliers.id')
       .orderBy('materials.suppliers.code', 'asc')
     
@@ -33,17 +33,17 @@ export async function getAllSuppliers() {
             'materials.materials.name',
             'materials.materials.category',
             'materials.materials.unit',
-            'material_supplier_relation.is_primary',
-            'material_supplier_relation.cost_price'
+            'material_supplier_relation.isPrimary',
+            'material_supplier_relation.costPrice'
           )
-          .join('materials.materials', 'material_supplier_relation.material_id', 'materials.materials.id')
-          .where('material_supplier_relation.supplier_id', supplier.id)
+          .join('materials.materials', 'material_supplier_relation.materialId', 'materials.materials.id')
+          .where('material_supplier_relation.supplierId', supplier.id)
           .orderBy('materials.materials.code', 'asc')
         
         return {
           ...supplier,
-          supplied_materials_count: parseInt(supplier.supplied_materials_count) || 0,
-          supplied_materials: materials // Frontend expects this field
+          suppliedMaterialsCount: parseInt(supplier.suppliedMaterialsCount) || 0,
+          suppliedMaterials: materials // Frontend expects this field
         }
       })
     )
@@ -62,7 +62,7 @@ export async function getActiveSuppliers() {
   try {
     const suppliers = await db(SUPPLIERS_TABLE)
       .select('*')
-      .where({ is_active: true })
+      .where({ isActive: true })
       .orderBy('code', 'asc')
     
     return suppliers
@@ -148,62 +148,62 @@ export async function createSupplier(supplierData, suppliedMaterials = []) {
       .insert({
         code: code,
         name: supplierData.name,
-        contact_person: supplierData.contact_person || supplierData.contactPerson || null,
+        contactPerson: supplierData.contact_person || supplierData.contactPerson || null,
         email: supplierData.email || null,
         phone: supplierData.phone || null,
         phone2: supplierData.phone2 || null,
         email2: supplierData.email2 || null,
         fax: supplierData.fax || null,
-        emergency_contact: supplierData.emergency_contact || null,
-        emergency_phone: supplierData.emergency_phone || null,
+        emergencyContact: supplierData.emergency_contact || supplierData.emergencyContact || null,
+        emergencyPhone: supplierData.emergency_phone || supplierData.emergencyPhone || null,
         website: supplierData.website || null,
-        preferred_communication: supplierData.preferred_communication || null,
+        preferredCommunication: supplierData.preferred_communication || supplierData.preferredCommunication || null,
         address: supplierData.address || null,
         city: supplierData.city || null,
         state: supplierData.state || null,
-        postal_code: supplierData.postal_code || null,
+        postalCode: supplierData.postal_code || supplierData.postalCode || null,
         country: supplierData.country || null,
-        tax_number: supplierData.tax_number || null,
-        tax_office: supplierData.tax_office || null,
-        business_registration_number: supplierData.business_registration_number || null,
+        taxNumber: supplierData.tax_number || supplierData.taxNumber || null,
+        taxOffice: supplierData.tax_office || supplierData.taxOffice || null,
+        businessRegistrationNumber: supplierData.business_registration_number || supplierData.businessRegistrationNumber || null,
         currency: supplierData.currency || null,
-        credit_limit: supplierData.credit_limit || null,
-        credit_rating: supplierData.credit_rating || null,
-        payment_terms: supplierData.payment_terms || null,
-        payment_method: supplierData.payment_method || null,
-        bank_name: supplierData.bank_name || null,
-        bank_account: supplierData.bank_account || null,
+        creditLimit: supplierData.credit_limit || supplierData.creditLimit || null,
+        creditRating: supplierData.credit_rating || supplierData.creditRating || null,
+        paymentTerms: supplierData.payment_terms || supplierData.paymentTerms || null,
+        paymentMethod: supplierData.payment_method || supplierData.paymentMethod || null,
+        bankName: supplierData.bank_name || supplierData.bankName || null,
+        bankAccount: supplierData.bank_account || supplierData.bankAccount || null,
         iban: supplierData.iban || null,
-        supplier_type: supplierData.supplier_type || null,
-        quality_certification: supplierData.quality_certification || null,
-        delivery_capability: supplierData.delivery_capability || null,
-        lead_time_days: supplierData.lead_time_days || null,
-        minimum_order_quantity: supplierData.minimum_order_quantity || null,
-        year_established: supplierData.year_established || null,
-        employee_count: supplierData.employee_count || null,
-        annual_revenue: supplierData.annual_revenue || null,
-        compliance_status: supplierData.compliance_status || null,
-        risk_level: supplierData.risk_level || null,
+        supplierType: supplierData.supplier_type || supplierData.supplierType || null,
+        qualityCertification: supplierData.quality_certification || supplierData.qualityCertification || null,
+        deliveryCapability: supplierData.delivery_capability || supplierData.deliveryCapability || null,
+        leadTimeDays: supplierData.lead_time_days || supplierData.leadTimeDays || null,
+        minimumOrderQuantity: supplierData.minimum_order_quantity || supplierData.minimumOrderQuantity || null,
+        yearEstablished: supplierData.year_established || supplierData.yearEstablished || null,
+        employeeCount: supplierData.employee_count || supplierData.employeeCount || null,
+        annualRevenue: supplierData.annual_revenue || supplierData.annualRevenue || null,
+        complianceStatus: supplierData.compliance_status || supplierData.complianceStatus || null,
+        riskLevel: supplierData.risk_level || supplierData.riskLevel || null,
         notes: supplierData.notes || null,
         status: supplierData.status || 'Aktif',
-        is_active: supplierData.is_active !== false,
-        created_at: db.fn.now()
+        isActive: supplierData.is_active !== false,
+        createdAt: db.fn.now()
       })
       .returning('*')
     
     // Insert material-supplier relations
     if (suppliedMaterials && suppliedMaterials.length > 0) {
       const relations = suppliedMaterials.map(material => ({
-        material_id: material.id,
-        supplier_id: supplier.id,
-        is_primary: material.is_primary || false,
-        cost_price: material.cost_price || material.costPrice || null,
-        lead_time_days: material.lead_time_days || material.leadTime || null,
-        minimum_order_quantity: material.minimum_order_quantity || material.minimumOrderQuantity || null,
-        supplier_material_code: material.supplier_material_code || material.supplierMaterialCode || null,
+        materialId: material.id,
+        supplierId: supplier.id,
+        isPrimary: material.is_primary || material.isPrimary || false,
+        costPrice: material.cost_price || material.costPrice || null,
+        leadTimeDays: material.lead_time_days || material.leadTime || material.leadTimeDays || null,
+        minimumOrderQuantity: material.minimum_order_quantity || material.minimumOrderQuantity || null,
+        supplierMaterialCode: material.supplier_material_code || material.supplierMaterialCode || null,
         notes: material.notes || null,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now()
       }))
       
       await trx('materials.material_supplier_relation').insert(relations)
@@ -228,51 +228,76 @@ export async function updateSupplier(id, updates, suppliedMaterials = null) {
   
   try {
     const updateData = {
-      updated_at: db.fn.now()
+      updatedAt: db.fn.now()
     }
     
     // Update all fields if provided
     if (updates.code !== undefined) updateData.code = updates.code
     if (updates.name !== undefined) updateData.name = updates.name
-    if (updates.contact_person !== undefined) updateData.contact_person = updates.contact_person
+    if (updates.contact_person !== undefined) updateData.contactPerson = updates.contact_person
+    if (updates.contactPerson !== undefined) updateData.contactPerson = updates.contactPerson
     if (updates.email !== undefined) updateData.email = updates.email
     if (updates.phone !== undefined) updateData.phone = updates.phone
     if (updates.phone2 !== undefined) updateData.phone2 = updates.phone2
     if (updates.email2 !== undefined) updateData.email2 = updates.email2
     if (updates.fax !== undefined) updateData.fax = updates.fax
-    if (updates.emergency_contact !== undefined) updateData.emergency_contact = updates.emergency_contact
-    if (updates.emergency_phone !== undefined) updateData.emergency_phone = updates.emergency_phone
+    if (updates.emergency_contact !== undefined) updateData.emergencyContact = updates.emergency_contact
+    if (updates.emergencyContact !== undefined) updateData.emergencyContact = updates.emergencyContact
+    if (updates.emergency_phone !== undefined) updateData.emergencyPhone = updates.emergency_phone
+    if (updates.emergencyPhone !== undefined) updateData.emergencyPhone = updates.emergencyPhone
     if (updates.website !== undefined) updateData.website = updates.website
-    if (updates.preferred_communication !== undefined) updateData.preferred_communication = updates.preferred_communication
+    if (updates.preferred_communication !== undefined) updateData.preferredCommunication = updates.preferred_communication
+    if (updates.preferredCommunication !== undefined) updateData.preferredCommunication = updates.preferredCommunication
     if (updates.address !== undefined) updateData.address = updates.address
     if (updates.city !== undefined) updateData.city = updates.city
     if (updates.state !== undefined) updateData.state = updates.state
-    if (updates.postal_code !== undefined) updateData.postal_code = updates.postal_code
+    if (updates.postal_code !== undefined) updateData.postalCode = updates.postal_code
+    if (updates.postalCode !== undefined) updateData.postalCode = updates.postalCode
     if (updates.country !== undefined) updateData.country = updates.country
-    if (updates.tax_number !== undefined) updateData.tax_number = updates.tax_number
-    if (updates.tax_office !== undefined) updateData.tax_office = updates.tax_office
-    if (updates.business_registration_number !== undefined) updateData.business_registration_number = updates.business_registration_number
+    if (updates.tax_number !== undefined) updateData.taxNumber = updates.tax_number
+    if (updates.taxNumber !== undefined) updateData.taxNumber = updates.taxNumber
+    if (updates.tax_office !== undefined) updateData.taxOffice = updates.tax_office
+    if (updates.taxOffice !== undefined) updateData.taxOffice = updates.taxOffice
+    if (updates.business_registration_number !== undefined) updateData.businessRegistrationNumber = updates.business_registration_number
+    if (updates.businessRegistrationNumber !== undefined) updateData.businessRegistrationNumber = updates.businessRegistrationNumber
     if (updates.currency !== undefined) updateData.currency = updates.currency
-    if (updates.credit_limit !== undefined) updateData.credit_limit = updates.credit_limit
-    if (updates.credit_rating !== undefined) updateData.credit_rating = updates.credit_rating
-    if (updates.payment_terms !== undefined) updateData.payment_terms = updates.payment_terms
-    if (updates.payment_method !== undefined) updateData.payment_method = updates.payment_method
-    if (updates.bank_name !== undefined) updateData.bank_name = updates.bank_name
-    if (updates.bank_account !== undefined) updateData.bank_account = updates.bank_account
+    if (updates.credit_limit !== undefined) updateData.creditLimit = updates.credit_limit
+    if (updates.creditLimit !== undefined) updateData.creditLimit = updates.creditLimit
+    if (updates.credit_rating !== undefined) updateData.creditRating = updates.credit_rating
+    if (updates.creditRating !== undefined) updateData.creditRating = updates.creditRating
+    if (updates.payment_terms !== undefined) updateData.paymentTerms = updates.payment_terms
+    if (updates.paymentTerms !== undefined) updateData.paymentTerms = updates.paymentTerms
+    if (updates.payment_method !== undefined) updateData.paymentMethod = updates.payment_method
+    if (updates.paymentMethod !== undefined) updateData.paymentMethod = updates.paymentMethod
+    if (updates.bank_name !== undefined) updateData.bankName = updates.bank_name
+    if (updates.bankName !== undefined) updateData.bankName = updates.bankName
+    if (updates.bank_account !== undefined) updateData.bankAccount = updates.bank_account
+    if (updates.bankAccount !== undefined) updateData.bankAccount = updates.bankAccount
     if (updates.iban !== undefined) updateData.iban = updates.iban
-    if (updates.supplier_type !== undefined) updateData.supplier_type = updates.supplier_type
-    if (updates.quality_certification !== undefined) updateData.quality_certification = updates.quality_certification
-    if (updates.delivery_capability !== undefined) updateData.delivery_capability = updates.delivery_capability
-    if (updates.lead_time_days !== undefined) updateData.lead_time_days = updates.lead_time_days
-    if (updates.minimum_order_quantity !== undefined) updateData.minimum_order_quantity = updates.minimum_order_quantity
-    if (updates.year_established !== undefined) updateData.year_established = updates.year_established
-    if (updates.employee_count !== undefined) updateData.employee_count = updates.employee_count
-    if (updates.annual_revenue !== undefined) updateData.annual_revenue = updates.annual_revenue
-    if (updates.compliance_status !== undefined) updateData.compliance_status = updates.compliance_status
-    if (updates.risk_level !== undefined) updateData.risk_level = updates.risk_level
+    if (updates.supplier_type !== undefined) updateData.supplierType = updates.supplier_type
+    if (updates.supplierType !== undefined) updateData.supplierType = updates.supplierType
+    if (updates.quality_certification !== undefined) updateData.qualityCertification = updates.quality_certification
+    if (updates.qualityCertification !== undefined) updateData.qualityCertification = updates.qualityCertification
+    if (updates.delivery_capability !== undefined) updateData.deliveryCapability = updates.delivery_capability
+    if (updates.deliveryCapability !== undefined) updateData.deliveryCapability = updates.deliveryCapability
+    if (updates.lead_time_days !== undefined) updateData.leadTimeDays = updates.lead_time_days
+    if (updates.leadTimeDays !== undefined) updateData.leadTimeDays = updates.leadTimeDays
+    if (updates.minimum_order_quantity !== undefined) updateData.minimumOrderQuantity = updates.minimum_order_quantity
+    if (updates.minimumOrderQuantity !== undefined) updateData.minimumOrderQuantity = updates.minimumOrderQuantity
+    if (updates.year_established !== undefined) updateData.yearEstablished = updates.year_established
+    if (updates.yearEstablished !== undefined) updateData.yearEstablished = updates.yearEstablished
+    if (updates.employee_count !== undefined) updateData.employeeCount = updates.employee_count
+    if (updates.employeeCount !== undefined) updateData.employeeCount = updates.employeeCount
+    if (updates.annual_revenue !== undefined) updateData.annualRevenue = updates.annual_revenue
+    if (updates.annualRevenue !== undefined) updateData.annualRevenue = updates.annualRevenue
+    if (updates.compliance_status !== undefined) updateData.complianceStatus = updates.compliance_status
+    if (updates.complianceStatus !== undefined) updateData.complianceStatus = updates.complianceStatus
+    if (updates.risk_level !== undefined) updateData.riskLevel = updates.risk_level
+    if (updates.riskLevel !== undefined) updateData.riskLevel = updates.riskLevel
     if (updates.notes !== undefined) updateData.notes = updates.notes
     if (updates.status !== undefined) updateData.status = updates.status
-    if (updates.is_active !== undefined) updateData.is_active = updates.is_active
+    if (updates.is_active !== undefined) updateData.isActive = updates.is_active
+    if (updates.isActive !== undefined) updateData.isActive = updates.isActive
     
     const [supplier] = await trx(SUPPLIERS_TABLE)
       .where({ id })
@@ -287,22 +312,22 @@ export async function updateSupplier(id, updates, suppliedMaterials = null) {
     if (suppliedMaterials !== null) {
       // Delete existing relations
       await trx('materials.material_supplier_relation')
-        .where({ supplier_id: id })
+        .where({ supplierId: id })
         .delete()
       
       // Insert new relations
       if (suppliedMaterials.length > 0) {
         const relations = suppliedMaterials.map(material => ({
-          material_id: material.id,
-          supplier_id: id,
-          is_primary: material.is_primary || false,
-          cost_price: material.cost_price || material.costPrice || null,
-          lead_time_days: material.lead_time_days || material.leadTime || null,
-          minimum_order_quantity: material.minimum_order_quantity || material.minimumOrderQuantity || null,
-          supplier_material_code: material.supplier_material_code || material.supplierMaterialCode || null,
+          materialId: material.id,
+          supplierId: id,
+          isPrimary: material.is_primary || material.isPrimary || false,
+          costPrice: material.cost_price || material.costPrice || null,
+          leadTimeDays: material.lead_time_days || material.leadTime || material.leadTimeDays || null,
+          minimumOrderQuantity: material.minimum_order_quantity || material.minimumOrderQuantity || null,
+          supplierMaterialCode: material.supplier_material_code || material.supplierMaterialCode || null,
           notes: material.notes || null,
-          created_at: db.fn.now(),
-          updated_at: db.fn.now()
+          createdAt: db.fn.now(),
+          updatedAt: db.fn.now()
         }))
         
         await trx('materials.material_supplier_relation').insert(relations)
@@ -328,8 +353,8 @@ export async function deleteSupplier(id) {
     const [supplier] = await db(SUPPLIERS_TABLE)
       .where({ id })
       .update({
-        is_active: false,
-        updated_at: db.fn.now()
+        isActive: false,
+        updatedAt: db.fn.now()
       })
       .returning('*')
     

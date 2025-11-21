@@ -47,9 +47,9 @@ featureFlags.logStatus();
 // Simple in-memory counters for monitoring key events
 // In production, integrate with Prometheus/Datadog/CloudWatch
 const metrics = {
-  reservation_mismatch_count: 0,
-  consumption_capped_count: 0,
-  validation_error_count: 0,
+  reservationMismatchCount: 0,
+  consumptionCappedCount: 0,
+  validationErrorCount: 0,
   
   increment(metricName) {
     if (this.hasOwnProperty(metricName)) {
@@ -59,16 +59,16 @@ const metrics = {
   },
   
   reset() {
-    this.reservation_mismatch_count = 0;
-    this.consumption_capped_count = 0;
-    this.validation_error_count = 0;
+    this.reservationMismatchCount = 0;
+    this.consumptionCappedCount = 0;
+    this.validationErrorCount = 0;
   },
   
   getAll() {
     return {
-      reservation_mismatch_count: this.reservation_mismatch_count,
-      consumption_capped_count: this.consumption_capped_count,
-      validation_error_count: this.validation_error_count
+      reservationMismatchCount: this.reservationMismatchCount,
+      consumptionCappedCount: this.consumptionCappedCount,
+      validationErrorCount: this.validationErrorCount
     };
   }
 };
@@ -302,13 +302,13 @@ router.get('/operations', withAuth, async (req, res) => {
         'id', 
         'name', 
         'type', 
-        'semi_output_code', 
-        'expected_defect_rate',
-        'default_efficiency',
-        'supervisor_id',
+        'semiOutputCode', 
+        'expectedDefectRate',
+        'defaultEfficiency',
+        'supervisorId',
         'skills',
-        'created_at',
-        'updated_at'
+        'createdAt',
+        'updatedAt'
       )
       .orderBy('name');
     
@@ -317,13 +317,13 @@ router.get('/operations', withAuth, async (req, res) => {
       id: op.id,
       name: op.name,
       type: op.type,
-      semiOutputCode: op.semi_output_code,
-      expectedDefectRate: op.expected_defect_rate,
-      defaultEfficiency: op.default_efficiency,
-      supervisorId: op.supervisor_id,
+      semiOutputCode: op.semiOutputCode,
+      expectedDefectRate: op.expectedDefectRate,
+      defaultEfficiency: op.defaultEfficiency,
+      supervisorId: op.supervisorId,
       skills: typeof op.skills === 'string' ? JSON.parse(op.skills) : (op.skills || []),
-      createdAt: op.created_at,
-      updatedAt: op.updated_at
+      createdAt: op.createdAt,
+      updatedAt: op.updatedAt
     }));
     
     res.json(operations);
@@ -350,12 +350,12 @@ router.post('/operations', withAuth, async (req, res) => {
           id: op.id,
           name: op.name,
           type: op.type || 'General',
-          semi_output_code: op.semiOutputCode || null,
-          expected_defect_rate: op.expectedDefectRate || 0,
-          default_efficiency: op.defaultEfficiency || 1.0,
-          supervisor_id: op.supervisorId || null,
+          semi_outputCode: op.semiOutputCode || null,
+          expectedDefectRate: op.expectedDefectRate || 0,
+          defaultEfficiency: op.defaultEfficiency || 1.0,
+          supervisorId: op.supervisorId || null,
           skills: JSON.stringify(op.skills || []),
-          updated_at: trx.fn.now()
+          updatedAt: trx.fn.now()
         };
         
         // Upsert: insert or update if exists
@@ -368,7 +368,7 @@ router.post('/operations', withAuth, async (req, res) => {
         } else {
           await trx('mes.operations').insert({
             ...operationData,
-            created_at: trx.fn.now()
+            createdAt: trx.fn.now()
           });
         }
       }
@@ -395,15 +395,15 @@ router.get('/workers', withAuth, async (req, res) => {
         'email',
         'phone',
         'skills',
-        'personal_schedule',
-        'is_active',
-        'current_task_plan_id',
-        'current_task_node_id',
-        'current_task_assignment_id',
-        'created_at',
-        'updated_at'
+        'personalSchedule',
+        'isActive',
+        'currentTaskPlanId',
+        'currentTaskNodeId',
+        'currentTaskAssignmentId',
+        'createdAt',
+        'updatedAt'
       )
-      .where('is_active', true)
+      .where('isActive', true)
       .orderBy('name');
     
     // Map snake_case to camelCase and parse JSONB
@@ -413,13 +413,13 @@ router.get('/workers', withAuth, async (req, res) => {
       email: w.email,
       phone: w.phone,
       skills: typeof w.skills === 'string' ? JSON.parse(w.skills) : w.skills,
-      personalSchedule: typeof w.personal_schedule === 'string' ? JSON.parse(w.personal_schedule) : w.personal_schedule,
-      isActive: w.is_active,
-      currentTaskPlanId: w.current_task_plan_id,
-      currentTaskNodeId: w.current_task_node_id,
-      currentTaskAssignmentId: w.current_task_assignment_id,
-      createdAt: w.created_at,
-      updatedAt: w.updated_at
+      personalSchedule: typeof w.personalSchedule === 'string' ? JSON.parse(w.personalSchedule) : w.personalSchedule,
+      isActive: w.isActive,
+      currentTaskPlanId: w.currentTaskPlanId,
+      currentTaskNodeId: w.currentTaskNodeId,
+      currentTaskAssignmentId: w.currentTaskAssignmentId,
+      createdAt: w.createdAt,
+      updatedAt: w.updatedAt
     }));
     
     res.json(workers);
@@ -456,8 +456,8 @@ router.post('/workers', withAuth, async (req, res) => {
         // Generate worker ID if not provided (WK-001 format)
         let workerId = id;
         if (!workerId) {
-          const [{ max_id }] = await trx('mes.workers').max('id as max_id');
-          const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
+          const [{ maxId }] = await trx('mes.workers').max('id as maxId');
+          const nextNum = maxId ? parseInt(maxId.split('-')[1]) + 1 : 1;
           workerId = `WK-${nextNum.toString().padStart(3, '0')}`;
         }
         
@@ -468,9 +468,9 @@ router.post('/workers', withAuth, async (req, res) => {
           email: email || null,
           phone: phone || null,
           skills: JSON.stringify(skills),
-          personal_schedule: personalSchedule ? JSON.stringify(personalSchedule) : null,
-          is_active: isActive !== undefined ? isActive : true,
-          updated_at: trx.fn.now()
+          personalSchedule: personalSchedule ? JSON.stringify(personalSchedule) : null,
+          isActive: isActive !== undefined ? isActive : true,
+          updatedAt: trx.fn.now()
         };
         
         // Upsert: insert or update if exists
@@ -484,7 +484,7 @@ router.post('/workers', withAuth, async (req, res) => {
           await trx('mes.workers')
             .insert({
               ...dbWorker,
-              created_at: trx.fn.now()
+              createdAt: trx.fn.now()
             });
         }
       }
@@ -493,7 +493,7 @@ router.post('/workers', withAuth, async (req, res) => {
       
       // Return updated workers with field mapping
       const results = await db('mes.workers')
-        .select('id', 'name', 'skills', 'personal_schedule', 'is_active', 'created_at', 'updated_at')
+        .select('id', 'name', 'skills', 'personalSchedule', 'isActive', 'createdAt', 'updatedAt')
         .whereIn('id', workers.map(w => w.id).filter(Boolean))
         .orWhere(function() {
           this.whereIn('name', workers.map(w => w.name));
@@ -503,10 +503,10 @@ router.post('/workers', withAuth, async (req, res) => {
         id: w.id,
         name: w.name,
         skills: typeof w.skills === 'string' ? JSON.parse(w.skills) : w.skills,
-        personalSchedule: typeof w.personal_schedule === 'string' ? JSON.parse(w.personal_schedule) : w.personal_schedule,
-        isActive: w.is_active,
-        createdAt: w.created_at,
-        updatedAt: w.updated_at
+        personalSchedule: typeof w.personalSchedule === 'string' ? JSON.parse(w.personalSchedule) : w.personalSchedule,
+        isActive: w.isActive,
+        createdAt: w.createdAt,
+        updatedAt: w.updatedAt
       }));
       
       res.json(mappedResults);
@@ -541,30 +541,30 @@ router.get('/workers/:id/assignments', withAuth, async (req, res) => {
     let query = db('mes.worker_assignments')
       .select(
         'id',
-        'plan_id as planId',
-        'work_order_code as workOrderCode',
-        'node_id as nodeId',
-        'operation_id as operationId',
-        'worker_id as workerId',
-        'worker_name as workerName',
-        'station_id as stationId',
-        'substation_id as substationId',
+        'planId',
+        'workOrderCode',
+        'nodeId',
+        'operationId',
+        'workerId',
+        'workerName',
+        'stationId',
+        'substationId',
         'status',
         'materials',
         'quantity',
         'priority',
-        'is_urgent as isUrgent',
-        'created_at as createdAt',
-        'assigned_at as assignedAt',
-        'started_at as startedAt',
-        'completed_at as completedAt',
-        'expected_start as expectedStart',
-        'planned_end as plannedEnd',
-        'estimated_start_time as estimatedStartTime',
-        'estimated_end_time as estimatedEndTime'
+        'isUrgent',
+        'createdAt',
+        'assignedAt',
+        'startedAt',
+        'completedAt',
+        'expectedStart',
+        'plannedEnd',
+        'estimatedStartTime',
+        'estimatedEndTime'
       )
-      .where('worker_id', id)
-      .orderBy('expected_start', 'asc');
+      .where('workerId', id)
+      .orderBy('expectedStart', 'asc');
     
     // Filter by status if provided
     if (status === 'active') {
@@ -618,7 +618,7 @@ router.get('/workers/:id/stations', withAuth, async (req, res) => {
         'description',
         'capabilities'
       )
-      .where('is_active', true);
+      .where('isActive', true);
     
     // Simple compatibility: return all active stations
     // (Complex skill matching can be added later if needed)
@@ -649,8 +649,8 @@ router.delete('/workers/:id', withAuth, async (req, res) => {
   try {
     const result = await db('mes.workers')
       .update({
-        is_active: false,
-        updated_at: db.fn.now()
+        isActive: false,
+        updatedAt: db.fn.now()
       })
       .where('id', id)
       .returning(['id', 'name']);
@@ -675,7 +675,7 @@ router.get('/stations', withAuth, async (req, res) => {
   try {
     const rows = await db('mes.stations')
       .select('*')
-      .where('is_active', true)
+      .where('isActive', true)
       .orderBy('name');
     
     // Map DB columns → frontend camelCase
@@ -687,11 +687,11 @@ router.get('/stations', withAuth, async (req, res) => {
       location: row.location,
       capabilities: row.capabilities,
       subStations: row.substations || [],
-      operationIds: row.operation_ids || [],
-      subSkills: row.sub_skills || [],
-      status: row.is_active ? 'active' : 'inactive',
-      createdAt: row.created_at,
-      updatedAt: row.updated_at
+      operationIds: row.operationIds || [],
+      subSkills: row.subSkills || [],
+      status: row.isActive ? 'active' : 'inactive',
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
     }));
     
     res.json(mapped); // Return array directly
@@ -723,17 +723,17 @@ router.post('/stations', withAuth, async (req, res) => {
           location: station.location || null,
           capabilities: station.capabilities ? JSON.stringify(station.capabilities) : null,
           substations: station.subStations ? JSON.stringify(station.subStations) : '[]',
-          operation_ids: station.operationIds ? JSON.stringify(station.operationIds) : '[]',
-          sub_skills: station.subSkills ? JSON.stringify(station.subSkills) : '[]',
-          is_active: station.status === 'active',
-          updated_at: trx.fn.now()
+          operationIds: station.operationIds ? JSON.stringify(station.operationIds) : '[]',
+          subSkills: station.subSkills ? JSON.stringify(station.subSkills) : '[]',
+          isActive: station.status === 'active',
+          updatedAt: trx.fn.now()
         };
 
         // Upsert station (INSERT ... ON CONFLICT UPDATE)
         const [result] = await trx('mes.stations')
-          .insert({ ...dbRecord, created_at: trx.fn.now() })
+          .insert({ ...dbRecord, createdAt: trx.fn.now() })
           .onConflict('id')
-          .merge(['name', 'type', 'description', 'location', 'capabilities', 'substations', 'operation_ids', 'sub_skills', 'is_active', 'updated_at'])
+          .merge(['name', 'type', 'description', 'location', 'capabilities', 'substations', 'operationIds', 'subSkills', 'isActive', 'updatedAt'])
           .returning('*');
         
         // Sync substations to mes.substations table
@@ -741,7 +741,7 @@ router.post('/stations', withAuth, async (req, res) => {
           // Delete existing substations for this station that are no longer in the list
           const newSubStationCodes = station.subStations.map(s => s.code);
           await trx('mes.substations')
-            .where('station_id', station.id)
+            .where('stationId', station.id)
             .whereNotIn('id', newSubStationCodes)
             .delete();
           
@@ -756,19 +756,19 @@ router.post('/stations', withAuth, async (req, res) => {
               .insert({
                 id: subStation.code,
                 name: subStationName,
-                station_id: station.id,
+                stationId: station.id,
                 status: subStation.status || 'active',
-                is_active: subStation.status !== 'inactive',
-                created_at: trx.fn.now(),
-                updated_at: trx.fn.now()
+                isActive: subStation.status !== 'inactive',
+                createdAt: trx.fn.now(),
+                updatedAt: trx.fn.now()
               })
               .onConflict('id')
-              .merge(['name', 'status', 'is_active', 'updated_at']);
+              .merge(['name', 'status', 'isActive', 'updatedAt']);
           }
         } else {
           // If no substations, delete all existing ones for this station
           await trx('mes.substations')
-            .where('station_id', station.id)
+            .where('stationId', station.id)
             .delete();
         }
         
@@ -792,8 +792,8 @@ router.get('/stations/:id/workers', withAuth, async (req, res) => {
   try {
     // Get station with its required skills
     const station = await db('mes.stations')
-      .select('id', 'name', 'sub_skills', 'operation_ids')
-      .where({ id, is_active: true })
+      .select('id', 'name', 'subSkills', 'operationIds')
+      .where({ id, isActive: true })
       .first();
     
     if (!station) {
@@ -801,8 +801,8 @@ router.get('/stations/:id/workers', withAuth, async (req, res) => {
     }
     
     // Parse required skills (combination of sub_skills and inherited from operations)
-    const subSkills = Array.isArray(station.sub_skills) ? station.sub_skills : [];
-    const operationIds = Array.isArray(station.operation_ids) ? station.operation_ids : [];
+    const subSkills = Array.isArray(station.subSkills) ? station.subSkills : [];
+    const operationIds = Array.isArray(station.operationIds) ? station.operationIds : [];
     
     // Get skills from operations
     let inheritedSkills = [];
@@ -823,7 +823,7 @@ router.get('/stations/:id/workers', withAuth, async (req, res) => {
     // Get all active workers
     const workers = await db('mes.workers')
       .select('id', 'name', 'skills', 'email', 'phone')
-      .where('is_active', true)
+      .where('isActive', true)
       .orderBy('name');
     
     // Filter workers who have at least one matching skill
@@ -867,7 +867,7 @@ router.delete('/stations/:id', withAuth, async (req, res) => {
     try {
       // First, delete all substations belonging to this station (hard delete)
       await trx('mes.substations')
-        .where({ station_id: id })
+        .where({ stationId: id })
         .delete();
       
       // Then, delete the station (hard delete)
@@ -900,8 +900,8 @@ router.delete('/stations/:id', withAuth, async (req, res) => {
 router.get('/skills', withAuth, async (req, res) => {
   try {
     const skills = await db('mes.skills')
-      .select('id', 'name', 'description', 'is_active', 'created_at', 'updated_at')
-      .where('is_active', true)
+      .select('id', 'name', 'description', 'isActive', 'createdAt', 'updatedAt')
+      .where('isActive', true)
       .orderBy('name');
     
     res.json(skills);
@@ -921,8 +921,8 @@ router.post('/skills', withAuth, async (req, res) => {
   
   try {
     // Generate skill-xxx ID
-    const [{ max_id }] = await db('mes.skills').max('id as max_id');
-    const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
+    const [{ maxId }] = await db('mes.skills').max('id as maxId');
+    const nextNum = maxId ? parseInt(maxId.split('-')[1]) + 1 : 1;
     const newId = `skill-${nextNum.toString().padStart(3, '0')}`;
     
     const result = await db('mes.skills')
@@ -930,12 +930,12 @@ router.post('/skills', withAuth, async (req, res) => {
         id: newId,
         name,
         description,
-        is_active: true,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now(),
-        created_by: req.user?.email || 'system'
+        isActive: true,
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now(),
+        createdBy: req.user?.email || 'system'
       })
-      .returning(['id', 'name', 'description', 'is_active', 'created_at']);
+      .returning(['id', 'name', 'description', 'isActive', 'createdAt']);
     
     res.json(result[0]);
   } catch (error) {
@@ -955,10 +955,10 @@ router.put('/skills/:id', withAuth, async (req, res) => {
       .update({
         name,
         description,
-        updated_at: db.fn.now(),
-        updated_by: req.user?.email || 'system'
+        updatedAt: db.fn.now(),
+        updatedBy: req.user?.email || 'system'
       })
-      .returning(['id', 'name', 'description', 'is_active', 'updated_at']);
+      .returning(['id', 'name', 'description', 'isActive', 'updatedAt']);
     
     if (result.length === 0) {
       return res.status(404).json({ error: 'Skill not found' });
@@ -1006,9 +1006,9 @@ router.delete('/skills/:id', withAuth, async (req, res) => {
     const result = await db('mes.skills')
       .where({ id })
       .update({
-        is_active: false,
-        updated_at: db.fn.now(),
-        updated_by: req.user?.email || 'system'
+        isActive: false,
+        updatedAt: db.fn.now(),
+        updatedBy: req.user?.email || 'system'
       })
       .returning('id');
     
@@ -1034,13 +1034,13 @@ router.get('/work-orders', withAuth, async (req, res) => {
       .select(
         'id',
         'code',
-        'quote_id',
+        'quoteId',
         'status',
         'data',
-        'created_at',
-        'updated_at'
+        'createdAt',
+        'updatedAt'
       )
-      .orderBy('created_at', 'desc');
+      .orderBy('createdAt', 'desc');
     
     res.json({ workOrders });
   } catch (error) {
@@ -1051,16 +1051,16 @@ router.get('/work-orders', withAuth, async (req, res) => {
 
 // POST /api/mes/work-orders - Create work order
 router.post('/work-orders', withAuth, async (req, res) => {
-  const { quote_id, status, data } = req.body;
+  const { quoteId, status, data } = req.body;
   
   try {
     // Generate WO code (WO-001, WO-002, WO-003...)
-    const [{ max_code }] = await db('mes.work_orders')
-      .max('code as max_code');
+    const [{ maxCode }] = await db('mes.work_orders')
+      .max('code as maxCode');
     
     let nextNum = 1;
-    if (max_code) {
-      const match = max_code.match(/WO-(\d+)/);
+    if (maxCode) {
+      const match = maxCode.match(/WO-(\d+)/);
       if (match) {
         nextNum = parseInt(match[1]) + 1;
       }
@@ -1073,13 +1073,13 @@ router.post('/work-orders', withAuth, async (req, res) => {
       .insert({
         id: code,  // Use code as ID
         code,
-        quote_id,
+        quoteId,
         status: status || 'pending',
         data: data ? JSON.stringify(data) : null,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now()
       })
-      .returning(['id', 'code', 'quote_id', 'status', 'data', 'created_at', 'updated_at']);
+      .returning(['id', 'code', 'quoteId', 'status', 'data', 'createdAt', 'updatedAt']);
     
     res.json({ success: true, ...workOrder });
   } catch (error) {
@@ -1095,18 +1095,18 @@ router.put('/work-orders/:id', withAuth, async (req, res) => {
   
   try {
     const updateData = {
-      updated_at: db.fn.now()
+      updatedAt: db.fn.now()
     };
     
     // Only update provided fields
-    if (quote_id !== undefined) updateData.quote_id = quote_id;
+    if (quoteId !== undefined) updateData.quoteId = quoteId;
     if (status !== undefined) updateData.status = status;
     if (data !== undefined) updateData.data = JSON.stringify(data);
     
     const [workOrder] = await db('mes.work_orders')
       .where({ id })
       .update(updateData)
-      .returning(['id', 'code', 'quote_id', 'status', 'data', 'updated_at']);
+      .returning(['id', 'code', 'quoteId', 'status', 'data', 'updatedAt']);
     
     if (!workOrder) {
       return res.status(404).json({ error: 'Work order not found' });
@@ -1143,12 +1143,12 @@ router.delete('/work-orders/:id', withAuth, async (req, res) => {
 // POST /api/mes/work-orders/next-id - Get next available work order code
 router.post('/work-orders/next-id', withAuth, async (req, res) => {
   try {
-    const [{ max_code }] = await db('mes.work_orders')
-      .max('code as max_code');
+    const [{ maxCode }] = await db('mes.work_orders')
+      .max('code as maxCode');
     
     let nextNum = 1;
-    if (max_code) {
-      const match = max_code.match(/WO-(\\d+)/);
+    if (maxCode) {
+      const match = maxCode.match(/WO-(\\d+)/);
       if (match) {
         nextNum = parseInt(match[1]) + 1;
       }
@@ -1172,25 +1172,25 @@ router.get('/approved-quotes', withAuth, async (req, res) => {
   try {
     // Fetch from work_orders table joined with quotes for customer info
     const workOrders = await db('mes.work_orders as wo')
-      .leftJoin('quotes.quotes as q', 'wo.quote_id', 'q.id')
+      .leftJoin('quotes.quotes as q', 'wo.quoteId', 'q.id')
       .select(
         'wo.id',
-        'wo.code as work_order_code',
-        'wo.quote_id',
+        'wo.code as workOrderCode',
+        'wo.quoteId',
         'wo.status',
-        'wo.production_state',
-        'wo.production_state_updated_at',
-        'wo.production_state_updated_by',
-        'wo.created_at',
+        'wo.productionState',
+        'wo.productionStateUpdatedAt',
+        'wo.productionStateUpdatedBy',
+        'wo.createdAt',
         'wo.data',
-        'q.customer_name as customer',
-        'q.customer_company as company',
-        'q.customer_email as email',
-        'q.customer_phone as phone',
-        'q.final_price',
-        'q.delivery_date'
+        'q.customerName as customer',
+        'q.customerCompany as company',
+        'q.customerEmail as email',
+        'q.customerPhone as phone',
+        'q.finalPrice',
+        'q.deliveryDate'
       )
-      .orderBy('wo.created_at', 'desc');
+      .orderBy('wo.createdAt', 'desc');
     
     // Transform to include data from JSONB field
     const approvedQuotes = workOrders.map(wo => {
@@ -1198,11 +1198,11 @@ router.get('/approved-quotes', withAuth, async (req, res) => {
       try {
         data = typeof wo.data === 'string' ? JSON.parse(wo.data) : (wo.data || {});
       } catch (e) {
-        console.error(`Failed to parse data for WO ${wo.work_order_code}:`, e);
+        console.error(`Failed to parse data for WO ${wo.workOrderCode}:`, e);
       }
       
       // Format delivery date
-      let deliveryDate = data.deliveryDate || wo.delivery_date;
+      let deliveryDate = data.deliveryDate || wo.deliveryDate;
       if (deliveryDate && !(deliveryDate instanceof Date)) {
         try {
           deliveryDate = new Date(deliveryDate).toISOString();
@@ -1215,18 +1215,18 @@ router.get('/approved-quotes', withAuth, async (req, res) => {
       
       return {
         id: wo.id,
-        workOrderCode: wo.work_order_code,
-        quoteId: wo.quote_id,
+        workOrderCode: wo.workOrderCode,
+        quoteId: wo.quoteId,
         status: wo.status,
-        productionState: wo.production_state,
-        productionStateUpdatedAt: wo.production_state_updated_at,
-        productionStateUpdatedBy: wo.production_state_updated_by,
-        createdAt: wo.created_at,
+        productionState: wo.productionState,
+        productionStateUpdatedAt: wo.productionStateUpdatedAt,
+        productionStateUpdatedBy: wo.productionStateUpdatedBy,
+        createdAt: wo.createdAt,
         customer: wo.customer,
         company: wo.company,
         email: wo.email,
         phone: wo.phone,
-        price: data.price || wo.final_price,
+        price: data.price || wo.finalPrice,
         deliveryDate,
         formData: data.formData,
         quoteSnapshot: data.quoteSnapshot
@@ -1257,19 +1257,19 @@ router.post('/approved-quotes/ensure', withAuth, async (req, res) => {
     console.log(`🔍 [ENSURE] Checking if WO already exists for quote: ${quoteId}`);
     const existingQuote = await db('quotes.quotes')
       .where('id', quoteId)
-      .first('work_order_code', 'status');
+      .first('workOrderCode', 'status');
     
     if (!existingQuote) {
       console.log(`❌ [ENSURE] Quote not found in PostgreSQL: ${quoteId}`);
       return res.status(404).json({ success: false, error: 'quote_not_found' });
     }
 
-    if (existingQuote.work_order_code) {
-      console.log(`ℹ️ [ENSURE] WO already exists: ${existingQuote.work_order_code}`);
+    if (existingQuote.workOrderCode) {
+      console.log(`ℹ️ [ENSURE] WO already exists: ${existingQuote.workOrderCode}`);
       return res.json({ 
         success: true, 
         ensured: true, 
-        workOrderCode: existingQuote.work_order_code 
+        workOrderCode: existingQuote.workOrderCode 
       });
     }
 
@@ -1382,13 +1382,13 @@ router.post('/master-data', withAuth, async (req, res) => {
     
     // Upsert using INSERT ... ON CONFLICT
     await db.raw(`
-      INSERT INTO mes.settings (id, key, value, updated_at, updated_by)
+      INSERT INTO mes.settings (id, key, value, "updatedAt", "updatedBy")
       VALUES (?, ?, ?::jsonb, NOW(), ?)
       ON CONFLICT (key) 
       DO UPDATE SET 
         value = EXCLUDED.value,
-        updated_at = NOW(),
-        updated_by = EXCLUDED.updated_by
+        "updatedAt" = NOW(),
+        "updatedBy" = EXCLUDED."updatedBy"
     `, ['master-data', 'master-data', JSON.stringify(payload), req.user?.email || 'system']);
 
     res.json({ success: true });
@@ -1522,16 +1522,16 @@ router.get('/templates', withAuth, async (req, res) => {
     const templates = await db('mes.production_plans as p')
       .select(
         'p.id',
-        'p.work_order_code',
-        'p.quote_id',
+        'p.workOrderCode',
+        'p.quoteId',
         'p.status',
-        'p.created_at',
-        db.raw('COUNT(pn.id) as node_count')
+        'p.createdAt',
+        db.raw('COUNT(pn.id) as nodeCount')
       )
-      .leftJoin('mes.production_plan_nodes as pn', 'pn.plan_id', 'p.id')
+      .leftJoin('mes.production_plan_nodes as pn', 'pn.planId', 'p.id')
       .where('p.status', 'template')
       .groupBy('p.id')
-      .orderBy('p.created_at', 'desc');
+      .orderBy('p.createdAt', 'desc');
     
     console.log(`📋 Templates: Found ${templates.length} templates`);
     
@@ -1557,9 +1557,9 @@ router.post('/templates', withAuth, async (req, res) => {
   
   try {
     // 1. Generate plan ID (same ID system as production plans)
-    const [{ max_id }] = await trx('mes.production_plans')
-      .max('id as max_id');
-    const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
+    const [{ maxId }] = await trx('mes.production_plans')
+      .max('id as maxId');
+    const nextNum = maxId ? parseInt(maxId.split('-')[1]) + 1 : 1;
     const planId = `PLAN-${nextNum.toString().padStart(3, '0')}`;
     
     console.log(`📋 Creating template: ${planId}`);
@@ -1567,10 +1567,10 @@ router.post('/templates', withAuth, async (req, res) => {
     // 2. Create template header - just a plan with status='template'
     await trx('mes.production_plans').insert({
       id: planId,
-      work_order_code: workOrderCode,
-      quote_id: quoteId || null,
+      workOrderCode: workOrderCode,
+      quoteId: quoteId || null,
       status: 'template', // Only difference from regular plans
-      created_at: trx.fn.now()
+      createdAt: trx.fn.now()
     });
     
     // 2. Insert nodes if provided (templates can have pre-defined workflows)
@@ -1582,20 +1582,20 @@ router.post('/templates', withAuth, async (req, res) => {
         // Insert node
         const [nodeRecord] = await trx('mes.production_plan_nodes')
           .insert({
-            plan_id: planId,
-            node_id: `${planId}-node-${node.sequenceOrder || node.nodeId}`,
-            work_order_code: workOrderCode,
+            planId: planId,
+            nodeId: `${planId}-node-${node.sequenceOrder || node.nodeId}`,
+            workOrderCode: workOrderCode,
             name: node.name,
-            operation_id: node.operationId,
-            output_code: node.outputCode,
-            output_qty: node.outputQty || 1,
-            output_unit: node.outputUnit || 'adet',
-            nominal_time: node.nominalTime || 0,
+            operationId: node.operationId,
+            outputCode: node.outputCode,
+            outputQty: node.outputQty || 1,
+            outputUnit: node.outputUnit || 'adet',
+            nominalTime: node.nominalTime || 0,
             efficiency: node.efficiency || 0.85,
-            effective_time: node.effectiveTime || Math.ceil((node.nominalTime || 0) / (node.efficiency || 0.85)),
-            sequence_order: node.sequenceOrder || node.nodeId,
-            assignment_mode: node.assignmentMode || 'auto',
-            created_at: trx.fn.now()
+            effectiveTime: node.effectiveTime || Math.ceil((node.nominalTime || 0) / (node.efficiency || 0.85)),
+            sequenceOrder: node.sequenceOrder || node.nodeId,
+            assignmentMode: node.assignmentMode || 'auto',
+            createdAt: trx.fn.now()
           })
           .returning('id');
         
@@ -1604,12 +1604,12 @@ router.post('/templates', withAuth, async (req, res) => {
         // Insert material inputs if any
         if (node.materialInputs && node.materialInputs.length > 0) {
           const materialInputs = node.materialInputs.map(m => ({
-            node_id: nodeId,
-            material_code: m.materialCode,
-            required_quantity: m.requiredQuantity,
-            unit_ratio: m.unitRatio || 1.0,
-            is_derived: m.isDerived || false,
-            created_at: trx.fn.now()
+            nodeId: nodeId,
+            materialCode: m.materialCode,
+            requiredQuantity: m.requiredQuantity,
+            unitRatio: m.unitRatio || 1.0,
+            isDerived: m.isDerived || false,
+            createdAt: trx.fn.now()
           }));
           
           await trx('mes.node_material_inputs').insert(materialInputs);
@@ -1618,10 +1618,10 @@ router.post('/templates', withAuth, async (req, res) => {
         // Insert station assignments if any
         if (node.stationIds && node.stationIds.length > 0) {
           const stationAssignments = node.stationIds.map((stId, idx) => ({
-            node_id: nodeId,
-            station_id: stId,
+            nodeId: nodeId,
+            stationId: stId,
             priority: idx + 1,
-            created_at: trx.fn.now()
+            createdAt: trx.fn.now()
           }));
           
           await trx('mes.node_stations').insert(stationAssignments);
@@ -1883,19 +1883,19 @@ router.get('/worker-assignments', withAuth, async (req, res) => {
     const result = await db('mes.worker_assignments as wa')
       .select(
         'wa.*',
-        'w.name as worker_name',
-        's.name as substation_name',
-        'o.name as operation_name',
-        'p.id as plan_id',
-        'pn.name as node_name'
+        'w.name as workerName',
+        's.name as substationName',
+        'o.name as operationName',
+        'p.id as planId',
+        'pn.name as nodeName'
       )
-      .join('mes.workers as w', 'w.id', 'wa.worker_id')
-      .join('mes.substations as s', 's.id', 'wa.substation_id')
-      .join('mes.operations as o', 'o.id', 'wa.operation_id')
-      .join('mes.production_plans as p', 'p.id', 'wa.plan_id')
-      .join('mes.production_plan_nodes as pn', 'pn.id', 'wa.node_id')
+      .join('mes.workers as w', 'w.id', 'wa.workerId')
+      .join('mes.substations as s', 's.id', 'wa.substationId')
+      .join('mes.operations as o', 'o.id', 'wa.operationId')
+      .join('mes.production_plans as p', 'p.id', 'wa.planId')
+      .join('mes.production_plan_nodes as pn', 'pn.id', 'wa.nodeId')
       .whereIn('wa.status', ['pending', 'in_progress', 'queued'])
-      .orderBy('wa.estimated_start_time', 'asc');
+      .orderBy('wa.estimatedStartTime', 'asc');
     
     res.json(result);
   } catch (error) {
@@ -1913,20 +1913,20 @@ router.get('/worker-assignments/:workerId', withAuth, async (req, res) => {
     const result = await db('mes.worker_assignments as wa')
       .select(
         'wa.*',
-        's.name as substation_name',
-        'o.name as operation_name',
-        'p.id as plan_id',
-        'pn.name as node_name',
-        'pn.output_code',
-        'pn.output_qty as node_quantity'
+        's.name as substationName',
+        'o.name as operationName',
+        'p.id as planId',
+        'pn.name as nodeName',
+        'pn.outputCode',
+        'pn.outputQty as nodeQuantity'
       )
-      .join('mes.substations as s', 's.id', 'wa.substation_id')
-      .join('mes.operations as o', 'o.id', 'wa.operation_id')
-      .join('mes.production_plans as p', 'p.id', 'wa.plan_id')
-      .join('mes.production_plan_nodes as pn', 'pn.id', 'wa.node_id')
-      .where('wa.worker_id', workerId)
+      .join('mes.substations as s', 's.id', 'wa.substationId')
+      .join('mes.operations as o', 'o.id', 'wa.operationId')
+      .join('mes.production_plans as p', 'p.id', 'wa.planId')
+      .join('mes.production_plan_nodes as pn', 'pn.id', 'wa.nodeId')
+      .where('wa.workerId', workerId)
       .whereIn('wa.status', ['pending', 'in_progress', 'queued'])
-      .orderBy('wa.sequence_number', 'asc');
+      .orderBy('wa.sequenceNumber', 'asc');
     
     res.json(result);
   } catch (error) {
@@ -1964,24 +1964,24 @@ router.post('/worker-assignments/:id/start', withAuth, async (req, res) => {
       .where({ id })
       .update({
         status: 'in_progress',
-        started_at: trx.fn.now()
+        startedAt: trx.fn.now()
       });
     
     // Update substation status
     await trx('mes.substations')
-      .where({ id: assignment.substation_id })
+      .where({ id: assignment.substationId })
       .update({
         status: 'in_use',
-        current_assignment_id: id,
-        updated_at: trx.fn.now()
+        currentAssignmentId: id,
+        updatedAt: trx.fn.now()
       });
     
     // Update node status
     await trx('mes.production_plan_nodes')
-      .where({ id: assignment.node_id })
+      .where({ id: assignment.nodeId })
       .update({
         status: 'in_progress',
-        started_at: trx.fn.now()
+        startedAt: trx.fn.now()
       });
     
     await trx.commit();
@@ -2029,36 +2029,36 @@ router.post('/worker-assignments/:id/complete', withAuth, async (req, res) => {
       .where({ id })
       .update({
         status: 'completed',
-        completed_at: trx.fn.now(),
-        actual_quantity: actualQuantity,
+        completedAt: trx.fn.now(),
+        actualQuantity: actualQuantity,
         notes: notes
       });
     
     // Free substation
     await trx('mes.substations')
-      .where({ id: assignment.substation_id })
+      .where({ id: assignment.substationId })
       .update({
         status: 'available',
-        current_assignment_id: null,
-        updated_at: trx.fn.now()
+        currentAssignmentId: null,
+        updatedAt: trx.fn.now()
       });
     
     // Update node status
     await trx('mes.production_plan_nodes')
-      .where({ id: assignment.node_id })
+      .where({ id: assignment.nodeId })
       .update({
         status: 'completed',
-        completed_at: trx.fn.now(),
-        actual_quantity: actualQuantity
+        completedAt: trx.fn.now(),
+        actualQuantity: actualQuantity
       });
     
     // Activate next queued task for this worker (if any)
     const [nextQueued] = await trx('mes.worker_assignments')
       .where({
-        worker_id: assignment.worker_id,
+        workerId: assignment.workerId,
         status: 'queued'
       })
-      .orderBy('sequence_number', 'asc')
+      .orderBy('sequenceNumber', 'asc')
       .limit(1);
     
     if (nextQueued) {
@@ -2111,7 +2111,7 @@ router.post('/work-packages/:id/scrap', withAuth, async (req, res) => {
     // Get current assignment
     const [assignment] = await db('mes.worker_assignments')
       .where({ id: assignmentId })
-      .select('status', 'input_scrap_count', 'production_scrap_count', 'defect_quantity');
+      .select('status', 'inputScrapCount', 'productionScrapCount', 'defectQuantity');
     
     if (!assignment) {
       return res.status(404).json({ error: 'Assignment not found' });
@@ -2128,17 +2128,17 @@ router.post('/work-packages/:id/scrap', withAuth, async (req, res) => {
     const updateData = {};
     
     if (scrapType === 'input_damaged') {
-      const current = assignment.input_scrap_count || {};
+      const current = assignment.inputScrapCount || {};
       current[entry.materialCode] = (current[entry.materialCode] || 0) + entry.quantity;
-      updateData.input_scrap_count = current;
+      updateData.inputScrapCount = current;
       
     } else if (scrapType === 'production_scrap') {
-      const current = assignment.production_scrap_count || {};
+      const current = assignment.productionScrapCount || {};
       current[entry.materialCode] = (current[entry.materialCode] || 0) + entry.quantity;
-      updateData.production_scrap_count = current;
+      updateData.productionScrapCount = current;
       
     } else if (scrapType === 'output_scrap') {
-      updateData.defect_quantity = (assignment.defect_quantity || 0) + entry.quantity;
+      updateData.defectQuantity = (assignment.defectQuantity || 0) + entry.quantity;
     }
     
     await db('mes.worker_assignments')
@@ -2169,7 +2169,7 @@ router.get('/work-packages/:id/scrap', withAuth, async (req, res) => {
   try {
     const [assignment] = await db('mes.worker_assignments')
       .where({ id: assignmentId })
-      .select('input_scrap_count', 'production_scrap_count', 'defect_quantity', 'status');
+      .select('inputScrapCount', 'productionScrapCount', 'defectQuantity', 'status');
     
     if (!assignment) {
       return res.status(404).json({ error: 'Assignment not found' });
@@ -2177,9 +2177,9 @@ router.get('/work-packages/:id/scrap', withAuth, async (req, res) => {
     
     res.json({
       assignmentId,
-      inputScrapCounters: assignment.input_scrap_count || {},
-      productionScrapCounters: assignment.production_scrap_count || {},
-      defectQuantity: assignment.defect_quantity || 0,
+      inputScrapCounters: assignment.inputScrapCount || {},
+      productionScrapCounters: assignment.productionScrapCount || {},
+      defectQuantity: assignment.defectQuantity || 0,
       status: assignment.status
     });
     
@@ -2206,7 +2206,7 @@ router.delete('/work-packages/:id/scrap/:scrapType/:materialCode/:quantity', wit
   try {
     const [assignment] = await db('mes.worker_assignments')
       .where({ id: assignmentId })
-      .select('input_scrap_count', 'production_scrap_count', 'defect_quantity');
+      .select('inputScrapCount', 'productionScrapCount', 'defectQuantity');
     
     if (!assignment) {
       return res.status(404).json({ error: 'Assignment not found' });
@@ -2215,17 +2215,17 @@ router.delete('/work-packages/:id/scrap/:scrapType/:materialCode/:quantity', wit
     const updateData = {};
     
     if (scrapType === 'input_damaged') {
-      const current = assignment.input_scrap_count || {};
+      const current = assignment.inputScrapCount || {};
       current[materialCode] = Math.max(0, (current[materialCode] || 0) - decrementAmount);
-      updateData.input_scrap_count = current;
+      updateData.inputScrapCount = current;
       
     } else if (scrapType === 'production_scrap') {
-      const current = assignment.production_scrap_count || {};
+      const current = assignment.productionScrapCount || {};
       current[materialCode] = Math.max(0, (current[materialCode] || 0) - decrementAmount);
-      updateData.production_scrap_count = current;
+      updateData.productionScrapCount = current;
       
     } else if (scrapType === 'output_scrap') {
-      updateData.defect_quantity = Math.max(0, (assignment.defect_quantity || 0) - decrementAmount);
+      updateData.defectQuantity = Math.max(0, (assignment.defectQuantity || 0) - decrementAmount);
     }
     
     await db('mes.worker_assignments')
@@ -2266,11 +2266,11 @@ router.get('/alerts', withAuth, async (req, res) => {
         'title',
         'message',
         'metadata',
-        'is_read',
-        'is_resolved',
-        'created_at',
-        'resolved_at',
-        'resolved_by'
+        'isRead',
+        'isResolved',
+        'createdAt',
+        'resolvedAt',
+        'resolvedBy'
       );
     
     // Apply filters
@@ -2281,14 +2281,14 @@ router.get('/alerts', withAuth, async (req, res) => {
     if (status) {
       // Map status to is_resolved/is_read flags
       if (status === 'active') {
-        query = query.where('is_resolved', false);
+        query = query.where('isResolved', false);
       } else if (status === 'resolved') {
-        query = query.where('is_resolved', true);
+        query = query.where('isResolved', true);
       }
     }
     
     // Order by most recent
-    query = query.orderBy('created_at', 'desc');
+    query = query.orderBy('createdAt', 'desc');
     
     // Apply limit
     if (limit) {
@@ -2326,17 +2326,17 @@ router.get('/substations', withAuth, async (req, res) => {
       .select(
         'id',
         'name',
-        'station_id',
+        'stationId',
         'description',
-        'is_active',
-        'created_at',
-        'updated_at'
+        'isActive',
+        'createdAt',
+        'updatedAt'
       )
-      .where('is_active', true);
+      .where('isActive', true);
     
     // Optional filter by station
     if (stationId) {
-      query = query.where('station_id', stationId);
+      query = query.where('stationId', stationId);
     }
     
     const substations = await query.orderBy('id');
@@ -2351,17 +2351,17 @@ router.get('/substations', withAuth, async (req, res) => {
 // POST /api/mes/substations - Create new substation (SQL)
 // ID Format: ST-XXX-XXX-XX (örn: ST-Ar-001-01, ST-Ka-002-01)
 router.post('/substations', withAuth, async (req, res) => {
-  const { name, station_id, description } = req.body;
+  const { name, stationId, description } = req.body;
   
-  if (!name || !station_id) {
-    return res.status(400).json({ error: 'Name and station_id are required' });
+  if (!name || !stationId) {
+    return res.status(400).json({ error: 'Name and stationId are required' });
   }
   
   try {
     // Get station info for code prefix
     const station = await db('mes.stations')
       .select('id', 'substations')
-      .where('id', station_id)
+      .where('id', stationId)
       .first();
     
     if (!station) {
@@ -2369,11 +2369,11 @@ router.post('/substations', withAuth, async (req, res) => {
     }
     
     // Parse station code (ST-Ar-001 → Ar-001)
-    const stationCode = station_id.replace('ST-', '');
+    const stationCode = stationId.replace('ST-', '');
     
     // Count existing substations for this station
     const existingCount = await db('mes.substations')
-      .where('station_id', station_id)
+      .where('stationId', stationId)
       .count('* as count');
     
     const nextNum = parseInt(existingCount[0].count) + 1;
@@ -2384,21 +2384,21 @@ router.post('/substations', withAuth, async (req, res) => {
       .insert({
         id: newId,
         name,
-        station_id,
+        stationId,
         description,
-        is_active: true,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
+        isActive: true,
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
     // Update station's substations array
     const currentSubstations = station.substations || [];
     await db('mes.stations')
-      .where('id', station_id)
+      .where('id', stationId)
       .update({
         substations: JSON.stringify([...currentSubstations, newId]),
-        updated_at: db.fn.now()
+        updatedAt: db.fn.now()
       });
     
     res.json(result[0]);
@@ -2416,8 +2416,8 @@ router.post('/substations/reset-all', withAuth, async (req, res) => {
     // Simple reset: ensure all substations are active
     const result = await db('mes.substations')
       .update({
-        is_active: true,
-        updated_at: db.fn.now()
+        isActive: true,
+        updatedAt: db.fn.now()
       })
       .returning('id');
     
@@ -2440,12 +2440,12 @@ router.post('/substations/reset-all', withAuth, async (req, res) => {
 // Soft delete (is_active=false) also removes from station's substations array
 router.patch('/substations/:id', withAuth, async (req, res) => {
   const { id } = req.params;
-  const { name, description, station_id, is_active } = req.body;
+  const { name, description, stationId, isActive } = req.body;
   
   try {
     // Get current substation to know which station it belongs to
     const currentSubstation = await db('mes.substations')
-      .select('station_id', 'is_active')
+      .select('stationId', 'isActive')
       .where({ id })
       .first();
     
@@ -2454,34 +2454,34 @@ router.patch('/substations/:id', withAuth, async (req, res) => {
     }
     
     const updateData = {
-      updated_at: db.fn.now()
+      updatedAt: db.fn.now()
     };
     
     // Only update provided fields
     if (name !== undefined) updateData.name = name;
     if (description !== undefined) updateData.description = description;
-    if (station_id !== undefined) updateData.station_id = station_id;
-    if (is_active !== undefined) updateData.is_active = is_active;
+    if (stationId !== undefined) updateData.stationId = stationId;
+    if (isActive !== undefined) updateData.isActive = isActive;
     
     const result = await db('mes.substations')
       .where({ id })
       .update(updateData)
       .returning('*');
     
-    // If soft deleting (is_active=false), remove from station's substations array
-    if (is_active === false && currentSubstation.is_active === true) {
+    // If soft deleting (isActive=false), remove from station's substations array
+    if (isActive === false && currentSubstation.isActive === true) {
       const station = await db('mes.stations')
         .select('substations')
-        .where('id', currentSubstation.station_id)
+        .where('id', currentSubstation.stationId)
         .first();
       
       if (station && station.substations) {
         const updatedSubstations = (station.substations || []).filter(subId => subId !== id);
         await db('mes.stations')
-          .where('id', currentSubstation.station_id)
+          .where('id', currentSubstation.stationId)
           .update({
             substations: JSON.stringify(updatedSubstations),
-            updated_at: db.fn.now()
+            updatedAt: db.fn.now()
           });
       }
     }
@@ -2533,12 +2533,12 @@ router.get('/substations/:id/details', withAuth, async (req, res) => {
         id: substation.code,
         code: substation.code,
         stationId: station.id,
-        station_name: station.name,
+        stationName: station.name,
         status: substation.status || 'active',
         description: null,
-        is_active: substation.status === 'active',
-        created_at: null,
-        updated_at: null
+        isActive: substation.status === 'active',
+        createdAt: null,
+        updatedAt: null
       },
       currentTask: null,
       upcomingTasks: [],
@@ -2875,68 +2875,68 @@ router.get('/work-packages', withAuth, async (req, res) => {
       .select(
         // Assignment core
         'wa.id',
-        'wa.node_id',
-        'wa.operation_id',
+        'wa.nodeId',
+        'wa.operationId',
         'wa.status',
         'wa.priority',
-        'wa.is_urgent',
-        'wa.sequence_number',
+        'wa.isUrgent',
+        'wa.sequenceNumber',
         
         // Worker data
-        'wa.worker_id',
-        'w.name as worker_name',
-        'w.skills as worker_skills',
+        'wa.workerId',
+        'w.name as workerName',
+        'w.skills as workerSkills',
         
         // Station/Substation data
-        'wa.station_id',
-        'st.name as station_name',
-        'wa.substation_id',
-        's.name as substation_name',
+        'wa.stationId',
+        'st.name as stationName',
+        'wa.substationId',
+        's.name as substationName',
         
         // Operation data
-        'o.name as operation_name',
+        'o.name as operationName',
         
         // Plan data
-        'wa.plan_id',
-        'pn.name as node_name',
-        'pn.output_code',
-        'pn.output_qty as node_quantity',
+        'wa.planId',
+        'pn.name as nodeName',
+        'pn.outputCode',
+        'pn.outputQty as nodeQuantity',
         
         // Work order data
-        'wa.work_order_code',
-        'qq.customer_name as customer',
-        db.raw('NULL as product_name'), // TODO: Get from quote_items or form_data
+        'wa.workOrderCode',
+        'qq.customerName as customer',
+        db.raw('NULL as productName'), // TODO: Get from quote_items or form_data
         
         // Timing
-        'wa.estimated_start_time as expected_start',
-        'wa.estimated_end_time as planned_end',
-        'wa.started_at as actual_start',
-        'wa.completed_at as actual_end',
+        'wa.estimatedStartTime as expectedStart',
+        'wa.estimatedEndTime as plannedEnd',
+        'wa.startedAt as actualStart',
+        'wa.completedAt as actualEnd',
         
         // Material data
-        'wa.materials as material_inputs',
-        'wa.pre_production_reserved_amount',
-        'wa.actual_reserved_amounts',
-        'wa.material_reservation_status',
+        'wa.materials as materialInputs',
+        'wa.preProductionReservedAmount',
+        'wa.actualReservedAmounts',
+        'wa.materialReservationStatus',
         
         // Scrap tracking
-        'wa.input_scrap_count',
-        'wa.production_scrap_count',
-        'wa.defect_quantity',
+        'wa.inputScrapCount',
+        'wa.productionScrapCount',
+        'wa.defectQuantity',
         
         // Metadata
-        'wa.created_at',
-        'wa.actual_quantity',
+        'wa.createdAt',
+        'wa.actualQuantity',
         'wa.notes'
       )
-      .leftJoin('mes.workers as w', 'w.id', 'wa.worker_id')
-      .leftJoin('mes.stations as st', 'st.id', 'wa.station_id')
-      .leftJoin('mes.substations as s', 's.id', 'wa.substation_id')
-      .leftJoin('mes.operations as o', 'o.id', 'wa.operation_id')
-      .leftJoin('mes.production_plan_nodes as pn', 'pn.id', 'wa.node_id')
-      .leftJoin('mes.work_orders as wo', 'wo.code', 'wa.work_order_code')
-      .leftJoin('quotes.quotes as qq', 'qq.work_order_code', 'wo.code')
-      .orderBy('wa.estimated_start_time', 'asc')
+      .leftJoin('mes.workers as w', 'w.id', 'wa.workerId')
+      .leftJoin('mes.stations as st', 'st.id', 'wa.stationId')
+      .leftJoin('mes.substations as s', 's.id', 'wa.substationId')
+      .leftJoin('mes.operations as o', 'o.id', 'wa.operationId')
+      .leftJoin('mes.production_plan_nodes as pn', 'pn.id', 'wa.nodeId')
+      .leftJoin('mes.work_orders as wo', 'wo.code', 'wa.workOrderCode')
+      .leftJoin('quotes.quotes as qq', 'qq.workOrderCode', 'wo.code')
+      .orderBy('wa.estimatedStartTime', 'asc')
       .limit(maxResults);
     
     // Apply filters
@@ -2944,10 +2944,10 @@ router.get('/work-packages', withAuth, async (req, res) => {
       query = query.where('wa.status', status);
     }
     if (workerId) {
-      query = query.where('wa.worker_id', workerId);
+      query = query.where('wa.workerId', workerId);
     }
     if (stationId) {
-      query = query.where('wa.station_id', stationId);
+      query = query.where('wa.stationId', stationId);
     }
     
     const workPackages = await query;
@@ -2959,55 +2959,55 @@ router.get('/work-packages', withAuth, async (req, res) => {
       id: wp.id,
       assignmentId: wp.id,
       workPackageId: wp.id,
-      nodeId: wp.node_id,
+      nodeId: wp.nodeId,
       nodeName: wp.node_name,
       operationName: wp.operation_name,
-      operationId: wp.operation_id,
+      operationId: wp.operationId,
       status: wp.status,
       priority: wp.priority || 2,
-      isUrgent: wp.is_urgent || false,
+      isUrgent: wp.isUrgent || false,
       
       // Work order
-      workOrderCode: wp.work_order_code,
+      workOrderCode: wp.workOrderCode,
       customer: wp.customer || '',
       productName: wp.product_name || '',
       
       // Worker
-      workerId: wp.worker_id,
-      workerName: wp.worker_name,
+      workerId: wp.workerId,
+      workerName: wp.workerName,
       workerSkills: wp.worker_skills || [],
       
       // Station
-      stationId: wp.station_id,
-      stationName: wp.station_name,
-      substationId: wp.substation_id,
-      substationCode: wp.substation_name,
+      stationId: wp.stationId,
+      stationName: wp.stationName,
+      substationId: wp.substationId,
+      substationCode: wp.substationName,
       
       // Material
       materialInputs: wp.material_inputs || {},
-      preProductionReservedAmount: wp.pre_production_reserved_amount || {},
-      actualReservedAmounts: wp.actual_reserved_amounts || {},
-      materialReservationStatus: wp.material_reservation_status,
-      outputCode: wp.output_code,
+      preProductionReservedAmount: wp.preProductionReservedAmount || {},
+      actualReservedAmounts: wp.actualReservedAmounts || {},
+      materialReservationStatus: wp.materialReservationStatus,
+      outputCode: wp.outputCode,
       
       // Timing
-      expectedStart: wp.expected_start,
-      plannedEnd: wp.planned_end,
+      expectedStart: wp.expectedStart,
+      plannedEnd: wp.plannedEnd,
       actualStart: wp.actual_start,
       actualEnd: wp.actual_end,
       
       // Scrap
-      inputScrapCount: wp.input_scrap_count || {},
-      productionScrapCount: wp.production_scrap_count || {},
-      defectQuantity: wp.defect_quantity || 0,
+      inputScrapCount: wp.inputScrapCount || {},
+      productionScrapCount: wp.productionScrapCount || {},
+      defectQuantity: wp.defectQuantity || 0,
       
       // Status flags
       isPaused: wp.status === 'paused',
-      materialStatus: wp.material_reservation_status === 'reserved' ? 'ok' : 'pending',
+      materialStatus: wp.materialReservationStatus === 'reserved' ? 'ok' : 'pending',
       
       // Metadata
-      createdAt: wp.created_at,
-      actualQuantity: wp.actual_quantity,
+      createdAt: wp.createdAt,
+      actualQuantity: wp.actualQuantity,
       notes: wp.notes
     }));
     
@@ -3611,31 +3611,31 @@ router.get('/entity-relations', withAuth, async (req, res) => {
     // Build query
     let query = db('mes_entity_relations')
       .where({
-        source_type: sourceType,
-        source_id: sourceId,
-        relation_type: relationType
+        sourceType: sourceType,
+        sourceId: sourceId,
+        relationType: relationType
       })
       .select(
         'id',
-        'source_type',
-        'source_id',
-        'relation_type',
-        'target_id',
+        'sourceType',
+        'sourceId',
+        'relationType',
+        'targetId',
         'priority',
         'quantity',
-        'unit_ratio',
-        'is_derived',
-        'created_at',
-        'updated_at'
+        'unitRatio',
+        'isDerived',
+        'createdAt',
+        'updatedAt'
       );
 
     // Optional target filter
     if (targetId) {
-      query = query.where('target_id', targetId);
+      query = query.where('targetId', targetId);
     }
 
     // Order by priority (if applicable)
-    query = query.orderBy('priority', 'asc').orderBy('created_at', 'asc');
+    query = query.orderBy('priority', 'asc').orderBy('createdAt', 'asc');
 
     const relations = await query;
 
@@ -3647,57 +3647,57 @@ router.get('/entity-relations', withAuth, async (req, res) => {
 
         try {
           // Get target entity details based on relation type
-          if (relation.relation_type === 'station') {
+          if (relation.relationType === 'station') {
             const station = await db('mes_stations')
-              .where('id', relation.target_id)
+              .where('id', relation.targetId)
               .first('id', 'name', 'code', 'type');
             if (station) {
               targetName = station.name;
               targetDetails = station;
             }
-          } else if (relation.relation_type === 'operation') {
+          } else if (relation.relationType === 'operation') {
             const operation = await db('mes_operations')
-              .where('id', relation.target_id)
+              .where('id', relation.targetId)
               .first('id', 'name', 'code', 'type');
             if (operation) {
               targetName = operation.name;
               targetDetails = operation;
             }
-          } else if (relation.relation_type === 'substation') {
+          } else if (relation.relationType === 'substation') {
             const substation = await db('mes_substations')
-              .where('id', relation.target_id)
-              .first('id', 'name', 'code', 'station_id');
+              .where('id', relation.targetId)
+              .first('id', 'name', 'code', 'stationId');
             if (substation) {
               targetName = substation.name;
               targetDetails = substation;
             }
-          } else if (relation.relation_type === 'predecessor') {
+          } else if (relation.relationType === 'predecessor') {
             const node = await db('mes_production_plan_nodes')
-              .where('id', relation.target_id)
-              .first('id', 'name', 'operation_id');
+              .where('id', relation.targetId)
+              .first('id', 'name', 'operationId');
             if (node) {
               targetName = node.name;
               targetDetails = node;
             }
           }
         } catch (err) {
-          console.warn(`Failed to fetch target details for ${relation.relation_type} ${relation.target_id}:`, err.message);
+          console.warn(`Failed to fetch target details for ${relation.relationType} ${relation.targetId}:`, err.message);
         }
 
         return {
           id: relation.id,
-          sourceType: relation.source_type,
-          sourceId: relation.source_id,
-          relationType: relation.relation_type,
-          targetId: relation.target_id,
+          sourceType: relation.sourceType,
+          sourceId: relation.sourceId,
+          relationType: relation.relationType,
+          targetId: relation.targetId,
           targetName,
           targetDetails,
           priority: relation.priority,
           quantity: relation.quantity,
-          unitRatio: relation.unit_ratio,
-          isDerived: relation.is_derived,
-          createdAt: relation.created_at,
-          updatedAt: relation.updated_at
+          unitRatio: relation.unitRatio,
+          isDerived: relation.isDerived,
+          createdAt: relation.createdAt,
+          updatedAt: relation.updatedAt
         };
       })
     );
@@ -3755,16 +3755,16 @@ router.post('/entity-relations', withAuth, async (req, res) => {
     // Insert relation
     const [relation] = await db('mes_entity_relations')
       .insert({
-        source_type: sourceType,
-        source_id: sourceId,
-        relation_type: relationType,
-        target_id: targetId,
+        sourceType: sourceType,
+        sourceId: sourceId,
+        relationType: relationType,
+        targetId: targetId,
         priority: priority || null,
         quantity: quantity || null,
-        unit_ratio: unitRatio || null,
-        is_derived: isDerived || false,
-        created_at: new Date(),
-        updated_at: new Date()
+        unitRatio: unitRatio || null,
+        isDerived: isDerived || false,
+        createdAt: new Date(),
+        updatedAt: new Date()
       })
       .returning('*');
 
@@ -3772,16 +3772,16 @@ router.post('/entity-relations', withAuth, async (req, res) => {
       success: true,
       relation: {
         id: relation.id,
-        sourceType: relation.source_type,
-        sourceId: relation.source_id,
-        relationType: relation.relation_type,
-        targetId: relation.target_id,
+        sourceType: relation.sourceType,
+        sourceId: relation.sourceId,
+        relationType: relation.relationType,
+        targetId: relation.targetId,
         priority: relation.priority,
         quantity: relation.quantity,
-        unitRatio: relation.unit_ratio,
-        isDerived: relation.is_derived,
-        createdAt: relation.created_at,
-        updatedAt: relation.updated_at
+        unitRatio: relation.unitRatio,
+        isDerived: relation.isDerived,
+        createdAt: relation.createdAt,
+        updatedAt: relation.updatedAt
       }
     });
 
@@ -3818,12 +3818,12 @@ router.put('/entity-relations/:id', withAuth, async (req, res) => {
     const { priority, quantity, unitRatio } = req.body;
 
     const updateData = {
-      updated_at: new Date()
+      updatedAt: new Date()
     };
 
     if (priority !== undefined) updateData.priority = priority;
     if (quantity !== undefined) updateData.quantity = quantity;
-    if (unitRatio !== undefined) updateData.unit_ratio = unitRatio;
+    if (unitRatio !== undefined) updateData.unitRatio = unitRatio;
 
     const [updatedRelation] = await db('mes_entity_relations')
       .where('id', id)
@@ -3840,14 +3840,14 @@ router.put('/entity-relations/:id', withAuth, async (req, res) => {
       success: true,
       relation: {
         id: updatedRelation.id,
-        sourceType: updatedRelation.source_type,
-        sourceId: updatedRelation.source_id,
-        relationType: updatedRelation.relation_type,
-        targetId: updatedRelation.target_id,
+        sourceType: updatedRelation.sourceType,
+        sourceId: updatedRelation.sourceId,
+        relationType: updatedRelation.relationType,
+        targetId: updatedRelation.targetId,
         priority: updatedRelation.priority,
         quantity: updatedRelation.quantity,
-        unitRatio: updatedRelation.unit_ratio,
-        updatedAt: updatedRelation.updated_at
+        unitRatio: updatedRelation.unitRatio,
+        updatedAt: updatedRelation.updatedAt
       }
     });
 
@@ -3924,7 +3924,7 @@ router.post('/entity-relations/batch', withAuth, async (req, res) => {
             .where('id', relation.id)
             .update({
               priority: relation.priority,
-              updated_at: new Date()
+              updatedAt: new Date()
             });
         }
       }
@@ -3963,29 +3963,28 @@ async function getPlanWithNodes(planId) {
   
   if (!plan) return null;
   
-  // Get nodes with aggregated materials and stations
+  // Get nodes
   const nodes = await db('mes.production_plan_nodes as n')
     .select('n.*')
-    .where('n.plan_id', planId)
-    .orderBy('n.sequence_order');
+    .where('n.planId', planId)
+    .orderBy('n.sequenceOrder');
   
-  // For each node, fetch materials and stations separately
+  // For each node, fetch materials and stations
   for (const node of nodes) {
     // Get material inputs
     const materialInputs = await db('mes.node_material_inputs')
-      .where('node_id', node.id)
-      .select('material_code as materialCode', 'required_quantity as requiredQuantity', 
-              'unit_ratio as unitRatio', 'is_derived as isDerived');
+      .where('nodeId', node.id)
+      .select('materialCode', 'requiredQuantity', 'unitRatio', 'isDerived');
     
-    node.material_inputs = materialInputs;
+    node.materialInputs = materialInputs;
     
     // Get assigned stations
     const stations = await db('mes.node_stations')
-      .where('node_id', node.id)
-      .select('station_id as stationId', 'priority')
+      .where('nodeId', node.id)
+      .select('stationId', 'priority')
       .orderBy('priority');
     
-    node.assigned_stations = stations;
+    node.assignedStations = stations;
   }
   
   return { ...plan, nodes };
@@ -3996,25 +3995,24 @@ async function getPlanWithNodes(planId) {
  */
 async function findAvailableWorkerWithSkills(trx, requiredSkills, stationId) {
   if (!requiredSkills || requiredSkills.length === 0) {
-    // No skills required, get any available worker
     return await trx('mes.workers')
-      .where('is_active', true)
+      .where('isActive', true)
       .first();
   }
   
   // Find workers with matching skills
   const workers = await trx('mes.workers')
-    .where('is_active', true)
+    .where('isActive', true)
     .whereRaw('skills::jsonb ?| ?', [requiredSkills]);
   
   if (workers.length === 0) return null;
   
   // Prefer workers already assigned to this station
   const stationWorkers = await trx('mes_entity_relations')
-    .where('source_type', 'worker')
-    .where('relation_type', 'station')
-    .where('target_id', stationId)
-    .pluck('source_id');
+    .where('sourceType', 'worker')
+    .where('relationType', 'station')
+    .where('targetId', stationId)
+    .pluck('sourceId');
   
   const preferredWorker = workers.find(w => 
     stationWorkers.includes(w.id)
@@ -4033,17 +4031,17 @@ router.get('/production-plans', withAuth, async (req, res) => {
     const plans = await db('mes.production_plans as p')
       .select(
         'p.id',
-        'p.work_order_code',
-        'p.quote_id',
+        'p.workOrderCode',
+        'p.quoteId',
         'p.status',
-        'p.created_at',
-        'p.launched_at',
-        db.raw('count(n.id)::integer as node_count')
+        'p.createdAt',
+        'p.launchedAt',
+        db.raw('count(n.id)::integer as "nodeCount"')
       )
-      .leftJoin('mes.production_plan_nodes as n', 'n.plan_id', 'p.id')
-      .where('p.status', '!=', 'template') // Exclude templates
+      .leftJoin('mes.production_plan_nodes as n', 'n.planId', 'p.id')
+      .where('p.status', '!=', 'template')
       .groupBy('p.id')
-      .orderBy('p.created_at', 'desc');
+      .orderBy('p.createdAt', 'desc');
     
     res.json(plans);
   } catch (error) {
@@ -4100,9 +4098,9 @@ router.post('/production-plans', withAuth, async (req, res) => {
   
   try {
     // 1. Generate plan ID
-    const [{ max_id }] = await trx('mes.production_plans')
-      .max('id as max_id');
-    const nextNum = max_id ? parseInt(max_id.split('-')[1]) + 1 : 1;
+    const [{ maxId }] = await trx('mes.production_plans')
+      .max('id as maxId');
+    const nextNum = maxId ? parseInt(maxId.split('-')[1]) + 1 : 1;
     const planId = `PLAN-${nextNum.toString().padStart(3, '0')}`;
     
     console.log(`📋 Creating production plan: ${planId}`);
@@ -4110,10 +4108,10 @@ router.post('/production-plans', withAuth, async (req, res) => {
     // 2. Create plan header
     await trx('mes.production_plans').insert({
       id: planId,
-      work_order_code: workOrderCode,
-      quote_id: quoteId,
+      workOrderCode: workOrderCode,
+      quoteId: quoteId,
       status: 'draft',
-      created_at: trx.fn.now()
+      createdAt: trx.fn.now()
     });
     
     // 3. Insert nodes with materials and stations
@@ -4121,20 +4119,20 @@ router.post('/production-plans', withAuth, async (req, res) => {
       // 3a. Insert node
       const [nodeRecord] = await trx('mes.production_plan_nodes')
         .insert({
-          plan_id: planId,
-          node_id: `${planId}-node-${node.sequenceOrder}`,
-          work_order_code: workOrderCode, // Add work_order_code for easy access
+          planId: planId,
+          nodeId: `${planId}-node-${node.sequenceOrder}`,
+          workOrderCode: workOrderCode,
           name: node.name,
-          operation_id: node.operationId,
-          output_code: node.outputCode,
-          output_qty: node.outputQty,
-          output_unit: node.outputUnit,
-          nominal_time: node.nominalTime,
+          operationId: node.operationId,
+          outputCode: node.outputCode,
+          outputQty: node.outputQty,
+          outputUnit: node.outputUnit,
+          nominalTime: node.nominalTime,
           efficiency: node.efficiency || 0.85,
-          effective_time: Math.ceil(node.nominalTime / (node.efficiency || 0.85)),
-          sequence_order: node.sequenceOrder,
-          assignment_mode: 'auto',
-          created_at: trx.fn.now()
+          effectiveTime: Math.ceil(node.nominalTime / (node.efficiency || 0.85)),
+          sequenceOrder: node.sequenceOrder,
+          assignmentMode: 'auto',
+          createdAt: trx.fn.now()
         })
         .returning('id');
       
@@ -4143,12 +4141,12 @@ router.post('/production-plans', withAuth, async (req, res) => {
       // 3b. Insert material inputs
       if (node.materialInputs && node.materialInputs.length > 0) {
         const materialInputs = node.materialInputs.map(m => ({
-          node_id: nodeId,
-          material_code: m.materialCode,
-          required_quantity: m.requiredQuantity,
-          unit_ratio: m.unitRatio || 1.0,
-          is_derived: m.isDerived || false,
-          created_at: trx.fn.now()
+          nodeId: nodeId,
+          materialCode: m.materialCode,
+          requiredQuantity: m.requiredQuantity,
+          unitRatio: m.unitRatio || 1.0,
+          isDerived: m.isDerived || false,
+          createdAt: trx.fn.now()
         }));
         
         await trx('mes.node_material_inputs').insert(materialInputs);
@@ -4157,10 +4155,10 @@ router.post('/production-plans', withAuth, async (req, res) => {
       // 3c. Insert station assignments
       if (node.stationIds && node.stationIds.length > 0) {
         const stationAssignments = node.stationIds.map((stId, idx) => ({
-          node_id: nodeId,
-          station_id: stId,
+          nodeId: nodeId,
+          stationId: stId,
           priority: idx + 1,
-          created_at: trx.fn.now()
+          createdAt: trx.fn.now()
         }));
         
         await trx('mes.node_stations').insert(stationAssignments);
@@ -4221,10 +4219,10 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
     const [updated] = await db('mes.production_plans')
       .where('id', id)
       .update({
-        work_order_code: workOrderCode,
-        quote_id: quoteId,
+        workOrderCode,
+        quoteId,
         status,
-        updated_at: db.fn.now()
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -4254,7 +4252,7 @@ router.delete('/production-plans/:id', withAuth, async (req, res) => {
     // Check if plan exists and get launch status
     const [plan] = await trx('mes.production_plans')
       .where('id', req.params.id)
-      .select('id', 'status', 'launched_at');
+      .select('id', 'status', 'launchedAt');
     
     if (!plan) {
       await trx.rollback();
@@ -4262,7 +4260,7 @@ router.delete('/production-plans/:id', withAuth, async (req, res) => {
     }
     
     // Prevent deletion of launched plans
-    if (plan.launched_at) {
+    if (plan.launchedAt) {
       await trx.rollback();
       return res.status(400).json({ 
         error: 'Cannot delete launched plan',
@@ -4272,7 +4270,7 @@ router.delete('/production-plans/:id', withAuth, async (req, res) => {
     
     // Get node IDs first
     const nodes = await trx('mes.production_plan_nodes')
-      .where('plan_id', req.params.id)
+      .where('planId', req.params.id)
       .select('id');
     
     const nodeIds = nodes.map(n => n.id);
@@ -4280,16 +4278,16 @@ router.delete('/production-plans/:id', withAuth, async (req, res) => {
     // Delete in correct order (FK constraints)
     if (nodeIds.length > 0) {
       await trx('mes.node_stations')
-        .whereIn('node_id', nodeIds)
+        .whereIn('nodeId', nodeIds)
         .delete();
       
       await trx('mes.node_material_inputs')
-        .whereIn('node_id', nodeIds)
+        .whereIn('nodeId', nodeIds)
         .delete();
     }
     
     await trx('mes.production_plan_nodes')
-      .where('plan_id', req.params.id)
+      .where('planId', req.params.id)
       .delete();
     
     await trx('mes.production_plans')
@@ -4338,8 +4336,8 @@ async function findEarliestSubstation(trx, stationOptions, scheduleMap, afterTim
   
   for (const stOpt of stationOptions) {
     const substations = await trx('mes.substations')
-      .where('station_id', stOpt.station_id)
-      .where('is_active', true);
+      .where('stationId', stOpt.stationId)
+      .where('isActive', true);
     
     for (const sub of substations) {
       const schedule = scheduleMap.get(sub.id) || [];
@@ -4415,7 +4413,7 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
   const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][startTime.getDay()];
   
   // Get workers with matching skills (or all if no skills required)
-  let query = trx('mes.workers').where('is_active', true);
+  let query = trx('mes.workers').where('isActive', true);
   
   if (requiredSkills && requiredSkills.length > 0) {
     query = query.whereRaw('skills::jsonb ?| ?', [requiredSkills]);
@@ -4425,7 +4423,7 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
   
   // Filter by shift availability
   for (const worker of workers) {
-    const schedule = worker.personal_schedule;
+    const schedule = worker.personalSchedule;
     const shiftBlocks = getShiftBlocksForDay(schedule, dayOfWeek);
     
     if (isWithinShiftBlocks(startTime, duration, shiftBlocks)) {
@@ -4450,8 +4448,8 @@ function topologicalSort(nodes, predecessors) {
   });
   
   predecessors.forEach(p => {
-    graph.get(p.predecessor_node_id).push(p.node_id);
-    inDegree.set(p.node_id, inDegree.get(p.node_id) + 1);
+    graph.get(p.predecessorNodeId).push(p.nodeId);
+    inDegree.set(p.nodeId, inDegree.get(p.nodeId) + 1);
   });
   
   const queue = nodes.filter(n => inDegree.get(n.id) === 0).map(n => n.id);
@@ -4480,12 +4478,12 @@ function calculateParallelPaths(executionOrder, predecessors) {
   let maxLevel = 0;
   
   for (const nodeId of executionOrder) {
-    const preds = predecessors.filter(p => p.node_id === nodeId);
+    const preds = predecessors.filter(p => p.nodeId === nodeId);
     
     if (preds.length === 0) {
       levels.set(nodeId, 0);
     } else {
-      const predLevels = preds.map(p => levels.get(p.predecessor_node_id) || 0);
+      const predLevels = preds.map(p => levels.get(p.predecessorNodeId) || 0);
       const level = Math.max(...predLevels) + 1;
       levels.set(nodeId, level);
       maxLevel = Math.max(maxLevel, level);
@@ -4526,11 +4524,11 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
     
     // 2. Load nodes and dependency graph
     const nodes = await trx('mes.production_plan_nodes')
-      .where('plan_id', id)
-      .orderBy('sequence_order');
+      .where('planId', id)
+      .orderBy('sequenceOrder');
     
     const predecessors = await trx('mes.node_predecessors')
-      .whereIn('node_id', nodes.map(n => n.id));
+      .whereIn('nodeId', nodes.map(n => n.id));
     
     // 3. Topological sort for execution order
     const executionOrder = topologicalSort(nodes, predecessors);
@@ -4548,8 +4546,8 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       
       // 5a. Calculate earliest start (wait for predecessors)
       const predecessorIds = predecessors
-        .filter(p => p.node_id === nodeId)
-        .map(p => p.predecessor_node_id);
+        .filter(p => p.nodeId === nodeId)
+        .map(p => p.predecessorNodeId);
       
       let earliestStart = new Date();
       for (const predId of predecessorIds) {
@@ -4561,7 +4559,7 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       
       // 5b. Get station options
       const stationOptions = await trx('mes.node_stations')
-        .where('node_id', node.id)
+        .where('nodeId', node.id)
         .orderBy('priority');
       
       // 5c. Find earliest available substation
@@ -4578,7 +4576,7 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       
       // 5d. Get operation skills
       const operation = await trx('mes.operations')
-        .where('id', node.operation_id)
+        .where('id', node.operationId)
         .first();
       
       const requiredSkills = operation?.skills || [];
@@ -4587,9 +4585,9 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       const worker = await findWorkerWithShiftCheck(
         trx,
         requiredSkills,
-        substation.station_id,
+        substation.stationId,
         availableAt,
-        node.effective_time
+        node.effectiveTime
       );
       
       if (!worker) {
@@ -4611,7 +4609,7 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       ));
       
       const actualEnd = new Date(
-        actualStart.getTime() + node.effective_time * 60000
+        actualStart.getTime() + node.effectiveTime * 60000
       );
       
       const isQueued = sequenceNumber > 1;
@@ -4619,27 +4617,27 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       
       // 5h. Create worker assignment (now uses INTEGER foreign key)
       await trx('mes.worker_assignments').insert({
-        plan_id: id,
-        work_order_code: plan.work_order_code,
-        node_id: node.id, // INTEGER foreign key to production_plan_nodes.id
-        worker_id: worker.id,
-        substation_id: substation.id,
-        operation_id: node.operation_id,
+        planId: id,
+        workOrderCode: plan.workOrderCode,
+        nodeId: node.id, // INTEGER foreign key to production_plan_nodes.id
+        workerId: worker.id,
+        substationId: substation.id,
+        operationId: node.operationId,
         status: isQueued ? 'queued' : 'pending',
-        estimated_start_time: actualStart,
-        estimated_end_time: actualEnd,
-        sequence_number: sequenceNumber,
-        created_at: trx.fn.now()
+        estimatedStartTime: actualStart,
+        estimatedEndTime: actualEnd,
+        sequenceNumber: sequenceNumber,
+        createdAt: trx.fn.now()
       });
       
       // 5i. Update node
       await trx('mes.production_plan_nodes')
         .where('id', node.id)
         .update({
-          assigned_worker_id: worker.id,
-          estimated_start_time: actualStart,
-          estimated_end_time: actualEnd,
-          updated_at: trx.fn.now()
+          assignedWorkerId: worker.id,
+          estimatedStartTime: actualStart,
+          estimatedEndTime: actualEnd,
+          updatedAt: trx.fn.now()
         });
       
       // 5j. Update schedules
@@ -4657,16 +4655,16 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         .where('id', substation.id)
         .update({
           status: 'reserved',
-          current_assignment_id: node.id,
-          assigned_worker_id: worker.id,
-          current_operation: node.operation_id,
-          reserved_at: trx.fn.now(),
-          updated_at: trx.fn.now()
+          currentAssignmentId: node.id,
+          assignedWorkerId: worker.id,
+          currentOperation: node.operationId,
+          reservedAt: trx.fn.now(),
+          updatedAt: trx.fn.now()
         });
       
       // 5l. Track for response
       assignments.push({
-        nodeId: node.node_id,
+        nodeId: node.nodeId,
         nodeName: node.name,
         workerId: worker.id,
         workerName: worker.name,
@@ -4686,7 +4684,7 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       .where('id', id)
       .update({
         status: 'active',
-        launched_at: trx.fn.now()
+        launchedAt: trx.fn.now()
       });
     
     await trx.commit();
@@ -4739,7 +4737,7 @@ router.post('/production-plans/:id/pause', withAuth, async (req, res) => {
       .where('status', 'active')
       .update({ 
         status: 'paused',
-        paused_at: db.fn.now() 
+        pausedAt: db.fn.now() 
       })
       .returning('*');
     
@@ -4771,7 +4769,7 @@ router.post('/production-plans/:id/resume', withAuth, async (req, res) => {
       .where('status', 'paused')
       .update({ 
         status: 'active',
-        resumed_at: db.fn.now() 
+        resumedAt: db.fn.now() 
       })
       .returning('*');
     
@@ -4817,46 +4815,46 @@ router.get('/production-plans/:planId/nodes', withAuth, async (req, res) => {
     
     // Get nodes with materials and stations
     const nodes = await db('mes.production_plan_nodes as n')
-      .where('n.plan_id', planId)
-      .leftJoin('mes.operations as op', 'n.operation_id', 'op.id')
+      .where('n.planId', planId)
+      .leftJoin('mes.operations as op', 'n.operationId', 'op.id')
       .select(
         'n.*',
-        'op.name as operation_name'
+        'op.name as operationName'
       )
-      .orderBy('n.sequence_order');
+      .orderBy('n.sequenceOrder');
     
     // Get materials for each node
     const materials = await db('mes.node_material_inputs')
-      .whereIn('node_id', nodes.map(n => n.id));
+      .whereIn('nodeId', nodes.map(n => n.id));
     
     // Get stations for each node
     const stations = await db('mes.node_stations as ns')
-      .whereIn('ns.node_id', nodes.map(n => n.id))
-      .leftJoin('mes.stations as s', 'ns.station_id', 's.id')
+      .whereIn('ns.nodeId', nodes.map(n => n.id))
+      .leftJoin('mes.stations as s', 'ns.stationId', 's.id')
       .select(
-        'ns.node_id',
-        'ns.station_id',
+        'ns.nodeId',
+        'ns.stationId',
         'ns.priority',
-        's.name as station_name'
+        's.name as stationName'
       )
       .orderBy('ns.priority');
     
     // Assemble response
     const nodesWithDetails = nodes.map(node => ({
       ...node,
-      material_inputs: materials
-        .filter(m => m.node_id === node.id)
+      materialInputs: materials
+        .filter(m => m.nodeId === node.id)
         .map(m => ({
-          materialCode: m.material_code,
-          requiredQuantity: m.required_quantity,
-          unitRatio: m.unit_ratio,
-          isDerived: m.is_derived
+          materialCode: m.materialCode,
+          requiredQuantity: m.requiredQuantity,
+          unitRatio: m.unitRatio,
+          isDerived: m.isDerived
         })),
-      assigned_stations: stations
-        .filter(s => s.node_id === node.id)
+      assignedStations: stations
+        .filter(s => s.nodeId === node.id)
         .map(s => ({
-          stationId: s.station_id,
-          stationName: s.station_name,
+          stationId: s.stationId,
+          stationName: s.stationName,
           priority: s.priority
         }))
     }));
@@ -4904,42 +4902,42 @@ router.post('/production-plans/:planId/nodes', withAuth, async (req, res) => {
     
     // Calculate next sequence order
     const lastNode = await trx('mes.production_plan_nodes')
-      .where('plan_id', planId)
-      .orderBy('sequence_order', 'desc')
+      .where('planId', planId)
+      .orderBy('sequenceOrder', 'desc')
       .first();
     
-    const sequenceOrder = nodeData.sequence_order || (lastNode ? lastNode.sequence_order + 1 : 1);
+    const sequenceOrder = nodeData.sequenceOrder || (lastNode ? lastNode.sequenceOrder + 1 : 1);
     
     // Calculate effective time
-    const effectiveTime = nodeData.nominal_time / (nodeData.efficiency || 0.85);
+    const effectiveTime = nodeData.nominalTime / (nodeData.efficiency || 0.85);
     
     // Insert node
     const [node] = await trx('mes.production_plan_nodes')
       .insert({
-        plan_id: planId,
-        node_id: nodeData.node_id || `${planId}-node-${sequenceOrder}`,
+        planId: planId,
+        nodeId: nodeData.nodeId || `${planId}-node-${sequenceOrder}`,
         name: nodeData.name,
-        operation_id: nodeData.operation_id,
-        nominal_time: nodeData.nominal_time,
+        operationId: nodeData.operationId,
+        nominalTime: nodeData.nominalTime,
         efficiency: nodeData.efficiency || 0.85,
-        effective_time: effectiveTime,
-        assignment_mode: nodeData.assignment_mode || 'auto',
-        output_code: nodeData.output_code,
-        output_qty: nodeData.output_qty,
-        output_unit: nodeData.output_unit,
-        sequence_order: sequenceOrder,
-        work_order_code: plan.work_order_code
+        effectiveTime: effectiveTime,
+        assignmentMode: nodeData.assignmentMode || 'auto',
+        outputCode: nodeData.outputCode,
+        outputQty: nodeData.outputQty,
+        outputUnit: nodeData.outputUnit,
+        sequenceOrder: sequenceOrder,
+        workOrderCode: plan.workOrderCode
       })
       .returning('*');
     
     // Insert material inputs
     if (nodeData.materialInputs && nodeData.materialInputs.length > 0) {
       const materialInserts = nodeData.materialInputs.map(mat => ({
-        node_id: node.id,
-        material_code: mat.materialCode,
-        required_quantity: mat.requiredQuantity,
-        unit_ratio: mat.unitRatio || 1.0,
-        is_derived: mat.isDerived || false
+        nodeId: node.id,
+        materialCode: mat.materialCode,
+        requiredQuantity: mat.requiredQuantity,
+        unitRatio: mat.unitRatio || 1.0,
+        isDerived: mat.isDerived || false
       }));
       
       await trx('mes.node_material_inputs').insert(materialInserts);
@@ -4948,8 +4946,8 @@ router.post('/production-plans/:planId/nodes', withAuth, async (req, res) => {
     // Insert station assignments
     if (nodeData.stationIds && nodeData.stationIds.length > 0) {
       const stationInserts = nodeData.stationIds.map((stationId, idx) => ({
-        node_id: node.id,
-        station_id: stationId,
+        nodeId: node.id,
+        stationId: stationId,
         priority: idx + 1
       }));
       
@@ -4986,15 +4984,15 @@ router.get('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res)
     
     // Get node (nodeId can be numeric id or node_id string)
     const node = await db('mes.production_plan_nodes as n')
-      .where('n.plan_id', planId)
+      .where('n.planId', planId)
       .where(function() {
-        this.where('n.id', nodeId).orWhere('n.node_id', nodeId);
+        this.where('n.id', nodeId).orWhere('n.nodeId', nodeId);
       })
-      .leftJoin('mes.operations as op', 'n.operation_id', 'op.id')
+      .leftJoin('mes.operations as op', 'n.operationId', 'op.id')
       .select(
         'n.*',
-        'op.name as operation_name',
-        'op.skills as operation_skills'
+        'op.name as operationName',
+        'op.skills as operationSkills'
       )
       .first();
     
@@ -5004,33 +5002,33 @@ router.get('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res)
     
     // Get material inputs
     const materials = await db('mes.node_material_inputs')
-      .where('node_id', node.id)
+      .where('nodeId', node.id)
       .select('*');
     
     // Get assigned stations
     const stations = await db('mes.node_stations as ns')
-      .where('ns.node_id', node.id)
-      .leftJoin('mes.stations as s', 'ns.station_id', 's.id')
+      .where('ns.nodeId', node.id)
+      .leftJoin('mes.stations as s', 'ns.stationId', 's.id')
       .select(
-        'ns.station_id',
+        'ns.stationId',
         'ns.priority',
-        's.name as station_name',
-        's.description as station_description'
+        's.name as stationName',
+        's.description as stationDescription'
       )
       .orderBy('ns.priority');
     
     // Assemble response
     const nodeDetails = {
       ...node,
-      material_inputs: materials.map(m => ({
-        materialCode: m.material_code,
-        requiredQuantity: m.required_quantity,
-        unitRatio: m.unit_ratio,
-        isDerived: m.is_derived
+      materialInputs: materials.map(m => ({
+        materialCode: m.materialCode,
+        requiredQuantity: m.requiredQuantity,
+        unitRatio: m.unitRatio,
+        isDerived: m.isDerived
       })),
-      assigned_stations: stations.map(s => ({
-        stationId: s.station_id,
-        stationName: s.station_name,
+      assignedStations: stations.map(s => ({
+        stationId: s.stationId,
+        stationName: s.stationName,
         stationDescription: s.station_description,
         priority: s.priority
       }))
@@ -5078,9 +5076,9 @@ router.put('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res)
     
     // Get node
     const node = await trx('mes.production_plan_nodes')
-      .where('plan_id', planId)
+      .where('planId', planId)
       .where(function() {
-        this.where('id', nodeId).orWhere('node_id', nodeId);
+        this.where('id', nodeId).orWhere('nodeId', nodeId);
       })
       .first();
     
@@ -5092,22 +5090,22 @@ router.put('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res)
     // Prepare update data
     const updateData = {};
     if (updates.name) updateData.name = updates.name;
-    if (updates.operation_id) updateData.operation_id = updates.operation_id;
-    if (updates.nominal_time) {
-      updateData.nominal_time = updates.nominal_time;
-      updateData.effective_time = updates.nominal_time / (updates.efficiency || node.efficiency || 0.85);
+    if (updates.operationId) updateData.operationId = updates.operationId;
+    if (updates.nominalTime) {
+      updateData.nominalTime = updates.nominalTime;
+      updateData.effectiveTime = updates.nominalTime / (updates.efficiency || node.efficiency || 0.85);
     }
     if (updates.efficiency) {
       updateData.efficiency = updates.efficiency;
-      updateData.effective_time = (updates.nominal_time || node.nominal_time) / updates.efficiency;
+      updateData.effectiveTime = (updates.nominalTime || node.nominalTime) / updates.efficiency;
     }
-    if (updates.output_code) updateData.output_code = updates.output_code;
-    if (updates.output_qty) updateData.output_qty = updates.output_qty;
-    if (updates.output_unit) updateData.output_unit = updates.output_unit;
-    if (updates.sequence_order) updateData.sequence_order = updates.sequence_order;
-    if (updates.assignment_mode) updateData.assignment_mode = updates.assignment_mode;
+    if (updates.outputCode) updateData.outputCode = updates.outputCode;
+    if (updates.outputQty) updateData.outputQty = updates.outputQty;
+    if (updates.outputUnit) updateData.outputUnit = updates.outputUnit;
+    if (updates.sequenceOrder) updateData.sequenceOrder = updates.sequenceOrder;
+    if (updates.assignmentMode) updateData.assignmentMode = updates.assignmentMode;
     
-    updateData.updated_at = trx.fn.now();
+    updateData.updatedAt = trx.fn.now();
     
     // Update node
     await trx('mes.production_plan_nodes')
@@ -5117,16 +5115,16 @@ router.put('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res)
     // Update materials if provided
     if (updates.materialInputs) {
       await trx('mes.node_material_inputs')
-        .where('node_id', node.id)
+        .where('nodeId', node.id)
         .delete();
       
       if (updates.materialInputs.length > 0) {
         const materialInserts = updates.materialInputs.map(mat => ({
-          node_id: node.id,
-          material_code: mat.materialCode,
-          required_quantity: mat.requiredQuantity,
-          unit_ratio: mat.unitRatio || 1.0,
-          is_derived: mat.isDerived || false
+          nodeId: node.id,
+          materialCode: mat.materialCode,
+          requiredQuantity: mat.requiredQuantity,
+          unitRatio: mat.unitRatio || 1.0,
+          isDerived: mat.isDerived || false
         }));
         
         await trx('mes.node_material_inputs').insert(materialInserts);
@@ -5136,13 +5134,13 @@ router.put('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res)
     // Update stations if provided
     if (updates.stationIds) {
       await trx('mes.node_stations')
-        .where('node_id', node.id)
+        .where('nodeId', node.id)
         .delete();
       
       if (updates.stationIds.length > 0) {
         const stationInserts = updates.stationIds.map((stationId, idx) => ({
-          node_id: node.id,
-          station_id: stationId,
+          nodeId: node.id,
+          stationId: stationId,
           priority: idx + 1
         }));
         
@@ -5201,9 +5199,9 @@ router.delete('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, r
     
     // Get node
     const node = await trx('mes.production_plan_nodes')
-      .where('plan_id', planId)
+      .where('planId', planId)
       .where(function() {
-        this.where('id', nodeId).orWhere('node_id', nodeId);
+        this.where('id', nodeId).orWhere('nodeId', nodeId);
       })
       .first();
     
@@ -5214,11 +5212,11 @@ router.delete('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, r
     
     // Delete related data (CASCADE handles most, but explicit for clarity)
     await trx('mes.node_stations')
-      .where('node_id', node.id)
+      .where('nodeId', node.id)
       .delete();
     
     await trx('mes.node_material_inputs')
-      .where('node_id', node.id)
+      .where('nodeId', node.id)
       .delete();
     
     // Delete node
@@ -5256,16 +5254,16 @@ router.post('/nodes/:nodeId/materials', withAuth, async (req, res) => {
     
     // Get node and verify plan is draft
     const node = await db('mes.production_plan_nodes as n')
-      .join('mes.production_plans as p', 'n.plan_id', 'p.id')
+      .join('mes.production_plans as p', 'n.planId', 'p.id')
       .where('n.id', nodeId)
-      .select('n.*', 'p.status as plan_status', 'p.work_order_code')
+      .select('n.*', 'p.status as planStatus', 'p.workOrderCode')
       .first();
     
     if (!node) {
       return res.status(404).json({ error: 'Node not found' });
     }
     
-    if (node.plan_status !== 'draft') {
+    if (node.planStatus !== 'draft') {
       return res.status(400).json({ 
         error: 'Can only modify materials in draft plans' 
       });
@@ -5273,8 +5271,8 @@ router.post('/nodes/:nodeId/materials', withAuth, async (req, res) => {
     
     // Check if material already exists
     const existing = await db('mes.node_material_inputs')
-      .where('node_id', nodeId)
-      .where('material_code', materialCode)
+      .where('nodeId', nodeId)
+      .where('materialCode', materialCode)
       .first();
     
     if (existing) {
@@ -5286,11 +5284,11 @@ router.post('/nodes/:nodeId/materials', withAuth, async (req, res) => {
     // Insert material
     const [material] = await db('mes.node_material_inputs')
       .insert({
-        node_id: nodeId,
-        material_code: materialCode,
-        required_quantity: requiredQuantity,
-        unit_ratio: unitRatio || 1.0,
-        is_derived: isDerived || false
+        nodeId: nodeId,
+        materialCode: materialCode,
+        requiredQuantity: requiredQuantity,
+        unitRatio: unitRatio || 1.0,
+        isDerived: isDerived || false
       })
       .returning('*');
     
@@ -5316,16 +5314,16 @@ router.delete('/nodes/:nodeId/materials/:materialCode', withAuth, async (req, re
     
     // Verify plan is draft
     const node = await db('mes.production_plan_nodes as n')
-      .join('mes.production_plans as p', 'n.plan_id', 'p.id')
+      .join('mes.production_plans as p', 'n.planId', 'p.id')
       .where('n.id', nodeId)
-      .select('p.status as plan_status')
+      .select('p.status as planStatus')
       .first();
     
     if (!node) {
       return res.status(404).json({ error: 'Node not found' });
     }
     
-    if (node.plan_status !== 'draft') {
+    if (node.planStatus !== 'draft') {
       return res.status(400).json({ 
         error: 'Can only modify materials in draft plans' 
       });
@@ -5333,8 +5331,8 @@ router.delete('/nodes/:nodeId/materials/:materialCode', withAuth, async (req, re
     
     // Delete material
     const deleted = await db('mes.node_material_inputs')
-      .where('node_id', nodeId)
-      .where('material_code', materialCode)
+      .where('nodeId', nodeId)
+      .where('materialCode', materialCode)
       .delete();
     
     if (deleted === 0) {
@@ -5367,16 +5365,16 @@ router.post('/nodes/:nodeId/stations', withAuth, async (req, res) => {
     
     // Get node and verify plan is draft
     const node = await db('mes.production_plan_nodes as n')
-      .join('mes.production_plans as p', 'n.plan_id', 'p.id')
+      .join('mes.production_plans as p', 'n.planId', 'p.id')
       .where('n.id', nodeId)
-      .select('p.status as plan_status')
+      .select('p.status as planStatus')
       .first();
     
     if (!node) {
       return res.status(404).json({ error: 'Node not found' });
     }
     
-    if (node.plan_status !== 'draft') {
+    if (node.planStatus !== 'draft') {
       return res.status(400).json({ 
         error: 'Can only modify stations in draft plans' 
       });
@@ -5384,8 +5382,8 @@ router.post('/nodes/:nodeId/stations', withAuth, async (req, res) => {
     
     // Check if station already assigned
     const existing = await db('mes.node_stations')
-      .where('node_id', nodeId)
-      .where('station_id', stationId)
+      .where('nodeId', nodeId)
+      .where('stationId', stationId)
       .first();
     
     if (existing) {
@@ -5398,7 +5396,7 @@ router.post('/nodes/:nodeId/stations', withAuth, async (req, res) => {
     let stationPriority = priority;
     if (!stationPriority) {
       const lastStation = await db('mes.node_stations')
-        .where('node_id', nodeId)
+        .where('nodeId', nodeId)
         .orderBy('priority', 'desc')
         .first();
       
@@ -5408,8 +5406,8 @@ router.post('/nodes/:nodeId/stations', withAuth, async (req, res) => {
     // Insert station assignment
     const [station] = await db('mes.node_stations')
       .insert({
-        node_id: nodeId,
-        station_id: stationId,
+        nodeId: nodeId,
+        stationId: stationId,
         priority: stationPriority
       })
       .returning('*');
@@ -5436,16 +5434,16 @@ router.delete('/nodes/:nodeId/stations/:stationId', withAuth, async (req, res) =
     
     // Verify plan is draft
     const node = await db('mes.production_plan_nodes as n')
-      .join('mes.production_plans as p', 'n.plan_id', 'p.id')
+      .join('mes.production_plans as p', 'n.planId', 'p.id')
       .where('n.id', nodeId)
-      .select('p.status as plan_status')
+      .select('p.status as planStatus')
       .first();
     
     if (!node) {
       return res.status(404).json({ error: 'Node not found' });
     }
     
-    if (node.plan_status !== 'draft') {
+    if (node.planStatus !== 'draft') {
       return res.status(400).json({ 
         error: 'Can only modify stations in draft plans' 
       });
@@ -5453,8 +5451,8 @@ router.delete('/nodes/:nodeId/stations/:stationId', withAuth, async (req, res) =
     
     // Delete station assignment
     const deleted = await db('mes.node_stations')
-      .where('node_id', nodeId)
-      .where('station_id', stationId)
+      .where('nodeId', nodeId)
+      .where('stationId', stationId)
       .delete();
     
     if (deleted === 0) {
@@ -5493,17 +5491,17 @@ router.get('/analytics/worker-utilization', withAuth, async (req, res) => {
   try {
     // Get all workers
     const workers = await db('mes.workers')
-      .where('is_active', true)
+      .where('isActive', true)
       .select('id', 'name');
     
     // Get current assignments (in-progress)
     const activeAssignments = await db('mes.worker_assignments as wa')
-      .join('mes.workers as w', 'w.id', 'wa.worker_id')
+      .join('mes.workers as w', 'w.id', 'wa.workerId')
       .whereIn('wa.status', ['in_progress', 'ready'])
-      .select('wa.worker_id', 'w.name as worker_name')
-      .groupBy('wa.worker_id', 'w.name');
+      .select('wa.workerId', 'w.name as workerName')
+      .groupBy('wa.workerId', 'w.name');
     
-    const activeWorkerIds = new Set(activeAssignments.map(a => a.worker_id));
+    const activeWorkerIds = new Set(activeAssignments.map(a => a.workerId));
     
     const active = activeWorkerIds.size;
     const total = workers.length;
@@ -5549,35 +5547,35 @@ router.get('/analytics/operation-bottlenecks', withAuth, async (req, res) => {
   try {
     // Get completed assignments with timing
     const completedAssignments = await db('mes.worker_assignments as wa')
-      .join('mes.operations as op', 'op.id', 'wa.operation_id')
-      .join('mes.production_plan_nodes as n', 'n.id', 'wa.node_id')
+      .join('mes.operations as op', 'op.id', 'wa.operationId')
+      .join('mes.production_plan_nodes as n', 'n.id', 'wa.nodeId')
       .where('wa.status', 'completed')
-      .whereNotNull('wa.started_at')
-      .whereNotNull('wa.completed_at')
+      .whereNotNull('wa.startedAt')
+      .whereNotNull('wa.completedAt')
       .select(
-        'op.id as operation_id',
-        'op.name as operation_name',
-        'n.effective_time',
-        db.raw(`EXTRACT(EPOCH FROM (wa.completed_at - wa.started_at)) / 60 as actual_minutes`)
+        'op.id as operationId',
+        'op.name as operationName',
+        'n.effectiveTime',
+        db.raw(`EXTRACT(EPOCH FROM (wa.completedAt - wa.startedAt)) / 60 as actualMinutes`)
       );
     
     // Aggregate by operation
     const operationStats = {};
     
     completedAssignments.forEach(a => {
-      const opId = a.operation_id;
+      const opId = a.operationId;
       if (!operationStats[opId]) {
         operationStats[opId] = {
           operationId: opId,
-          operationName: a.operation_name,
+          operationName: a.operationName,
           totalTime: 0,
           instances: 0,
           estimatedTime: 0
         };
       }
       
-      operationStats[opId].totalTime += parseFloat(a.actual_minutes) || 0;
-      operationStats[opId].estimatedTime += parseFloat(a.effective_time) || 0;
+      operationStats[opId].totalTime += parseFloat(a.actualMinutes) || 0;
+      operationStats[opId].estimatedTime += parseFloat(a.effectiveTime) || 0;
       operationStats[opId].instances += 1;
     });
     
@@ -5630,7 +5628,7 @@ router.get('/analytics/material-consumption', withAuth, async (req, res) => {
         'reorder_point',
         'max_stock'
       )
-      .where('is_active', true);
+      .where('isActive', true);
     
     const materialsWithStatus = materials.map(m => {
       const stock = parseFloat(m.stock) || 0;
@@ -5693,7 +5691,7 @@ router.get('/analytics/production-velocity', withAuth, async (req, res) => {
     
     // Today's metrics
     const todayPlans = await db('mes.production_plans')
-      .where('launched_at', '>=', new Date(todayStart))
+      .where('launchedAt', '>=', new Date(todayStart))
       .select('status')
       .count('* as count')
       .groupBy('status');
@@ -5760,13 +5758,13 @@ router.get('/analytics/master-timeline', withAuth, async (req, res) => {
       .whereIn('status', ['active', 'paused']);
     
     if (startDate) {
-      plansQuery = plansQuery.where('launched_at', '>=', startDate);
+      plansQuery = plansQuery.where('launchedAt', '>=', startDate);
     }
     if (endDate) {
-      plansQuery = plansQuery.where('launched_at', '<=', endDate);
+      plansQuery = plansQuery.where('launchedAt', '<=', endDate);
     }
     
-    const plans = await plansQuery.select('id', 'work_order_code', 'status', 'launched_at');
+    const plans = await plansQuery.select('id', 'workOrderCode', 'status', 'launchedAt');
     
     // Get assignments for these plans
     const planIds = plans.map(p => p.id);
@@ -5776,42 +5774,42 @@ router.get('/analytics/master-timeline', withAuth, async (req, res) => {
     }
     
     const assignments = await db('mes.worker_assignments as wa')
-      .join('mes.workers as w', 'w.id', 'wa.worker_id')
-      .join('mes.substations as s', 's.id', 'wa.substation_id')
-      .join('mes.production_plan_nodes as n', 'n.id', 'wa.node_id')
-      .whereIn('wa.plan_id', planIds)
+      .join('mes.workers as w', 'w.id', 'wa.workerId')
+      .join('mes.substations as s', 's.id', 'wa.substationId')
+      .join('mes.production_plan_nodes as n', 'n.id', 'wa.nodeId')
+      .whereIn('wa.planId', planIds)
       .select(
-        'wa.plan_id',
-        'wa.node_id',
-        'n.name as node_name',
-        'w.id as worker_id',
-        'w.name as worker_name',
-        's.id as substation_id',
-        's.name as substation_name',
+        'wa.planId',
+        'wa.nodeId',
+        'n.name as nodeName',
+        'w.id as workerId',
+        'w.name as workerName',
+        's.id as substationId',
+        's.name as substationName',
         'wa.status',
-        'wa.estimated_start_time',
-        'wa.estimated_end_time',
-        'wa.actual_start_time',
-        'wa.actual_end_time'
+        'wa.estimatedStartTime',
+        'wa.estimatedEndTime',
+        'wa.actualStartTime',
+        'wa.actualEndTime'
       );
     
     // Group assignments by plan
     const workOrders = plans.map(plan => ({
-      workOrderCode: plan.work_order_code,
+      workOrderCode: plan.workOrderCode,
       status: plan.status,
-      launchedAt: plan.launched_at,
+      launchedAt: plan.launchedAt,
       assignments: assignments
-        .filter(a => a.plan_id === plan.id)
+        .filter(a => a.planId === plan.id)
         .map(a => ({
-          nodeId: a.node_id,
+          nodeId: a.nodeId,
           nodeName: a.node_name,
-          workerId: a.worker_id,
-          workerName: a.worker_name,
-          substationId: a.substation_id,
-          substationName: a.substation_name,
+          workerId: a.workerId,
+          workerName: a.workerName,
+          substationId: a.substationId,
+          substationName: a.substationName,
           status: a.status,
-          start: a.actual_start_time || a.estimated_start_time,
-          end: a.actual_end_time || a.estimated_end_time
+          start: a.actual_start_time || a.estimatedStartTime,
+          end: a.actual_end_time || a.estimatedEndTime
         }))
     }));
     

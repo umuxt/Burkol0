@@ -353,8 +353,8 @@ export function setupAuthRoutes(app) {
       const { salt, hash } = hashPassword(password)
       const user = {
         email,
-        pw_salt: salt,
-        pw_hash: hash,
+        pwSalt: salt,
+        pwHash: hash,
         plainPassword: password, // Development için plain-text de sakla
         role,
         active: true, // Yeni kullanıcılar varsayılan olarak aktif
@@ -494,8 +494,8 @@ export function setupAuthRoutes(app) {
       if (password && password.length >= 6) {
         // Şifreyi hash'le ve plain-text de sakla
         const { salt, hash } = hashPassword(password)
-        updates.pw_salt = salt
-        updates.pw_hash = hash
+        updates.pwSalt = salt
+        updates.pwHash = hash
         updates.plainPassword = password // Development için plain-text de sakla
         // Eski plain password'u temizle
         delete updates.password

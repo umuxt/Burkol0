@@ -37,37 +37,37 @@ const Orders = {
       
       // Insert order
       const [order] = await trx('materials.orders').insert({
-        order_code: orderCode,
-        order_sequence: orderSequence,
-        supplier_id: supplierId,
-        supplier_name: supplierName,
-        order_date: orderDate || new Date(),
-        expected_delivery_date: expectedDeliveryDate,
-        total_amount: totalAmount,
-        item_count: itemCount,
+        orderCode: orderCode,
+        orderSequence: orderSequence,
+        supplierId: supplierId,
+        supplierName: supplierName,
+        orderDate: orderDate || new Date(),
+        expectedDeliveryDate: expectedDeliveryDate,
+        totalAmount: totalAmount,
+        itemCount: itemCount,
         notes,
-        created_by: createdBy,
-        order_status: 'Taslak'
+        createdBy: createdBy,
+        orderStatus: 'Taslak'
       }).returning('*');
       
       // Insert items if provided
       let orderItems = [];
       if (items.length > 0) {
         const itemsData = items.map((item, index) => ({
-          item_code: `${orderCode}-item-${String(index + 1).padStart(2, '0')}`, // Unique per order
-          item_sequence: index + 1,
-          order_id: order.id,
-          order_code: orderCode,
-          material_id: item.materialId,
-          material_code: item.materialCode,
-          material_name: item.materialName,
+          itemCode: `${orderCode}-item-${String(index + 1).padStart(2, '0')}`, // Unique per order
+          itemSequence: index + 1,
+          orderId: order.id,
+          orderCode: orderCode,
+          materialId: item.materialId,
+          materialCode: item.materialCode,
+          materialName: item.materialName,
           quantity: item.quantity,
           unit: item.unit,
-          unit_price: item.unitPrice,
-          total_price: item.totalPrice,
-          expected_delivery_date: item.expectedDeliveryDate || expectedDeliveryDate,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          expectedDeliveryDate: item.expectedDeliveryDate || expectedDeliveryDate,
           notes: item.notes,
-          item_status: 'Onay Bekliyor'
+          itemStatus: 'Onay Bekliyor'
         }));
         
         orderItems = await trx('materials.order_items').insert(itemsData).returning('*');
@@ -98,22 +98,22 @@ const Orders = {
     let query = db('materials.orders').select('*');
     
     if (status) {
-      query = query.where('order_status', status);
+      query = query.where('orderStatus', status);
     }
     
     if (supplierId) {
-      query = query.where('supplier_id', supplierId);
+      query = query.where('supplierId', supplierId);
     }
     
     if (startDate) {
-      query = query.where('order_date', '>=', startDate);
+      query = query.where('orderDate', '>=', startDate);
     }
     
     if (endDate) {
-      query = query.where('order_date', '<=', endDate);
+      query = query.where('orderDate', '<=', endDate);
     }
     
-    query = query.orderBy('order_date', 'desc');
+    query = query.orderBy('orderDate', 'desc');
     
     const orders = await query;
     
@@ -121,13 +121,13 @@ const Orders = {
     if (includeItems && orders.length > 0) {
       const orderIds = orders.map(o => o.id);
       const items = await db('materials.order_items')
-        .whereIn('order_id', orderIds)
-        .orderBy('item_sequence');
+        .whereIn('orderId', orderIds)
+        .orderBy('itemSequence');
       
       // Group items by order
       const itemsByOrder = items.reduce((acc, item) => {
-        if (!acc[item.order_id]) acc[item.order_id] = [];
-        acc[item.order_id].push(item);
+        if (!acc[item.orderId]) acc[item.orderId] = [];
+        acc[item.orderId].push(item);
         return acc;
       }, {});
       
@@ -153,8 +153,8 @@ const Orders = {
     }
     
     const items = await db('materials.order_items')
-      .where({ order_id: orderId })
-      .orderBy('item_sequence');
+      .where({ orderId: orderId })
+      .orderBy('itemSequence');
     
     return {
       ...order,
@@ -170,26 +170,31 @@ const Orders = {
    */
   async updateOrder(orderId, updates) {
     // VALIDATION: Prevent order-level "Teslim Edildi" - must use item-level delivery for lot tracking
-    if (updates.order_status === 'Teslim Edildi') {
+    if (updates.order_status === 'Teslim Edildi' || updates.orderStatus === 'Teslim Edildi') {
       throw new Error('Order-level "Teslim Edildi" not allowed. Use item-level delivery for lot tracking.');
     }
     
     const allowedFields = [
-      'supplier_id',
-      'supplier_name',
-      'order_status',
-      'expected_delivery_date',
+      'supplierId',
+      'supplierName',
+      'orderStatus',
+      'expectedDeliveryDate',
       'notes'
     ];
     
     const filteredUpdates = {};
-    for (const field of allowedFields) {
-      if (updates[field] !== undefined) {
-        filteredUpdates[field] = updates[field];
-      }
-    }
+    // Handle both camelCase and snake_case inputs
+    if (updates.supplier_id !== undefined) filteredUpdates.supplierId = updates.supplier_id;
+    if (updates.supplierId !== undefined) filteredUpdates.supplierId = updates.supplierId;
+    if (updates.supplier_name !== undefined) filteredUpdates.supplierName = updates.supplier_name;
+    if (updates.supplierName !== undefined) filteredUpdates.supplierName = updates.supplierName;
+    if (updates.order_status !== undefined) filteredUpdates.orderStatus = updates.order_status;
+    if (updates.orderStatus !== undefined) filteredUpdates.orderStatus = updates.orderStatus;
+    if (updates.expected_delivery_date !== undefined) filteredUpdates.expectedDeliveryDate = updates.expected_delivery_date;
+    if (updates.expectedDeliveryDate !== undefined) filteredUpdates.expectedDeliveryDate = updates.expectedDeliveryDate;
+    if (updates.notes !== undefined) filteredUpdates.notes = updates.notes;
     
-    filteredUpdates.updated_at = new Date();
+    filteredUpdates.updatedAt = new Date();
     
     const [updated] = await db('materials.orders')
       .where({ id: orderId })
@@ -201,14 +206,15 @@ const Orders = {
     }
     
     // If order status changed, propagate to all items
-    if (updates.order_status) {
-      const itemStatus = this._mapOrderStatusToItemStatus(updates.order_status);
+    if (updates.order_status || updates.orderStatus) {
+      const orderStatus = updates.orderStatus || updates.order_status;
+      const itemStatus = this._mapOrderStatusToItemStatus(orderStatus);
       if (itemStatus) {
         await db('materials.order_items')
-          .where({ order_id: orderId })
+          .where({ orderId: orderId })
           .update({ 
-            item_status: itemStatus,
-            updated_at: new Date()
+            itemStatus: itemStatus,
+            updatedAt: new Date()
           });
       }
     }
@@ -242,16 +248,16 @@ const Orders = {
   async updateOrderStatus(orderId) {
     // Get all items for this order
     const items = await db('materials.order_items')
-      .where({ order_id: orderId })
-      .select('item_status');
+      .where({ orderId: orderId })
+      .select('itemStatus');
     
     if (items.length === 0) {
-      return await this.updateOrder(orderId, { order_status: 'Taslak' });
+      return await this.updateOrder(orderId, { orderStatus: 'Taslak' });
     }
     
     // Calculate order status from item statuses
     const statusCounts = items.reduce((acc, item) => {
-      acc[item.item_status] = (acc[item.item_status] || 0) + 1;
+      acc[item.itemStatus] = (acc[item.itemStatus] || 0) + 1;
       return acc;
     }, {});
     
@@ -280,13 +286,13 @@ const Orders = {
   async getOrderStats() {
     // Count by status
     const statusCounts = await db('materials.orders')
-      .select('order_status')
+      .select('orderStatus')
       .count('* as count')
-      .groupBy('order_status');
+      .groupBy('orderStatus');
     
     // Total values
     const [totals] = await db('materials.orders')
-      .sum('total_amount as total_value')
+      .sum('totalAmount as total_value')
       .count('* as total_orders');
     
     // Recent orders (last 30 days)
@@ -294,19 +300,19 @@ const Orders = {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
     const [recentStats] = await db('materials.orders')
-      .where('order_date', '>=', thirtyDaysAgo)
-      .sum('total_amount as recent_value')
+      .where('orderDate', '>=', thirtyDaysAgo)
+      .sum('totalAmount as recent_value')
       .count('* as recent_orders');
     
     // Pending deliveries
     const [pendingDeliveries] = await db('materials.order_items')
-      .whereIn('item_status', ['Onay Bekliyor', 'Onaylandı'])
+      .whereIn('itemStatus', ['Onay Bekliyor', 'Onaylandı'])
       .count('* as pending_items')
-      .sum('total_price as pending_value');
+      .sum('totalPrice as pending_value');
     
     return {
       byStatus: statusCounts.reduce((acc, row) => {
-        acc[row.order_status] = parseInt(row.count, 10);
+        acc[row.orderStatus] = parseInt(row.count, 10);
         return acc;
       }, {}),
       totalOrders: parseInt(totals.total_orders, 10),

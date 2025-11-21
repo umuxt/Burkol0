@@ -93,7 +93,7 @@ export function setupQuotesRoutes(app) {
         priceFormulaId,
         notes,
         formData,
-        delivery_date
+        deliveryDate
       } = req.body;
 
       logger.info('POST /api/quotes - Creating new quote', {
@@ -132,16 +132,16 @@ export function setupQuotesRoutes(app) {
       }
 
       // Parse delivery date if provided
-      let deliveryDate = null;
-      if (delivery_date) {
+      let parsedDeliveryDate = null;
+      if (deliveryDate) {
         try {
-          deliveryDate = new Date(delivery_date);
-          if (isNaN(deliveryDate.getTime())) {
-            deliveryDate = null;
+          parsedDeliveryDate = new Date(deliveryDate);
+          if (isNaN(parsedDeliveryDate.getTime())) {
+            parsedDeliveryDate = null;
           }
         } catch (e) {
-          console.warn('Invalid delivery date format:', delivery_date);
-          deliveryDate = null;
+          console.warn('Invalid delivery date format:', deliveryDate);
+          parsedDeliveryDate = null;
         }
       }
 
@@ -152,7 +152,7 @@ export function setupQuotesRoutes(app) {
         customerPhone,
         customerCompany,
         customerAddress,
-        deliveryDate,
+        deliveryDate: parsedDeliveryDate,
         formTemplateId: templateId,
         priceFormulaId: formulaId,
         notes,
@@ -162,7 +162,7 @@ export function setupQuotesRoutes(app) {
 
       logger.success('Quote created successfully', {
         quoteId: quote.id,
-        calculatedPrice: quote.calculated_price
+        calculatedPrice: quote.calculatedPrice
       });
 
       res.status(201).json({ success: true, quote });
@@ -179,7 +179,7 @@ export function setupQuotesRoutes(app) {
       logger.info(`PATCH /api/quotes/${id} - Updating quote`);
 
       // Parse delivery date if provided
-      let deliveryDate = req.body.delivery_date;
+      let deliveryDate = req.body.deliveryDate;
       if (deliveryDate) {
         try {
           const parsedDate = new Date(deliveryDate);
@@ -244,8 +244,8 @@ export function setupQuotesRoutes(app) {
       logger.success('Quote status updated', {
         quoteId: id,
         status: quote.status,
-        approvedAt: quote.approved_at,
-        approvedBy: quote.approved_by
+        approvedAt: quote.approvedAt,
+        approvedBy: quote.approvedBy
       });
 
       res.json({ success: true, quote });
@@ -284,8 +284,8 @@ export function setupQuotesRoutes(app) {
 
       logger.success('Manual price set', {
         quoteId: id,
-        manualPrice: quote.manual_price,
-        finalPrice: quote.final_price
+        manualPrice: quote.manualPrice,
+        finalPrice: quote.finalPrice
       });
 
       res.json({ success: true, quote });
@@ -316,7 +316,7 @@ export function setupQuotesRoutes(app) {
 
       logger.success('File added to quote', {
         quoteId: id,
-        fileName: file.file_name
+        fileName: file.fileName
       });
 
       res.status(201).json({ success: true, file });

@@ -16,13 +16,13 @@ class PriceParameters {
         code,
         name,
         type,
-        form_field_code: formFieldCode,
-        fixed_value: fixedValue,
+        formFieldCode: formFieldCode,
+        fixedValue: fixedValue,
         unit,
         description,
-        is_active: isActive,
-        created_at: db.fn.now(),
-        updated_at: db.fn.now()
+        isActive: isActive,
+        createdAt: db.fn.now(),
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -36,7 +36,7 @@ class PriceParameters {
     let query = db('quotes.price_parameters');
 
     if (filters.isActive !== undefined) {
-      query = query.where('is_active', filters.isActive);
+      query = query.where('isActive', filters.isActive);
     }
 
     if (filters.type) {
@@ -78,12 +78,12 @@ class PriceParameters {
       .update({
         name: updates.name,
         type: updates.type,
-        form_field_code: updates.formFieldCode,
-        fixed_value: updates.fixedValue,
+        formFieldCode: updates.formFieldCode,
+        fixedValue: updates.fixedValue,
         unit: updates.unit,
         description: updates.description,
-        is_active: updates.isActive,
-        updated_at: db.fn.now()
+        isActive: updates.isActive,
+        updatedAt: db.fn.now()
       })
       .returning('*');
     
@@ -107,16 +107,16 @@ class PriceParameters {
    */
   static async getPriceFromFormOption(formFieldCode, optionValue) {
     const option = await db('quotes.form_field_options as ffo')
-      .join('quotes.form_fields as ff', 'ff.id', 'ffo.field_id')
+      .join('quotes.form_fields as ff', 'ff.id', 'ffo.fieldId')
       .where({
-        'ff.field_code': formFieldCode,
-        'ffo.option_value': optionValue,
-        'ffo.is_active': true
+        'ff.fieldCode': formFieldCode,
+        'ffo.optionValue': optionValue,
+        'ffo.isActive': true
       })
-      .select('ffo.price_value')
+      .select('ffo.priceValue')
       .first();
     
-    return option?.price_value || null;
+    return option?.priceValue || null;
   }
 
   /**
@@ -125,23 +125,23 @@ class PriceParameters {
   static async getFormBasedParameters() {
     const parameters = await db('quotes.price_parameters as pp')
       .where('pp.type', 'form')
-      .whereNotNull('pp.form_field_code')
+      .whereNotNull('pp.formFieldCode')
       .select('pp.*');
 
     // For each parameter, get the associated field options with prices
     const parametersWithPrices = await Promise.all(
       parameters.map(async (param) => {
         const options = await db('quotes.form_field_options as ffo')
-          .join('quotes.form_fields as ff', 'ff.id', 'ffo.field_id')
-          .where('ff.field_code', param.form_field_code)
-          .where('ffo.is_active', true)
+          .join('quotes.form_fields as ff', 'ff.id', 'ffo.fieldId')
+          .where('ff.fieldCode', param.formFieldCode)
+          .where('ffo.isActive', true)
           .select(
             'ffo.id',
-            'ffo.option_value',
-            'ffo.option_label',
-            'ffo.price_value'
+            'ffo.optionValue',
+            'ffo.optionLabel',
+            'ffo.priceValue'
           )
-          .orderBy('ffo.sort_order');
+          .orderBy('ffo.sortOrder');
 
         return {
           ...param,

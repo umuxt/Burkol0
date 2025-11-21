@@ -20,7 +20,7 @@ export function hashPassword(password, salt) {
 
 export function createUser(email, password, role = 'admin') {
   const { salt, hash } = hashPassword(password)
-  return { email, pw_salt: salt, pw_hash: hash, role }
+  return { email, pwSalt: salt, pwHash: hash, role }
 }
 
 export async function verifyUser(email, password) {
@@ -68,7 +68,7 @@ export async function createSession(email, days = 7) {
     const user = await Users.getUserByEmail(email)
     if (user) {
       userName = user.name || user.email?.split('@')[0] || userName
-      workerId = user.worker_id || null
+      workerId = user.workerId || null
     }
   } catch (error) {
     console.warn('Warning: Could not fetch user details for session:', error.message)
@@ -245,13 +245,13 @@ export async function listUsersFromDatabase() {
       email: user.email,
       role: user.role || 'admin',
       active: user.active !== false,
-      createdAt: user.created_at,
-      deactivatedAt: user.deactivated_at,
-      plainPassword: user.plain_password,
+      createdAt: user.createdAt,
+      deactivatedAt: user.deactivatedAt,
+      plainPassword: user.plainPassword,
       name: user.name || user.email,
-      pw_hash: user.pw_hash,
-      pw_salt: user.pw_salt,
-      workerId: user.worker_id
+      pwHash: user.pwHash,
+      pwSalt: user.pwSalt,
+      workerId: user.workerId
     }))
   } catch (error) {
     console.error('❌ Error loading users from PostgreSQL:', error)

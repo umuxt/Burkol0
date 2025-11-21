@@ -16,12 +16,12 @@ export async function auditSessionActivity(req, activity = {}) {
     }
 
     const entry = {
-      performed_by: performer,
+      performedBy: performer,
       timestamp: activity.timestamp || new Date().toISOString(),
       action: activity.action || null,
       details: activity.details || null,
-      ip_address: req.ip || null,
-      user_agent: req.get('user-agent') || null
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null
     }
 
     // Update session activity log in memory (append)
@@ -32,7 +32,7 @@ export async function auditSessionActivity(req, activity = {}) {
 
     // Persist audit entry to PostgreSQL (audit_logs)
     try {
-      await db('audit_logs').insert(entry)
+      await db('settings.audit_logs').insert(entry)
     } catch (err) {
       console.warn('[auditTrail] PostgreSQL write failed:', err?.message)
     }

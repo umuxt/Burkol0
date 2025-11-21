@@ -59,11 +59,11 @@ export function extractFieldInfoFromFormConfig(formFields) {
   if (!formFields || !Array.isArray(formFields)) return []
   
   return formFields.map(field => ({
-    value: field.field_code || field.id,
-    label: field.field_name || field.label,
-    hasOptions: field.has_options || field.hasOptions,
+    value: field.fieldCode || field.id,
+    label: field.fieldName || field.label,
+    hasOptions: field.hasOptions || field.hasOptions,
     options: field.options || [],
-    type: field.field_type || field.type
+    type: field.fieldType || field.type
   }))
 }
 

@@ -18,20 +18,20 @@ const OrderItems = {
    */
   async createItems(orderId, orderCode, items) {
     const itemsData = items.map((item, index) => ({
-      item_code: `${orderCode}-item-${String(index + 1).padStart(2, '0')}`, // Unique per order
-      item_sequence: index + 1,
-      order_id: orderId,
-      order_code: orderCode,
-      material_id: item.materialId,
-      material_code: item.materialCode,
-      material_name: item.materialName,
+      itemCode: `${orderCode}-item-${String(index + 1).padStart(2, '0')}`, // Unique per order
+      itemSequence: index + 1,
+      orderId: orderId,
+      orderCode: orderCode,
+      materialId: item.materialId,
+      materialCode: item.materialCode,
+      materialName: item.materialName,
       quantity: item.quantity,
       unit: item.unit,
-      unit_price: item.unitPrice,
-      total_price: item.totalPrice,
-      expected_delivery_date: item.expectedDeliveryDate,
+      unitPrice: item.unitPrice,
+      totalPrice: item.totalPrice,
+      expectedDeliveryDate: item.expectedDeliveryDate,
       notes: item.notes,
-      item_status: 'Onay Bekliyor'
+      itemStatus: 'Onay Bekliyor'
     }));
     
     return await db('materials.order_items').insert(itemsData).returning('*');
@@ -44,8 +44,8 @@ const OrderItems = {
    */
   async getItemsByOrder(orderId) {
     return await db('materials.order_items')
-      .where({ order_id: orderId })
-      .orderBy('item_sequence');
+      .where({ orderId: orderId })
+      .orderBy('itemSequence');
   },
 
   /**
@@ -71,26 +71,28 @@ const OrderItems = {
    * @returns {Object} Updated item
    */
   async updateItemStatus(itemId, status, additionalData = {}) {
-    // Only allow valid database fields (snake_case)
+    // Only allow valid database fields (camelCase)
     const allowedFields = [
-      'item_status',
-      'expected_delivery_date',
-      'actual_delivery_date',
+      'itemStatus',
+      'expectedDeliveryDate',
+      'actualDeliveryDate',
       'notes',
-      'delivered_by'
+      'deliveredBy'
     ];
     
     const updates = {
-      item_status: status,
-      updated_at: new Date()
+      itemStatus: status,
+      updatedAt: new Date()
     };
     
-    // Filter additionalData to only include allowed fields
-    for (const field of allowedFields) {
-      if (additionalData[field] !== undefined && field !== 'item_status') {
-        updates[field] = additionalData[field];
-      }
-    }
+    // Filter additionalData to only include allowed fields (handle both cases)
+    if (additionalData.expected_delivery_date !== undefined) updates.expectedDeliveryDate = additionalData.expected_delivery_date;
+    if (additionalData.expectedDeliveryDate !== undefined) updates.expectedDeliveryDate = additionalData.expectedDeliveryDate;
+    if (additionalData.actual_delivery_date !== undefined) updates.actualDeliveryDate = additionalData.actual_delivery_date;
+    if (additionalData.actualDeliveryDate !== undefined) updates.actualDeliveryDate = additionalData.actualDeliveryDate;
+    if (additionalData.notes !== undefined) updates.notes = additionalData.notes;
+    if (additionalData.delivered_by !== undefined) updates.deliveredBy = additionalData.delivered_by;
+    if (additionalData.deliveredBy !== undefined) updates.deliveredBy = additionalData.deliveredBy;
     
     const [updated] = await db('materials.order_items')
       .where({ id: itemId })
@@ -143,9 +145,9 @@ const OrderItems = {
         throw new Error('Order item not found');
       }
       
-      // Check if already delivered - allow update if lot_number is missing (backward compatibility)
-      const isAlreadyDelivered = item.item_status === 'Teslim Edildi';
-      const hasLotTracking = item.lot_number != null;
+      // Check if already delivered - allow update if lotNumber is missing (backward compatibility)
+      const isAlreadyDelivered = item.itemStatus === 'Teslim Edildi';
+      const hasLotTracking = item.lotNumber != null;
       
       if (isAlreadyDelivered && hasLotTracking) {
         // Already delivered with lot tracking - prevent duplicate delivery
@@ -153,27 +155,27 @@ const OrderItems = {
       }
       
       // Generate lot number for this delivery (or update existing delivery with lot tracking)
-      const lotNumber = await generateLotNumber(item.material_code, actualDeliveryDate);
+      const lotNumber = await generateLotNumber(item.materialCode, actualDeliveryDate);
       const lotDate = actualDeliveryDate instanceof Date 
         ? actualDeliveryDate.toISOString().split('T')[0] 
         : new Date(actualDeliveryDate).toISOString().split('T')[0];
       
-      console.log(`📦 [LOT] Generated lot number: ${lotNumber} for material ${item.material_code}`);
+      console.log(`📦 [LOT] Generated lot number: ${lotNumber} for material ${item.materialCode}`);
       
       // Update item status to delivered with lot information
       const [updatedItem] = await trx('materials.order_items')
         .where({ id: itemId })
         .update({
-          item_status: 'Teslim Edildi',
-          actual_delivery_date: actualDeliveryDate,
-          delivered_by: deliveredBy,
+          itemStatus: 'Teslim Edildi',
+          actualDeliveryDate: actualDeliveryDate,
+          deliveredBy: deliveredBy,
           notes: notes || item.notes,
           // Lot tracking fields
-          lot_number: lotNumber,
-          supplier_lot_code: supplierLotCode || null,
-          manufacturing_date: manufacturingDate || null,
-          expiry_date: expiryDate || null,
-          updated_at: new Date()
+          lotNumber: lotNumber,
+          supplierLotCode: supplierLotCode || null,
+          manufacturingDate: manufacturingDate || null,
+          expiryDate: expiryDate || null,
+          updatedAt: new Date()
         })
         .returning('*');
       
@@ -182,11 +184,11 @@ const OrderItems = {
       if (!isAlreadyDelivered) {
         // Update material stock
         // This creates the critical link between orders and inventory
-        // Use material_code (not material_id) as Materials.updateMaterialStock expects code
-        const previousStock = await Materials.getMaterialByCode(item.material_code);
+        // Use materialCode (not materialId) as Materials.updateMaterialStock expects code
+        const previousStock = await Materials.getMaterialByCode(item.materialCode);
         
         const stockUpdate = await Materials.updateMaterialStock(
-          item.material_code,
+          item.materialCode,
           item.quantity,
           0, // reservedChange
           0  // wipReservedChange
@@ -194,9 +196,9 @@ const OrderItems = {
         
         // Create stock movement record for audit trail WITH LOT TRACKING
         const movement = await StockMovements.createMovement({
-          materialId: item.material_id,
-          materialCode: item.material_code,
-          materialName: item.material_name,
+          materialId: item.materialId,
+          materialCode: item.materialCode,
+          materialName: item.materialName,
           type: 'in', // Order delivery = stock in
           subType: 'order_delivery',
           status: 'completed',
@@ -204,13 +206,13 @@ const OrderItems = {
           unit: item.unit,
           stockBefore: parseFloat(previousStock?.stock || 0),
           stockAfter: parseFloat(stockUpdate.stock),
-          unitCost: parseFloat(item.unit_price || 0),
-          totalCost: parseFloat(item.total_price || 0),
+          unitCost: parseFloat(item.unitPrice || 0),
+          totalCost: parseFloat(item.totalPrice || 0),
           currency: 'TRY',
-          reference: item.order_code,
+          reference: item.orderCode,
           referenceType: 'order_delivery',
           location: 'Warehouse',
-          notes: `Order delivery: ${item.order_code} - Item ${item.item_code} - Lot: ${lotNumber}`,
+          notes: `Order delivery: ${item.orderCode} - Item ${item.itemCode} - Lot: ${lotNumber}`,
           reason: 'Order item delivered',
           movementDate: actualDeliveryDate,
           approved: true,
@@ -229,19 +231,19 @@ const OrderItems = {
         // Update existing stock movement with lot tracking information
         await trx('materials.stock_movements')
           .where({
-            material_code: item.material_code,
-            reference: item.order_code,
+            materialCode: item.materialCode,
+            reference: item.orderCode,
             type: 'in',
-            sub_type: 'order_delivery'
+            subType: 'order_delivery'
           })
           .update({
-            lot_number: lotNumber,
-            lot_date: lotDate,
-            supplier_lot_code: supplierLotCode || null,
-            manufacturing_date: manufacturingDate || null,
-            expiry_date: expiryDate || null,
-            notes: `Order delivery: ${item.order_code} - Item ${item.item_code} - Lot: ${lotNumber}`,
-            updated_at: new Date()
+            lotNumber: lotNumber,
+            lotDate: lotDate,
+            supplierLotCode: supplierLotCode || null,
+            manufacturingDate: manufacturingDate || null,
+            expiryDate: expiryDate || null,
+            notes: `Order delivery: ${item.orderCode} - Item ${item.itemCode} - Lot: ${lotNumber}`,
+            updatedAt: new Date()
           });
         
         console.log(`✅ [LOT] Updated existing delivery with lot tracking: ${lotNumber}`);
@@ -263,11 +265,11 @@ const OrderItems = {
       
       // Only include stock info for new deliveries
       if (!isAlreadyDelivered) {
-        const previousStock = await Materials.getMaterialByCode(item.material_code);
-        const currentStock = await Materials.getMaterialByCode(item.material_code);
+        const previousStock = await Materials.getMaterialByCode(item.materialCode);
+        const currentStock = await Materials.getMaterialByCode(item.materialCode);
         response.stockUpdate = {
-          materialId: item.material_id,
-          materialCode: item.material_code,
+          materialId: item.materialId,
+          materialCode: item.materialCode,
           previousStock: parseFloat(previousStock?.stock || 0),
           newStock: parseFloat(currentStock?.stock || 0),
           quantityAdded: parseFloat(item.quantity)
@@ -298,8 +300,8 @@ const OrderItems = {
         const [updated] = await trx('materials.order_items')
           .where({ id: update.itemId })
           .update({
-            item_status: update.status,
-            updated_at: new Date(),
+            itemStatus: update.status,
+            updatedAt: new Date(),
             ...update.data
           })
           .returning('*');
@@ -324,21 +326,21 @@ const OrderItems = {
    */
   async getItemsByMaterial(materialId, filters = {}) {
     let query = db('materials.order_items')
-      .where({ material_id: materialId });
+      .where({ materialId: materialId });
     
     if (filters.status) {
-      query = query.where('item_status', filters.status);
+      query = query.where('itemStatus', filters.status);
     }
     
     if (filters.startDate) {
-      query = query.where('actual_delivery_date', '>=', filters.startDate);
+      query = query.where('actualDeliveryDate', '>=', filters.startDate);
     }
     
     if (filters.endDate) {
-      query = query.where('actual_delivery_date', '<=', filters.endDate);
+      query = query.where('actualDeliveryDate', '<=', filters.endDate);
     }
     
-    return await query.orderBy('actual_delivery_date', 'desc');
+    return await query.orderBy('actualDeliveryDate', 'desc');
   },
 
   /**
@@ -348,22 +350,22 @@ const OrderItems = {
    */
   async getPendingDeliveries(filters = {}) {
     let query = db('materials.order_items')
-      .whereIn('item_status', ['Onay Bekliyor', 'Onaylandı']);
+      .whereIn('itemStatus', ['Onay Bekliyor', 'Onaylandı']);
     
     if (filters.orderId) {
-      query = query.where('order_id', filters.orderId);
+      query = query.where('orderId', filters.orderId);
     }
     
     if (filters.materialId) {
-      query = query.where('material_id', filters.materialId);
+      query = query.where('materialId', filters.materialId);
     }
     
     // Overdue items
     if (filters.overdue) {
-      query = query.where('expected_delivery_date', '<', new Date());
+      query = query.where('expectedDeliveryDate', '<', new Date());
     }
     
-    return await query.orderBy('expected_delivery_date', 'asc');
+    return await query.orderBy('expectedDeliveryDate', 'asc');
   },
 
   /**
@@ -377,20 +379,20 @@ const OrderItems = {
     let query = db('materials.order_items');
     
     if (startDate) {
-      query = query.where('actual_delivery_date', '>=', startDate);
+      query = query.where('actualDeliveryDate', '>=', startDate);
     }
     
     if (endDate) {
-      query = query.where('actual_delivery_date', '<=', endDate);
+      query = query.where('actualDeliveryDate', '<=', endDate);
     }
     
     const [stats] = await query
       .select(
-        db.raw('COUNT(CASE WHEN item_status = ? THEN 1 END) as delivered_count', ['Teslim Edildi']),
-        db.raw('COUNT(CASE WHEN item_status = ? THEN 1 END) as pending_count', ['Onay Bekliyor']),
-        db.raw('COUNT(CASE WHEN item_status = ? THEN 1 END) as approved_count', ['Onaylandı']),
-        db.raw('SUM(CASE WHEN item_status = ? THEN total_price ELSE 0 END) as delivered_value', ['Teslim Edildi']),
-        db.raw('SUM(CASE WHEN item_status != ? THEN total_price ELSE 0 END) as pending_value', ['Teslim Edildi']),
+        db.raw('COUNT(CASE WHEN "itemStatus" = ? THEN 1 END) as delivered_count', ['Teslim Edildi']),
+        db.raw('COUNT(CASE WHEN "itemStatus" = ? THEN 1 END) as pending_count', ['Onay Bekliyor']),
+        db.raw('COUNT(CASE WHEN "itemStatus" = ? THEN 1 END) as approved_count', ['Onaylandı']),
+        db.raw('SUM(CASE WHEN "itemStatus" = ? THEN "totalPrice" ELSE 0 END) as delivered_value', ['Teslim Edildi']),
+        db.raw('SUM(CASE WHEN "itemStatus" != ? THEN "totalPrice" ELSE 0 END) as pending_value', ['Teslim Edildi']),
         db.raw('SUM(quantity) as total_quantity')
       );
     
@@ -417,7 +419,7 @@ const OrderItems = {
       throw new Error('Order item not found');
     }
     
-    if (item.item_status === 'Teslim Edildi') {
+    if (item.itemStatus === 'Teslim Edildi') {
       throw new Error('Cannot delete delivered item');
     }
     

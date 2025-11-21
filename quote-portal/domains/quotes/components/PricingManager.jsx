@@ -181,13 +181,13 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
         id: p.code,
         name: p.name,
         type: p.type === 'form_lookup' ? 'form' : p.type,
-        value: p.fixed_value,
-        formField: p.form_field_code
+        value: p.fixedValue,
+        formField: p.formFieldCode
       }))
       
       setParameters(convertedParams)
 
-      const formulaExpression = setting.formula?.formula_expression || ''
+      const formulaExpression = setting.formula?.formulaExpression || ''
       setFormula(formulaExpression)
       formulaRef.current = formulaExpression
       
@@ -226,13 +226,13 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
         id: p.code,
         name: p.name,
         type: p.type === 'form_lookup' ? 'form' : p.type,
-        value: p.fixed_value,
-        formField: p.form_field_code
+        value: p.fixedValue,
+        formField: p.formFieldCode
       }))
       
       setParameters(convertedParams)
 
-      const formulaExpression = setting.formula?.formula_expression || ''
+      const formulaExpression = setting.formula?.formulaExpression || ''
       setFormula(formulaExpression)
       formulaRef.current = formulaExpression
       
@@ -1614,7 +1614,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                 padding: '12px',
                 border: setting.id === currentSettingId ? '2px solid #4F46E5' : '1px solid #ddd',
                 borderRadius: '6px',
-                background: setting.is_active ? '#f0fdf4' : '#fff',
+                background: setting.isActive ? '#f0fdf4' : '#fff',
                 cursor: 'pointer'
               },
               onClick: () => switchToSetting(setting.id)
@@ -1625,7 +1625,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                   React.createElement('span', { style: { marginLeft: '8px', fontSize: '12px', color: '#666' } },
                     `v${setting.version}`
                   ),
-                  setting.is_active && React.createElement('span', {
+                  setting.isActive && React.createElement('span', {
                     style: {
                       marginLeft: '8px',
                       padding: '2px 8px',
@@ -1638,7 +1638,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                   }, 'AKTİF')
                 ),
                 React.createElement('div', { style: { fontSize: '12px', color: '#999' } },
-                  new Date(setting.created_at).toLocaleDateString('tr-TR')
+                  new Date(setting.createdAt).toLocaleDateString('tr-TR')
                 )
               ),
               setting.description && React.createElement('p', { style: { margin: '8px 0 0 0', fontSize: '13px', color: '#666' } },

@@ -27,16 +27,16 @@ export async function getAllMaterials() {
             'materials.suppliers.id',
             'materials.suppliers.code',
             'materials.suppliers.name',
-            'material_supplier_relation.is_primary'
+            'material_supplier_relation.isPrimary'
           )
-          .join('materials.suppliers', 'material_supplier_relation.supplier_id', 'materials.suppliers.id')
-          .where('material_supplier_relation.material_id', material.id)
-          .orderBy('material_supplier_relation.is_primary', 'desc')
+          .join('materials.suppliers', 'material_supplier_relation.supplierId', 'materials.suppliers.id')
+          .where('material_supplier_relation.materialId', material.id)
+          .orderBy('material_supplier_relation.isPrimary', 'desc')
         
         return {
           ...material,
           suppliers: suppliers.map(s => s.name),
-          supplier: suppliers.find(s => s.is_primary)?.name || suppliers[0]?.name || ''
+          supplier: suppliers.find(s => s.isPrimary)?.name || suppliers[0]?.name || ''
         }
       })
     )
@@ -55,7 +55,7 @@ export async function getActiveMaterials() {
   try {
     const materials = await db(MATERIALS_TABLE)
       .select('*')
-      .where({ is_active: true })
+      .where({ isActive: true })
       .orderBy('code', 'asc')
     
     // Get suppliers for each material
@@ -66,16 +66,16 @@ export async function getActiveMaterials() {
             'materials.suppliers.id',
             'materials.suppliers.code',
             'materials.suppliers.name',
-            'material_supplier_relation.is_primary'
+            'material_supplier_relation.isPrimary'
           )
-          .join('materials.suppliers', 'material_supplier_relation.supplier_id', 'materials.suppliers.id')
-          .where('material_supplier_relation.material_id', material.id)
-          .orderBy('material_supplier_relation.is_primary', 'desc')
+          .join('materials.suppliers', 'material_supplier_relation.supplierId', 'materials.suppliers.id')
+          .where('material_supplier_relation.materialId', material.id)
+          .orderBy('material_supplier_relation.isPrimary', 'desc')
         
         return {
           ...material,
           suppliers: suppliers.map(s => s.name),
-          supplier: suppliers.find(s => s.is_primary)?.name || suppliers[0]?.name || ''
+          supplier: suppliers.find(s => s.isPrimary)?.name || suppliers[0]?.name || ''
         }
       })
     )
@@ -125,7 +125,7 @@ export async function getMaterialByCode(code) {
 export async function getMaterialsByCategory(category) {
   try {
     const materials = await db(MATERIALS_TABLE)
-      .where({ category, is_active: true })
+      .where({ category, isActive: true })
       .orderBy('code', 'asc')
     
     return materials
@@ -141,7 +141,7 @@ export async function getMaterialsByCategory(category) {
 export async function getMaterialsBySupplier(supplierId) {
   try {
     const materials = await db(MATERIALS_TABLE)
-      .where({ primary_supplier_id: supplierId, is_active: true })
+      .where({ primarySupplierId: supplierId, isActive: true })
       .orderBy('code', 'asc')
     
     return materials
@@ -166,26 +166,26 @@ export async function createMaterial(materialData) {
         subcategory: materialData.subcategory || null,
         stock: materialData.stock || 0,
         reserved: materialData.reserved || 0,
-        wip_reserved: materialData.wip_reserved || 0,
-        reorder_point: materialData.reorder_point || 0,
-        max_stock: materialData.max_stock || null,
+        wipReserved: materialData.wipReserved || materialData.wip_reserved || 0,
+        reorderPoint: materialData.reorderPoint || materialData.reorder_point || 0,
+        maxStock: materialData.maxStock || materialData.max_stock || null,
         unit: materialData.unit,
-        cost_price: materialData.cost_price || null,
-        average_cost: materialData.average_cost || null,
+        costPrice: materialData.costPrice || materialData.cost_price || null,
+        averageCost: materialData.averageCost || materialData.average_cost || null,
         currency: materialData.currency || 'TRY',
-        primary_supplier_id: materialData.primary_supplier_id || null,
+        primarySupplierId: materialData.primarySupplierId || materialData.primary_supplier_id || null,
         barcode: materialData.barcode || null,
-        qr_code: materialData.qr_code || null,
+        qrCode: materialData.qrCode || materialData.qr_code || null,
         status: materialData.status || 'active',
-        is_active: materialData.is_active !== false,
-        scrap_type: materialData.scrap_type || null,
-        parent_material: materialData.parent_material || null,
+        isActive: materialData.isActive !== undefined ? materialData.isActive : (materialData.is_active !== false),
+        scrapType: materialData.scrapType || materialData.scrap_type || null,
+        parentMaterial: materialData.parentMaterial || materialData.parent_material || null,
         specifications: materialData.specifications || null,
         storage: materialData.storage || null,
-        production_history: materialData.production_history || null,
-        suppliers_data: materialData.suppliers_data || null,
-        created_by: materialData.created_by || null,
-        created_at: db.fn.now()
+        productionHistory: materialData.productionHistory || materialData.production_history || null,
+        suppliersData: materialData.suppliersData || materialData.suppliers_data || null,
+        createdBy: materialData.createdBy || materialData.created_by || null,
+        createdAt: db.fn.now()
       })
       .returning('*')
     
@@ -203,7 +203,7 @@ export async function createMaterial(materialData) {
 export async function updateMaterial(id, updates) {
   try {
     const updateData = {
-      updated_at: db.fn.now()
+      updatedAt: db.fn.now()
     }
     
     // Only update provided fields
@@ -215,25 +215,38 @@ export async function updateMaterial(id, updates) {
     if (updates.subcategory !== undefined) updateData.subcategory = updates.subcategory
     if (updates.stock !== undefined) updateData.stock = updates.stock
     if (updates.reserved !== undefined) updateData.reserved = updates.reserved
-    if (updates.wip_reserved !== undefined) updateData.wip_reserved = updates.wip_reserved
-    if (updates.reorder_point !== undefined) updateData.reorder_point = updates.reorder_point
-    if (updates.max_stock !== undefined) updateData.max_stock = updates.max_stock
+    if (updates.wipReserved !== undefined) updateData.wipReserved = updates.wipReserved
+    if (updates.wip_reserved !== undefined) updateData.wipReserved = updates.wip_reserved
+    if (updates.reorderPoint !== undefined) updateData.reorderPoint = updates.reorderPoint
+    if (updates.reorder_point !== undefined) updateData.reorderPoint = updates.reorder_point
+    if (updates.maxStock !== undefined) updateData.maxStock = updates.maxStock
+    if (updates.max_stock !== undefined) updateData.maxStock = updates.max_stock
     if (updates.unit !== undefined) updateData.unit = updates.unit
-    if (updates.cost_price !== undefined) updateData.cost_price = updates.cost_price
-    if (updates.average_cost !== undefined) updateData.average_cost = updates.average_cost
+    if (updates.costPrice !== undefined) updateData.costPrice = updates.costPrice
+    if (updates.cost_price !== undefined) updateData.costPrice = updates.cost_price
+    if (updates.averageCost !== undefined) updateData.averageCost = updates.averageCost
+    if (updates.average_cost !== undefined) updateData.averageCost = updates.average_cost
     if (updates.currency !== undefined) updateData.currency = updates.currency
-    if (updates.primary_supplier_id !== undefined) updateData.primary_supplier_id = updates.primary_supplier_id
+    if (updates.primarySupplierId !== undefined) updateData.primarySupplierId = updates.primarySupplierId
+    if (updates.primary_supplier_id !== undefined) updateData.primarySupplierId = updates.primary_supplier_id
     if (updates.barcode !== undefined) updateData.barcode = updates.barcode
-    if (updates.qr_code !== undefined) updateData.qr_code = updates.qr_code
+    if (updates.qrCode !== undefined) updateData.qrCode = updates.qrCode
+    if (updates.qr_code !== undefined) updateData.qrCode = updates.qr_code
     if (updates.status !== undefined) updateData.status = updates.status
-    if (updates.is_active !== undefined) updateData.is_active = updates.is_active
-    if (updates.scrap_type !== undefined) updateData.scrap_type = updates.scrap_type
-    if (updates.parent_material !== undefined) updateData.parent_material = updates.parent_material
+    if (updates.isActive !== undefined) updateData.isActive = updates.isActive
+    if (updates.is_active !== undefined) updateData.isActive = updates.is_active
+    if (updates.scrapType !== undefined) updateData.scrapType = updates.scrapType
+    if (updates.scrap_type !== undefined) updateData.scrapType = updates.scrap_type
+    if (updates.parentMaterial !== undefined) updateData.parentMaterial = updates.parentMaterial
+    if (updates.parent_material !== undefined) updateData.parentMaterial = updates.parent_material
     if (updates.specifications !== undefined) updateData.specifications = updates.specifications
     if (updates.storage !== undefined) updateData.storage = updates.storage
-    if (updates.production_history !== undefined) updateData.production_history = updates.production_history
-    if (updates.suppliers_data !== undefined) updateData.suppliers_data = updates.suppliers_data
-    if (updates.updated_by !== undefined) updateData.updated_by = updates.updated_by
+    if (updates.productionHistory !== undefined) updateData.productionHistory = updates.productionHistory
+    if (updates.production_history !== undefined) updateData.productionHistory = updates.production_history
+    if (updates.suppliersData !== undefined) updateData.suppliersData = updates.suppliersData
+    if (updates.suppliers_data !== undefined) updateData.suppliersData = updates.suppliers_data
+    if (updates.updatedBy !== undefined) updateData.updatedBy = updates.updatedBy
+    if (updates.updated_by !== undefined) updateData.updatedBy = updates.updated_by
     
     const [material] = await db(MATERIALS_TABLE)
       .where({ id })
@@ -264,15 +277,15 @@ export async function updateMaterialStock(code, stockChange, reservedChange = 0,
     
     const newStock = parseFloat(material.stock || 0) + parseFloat(stockChange || 0)
     const newReserved = parseFloat(material.reserved || 0) + parseFloat(reservedChange || 0)
-    const newWipReserved = parseFloat(material.wip_reserved || 0) + parseFloat(wipReservedChange || 0)
+    const newWipReserved = parseFloat(material.wipReserved || 0) + parseFloat(wipReservedChange || 0)
     
     const [updated] = await db(MATERIALS_TABLE)
       .where({ code })
       .update({
         stock: newStock,
         reserved: newReserved,
-        wip_reserved: newWipReserved,
-        updated_at: db.fn.now()
+        wipReserved: newWipReserved,
+        updatedAt: db.fn.now()
       })
       .returning('*')
     
@@ -292,8 +305,8 @@ export async function deleteMaterial(id) {
     const [material] = await db(MATERIALS_TABLE)
       .where({ id })
       .update({
-        is_active: false,
-        updated_at: db.fn.now()
+        isActive: false,
+        updatedAt: db.fn.now()
       })
       .returning('*')
     
@@ -334,10 +347,10 @@ export async function getMaterialStats() {
     const stats = await db(MATERIALS_TABLE)
       .select(
         db.raw('COUNT(*) as total'),
-        db.raw('COUNT(*) FILTER (WHERE is_active = true) as active'),
-        db.raw('COUNT(*) FILTER (WHERE is_active = false) as inactive'),
-        db.raw('COUNT(*) FILTER (WHERE stock <= reorder_point) as low_stock'),
-        db.raw('SUM(stock * cost_price) as total_inventory_value')
+        db.raw('COUNT(*) FILTER (WHERE "isActive" = true) as active'),
+        db.raw('COUNT(*) FILTER (WHERE "isActive" = false) as inactive'),
+        db.raw('COUNT(*) FILTER (WHERE stock <= "reorderPoint") as low_stock'),
+        db.raw('SUM(stock * "costPrice") as total_inventory_value')
       )
       .first()
     

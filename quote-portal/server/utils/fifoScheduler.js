@@ -60,31 +60,31 @@ export async function getWorkerNextTask(workerId) {
     const result = await db('mes.worker_assignments as a')
       .select(
         'a.id as assignmentId',
-        'a.worker_id as workerId',
-        'a.plan_id as planId',
-        'a.node_id as nodeId',
+        'a.workerId as workerId',
+        'a.planId as planId',
+        'a.nodeId as nodeId',
         'a.status',
         'a.expected_start as expectedStart',
         'a.nominal_time as nominalTime',
         'a.effective_time as effectiveTime',
         'a.is_urgent as isUrgent',
         'a.scheduling_mode as schedulingMode',
-        'p.work_order_code as workOrderCode',
+        'p.workOrderCode as workOrderCode',
         'p.quote_id as quoteId',
         'n.name as nodeName',
         'n.operation_id as operationId',
         'o.name as operationName'
       )
-      .join('mes.production_plans as p', 'p.id', 'a.plan_id')
-      .joinRaw('INNER JOIN mes.production_plan_nodes as n ON n.id = a.node_id::integer')
+      .join('mes.production_plans as p', 'p.id', 'a.planId')
+      .joinRaw('INNER JOIN mes.production_plan_nodes as n ON n.id = a.nodeId::integer')
       .leftJoin('mes.operations as o', 'o.id', 'n.operation_id')
-      .where('a.worker_id', workerId)
+      .where('a.workerId', workerId)
       .whereIn('a.status', ['pending', 'ready'])
       .where('a.scheduling_mode', 'fifo')
       .orderBy([
         { column: 'a.is_urgent', order: 'desc' },    // Urgent first
         { column: 'a.expected_start', order: 'asc' }, // FIFO (oldest first)
-        { column: 'a.created_at', order: 'asc' }      // Tiebreaker
+        { column: 'a.createdAt', order: 'asc' }      // Tiebreaker
       ])
       .limit(1)
       .first();
@@ -119,29 +119,29 @@ export async function getWorkerTaskQueue(workerId, limit = 10) {
     const tasks = await db('mes.worker_assignments as a')
       .select(
         'a.id as assignmentId',
-        'a.worker_id as workerId',
-        'a.plan_id as planId',
-        'a.node_id as nodeId',
+        'a.workerId as workerId',
+        'a.planId as planId',
+        'a.nodeId as nodeId',
         'a.status',
         'a.expected_start as expectedStart',
         'a.nominal_time as nominalTime',
         'a.effective_time as effectiveTime',
         'a.is_urgent as isUrgent',
-        'p.work_order_code as workOrderCode',
+        'p.workOrderCode as workOrderCode',
         'n.name as nodeName',
         'n.operation_id as operationId',
         'o.name as operationName'
       )
-      .join('mes.production_plans as p', 'p.id', 'a.plan_id')
-      .joinRaw('INNER JOIN mes.production_plan_nodes as n ON n.id = a.node_id::integer')
+      .join('mes.production_plans as p', 'p.id', 'a.planId')
+      .joinRaw('INNER JOIN mes.production_plan_nodes as n ON n.id = a.nodeId::integer')
       .leftJoin('mes.operations as o', 'o.id', 'n.operation_id')
-      .where('a.worker_id', workerId)
+      .where('a.workerId', workerId)
       .whereIn('a.status', ['pending', 'ready'])
       .where('a.scheduling_mode', 'fifo')
       .orderBy([
         { column: 'a.is_urgent', order: 'desc' },
         { column: 'a.expected_start', order: 'asc' },
-        { column: 'a.created_at', order: 'asc' }
+        { column: 'a.createdAt', order: 'asc' }
       ])
       .limit(limit);
 
@@ -175,7 +175,7 @@ export async function getWorkerTaskQueue(workerId, limit = 10) {
 export async function getWorkerTaskStats(workerId) {
   try {
     const stats = await db('mes.worker_assignments')
-      .where('worker_id', workerId)
+      .where('workerId', workerId)
       .whereIn('status', ['pending', 'ready'])
       .where('scheduling_mode', 'fifo')
       .select(
@@ -244,7 +244,7 @@ export async function startTask(assignmentId, workerId) {
     // Verify worker owns this task
     const assignment = await db('mes.worker_assignments')
       .where('id', assignmentId)
-      .where('worker_id', workerId)
+      .where('workerId', workerId)
       .first();
 
     if (!assignment) {
@@ -256,7 +256,7 @@ export async function startTask(assignmentId, workerId) {
     }
 
     // Get material requirements for this node
-    const materialRequirements = await getMaterialRequirements(assignment.node_id, assignment.plan_id);
+    const materialRequirements = await getMaterialRequirements(assignment.nodeId, assignment.planId);
 
     // Start a transaction for atomic operation
     const result = await db.transaction(async (trx) => {
@@ -355,7 +355,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
     // Verify worker owns this task
     const assignment = await db('mes.worker_assignments')
       .where('id', assignmentId)
-      .where('worker_id', workerId)
+      .where('workerId', workerId)
       .first();
 
     if (!assignment) {
@@ -428,7 +428,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
 export async function hasTasksInQueue(workerId) {
   try {
     const count = await db('mes.worker_assignments')
-      .where('worker_id', workerId)
+      .where('workerId', workerId)
       .whereIn('status', ['pending', 'ready'])
       .where('scheduling_mode', 'fifo')
       .count('id as count')
@@ -465,11 +465,11 @@ async function getMaterialRequirements(nodeId, planId) {
     // Get material inputs for this node
     const materials = await db('mes.node_material_inputs as nmi')
       .select(
-        'nmi.material_code as materialCode',
+        'nmi.materialCode as materialCode',
         'nmi.quantity as requiredQty'
       )
-      .where('nmi.node_id', parseInt(nodeId))
-      .where('nmi.plan_id', planId);
+      .where('nmi.nodeId', parseInt(nodeId))
+      .where('nmi.planId', planId);
 
     console.log(`📋 [FIFO] Found ${materials.length} material requirement(s) for node ${nodeId}`);
 
