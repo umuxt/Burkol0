@@ -257,6 +257,45 @@
         grid-template-columns: repeat(2, 1fr);
       }
     }
+
+    /* SSE Status Indicator */
+    .sse-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+      background: rgba(239, 246, 255, 1);
+      border: 1px solid rgba(191, 219, 254, 1);
+      color: rgba(37, 99, 235, 1);
+    }
+
+    .sse-status.connected {
+      background: rgba(220, 252, 231, 1);
+      border: 1px solid rgba(134, 239, 172, 1);
+      color: rgba(22, 163, 74, 1);
+    }
+
+    .sse-status.disconnected {
+      background: rgba(254, 242, 242, 1);
+      border: 1px solid rgba(254, 202, 202, 1);
+      color: rgba(220, 38, 38, 1);
+    }
+
+    .sse-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
   </style>
 </head>
 <body>
@@ -265,7 +304,12 @@
     <div style="margin-bottom: 24px;">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
         <h1 style="font-size: 32px; font-weight: 700; margin: 0;">Production Analytics</h1>
-        <div style="display: flex; gap: 12px;">
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <!-- SSE Status Indicator -->
+          <div id="sse-status" class="sse-status" title="Real-time connection status">
+            <span class="sse-status-dot"></span>
+            <span id="sse-status-text">Connecting...</span>
+          </div>
           <input type="date" class="date-selector" id="date-selector">
           <button id="dashboard-refresh-btn" type="button" class="mes-secondary-action" onclick="refreshDashboard()">
             <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>

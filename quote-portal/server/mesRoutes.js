@@ -2254,8 +2254,8 @@ router.get('/substations/:id/details', withAuth, async (req, res) => {
     const substation = await db('mes.substations as s')
       .select(
         's.id',
-        's.name',
-        's.station_id',
+        's.name as code',
+        's.station_id as stationId',
         's.description',
         's.is_active',
         's.created_at',
@@ -2269,13 +2269,112 @@ router.get('/substations/:id/details', withAuth, async (req, res) => {
     if (!substation) {
       return res.status(404).json({ error: 'Substation not found' });
     }
-    
-    // Note: Active assignments and task tracking will be implemented in Phase 2
-    // For now, return basic substation info with station details
+
+    // Get current active task
+    const currentTask = await db('mes.worker_assignments as wa')
+      .select(
+        'wa.id as assignmentId',
+        'wa.work_package_id as workPackageId',
+        'wa.operation_name as operationName',
+        'wa.status',
+        'wa.actual_start_time as actualStart',
+        'wa.planned_end_time as plannedEnd',
+        'wa.estimated_time as estimatedTime',
+        'wa.material_inputs as materialInputs',
+        'wa.material_outputs as materialOutputs',
+        'w.name as workerName'
+      )
+      .leftJoin('mes.workers as w', 'wa.worker_id', 'w.id')
+      .where('wa.substation_id', id)
+      .where('wa.status', 'active')
+      .first();
+
+    // Calculate time remaining if task is active
+    let currentTaskWithTime = null;
+    if (currentTask) {
+      const now = new Date();
+      const plannedEnd = currentTask.plannedEnd ? new Date(currentTask.plannedEnd) : null;
+      const timeRemaining = plannedEnd ? Math.max(0, Math.round((plannedEnd - now) / 60000)) : null;
+      
+      // Parse JSONB fields
+      const materialInputs = typeof currentTask.materialInputs === 'string' 
+        ? JSON.parse(currentTask.materialInputs) 
+        : currentTask.materialInputs || {};
+      const materialOutputs = typeof currentTask.materialOutputs === 'string' 
+        ? JSON.parse(currentTask.materialOutputs) 
+        : currentTask.materialOutputs || {};
+      
+      currentTaskWithTime = {
+        ...currentTask,
+        timeRemaining,
+        materialInputs,
+        materialOutputs
+      };
+    }
+
+    // Get upcoming tasks (pending, queued)
+    const upcomingTasks = await db('mes.worker_assignments as wa')
+      .select(
+        'wa.id as assignmentId',
+        'wa.work_package_id as workPackageId',
+        'wa.operation_name as operationName',
+        'wa.status',
+        'wa.planned_start_time as plannedStart',
+        'wa.estimated_time as estimatedTime',
+        'wa.sequence_number as sequenceNumber',
+        'w.name as workerName'
+      )
+      .leftJoin('mes.workers as w', 'wa.worker_id', 'w.id')
+      .where('wa.substation_id', id)
+      .whereIn('wa.status', ['pending', 'queued'])
+      .orderBy('wa.sequence_number', 'asc')
+      .limit(5);
+
+    // Get performance metrics (last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const completedTasks = await db('mes.worker_assignments')
+      .where('substation_id', id)
+      .where('status', 'completed')
+      .where('actual_end_time', '>=', thirtyDaysAgo)
+      .select(
+        db.raw('COUNT(*) as total_completed'),
+        db.raw('AVG(EXTRACT(EPOCH FROM (actual_end_time - actual_start_time)) / 60) as avg_duration'),
+        db.raw('SUM(output_quantity) as total_output'),
+        db.raw('SUM(defect_quantity) as total_defects')
+      )
+      .first();
+
+    const totalCompleted = parseInt(completedTasks?.total_completed || 0);
+    const totalOutput = parseInt(completedTasks?.total_output || 0);
+    const totalDefects = parseInt(completedTasks?.total_defects || 0);
+    const avgDuration = completedTasks?.avg_duration ? Math.round(parseFloat(completedTasks.avg_duration)) : 0;
+    const qualityRate = totalOutput > 0 ? (((totalOutput - totalDefects) / totalOutput) * 100).toFixed(1) : null;
+
     res.json({
-      ...substation,
-      currentTask: null,
-      upcomingTasks: []
+      substation: {
+        id: substation.id,
+        code: substation.code,
+        stationId: substation.stationId,
+        stationName: substation.station_name,
+        description: substation.description,
+        status: substation.is_active ? 'active' : 'inactive'
+      },
+      currentTask: currentTaskWithTime,
+      upcomingTasks: upcomingTasks.map(task => ({
+        ...task,
+        materialInputs: task.materialInputs || {},
+        materialOutputs: task.materialOutputs || {}
+      })),
+      performance: {
+        totalCompleted,
+        avgDuration,
+        totalOutputQuantity: totalOutput,
+        totalDefects,
+        qualityRate,
+        period: 'Son 30 gün'
+      }
     });
   } catch (error) {
     console.error('Error fetching substation details:', error);
@@ -4042,225 +4141,6 @@ router.delete('/production-plans/:id', withAuth, async (req, res) => {
       error: 'Failed to delete plan',
       details: error.message 
     });
-  }
-});
-
-// ============================================================================
-// PHASE 2: NODE MANAGEMENT ENDPOINTS
-// ============================================================================
-
-/**
- * POST /api/mes/production-plans/:planId/nodes
- * Add new node to existing plan
- */
-router.post('/production-plans/:planId/nodes', withAuth, async (req, res) => {
-  const { planId } = req.params;
-  const { name, operationId, outputCode, outputQty, outputUnit, nominalTime, efficiency, sequenceOrder, stationIds, materialInputs } = req.body;
-  
-  const trx = await db.transaction();
-  
-  try {
-    // Verify plan exists and is draft
-    const plan = await trx('mes.production_plans')
-      .where('id', planId)
-      .where('status', 'draft')
-      .first();
-    
-    if (!plan) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Plan not found or not in draft status' });
-    }
-    
-    // Insert node
-    const [nodeRecord] = await trx('mes.production_plan_nodes')
-      .insert({
-        plan_id: planId,
-        node_id: `${planId}-node-${sequenceOrder}`,
-        work_order_code: plan.work_order_code,
-        name,
-        operation_id: operationId,
-        output_code: outputCode,
-        output_qty: outputQty,
-        output_unit: outputUnit,
-        nominal_time: nominalTime,
-        efficiency: efficiency || 1.0,
-        effective_time: Math.ceil(nominalTime / (efficiency || 1.0)),
-        sequence_order: sequenceOrder,
-        assignment_mode: 'auto',
-        created_at: trx.fn.now()
-      })
-      .returning('*');
-    
-    // Insert material inputs
-    if (materialInputs && materialInputs.length > 0) {
-      const materials = materialInputs.map(m => ({
-        node_id: nodeRecord.id,
-        material_code: m.materialCode,
-        required_quantity: m.requiredQuantity,
-        unit_ratio: m.unitRatio || 1.0,
-        is_derived: m.isDerived || false,
-        created_at: trx.fn.now()
-      }));
-      await trx('mes.node_material_inputs').insert(materials);
-    }
-    
-    // Insert station assignments
-    if (stationIds && stationIds.length > 0) {
-      const stations = stationIds.map((stId, idx) => ({
-        node_id: nodeRecord.id,
-        station_id: stId,
-        priority: idx + 1,
-        created_at: trx.fn.now()
-      }));
-      await trx('mes.node_stations').insert(stations);
-    }
-    
-    await trx.commit();
-    
-    console.log(`✅ Node added to plan ${planId}: ${name}`);
-    res.json(nodeRecord);
-    
-  } catch (error) {
-    await trx.rollback();
-    console.error('❌ Error adding node:', error);
-    res.status(500).json({ error: 'Failed to add node', details: error.message });
-  }
-});
-
-/**
- * PUT /api/mes/production-plans/:planId/nodes/:nodeId
- * Update existing node
- */
-router.put('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res) => {
-  const { planId, nodeId } = req.params;
-  const { name, nominalTime, efficiency, outputQty, stationIds, materialInputs } = req.body;
-  
-  const trx = await db.transaction();
-  
-  try {
-    // Verify plan is draft
-    const plan = await trx('mes.production_plans')
-      .where('id', planId)
-      .where('status', 'draft')
-      .first();
-    
-    if (!plan) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Plan not found or not in draft status' });
-    }
-    
-    // Update node
-    const updateData = {
-      updated_at: trx.fn.now()
-    };
-    
-    if (name) updateData.name = name;
-    if (nominalTime) {
-      updateData.nominal_time = nominalTime;
-      updateData.effective_time = Math.ceil(nominalTime / (efficiency || 1.0));
-    }
-    if (efficiency) {
-      updateData.efficiency = efficiency;
-      updateData.effective_time = Math.ceil(updateData.nominal_time / efficiency);
-    }
-    if (outputQty) updateData.output_qty = outputQty;
-    
-    const [updated] = await trx('mes.production_plan_nodes')
-      .where('id', nodeId)
-      .where('plan_id', planId)
-      .update(updateData)
-      .returning('*');
-    
-    if (!updated) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Node not found' });
-    }
-    
-    // Update stations if provided
-    if (stationIds) {
-      await trx('mes.node_stations').where('node_id', nodeId).delete();
-      
-      if (stationIds.length > 0) {
-        const stations = stationIds.map((stId, idx) => ({
-          node_id: nodeId,
-          station_id: stId,
-          priority: idx + 1,
-          created_at: trx.fn.now()
-        }));
-        await trx('mes.node_stations').insert(stations);
-      }
-    }
-    
-    // Update materials if provided
-    if (materialInputs) {
-      await trx('mes.node_material_inputs').where('node_id', nodeId).delete();
-      
-      if (materialInputs.length > 0) {
-        const materials = materialInputs.map(m => ({
-          node_id: nodeId,
-          material_code: m.materialCode,
-          required_quantity: m.requiredQuantity,
-          unit_ratio: m.unitRatio || 1.0,
-          is_derived: m.isDerived || false,
-          created_at: trx.fn.now()
-        }));
-        await trx('mes.node_material_inputs').insert(materials);
-      }
-    }
-    
-    await trx.commit();
-    
-    console.log(`✅ Node updated: ${updated.name}`);
-    res.json(updated);
-    
-  } catch (error) {
-    await trx.rollback();
-    console.error('❌ Error updating node:', error);
-    res.status(500).json({ error: 'Failed to update node', details: error.message });
-  }
-});
-
-/**
- * DELETE /api/mes/production-plans/:planId/nodes/:nodeId
- * Delete node from plan
- */
-router.delete('/production-plans/:planId/nodes/:nodeId', withAuth, async (req, res) => {
-  const { planId, nodeId } = req.params;
-  
-  const trx = await db.transaction();
-  
-  try {
-    // Verify plan is draft
-    const plan = await trx('mes.production_plans')
-      .where('id', planId)
-      .where('status', 'draft')
-      .first();
-    
-    if (!plan) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Plan not found or not in draft status' });
-    }
-    
-    // Delete node (cascade will handle materials and stations)
-    const deleted = await trx('mes.production_plan_nodes')
-      .where('id', nodeId)
-      .where('plan_id', planId)
-      .delete();
-    
-    if (!deleted) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Node not found' });
-    }
-    
-    await trx.commit();
-    
-    console.log(`✅ Node deleted from plan ${planId}`);
-    res.json({ success: true, nodeId });
-    
-  } catch (error) {
-    await trx.rollback();
-    console.error('❌ Error deleting node:', error);
-    res.status(500).json({ error: 'Failed to delete node', details: error.message });
   }
 });
 
