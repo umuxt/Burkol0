@@ -130,7 +130,7 @@ export function getTableColumns(formConfig) {
   // Add fixed end columns
   const endColumns = [
     { id: 'price', label: 'Tahmini Fiyat', type: 'currency' },
-    { id: 'due', label: 'Termine Kalan', type: 'text' },
+    { id: 'delivery_date', label: 'Termine Kalan', type: 'text' },
     { id: 'status', label: 'Durum', type: 'text' }
   ]
   
@@ -139,7 +139,7 @@ export function getTableColumns(formConfig) {
 
 export function getFieldValue(quote, fieldId) {
   // Fixed fields are directly on the quote object
-  const fixedFields = ['date', 'name', 'company', 'proj', 'phone', 'email', 'price', 'due', 'status']
+  const fixedFields = ['date', 'name', 'company', 'proj', 'phone', 'email', 'price', 'delivery_date', 'status']
   
   if (fixedFields.includes(fieldId)) {
     if (fieldId === 'date') {
@@ -261,7 +261,7 @@ export function formatFieldValue(value, column, item, context) {
           }, warningInfo.symbol)
         )
 
-      case 'due':
+      case 'delivery_date':
         const due = value || '';
         if (due.includes('Gecikti')) {
           return React.createElement('span', { style: { color: '#dc3545', fontWeight: '600' } }, due);

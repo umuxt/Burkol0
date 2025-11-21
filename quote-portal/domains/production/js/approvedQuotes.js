@@ -1400,6 +1400,25 @@ export async function showApprovedQuoteDetail(id) {
     ? `<ul style="margin:0; padding-left:18px;">${files.map(f => `<li><a href="${esc(f.url || f.path || '#')}" target="_blank" rel="noopener">${esc(f.name || f.fileName || 'file')}</a></li>`).join('')}</ul>`
     : '<span style="font-size:12px; color:#6b7280;">Dosya yok</span>'
 
+  // Format dates
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return '-';
+      return date.toLocaleDateString('tr-TR', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+    } catch (e) {
+      return '-';
+    }
+  };
+
+  const deliveryDateFormatted = formatDate(q?.deliveryDate || q?.quoteSnapshot?.deliveryDate);
+  const createdAtFormatted = q?.createdAt ? new Date(q.createdAt).toLocaleString('tr-TR') : '-';
+
   // Show initial content with loading state for assignments
   content.innerHTML = `
     <div style="margin-bottom: 12px;">
@@ -1407,9 +1426,9 @@ export async function showApprovedQuoteDetail(id) {
       ${field('WO Kodu', q?.workOrderCode || q?.id)}
       ${field('Teklif #', q?.quoteId || q?.quoteSnapshot?.id)}
       ${field('Durum', q?.status)}
-      ${field('Teslim Tarihi', q?.deliveryDate || q?.quoteSnapshot?.deliveryDate || '-')}
+      ${field('Teslim Tarihi', deliveryDateFormatted)}
       ${field('Toplam Fiyat', (q?.price != null ? `₺${Number(q.price).toFixed(2)}` : '-'))}
-      ${field('Oluşturulma', q?.createdAt ? new Date(q.createdAt).toLocaleString() : '-')}
+      ${field('Oluşturulma', createdAtFormatted)}
     </div>
     <div style="margin-bottom: 12px;">
       <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Müşteri</div>
@@ -1421,7 +1440,7 @@ export async function showApprovedQuoteDetail(id) {
     <div style="margin-bottom: 12px;">
       <div style="font-weight:600; font-size:14px; margin-bottom:4px;">Teklif İçeriği</div>
       ${field('Proje', q?.projectName || q?.project || '-')}
-      ${field('Teslim Tarihi', q?.deliveryDate || q?.quoteSnapshot?.deliveryDate || '-')}
+      ${field('Teslim Tarihi', deliveryDateFormatted)}
       ${field('Açıklama', q?.description || '-')}
     </div>
     <div style="margin-bottom: 12px;">

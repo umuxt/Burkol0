@@ -140,7 +140,7 @@ export default function QuoteFormCompact({ t, showNotification }) {
           country: 'TR', city: '', proj: '', process: [], material: '', grade: '', 
           thickness: '', qty: '', dims: '', dimsL: '', dimsW: '', dimsH: '', 
           tolerance: '', toleranceStd: 'ISO 2768-m', toleranceCrit: '', finish: '', 
-          finishRal: '', anodizeType: '', due: '', repeat: 'one', budget: '', 
+          finishRal: '', anodizeType: '', delivery_date: '', repeat: 'one', budget: '', 
           budgetCurrency: 'TRY', budgetAmount: '', address: '', drawing: 'no', 
           productPics: 'no', desc: '', bendCount: '', weldMethod: '', surfaceRa: '', 
           qtyT1: '', qtyT2: '', qtyT3: ''
@@ -343,8 +343,8 @@ export default function QuoteFormCompact({ t, showNotification }) {
           ),
           React.createElement('div', { className: 'col' },
             React.createElement(Field, {
-              label: t.f_due, type: 'date', value: form.due,
-              onChange: (v) => setF('due', v)
+              label: t.f_due, type: 'date', value: form.delivery_date,
+              onChange: (v) => setF('delivery_date', v)
             })
           )
         )

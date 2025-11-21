@@ -83,7 +83,7 @@ export function getStepFields() {
     ['thickness', 'qty', 'dims', 'dimsL', 'dimsW', 'dimsH', 'tolerance', 'toleranceStd'],
     
     // Step 3: Additional Details
-    ['finish', 'finishRal', 'anodizeType', 'due', 'repeat', 'weldMethod', 'surfaceRa'],
+    ['finish', 'finishRal', 'anodizeType', 'delivery_date', 'repeat', 'weldMethod', 'surfaceRa'],
     
     // Step 4: Budget and Files
     ['budget', 'budgetCurrency', 'budgetAmount', 'drawing', 'productPics', 'desc']

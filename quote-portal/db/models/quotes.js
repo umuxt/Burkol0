@@ -27,7 +27,7 @@ class Quotes {
   /**
    * Create a new quote
    */
-  static async create({ customerName, customerEmail, customerPhone, customerCompany, customerAddress, formTemplateId, priceFormulaId, notes, formData, createdBy }) {
+  static async create({ customerName, customerEmail, customerPhone, customerCompany, customerAddress, deliveryDate, formTemplateId, priceFormulaId, notes, formData, createdBy }) {
     const trx = await db.transaction();
     
     try {
@@ -60,6 +60,7 @@ class Quotes {
           customer_phone: customerPhone,
           customer_company: customerCompany,
           customer_address: customerAddress,
+          delivery_date: deliveryDate,
           form_template_id: formTemplateId,
           price_formula_id: priceFormulaId,
           form_template_version: formTemplateVersion,
@@ -231,6 +232,7 @@ class Quotes {
       if (updates.customerPhone) updateData.customer_phone = updates.customerPhone;
       if (updates.customerCompany) updateData.customer_company = updates.customerCompany;
       if (updates.customerAddress) updateData.customer_address = updates.customerAddress;
+      if (updates.deliveryDate !== undefined) updateData.delivery_date = updates.deliveryDate;
       if (updates.notes !== undefined) updateData.notes = updates.notes;
       if (updates.updatedBy) updateData.updated_by = updates.updatedBy;
       
@@ -309,7 +311,11 @@ class Quotes {
     if (status === 'approved' && quote) {
       try {
         console.log(`🔍 Quote ${id} approved, creating MES work order...`);
-        const workOrder = await WorkOrders.createFromQuote(id, quote);
+        
+        // Get full quote data including form data for work order creation
+        const fullQuote = await this.getById(id);
+        
+        const workOrder = await WorkOrders.createFromQuote(id, fullQuote);
         console.log(`✅ Work order ${workOrder.code} created for quote ${id}`);
         
         // Store WO code in quote for reference

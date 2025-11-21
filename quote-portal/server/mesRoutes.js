@@ -2,6 +2,7 @@ import express from 'express';
 import db from '../db/connection.js';
 import { getSession } from './auth.js'
 import { adjustMaterialStock, consumeMaterials } from './materialsRoutes.js'
+import WorkOrders from '../db/models/workOrders.js';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { createRequire } from 'module';
@@ -1170,21 +1171,67 @@ router.post('/work-orders/next-id', withAuth, async (req, res) => {
 router.get('/approved-quotes', withAuth, async (req, res) => {
   try {
     // Fetch from work_orders table joined with quotes for customer info
-    const approvedQuotes = await db('mes.work_orders as wo')
+    const workOrders = await db('mes.work_orders as wo')
       .leftJoin('quotes.quotes as q', 'wo.quote_id', 'q.id')
       .select(
         'wo.id',
         'wo.code as work_order_code',
         'wo.quote_id',
-        'wo.status as production_state',
-        'wo.updated_at as production_state_updated_at',
+        'wo.status',
+        'wo.production_state',
+        'wo.production_state_updated_at',
+        'wo.production_state_updated_by',
         'wo.created_at',
         'wo.data',
-        'q.customer_name',
-        'q.customer_company',
-        'q.customer_email'
+        'q.customer_name as customer',
+        'q.customer_company as company',
+        'q.customer_email as email',
+        'q.customer_phone as phone',
+        'q.final_price',
+        'q.delivery_date'
       )
       .orderBy('wo.created_at', 'desc');
+    
+    // Transform to include data from JSONB field
+    const approvedQuotes = workOrders.map(wo => {
+      let data = {};
+      try {
+        data = typeof wo.data === 'string' ? JSON.parse(wo.data) : (wo.data || {});
+      } catch (e) {
+        console.error(`Failed to parse data for WO ${wo.work_order_code}:`, e);
+      }
+      
+      // Format delivery date
+      let deliveryDate = data.deliveryDate || wo.delivery_date;
+      if (deliveryDate && !(deliveryDate instanceof Date)) {
+        try {
+          deliveryDate = new Date(deliveryDate).toISOString();
+        } catch (e) {
+          deliveryDate = null;
+        }
+      } else if (deliveryDate instanceof Date) {
+        deliveryDate = deliveryDate.toISOString();
+      }
+      
+      return {
+        id: wo.id,
+        workOrderCode: wo.work_order_code,
+        quoteId: wo.quote_id,
+        status: wo.status,
+        productionState: wo.production_state,
+        productionStateUpdatedAt: wo.production_state_updated_at,
+        productionStateUpdatedBy: wo.production_state_updated_by,
+        createdAt: wo.created_at,
+        customer: wo.customer,
+        company: wo.company,
+        email: wo.email,
+        phone: wo.phone,
+        price: data.price || wo.final_price,
+        deliveryDate,
+        formData: data.formData,
+        quoteSnapshot: data.quoteSnapshot
+      };
+    });
     
     console.log(`✅ Fetched ${approvedQuotes.length} work orders from mes.work_orders`);
     res.json({ approvedQuotes });
@@ -1786,39 +1833,24 @@ router.patch('/approved-quotes/:workOrderCode/production-state', withAuth, async
       return res.status(400).json({ error: 'invalid_production_state' });
     }
     
-    // Find and update approved quote
-    const [approvedQuote] = await db('mes.approved_quotes')
-      .where({ work_order_code: workOrderCode })
-      .select('id', 'production_state', 'production_state_history');
+    // Find work order
+    const workOrder = await WorkOrders.getByCode(workOrderCode);
     
-    if (!approvedQuote) {
+    if (!workOrder) {
       return res.status(404).json({ 
-        error: `${workOrderCode} için onaylı teklif bulunamadı. Quotes ekranından bu work order'ı oluşturup tekrar deneyin.`,
-        code: 'approved_quote_not_found'
+        error: `${workOrderCode} için iş emri bulunamadı. Quotes ekranından bu work order'ı oluşturup tekrar deneyin.`,
+        code: 'work_order_not_found'
       });
     }
     
-    // Build history entry
-    const historyEntry = {
-      state: productionState,
-      timestamp: new Date().toISOString(),
-      updatedBy: req.user?.email || 'system'
-    };
-    
-    // Append to history array (PostgreSQL jsonb append)
-    const currentHistory = approvedQuote.production_state_history || [];
-    const updatedHistory = [...currentHistory, historyEntry];
-    
-    // Update production state
-    await db('mes.approved_quotes')
-      .where({ work_order_code: workOrderCode })
-      .update({
-        production_state: productionState,
-        production_state_updated_at: db.fn.now(),
-        production_state_updated_by: req.user?.email || 'system',
-        production_state_history: JSON.stringify(updatedHistory),
-        updated_at: db.fn.now()
-      });
+    // Update production state using model method
+    const updatedBy = req.user?.email || 'system';
+    const updated = await WorkOrders.updateProductionState(
+      workOrderCode, 
+      productionState, 
+      updatedBy,
+      '' // note
+    );
     
     console.log(`✅ Production state updated: ${workOrderCode} → ${productionState}`);
     
@@ -2902,8 +2934,8 @@ router.get('/work-packages', withAuth, async (req, res) => {
       .leftJoin('mes.substations as s', 's.id', 'wa.substation_id')
       .leftJoin('mes.operations as o', 'o.id', 'wa.operation_id')
       .leftJoin('mes.production_plan_nodes as pn', 'pn.id', 'wa.node_id')
-      .leftJoin('mes.approved_quotes as aq', 'aq.work_order_code', 'wa.work_order_code')
-      .leftJoin('quotes.quotes as qq', 'qq.work_order_code', 'aq.work_order_code')
+      .leftJoin('mes.work_orders as wo', 'wo.code', 'wa.work_order_code')
+      .leftJoin('quotes.quotes as qq', 'qq.work_order_code', 'wo.code')
       .orderBy('wa.estimated_start_time', 'asc')
       .limit(maxResults);
     

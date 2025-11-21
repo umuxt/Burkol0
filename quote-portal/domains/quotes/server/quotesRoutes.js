@@ -92,7 +92,8 @@ export function setupQuotesRoutes(app) {
         formTemplateId,
         priceFormulaId,
         notes,
-        formData
+        formData,
+        delivery_date
       } = req.body;
 
       logger.info('POST /api/quotes - Creating new quote', {
@@ -130,6 +131,20 @@ export function setupQuotesRoutes(app) {
         }
       }
 
+      // Parse delivery date if provided
+      let deliveryDate = null;
+      if (delivery_date) {
+        try {
+          deliveryDate = new Date(delivery_date);
+          if (isNaN(deliveryDate.getTime())) {
+            deliveryDate = null;
+          }
+        } catch (e) {
+          console.warn('Invalid delivery date format:', delivery_date);
+          deliveryDate = null;
+        }
+      }
+
       // Create quote
       const quote = await Quotes.create({
         customerName,
@@ -137,6 +152,7 @@ export function setupQuotesRoutes(app) {
         customerPhone,
         customerCompany,
         customerAddress,
+        deliveryDate,
         formTemplateId: templateId,
         priceFormulaId: formulaId,
         notes,
@@ -162,12 +178,25 @@ export function setupQuotesRoutes(app) {
       const { id } = req.params;
       logger.info(`PATCH /api/quotes/${id} - Updating quote`);
 
+      // Parse delivery date if provided
+      let deliveryDate = req.body.delivery_date;
+      if (deliveryDate) {
+        try {
+          const parsedDate = new Date(deliveryDate);
+          deliveryDate = isNaN(parsedDate.getTime()) ? null : parsedDate;
+        } catch (e) {
+          console.warn('Invalid delivery date format:', deliveryDate);
+          deliveryDate = null;
+        }
+      }
+
       const updates = {
         customerName: req.body.customerName,
         customerEmail: req.body.customerEmail,
         customerPhone: req.body.customerPhone,
         customerCompany: req.body.customerCompany,
         customerAddress: req.body.customerAddress,
+        deliveryDate,
         notes: req.body.notes,
         formData: req.body.formData,
         updatedBy: req.user?.email || 'system'
