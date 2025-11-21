@@ -45,6 +45,14 @@ export async function showWorkerDetail(id) {
   const worker = workersState.find(w => w.id === id)
   if (!worker) return
   
+  // Force refresh master data cache to get latest time settings
+  try {
+    const { getMasterData } = await import('./mesApi.js')
+    await getMasterData(true)
+  } catch (e) {
+    console.warn('Failed to refresh master data cache:', e)
+  }
+  
   const detailPanel = document.getElementById('worker-detail-panel')
   const detailContent = document.getElementById('worker-detail-content')
   
@@ -496,6 +504,7 @@ function renderCompanyScheduleGrid(company, shiftNo) {
     }
     blocksByDay[d] = list
   }
+  
   buf += renderStaticWeeklyTimeline(blocksByDay)
   return buf
 }
@@ -698,9 +707,6 @@ function generateWorkerDetailContent(worker) {
         })()}
       </div>
 
-      <!-- Çalışma Saatleri -->
-      ${generateWorkerScheduleSummary(worker)}
-
       <!-- Yetenekler -->
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
         <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Sahip Olunan Yetenekler</h3>
@@ -892,9 +898,6 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
           }
         })()}
       </div>
-
-      <!-- Çalışma Saatleri -->
-      ${generateWorkerScheduleSummary(worker)}
 
       <!-- Yetenekler -->
       <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
