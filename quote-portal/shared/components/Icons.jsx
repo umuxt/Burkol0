@@ -12,6 +12,11 @@ import {
   Download,
   Upload,
   X,
+  ArrowLeft,
+  Edit,
+  RotateCw,
+  Phone,
+  Mail,
   
   // Navigation & UI
   FileText,
@@ -61,6 +66,11 @@ export const Icons = {
   Upload,
   X,
   Close: X,
+  ArrowLeft,
+  Edit,
+  RotateCw,
+  Phone,
+  Mail,
   
   // Navigation & UI
   FileText,
@@ -119,6 +129,11 @@ export {
   Download,
   Upload,
   X,
+  ArrowLeft,
+  Edit,
+  RotateCw,
+  Phone,
+  Mail,
   FileText,
   DollarSign,
   Layers,

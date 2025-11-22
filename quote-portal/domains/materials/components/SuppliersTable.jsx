@@ -5,7 +5,6 @@ import { useSuppliers } from '../hooks/useSuppliers'
 import { useCategories } from '../hooks/useCategories'
 import { categoriesService } from '../services/categories-service'
 import { materialsService } from '../services/materials-service'
-import EditMaterialModal from './EditMaterialModal'
 import ErrorBoundary from '../../../shared/components/ErrorBoundary'
 import AddOrderModal from '../../orders/components/AddOrderModal'
 import { 
@@ -69,11 +68,6 @@ export default function SuppliersTable({
   
   // Toggle switch for showing all materials vs active only
   const [showAllMaterials, setShowAllMaterials] = useState(false)
-  
-  // Material detail modal state
-  const [showMaterialDetailModal, setShowMaterialDetailModal] = useState(false)
-  const [selectedMaterialForDetail, setSelectedMaterialForDetail] = useState(null)
-  const [loadingMaterialDetail, setLoadingMaterialDetail] = useState(false)
   
   // Bulk selection state
   const [selectedSupplierIds, setSelectedSupplierIds] = useState(new Set())
@@ -744,83 +738,15 @@ export default function SuppliersTable({
 
   // Material detail modal functions
   const handleShowMaterialDetail = async (materialId) => {
-    console.clear() // Console'u temizle
-    console.warn('🔍 DEBUG: Modal açılıyor, material ID:', materialId)
+    console.log('🔍 Material detail requested for ID:', materialId);
     
-    // Modal'ı hemen aç
-    setShowMaterialDetailModal(true)
-    setSelectedMaterialForDetail(null) // Önce null set et ki loading gösterilsin
-    setLoadingMaterialDetail(true)
-    console.warn('🔄 DEBUG: Loading state TRUE yapıldı')
-    
-    // Suppliers'ı da refresh et
-    if (onRefreshSuppliers) {
-      console.log('🔄 Material detail açılıyor, suppliers refresh ediliyor...')
-      onRefreshSuppliers()
-    }
-    
+    // Yeni pencerede materials.html stocks tab'ını aç ve material'i seç
     try {
-      console.warn('🔍 DEBUG: Material aranıyor, ID:', materialId)
-      console.warn('🔍 DEBUG: Mevcut allMaterials sayısı:', allMaterials.length)
-      
-      // allMaterials'ı kullan (kaldırılanlar dahil)
-      let materialsList = allMaterials || []
-      
-      // Eğer allMaterials boşsa, loadAllMaterials'ı çağır
-      if (materialsList.length === 0) {
-        console.warn('🔄 DEBUG: AllMaterials boş, API çağrılıyor...')
-        try {
-          // loadAllMaterials'dan direkt response al
-          const freshMaterials = await materialsService.getAllMaterials()
-          console.warn('🔍 DEBUG: getAllMaterials response aldı:', freshMaterials?.length || 0, 'materyal');
-          
-          // Fresh materials ile material ara
-          materialsList = freshMaterials || [];
-          setAllMaterials(materialsList) // State'i de güncelle
-          console.warn('🔄 DEBUG: Fresh materials kullanılıyor, sayı:', materialsList.length);
-          console.warn('🔍 DEBUG: Fresh materials detay:', materialsList.map(m => ({id: m.id, name: m.name, code: m.code})));
-        } catch (loadError) {
-          console.error('❌ DEBUG: LoadMaterials error:', loadError)
-          materialsList = []
-        }
-      }
-      
-      // Find material in the loaded materials
-      const material = materialsList.find(m => m.id === materialId)
-      
-      if (material) {
-        console.warn('✅ DEBUG: Material bulundu:', material.name)
-        setSelectedMaterialForDetail(material)
-      } else {
-        console.warn('❌ DEBUG: Material bulunamadı, ID:', materialId)
-        console.warn('🔍 DEBUG: Mevcut material ID\'leri:', materialsList.map(m => m.id))
-        
-        // ID ile bulamazsak code ile dene
-        const materialByCode = materialsList.find(m => m.code === materialId)
-        if (materialByCode) {
-          console.warn('✅ DEBUG: Material code ile bulundu:', materialByCode.name)
-          setSelectedMaterialForDetail(materialByCode)
-        } else {
-          console.warn('❌ DEBUG: Material code ile de bulunamadı')
-          setSelectedMaterialForDetail(null)
-        }
-      }
-    } catch (error) {
-      console.error('❌ Malzeme detayları yüklenirken hata:', error)
-      console.error('❌ Error stack:', error.stack)
-      console.error('❌ Error details:', {
-        name: error.name,
-        message: error.message,
-        materialId: materialId
-      })
-      // Hata durumunda modal'ı KAPATMA - açık tut
-      // EditMaterialModal kendi error state'ini gösterecek
-      setSelectedMaterialForDetail(null) // Sadece material'ı null yap
-      // Modal açık kalacak böylece error state gösterilecek
-    } finally {
-      // Loading state'ini her durumda kapat
-      console.warn('🔄 DEBUG: Finally - Loading state FALSE yapılıyor')
-      setLoadingMaterialDetail(false)
+      localStorage.setItem('bk_active_tab', 'stocks');
+      localStorage.setItem('bk_selected_material_id', materialId);
+      window.open('materials.html#stocks-tab&material-' + materialId, '_blank');
+    } catch (e) {
+      console.error('Material detail panelini açma hatası:', e);
     }
   }
 
@@ -917,20 +843,23 @@ export default function SuppliersTable({
   }, [suppliers, categoryList, allMaterials])
 
   return (
-    <section className="materials-table">
-      {/* Category Tabs */}
-      <div className="materials-tabs">
-        {categoryTabs.map(tab => (
-          <button
-            key={tab.id}
-            className={`tab-button ${activeCategory === tab.id ? 'active' : ''}`}
-            onClick={() => onCategoryChange(tab.id)}
-          >
-            {tab.label}
-            <span className="tab-count">{tab.count}</span>
-          </button>
-        ))}
-      </div>
+    <div className="suppliers-container">
+      {/* Sol Panel - Tablo */}
+      <div className="suppliers-table-panel">
+        <section className="materials-table">
+          {/* Category Tabs */}
+          <div className="materials-tabs">
+            {categoryTabs.map(tab => (
+              <button
+                key={tab.id}
+                className={`tab-button ${activeCategory === tab.id ? 'active' : ''}`}
+                onClick={() => onCategoryChange(tab.id)}
+              >
+                {tab.label}
+                <span className="tab-count">{tab.count}</span>
+              </button>
+            ))}
+          </div>
       
       <div className="table-container">
         <table>
@@ -1010,23 +939,10 @@ export default function SuppliersTable({
             {!loading && sortedSuppliers.map(supplier => (
                   <tr
                     key={supplier.id}
+                    className="mes-table-row"
                     onClick={() => handleRowClick(supplier)}
                     style={{
-                      cursor: 'pointer',
-                      backgroundColor: selectedSupplier?.id === supplier.id ? 'rgb(239, 246, 255)' : 'white',
-                      borderBottomWidth: '1px',
-                      borderBottomStyle: 'solid',
-                      borderBottomColor: 'rgb(243, 244, 246)'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedSupplier?.id !== supplier.id) {
-                        e.currentTarget.style.backgroundColor = '#f9fafb'
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedSupplier?.id !== supplier.id) {
-                        e.currentTarget.style.backgroundColor = 'white'
-                      }
+                      backgroundColor: selectedSupplier?.id === supplier.id ? 'rgb(239, 246, 255)' : 'white'
                     }}
                   >
                     <td style={{ width: '40px', textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
@@ -1038,13 +954,13 @@ export default function SuppliersTable({
                       />
                     </td>
                     <td>
-                      {supplier.code}
+                      <span className="mes-code-text">{supplier.code}</span>
                     </td>
                     <td>
                       {supplier.name || supplier.companyName}
                     </td>
                     <td>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      <div className="mes-tag-group">
                         {supplier.suppliedMaterials && supplier.suppliedMaterials.length > 0 
                           ? [...new Set(
                               supplier.suppliedMaterials
@@ -1079,14 +995,7 @@ export default function SuppliersTable({
                             )].map((categoryName, index) => (
                               <span 
                                 key={index}
-                                style={{ 
-                                  backgroundColor: '#f3f4f6', 
-                                  color: 'rgb(107, 114, 128)', 
-                                  padding: '2px 6px',
-                                  borderRadius: '4px',
-                                  fontSize: '11px',
-                                  fontWeight: '500'
-                                }}
+                                className="mes-tag"
                               >
                                 {categoryName}
                               </span>
@@ -1236,14 +1145,12 @@ export default function SuppliersTable({
               </tbody>
             </table>
           </div>
+        </section>
+      </div>
 
       {/* Sağ Panel - Detaylar */}
       {selectedSupplier && (
-        <div className="supplier-detail-panel" style={{ 
-          flex: window.innerWidth <= 768 ? 'none' : '1',
-          minWidth: window.innerWidth <= 768 ? 'auto' : '400px',
-          height: window.innerWidth <= 768 ? '50vh' : 'auto'
-        }}>
+        <div className="supplier-detail-panel">
           <div style={{ 
             background: 'white', 
             borderRadius: '6px', 
@@ -3201,89 +3108,8 @@ export default function SuppliersTable({
         </div>
       )}
 
-      {/* Material Detail Modal */}
-      <ErrorBoundary>
-        <EditMaterialModal
-          isOpen={showMaterialDetailModal}
-          onClose={() => {
-            console.log('🚪 Modal onClose called - cleaning up states')
-            setShowMaterialDetailModal(false)
-            setSelectedMaterialForDetail(null)
-            setLoadingMaterialDetail(false)
-            console.log('🚪 Modal states cleaned up')
-          }}
-          onSave={async (materialData, newCategoryName) => {
-            try {
-              console.log('💾 Saving material:', selectedMaterialForDetail?.id, materialData);
-              
-              // Import service if needed
-              const materialsService = (await import('../services/materials-service.js')).default;
-              
-              // Update material via API
-              const updated = await materialsService.updateMaterial(selectedMaterialForDetail.id, materialData);
-              
-              console.log('✅ Material updated successfully:', updated);
-              
-              // If new category was added, you might want to refresh categories
-              if (newCategoryName) {
-                console.log('📁 New category added:', newCategoryName);
-                // Reload categories
-                const freshCategories = await categoriesService.getCategories();
-                setMaterialCategories(freshCategories);
-              }
-              
-              // Refresh the material lists with forceRefresh flag to bypass cache
-              await loadMaterials(true);  // ✅ Force refresh
-              await loadAllMaterials(true);  // ✅ Force refresh
-              
-              // Dispatch global update event for other components
-              try {
-                const evt = new CustomEvent('materialsUpdated', { 
-                  detail: { 
-                    action: 'update', 
-                    material: updated 
-                  } 
-                });
-                window.dispatchEvent(evt);
-                console.log('📢 Dispatched materialsUpdated event');
-              } catch (e) {
-                console.warn('Failed to dispatch event:', e);
-              }
-              
-              // Update selected material with fresh data
-              setSelectedMaterialForDetail(updated);
-              
-              showNotification('✅ Malzeme başarıyla güncellendi!', 'success');
-            } catch (error) {
-              console.error('❌ Material update failed:', error);
-              showNotification('❌ Hata: ' + error.message, 'error');
-            }
-          }}
-          onDelete={handleDeleteMaterial ? (materialId) => {
-            // Call the delete handler from main.jsx
-            handleDeleteMaterial(materialId);
-            // Close modal  
-            setShowMaterialDetailModal(false);
-            setSelectedMaterialForDetail(null);
-            setLoadingMaterialDetail(false);
-          } : undefined}
-          categories={materialCategories}
-          types={[
-            { id: 'raw_material', label: 'Ham Madde' },
-            { id: 'semi_finished', label: 'Yarı Mamül' },
-            { id: 'finished_product', label: 'Bitmiş Ürün' },
-            { id: 'scrap', label: 'Hurda' }
-          ]}
-          material={selectedMaterialForDetail}
-          isRemoved={selectedMaterialForDetail?.status === 'Kaldırıldı'}
-          suppliers={suppliers}
-          loading={loadingMaterialDetail}
-          suppliersLoading={suppliersLoading}
-          onRefreshSuppliers={onRefreshSuppliers}
-          error={null}
-        />
-      </ErrorBoundary>
-      
+      {/* Material Detail Modal - Removed, now opens in materials.html stocks tab */}
+
       {/* Add Order Modal */}
       <AddOrderModal 
         isOpen={isAddOrderModalOpen}
@@ -3300,7 +3126,7 @@ export default function SuppliersTable({
           }
         }}
       />
-    </section>
+    </div>
   )
 }
 
@@ -3413,5 +3239,7 @@ function SupplierHistorySection({ supplier }) {
     </div>
   )
 }
+
+
 
 

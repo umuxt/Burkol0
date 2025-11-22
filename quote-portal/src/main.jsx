@@ -13,7 +13,6 @@ import MaterialsFilters from '../domains/materials/components/MaterialsFilters.j
 import MaterialsTable from '../domains/materials/components/MaterialsTable.jsx';
 import MaterialsActions from '../domains/materials/components/MaterialsActions.jsx';
 import AddMaterialModal from '../domains/materials/components/AddMaterialModal.jsx';
-import EditMaterialModal from '../domains/materials/components/EditMaterialModal.jsx';
 import CategoryManagementModal from '../domains/materials/components/CategoryManagementModal.jsx';
 import MaterialDeletionWarningModal from '../domains/materials/components/MaterialDeletionWarningModal.jsx';
 import ErrorBoundary from '../shared/components/ErrorBoundary.jsx';
@@ -82,11 +81,9 @@ function MaterialsApp() {
 
   // UI state
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isDeletionWarningOpen, setIsDeletionWarningOpen] = useState(false);
   const [isDeletionInProgress, setIsDeletionInProgress] = useState(false);
-  const [editingMaterial, setEditingMaterial] = useState(null);
   const [materialCreatedCallback, setMaterialCreatedCallback] = useState(null);
   const [materialsToDelete, setMaterialsToDelete] = useState([]);
   const [deletionCallback, setDeletionCallback] = useState(null);
@@ -236,13 +233,15 @@ function MaterialsApp() {
   };
 
   const handleEditMaterial = (material) => {
-    setEditingMaterial(material);
-    setIsEditModalOpen(true);
+    console.log('🔍 handleEditMaterial called for material:', material?.name);
+    // StocksTabContent handles edit via selectedMaterial state
+    // Just log for debugging
   };
 
   const handleMaterialSelect = (material) => {
-    setEditingMaterial(material);
-    setIsEditModalOpen(true);
+    // Material selection opens detail panel in StocksTabContent
+    // This function is kept for compatibility but does nothing
+    console.log('🔍 handleMaterialSelect called for material:', material?.name);
   };
 
   const handleCategoryManage = async () => {
@@ -335,40 +334,6 @@ function MaterialsApp() {
     }
   };
 
-  const handleSaveEditMaterial = async (materialData, newCategoryName) => {
-    try {
-      // Yeni kategori eklendiyse önce kategoriyi oluştur
-      if (newCategoryName && !categories.some(cat => cat.name === newCategoryName)) {
-        console.log(`✨ Yeni kategori oluşturuluyor (düzenleme modunda): ${newCategoryName}`);
-        const newCategory = await createCategory(newCategoryName);
-        if (newCategory && newCategory.id) {
-            // Backend'de 'category' field'ı kullanılıyor, 'categoryId' değil
-            materialData.category = newCategory.id;
-            materialData.categoryId = newCategory.id; // Backward compatibility için
-            console.log('✅ Yeni kategori ID malzeme datasına eklendi (düzenleme):', newCategory.id);
-            // Kategoriler listesini yenile ki yeni kategori tabloda görünebilsin
-            if (refreshCategories) {
-              await refreshCategories();
-              console.log('✅ Kategoriler listesi yenilendi (düzenleme)');
-            }
-        } else {
-            throw new Error('Yeni kategori oluşturuldu ancak ID alınamadı.');
-        }
-      }
-
-      if (editingMaterial && editingMaterial.id) {
-        await updateMaterial(editingMaterial.id, materialData);
-      }
-      
-      setIsEditModalOpen(false);
-      setEditingMaterial(null);
-      await refreshMaterials(true);
-    } catch (error) {
-      console.error('Material update error:', error);
-      alert(`Malzeme güncellenirken hata: ${error.message}`);
-    }
-  };
-
   const handleDeleteMaterial = async (materialIdOrList, skipConfirmation = false, isBulkDelete = false) => {
     console.log('🗑️ handleDeleteMaterial called:', { materialIdOrList, skipConfirmation, isBulkDelete });
     
@@ -450,11 +415,6 @@ function MaterialsApp() {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setMaterialCreatedCallback(null);
-  };
-
-  const handleCloseEditModal = () => {
-    setIsEditModalOpen(false);
-    setEditingMaterial(null);
   };
 
   const handleTabChange = (newTab) => {
@@ -542,21 +502,7 @@ function MaterialsApp() {
         }}
       />
 
-      <ErrorBoundary>
-        <EditMaterialModal 
-          isOpen={isEditModalOpen}
-          onClose={handleCloseEditModal}
-          onSave={handleSaveEditMaterial}
-          onDelete={handleDeleteMaterial}
-          categories={categories}
-          types={materialTypes}
-          material={editingMaterial}
-          loading={actionLoading}
-          error={actionError}
-          isRemoved={editingMaterial?.status === 'Kaldırıldı'}
-          onRefreshMaterial={refreshMaterials}
-        />
-      </ErrorBoundary>
+      {/* EditMaterialModal removed - material details now shown in StocksTabContent detail panel */}
 
       <MaterialDeletionWarningModal
         isOpen={isDeletionWarningOpen}

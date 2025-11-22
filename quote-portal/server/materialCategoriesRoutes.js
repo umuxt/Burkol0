@@ -11,6 +11,11 @@ const MATERIALS_TABLE = 'materials.materials'
 
 // GET all categories
 export async function getMaterialCategories(req, res) {
+    // CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
     try {
         const categories = await MaterialCategories.getAllCategories()
         res.json(categories)
@@ -22,6 +27,11 @@ export async function getMaterialCategories(req, res) {
 
 // GET usage for a single category
 export async function getMaterialCategoryUsage(req, res) {
+    // CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
     try {
         const { id } = req.params
         
@@ -48,6 +58,11 @@ export async function getMaterialCategoryUsage(req, res) {
 
 // POST a new category
 export async function createMaterialCategory(req, res) {
+    // CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
     try {
         const { name, id } = req.body
         
@@ -77,6 +92,11 @@ export async function createMaterialCategory(req, res) {
 
 // PUT/update a category
 export async function updateMaterialCategory(req, res) {
+    // CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
     try {
         const { id } = req.params
         const { name } = req.body
@@ -103,6 +123,11 @@ export async function updateMaterialCategory(req, res) {
 
 // DELETE a category
 export async function deleteMaterialCategory(req, res) {
+    // CORS headers
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    
     try {
         const { id } = req.params
         const { updateRemoved } = req.query

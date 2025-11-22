@@ -235,13 +235,14 @@ export default function MaterialsTable({
                   Stok Durumu<span className="mes-sort-icon">{getSortIcon('stock')}</span>
                 </button>
               </th>
+              <th style={{ width: '40px', textAlign: 'center' }}></th>
             </tr>
           </thead>
           <tbody>
             {/* Loading state */}
             {loading && materials.length === 0 && (
               <tr>
-                <td colSpan="7" style={{ 
+                <td colSpan="8" style={{ 
                   textAlign: 'center', 
                   padding: '40px 20px',
                   color: '#6b7280'
@@ -262,7 +263,7 @@ export default function MaterialsTable({
             {/* Error state */}
             {!loading && error && materials.length === 0 && (
               <tr>
-                <td colSpan="7" style={{ 
+                <td colSpan="8" style={{ 
                   textAlign: 'center', 
                   padding: '40px 20px'
                 }}>
@@ -302,17 +303,13 @@ export default function MaterialsTable({
             {!loading && !error && sortedMaterials.map((material) => (
               <tr 
                 key={material.id || material.code} 
-                className={`
-                  ${material.stock <= material.reorder_point ? 'low-stock' : ''} 
-                  ${material.status === 'Kaldırıldı' ? 'removed-material' : ''}
-                `.trim()}
+                className={`mes-table-row ${material.stock <= material.reorder_point ? 'low-stock' : ''} ${material.status === 'Kaldırıldı' ? 'removed-material' : ''}`.trim()}
                 onClick={(e) => {
                   // Checkbox tıklamasında satır seçimini engelle
                   if (e.target.type !== 'checkbox') {
                     onMaterialSelect && onMaterialSelect(material)
                   }
                 }}
-                style={{ cursor: 'pointer' }}
               >
                 <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                   <input
@@ -322,58 +319,64 @@ export default function MaterialsTable({
                     onClick={(e) => e.stopPropagation()}
                   />
                 </td>
-                <td>{material.code}</td>
                 <td>
-                  <div className="material-name-cell">
-                    {material.name}
-                  </div>
+                  <span className="mes-code-text">{material.code}</span>
+                </td>
+                <td>
+                  {material.name}
                 </td>
                 <td>{getTypeLabel(material.type)}</td>
-                <td>{getCategoryName(material.category)}</td>
+                <td>
+                  <span className="mes-tag">{getCategoryName(material.category)}</span>
+                </td>
                 <td>{material.unit}</td>
                 <td className="stock-cell">
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <StockBar 
-                      stock={material.stock} 
-                      reorderPoint={material.reorder_point} 
-                      reserved={material.reserved || 0}
-                      available={material.available || material.stock}
-                    />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOrderClick && onOrderClick(material);
-                      }}
-                      style={{
-                        padding: '2px',
-                        border: 'medium',
-                        borderRadius: '3px',
-                        background: 'transparent',
-                        color: '#374151',
-                        fontSize: '10px',
-                        cursor: 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: '16px',
-                        height: '16px',
-                        lineHeight: 1,
-                        transition: 'all 0.2s ease',
-                        flexShrink: 0
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.transform = 'scale(1.1)';
-                        e.target.style.background = '#f3f4f6';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.transform = 'scale(1)';
-                        e.target.style.background = 'transparent';
-                      }}
-                      title={`${material.name} için sipariş ver`}
-                    >
-                      🛒
-                    </button>
-                  </div>
+                  <StockBar 
+                    stock={material.stock} 
+                    reorderPoint={material.reorder_point} 
+                    reserved={material.reserved || 0}
+                    available={material.available || material.stock}
+                  />
+                </td>
+                <td style={{ textAlign: 'center' }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOrderClick && onOrderClick(material);
+                    }}
+                    style={{
+                      padding: '2px',
+                      border: 'none',
+                      borderRadius: '3px',
+                      background: 'transparent',
+                      color: '#374151',
+                      fontSize: '10px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '16px',
+                      height: '16px',
+                      lineHeight: 1,
+                      transition: 'all 0.2s ease',
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.transform = 'scale(1.1)';
+                      e.target.style.background = '#f3f4f6';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.transform = 'scale(1)';
+                      e.target.style.background = 'transparent';
+                    }}
+                    title={`${material.name} için sipariş ver`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="8" cy="21" r="1"></circle>
+                      <circle cx="19" cy="21" r="1"></circle>
+                      <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path>
+                    </svg>
+                  </button>
                 </td>
               </tr>
             ))}
@@ -381,7 +384,7 @@ export default function MaterialsTable({
             {/* Empty state */}
             {!loading && !error && sortedMaterials.length === 0 && (
               <tr>
-                <td colSpan="7" style={{ 
+                <td colSpan="8" style={{ 
                   textAlign: 'center', 
                   padding: '40px 20px'
                 }}>

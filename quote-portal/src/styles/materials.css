@@ -2021,20 +2021,22 @@ section.materials-dashboard div.card {
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   z-index: 1000;
+  padding-right: 0;
 }
 
 .modal-content {
   background: #fff;
-  border-radius: 8px;
+  border-radius: 8px 0 0 8px;
   width: 100%;
-  max-width: 750px;
-  max-height: 90vh;
+  max-width: 600px;
+  height: 100vh;
   overflow-y: auto;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  box-shadow: -4px 0 25px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
+  margin: 0;
 }
 
 .modal-header {
@@ -2648,8 +2650,8 @@ textarea.editable-input {
   border-collapse: collapse;
 }
 
-.materials-table th,
-.materials-table td {
+/* TH stilleri - başlık satırı için */
+.materials-table th {
   padding: 8px;
   text-align: left;
   border-bottom: 1px solid rgb(229, 231, 235);
@@ -2675,22 +2677,59 @@ textarea.editable-input {
   position: sticky;
   top: 0;
   z-index: 10;
+  padding: 8px;
 }
 
-.materials-table td {
-  color: inherit;
-  font-size: 13px;
-  max-width: 0;
-}
+/* TD ve TR stilleri .mes-table-row tarafından yönetiliyor */
 
-.materials-table tbody tr {
+/* MES Table Row Styles - Materials table specific */
+.materials-table .mes-table-row {
+  cursor: pointer;
   background-color: #ffffff;
   transition: background-color 0.2s ease;
-  cursor: pointer;
+  height: 25px;
 }
 
-.materials-table tbody tr:hover {
+.materials-table .mes-table-row:hover {
   background-color: rgb(249, 250, 251);
+}
+
+.materials-table .mes-table-row td {
+  padding: 2px 8px !important;
+  color: rgb(17, 24, 39) !important;
+  font-size: 13px !important;
+  border-bottom: 1px solid rgb(243, 244, 246) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+  line-height: 1.2 !important;
+  height: 25px !important;
+  vertical-align: middle;
+}
+
+.materials-table .mes-code-text {
+  display: inline-block;
+  font-family: monospace;
+  font-size: 11px !important;
+  color: rgb(107, 114, 128) !important;
+}
+
+.mes-tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.materials-table .mes-tag {
+  background-color: rgb(243, 244, 246);
+  color: rgb(107, 114, 128);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px !important;
+  font-weight: 500;
+  display: inline-block;
+  line-height: 1.4;
 }
 
 .materials-table tr.inactive {
@@ -2784,11 +2823,55 @@ textarea.editable-input {
   opacity: 1;
 }
 
+/* Supplier/Material Detail Panel - MES Style */
+.supplier-detail-panel,
+.material-detail-panel {
+  flex: 1 1 0%;
+  min-width: 400px;
+  height: auto;
+  max-width: 600px;
+}
+
+.suppliers-container,
+.materials-container {
+  display: flex;
+  gap: 20px;
+  height: calc(100vh - 200px);
+  flex-direction: row;
+}
+
+.suppliers-table-panel,
+.materials-table-panel {
+  flex: 1 1 0%;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+}
+
+.materials-table-container {
+  flex: 1 1 0%;
+  min-width: 300px;
+  overflow: auto;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .materials-page {
     padding: 1rem;
     gap: 1rem;
+  }
+  
+  .suppliers-container,
+  .materials-container {
+    flex-direction: column;
+    height: auto;
+  }
+  
+  .supplier-detail-panel,
+  .material-detail-panel {
+    min-width: auto;
+    width: 100%;
   }
 
   .materials-dashboard {

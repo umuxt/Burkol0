@@ -9,9 +9,9 @@ export default function AddMaterialModal({
   types, 
   materials = [],
   loading = false,
-  error = null
+  error = null,
+  isInline = false
 }) {
-  // Suppliers listesini lazy loading ile al - modal açıldığında yükle
   const { suppliers } = useSuppliers(isOpen)
   
   const [formData, setFormData] = useState({
@@ -29,15 +29,10 @@ export default function AddMaterialModal({
     status: 'Aktif'
   });
   
-
-  
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCategory, setNewCategory] = useState('');
-
-  // State for all materials (including removed ones) for code generation
   const [allMaterials, setAllMaterials] = useState([]);
   const [nextCode, setNextCode] = useState(() => {
-    // İlk render'da mevcut materials'tan kod hesapla
     if (materials && materials.length > 0) {
       const existingNumbers = materials
         .map(material => {
@@ -60,30 +55,24 @@ export default function AddMaterialModal({
       return `M-${String(nextNumber).padStart(3, '0')}`;
     }
     return 'M-001';
-  }); // Dynamic next code based on all materials
+  });
   
-  // Load all materials for code generation on mount
   useEffect(() => {
     const loadAllMaterials = async () => {
       try {
         const { materialsService } = await import('../services/materials-service.js');
         const allMaterialsList = await materialsService.getAllMaterials();
-        console.log('🔢 Kod oluşturma için tüm materyaller yüklendi:', allMaterialsList.length);
         setAllMaterials(allMaterialsList);
       } catch (error) {
-        console.error('❌ Tüm materyaller yüklenemedi:', error);
-        // Fallback olarak mevcut materials'ı kullan
         setAllMaterials(materials);
       }
     };
     
-    // Modal açıldığında hemen yükle
     if (isOpen && allMaterials.length === 0) {
       loadAllMaterials();
     }
   }, [isOpen]);
 
-  // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
       setFormData({
@@ -105,7 +94,6 @@ export default function AddMaterialModal({
     }
   }, [isOpen]);
 
-  // Update next code when allMaterials changes
   useEffect(() => {
     const materialsForCodeGen = allMaterials.length > 0 ? allMaterials : materials;
     
@@ -133,7 +121,6 @@ export default function AddMaterialModal({
     }
     
     const newCode = `M-${String(nextNumber).padStart(3, '0')}`;
-    console.log('🔢 AddMaterialModal nextCode güncellendi:', newCode);
     setNextCode(newCode);
   }, [allMaterials, materials]);
 
@@ -160,14 +147,13 @@ export default function AddMaterialModal({
     e.preventDefault();
     
     const finalCategory = showNewCategory ? newCategory : formData.category;
-    const finalCode = formData.code.trim() || nextCode; // Boşsa otomatik kod kullan
+    const finalCode = formData.code.trim() || nextCode;
     
     if (!finalCode || !formData.name || !formData.type || !finalCategory || !formData.unit || !formData.stock || !formData.reorderPoint) {
       alert('Lütfen tüm zorunlu alanları doldurun!');
       return;
     }
 
-    // Backend API için malzeme verisi hazırla
     const materialData = {
       code: finalCode,
       name: formData.name,
@@ -185,7 +171,6 @@ export default function AddMaterialModal({
 
     onSave(materialData, showNewCategory ? newCategory : null);
     
-    // Form'u sıfırla
     setFormData({
       code: '',
       name: '',
@@ -205,7 +190,6 @@ export default function AddMaterialModal({
   };
 
   const handleClose = () => {
-    // Form'u sıfırla
     setFormData({
       code: '',
       name: '',
@@ -216,7 +200,7 @@ export default function AddMaterialModal({
       reorderPoint: '',
       costPrice: '',
       sellPrice: '',
-      supplier: '', // Modal kapandığında supplier'ı da sıfırla
+      supplier: '',
       description: '',
       status: 'Aktif'
     });
@@ -226,6 +210,228 @@ export default function AddMaterialModal({
   };
 
   if (!isOpen) return null;
+
+  const formContent = (
+    <form id="add-material-form" onSubmit={handleSubmit} className="modal-form">
+      <div className="form-row">
+        <div className="form-group">
+          <label>Malzeme Kodu <span className="optional">(opsiyonel)</span></label>
+          <input
+            type="text"
+            name="code"
+            value={formData.code || nextCode}
+            onChange={handleInputChange}
+            placeholder={nextCode}
+          />
+          <small className="form-help">Boş bırakılırsa otomatik olarak {nextCode} atanacak</small>
+        </div>
+        
+        <div className="form-group">
+          <label>Malzeme Adı *</label>
+          <input
+            type="text"
+            name="name"
+            value={formData.name}
+            onChange={handleInputChange}
+            placeholder="Malzeme adını girin"
+            required
+          />
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Tip *</label>
+          <select
+            name="type"
+            value={formData.type}
+            onChange={handleInputChange}
+            required
+          >
+            <option value="">Tip seçin</option>
+            {types.map(type => (
+              <option key={type.id} value={type.id}>{type.label}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label>Kategori *</label>
+          <select
+            value={showNewCategory ? 'new-category' : formData.category}
+            onChange={handleCategoryChange}
+            required
+          >
+            <option value="">Kategori seçin</option>
+            {categories.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.name || cat.label}</option>
+            ))}
+            <option value="new-category">+ Yeni Kategori Ekle</option>
+          </select>
+          
+          {showNewCategory && (
+            <input
+              type="text"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              placeholder="Yeni kategori adı"
+              className="new-category-input"
+              required
+            />
+          )}
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Birim *</label>
+          <select
+            name="unit"
+            value={formData.unit}
+            onChange={handleInputChange}
+            required
+          >
+            <option value="">Birim seçin</option>
+            <option value="kg">kg</option>
+            <option value="adet">adet</option>
+            <option value="m">m</option>
+            <option value="m²">m²</option>
+            <option value="m³">m³</option>
+            <option value="litre">litre</option>
+          </select>
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Stok Miktarı *</label>
+          <input
+            type="number"
+            name="stock"
+            value={formData.stock}
+            onChange={handleInputChange}
+            placeholder="0"
+            min="0"
+            required
+          />
+        </div>
+        
+        <div className="form-group">
+          <label>Reorder Point *</label>
+          <input
+            type="number"
+            name="reorderPoint"
+            value={formData.reorderPoint}
+            onChange={handleInputChange}
+            placeholder="Minimum stok seviyesi"
+            min="0"
+            required
+          />
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Maliyet Fiyatı</label>
+          <input
+            type="number"
+            name="costPrice"
+            value={formData.costPrice}
+            onChange={handleInputChange}
+            placeholder="0.00"
+            min="0"
+            step="0.01"
+          />
+        </div>
+        
+        <div className="form-group">
+          <label>Satış Fiyatı</label>
+          <input
+            type="number"
+            name="sellPrice"
+            value={formData.sellPrice}
+            onChange={handleInputChange}
+            placeholder="0.00"
+            min="0"
+            step="0.01"
+          />
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Tedarikçi</label>
+          <select
+            name="supplier"
+            value={formData.supplier}
+            onChange={handleInputChange}
+          >
+            <option value="">Tedarikçi seçin</option>
+            {suppliers.map(supplier => (
+              <option key={supplier.id} value={supplier.id}>
+                {supplier.code} - {supplier.name || supplier.companyName}
+              </option>
+            ))}
+          </select>
+        </div>
+        
+        <div className="form-group">
+          <label>Açıklama</label>
+          <textarea
+            name="description"
+            value={formData.description}
+            onChange={handleInputChange}
+            placeholder="Malzeme açıklaması"
+            rows="2"
+          />
+        </div>
+      </div>
+
+      <div className="form-row">
+        <div className="form-group">
+          <label>Durum</label>
+          <select
+            name="status"
+            value={formData.status}
+            onChange={handleInputChange}
+          >
+            <option value="Aktif">Aktif</option>
+          </select>
+        </div>
+      </div>
+    </form>
+  );
+
+  if (isInline) {
+    return (
+      <div style={{
+        position: 'absolute',
+        top: '100%',
+        right: 0,
+        marginTop: '8px',
+        background: 'white',
+        border: '1px solid #d1d5db',
+        borderRadius: '8px',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+        minWidth: '600px',
+        maxWidth: '700px',
+        maxHeight: 'calc(100vh - 200px)',
+        overflowY: 'auto',
+        zIndex: 9999
+      }}>
+        <div className="modal-header">
+          <h2>Yeni Malzeme Ekle</h2>
+          <div className="header-actions">
+            <button type="submit" form="add-material-form" className="btn-save" title="Kaydet">
+              💾 Kaydet
+            </button>
+            <button className="modal-close" onClick={handleClose}>×</button>
+          </div>
+        </div>
+        {formContent}
+      </div>
+    );
+  }
 
   return (
     <div className="modal-overlay" onClick={handleClose} style={{ zIndex: 2100 }}>
@@ -239,198 +445,8 @@ export default function AddMaterialModal({
             <button className="modal-close" onClick={handleClose}>×</button>
           </div>
         </div>
-        
-        <form id="add-material-form" onSubmit={handleSubmit} className="modal-form">
-          <div className="form-row">
-            <div className="form-group">
-              <label>Malzeme Kodu <span className="optional">(opsiyonel)</span></label>
-              <input
-                type="text"
-                name="code"
-                value={formData.code || nextCode}
-                onChange={handleInputChange}
-                placeholder={nextCode}
-              />
-              <small className="form-help">Boş bırakılırsa otomatik olarak {nextCode} atanacak</small>
-            </div>
-            
-            <div className="form-group">
-              <label>Malzeme Adı *</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                placeholder="Malzeme adını girin"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Tip *</label>
-              <select
-                name="type"
-                value={formData.type}
-                onChange={handleInputChange}
-                required
-              >
-                <option value="">Tip seçin</option>
-                {types.map(type => (
-                  <option key={type.id} value={type.id}>{type.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Kategori *</label>
-              <select
-                value={showNewCategory ? 'new-category' : formData.category}
-                onChange={handleCategoryChange}
-                required
-              >
-                <option value="">Kategori seçin</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name || cat.label}</option>
-                ))}
-                <option value="new-category">+ Yeni Kategori Ekle</option>
-              </select>
-              
-              {showNewCategory && (
-                <input
-                  type="text"
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                  placeholder="Yeni kategori adı"
-                  className="new-category-input"
-                  required
-                />
-              )}
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Birim *</label>
-              <select
-                name="unit"
-                value={formData.unit}
-                onChange={handleInputChange}
-                required
-              >
-                <option value="">Birim seçin</option>
-                <option value="kg">kg</option>
-                <option value="adet">adet</option>
-                <option value="m">m</option>
-                <option value="m²">m²</option>
-                <option value="m³">m³</option>
-                <option value="litre">litre</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Stok Miktarı *</label>
-              <input
-                type="number"
-                name="stock"
-                value={formData.stock}
-                onChange={handleInputChange}
-                placeholder="0"
-                min="0"
-                required
-              />
-            </div>
-            
-            <div className="form-group">
-              <label>Reorder Point *</label>
-              <input
-                type="number"
-                name="reorderPoint"
-                value={formData.reorderPoint}
-                onChange={handleInputChange}
-                placeholder="Minimum stok seviyesi"
-                min="0"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Maliyet Fiyatı</label>
-              <input
-                type="number"
-                name="costPrice"
-                value={formData.costPrice}
-                onChange={handleInputChange}
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-              />
-            </div>
-            
-            <div className="form-group">
-              <label>Satış Fiyatı</label>
-              <input
-                type="number"
-                name="sellPrice"
-                value={formData.sellPrice}
-                onChange={handleInputChange}
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Tedarikçi</label>
-              <select
-                name="supplier"
-                value={formData.supplier}
-                onChange={handleInputChange}
-              >
-                <option value="">Tedarikçi seçin</option>
-                {suppliers.map(supplier => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.code} - {supplier.name || supplier.companyName}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="form-group">
-              <label>Açıklama</label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                placeholder="Malzeme açıklaması"
-                rows="2"
-              />
-            </div>
-          </div>
-
-          <div className="form-row">
-            <div className="form-group">
-              <label>Durum</label>
-              <select
-                name="status"
-                value={formData.status}
-                onChange={handleInputChange}
-              >
-                <option value="Aktif">Aktif</option>
-                {/* Removed Pasif option - materials only have 'Aktif' or 'Kaldırıldı' status */}
-              </select>
-            </div>
-          </div>
-
-        </form>
+        {formContent}
       </div>
     </div>
-  )
+  );
 }
