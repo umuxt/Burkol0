@@ -191,19 +191,19 @@ async function getAvailableLots(materialCode, trx) {
   // Query to get lot balances (IN - OUT)
   const lots = await trx('materials.stock_movements')
     .select(
-      'lot_number',
-      'lot_date',
+      'lotNumber',
+      'lotDate',
       trx.raw(`
         SUM(CASE 
           WHEN type = 'in' THEN quantity 
           ELSE -quantity 
         END) as available_qty
       `),
-      trx.raw('MIN(movement_date) as first_movement')
+      trx.raw('MIN(movementDate) as first_movement')
     )
     .where('materialCode', materialCode)
-    .whereNotNull('lot_number')
-    .groupBy('lot_number', 'lot_date')
+    .whereNotNull('lotNumber')
+    .groupBy('lotNumber', 'lotDate')
     .havingRaw(`
       SUM(CASE 
         WHEN type = 'in' THEN quantity 
@@ -211,13 +211,13 @@ async function getAvailableLots(materialCode, trx) {
       END) > 0
     `)
     .orderBy([
-      { column: 'lot_date', order: 'asc' },
+      { column: 'lotDate', order: 'asc' },
       { column: 'first_movement', order: 'asc' }
     ]);
 
   return lots.map(lot => ({
-    lotNumber: lot.lot_number,
-    lotDate: lot.lot_date,
+    lotNumber: lot.lotNumber,
+    lotDate: lot.lotDate,
     availableQty: parseFloat(lot.available_qty),
     firstMovement: lot.first_movement
   }));
@@ -308,16 +308,16 @@ async function createReservationRecords(assignmentId, materialCode, requiredQty,
 
     // Create stock movement (OUT)
     await trx('materials.stock_movements').insert({
-      material_code: materialCode,
+      materialCode: materialCode,
       type: 'out',
       quantity: lot.qty,
-      stock_before: stockBefore,
-      stock_after: stockAfter,
-      movement_date: trx.fn.now(),
-      lot_number: lot.lotNumber,
-      assignment_id: assignmentId,
-      requested_quantity: requiredQty,
-      partial_reservation: partialReservation,
+      stockBefore: stockBefore,
+      stockAfter: stockAfter,
+      movementDate: trx.fn.now(),
+      lotNumber: lot.lotNumber,
+      assignmentId: assignmentId,
+      requestedQuantity: requiredQty,
+      partialReservation: partialReservation,
       warning: partialReservation 
         ? `Partial reservation: requested ${requiredQty}, reserved ${totalReserved} (shortfall: ${shortfall})`
         : null,
@@ -326,9 +326,9 @@ async function createReservationRecords(assignmentId, materialCode, requiredQty,
 
     // Insert assignment_material_reservation
     const existingReservation = await trx('mes.assignment_material_reservations')
-      .where('assignment_id', assignmentId)
+      .where('assignmentId', assignmentId)
       .where('materialCode', materialCode)
-      .where('lot_number', lot.lotNumber)
+      .where('lotNumber', lot.lotNumber)
       .first();
 
     if (existingReservation) {
@@ -336,20 +336,20 @@ async function createReservationRecords(assignmentId, materialCode, requiredQty,
       await trx('mes.assignment_material_reservations')
         .where('id', existingReservation.id)
         .update({
-          actual_reserved_qty: trx.raw('actual_reserved_qty + ?', [lot.qty]),
-          reservation_status: 'reserved'
+          actualReservedQty: trx.raw('actualReservedQty + ?', [lot.qty]),
+          reservationStatus: 'reserved'
         });
     } else {
       // Create new reservation
       await trx('mes.assignment_material_reservations').insert({
-        assignment_id: assignmentId,
-        material_code: materialCode,
-        lot_number: lot.lotNumber,
-        pre_production_qty: requiredQty,
-        actual_reserved_qty: lot.qty,
-        consumed_qty: 0, // Will be updated at task completion
-        reservation_status: 'reserved',
-        created_at: trx.fn.now()
+        assignmentId: assignmentId,
+        materialCode: materialCode,
+        lotNumber: lot.lotNumber,
+        preProductionQty: requiredQty,
+        actualReservedQty: lot.qty,
+        consumedQty: 0, // Will be updated at task completion
+        reservationStatus: 'reserved',
+        createdAt: trx.fn.now()
       });
     }
 
@@ -479,8 +479,8 @@ export async function releaseMaterialReservations(assignmentId) {
     return await db.transaction(async (trx) => {
       // Get all reservations for this assignment
       const reservations = await trx('mes.assignment_material_reservations')
-        .where('assignment_id', assignmentId)
-        .where('reservation_status', 'reserved');
+        .where('assignmentId', assignmentId)
+        .where('reservationStatus', 'reserved');
 
       if (reservations.length === 0) {
         return {
@@ -498,18 +498,18 @@ export async function releaseMaterialReservations(assignmentId) {
           .first();
 
         const stockBefore = parseFloat(material.stock);
-        const stockAfter = stockBefore + parseFloat(res.actual_reserved_qty);
+        const stockAfter = stockBefore + parseFloat(res.actualReservedQty);
 
         // Create reverse stock movement (IN)
         await trx('materials.stock_movements').insert({
-          material_code: res.materialCode,
+          materialCode: res.materialCode,
           type: 'in',
-          quantity: res.actual_reserved_qty,
-          stock_before: stockBefore,
-          stock_after: stockAfter,
-          movement_date: trx.fn.now(),
-          lot_number: res.lot_number,
-          assignment_id: assignmentId,
+          quantity: res.actualReservedQty,
+          stockBefore: stockBefore,
+          stockAfter: stockAfter,
+          movementDate: trx.fn.now(),
+          lotNumber: res.lotNumber,
+          assignmentId: assignmentId,
           notes: `Released reservation for cancelled assignment ${assignmentId}`
         });
 
@@ -555,11 +555,11 @@ export async function releaseMaterialReservations(assignmentId) {
 export async function markMaterialsConsumed(assignmentId) {
   try {
     const updated = await db('mes.assignment_material_reservations')
-      .where('assignment_id', assignmentId)
-      .where('reservation_status', 'reserved')
+      .where('assignmentId', assignmentId)
+      .where('reservationStatus', 'reserved')
       .update({
-        consumed_qty: db.raw('actual_reserved_qty'),
-        reservation_status: 'consumed'
+        consumedQty: db.raw('actualReservedQty'),
+        reservationStatus: 'consumed'
       });
 
     return {

@@ -292,11 +292,11 @@ export async function startTask(assignmentId, workerId) {
         .where('id', assignmentId)
         .update({
           status: 'in_progress',
-          actual_start: trx.fn.now(),
-          material_reservation_status: materialRequirements.length > 0 
+          actualStart: trx.fn.now(),
+          materialReservationStatus: materialRequirements.length > 0 
             ? (reservationResult.warnings.length > 0 ? 'partial' : 'reserved')
             : 'not_required',
-          updated_at: trx.fn.now()
+          updatedAt: trx.fn.now()
         })
         .returning('*');
 
@@ -370,12 +370,12 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
     const result = await db.transaction(async (trx) => {
       // Mark materials as consumed (reserved → consumed)
       const materialsConsumed = await trx('mes.assignment_material_reservations')
-        .where('assignment_id', assignmentId)
-        .where('reservation_status', 'reserved')
+        .where('assignmentId', assignmentId)
+        .where('reservationStatus', 'reserved')
         .update({
-          consumed_qty: trx.raw('actual_reserved_qty'),
-          reservation_status: 'consumed',
-          consumed_at: trx.fn.now()
+          consumedQty: trx.raw('actualReservedQty'),
+          reservationStatus: 'consumed',
+          consumedAt: trx.fn.now()
         });
 
       // Update assignment to completed
@@ -383,13 +383,13 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
         .where('id', assignmentId)
         .update({
           status: 'completed',
-          actual_end: trx.fn.now(),
-          material_reservation_status: materialsConsumed > 0 ? 'consumed' : assignment.material_reservation_status,
-          quantity_produced: completionData.quantityProduced || null,
-          defect_quantity: completionData.defectQuantity || 0,
-          quality_ok: completionData.qualityOk !== undefined ? completionData.qualityOk : true,
-          completion_notes: completionData.notes || null,
-          updated_at: trx.fn.now()
+          actualEnd: trx.fn.now(),
+          materialReservationStatus: materialsConsumed > 0 ? 'consumed' : assignment.materialReservationStatus,
+          quantityProduced: completionData.quantityProduced || null,
+          defectQuantity: completionData.defectQuantity || 0,
+          qualityOk: completionData.qualityOk !== undefined ? completionData.qualityOk : true,
+          completionNotes: completionData.notes || null,
+          updatedAt: trx.fn.now()
         })
         .returning('*');
 

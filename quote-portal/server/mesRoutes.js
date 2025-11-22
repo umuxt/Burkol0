@@ -350,7 +350,7 @@ router.post('/operations', withAuth, async (req, res) => {
           id: op.id,
           name: op.name,
           type: op.type || 'General',
-          semi_outputCode: op.semiOutputCode || null,
+          semiOutputCode: op.semiOutputCode || null,
           expectedDefectRate: op.expectedDefectRate || 0,
           defaultEfficiency: op.defaultEfficiency || 1.0,
           supervisorId: op.supervisorId || null,
@@ -2993,8 +2993,8 @@ router.get('/work-packages', withAuth, async (req, res) => {
       // Timing
       expectedStart: wp.expectedStart,
       plannedEnd: wp.plannedEnd,
-      actualStart: wp.actual_start,
-      actualEnd: wp.actual_end,
+      actualStart: wp.actualStart,
+      actualEnd: wp.actualEnd,
       
       // Scrap
       inputScrapCount: wp.inputScrapCount || {},

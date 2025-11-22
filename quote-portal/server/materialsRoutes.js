@@ -72,14 +72,14 @@ async function createMaterial(req, res) {
       barcode: req.body.barcode,
       qrCode: req.body.qrCode || req.body.qr_code,
       status: req.body.status,
-      isActive: req.body.isActive !== undefined ? req.body.isActive : (req.body.is_active !== false),
-      scrapType: req.body.scrapType || req.body.scrap_type,
-      parentMaterial: req.body.parentMaterial || req.body.parent_material,
+      isActive: req.body.isActive !== undefined ? req.body.isActive : true,
+      scrapType: req.body.scrapType,
+      parentMaterial: req.body.parentMaterial,
       specifications: req.body.specifications,
       storage: req.body.storage,
-      productionHistory: req.body.productionHistory || req.body.production_history,
-      suppliersData: req.body.suppliersData || req.body.suppliers_data,
-      createdBy: req.body.createdBy || req.body.created_by || req.user?.email
+      productionHistory: req.body.productionHistory,
+      suppliersData: req.body.suppliersData,
+      createdBy: req.body.createdBy || req.user?.email
     }
 
     const newMaterial = await Materials.createMaterial(materialData)
@@ -124,13 +124,13 @@ async function updateMaterial(req, res) {
       qrCode: req.body.qrCode || req.body.qr_code,
       status: req.body.status,
       isActive: req.body.isActive,
-      scrapType: req.body.scrapType || req.body.scrap_type,
-      parentMaterial: req.body.parentMaterial || req.body.parent_material,
+      scrapType: req.body.scrapType,
+      parentMaterial: req.body.parentMaterial,
       specifications: req.body.specifications,
       storage: req.body.storage,
-      productionHistory: req.body.productionHistory || req.body.production_history,
-      suppliersData: req.body.suppliersData || req.body.suppliers_data,
-      updatedBy: req.body.updatedBy || req.body.updated_by || req.user?.email
+      productionHistory: req.body.productionHistory,
+      suppliersData: req.body.suppliersData,
+      updatedBy: req.body.updatedBy || req.user?.email
     }
 
     const updatedMaterial = await Materials.updateMaterial(id, updates)

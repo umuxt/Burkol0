@@ -1141,9 +1141,17 @@ function cancelScheduleEdit() {
   window.currentEditBlock = null;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   loadData();
   initHelp();
+  
+  // CRITICAL: Load master data on page init for worker schedules and other features
+  try {
+    await getMasterData();
+    console.log('✅ Master data loaded on page init');
+  } catch (error) {
+    console.error('⚠️ Failed to load master data on init:', error);
+  }
   
   // Check URL parameters for direct plan access
   const urlParams = new URLSearchParams(window.location.search);

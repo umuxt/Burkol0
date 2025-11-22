@@ -518,6 +518,15 @@ function getShiftBlocksForDay(ts, day, shiftNo) {
     }
   }
   
+  // 0.5) FIXED SCHEDULE FALLBACK: If workType is 'fixed', use fixedBlocks
+  if (ts?.workType === 'fixed' && ts?.fixedBlocks) {
+    const blocks = ts.fixedBlocks[day];
+    if (Array.isArray(blocks)) {
+      console.log(`📌 Using fixed schedule blocks for ${day}:`, blocks);
+      return blocks;
+    }
+  }
+  
   // 1) Aggregated model with laneIndex under `shift-${day}`
   const agg = ts?.shiftBlocks?.[`shift-${day}`]
   if (Array.isArray(agg)) {
@@ -557,6 +566,8 @@ function getShiftBlocksForDay(ts, day, shiftNo) {
     for (let n = 1; n <= 7; n++) { const arr = collect(n); if (arr.length) combined = combined.concat(arr) }
     return combined
   }
+  
+  console.warn(`⚠️ No blocks found for ${day} in time settings:`, ts);
   return []
 }
 
@@ -2362,6 +2373,14 @@ function updateWorkerScheduleStatus(worker) {
     return;
   }
   
+  console.log('🔍 Worker Schedule Debug:', {
+    workerId: worker.id,
+    workerName: worker.name,
+    scheduleMode: schedule.mode,
+    shiftNo: schedule.shiftNo,
+    hasBlocks: !!schedule.blocks
+  });
+  
   // Determine blocks for current day
   let blocks = [];
   const now = new Date();
@@ -2371,19 +2390,29 @@ function updateWorkerScheduleStatus(worker) {
   if (schedule.mode === 'company') {
     // Load from company settings
     const companySettings = safeLoadCompanyTimeSettings();
+    console.log('🏢 Company Settings:', companySettings ? 'Loaded' : 'NULL', {
+      hasShifts: companySettings?.shifts ? `${companySettings.shifts.length} shifts` : 'No shifts',
+      workType: companySettings?.workType
+    });
+    
     if (companySettings) {
       const shiftNo = schedule.shiftNo || '1';
       blocks = getShiftBlocksForDay(companySettings, currentDay, shiftNo) || [];
+      console.log(`📅 Shift ${shiftNo} blocks for ${currentDay}:`, blocks);
+    } else {
+      console.warn('⚠️ Company settings not found in sessionStorage or localStorage');
     }
   } else if (schedule.mode === 'personal') {
     // Load from personal blocks
     blocks = schedule.blocks?.[currentDay] || [];
+    console.log(`👤 Personal blocks for ${currentDay}:`, blocks);
   }
   
   // Filter only work/break blocks (ignore rest)
   blocks = blocks.filter(b => b && (b.type === 'work' || b.type === 'break'));
   
   if (blocks.length === 0) {
+    console.log('🏠 No work blocks today');
     statusElement.innerHTML = '🏠 Bugün mesai yok';
     statusElement.style.background = 'rgb(243, 244, 246)';
     statusElement.style.color = 'rgb(107, 114, 128)';
@@ -2392,6 +2421,7 @@ function updateWorkerScheduleStatus(worker) {
   
   // Check current time against blocks
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  console.log(`🕐 Current time: ${now.getHours()}:${now.getMinutes()} (${currentMinutes} minutes)`);
   
   for (const block of blocks) {
     // Handle different block formats (start/end vs startTime/endTime)
@@ -2407,13 +2437,17 @@ function updateWorkerScheduleStatus(worker) {
     const blockStart = startHour * 60 + startMin;
     const blockEnd = endHour * 60 + endMin;
     
+    console.log(`⏰ Checking block: ${startStr}-${endStr} (${blockStart}-${blockEnd} min) type=${block.type}`);
+    
     if (currentMinutes >= blockStart && currentMinutes < blockEnd) {
       // Currently in this block
       if (block.type === 'work') {
+        console.log('✅ Currently working');
         statusElement.innerHTML = '🕒 Şu an mesaide';
         statusElement.style.background = 'rgba(34, 197, 94, 0.15)';
         statusElement.style.color = 'rgb(6, 95, 70)';
       } else if (block.type === 'break') {
+        console.log('☕ Currently on break');
         statusElement.innerHTML = '☕ Şu an mola saatinde';
         statusElement.style.background = 'rgba(251, 191, 36, 0.15)';
         statusElement.style.color = 'rgb(146, 64, 14)';
@@ -2423,6 +2457,7 @@ function updateWorkerScheduleStatus(worker) {
   }
   
   // Not currently in any block
+  console.log('🌙 Outside work hours');
   statusElement.innerHTML = '🏠 Mesai dışında';
   statusElement.style.background = 'rgb(243, 244, 246)';
   statusElement.style.color = 'rgb(107, 114, 128)';
