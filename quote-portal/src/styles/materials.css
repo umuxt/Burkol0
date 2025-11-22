@@ -340,6 +340,39 @@ body:has(.materials-page) {
   background: #f8fafc;
 }
 
+/* MES Table Row Styles - Orders table specific */
+.orders-tab-content .mes-table-row {
+  cursor: pointer;
+  background-color: #ffffff;
+  transition: background-color 0.2s ease;
+  height: 25px;
+}
+
+.orders-tab-content .mes-table-row:hover {
+  background-color: rgb(249, 250, 251);
+}
+
+.orders-tab-content .mes-table-row td {
+  padding: 2px 8px !important;
+  color: rgb(17, 24, 39) !important;
+  font-size: 13px !important;
+  border-bottom: 1px solid rgb(243, 244, 246) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 0;
+  line-height: 1.2 !important;
+  height: 25px !important;
+  vertical-align: middle;
+}
+
+.orders-tab-content .mes-code-text {
+  display: inline-block;
+  font-family: monospace;
+  font-size: 11px !important;
+  color: rgb(107, 114, 128) !important;
+}
+
 /* Price Range Header Styles - Multi-select Header Tasarımında */
 .price-range-header {
   display: flex !important;

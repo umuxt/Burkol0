@@ -95,25 +95,30 @@ const Orders = {
   async getAllOrders(filters = {}) {
     const { status, supplierId, startDate, endDate, includeItems = true } = filters;
     
-    let query = db('materials.orders').select('*');
+    let query = db('materials.orders as o')
+      .leftJoin('materials.suppliers as s', 'o.supplierId', 's.id')
+      .select(
+        'o.*',
+        's.code as supplierCode'
+      );
     
     if (status) {
-      query = query.where('orderStatus', status);
+      query = query.where('o.orderStatus', status);
     }
     
     if (supplierId) {
-      query = query.where('supplierId', supplierId);
+      query = query.where('o.supplierId', supplierId);
     }
     
     if (startDate) {
-      query = query.where('orderDate', '>=', startDate);
+      query = query.where('o.orderDate', '>=', startDate);
     }
     
     if (endDate) {
-      query = query.where('orderDate', '<=', endDate);
+      query = query.where('o.orderDate', '<=', endDate);
     }
     
-    query = query.orderBy('orderDate', 'desc');
+    query = query.orderBy('o.orderDate', 'desc');
     
     const orders = await query;
     

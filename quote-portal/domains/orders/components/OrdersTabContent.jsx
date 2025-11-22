@@ -250,45 +250,49 @@ function OrdersTable({
     <div style={{
       display: 'inline-flex',
       flexWrap: 'nowrap',
-      gap: '12px',
+      gap: '8px',
       alignItems: 'flex-start',
       whiteSpace: 'nowrap',
       overflowX: 'auto',
       maxWidth: '100%',
       WebkitOverflowScrolling: 'touch'
     }}>
-      {items.map((item, index) => (
-        <div
-          key={item.id || item.lineId || index}
-          style={{
-            display: 'inline-flex',
-            flexDirection: 'column',
-            flex: '0 0 auto',
-            border: '1px solid #e2e8f0',
-            borderRadius: '8px',
-            background: '#fff',
-            padding: '4px 6px',
-            minWidth: 0,
-            width: 'fit-content',
-            maxWidth: '260px',
-            boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)'
-          }}
-        >
+      {items.map((item, index) => {
+        // Format quantity - show decimal only if needed
+        const qty = parseFloat(item.quantity || 0);
+        const formattedQty = qty % 1 === 0 ? qty.toFixed(0) : qty.toString();
+        
+        return (
           <div
+            key={item.id || item.lineId || index}
             style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr auto',
+              display: 'inline-flex',
               alignItems: 'center',
-              marginBottom: '3px',
-              gap: '6px'
+              gap: '6px',
+              border: '1px solid #e2e8f0',
+              borderRadius: '8px',
+              background: '#fff',
+              padding: '2px 4px',
+              fontSize: '11px',
+              color: '#475569',
+              boxShadow: '0 1px 2px rgba(15, 23, 42, 0.05)'
             }}
           >
             <span style={{ fontSize: '11px', fontWeight: 600, color: '#1d4ed8' }}>
               {item.item_code || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
             </span>
+            <span style={{ color: '#d1d5db' }}>|</span>
+            <span style={{ fontWeight: 600, fontFamily: 'monospace', fontSize: '10px', color: '#6b7280' }}>
+              {item.materialCode || '—'}
+            </span>
+            <span style={{ color: '#d1d5db' }}>|</span>
+            <span style={{ fontWeight: 600 }}>
+              {formattedQty} {item.unit || 'adet'}
+            </span>
+            <span style={{ color: '#d1d5db' }}>|</span>
             <span
               style={{
-                fontSize: '6px',
+                fontSize: '9px',
                 fontWeight: 600,
                 color: '#0f172a',
                 background: '#e2e8f0',
@@ -300,26 +304,8 @@ function OrdersTable({
               {item.itemStatus || 'Onay Bekliyor'}
             </span>
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'auto 1fr auto',
-              alignItems: 'center',
-              gap: '4px',
-              fontSize: '11px',
-              color: '#475569',
-            }}
-          >
-            <div style={{ fontWeight: 600 }}>{item.materialCode || '—'}</div>
-            <div style={{ fontWeight: 500, color: '#111827', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {materialNameMap[item.materialCode] || item.materialName || '-'}
-            </div>
-            <div style={{ textAlign: 'right', fontWeight: 600 }}>
-              {item.quantity || 0} {item.unit || 'adet'}
-            </div>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   )
 
@@ -514,26 +500,24 @@ function OrdersTable({
                 return (
                   <tr
                     key={order.id}
+                    className="mes-table-row"
                     onClick={() => onOrderClick && onOrderClick(order)}
-                    style={{ cursor: onOrderClick ? 'pointer' : 'default' }}
                   >
-                    <td style={{ textAlign: 'center' }}>
+                    <td style={{ textAlign: 'center' }} onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => onToggleSelectOrder && onToggleSelectOrder(order.id, e.target.checked)}
                         checked={selectedOrderIds?.has?.(order.id) || false}
+                        onChange={(e) => onToggleSelectOrder && onToggleSelectOrder(order.id, e.target.checked)}
+                        onClick={(e) => e.stopPropagation()}
                       />
                     </td>
                     <td style={{ width: '120px', minWidth: '120px', whiteSpace: 'nowrap' }}>
-                      <div className="material-name-cell" style={{ whiteSpace: 'nowrap' }}>
-                        {order.orderCode || order.id}
-                      </div>
+                      <span className="mes-code-text">{order.orderCode || order.id}</span>
                     </td>
                     <td style={{ width: '220px', minWidth: '220px', whiteSpace: 'nowrap' }}>
-                      <div className="material-name-cell" style={{ whiteSpace: 'nowrap' }}>
-                        {(order.supplierId || '').toString()} {order.supplierId ? ' / ' : ''}{order.supplierName || ''}
-                      </div>
+                      <span className="mes-code-text">{order.supplierCode || order.supplierId || ''}</span>
+                      {(order.supplierCode || order.supplierId) && (order.supplierName) ? ' / ' : ''}
+                      {order.supplierName || ''}
                     </td>
                     {variant !== 'completed' && (
                       <td style={{ width: '180px', maxWidth: '180px', whiteSpace: 'nowrap' }}>
@@ -2203,6 +2187,7 @@ export default function OrdersTabContent() {
   }
 
   return (
+    <>
     <div className="stocks-tab-content">
       {/* MES Filter Bar: Dashboard + Actions + Filters */}
       <div className="mes-filter-bar" style={{marginBottom: '24px'}}>
@@ -2284,112 +2269,83 @@ export default function OrdersTabContent() {
         />
       </div>
 
-      {/* Orders Table */}
-      <div className="materials-table-container">
-        <OrdersTable 
-          orders={currentOrders}
-          loading={currentLoading}
-        error={ordersError}
-        variant={activeOrdersTab}
-        tabCounts={{ 
-          pending: pendingOrdersView.length, 
-          completed: completedOrdersView.length,
-          all: allOrdersView.length
-        }}
-        onChangeTab={handleTabChange}
-        onOrderClick={handleOrderClick}
-        onUpdateOrderStatus={handleUpdateOrderStatus}
-        actionLoading={actionLoading}
-        deliveryStatuses={deliveryStatuses}
-        deliveryLoading={deliveryLoading}
-        selectedOrderIds={selectedOrderIds}
-        onToggleSelectOrder={handleToggleSelectOrder}
-        onToggleSelectAll={handleToggleSelectAll}
-        materialNameMap={materialNameMap}
-        emptyMessage={
-          activeOrdersTab === 'pending' 
-            ? 'Bekleyen sipariş bulunamadı' 
-            : activeOrdersTab === 'completed'
-              ? 'Tamamlanan sipariş bulunamadı'
-              : 'Sipariş bulunamadı'
-        }
-      />
-      </div>
+      {/* Orders Container with Side Panel */}
+      <div className="suppliers-container">
+        {/* Left Panel - Orders Table */}
+        <div className="suppliers-table-panel">
+          <OrdersTable 
+            orders={currentOrders}
+            loading={currentLoading}
+            error={ordersError}
+            variant={activeOrdersTab}
+            tabCounts={{ 
+              pending: pendingOrdersView.length, 
+              completed: completedOrdersView.length,
+              all: allOrdersView.length
+            }}
+            onChangeTab={handleTabChange}
+            onOrderClick={handleOrderClick}
+            onUpdateOrderStatus={handleUpdateOrderStatus}
+            actionLoading={actionLoading}
+            deliveryStatuses={deliveryStatuses}
+            deliveryLoading={deliveryLoading}
+            selectedOrderIds={selectedOrderIds}
+            onToggleSelectOrder={handleToggleSelectOrder}
+            onToggleSelectAll={handleToggleSelectAll}
+            materialNameMap={materialNameMap}
+            emptyMessage={
+              activeOrdersTab === 'pending' 
+                ? 'Bekleyen sipariş bulunamadı' 
+                : activeOrdersTab === 'completed'
+                  ? 'Tamamlanan sipariş bulunamadı'
+                  : 'Sipariş bulunamadı'
+            }
+          />
+        </div>
 
-      {/* Add Order Modal */}
-      <AddOrderModal 
-        isOpen={isAddOrderModalOpen}
-        onClose={() => setIsAddOrderModalOpen(false)}
-        deliveredRecordMode={isDeliveredRecordMode}
-        onSave={async (newOrder) => {
-          console.log('✅ New order created:', newOrder);
-          console.log('🔄 IMMEDIATE REFRESH: Triggering aggressive refresh...');
-          
-          // ✅ IMMEDIATE REFRESH - Multiple attempts for real-time update
-          await refreshOrders();
-          
-          // ✅ BACKUP REFRESH: 500ms sonra bir daha refresh (network gecikmeleri için)
-          setTimeout(async () => {
-            console.log('🔄 BACKUP REFRESH: Second refresh...');
-            await refreshOrders();
-          }, 500);
-          
-          // ✅ FINAL REFRESH: 1.5s sonra final refresh
-          setTimeout(async () => {
-            console.log('🔄 FINAL REFRESH: Third refresh...');
-            await refreshOrders();
-          }, 1500);
-        }}
-      />
-
-      {/* TODO: Order Detail Modal */}
-      {selectedOrder && (
-        <div 
-          onClick={handleCloseOrderDetail}
-          style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0,0,0,0.45)',
-          backdropFilter: 'blur(4px)',
-          WebkitBackdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <div 
-            onClick={(e) => e.stopPropagation()}
-            style={{
-            background: 'white',
-            padding: '0',
-            borderRadius: '8px',
-            maxWidth: '720px',
-            width: '90%',
-            maxHeight: '80vh',
-            overflow: 'hidden',
-            color: '#1f2937',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 10px 35px rgba(15, 23, 42, 0.25)'
-          }}>
+        {/* Right Panel - Order Details */}
+        {selectedOrder && (
+          <div className="supplier-detail-panel">
             <div style={{
-              padding: '18px 24px',
-              borderBottom: '1px solid #e5e7eb',
+              background: 'white',
+              borderRadius: '6px',
+              border: '1px solid #e5e7eb',
+              height: '100%',
               display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              background: '#f8fafc'
+              flexDirection: 'column'
             }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700' }}>Sipariş Detayı</h3>
+              {/* Header */}
+              <div style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <button
+                    onClick={handleCloseOrderDetail}
+                    style={{
+                      padding: '6px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '4px',
+                      background: 'white',
+                      color: '#374151',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                    title="Detayları Kapat"
+                  >
+                    <ArrowLeft size={14} />
+                  </button>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
+                    Sipariş Detayı
+                  </h3>
+                </div>
               </div>
-              <button className="modal-close" onClick={handleCloseOrderDetail}>×</button>
-            </div>
 
-            <div style={{ padding: '16px 20px', background: '#f9fafb', maxHeight: '80vh', overflowY: 'auto' }}>
+              {/* Content - Scrollable */}
+              <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
               <div style={{ marginBottom: '16px', padding: '12px', background: '#fff', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
                 <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>Sipariş Bilgileri</h3>
                 {/* Sipariş Kodu + Durum seçimi (yan yana) */}
@@ -2655,8 +2611,36 @@ export default function OrdersTabContent() {
             </div>
           </div>
         </div>
-      </div>
       )}
+    </div>
+
+    {/* Add Order Modal */}
+      <AddOrderModal 
+        isOpen={isAddOrderModalOpen}
+        onClose={() => setIsAddOrderModalOpen(false)}
+        deliveredRecordMode={isDeliveredRecordMode}
+        onSave={async (newOrder) => {
+          console.log('✅ New order created:', newOrder);
+          console.log('🔄 IMMEDIATE REFRESH: Triggering aggressive refresh...');
+          
+          // ✅ IMMEDIATE REFRESH - Multiple attempts for real-time update
+          await refreshOrders();
+          
+          // ✅ BACKUP REFRESH: 500ms sonra bir daha refresh (network gecikmeleri için)
+          setTimeout(async () => {
+            console.log('🔄 BACKUP REFRESH: Second refresh...');
+            await refreshOrders();
+          }, 500);
+          
+          // ✅ FINAL REFRESH: 1.5s sonra final refresh
+          setTimeout(async () => {
+            console.log('🔄 FINAL REFRESH: Third refresh...');
+            await refreshOrders();
+          }, 1500);
+        }}
+      />
+      
+      
       
       {/* 📦 LOT TRACKING: Delivery Modal */}
       {deliveryModalOpen && deliveryModalItem && (
@@ -2826,5 +2810,6 @@ export default function OrdersTabContent() {
         </div>
       )}
     </div>
+    </>
   )
 }
