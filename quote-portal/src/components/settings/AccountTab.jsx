@@ -1,9 +1,10 @@
+import { showToast } from '../../../shared/components/Toast.js';
 // Account Settings Tab - Company and account information management
 import React, { useState, useEffect } from 'react';
 import UsersTab from './UsersTab.jsx';
 import API from '../../../shared/lib/api.js';
 
-const AccountTab = ({ t, showNotification }) => {
+const AccountTab = ({ t }) => {
   // Company information state
   const [companyInfo, setCompanyInfo] = useState({
     name: '',
@@ -53,7 +54,7 @@ const AccountTab = ({ t, showNotification }) => {
       });
     } catch (error) {
       console.error('Şirket bilgileri yüklenirken hata:', error);
-      showNotification('Şirket bilgileri yüklenirken hata oluştu', 'error');
+      showToast('Şirket bilgileri yüklenirken hata oluştu', 'error');
     } finally {
       setLoading(false);
     }
@@ -83,13 +84,13 @@ const AccountTab = ({ t, showNotification }) => {
       
       // Şimdilik başarılı kaydet simülasyonu
       await new Promise(resolve => setTimeout(resolve, 1000)); // Simüle loading
-      showNotification('Şirket bilgileri başarıyla güncellendi', 'success');
+      showToast('Şirket bilgileri başarıyla güncellendi', 'success');
       
       // Kaydetme başarılı olduktan sonra kilidi tekrar aç ve alanları readonly yap
       setIsCompanyInfoLocked(true);
     } catch (error) {
       console.error('Şirket bilgileri kaydedilirken hata:', error);
-      showNotification('Şirket bilgileri kaydedilirken hata oluştu', 'error');
+      showToast('Şirket bilgileri kaydedilirken hata oluştu', 'error');
     } finally {
       setSaving(false);
     }
@@ -98,7 +99,7 @@ const AccountTab = ({ t, showNotification }) => {
   // Şirket bilgileri erişim fonksiyonları
   const handleCompanyAccessVerification = async () => {
     if (!companyAccessCredentials.email || !companyAccessCredentials.password) {
-      showNotification('E-posta ve şifre gerekli', 'error');
+      showToast('E-posta ve şifre gerekli', 'error');
       return;
     }
 
@@ -108,13 +109,13 @@ const AccountTab = ({ t, showNotification }) => {
       const result = await API.verifyAdminAccess(companyAccessCredentials.email, companyAccessCredentials.password);
 
       if (!result || !result.success) {
-        showNotification('Geçersiz kullanıcı bilgileri', 'error');
+        showToast('Geçersiz kullanıcı bilgileri', 'error');
         return;
       }
 
       // Role kontrolü - sadece admin rolündeki kullanıcılar erişebilir
       if (result.user && result.user.role !== 'admin') {
-        showNotification('Bu bilgileri düzenlemek için admin yetkisi gerekli', 'error');
+        showToast('Bu bilgileri düzenlemek için admin yetkisi gerekli', 'error');
         return;
       }
 
@@ -122,16 +123,16 @@ const AccountTab = ({ t, showNotification }) => {
       setShowCompanyAccessModal(false);
       setIsCompanyInfoLocked(false);
       setCompanyAccessCredentials({ email: '', password: '' });
-      showNotification('Şirket bilgileri düzenleme erişimi sağlandı', 'success');
+      showToast('Şirket bilgileri düzenleme erişimi sağlandı', 'success');
       
     } catch (error) {
       console.error('Admin doğrulama hatası:', error);
       if (error.message === 'verification_failed') {
-        showNotification('Geçersiz kullanıcı bilgileri', 'error');
+        showToast('Geçersiz kullanıcı bilgileri', 'error');
       } else if (error.message === 'network_error') {
-        showNotification('Ağ hatası oluştu', 'error');
+        showToast('Ağ hatası oluştu', 'error');
       } else {
-        showNotification('Doğrulama sırasında hata oluştu', 'error');
+        showToast('Doğrulama sırasında hata oluştu', 'error');
       }
     } finally {
       setIsVerifyingCompanyAccess(false);
@@ -150,7 +151,7 @@ const AccountTab = ({ t, showNotification }) => {
 
   const handleAccessVerification = async () => {
     if (!accessCredentials.email || !accessCredentials.password) {
-      showNotification('E-posta ve şifre gerekli', 'error');
+      showToast('E-posta ve şifre gerekli', 'error');
       return;
     }
 
@@ -160,13 +161,13 @@ const AccountTab = ({ t, showNotification }) => {
       const result = await API.verifyAdminAccess(accessCredentials.email, accessCredentials.password);
 
       if (!result || !result.success) {
-        showNotification('Geçersiz kullanıcı bilgileri', 'error');
+        showToast('Geçersiz kullanıcı bilgileri', 'error');
         return;
       }
 
       // Role kontrolü - sadece admin rolündeki kullanıcılar erişebilir
       if (result.user && result.user.role !== 'admin') {
-        showNotification('Bu panele erişim yetkiniz yok. Sadece admin kullanıcıları bu bölüme erişebilir.', 'error');
+        showToast('Bu panele erişim yetkiniz yok. Sadece admin kullanıcıları bu bölüme erişebilir.', 'error');
         return;
       }
 
@@ -174,16 +175,16 @@ const AccountTab = ({ t, showNotification }) => {
       setShowAccessModal(false);
       setShowUsersPanel(true);
       setAccessCredentials({ email: '', password: '' });
-      showNotification('Kullanıcı yönetimine erişim sağlandı', 'success');
+      showToast('Kullanıcı yönetimine erişim sağlandı', 'success');
       
     } catch (error) {
       console.error('Admin doğrulama hatası:', error);
       if (error.message === 'verification_failed') {
-        showNotification('Geçersiz kullanıcı bilgileri', 'error');
+        showToast('Geçersiz kullanıcı bilgileri', 'error');
       } else if (error.message === 'network_error') {
-        showNotification('Ağ hatası oluştu', 'error');
+        showToast('Ağ hatası oluştu', 'error');
       } else {
-        showNotification('Doğrulama sırasında hata oluştu', 'error');
+        showToast('Doğrulama sırasında hata oluştu', 'error');
       }
     } finally {
       setIsVerifyingAccess(false);
@@ -360,7 +361,6 @@ const AccountTab = ({ t, showNotification }) => {
       showUsersPanel && React.createElement('div', { style: { marginTop: '0.75rem' } },
         React.createElement(UsersTab, {
           t,
-          showNotification,
           isEmbedded: true // Embedded mode flag
         })
       )

@@ -1,10 +1,11 @@
 // Compact Settings Modal - User management settings interface
 import React from 'react';
 import UsersTab from '../settings/UsersTab.jsx'
+import { showToast } from '../../../shared/components/Toast.js'
 
 const { useEffect } = React;
 
-function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification }) {
+function SettingsModalCompact({ onClose, onSettingsUpdated, t }) {
 
   // Body scroll lock on mount/unmount
   useEffect(() => {
@@ -51,8 +52,7 @@ function SettingsModalCompact({ onClose, onSettingsUpdated, t, showNotification 
       // Content
       React.createElement('div', { className: 'modal-body' },
         React.createElement(UsersTab, {
-          t,
-          showNotification
+          t
         })
       ),
 

@@ -1,3 +1,4 @@
+import { showToast } from '../../shared/components/Toast.js';
 // Worker Portal Domain Module
 // Handles worker task management, status updates, and scrap reporting
 
@@ -108,9 +109,9 @@ async function init() {
           
           // Show toast notification for significant events
           if (notification.operation === 'INSERT') {
-            showNotification('🆕 Yeni görev atandı!', 'info');
+            showToast('🆕 Yeni görev atandı!', 'info');
           } else if (notification.operation === 'UPDATE' && notification.status === 'cancelled') {
-            showNotification('❌ Görev iptal edildi', 'warning');
+            showToast('❌ Görev iptal edildi', 'warning');
           }
         }
       } catch (err) {
@@ -315,7 +316,7 @@ async function startTaskDirectly(assignmentId) {
     
     // Check if backend rejected due to preconditions
     if (result.error && result.error.includes('precondition')) {
-      showNotification('Görev başlatılamadı: Önkoşullar sağlanmadı', 'warning');
+      showToast('Görev başlatılamadı: Önkoşullar sağlanmadı', 'warning');
       
       // Mark task as blocked in UI
       const task = state.tasks.find(t => t.assignmentId === assignmentId);
@@ -334,7 +335,7 @@ async function startTaskDirectly(assignmentId) {
     // Notify other components
     window.dispatchEvent(new CustomEvent('assignments:updated'));
     
-    showNotification('Görev başlatıldı', 'success');
+    showToast('Görev başlatıldı', 'success');
   } catch (err) {
     console.error('Failed to start task:', err);
     
@@ -345,7 +346,7 @@ async function startTaskDirectly(assignmentId) {
         `${s.name || s.code}: ${s.shortage} ${s.unit} eksik (Var: ${s.available}, Gerek: ${s.required})`
       ).join('<br>');
       
-      showNotification(
+      showToast(
         `Malzeme eksikliği nedeniyle görev başlatılamadı:<br>${shortageList}`, 
         'error',
         10000 // Show for 10 seconds
@@ -376,7 +377,7 @@ async function startTaskDirectly(assignmentId) {
       
       // Show notification with details
       const reasons = err.details?.join(', ') || err.message;
-      showNotification(`Görev başlatılamadı: ${reasons}`, 'warning');
+      showToast(`Görev başlatılamadı: ${reasons}`, 'warning');
       
       // Re-render to show blocked status
       render();
@@ -386,7 +387,7 @@ async function startTaskDirectly(assignmentId) {
     } else {
       // Generic error handling
       const errorMsg = err.message || String(err);
-      showNotification('Görev başlatılamadı: ' + errorMsg, 'error');
+      showToast('Görev başlatılamadı: ' + errorMsg, 'error');
       
       // Reload to refresh task status
       await loadWorkerTasks();
@@ -401,10 +402,10 @@ async function pauseTask(assignmentId) {
     
     window.dispatchEvent(new CustomEvent('assignments:updated'));
     
-    showNotification('Görev duraklatıldı', 'info');
+    showToast('Görev duraklatıldı', 'info');
   } catch (err) {
     console.error('Failed to pause task:', err);
-    showNotification('Görev duraksatılamadı: ' + err.message, 'error');
+    showToast('Görev duraksatılamadı: ' + err.message, 'error');
   }
 }
 
@@ -421,10 +422,10 @@ async function reportStationError(assignmentId) {
     
     window.dispatchEvent(new CustomEvent('assignments:updated'));
     
-    showNotification('İstasyon hatası bildirildi', 'warning');
+    showToast('İstasyon hatası bildirildi', 'warning');
   } catch (err) {
     console.error('Failed to report station error:', err);
-    showNotification('Hata bildirimi gönderilemedi: ' + err.message, 'error');
+    showToast('Hata bildirimi gönderilemedi: ' + err.message, 'error');
   }
 }
 
@@ -466,10 +467,10 @@ async function completeTask(assignmentId) {
     const message = completionData.defectQuantity > 0 
       ? `Görev tamamlandı (Üretilen: ${completionData.actualOutputQuantity}, Fire: ${completionData.defectQuantity})`
       : `Görev tamamlandı (Üretilen: ${completionData.actualOutputQuantity})`;
-    showNotification(message, 'success');
+    showToast(message, 'success');
   } catch (err) {
     console.error('Failed to complete task:', err);
-    showNotification('Görev tamamlanamadı: ' + err.message, 'error');
+    showToast('Görev tamamlanamadı: ' + err.message, 'error');
   }
 }
 
@@ -516,7 +517,7 @@ function showStationErrorModal() {
     confirmBtn.onclick = () => {
       const note = noteInput.value.trim();
       if (!note) {
-        showNotification('Lütfen hata açıklaması girin', 'warning');
+        showToast('Lütfen hata açıklaması girin', 'warning');
         return;
       }
       modal.remove();
@@ -684,13 +685,13 @@ function showCompletionModal(task) {
       
       // Validation
       if (isNaN(actualOutputQuantity) || actualOutputQuantity < 0) {
-        showNotification('Lütfen geçerli bir üretim miktarı girin', 'warning');
+        showToast('Lütfen geçerli bir üretim miktarı girin', 'warning');
         actualOutputInput.focus();
         return;
       }
       
       if (defectQuantity < 0) {
-        showNotification('Fire miktarı negatif olamaz', 'warning');
+        showToast('Fire miktarı negatif olamaz', 'warning');
         defectInput.focus();
         return;
       }
@@ -1030,7 +1031,7 @@ async function openFireModal(assignmentId) {
   // Find assignment from current tasks
   const task = state.tasks.find(t => t.assignmentId === assignmentId);
   if (!task) {
-    showNotification('Görev bulunamadı', 'error');
+    showToast('Görev bulunamadı', 'error');
     return;
   }
   
@@ -1235,7 +1236,7 @@ async function incrementScrap(materialCode, scrapType, quantity) {
       scrapCounters.defectQuantity -= quantity;
     }
     updateCounterDisplay();
-    showNotification('Fire sayacı güncellenemedi: ' + error.message, 'error');
+    showToast('Fire sayacı güncellenemedi: ' + error.message, 'error');
   }
 }
 
@@ -1471,7 +1472,7 @@ async function decrementScrap(materialCode, scrapType, quantity) {
       scrapCounters.defectQuantity = currentValue;
     }
     updateCounterDisplay();
-    showNotification('Fire sayacı azaltılamadı: ' + error.message, 'error');
+    showToast('Fire sayacı azaltılamadı: ' + error.message, 'error');
   }
 }
 
@@ -2580,7 +2581,7 @@ function formatTime(isoString) {
 // NOTIFICATION SYSTEM (using new Toast component)
 // ============================================================================
 
-function showNotification(message, type = 'info') {
+function showToast(message, type = 'info') {
   // Map old types to toast types
   const toastTypeMap = {
     'info': showInfoToast,

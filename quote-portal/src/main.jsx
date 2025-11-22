@@ -4,7 +4,7 @@ import { useI18n } from '../shared/i18n.js';
 import API from '../shared/lib/api.js';
 import DynamicFormRenderer from '../shared/components/DynamicFormRenderer.js';
 import QuotesManager from '../domains/quotes/components/QuotesManager.js';
-import { ToastNotification, useNotifications } from '../shared/hooks/useNotifications.js';
+import { showToast } from '../shared/components/Toast.js';
 import MaterialsTabs from '../domains/materials/components/MaterialsTabs.jsx';
 import StocksTabContent from '../domains/materials/components/StocksTabContent.jsx';
 import SuppliersTabContent from '../domains/materials/components/SuppliersTabContent.jsx';
@@ -41,7 +41,7 @@ const materialTypes = [
 
 function MaterialsApp() {
   // Toast notifications
-  const { notifications, removeNotification } = useNotifications();
+  // Using showToast directly
 
   // Backend API ile veri yönetimi (manuel yükleme)
   const { 
@@ -425,15 +425,6 @@ function MaterialsApp() {
 
   return (
     <div className="materials-page">
-      {notifications.map(notification => (
-        <ToastNotification
-          key={notification.id}
-          message={notification.message}
-          type={notification.type}
-          onClose={() => removeNotification(notification.id)}
-        />
-      ))}
-      
       <MaterialsTabs
         activeTab={activeTab}
         onTabChange={handleTabChange}
@@ -575,7 +566,7 @@ function MaterialsApp() {
 function App() {
   const { t, lang } = useI18n();
   const [loggedIn, setLoggedIn] = useState(false);
-  const { notifications, showNotification, removeNotification } = useNotifications();
+  // Using showToast directly
 
   useEffect(() => {
     async function checkLogin() {
@@ -630,7 +621,7 @@ function App() {
       };
       
       await API.createQuote(mappedData);
-      showNotification('Teklif başarıyla gönderildi!', 'success');
+      showToast('Teklif başarıyla gönderildi!', 'success');
     } catch (error) {
       console.error('Quote submission error:', error);
       throw error;
@@ -639,25 +630,16 @@ function App() {
 
   return (
     <React.Fragment>
-      {notifications.map(notification => (
-        <ToastNotification
-          key={notification.id}
-          message={notification.message}
-          type={notification.type}
-          onClose={() => removeNotification(notification.id)}
-        />
-      ))}
       {PAGE === 'admin'
         ? (loggedIn ? (
             <QuotesManager 
               t={t} 
-              onLogout={handleLogout} 
-              showNotification={showNotification}
+              onLogout={handleLogout}
             />
           ) : <AdminGate onLogin={handleLogin} t={t} />)
         : PAGE === 'materials'
         ? <MaterialsApp />
-        : <DynamicFormRenderer onSubmit={handleQuoteSubmit} showNotification={showNotification} t={t} />
+        : <DynamicFormRenderer onSubmit={handleQuoteSubmit} t={t} />
       }
     </React.Fragment>
   );

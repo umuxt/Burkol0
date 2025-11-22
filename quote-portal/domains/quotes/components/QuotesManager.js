@@ -68,7 +68,7 @@ function isQuoteFlaggedForPricing(quote) {
   return getQuoteWarningInfo(quote).priority > 0
 }
 
-function QuotesManager({ t, onLogout, showNotification }) {
+function QuotesManager({ t, onLogout }) {
   console.log('🔄 QuotesManager component loaded at:', new Date().toLocaleTimeString())
   const [list, setList] = useState([])
   const [detail, setDetail] = useState(null)
@@ -263,7 +263,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
       console.log('🔧 DEBUG: refresh() completed successfully')
     } catch (error) {
       console.error('🔧 DEBUG: refresh() error:', error)
-      showNotification('Refresh failed: ' + error.message, 'error')
+      showToast('Refresh failed: ' + error.message, 'error')
     }
   }
 
@@ -289,11 +289,11 @@ function QuotesManager({ t, onLogout, showNotification }) {
       await refresh() // Reload the list
       
       console.log('🔧 DEBUG: Showing success notification...')
-      showNotification('Kayıt başarıyla eklendi', 'success')
+      showToast('Kayıt başarıyla eklendi', 'success')
       console.log('🔧 DEBUG: Add record completed successfully')
     } catch (error) {
       console.error('🔧 DEBUG: Error adding record:', error)
-      showNotification('Kayıt eklenirken hata oluştu: ' + error.message, 'error')
+      showToast('Kayıt eklenirken hata oluştu: ' + error.message, 'error')
     }
   }
 
@@ -307,7 +307,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
       }
       
       await refresh() // Reload the list
-      showNotification('Durum başarıyla güncellendi', 'success')
+      showToast('Durum başarıyla güncellendi', 'success')
 
       // If approved, notify MES Approved Quotes to refresh
       if (String(newStatus).toLowerCase() === 'approved' || String(newStatus).toLowerCase() === 'onaylandı' || String(newStatus).toLowerCase() === 'onaylandi') {
@@ -317,12 +317,8 @@ function QuotesManager({ t, onLogout, showNotification }) {
     } catch (error) {
       console.error('Error updating status:', error)
       const msg = error && error.message ? error.message : 'Durum güncellenirken hata oluştu'
-      showNotification(msg, 'error')
+      showToast(msg, 'error')
     }
-  }
-
-  function showNotification(message, type = 'info') {
-    showToast(message, type)
   }
 
   function exportToCSV() {
@@ -333,7 +329,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
         : filtered
 
       if (!dataToExport || dataToExport.length === 0) {
-        showNotification('Export edilecek veri bulunamadı', 'warning')
+        showToast('Export edilecek veri bulunamadı', 'warning')
         return
       }
 
@@ -431,13 +427,13 @@ function QuotesManager({ t, onLogout, showNotification }) {
         const exportMessage = selected.size > 0 
           ? `${selected.size} seçili kayıt CSV olarak export edildi`
           : `${dataToExport.length} kayıt CSV olarak export edildi`
-        showNotification(exportMessage, 'success')
+        showToast(exportMessage, 'success')
       } else {
-        showNotification('Tarayıcınız dosya indirmeyi desteklemiyor', 'error')
+        showToast('Tarayıcınız dosya indirmeyi desteklemiyor', 'error')
       }
     } catch (error) {
       console.error('CSV export error:', error)
-      showNotification('CSV export edilirken hata oluştu', 'error')
+      showToast('CSV export edilirken hata oluştu', 'error')
     }
   }
 
@@ -447,14 +443,14 @@ function QuotesManager({ t, onLogout, showNotification }) {
       setUsers(userList)
     } catch (e) {
       console.error('Users load error:', e)
-      showNotification('Kullanıcılar yüklenemedi', 'error')
+      showToast('Kullanıcılar yüklenemedi', 'error')
     }
   }
 
   async function handleAddUser() {
     try {
       if (!newUser.email || !newUser.password) {
-        showNotification('Email ve şifre gerekli', 'error')
+        showToast('Email ve şifre gerekli', 'error')
         return
       }
       
@@ -462,10 +458,10 @@ function QuotesManager({ t, onLogout, showNotification }) {
       setNewUser({ email: '', password: '', role: 'admin' })
       setUserModal(false)
       await loadUsers()
-      showNotification('Kullanıcı eklendi', 'success')
+      showToast('Kullanıcı eklendi', 'success')
     } catch (e) {
       console.error('Add user error:', e)
-      showNotification('Kullanıcı eklenemedi', 'error')
+      showToast('Kullanıcı eklenemedi', 'error')
     }
   }
 
@@ -477,10 +473,10 @@ function QuotesManager({ t, onLogout, showNotification }) {
     try {
       await API.deleteUser(email)
       await loadUsers()
-      showNotification('Kullanıcı silindi', 'success')
+      showToast('Kullanıcı silindi', 'success')
     } catch (e) {
       console.error('Delete user error:', e)
-      showNotification('Kullanıcı silinemedi', 'error')
+      showToast('Kullanıcı silinemedi', 'error')
     }
   }
 
@@ -630,7 +626,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
     await API.updateStatus(id, st)
     // Update the specific quote in the list instead of full refresh
     setList(prevList => prevList.map(quote => quote.id === id ? { ...quote, status: st } : quote))
-    showNotification('Kayıt durumu güncellendi!', 'success')
+    showToast('Kayıt durumu güncellendi!', 'success')
     // If approved, notify MES Approved Quotes to refresh
     if (String(st).toLowerCase() === 'approved' || String(st).toLowerCase() === 'onaylandı' || String(st).toLowerCase() === 'onaylandi') {
       try { const ch = new BroadcastChannel('mes-approved-quotes'); ch.postMessage({ type: 'approvedCreated', quoteId: id }); ch.close?.() } catch {}
@@ -646,7 +642,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
     if (detail && detail.id === id) {
       setDetail(null)
     }
-    showNotification('Kayıt silindi!', 'success')
+    showToast('Kayıt silindi!', 'success')
   }
 
   function toggleOne(id, checked) {
@@ -755,7 +751,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
       const message = skipped > 0 
         ? `Tüm kayıtlar zaten güncel veya kilitli (${skipped} kayıt atlandı)`
         : 'Güncellenecek kayıt bulunamadı'
-      showNotification(message, 'info')
+      showToast(message, 'info')
       return
     }
 
@@ -843,12 +839,12 @@ function QuotesManager({ t, onLogout, showNotification }) {
       }
       if (errors.length > 0) {
         message += `, ${errors.length} hata oluştu`
-        showNotification(message, 'warning')
+        showToast(message, 'warning')
       } else {
-        showNotification(message, 'success')
+        showToast(message, 'success')
       }
     } else {
-      showNotification(`Toplu güncelleme iptal edildi (${processedCount}/${total})`, errors.length ? 'warning' : 'info')
+      showToast(`Toplu güncelleme iptal edildi (${processedCount}/${total})`, errors.length ? 'warning' : 'info')
     }
 
     try {
@@ -935,7 +931,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
       })
     } catch (error) {
       console.error('Price comparison load error:', error)
-      showNotification('Fiyat karşılaştırması yüklenemedi', 'error')
+      showToast('Fiyat karşılaştırması yüklenemedi', 'error')
       setPriceReview(prev => prev ? { ...prev, loading: false, error: error.message } : null)
     }
   }
@@ -950,7 +946,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
       
       if (currentPrice === newPrice) {
         console.log('💡 Price review: No actual price change needed', { currentPrice, newPrice })
-        showNotification('Fiyat zaten güncel, güncelleme gerekmedi', 'info')
+        showToast('Fiyat zaten güncel, güncelleme gerekmedi', 'info')
         setPriceReview(null)
         return
       }
@@ -982,13 +978,13 @@ function QuotesManager({ t, onLogout, showNotification }) {
         setDetail(prev => ({ ...prev, ...updatedQuote }))
       }
 
-      showNotification('Fiyat güncellendi!', 'success')
+      showToast('Fiyat güncellendi!', 'success')
       setPriceReview(null)
 
       // No need to refresh - quote is already updated in list via setList() above
     } catch (error) {
       console.error('Price review apply error:', error)
-      showNotification('Fiyat güncellenirken hata oluştu', 'error')
+      showToast('Fiyat güncellenirken hata oluştu', 'error')
       setPriceReview(prev => prev ? { ...prev, updating: false } : prev)
     }
   }
@@ -1023,12 +1019,12 @@ function QuotesManager({ t, onLogout, showNotification }) {
         setDetail(prev => ({ ...prev, ...updatedQuote }))
       }
 
-      showNotification('Versiyon güncellendi!', 'success')
+      showToast('Versiyon güncellendi!', 'success')
       setPriceReview(null)
 
     } catch (error) {
       console.error('Version update error:', error)
-      showNotification('Versiyon güncellenirken hata oluştu', 'error')
+      showToast('Versiyon güncellenirken hata oluştu', 'error')
       setPriceReview(prev => prev ? { ...prev, updating: false } : prev)
     }
   }
@@ -1062,12 +1058,12 @@ function QuotesManager({ t, onLogout, showNotification }) {
         setDetail(prev => ({ ...prev, ...updatedQuote }))
       }
 
-      showNotification('Uyarı gizlendi', 'success')
+      showToast('Uyarı gizlendi', 'success')
       setPriceReview(null)
 
     } catch (error) {
       console.error('Hide warning error:', error)
-      showNotification('Uyarı gizlenirken hata oluştu', 'error')
+      showToast('Uyarı gizlenirken hata oluştu', 'error')
       setPriceReview(prev => prev ? { ...prev, updating: false } : prev)
     }
   }
@@ -1300,8 +1296,7 @@ function QuotesManager({ t, onLogout, showNotification }) {
                     React.createElement('span', { className: 'quotes-sort-icon' }, indicator)
                   )
                 )
-              }),
-              React.createElement('th', null, 'İşlemler')
+              })
             )
           ),
           React.createElement('tbody', null,
@@ -1337,45 +1332,11 @@ function QuotesManager({ t, onLogout, showNotification }) {
                         setSettingsModal,
                         openPriceReview,
                         calculatePrice: (quote) => calculatePrice(quote, priceSettings),
+                        setItemStatus,
                         statusLabel,
                         t
                       }
                     )
-                  )
-                ),
-                React.createElement('td', null,
-                  React.createElement('div', { className: 'row-actions' },
-                    React.createElement('button', {
-                      onClick: (e) => {
-                        e.stopPropagation();
-                        setDetail(item);
-                      },
-                      className: 'row-action-btn primary',
-                      title: 'Detayları görüntüle'
-                    }, 'Görüntüle'),
-                    hasWarning && React.createElement('button', {
-                      onClick: (e) => {
-                        e.stopPropagation();
-                        openPriceReview(item);
-                      },
-                      className: 'row-action-btn',
-                      style: {
-                        background: warningInfo.bgColor,
-                        color: warningInfo.color,
-                        borderColor: warningInfo.color
-                      },
-                      title: warningInfo.type === 'price' ? 'Fiyat güncellemesi gerekli' : 'Versiyon güncellemesi gerekli'
-                    }, '⚠️ Güncelle'),
-                    React.createElement('button', {
-                      onClick: (e) => {
-                        e.stopPropagation();
-                        if (confirm('Bu kaydı silmek istediğinizden emin misiniz?')) {
-                          remove(item.id);
-                        }
-                      },
-                      className: 'row-action-btn danger',
-                      title: 'Kaydı sil'
-                    }, '🗑️')
                   )
                 )
               )
@@ -1446,7 +1407,6 @@ function QuotesManager({ t, onLogout, showNotification }) {
     // Tab 2: Fiyatlandırma
     React.createElement(PricingManager, {
       t: t,
-      showNotification: showNotification,
       globalProcessing: globalProcessing,
       setGlobalProcessing: setGlobalProcessing,
       checkAndProcessVersionUpdates: () => {
@@ -1462,7 +1422,6 @@ function QuotesManager({ t, onLogout, showNotification }) {
     // Tab 3: Form Yapısı
     React.createElement(FormManager, {
       t: t,
-      showNotification: showNotification,
       renderHeaderActions: (actions) => {
         setFormHeaderActions(actions)
       }
@@ -1479,7 +1438,6 @@ function QuotesManager({ t, onLogout, showNotification }) {
       onClose: () => setSettingsModal(false),
       onSettingsUpdated: refresh,
       t,
-      showNotification,
       globalProcessing,
       setGlobalProcessing,
       checkAndProcessVersionUpdates
@@ -1492,7 +1450,6 @@ function QuotesManager({ t, onLogout, showNotification }) {
       onSaved: refresh,
       formConfig,
       t,
-      showNotification,
       globalProcessing,
       setGlobalProcessing,
       checkAndProcessVersionUpdates,

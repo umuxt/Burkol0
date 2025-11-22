@@ -1,10 +1,11 @@
 // Users Tab - User management interface for admin settings
 import React from 'react';
 import API from '../../../shared/lib/api.js'
+import { showToast } from '../../../shared/components/Toast.js'
 
 const { useState, useEffect } = React;
 
-export default function UsersTab({ t, showNotification, isEmbedded = false }) {
+export default function UsersTab({ t, isEmbedded = false }) {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(false)
   const [newUser, setNewUser] = useState({ email: '', password: '', role: 'admin' })
@@ -67,7 +68,7 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
       setUsers(userList)
     } catch (e) {
       console.error('Users load error:', e)
-      showNotification(t.users_load_error || 'Kullanıcılar yüklenemedi', 'error')
+      showToast(t.users_load_error || 'Kullanıcılar yüklenemedi', 'error')
     } finally {
       setLoading(false)
     }
@@ -115,7 +116,7 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
       return latestSessions
     } catch (e) {
       console.error('Sessions load error:', e)
-      showNotification(t.sessions_load_error || 'Oturumlar yüklenemedi', 'error')
+      showToast(t.sessions_load_error || 'Oturumlar yüklenemedi', 'error')
       setSessions([])
       return []
     } finally {
@@ -127,7 +128,7 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
   async function handleAdminAccess() {
     try {
       if (!accessCredentials.email || !accessCredentials.password) {
-        showNotification(t.admin_access_required || 'Email ve şifre gerekli', 'error')
+        showToast(t.admin_access_required || 'Email ve şifre gerekli', 'error')
         return
       }
 
@@ -137,13 +138,13 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
       const result = await API.verifyAdminAccess(accessCredentials.email, accessCredentials.password)
 
       if (!result || !result.success) {
-        showNotification(t.admin_access_invalid || 'Geçersiz kullanıcı bilgileri', 'error')
+        showToast(t.admin_access_invalid || 'Geçersiz kullanıcı bilgileri', 'error')
         return
       }
 
       // Role kontrolü - sadece admin rolündeki kullanıcılar erişebilir
       if (result.user.role !== 'admin') {
-        showNotification(t.admin_access_denied || 'Bu panele erişim yetkiniz yok. Sadece admin kullanıcıları bu bölüme erişebilir.', 'error')
+        showToast(t.admin_access_denied || 'Bu panele erişim yetkiniz yok. Sadece admin kullanıcıları bu bölüme erişebilir.', 'error')
         return
       }
 
@@ -151,7 +152,7 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
       setIsVerified(true)
       setShowAccessModal(false)
       setAccessCredentials({ email: '', password: '' })
-      showNotification(t.admin_access_granted || 'Admin erişimi onaylandı', 'success')
+      showToast(t.admin_access_granted || 'Admin erişimi onaylandı', 'success')
 
       // Girişten sonra mevcut görünüm için verileri yenile
       if (activeView === 'sessions') {
@@ -162,7 +163,7 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
       
     } catch (e) {
       console.error('Admin access error:', e)
-      showNotification(t.admin_access_error || 'Erişim doğrulama hatası', 'error')
+      showToast(t.admin_access_error || 'Erişim doğrulama hatası', 'error')
     } finally {
       setLoading(false)
     }
@@ -171,12 +172,12 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
   async function handleAddUser() {
     try {
       if (!newUser.email || !newUser.password) {
-        showNotification(t.users_email_required || 'Email ve şifre gerekli', 'error')
+        showToast(t.users_email_required || 'Email ve şifre gerekli', 'error')
         return
       }
       
       if (newUser.password.length < 6) {
-        showNotification(t.users_password_min || 'Şifre en az 6 karakter olmalı', 'error')
+        showToast(t.users_password_min || 'Şifre en az 6 karakter olmalı', 'error')
         return
       }
       
@@ -185,10 +186,10 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
       setNewUser({ email: '', password: '', role: 'admin' })
       setShowAddForm(false)
       await loadUsers()
-      showNotification(t.users_added || 'Kullanıcı eklendi', 'success')
+      showToast(t.users_added || 'Kullanıcı eklendi', 'success')
     } catch (e) {
       console.error('Add user error:', e)
-      showNotification(e.message || t.users_add_error || 'Kullanıcı eklenemedi', 'error')
+      showToast(e.message || t.users_add_error || 'Kullanıcı eklenemedi', 'error')
     } finally {
       setLoading(false)
     }
@@ -211,10 +212,10 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
       const resultText = user && user.active 
         ? (t.users_deactivated || 'Kullanıcı devre dışı bırakıldı') 
         : (t.users_activated || 'Kullanıcı aktifleştirildi')
-      showNotification(resultText, 'success')
+      showToast(resultText, 'success')
     } catch (e) {
       console.error('Toggle user status error:', e)
-      showNotification(e.message || t.users_toggle_error || 'Kullanıcı durumu değiştirilemedi', 'error')
+      showToast(e.message || t.users_toggle_error || 'Kullanıcı durumu değiştirilemedi', 'error')
     } finally {
       setLoading(false)
     }
@@ -234,10 +235,10 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
       setLoading(true)
       await API.permanentDeleteUser(email)
       await loadUsers()
-      showNotification('Kullanıcı kalıcı olarak silindi', 'success')
+      showToast('Kullanıcı kalıcı olarak silindi', 'success')
     } catch (e) {
       console.error('Permanent delete user error:', e)
-      showNotification(e.message || 'Kullanıcı silinemedi', 'error')
+      showToast(e.message || 'Kullanıcı silinemedi', 'error')
     } finally {
       setLoading(false)
     }
@@ -249,10 +250,10 @@ export default function UsersTab({ t, showNotification, isEmbedded = false }) {
       await API.updateUser(email, updates)
       setEditingUser(null)
       await loadUsers()
-      showNotification(t.users_updated || 'Kullanıcı güncellendi', 'success')
+      showToast(t.users_updated || 'Kullanıcı güncellendi', 'success')
     } catch (e) {
       console.error('Update user error:', e)
-      showNotification(e.message || t.users_update_error || 'Kullanıcı güncellenemedi', 'error')
+      showToast(e.message || t.users_update_error || 'Kullanıcı güncellenemedi', 'error')
     } finally {
       setLoading(false)
     }

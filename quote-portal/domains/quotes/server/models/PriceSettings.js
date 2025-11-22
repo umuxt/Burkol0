@@ -2,7 +2,7 @@
  * PriceSettings Model - Master version control for pricing configurations
  */
 
-import db from '../../../../db/db.js';
+import db from '../../../../db/connection.js';
 
 const PriceSettings = {
   /**

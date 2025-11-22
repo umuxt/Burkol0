@@ -1,3 +1,4 @@
+import { showToast } from '../../../shared/components/Toast.js';
 // Compact Quote Form - Multi-step form with validation and file upload
 // Note: DynamicFormRenderer is the primary form implementation
 import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../../shared/i18n.js'
@@ -11,7 +12,7 @@ import { StepNavigation, StepHeader, StepProgress, StepButtons, getStepConfig } 
 
 const { useState, useEffect, useRef } = React
 
-export default function QuoteFormCompact({ t, showNotification }) {
+export default function QuoteFormCompact({ t }) {
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState('')
   const [popup, setPopup] = useState(null)
@@ -89,12 +90,12 @@ export default function QuoteFormCompact({ t, showNotification }) {
 
   // File handling
   async function onFilesChanged(fileList) {
-    const result = await handleFileUpload(fileList, files, 10, showNotification)
+    const result = await handleFileUpload(fileList, files, 10, showToast)
     setFiles(result.files)
   }
 
   async function onProdFilesChanged(fileList) {
-    const result = await handleProductFileUpload(fileList, prodFiles, showNotification)
+    const result = await handleProductFileUpload(fileList, prodFiles, showToast)
     setProdFiles(result.files)
   }
 
@@ -110,7 +111,7 @@ export default function QuoteFormCompact({ t, showNotification }) {
   async function actualSubmit() {
     if (!validate()) {
       setMissingHighlight(computeMissingFields(form))
-      showNotification('Lütfen tüm zorunlu alanları doldurun', 'error')
+      showToast('Lütfen tüm zorunlu alanları doldurun', 'error')
       return
     }
 
@@ -390,7 +391,7 @@ export default function QuoteFormCompact({ t, showNotification }) {
                 file,
                 index,
                 onRemove: removeFileAt,
-                showNotification
+                showToast
               })
             )
           )

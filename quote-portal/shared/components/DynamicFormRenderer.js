@@ -1,3 +1,4 @@
+import { showToast } from './Toast.js';
 import React, { useState, useEffect } from 'react';
 import API from '../../shared/lib/api.js'
 import { uid, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, extOf, readFileAsDataUrl, isImageExt } from '../../shared/lib/utils.js'
@@ -20,7 +21,7 @@ const FIXED_DEFAULT_FIELDS = [
   { id: 'email', label: 'E-posta', type: 'email', required: true }
 ]
 
-export default function DynamicFormRenderer({ onSubmit, initialData = null, showNotification, t }) {
+export default function DynamicFormRenderer({ onSubmit, initialData = null, t }) {
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [formConfig, setFormConfig] = useState(null)
@@ -70,7 +71,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
       setFormConfig(config.formConfig)
     } catch (error) {
       console.error('🔧 DynamicFormRenderer: Load form config error:', error)
-      showNotification('Form konfigürasyonu yüklenemedi', 'error')
+      showToast('Form konfigürasyonu yüklenemedi', 'error')
     } finally {
       setLoading(false)
       console.log('🔧 DynamicFormRenderer: Loading completed')
@@ -86,13 +87,13 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
         // Validate file extension
         const ext = extOf(file.name)
         if (!ACCEPT_EXT.includes(ext)) {
-          showNotification(`Desteklenmeyen dosya türü: ${ext}`, 'error')
+          showToast(`Desteklenmeyen dosya türü: ${ext}`, 'error')
           continue
         }
         
         // Validate file size
         if (file.size > MAX_FILE_MB * 1024 * 1024) {
-          showNotification(`Dosya çok büyük: ${file.name} (max ${MAX_FILE_MB}MB)`, 'error')
+          showToast(`Dosya çok büyük: ${file.name} (max ${MAX_FILE_MB}MB)`, 'error')
           continue
         }
         
@@ -108,11 +109,11 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
       
       if (validFiles.length > 0) {
         handleFieldChange(fieldId, validFiles, isCustomField)
-        showNotification(`${validFiles.length} dosya yüklendi`, 'success')
+        showToast(`${validFiles.length} dosya yüklendi`, 'success')
       }
     } catch (error) {
       console.error('File upload error:', error)
-      showNotification('Dosya yükleme hatası', 'error')
+      showToast('Dosya yükleme hatası', 'error')
     } finally {
       setUploadingFiles(false)
     }
@@ -488,7 +489,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
     
     const isValid = validateForm()
     if (!isValid) {
-      showNotification('Lütfen form hatalarını düzeltin', 'error')
+      showToast('Lütfen form hatalarını düzeltin', 'error')
       return
     }
 
@@ -517,13 +518,13 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
       }
 
       await onSubmit(quoteData)
-      showNotification('Teklif başarıyla gönderildi!', 'success')
+      showToast('Teklif başarıyla gönderildi!', 'success')
       // Fallback reset (in case this path is used)
       setFormData({ customFields: {} })
       setErrors({})
     } catch (error) {
       console.error('Submit error:', error)
-      showNotification('Form gönderilemedi. Lütfen tekrar deneyin.', 'error')
+      showToast('Form gönderilemedi. Lütfen tekrar deneyin.', 'error')
     } finally {
       setSubmitting(false)
     }
@@ -976,7 +977,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
 
   async function proceedSubmit(actualData) {
     await onSubmit(actualData)
-    showNotification('Teklif başarıyla gönderildi!', 'success')
+    showToast('Teklif başarıyla gönderildi!', 'success')
     // Reset form after successful submit
     setFormData({ customFields: {} })
     setErrors({})
@@ -988,7 +989,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
     e.preventDefault()
     const isValid = validateForm()
     if (!isValid) {
-      showNotification('Lütfen form hatalarını düzeltin', 'error')
+      showToast('Lütfen form hatalarını düzeltin', 'error')
       return
     }
 
@@ -1023,7 +1024,7 @@ export default function DynamicFormRenderer({ onSubmit, initialData = null, show
       await proceedSubmit(quoteData)
     } catch (error) {
       console.error('Submit error:', error)
-      showNotification('Form gönderilemedi. Lütfen tekrar deneyin.', 'error')
+      showToast('Form gönderilemedi. Lütfen tekrar deneyin.', 'error')
     } finally {
       setSubmitting(false)
     }

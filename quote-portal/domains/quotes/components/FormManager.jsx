@@ -1,3 +1,4 @@
+import { showToast } from '../../../shared/components/Toast.js';
 // Quotes Form Manager - Dynamic form configuration for quotes domain
 import React from 'react';
 import { formsApi } from '../api/index.js';
@@ -5,7 +6,7 @@ import { FormBuilderCompact } from '../../../src/components/formBuilder/FormBuil
 
 const { useState, useEffect } = React;
 
-function FormManager({ t, showNotification, renderHeaderActions }) {
+function FormManager({ t, renderHeaderActions }) {
   const [formConfig, setFormConfig] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [templateId, setTemplateId] = useState(null)
@@ -32,7 +33,7 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
       
       if (!template) {
         console.warn('No active template found, creating default')
-        showNotification('Aktif form şablonu bulunamadı', 'warning')
+        showToast('Aktif form şablonu bulunamadı', 'warning')
         setFormConfig({ fields: [] })
         return
       }
@@ -48,7 +49,7 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
       
     } catch (e) {
       console.error('Form config load error:', e)
-      showNotification('Form yapılandırması yüklenemedi!', 'error')
+      showToast('Form yapılandırması yüklenemedi!', 'error')
       setFormConfig({ fields: [] })
     } finally {
       setIsLoading(false)
@@ -68,7 +69,7 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
   async function createNewDraft() {
     try {
       if (!newDraftName || !newDraftName.trim()) {
-        showNotification('Form ismi gereklidir', 'error')
+        showToast('Form ismi gereklidir', 'error')
         return
       }
 
@@ -90,10 +91,10 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
       
       setIsNewDraftModalOpen(false)
       setNewDraftName('')
-      showNotification('Yeni taslak oluşturuldu', 'success')
+      showToast('Yeni taslak oluşturuldu', 'success')
     } catch (e) {
       console.error('Failed to create draft:', e)
-      showNotification('Taslak oluşturulamadı: ' + e.message, 'error')
+      showToast('Taslak oluşturulamadı: ' + e.message, 'error')
     }
   }
 
@@ -108,10 +109,10 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
       setFormConfig(legacyConfig)
       
       setIsHistoryModalOpen(false)
-      showNotification('Taslak görüntüleniyor', 'info')
+      showToast('Taslak görüntüleniyor', 'info')
     } catch (e) {
       console.error('Failed to switch template:', e)
-      showNotification('Taslak yüklenemedi: ' + e.message, 'error')
+      showToast('Taslak yüklenemedi: ' + e.message, 'error')
     }
   }
 
@@ -130,10 +131,10 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
       
       setActiveTemplateId(currentTemplateId)
       
-      showNotification('Aktif form değiştirildi!', 'success')
+      showToast('Aktif form değiştirildi!', 'success')
     } catch (e) {
       console.error('Failed to activate template:', e)
-      showNotification('Form aktif edilemedi: ' + e.message, 'error')
+      showToast('Form aktif edilemedi: ' + e.message, 'error')
     }
   }
 
@@ -217,13 +218,13 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
         }
       }
       
-      showNotification('Form yapılandırması kaydedildi!', 'success')
+      showToast('Form yapılandırması kaydedildi!', 'success')
       
       // Reload to get updated data
       await loadFormConfig()
     } catch (e) {
       console.error('Form config save error:', e)
-      showNotification('Form yapılandırması kaydedilemedi: ' + e.message, 'error')
+      showToast('Form yapılandırması kaydedilemedi: ' + e.message, 'error')
     }
   }
 
@@ -298,7 +299,7 @@ function FormManager({ t, showNotification, renderHeaderActions }) {
       onSave: saveFormConfig,
       isDarkMode: false,
       t,
-      showNotification,
+      showToast,
       renderHeaderActions,
       // Versioning props
       allTemplates,

@@ -13,7 +13,7 @@ import {
   SUPPLIER_STATUSES,
   MATERIAL_STATUSES 
 } from '../utils/material-status-utils'
-import { useNotifications } from '../../../shared/hooks/useNotifications'
+import { showToast } from '../../../shared/components/Toast.js'
 import { Phone, Mail, ShoppingCart, Edit, Trash2, Info, RotateCw, Save, X, ArrowLeft } from '../../../shared/components/Icons'
 
 export default function SuppliersTable({ 
@@ -39,7 +39,7 @@ export default function SuppliersTable({
   const { addMaterialToSupplier, fetchSuppliers } = useSuppliers()
 
   // Toast notifications
-  const { showNotification } = useNotifications()
+  // Using showToast directly
 
   // Material management state
   const { materials: activeMaterials, loading: materialsLoading, loadMaterials } = useMaterials(false)
@@ -613,10 +613,10 @@ export default function SuppliersTable({
       setNewCategory('')
       setMaterialMode('existing')
       
-      showNotification('Malzeme başarıyla eklendi!', 'success')
+      showToast('Malzeme başarıyla eklendi!', 'success')
     } catch (error) {
       console.error('Malzeme eklenirken hata:', error)
-      showNotification('Malzeme eklenirken bir hata oluştu!', 'error')
+      showToast('Malzeme eklenirken bir hata oluştu!', 'error')
     }
   }
 
@@ -681,10 +681,10 @@ export default function SuppliersTable({
 
       setSelectedMaterials([])
       setShowMaterialPopup(false)
-      showNotification('Malzemeler başarıyla eklendi!', 'success')
+      showToast('Malzemeler başarıyla eklendi!', 'success')
     } catch (error) {
       console.error('❌ Error in handleAddExistingMaterials:', error)
-      showNotification('Malzemeler eklenirken bir hata oluştu!', 'error')
+      showToast('Malzemeler eklenirken bir hata oluştu!', 'error')
     }
   }
 

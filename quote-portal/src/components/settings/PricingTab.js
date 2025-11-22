@@ -1,3 +1,4 @@
+import { showToast } from '../../../shared/components/Toast.js';
 // Pricing Tab Component - Price parameter and formula management
 import React from 'react';
 import API from '../../../shared/lib/api.js'
@@ -5,7 +6,7 @@ import FormulaValidator from '../SimpleFormulaValidator.js'
 
 const { useState, useEffect } = React;
 
-function PricingTab({ t, showNotification }) {
+function PricingTab({ t }) {
   const [parameters, setParameters] = useState([])
   const [formula, setFormula] = useState('')
   const [parameterType, setParameterType] = useState('')
@@ -55,16 +56,16 @@ function PricingTab({ t, showNotification }) {
   async function savePriceSettings() {
     try {
       await API.savePriceSettings({ parameters, formula })
-      showNotification('Fiyat ayarları kaydedildi!', 'success')
+      showToast('Fiyat ayarları kaydedildi!', 'success')
     } catch (e) {
       console.error('Price settings save error:', e)
-      showNotification('Fiyat ayarları kaydedilemedi!', 'error')
+      showToast('Fiyat ayarları kaydedilemedi!', 'error')
     }
   }
 
   function addParameter() {
     if (!parameterName.trim()) {
-      showNotification('Parametre adı gerekli!', 'error')
+      showToast('Parametre adı gerekli!', 'error')
       return
     }
 
@@ -100,7 +101,7 @@ function PricingTab({ t, showNotification }) {
 
   function addLookupEntry() {
     if (!newLookupOption.trim() || !newLookupValue.trim()) {
-      showNotification('Seçenek ve değer gerekli!', 'error')
+      showToast('Seçenek ve değer gerekli!', 'error')
       return
     }
 

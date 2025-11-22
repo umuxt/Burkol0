@@ -522,7 +522,7 @@ export const API = {
         a.download = `burkol_quote_${id}.txt`
         document.body.appendChild(a); a.click(); a.remove()
         URL.revokeObjectURL(downloadUrl)
-        if (showNotification) showNotification('TXT dosyası başarıyla indirildi!', 'success')
+        // if (showToast) showToast('TXT dosyası başarıyla indirildi!', 'success')
       } else if (res && res.status === 401) {
         throw new Error('unauthorized')
       } else { throw new Error('backend txt not ok') }
@@ -575,7 +575,7 @@ export const API = {
       const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' })
       const a = document.createElement('a'); const dl = URL.createObjectURL(blob)
       a.href = dl; a.download = `burkol_quote_${id}.txt`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(dl)
-      if (showNotification) showNotification('TXT dosyası başarıyla indirildi!', 'success')
+      // if (showToast) showToast('TXT dosyası başarıyla indirildi!', 'success')
     })
   },
   // Auth

@@ -1,8 +1,9 @@
+import { showToast } from '../../../shared/components/Toast.js';
 // Form Preview Component - Live preview of the form being built
 import React from 'react';
 const { useState } = React;
 
-export function FormPreview({ fields, isDarkMode, t, showNotification }) {
+export function FormPreview({ fields, isDarkMode, t }) {
   const [formData, setFormData] = useState({})
   const [errors, setErrors] = useState({})
 
@@ -58,10 +59,10 @@ export function FormPreview({ fields, isDarkMode, t, showNotification }) {
     setErrors(newErrors)
     
     if (Object.keys(newErrors).length === 0) {
-      showNotification('Önizleme formu başarıyla doğrulandı!', 'success')
+      showToast('Önizleme formu başarıyla doğrulandı!', 'success')
       console.log('Form Data:', formData)
     } else {
-      showNotification('Lütfen hataları düzeltin', 'error')
+      showToast('Lütfen hataları düzeltin', 'error')
     }
   }
 
@@ -350,7 +351,7 @@ export function FormPreview({ fields, isDarkMode, t, showNotification }) {
             onClick: () => {
               setFormData({})
               setErrors({})
-              showNotification('Form temizlendi', 'info')
+              showToast('Form temizlendi', 'info')
             },
             className: 'btn btn-secondary',
             style: {

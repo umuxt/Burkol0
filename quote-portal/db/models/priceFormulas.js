@@ -1,4 +1,4 @@
-import db from '../db.js';
+import db from '../connection.js';
 
 /**
  * PriceFormulas Model
@@ -192,7 +192,7 @@ class PriceFormulas {
 
       if (param.type === 'fixed') {
         // Fixed value parameter
-        value = parseFloat(param.fixed_value);
+        value = parseFloat(param.fixedValue);
         source = 'fixed';
       } else if (param.type === 'form_lookup') {
         // Lookup value from form data
@@ -205,7 +205,7 @@ class PriceFormulas {
           const lookup = await PriceParameters.getLookupValue(param.id, formFieldCode, formValue);
           
           if (lookup) {
-            value = parseFloat(lookup.price_value);
+            value = parseFloat(lookup.priceValue);
             source = 'lookup';
           }
         }
@@ -238,9 +238,9 @@ class PriceFormulas {
     }
 
     // Evaluate formula
+    let evaluatedFormula = formula.formulaExpression;
     try {
       // Replace parameter codes with their values in the formula
-      let evaluatedFormula = formula.formula_expression;
       
       // Remove leading equals sign if present (Excel-style formula)
       evaluatedFormula = evaluatedFormula.trim();
@@ -263,7 +263,7 @@ class PriceFormulas {
 
       // Evaluate the expression (simple eval for now - can be replaced with safer parser)
       console.log('📐 Evaluating formula:', {
-        original: formula.formula_expression,
+        original: formula.formulaExpression,
         evaluated: evaluatedFormula,
         parameterValues
       });
@@ -290,14 +290,14 @@ class PriceFormulas {
 
       return {
         totalPrice,
-        formula: formula.formula_expression,
+        formula: formula.formulaExpression,
         evaluatedFormula,
         parameterValues,
         calculationDetails
       };
     } catch (error) {
       console.error('❌ Formula evaluation failed:', {
-        originalFormula: formula.formula_expression,
+        originalFormula: formula.formulaExpression,
         evaluatedFormula,
         parameterValues,
         error: error.message
@@ -341,11 +341,11 @@ class PriceFormulas {
             throw new Error(`Parameter with code ${code} not found`);
           }
           return {
-            formula_id: formula.id,
-            parameter_id: param.id,
-            sort_order: index,
-            created_at: db.fn.now(),
-            updated_at: db.fn.now()
+            formulaId: formula.id,
+            parameterId: param.id,
+            sortOrder: index,
+            createdAt: db.fn.now(),
+            updatedAt: db.fn.now()
           };
         });
 

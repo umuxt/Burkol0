@@ -1,4 +1,4 @@
-import db from '../db.js';
+import db from '../connection.js';
 import PriceFormulas from './priceFormulas.js';
 import WorkOrders from './workOrders.js';
 

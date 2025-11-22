@@ -145,10 +145,19 @@ export function getFieldValue(quote, fieldId) {
     if (fieldId === 'date') {
       return quote.createdAt || quote.date || ''
     }
+    // Map frontend field names to backend column names (camelCase)
+    if (fieldId === 'name') return quote.customerName || ''
+    if (fieldId === 'company') return quote.customerCompany || ''
+    if (fieldId === 'phone') return quote.customerPhone || ''
+    if (fieldId === 'email') return quote.customerEmail || ''
+    if (fieldId === 'price') return quote.finalPrice || quote.calculatedPrice || 0
+    if (fieldId === 'delivery_date') return quote.deliveryDate || ''
+    if (fieldId === 'proj') return quote.formData?.project || quote.formData?.proj || quote.project || ''
+    
     return quote[fieldId] || ''
   } else {
-    // Dynamic fields are in customFields
-    return quote.customFields?.[fieldId] || ''
+    // Dynamic fields are in customFields or formData
+    return quote.customFields?.[fieldId] || quote.formData?.[fieldId] || ''
   }
 }
 
@@ -180,7 +189,7 @@ export function formatFieldValue(value, column, item, context) {
         return dateStr.slice(0, 10);
         
       case 'customer':
-        return (item.name || '') + (item.company ? ' — ' + item.company : '');
+        return (item.customerName || '') + (item.customerCompany ? ' — ' + item.customerCompany : '');
         
       case 'project':
         const proj = value || '';
@@ -210,7 +219,7 @@ export function formatFieldValue(value, column, item, context) {
 
         // Uyarı var, buton ve indicator ile göster
         const differenceSummary = priceStatus?.differenceSummary || null
-        const originalPrice = differenceSummary?.oldPrice ?? (parseFloat(item.price) || 0)
+        const originalPrice = differenceSummary?.oldPrice ?? (parseFloat(item.finalPrice || item.calculatedPrice) || 0)
         const fallbackCalculated = typeof calculatePrice === 'function'
           ? parseFloat(calculatePrice(item)) || 0
           : (item.pendingCalculatedPrice !== undefined ? parseFloat(item.pendingCalculatedPrice) || 0 : 0)
@@ -262,37 +271,54 @@ export function formatFieldValue(value, column, item, context) {
         )
 
       case 'delivery_date':
-        const due = value || '';
-        if (due.includes('Gecikti')) {
-          return React.createElement('span', { style: { color: '#dc3545', fontWeight: '600' } }, due);
-        } else if (due.includes('gün')) {
-          const days = parseInt(due.match(/\d+/)?.[0] || '0');
-          if (days <= 3) {
-            return React.createElement('span', { style: { color: '#ffc107', fontWeight: '600' } }, due);
-          }
+        // Calculate days remaining from delivery date
+        if (!value || value === '') {
+          return '';
         }
-        return due;
+        
+        const deliveryDate = new Date(value);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        deliveryDate.setHours(0, 0, 0, 0);
+        
+        const diffTime = deliveryDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        let displayText = '';
+        let style = {};
+        
+        if (diffDays < 0) {
+          displayText = `${Math.abs(diffDays)} gün gecikti`;
+          style = { color: '#dc3545', fontWeight: '600' };
+        } else if (diffDays === 0) {
+          displayText = 'Bugün';
+          style = { color: '#ffc107', fontWeight: '600' };
+        } else if (diffDays <= 3) {
+          displayText = `${diffDays} gün kaldı`;
+          style = { color: '#ffc107', fontWeight: '600' };
+        } else {
+          displayText = `${diffDays} gün kaldı`;
+          style = {};
+        }
+        
+        return React.createElement('span', { style }, displayText);
         
       case 'status':
         const statusValue = value || 'new';
         const statusText = statusLabel(statusValue, t);
         const statusOptions = [
-          { value: 'new', label: statusLabel('new', t) },
-          { value: 'review', label: statusLabel('review', t) },
-          { value: 'feasible', label: statusLabel('feasible', t) },
-          { value: 'not', label: statusLabel('not', t) },
-          { value: 'quoted', label: statusLabel('quoted', t) },
-          { value: 'approved', label: statusLabel('approved', t) }
+          { value: 'new', label: 'Yeni' },
+          { value: 'pending', label: 'Beklemede' },
+          { value: 'approved', label: 'Onaylandı' },
+          { value: 'rejected', label: 'Reddedildi' }
         ];
         
         // Map status to CSS class
         const statusClassMap = {
           'new': 'new',
-          'review': 'review',
-          'feasible': 'feasible',
-          'not': 'not-feasible',
-          'quoted': 'quoted',
-          'approved': 'approved'
+          'pending': 'pending',
+          'approved': 'approved',
+          'rejected': 'rejected'
         };
         
         return React.createElement('div', { 
@@ -308,19 +334,12 @@ export function formatFieldValue(value, column, item, context) {
               }
             },
             onClick: (e) => e.stopPropagation(),
-            className: `status-badge ${statusClassMap[statusValue] || 'new'}`,
-            style: {
-              appearance: 'none',
-              cursor: 'pointer',
-              border: 'none',
-              minWidth: '100px'
-            }
+            className: `status-badge ${statusClassMap[statusValue] || 'new'}`
           },
             ...statusOptions.map(option =>
               React.createElement('option', { 
                 key: option.value, 
-                value: option.value,
-                style: { backgroundColor: 'white', color: 'black' }
+                value: option.value
               }, option.label)
             )
           )

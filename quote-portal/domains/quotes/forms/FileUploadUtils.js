@@ -1,15 +1,17 @@
+import { showToast } from '../../../shared/components/Toast.js';
+import { showToast } from '../../../shared/components/Toast.js';
 // File Upload Utils - File handling for quote forms
 import React from 'react';
 import { ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../../shared/lib/utils.js'
 
-export async function handleFileUpload(fileList, currentFiles, maxFiles = MAX_FILES, showNotification) {
+export async function handleFileUpload(fileList, currentFiles, maxFiles = MAX_FILES, showToast) {
   const newFiles = []
   const errors = []
 
   // Check total file count
   if (currentFiles.length + fileList.length > maxFiles) {
     errors.push(`En fazla ${maxFiles} dosya yükleyebilirsiniz`)
-    showNotification(`En fazla ${maxFiles} dosya yükleyebilirsiniz`, 'error')
+    showToast(`En fazla ${maxFiles} dosya yükleyebilirsiniz`, 'error')
     return { files: currentFiles, errors }
   }
 
@@ -45,7 +47,7 @@ export async function handleFileUpload(fileList, currentFiles, maxFiles = MAX_FI
   }
 
   if (errors.length > 0) {
-    showNotification(errors.join(', '), 'error')
+    showToast(errors.join(', '), 'error')
   }
 
   return { 
@@ -54,8 +56,8 @@ export async function handleFileUpload(fileList, currentFiles, maxFiles = MAX_FI
   }
 }
 
-export async function handleProductFileUpload(fileList, currentFiles, showNotification) {
-  return handleFileUpload(fileList, currentFiles, MAX_PRODUCT_FILES, showNotification)
+export async function handleProductFileUpload(fileList, currentFiles, showToast) {
+  return handleFileUpload(fileList, currentFiles, MAX_PRODUCT_FILES, showToast)
 }
 
 export function removeFile(files, index) {
@@ -85,7 +87,7 @@ export function formatFileSize(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i]
 }
 
-export function FilePreview({ file, onRemove, index, showNotification }) {
+export function FilePreview({ file, onRemove, index, showToast }) {
   
   return React.createElement('div', {
     className: 'file-preview',

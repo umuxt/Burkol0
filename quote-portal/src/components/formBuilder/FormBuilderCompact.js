@@ -1,3 +1,4 @@
+import { showToast } from '../../../shared/components/Toast.js';
 // Form Builder Compact - Main component using modular architecture
 import React from 'react';
 import API from '../../../shared/lib/api.js'
@@ -253,20 +254,17 @@ export function FormBuilderCompact({
           if (config.settings) {
             setFormSettings(config.settings)
           }
-          if (showNotification) {
-            showNotification('API bağlantısı yok - Yerel kayıt kullanılıyor', 'warning')
-          }
+          // Using showToast directly
+          showToast('API bağlantısı yok - Yerel kayıt kullanılıyor', 'warning')
         } catch (localError) {
           console.error('Local storage yüklenirken hata:', localError)
-          if (showNotification) {
-            showNotification('Form yapılandırması yüklenemedi', 'error')
-          }
+          // Using showToast directly
+          showToast('Form yapılandırması yüklenemedi', 'error')
         }
       } else {
         // localStorage de boş - boş formla devam et
-        if (showNotification) {
-          showNotification('API bağlantısı yok - Boş formla başlatılıyor', 'info')
-        }
+        // Using showToast directly
+        showToast('API bağlantısı yok - Boş formla başlatılıyor', 'info')
       }
     }
   }
@@ -286,13 +284,13 @@ export function FormBuilderCompact({
       if (onSave && typeof onSave === 'function') {
         const result = await onSave(config)
         if (result && result.structuralChange) {
-          showNotification(
+          showToast(
             `Form yapılandırması kaydedildi. ${result.quotesMarkedForUpdate || 0} teklif fiyat güncellemesi için işaretlendi.`, 
             'success'
           )
         } else {
           // Don't show notification here, FormManager will show it
-          // showNotification('Form yapılandırması kaydedildi', 'success')
+          // showToast('Form yapılandırması kaydedildi', 'success')
         }
       } else {
         // Fallback to API if no onSave prop (legacy support)
@@ -314,17 +312,17 @@ export function FormBuilderCompact({
         }))
         
         if (result.structuralChange) {
-          showNotification(
+          showToast(
             `Form yapılandırması kaydedildi. ${result.quotesMarkedForUpdate || 0} teklif fiyat güncellemesi için işaretlendi.`, 
             'success'
           )
         } else {
-          showNotification('Form yapılandırması kaydedildi', 'success')
+          showToast('Form yapılandırması kaydedildi', 'success')
         }
       }
     } catch (error) {
       console.error('Form kaydedilirken hata:', error)
-      showNotification('Form kaydedilemedi: ' + (error.message || 'Bilinmeyen hata'), 'error')
+      showToast('Form kaydedilemedi: ' + (error.message || 'Bilinmeyen hata'), 'error')
     }
   }
 
@@ -353,7 +351,7 @@ export function FormBuilderCompact({
       setIsFieldEditorOpen(true)
     } catch (error) {
       console.error('Error in handleAddNewField:', error)
-      showNotification(error.message, 'error')
+      showToast(error.message, 'error')
     }
   }
 
@@ -367,7 +365,7 @@ export function FormBuilderCompact({
       setIsFieldEditorOpen(true)
     } catch (error) {
       console.error('Error in handleAddField:', error)
-      showNotification(error.message, 'error')
+      showToast(error.message, 'error')
     }
   }
 
@@ -382,7 +380,7 @@ export function FormBuilderCompact({
     try {
       const errors = FormBuilderUtils.validateField(fieldData)
       if (errors.length > 0) {
-        showNotification(errors[0], 'error')
+        showToast(errors[0], 'error')
         return
       }
 
@@ -501,7 +499,7 @@ export function FormBuilderCompact({
         }
         
         setFields(newFields)
-        showNotification('Alan güncellendi', 'success')
+        showToast('Alan güncellendi', 'success')
       } else {
         // Add new field - araya giriyorsa diğer alanları kaydır
         const newFormOrder = normalizedFormOrder
@@ -535,20 +533,20 @@ export function FormBuilderCompact({
         // Yeni alanı ekle
         newFields.push(fieldData)
         setFields(newFields)
-        showNotification('Yeni alan eklendi', 'success')
+        showToast('Yeni alan eklendi', 'success')
       }
       
       setIsFieldEditorOpen(false)
       setEditingField(null)
     } catch (error) {
-      showNotification(error.message, 'error')
+      showToast(error.message, 'error')
     }
   }
 
   // Delete field
   function handleDeleteField(fieldId) {
     setFields(prev => prev.filter(f => f.id !== fieldId))
-    showNotification('Alan silindi', 'success')
+    showToast('Alan silindi', 'success')
   }
 
   // Reorder fields
@@ -575,14 +573,14 @@ export function FormBuilderCompact({
     }))
     
     setFields(updatedFields)
-    showNotification('Alan sıralaması değiştirildi', 'info')
+    showToast('Alan sıralaması değiştirildi', 'info')
   }
 
   // Clone field
   function handleCloneField(field) {
     const clonedField = FormBuilderUtils.cloneField(field)
     setFields(prev => [...prev, clonedField])
-    showNotification('Alan kopyalandı', 'success')
+    showToast('Alan kopyalandı', 'success')
   }
 
   // Duplicate field (alias for clone)
@@ -603,9 +601,9 @@ export function FormBuilderCompact({
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      showNotification('Form yapılandırması dışa aktarıldı', 'success')
+      showToast('Form yapılandırması dışa aktarıldı', 'success')
     } catch (error) {
-      showNotification('Dışa aktarma başarısız', 'error')
+      showToast('Dışa aktarma başarısız', 'error')
     }
   }
 
@@ -620,9 +618,9 @@ export function FormBuilderCompact({
         const result = FormBuilderUtils.importFormConfig(e.target.result)
         setFields(result.fields)
         setFormSettings({ ...formSettings, ...result.settings })
-        showNotification('Form yapılandırması içe aktarıldı', 'success')
+        showToast('Form yapılandırması içe aktarıldı', 'success')
       } catch (error) {
-        showNotification(error.message, 'error')
+        showToast(error.message, 'error')
       }
     }
     reader.readAsText(file)
@@ -632,7 +630,7 @@ export function FormBuilderCompact({
   function handleClearForm() {
     if (window.confirm('Tüm alanları silmek istediğinizden emin misiniz?')) {
       setFields([])
-      showNotification('Tüm alanlar silindi', 'info')
+      showToast('Tüm alanlar silindi', 'info')
     }
   }
 

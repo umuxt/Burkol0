@@ -1,3 +1,4 @@
+import { showToast } from '../../../shared/components/Toast.js';
 // Quotes Pricing Manager - Dynamic pricing configuration for quotes domain with versioning
 import React from 'react';
 import { priceApi } from '../api/index.js'
@@ -8,7 +9,7 @@ import EnhancedFormulaEditor from '../forms/EnhancedFormulaEditor.js'
 
 const { useState, useEffect, useRef } = React;
 
-function PricingManager({ t, showNotification, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, renderHeaderActions }) {
+function PricingManager({ t, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, renderHeaderActions }) {
   // Core pricing data
   const [parameters, setParameters] = useState([])
   const [formula, setFormula] = useState('')
@@ -111,8 +112,8 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
       if (!template) {
         console.warn('⚠️ No active form template found')
         setFormFields([])
-        if (showNotification) {
-          showNotification('Aktif form bulunamadı - Önce Form Yönetimi\'nden bir form oluşturun', 'warning')
+        if (showToast) {
+          showToast('Aktif form bulunamadı - Önce Form Yönetimi\'nden bir form oluşturun', 'warning')
         }
         return
       }
@@ -123,8 +124,8 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
     } catch (e) {
       console.warn('⚠️ Form fields API error:', e.message)
       setFormFields([])
-      if (showNotification) {
-        showNotification('Form alanları yüklenemedi: ' + e.message, 'warning')
+      if (showToast) {
+        showToast('Form alanları yüklenemedi: ' + e.message, 'warning')
       }
     } finally {
       setIsLoadingFields(false)
@@ -201,7 +202,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
       checkSystemIntegrity(convertedParams)
     } catch (e) {
       console.error('Price settings load error:', e)
-      showNotification('Fiyat ayarları yüklenemedi!', 'error')
+      showToast('Fiyat ayarları yüklenemedi!', 'error')
     }
   }
 
@@ -246,17 +247,17 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
       checkSystemIntegrity(convertedParams)
       
       setIsHistoryModalOpen(false)
-      showNotification(`Sürüm ${setting.version} görüntüleniyor`, 'info')
+      showToast(`Sürüm ${setting.version} görüntüleniyor`, 'info')
     } catch (e) {
       console.error('Failed to switch setting:', e)
-      showNotification('Sürüm yüklenemedi: ' + e.message, 'error')
+      showToast('Sürüm yüklenemedi: ' + e.message, 'error')
     }
   }
 
   async function activateSetting() {
     try {
       if (!currentSettingId) {
-        showNotification('Aktif edilecek sürüm bulunamadı', 'error')
+        showToast('Aktif edilecek sürüm bulunamadı', 'error')
         return
       }
 
@@ -265,10 +266,10 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
       setActiveSettingId(currentSettingId)
       await loadAllSettings()
       
-      showNotification('Fiyat ayarları aktif edildi!', 'success')
+      showToast('Fiyat ayarları aktif edildi!', 'success')
     } catch (e) {
       console.error('Failed to activate setting:', e)
-      showNotification('Sürüm aktif edilemedi: ' + e.message, 'error')
+      showToast('Sürüm aktif edilemedi: ' + e.message, 'error')
     }
   }
 
@@ -284,7 +285,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
     setOriginalData({ parameters: [], formula: '' })
     setHasUnsavedChanges(false)
     
-    showNotification('Yeni taslak açıldı - değişikliklerinizi yapıp kaydedin', 'info')
+    showToast('Yeni taslak açıldı - değişikliklerinizi yapıp kaydedin', 'info')
   }
 
   async function openNewDraftConfirm() {
@@ -298,7 +299,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
   async function savePriceSettings() {
     try {
       if (!systemIntegrity.canSave) {
-        showNotification('Kaydetme işlemi engellenmiştir! Orphan parametreleri temizleyin.', 'error')
+        showToast('Kaydetme işlemi engellenmiştir! Orphan parametreleri temizleyin.', 'error')
         return
       }
       
@@ -319,7 +320,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
         await loadAllSettings()
         setOriginalData({ parameters, formula: currentUserFormula })
         setHasUnsavedChanges(false)
-        showNotification('Fiyat ayarları kaydedildi ve aktif edildi!', 'success')
+        showToast('Fiyat ayarları kaydedildi ve aktif edildi!', 'success')
         return
       }
       
@@ -338,14 +339,14 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
       setOriginalData({ parameters, formula: currentUserFormula })
       setHasUnsavedChanges(false)
       
-      showNotification('Fiyat ayarları kaydedildi!', 'success')
+      showToast('Fiyat ayarları kaydedildi!', 'success')
       
       if (checkAndProcessVersionUpdates && setGlobalProcessing) {
         await checkAndProcessVersionUpdates()
       }
     } catch (e) {
       console.error('Price settings save error:', e)
-      showNotification('Fiyat ayarları kaydedilemedi!', 'error')
+      showToast('Fiyat ayarları kaydedilemedi!', 'error')
     }
   }
 
@@ -376,7 +377,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
   function addParameter() {
     // Orphan parametreler varsa yeni parametre eklemeyi engelle
     if (!systemIntegrity.canEdit) {
-      showNotification('Orphan parametreler mevcut! Önce mevcut sorunları çözün.', 'error')
+      showToast('Orphan parametreler mevcut! Önce mevcut sorunları çözün.', 'error')
       return
     }
     
@@ -392,7 +393,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
     }, formFields)
 
     if (validationErrors.length > 0) {
-      showNotification(validationErrors[0], 'error')
+      showToast(validationErrors[0], 'error')
       return
     }
 
@@ -463,7 +464,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
       )
       
       if (!confirmRemoval) {
-        showNotification('Önce formülden parametreyi manuel olarak kaldırın', 'warning')
+        showToast('Önce formülden parametreyi manuel olarak kaldırın', 'warning')
         return
       }
       
@@ -481,11 +482,11 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
       // Temizlenmiş formülü set et
       setUserFormula(cleanedFormula)
       
-      showNotification(`"${param.name}" orphan parametresi temizlendi ve formül güncellendi`, 'success')
+      showToast(`"${param.name}" orphan parametresi temizlendi ve formül güncellendi`, 'success')
     } else {
       // Formülde kullanılmıyorsa direkt sil
       deleteParameter(paramId)
-      showNotification(`"${param.name}" orphan parametresi temizlendi`, 'success')
+      showToast(`"${param.name}" orphan parametresi temizlendi`, 'success')
     }
   }
 
@@ -502,7 +503,7 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
 
   function addLookupEntry() {
     if (!newLookupOption.trim() || !newLookupValue.trim()) {
-      showNotification('Seçenek ve değer gerekli!', 'error')
+      showToast('Seçenek ve değer gerekli!', 'error')
       return
     }
 
@@ -807,9 +808,9 @@ function PricingManager({ t, showNotification, globalProcessing, setGlobalProces
                   setUserFormula(data.formula)
                   userFormulaRef.current = data.formula
                 }
-                showNotification('Fiyat ayarları içe aktarıldı!', 'success')
+                showToast('Fiyat ayarları içe aktarıldı!', 'success')
               } catch (e) {
-                showNotification('Dosya okunamadı: ' + e.message, 'error')
+                showToast('Dosya okunamadı: ' + e.message, 'error')
               }
             }
             reader.readAsText(file)

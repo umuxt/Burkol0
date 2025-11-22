@@ -4,7 +4,7 @@
  * API routes for managing price parameters and formulas
  */
 
-import db from '../../../db/db.js';
+import db from '../../../db/connection.js';
 import PriceParameters from '../../../db/models/priceParameters.js';
 import PriceFormulas from '../../../db/models/priceFormulas.js';
 import PriceSettings from './models/PriceSettings.js';

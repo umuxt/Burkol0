@@ -1,3 +1,4 @@
+import { showToast } from '../../../shared/components/Toast.js';
 // Field Editor - Individual field creation and editing (Parametre Ekle Modal Benzeri)
 import React from 'react';
 import { FormBuilderUtils } from './FormBuilderUtils.js'
@@ -55,12 +56,12 @@ export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldType
 
   function addOption() {
     if (!newOption.trim()) {
-      showNotification('Seçenek değeri boş olamaz', 'error')
+      showToast('Seçenek değeri boş olamaz', 'error')
       return
     }
 
     if (fieldForm.options.includes(newOption.trim())) {
-      showNotification('Bu seçenek zaten mevcut', 'error')
+      showToast('Bu seçenek zaten mevcut', 'error')
       return
     }
 
@@ -81,27 +82,27 @@ export function FieldEditor({ field, allFields = [], onSave, onCancel, fieldType
   function handleSave() {
     // 1. Alan Etiketi zorunlu
     if (!fieldForm.label || !fieldForm.label.trim()) {
-      showNotification('Alan etiketi zorunludur', 'error')
+      showToast('Alan etiketi zorunludur', 'error')
       return
     }
 
     // 2. Alan Türü zorunlu (default olarak 'text' gelir ama kontrol edelim)
     if (!fieldForm.type) {
-      showNotification('Alan türü seçilmelidir', 'error')
+      showToast('Alan türü seçilmelidir', 'error')
       return
     }
 
     // 3. Dropdown/Multiselect/Radio için seçenekler zorunlu
     if (['dropdown', 'multiselect', 'radio'].includes(fieldForm.type)) {
       if (!fieldForm.options || fieldForm.options.length === 0) {
-        showNotification('Seçenek listesi boş olamaz. En az bir seçenek eklemelisiniz.', 'error')
+        showToast('Seçenek listesi boş olamaz. En az bir seçenek eklemelisiniz.', 'error')
         return
       }
     }
 
     // 4. Tabloda göster aktifse tablo sırası olmalı
     if (fieldForm.display?.showInTable && !fieldForm.display?.tableOrder) {
-      showNotification('Tabloda göster aktif - Tablo sırası gereklidir', 'error')
+      showToast('Tabloda göster aktif - Tablo sırası gereklidir', 'error')
       return
     }
 

@@ -3,8 +3,9 @@ import API, { API_BASE } from '../../../shared/lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../../shared/lib/utils.js'
 import { statusLabel } from '../../../shared/i18n.js'
 import { PriceStatusBadge } from '../../../domains/quotes/components/PriceStatusBadge.js'
+import { showToast } from '../../../shared/components/Toast.js'
 
-export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, showNotification, formConfig, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, currentQuotes }) {
+export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, formConfig, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, currentQuotes }) {
   console.log('🔧 DEBUG: DetailModal rendered with item:', item?.id, 'formConfig:', !!formConfig)
   
   const [currStatus, setCurrStatus] = React.useState(item.status || 'new')
@@ -295,7 +296,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
     if (!item || !item.id) return
     const parsedPrice = parseManualPrice(manualPriceInput)
     if (Number.isNaN(parsedPrice) || parsedPrice < 0) {
-      showNotification?.('Geçerli bir fiyat giriniz', 'error')
+      showToast('Geçerli bir fiyat giriniz', 'error')
       return
     }
 
@@ -311,7 +312,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       setManualPriceInput(formatManualPriceInput(updatedQuote.manualOverride?.price ?? parsedPrice))
       setManualNote(updatedQuote.manualOverride?.note || manualNote)
 
-      showNotification?.('Fiyat manuel olarak kilitlendi', 'success')
+      showToast('Fiyat manuel olarak kilitlendi', 'success')
       if (typeof onSaved === 'function') {
         await onSaved()
       }
@@ -322,7 +323,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       }
     } catch (error) {
       console.error('Manual price save error:', error)
-      showNotification?.(`Manuel fiyat kaydedilemedi: ${error.message || 'Beklenmeyen hata'}`, 'error')
+      showToast(`Manuel fiyat kaydedilemedi: ${error.message || 'Beklenmeyen hata'}`, 'error')
     } finally {
       setManualLoading(false)
     }
@@ -512,7 +513,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       }
 
       console.log('🔧 Operation completed successfully')
-      showNotification?.(applyLatest ? 'Kilit kaldırıldı ve güncel fiyat uygulandı' : 'Manuel kilit kaldırıldı', 'success')
+      showToast(applyLatest ? 'Kilit kaldırıldı ve güncel fiyat uygulandı' : 'Manuel kilit kaldırıldı', 'success')
       if (typeof onSaved === 'function') {
         console.log('🔧 Calling onSaved function...')
         await onSaved()
@@ -529,7 +530,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       }
     } catch (error) {
       console.error('Manual override release error:', error)
-      showNotification?.(`İşlem başarısız: ${error.message || 'Beklenmeyen hata'}`, 'error')
+      showToast(`İşlem başarısız: ${error.message || 'Beklenmeyen hata'}`, 'error')
     } finally {
       setManualLoading(false)
     }
@@ -619,7 +620,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
         }
       }
       
-      showNotification?.('Fiyat başarıyla güncellendi', 'success')
+      showToast('Fiyat başarıyla güncellendi', 'success')
       setShowPriceUpdateModal(false)
       setPriceUpdateData(null)
       
@@ -655,7 +656,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       }, 100)
     } catch (error) {
       console.error('Price update error:', error)
-      showNotification?.(`Fiyat güncellemesi başarısız: ${error.message || 'Beklenmeyen hata'}`, 'error')
+      showToast(`Fiyat güncellemesi başarısız: ${error.message || 'Beklenmeyen hata'}`, 'error')
     } finally {
       setManualLoading(false)
     }
@@ -718,7 +719,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       }
       
       await API.createQuote(payload)
-      showNotification('Yeni kayıt başarıyla oluşturuldu!', 'success')
+      showToast('Yeni kayıt başarıyla oluşturuldu!', 'success')
     } else {
       const patch = {
         status: currStatus,
@@ -745,7 +746,7 @@ export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, s
       }
       
       await API.updateQuote(item.id, patch)
-      showNotification('Kayıt başarıyla güncellendi!', 'success')
+      showToast('Kayıt başarıyla güncellendi!', 'success')
     }
     setEditing(false)
     try { if (typeof onSaved === 'function') await onSaved() } catch {}
