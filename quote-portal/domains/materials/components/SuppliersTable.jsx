@@ -14,6 +14,7 @@ import {
   MATERIAL_STATUSES 
 } from '../utils/material-status-utils'
 import { useNotifications } from '../../../shared/hooks/useNotifications'
+import { Phone, Mail, ShoppingCart, Edit, Trash2, Info, RotateCw, Save, X, ArrowLeft } from '../../../shared/components/Icons'
 
 export default function SuppliersTable({ 
   suppliers = [],
@@ -1038,7 +1039,7 @@ export default function SuppliersTable({
                           }}
                           title={`Ara: ${supplier.phone1 || 'Telefon bulunamadı'}`}
                         >
-                          📞
+                          <Phone size={10} />
                         </button>
                         <button
                           onClick={(e) => {
@@ -1072,7 +1073,7 @@ export default function SuppliersTable({
                           }}
                           title={`Mail At: ${supplier.email1 || 'Email bulunamadı'}`}
                         >
-                          📧
+                          <Mail size={10} />
                         </button>
                         <button
                           style={{
@@ -1104,7 +1105,7 @@ export default function SuppliersTable({
                             setIsAddOrderModalOpen(true);
                           }}
                         >
-                          🛒
+                          <ShoppingCart size={10} />
                         </button>
                       </td>
                     )}
@@ -1181,7 +1182,7 @@ export default function SuppliersTable({
                   }}
                   title="Detayları Kapat"
                 >
-                  ←
+                  <ArrowLeft size={14} />
                 </button>
                 <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>
                   Tedarikçi Detayları
@@ -1219,7 +1220,7 @@ export default function SuppliersTable({
                   }}
                   title={`Ara: ${selectedSupplier.phone1 || 'Telefon bulunamadı'}`}
                 >
-                  📞
+                  <Phone size={14} />
                 </button>
                 <button
                   onClick={(e) => {
@@ -1252,7 +1253,7 @@ export default function SuppliersTable({
                   }}
                   title={`Mail At: ${selectedSupplier.email1 || 'Email bulunamadı'}`}
                 >
-                  📧
+                  <Mail size={14} />
                 </button>
                 <button
                   style={{
@@ -1287,7 +1288,7 @@ export default function SuppliersTable({
                     }
                   }}
                 >
-                  🛒
+                  <ShoppingCart size={14} />
                 </button>
                 {!isEditing ? (
                   <button
@@ -1302,7 +1303,7 @@ export default function SuppliersTable({
                       fontSize: '12px'
                     }}
                   >
-                    ✏️ Düzenle
+                    <Edit size={14} style={{ marginRight: '4px' }} /> Düzenle
                   </button>
                 ) : (
                   <>
@@ -1319,7 +1320,7 @@ export default function SuppliersTable({
                         fontSize: '12px'
                       }}
                     >
-                      💾 Kaydet
+                      <Save size={14} style={{ marginRight: '4px' }} /> Kaydet
                     </button>
                     <button
                       onClick={handleCancel}
@@ -1333,7 +1334,7 @@ export default function SuppliersTable({
                         fontSize: '12px'
                       }}
                     >
-                      ❌ İptal
+                      <X size={14} style={{ marginRight: '4px' }} /> İptal
                     </button>
                   </>
                 )}
@@ -1349,7 +1350,7 @@ export default function SuppliersTable({
                     fontSize: '12px'
                   }}
                 >
-                  🗑️ Sil
+                  <Trash2 size={14} style={{ marginRight: '4px' }} /> Sil
                 </button>
               </div>
             </div>
@@ -2471,7 +2472,7 @@ export default function SuppliersTable({
                                   }}
                                   title="Malzeme Detayları"
                                 >
-                                  ℹ️
+                                  <Info size={12} />
                                 </button>
                                 {!isRemoved && (() => {
                                   // Calculate effective status based on supplier status and material status
@@ -3160,7 +3161,8 @@ function SupplierHistorySection({ supplier }) {
           }}
           disabled={!supplier?.id || loading}
         >
-          {loading ? '⏳ Yükleniyor...' : '🔄 Tedarik Geçmişini Yükle'}
+          <RotateCw size={14} style={{ marginRight: '6px' }} className={loading ? 'rotating' : ''} />
+          {loading ? 'Yükleniyor...' : 'Tedarik Geçmişini Yükle'}
         </button>
       </div>
       <div className="supply-history-table" style={{ overflowX: 'auto', width: '100%' }}>
