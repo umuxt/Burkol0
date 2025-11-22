@@ -1,292 +1,413 @@
 /**
- * MES Toast Notification System
+ * Toast Notification System
  * 
- * Exact copy from MES production system
- * - Auto-close with progress bar
+ * Lightweight toast notification component with:
+ * - Auto-close after 10 seconds
  * - Manual close button (×)
- * - Top-center positioning (MES standard)
+ * - Bottom-right positioning
  * - Multiple toast types (success, error, warning, info)
  * - Stacking support for multiple toasts
+ * 
+ * Usage:
+ *   import { showToast } from './shared/components/Toast.js';
+ *   showToast('Operation successful!', 'success');
+ *   showToast('An error occurred', 'error');
  */
 
+const TOAST_AUTO_CLOSE_DURATION = 10000; // 10 seconds
+const TOAST_ANIMATION_DURATION = 300; // 0.3 seconds
+
+let toastContainer = null;
 let toastCounter = 0;
 
 /**
- * Inject toast container and styles (MES standard)
+ * Initialize toast container (call once on page load)
  */
-function ensureToastStyles() {
-  if (document.getElementById('toast-styles')) return;
+function initToastContainer() {
+  if (toastContainer) return;
   
-  const style = document.createElement('style');
-  style.id = 'toast-styles';
-  style.textContent = `
-    #toast-container {
-      position: fixed;
-      top: 80px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 99999;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      pointer-events: none;
-    }
-    
-    .toast {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
-      padding: 16px 20px;
-      min-width: 400px;
-      max-width: 500px;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      pointer-events: auto;
-      opacity: 0;
-      transform: translateY(-20px);
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-      position: relative;
-      overflow: hidden;
-    }
-    
-    .toast.show {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    
-    .toast.hide {
-      opacity: 0;
-      transform: translateY(-20px);
-    }
-    
-    .toast.success {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      color: white;
-    }
-    
-    .toast.error {
-      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-      color: white;
-    }
-    
-    .toast.warning {
-      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-      color: white;
-    }
-    
-    .toast.info {
-      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-      color: white;
-    }
-    
-    .toast-icon {
-      font-size: 24px;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-    
-    .toast-content {
-      flex: 1;
-      min-width: 0;
-    }
-    
-    .toast-title {
-      font-weight: 600;
-      font-size: 15px;
-      margin-bottom: 4px;
-      line-height: 1.2;
-    }
-    
-    .toast-message {
-      font-size: 14px;
-      opacity: 0.95;
-      line-height: 1.4;
-      word-wrap: break-word;
-    }
-    
-    .toast-close {
-      background: none;
-      border: none;
-      color: inherit;
-      font-size: 24px;
-      line-height: 1;
-      cursor: pointer;
-      padding: 0;
-      width: 28px;
-      height: 28px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 6px;
-      opacity: 0.8;
-      transition: all 0.15s;
-      flex-shrink: 0;
-    }
-    
-    .toast-close:hover {
-      opacity: 1;
-      background: rgba(0, 0, 0, 0.1);
-    }
-    
-    .toast-progress {
-      position: absolute;
-      bottom: 0;
-      left: 0;
-      height: 4px;
-      width: 100%;
-      background: rgba(0, 0, 0, 0.2);
-      overflow: hidden;
-    }
-    
-    .toast-progress-bar {
-      height: 100%;
-      background: rgba(255, 255, 255, 0.6);
-      transform-origin: left;
-      transform: scaleX(1);
-      transition: transform linear;
-    }
-    
-    @media (max-width: 640px) {
-      #toast-container {
-        left: 12px;
-        right: 12px;
-        transform: none;
+  toastContainer = document.createElement('div');
+  toastContainer.id = 'toast-container';
+  toastContainer.className = 'toast-container';
+  document.body.appendChild(toastContainer);
+  
+  // Add CSS if not already present
+  if (!document.getElementById('toast-styles')) {
+    const style = document.createElement('style');
+    style.id = 'toast-styles';
+    style.textContent = `
+      .toast-container {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        max-width: 400px;
+        pointer-events: none;
       }
       
       .toast {
-        min-width: auto;
-        max-width: none;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 6px rgba(0, 0, 0, 0.1);
+        padding: 16px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        min-width: 320px;
+        max-width: 400px;
+        pointer-events: auto;
+        transform: translateX(calc(100% + 24px));
+        opacity: 0;
+        transition: all ${TOAST_ANIMATION_DURATION}ms cubic-bezier(0.4, 0, 0.2, 1);
       }
-    }
-  `;
-  document.head.appendChild(style);
-}
+      
+      .toast.show {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      
+      .toast.hide {
+        transform: translateX(calc(100% + 24px));
+        opacity: 0;
+      }
+      
+      .toast-icon {
+        flex-shrink: 0;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        font-weight: bold;
+      }
+      
+      .toast.success .toast-icon {
+        background: #10b981;
+        color: white;
+      }
+      
+      .toast.error .toast-icon {
+        background: #ef4444;
+        color: white;
+      }
+      
+      .toast.warning .toast-icon {
+        background: #f59e0b;
+        color: white;
+      }
+      
+      .toast.info .toast-icon {
+        background: #3b82f6;
+        color: white;
+      }
+      
+      .toast-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
+      
+      .toast-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #111827;
+        line-height: 1.4;
+        word-wrap: break-word;
+      }
+      
+      .toast-message {
+        font-size: 13px;
+        color: #6b7280;
+        line-height: 1.5;
+        word-wrap: break-word;
+      }
+      
+      .toast-close {
+        flex-shrink: 0;
+        width: 24px;
+        height: 24px;
+        border: none;
+        background: transparent;
+        color: #9ca3af;
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: all 150ms;
+        margin: -4px -4px 0 0;
+      }
+      
+      .toast-close:hover {
+        background: #f3f4f6;
+        color: #111827;
+      }
+      
+      .toast-close:active {
+        transform: scale(0.95);
+      }
+      
+      .toast-progress {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        background: rgba(0, 0, 0, 0.1);
+        width: 100%;
+        border-radius: 0 0 8px 8px;
+        overflow: hidden;
+      }
+      
+      .toast-progress-bar {
+        height: 100%;
+        background: currentColor;
+        transform-origin: left;
+        transform: scaleX(1);
+        transition: transform linear;
+      }
+      
+      .toast.success .toast-progress-bar {
+        color: #10b981;
+      }
+      
+      .toast.error .toast-progress-bar {
+        color: #ef4444;
+      }
+      
+      .toast.warning .toast-progress-bar {
+        color: #f59e0b;
+      }
+      
+      .toast.info .toast-progress-bar {
+        color: #3b82f6;
+      }
+      
 
-/**
- * Get toast container (create if not exists)
- */
-function getToastContainer() {
-  let container = document.getElementById('toast-container');
-  if (!container) {
-    container = document.createElement('div');
-    container.id = 'toast-container';
-    document.body.appendChild(container);
+      
+      @media (max-width: 640px) {
+        .toast-container {
+          left: 12px;
+          right: 12px;
+          bottom: 12px;
+          max-width: none;
+        }
+        
+        .toast {
+          min-width: auto;
+          max-width: none;
+        }
+      }
+    `;
+    document.head.appendChild(style);
   }
-  return container;
 }
 
 /**
- * Create and show a toast notification (MES standard)
+ * Get icon for toast type
  */
-function createToast(message, type = 'info', duration = 10000) {
-  ensureToastStyles();
-  const container = getToastContainer();
-  
-  const toastId = `toast-${++toastCounter}`;
-  const toast = document.createElement('div');
-  toast.id = toastId;
-  toast.className = `toast ${type}`;
-  
-  // Get icon and title based on type
+function getToastIcon(type) {
   const icons = {
     success: '✓',
     error: '✕',
     warning: '⚠',
     info: 'i'
   };
-  
+  return icons[type] || icons.info;
+}
+
+/**
+ * Get default title for toast type
+ */
+function getToastTitle(type) {
   const titles = {
     success: 'Başarılı',
     error: 'Hata',
     warning: 'Uyarı',
     info: 'Bilgi'
   };
+  return titles[type] || titles.info;
+}
+
+/**
+ * Remove toast from DOM
+ */
+function removeToast(toastElement, immediate = false) {
+  if (!toastElement || !toastElement.parentNode) return;
   
-  const icon = icons[type] || icons.info;
-  const title = titles[type] || titles.info;
+  if (immediate) {
+    toastElement.remove();
+  } else {
+    toastElement.classList.remove('show');
+    toastElement.classList.add('hide');
+    
+    setTimeout(() => {
+      if (toastElement.parentNode) {
+        toastElement.remove();
+      }
+    }, TOAST_ANIMATION_DURATION);
+  }
+}
+
+/**
+ * Show a toast notification
+ * 
+ * @param {string|Object} messageOrOptions - Toast message or options object
+ * @param {string} type - Toast type: 'success', 'error', 'warning', 'info' (default: 'info')
+ * @param {Object} options - Additional options
+ * @param {string} options.title - Custom title (optional)
+ * @param {number} options.duration - Custom duration in ms (default: 10000, 0 = no auto-close)
+ * @param {boolean} options.closeable - Show close button (default: true)
+ * @param {Function} options.onClose - Callback when toast is closed
+ * @returns {Object} Toast API with close() method
+ */
+export function showToast(messageOrOptions, type = 'info', options = {}) {
+  // Initialize container on first use
+  if (!toastContainer) {
+    initToastContainer();
+  }
+  
+  // Handle both simple and object syntax
+  let message, title, duration, closeable, onClose;
+  
+  // Set default duration based on toast type
+  const getDefaultDuration = (toastType) => {
+    return (toastType === 'info' || toastType === 'message') ? 5000 : TOAST_AUTO_CLOSE_DURATION;
+  };
+  
+  if (typeof messageOrOptions === 'object') {
+    ({ message, type = 'info', title, duration, closeable = true, onClose } = messageOrOptions);
+    duration = duration !== undefined ? duration : getDefaultDuration(type);
+  } else {
+    message = messageOrOptions;
+    title = options.title;
+    duration = options.duration !== undefined ? options.duration : getDefaultDuration(type);
+    closeable = options.closeable !== undefined ? options.closeable : true;
+    onClose = options.onClose;
+  }
+  
+  // Validate type
+  const validTypes = ['success', 'error', 'warning', 'info'];
+  if (!validTypes.includes(type)) {
+    type = 'info';
+  }
+  
+  // Create toast element
+  const toastId = `toast-${++toastCounter}`;
+  const toast = document.createElement('div');
+  toast.id = toastId;
+  toast.className = `toast ${type}`;
+  
+  // Build toast HTML
+  const icon = getToastIcon(type);
+  const defaultTitle = getToastTitle(type);
+  const displayTitle = title || defaultTitle;
   
   toast.innerHTML = `
     <div class="toast-icon">${icon}</div>
     <div class="toast-content">
-      <div class="toast-title">${title}</div>
-      <div class="toast-message">${message}</div>
+      <div class="toast-title">${displayTitle}</div>
+      ${message ? `<div class="toast-message">${message}</div>` : ''}
     </div>
-    <button class="toast-close" aria-label="Close">×</button>
-    <div class="toast-progress"><div class="toast-progress-bar"></div></div>
+    ${closeable ? '<button class="toast-close" aria-label="Close">×</button>' : ''}
+    ${duration > 0 ? '<div class="toast-progress"><div class="toast-progress-bar"></div></div>' : ''}
   `;
   
-  container.appendChild(toast);
+  // Add to container
+  toastContainer.appendChild(toast);
   
-  // Close button handler
-  const closeBtn = toast.querySelector('.toast-close');
-  closeBtn.onclick = () => removeToast(toast);
-  
-  // Show animation
+  // Trigger show animation
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       toast.classList.add('show');
       
-      // Start progress bar animation
-      const progressBar = toast.querySelector('.toast-progress-bar');
-      if (progressBar && duration > 0) {
-        progressBar.style.transitionDuration = `${duration}ms`;
-        progressBar.style.transform = 'scaleX(0)';
+      // Start progress bar animation if duration is set
+      if (duration > 0) {
+        const progressBar = toast.querySelector('.toast-progress-bar');
+        if (progressBar) {
+          progressBar.style.transitionDuration = `${duration}ms`;
+          progressBar.style.transform = 'scaleX(0)';
+        }
       }
     });
   });
   
-  // Auto-close
+  // Setup auto-close timer
+  let autoCloseTimer = null;
   if (duration > 0) {
-    setTimeout(() => removeToast(toast), duration);
+    autoCloseTimer = setTimeout(() => {
+      closeToast();
+    }, duration);
   }
   
-  return toast;
+  // Setup close button
+  if (closeable) {
+    const closeButton = toast.querySelector('.toast-close');
+    closeButton.addEventListener('click', closeToast);
+  }
+  
+  // Close function
+  function closeToast() {
+    if (autoCloseTimer) {
+      clearTimeout(autoCloseTimer);
+    }
+    removeToast(toast);
+    if (onClose) {
+      onClose();
+    }
+  }
+  
+  // Return API
+  return {
+    close: closeToast,
+    element: toast,
+    id: toastId
+  };
 }
 
 /**
- * Remove toast with animation
+ * Convenience methods for specific toast types
  */
-function removeToast(toast) {
-  if (!toast || !toast.parentNode) return;
+export function showSuccessToast(message, options) {
+  return showToast(message, 'success', options);
+}
+
+export function showErrorToast(message, options) {
+  return showToast(message, 'error', options);
+}
+
+export function showWarningToast(message, options) {
+  return showToast(message, 'warning', options);
+}
+
+export function showInfoToast(message, options) {
+  return showToast(message, 'info', options);
+}
+
+/**
+ * Clear all toasts
+ */
+export function clearAllToasts() {
+  if (!toastContainer) return;
   
-  toast.classList.remove('show');
-  toast.classList.add('hide');
-  
-  setTimeout(() => {
-    if (toast.parentNode) {
-      toast.remove();
-    }
-  }, 300);
+  const toasts = toastContainer.querySelectorAll('.toast');
+  toasts.forEach(toast => removeToast(toast, true));
 }
 
-// MES Standard Toast Functions
-export function showSuccessToast(message, duration = 10000) {
-  return createToast(message, 'success', duration);
-}
-
-export function showErrorToast(message, duration = 10000) {
-  return createToast(message, 'error', duration);
-}
-
-export function showWarningToast(message, duration = 10000) {
-  return createToast(message, 'warning', duration);
-}
-
-export function showInfoToast(message, duration = 10000) {
-  return createToast(message, 'info', duration);
-}
-
-// Legacy showToast function for backward compatibility
-export function showToast(message, type = 'info', duration = 10000) {
-  return createToast(message, type, duration);
-}
-
-// Make functions available globally for inline handlers (MES compatibility)
-if (typeof window !== 'undefined') {
-  window.showSuccessToast = showSuccessToast;
-  window.showErrorToast = showErrorToast;
-  window.showWarningToast = showWarningToast;
-  window.showInfoToast = showInfoToast;
-  window.showToast = showToast;
+// Initialize on import
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initToastContainer);
+  } else {
+    initToastContainer();
+  }
 }
