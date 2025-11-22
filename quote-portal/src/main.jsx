@@ -24,7 +24,7 @@ import { useMaterialCategories } from '../domains/materials/hooks/useMaterialCat
 import { useSuppliers } from '../domains/materials/hooks/useSuppliers.js';
 
 // Lazy loading imports
-const LazyOrdersTabContent = React.lazy(() => import('../domains/orders/components/OrdersTabContent.jsx'));
+const LazyOrdersTabContent = React.lazy(() => import('../domains/materials/components/OrdersTabContent.jsx'));
 import { useCategorySync } from '../domains/materials/hooks/useCategorySync.js'; // YENİ
 
 const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin' 

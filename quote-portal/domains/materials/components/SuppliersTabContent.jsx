@@ -274,9 +274,9 @@ export default function SuppliersTabContent({
   const thisMonthOrders = filteredSuppliers?.reduce((acc, s) => acc + (s.monthlyOrders || 0), 0) || 0
 
   return (
-    <div className="stocks-tab-content">
+    <div className="suppliers-tab-content">
       {/* MES Filter Bar: Dashboard + Actions + Filters */}
-      <div className="mes-filter-bar" style={{marginBottom: '24px'}}>
+      <div className="mes-filter-bar">
         {/* Dashboard - Inline Single Line */}
         <div className="materials-dashboard-container">
           <section className="materials-dashboard is-inline">

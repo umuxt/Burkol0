@@ -6,7 +6,7 @@ import { useCategories } from '../hooks/useCategories'
 import { categoriesService } from '../services/categories-service'
 import { materialsService } from '../services/materials-service'
 import ErrorBoundary from '../../../shared/components/ErrorBoundary'
-import AddOrderModal from '../../orders/components/AddOrderModal'
+import AddOrderModal from './AddOrderModal.jsx'
 import { 
   getEffectiveMaterialStatus, 
   createStatusBadgeProps,
@@ -2457,18 +2457,14 @@ export default function SuppliersTable({
                                 <button
                                   onClick={() => handleShowMaterialDetail(material.id)}
                                   style={{
-                                    padding: '2px 4px',
-                                    fontSize: '10px',
-                                    border: isRemoved ? '1px solid #dc2626' : '1px solid #d1d5db',
-                                    borderRadius: '3px',
-                                    background: isRemoved ? '#fef2f2' : '#f9fafb',
-                                    color: isRemoved ? '#dc2626' : '#374151',
+                                    background: 'none',
+                                    border: 'none',
                                     cursor: 'pointer',
+                                    padding: '2px',
+                                    borderRadius: '3px',
+                                    color: isRemoved ? '#dc2626' : '#6b7280',
                                     display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    minWidth: '24px',
-                                    height: '20px'
+                                    alignItems: 'center'
                                   }}
                                   title="Malzeme Detayları"
                                 >
@@ -3140,7 +3136,7 @@ function SupplierHistorySection({ supplier }) {
   return (
     <div className="supply-history-section">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <h3 style={{ margin: 0 }}>Tedarik Geçmişi</h3>
+        <h3 style={{ margin: 0, fontSize: '14px', fontWeight: '600', color: '#111827' }}>Tedarik Geçmişi</h3>
         <button 
           type="button"
           onClick={() => {
@@ -3168,13 +3164,13 @@ function SupplierHistorySection({ supplier }) {
       <div className="supply-history-table" style={{ overflowX: 'auto', width: '100%' }}>
         <table style={{ minWidth: '100%', tableLayout: 'auto' }}>
           <thead>
-            <tr>
-              <th style={{ whiteSpace: 'nowrap' }}>Tarih</th>
-              <th style={{ minWidth: '150px' }}>Malzeme</th>
-              <th style={{ whiteSpace: 'nowrap' }}>Miktar</th>
-              <th style={{ whiteSpace: 'nowrap' }}>Birim Fiyat</th>
-              <th style={{ whiteSpace: 'nowrap' }}>Toplam</th>
-              <th style={{ whiteSpace: 'nowrap' }}>Durum</th>
+            <tr style={{ background: '#f9fafb' }}>
+              <th style={{ whiteSpace: 'nowrap', color: '#374151' }}>Tarih</th>
+              <th style={{ minWidth: '150px', color: '#374151' }}>Malzeme</th>
+              <th style={{ whiteSpace: 'nowrap', color: '#374151' }}>Miktar</th>
+              <th style={{ whiteSpace: 'nowrap', color: '#374151' }}>Birim Fiyat</th>
+              <th style={{ whiteSpace: 'nowrap', color: '#374151' }}>Toplam</th>
+              <th style={{ whiteSpace: 'nowrap', color: '#374151' }}>Durum</th>
             </tr>
           </thead>
           <tbody>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useSuppliers } from '../../materials/hooks/useSuppliers.js'
-import { useMaterials } from '../../materials/hooks/useMaterials.js'
+import { useSuppliers } from '../hooks/useSuppliers.js'
+import { useMaterials } from '../hooks/useMaterials.js'
 import { useOrderActions } from '../hooks/useOrders.js'
 
 export default function AddOrderModal({ isOpen, onClose, onSave, deliveredRecordMode = false, initialSupplierId = null, initialMaterialId = null }) {

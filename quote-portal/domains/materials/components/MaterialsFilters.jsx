@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Check, Trash2, RotateCw, AlertCircle } from '../../../shared/components/Icons'
 
 export default function MaterialsFilters({ categories, types, onFilterChange, materials = [] }) {
   const [filters, setFilters] = useState({
@@ -67,10 +68,10 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
   };
 
   const getStatusIcon = () => {
-    if (filters.status === '' || filters.status === 'Tümü') return '🔄';
-    if (filters.status === 'Aktif') return '✅';
-    if (filters.status === 'Removed') return '🗑️';
-    return '🔄'; // Fallback
+    if (filters.status === '' || filters.status === 'Tümü') return <RotateCw size={14} />;
+    if (filters.status === 'Aktif') return <Check size={14} />;
+    if (filters.status === 'Removed') return <Trash2 size={14} />;
+    return <RotateCw size={14} />; // Fallback
   };
 
   const handleMultiSelectChange = (key, value) => {
@@ -279,7 +280,7 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
         }`}
         onClick={handleStatusToggle}
       >
-        <span>{getStatusIcon()}</span>
+        {getStatusIcon()}
         <span>{getStatusLabel()}</span>
       </button>
 
@@ -289,7 +290,8 @@ export default function MaterialsFilters({ categories, types, onFilterChange, ma
         className={`mes-filter-button is-compact ${filters.lowStock ? 'active' : ''}`}
         onClick={() => handleFilterChange('lowStock', !filters.lowStock)}
       >
-        <span>⚠️ Düşük Stok</span>
+        <AlertCircle size={14} />
+        <span>Düşük Stok</span>
       </button>
       
       {/* Clear Filters */}

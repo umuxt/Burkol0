@@ -125,7 +125,8 @@ body:has(.materials-page) {
 }
 
 /* Stocks Tab Content */
-.stocks-tab-content {
+.stocks-tab-content,
+.orders-tab-content {
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -136,7 +137,7 @@ body:has(.materials-page) {
 .suppliers-tab-content {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 0;
   flex: 1;
 }
 
@@ -164,14 +165,7 @@ body:has(.materials-page) {
   min-height: 0;
 }
 
-/* Orders Tab Content */
-.orders-tab-content {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  flex: 1;
-}
-
+/* Orders Dashboard - removed duplicate .orders-tab-content definition (unified with stocks-tab-content at line 128) */
 .orders-dashboard {
   display: flex;
   flex-direction: column;
@@ -2856,25 +2850,27 @@ textarea.editable-input {
   opacity: 1;
 }
 
-/* Supplier/Material Detail Panel - MES Style */
+/* Supplier/Material/Order Detail Panel - MES Style */
 .supplier-detail-panel,
-.material-detail-panel {
+.material-detail-panel,
+.order-detail-panel {
   flex: 1 1 0%;
   min-width: 400px;
   height: auto;
-  max-width: 600px;
 }
 
 .suppliers-container,
-.materials-container {
+.materials-container,
+.orders-container {
   display: flex;
-  gap: 20px;
+  gap: 12px;
   height: calc(100vh - 200px);
   flex-direction: row;
 }
 
 .suppliers-table-panel,
-.materials-table-panel {
+.materials-table-panel,
+.orders-table-panel {
   flex: 1 1 0%;
   min-width: 300px;
   display: flex;
@@ -2896,13 +2892,15 @@ textarea.editable-input {
   }
   
   .suppliers-container,
-  .materials-container {
+  .materials-container,
+  .orders-container {
     flex-direction: column;
     height: auto;
   }
   
   .supplier-detail-panel,
-  .material-detail-panel {
+  .material-detail-panel,
+  .order-detail-panel {
     min-width: auto;
     width: 100%;
   }
@@ -3456,15 +3454,7 @@ textarea.editable-input {
   z-index: 1000;
 }
 
-.order-detail-content {
-  background: white;
-  padding: 24px;
-  border-radius: 8px;
-  max-width: 800px;
-  width: 90%;
-  max-height: 80vh;
-  overflow: auto;
-}
+/* Order detail content - no padding, no max-width to allow full panel width */
 
 /* Order Table Enhancements */
 .materials-table tbody tr:hover {

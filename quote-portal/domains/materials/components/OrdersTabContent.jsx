@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Plus, Download, Zap } from '../../../shared/components/Icons.jsx'
+import { Plus, Download, Zap, ArrowLeft } from '../../../shared/components/Icons.jsx'
 import AddOrderModal from './AddOrderModal.jsx'
 import OrdersFilters from './OrdersFilters.jsx'
 import { fetchWithTimeout, withAuth } from '../../../shared/lib/api.js'
@@ -211,40 +211,6 @@ function OrdersTable({
     return colors[status] || '#6b7280'
   }
 
-  // Teslimat durumu renk ve metin helper fonksiyonları
-  const getDeliveryStatusColor = (status) => {
-    const statusColors = {
-      'bugün-teslim': { bg: '#fef3c7', text: '#d97706' },    // Sarı
-      'bu-hafta-teslim': { bg: '#dbeafe', text: '#2563eb' }, // Mavi
-      'gecikmiş': { bg: '#fee2e2', text: '#dc2626' },        // Kırmızı
-      'zamanında': { bg: '#dcfce7', text: '#16a34a' },       // Yeşil
-      'erken': { bg: '#f3e8ff', text: '#9333ea' },           // Mor
-      'teslim-edildi': { bg: '#dcfce7', text: '#16a34a' },   // Yeşil
-      'hesaplanıyor': { bg: '#f1f5f9', text: '#64748b' }     // Gri
-    }
-    return statusColors[status] || statusColors['hesaplanıyor']
-  }
-
-  const getDeliveryStatusText = (status, daysRemaining) => {
-    switch (status) {
-      case 'bugün-teslim':
-        return 'Bugün Teslim'
-      case 'bu-hafta-teslim':
-        return `${daysRemaining} gün kaldı`
-      case 'gecikmiş':
-        return `${Math.abs(daysRemaining)} gün gecikti`
-      case 'zamanında':
-        return 'Zamanında'
-      case 'erken':
-        return 'Erken teslim'
-      case 'teslim-edildi':
-        return 'Teslim edildi'
-      case 'hesaplanıyor':
-        return 'Teslimat tarihi belirsiz'
-      default:
-        return 'Hesaplanıyor'
-    }
-  }
 
   const renderLineChips = (items = []) => (
     <div style={{
@@ -2187,10 +2153,9 @@ export default function OrdersTabContent() {
   }
 
   return (
-    <>
-    <div className="stocks-tab-content">
+    <div className="orders-tab-content">
       {/* MES Filter Bar: Dashboard + Actions + Filters */}
-      <div className="mes-filter-bar" style={{marginBottom: '24px'}}>
+      <div className="mes-filter-bar">
         {/* Dashboard - Inline Single Line - hide when filters expanded */}
         {!isFiltersExpanded && (
           <div className="materials-dashboard-container">
@@ -2270,9 +2235,9 @@ export default function OrdersTabContent() {
       </div>
 
       {/* Orders Container with Side Panel */}
-      <div className="suppliers-container">
+      <div className="orders-container">
         {/* Left Panel - Orders Table */}
-        <div className="suppliers-table-panel">
+        <div className="orders-table-panel">
           <OrdersTable 
             orders={currentOrders}
             loading={currentLoading}
@@ -2305,7 +2270,7 @@ export default function OrdersTabContent() {
 
         {/* Right Panel - Order Details */}
         {selectedOrder && (
-          <div className="supplier-detail-panel">
+          <div className="order-detail-panel">
             <div style={{
               background: 'white',
               borderRadius: '6px',
@@ -2345,157 +2310,138 @@ export default function OrdersTabContent() {
               </div>
 
               {/* Content - Scrollable */}
-              <div style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+              <div className="order-detail-content" style={{ flex: 1, overflow: 'auto', padding: '20px' }}>
+                
                 {/* Sipariş Bilgileri */}
                 <div style={{ 
-                  marginBottom: '16px', 
+                  marginBottom: '12px', 
                   padding: '12px', 
                   background: 'white', 
                   borderRadius: '6px',
-                  border: '1px solid #e5e7eb'
+                  border: '1px solid #e7e5e4',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
                 }}>
-                  <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
-                    Sipariş Bilgileri
-                  </h3>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '16px', marginBottom: '8px' }}>
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
-                        Sipariş Kodu:
-                      </span>
-                      <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '16px', alignItems: 'center', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #e7e5e4' }}>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '500', marginBottom: '4px' }}>SİPARİŞ KODU</div>
+                      <div style={{ fontSize: '14px', color: '#0c0a09', fontWeight: '600' }}>
                         {selectedOrder.orderCode || selectedOrder.id}
-                      </span>
+                      </div>
                     </div>
-                    
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
-                        Durum:
-                      </span>
-                      <select
-                        value={selectedOrder.orderStatus || 'Onay Bekliyor'}
-                        disabled={selectedOrderLoading || actionLoading}
-                        onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)}
-                        style={{
-                          padding: '4px 8px',
-                          fontSize: '12px',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '4px',
-                          background: 'white',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        {ORDER_STATUS_OPTIONS.map(status => (
-                          <option key={status} value={status}>{status}</option>
-                        ))}
-                      </select>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '500', marginBottom: '4px' }}>TEDARİKÇİ</div>
+                      <div style={{ fontSize: '14px', color: '#0c0a09', fontWeight: '600' }}>
+                        {selectedOrder.supplierName}
+                      </div>
                     </div>
+                    <select
+                      value={selectedOrder.orderStatus || 'Onay Bekliyor'}
+                      disabled={selectedOrderLoading || actionLoading}
+                      onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        border: '1px solid #e7e5e4',
+                        borderRadius: '4px',
+                        background: 'white',
+                        color: '#0c0a09',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {ORDER_STATUS_OPTIONS.map(status => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
                   </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
-                        Tedarikçi:
-                      </span>
-                      <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
-                        {selectedOrder.supplierName}
-                      </span>
-                    </div>
-                    
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>
-                        Oluşturulma:
-                      </span>
-                      <span className="detail-value" style={{ fontSize: '12px', color: '#111827' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '500', marginBottom: '4px' }}>Oluşturulma</div>
+                      <div style={{ fontSize: '13px', color: '#0c0a09', fontWeight: '500' }}>
                         {selectedOrder.orderDate ? (new Date(selectedOrder.orderDate)).toLocaleDateString('tr-TR') : '-'}
-                      </span>
+                      </div>
                     </div>
-                    
-                    <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                      <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: '#374151', minWidth: '80px', marginRight: '8px' }}>
-                        Toplam:
-                      </span>
-                      <span className="detail-value" style={{ fontSize: '12px', color: '#111827', fontWeight: '600' }}>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '500', marginBottom: '4px' }}>Tahmini Teslim</div>
+                      <div style={{ fontSize: '13px', color: '#0c0a09', fontWeight: '500' }}>
+                        {selectedOrder.expectedDeliveryDate ? (new Date(selectedOrder.expectedDeliveryDate)).toLocaleDateString('tr-TR') : '-'}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '500', marginBottom: '4px' }}>Toplam Tutar</div>
+                      <div style={{ fontSize: '14px', color: '#0c0a09', fontWeight: '600' }}>
                         {new Intl.NumberFormat('tr-TR', { style: 'currency', currency: selectedOrder.currency || 'TRY' }).format(selectedOrder.totalAmount || 0)}
-                      </span>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-              {/* Tarih ve Teslimat Zaman Çizelgesi */}
-              <div style={{ marginBottom: '16px', padding: '12px', background: '#fff', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>Tarih Bilgileri</h3>
-                <div style={{ padding: '16px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    {/* Step 1 */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', marginRight: '24px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#3b82f6', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 600 }}>1</div>
-                        <span style={{ marginLeft: '8px', fontSize: '14px', color: '#1f2937', fontWeight: 600 }}>Oluşturma</span>
-                        <div style={{ width: '32px', height: '2px', background: '#e5e7eb', marginLeft: '16px' }}></div>
-                      </div>
-                      <div style={{ fontSize: '14px', marginTop: '8px' }}>{selectedOrder.orderDate ? (new Date(selectedOrder.orderDate)).toLocaleDateString('tr-TR') : '—'}</div>
-                    </div>
-                    {/* Step 2 */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', marginRight: '24px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#e5e7eb', color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 600 }}>2</div>
-                        <span style={{ marginLeft: '8px', fontSize: '14px', color: '#6b7280', fontWeight: 400 }}>Tahmini Teslim</span>
-                        <div style={{ width: '32px', height: '2px', background: '#e5e7eb', marginLeft: '16px' }}></div>
-                      </div>
-                      <div style={{ fontSize: '14px', marginTop: '8px' }}>{selectedOrder.expectedDeliveryDate ? (new Date(selectedOrder.expectedDeliveryDate)).toLocaleDateString('tr-TR') : '—'}</div>
-                    </div>
-                    {/* Step 3 */}
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', marginRight: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#e5e7eb', color: '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 600 }}>3</div>
-                        <span style={{ marginLeft: '8px', fontSize: '14px', color: '#6b7280', fontWeight: 400 }}>Teslim</span>
-                      </div>
-                      <div style={{ fontSize: '14px', marginTop: '8px' }}>{selectedOrder.deliveryDate ? (new Date(selectedOrder.deliveryDate)).toLocaleDateString('tr-TR') : '—'}</div>
-                    </div>
+                {/* Teslimat & Not */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                  <div style={{ 
+                    padding: '12px', 
+                    background: 'white', 
+                    borderRadius: '6px',
+                    border: '1px solid #e7e5e4',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+                  }}>
+                    <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '600', marginBottom: '8px', textTransform: 'uppercase' }}>Teslimat Durumu</div>
+                    {(() => {
+                      const today = new Date()
+                      const deliveryDate = selectedOrder.expectedDeliveryDate ? new Date(selectedOrder.expectedDeliveryDate) : null
+                      let status = 'hesaplanıyor'
+                      let daysRemaining = 0
+                      if (deliveryDate && !isNaN(deliveryDate.getTime())) {
+                        const timeDiff = deliveryDate.getTime() - today.getTime()
+                        daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24))
+                        if (selectedOrder.orderStatus === 'Teslim Edildi') status = 'teslim-edildi'
+                        else if (daysRemaining < 0) status = 'gecikmiş'
+                        else if (daysRemaining === 0) status = 'bugün-teslim'
+                        else if (daysRemaining <= 7) status = 'bu-hafta-teslim'
+                        else status = 'zamanında'
+                      }
+                      return (
+                        <span style={{
+                          padding: '4px 12px',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          backgroundColor: getDeliveryStatusColor(status).bg,
+                          color: getDeliveryStatusColor(status).text,
+                          display: 'inline-block'
+                        }}>
+                          {getDeliveryStatusText(status, daysRemaining)}
+                        </span>
+                      )
+                    })()}
                   </div>
-                  {/* Right: Teslimat badge */}
-                  <div style={{ marginLeft: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-                    <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Teslimat</div>
-                    <div style={{ marginTop: '4px' }}>
-                      {(() => {
-                        const today = new Date()
-                        const deliveryDate = selectedOrder.expectedDeliveryDate ? new Date(selectedOrder.expectedDeliveryDate) : null
-                        let status = 'hesaplanıyor'
-                        let daysRemaining = 0
-                        if (deliveryDate && !isNaN(deliveryDate.getTime())) {
-                          const timeDiff = deliveryDate.getTime() - today.getTime()
-                          daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24))
-                          if (selectedOrder.orderStatus === 'Teslim Edildi') status = 'teslim-edildi'
-                          else if (daysRemaining < 0) status = 'gecikmiş'
-                          else if (daysRemaining === 0) status = 'bugün-teslim'
-                          else if (daysRemaining <= 7) status = 'bu-hafta-teslim'
-                          else status = 'zamanında'
-                        }
-                        return (
-                          <span style={{
-                            padding: '4px 8px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: 600,
-                            backgroundColor: getDeliveryStatusColor(status).bg,
-                            color: getDeliveryStatusColor(status).text
-                          }}>
-                            {getDeliveryStatusText(status, daysRemaining)}
-                          </span>
-                        )
-                      })()}
+                  
+                  <div style={{ 
+                    padding: '12px', 
+                    background: 'white', 
+                    borderRadius: '6px',
+                    border: '1px solid #e7e5e4',
+                    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+                  }}>
+                    <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '600', marginBottom: '8px', textTransform: 'uppercase' }}>Not / Referans</div>
+                    <div style={{ fontSize: '12px', color: '#0c0a09', lineHeight: '1.5' }}>
+                      {selectedOrder.notes || '-'}
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Tedarikçi ve Not/Referans blokları */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
-                {/* Tedarikçi Kartı */}
-                <div style={{ padding: '12px', background: '#fff', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
-                    <h3 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#111827' }}>Tedarikçi</h3>
+                {/* Tedarikçi Bilgileri */}
+                <div style={{ 
+                  marginBottom: '12px',
+                  padding: '12px', 
+                  background: 'white', 
+                  borderRadius: '6px',
+                  border: '1px solid #e7e5e4',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '600', textTransform: 'uppercase' }}>Tedarikçi Bilgileri</div>
                     <button
                       type="button"
                       onClick={() => {
@@ -2504,144 +2450,158 @@ export default function OrdersTabContent() {
                         const url = `materials.html#suppliers-tab&supplier-${encodeURIComponent(supplierId)}`
                         window.open(url, '_blank')
                       }}
-                      style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: '6px', background: '#fff', fontSize: '12px', cursor: 'pointer' }}
+                      style={{
+                        padding: '4px 8px',
+                        border: '1px solid #e7e5e4',
+                        borderRadius: '4px',
+                        background: 'white',
+                        color: '#0c0a09',
+                        fontSize: '11px',
+                        fontWeight: '500',
+                        cursor: 'pointer'
+                      }}
                     >
-                      Tedarikçi detayına git ↗
+                      Detaya Git ↗
                     </button>
                   </div>
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>Tedarikçi ID/Kodu:</span>
-                    <div style={{ flex: '1 1 0%' }}>{selectedOrder.supplierId || selectedOrder.supplierCode || '—'}</div>
-                  </div>
-                  <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
-                    <span className="detail-label" style={{ fontWeight: 600, fontSize: '12px', color: '#374151', minWidth: '120px', marginRight: '8px' }}>Tedarikçi Adı:</span>
-                    <div style={{ flex: '1 1 0%', fontWeight: 600 }}>{selectedOrder.supplierName || '—'}</div>
-                  </div>
-                </div>
-                {/* Not/Referans Kartı */}
-                <div style={{ padding: '12px', background: '#fff', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
-                  <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: 600, color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>Not / Referans</h3>
-                  <div style={{ fontSize: '13px', color: '#1f2937' }}>
-                    {selectedOrder.notes || '—'}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: '#78716c', fontWeight: '500' }}>Tedarikçi Kodu:</span>
+                      <span style={{ color: '#0c0a09', fontWeight: '600' }}>
+                        {selectedOrder.supplierId ? `T-${String(selectedOrder.supplierId).padStart(4, '0')}` : '-'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: '#78716c', fontWeight: '500' }}>Tedarikçi Adı:</span>
+                      <span style={{ color: '#0c0a09', fontWeight: '600' }}>{selectedOrder.supplierName || '-'}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div style={{ marginBottom: '16px', padding: '12px', background: '#fff', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: '14px', fontWeight: '600', color: '#111827', borderBottom: '1px solid #e5e7eb', paddingBottom: '6px' }}>
-                  Sipariş Satırları ({selectedOrder.items?.length || selectedOrder.item_count || 0})
-                </h3>
+                {/* Sipariş Satırları */}
+                <div style={{ 
+                  marginBottom: '16px', 
+                  padding: '12px', 
+                  background: 'white', 
+                  borderRadius: '6px',
+                  border: '1px solid #e7e5e4',
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
+                }}>
+                  <div style={{ fontSize: '11px', color: '#78716c', fontWeight: '600', marginBottom: '12px', textTransform: 'uppercase' }}>
+                    Sipariş Satırları ({selectedOrder.items?.length || selectedOrder.item_count || 0})
+                  </div>
                 {selectedOrderLoading ? (
                   <p style={{ padding: '12px 0', color: '#6b7280' }}>Satırlar yükleniyor...</p>
                 ) : selectedOrderError ? (
                   <p style={{ color: '#dc2626', padding: '12px 0' }}>Satırlar yüklenemedi: {selectedOrderError}</p>
                 ) : (selectedOrder.items && selectedOrder.items.length > 0) ? (
-                  <div style={{
-                    display: 'inline-flex',
-                    flexWrap: 'nowrap',
-                    gap: '12px',
-                    alignItems: 'flex-start',
-                    whiteSpace: 'nowrap',
-                    overflowX: 'auto',
-                    maxWidth: '100%',
-                    WebkitOverflowScrolling: 'touch'
-                  }}>
-                  {console.log('🔍 DEBUG: Rendering order items:', selectedOrder.items.length, 'items')}
-                  {[...(selectedOrder.items || [])]
-                    .sort((a, b) => (a.itemSequence || 0) - (b.itemSequence || 0))
-                    .map((item, index) => {
-                      const itemId = item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`
-                      const isItemUpdating = updatingItemIds.includes(itemId);
-                      console.log('🔍 Rendering item:', {
-                        itemId: itemId,
-                        itemStatus: item.itemStatus,
-                        materialCode: item.materialCode,
-                        isUpdating: isItemUpdating
-                      });
-                      return (
-                        <div
-                          key={itemId}
-                          style={{
-                            display: 'inline-flex',
-                            flexDirection: 'column',
-                            flex: '0 0 auto',
-                            border: '1px solid rgb(226, 232, 240)',
-                            borderRadius: '8px',
-                            background: 'rgb(255, 255, 255)',
-                            padding: '6px 8px',
-                            minWidth: 0,
-                            width: 'fit-content',
-                            maxWidth: '260px',
-                            boxShadow: 'rgba(15, 23, 42, 0.05) 0px 1px 2px'
-                          }}
-                        >
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', alignItems: 'center', marginBottom: '6px', gap: '6px' }}>
-                            <span style={{ fontSize: '11px', fontWeight: 600, color: 'rgb(29, 78, 216)' }}>
-                              {item.itemCode || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
-                            </span>
-                            <span style={{ fontSize: '6px', fontWeight: 600, color: 'rgb(15, 23, 42)', background: 'rgb(226, 232, 240)', padding: '1px 6px', borderRadius: '999px', whiteSpace: 'nowrap' }}>
-                              {(() => {
-                                const itemKey = `${selectedOrder.id}-${item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`}`
-                                return itemStatusUpdates[itemKey] || item.itemStatus || 'Onay Bekliyor'
-                              })()}
-                            </span>
-                            <select
-                              value={(() => {
-                                const itemKey = `${selectedOrder.id}-${item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`}`
-                                return itemStatusUpdates[itemKey] || item.itemStatus || 'Onay Bekliyor'
-                              })()}
-                              disabled={isItemUpdating}
-                              onChange={(e) => {
-                                console.log('�🔥🔥 DROPDOWN ITEM STATUS CHANGE TRIGGERED!');
-                                console.log('�🔍 Item status değişiyor:', {
-                                  itemId: item.id,
-                                  itemLineId: item.lineId,
-                                  itemCode: item.itemCode,
-                                  oldStatus: item.itemStatus,
-                                  newStatus: e.target.value,
-                                  materialCode: item.materialCode,
-                                  disabled: isItemUpdating,
-                                  selectedOrderId: selectedOrder.id,
-                                  fullItem: item
-                                });
-                                console.log('🔥🔥🔥 CALLING handleItemStatusChange...');
-                                handleItemStatusChange(selectedOrder.id, item, e.target.value);
-                              }}
-                              style={{
-                                padding: '2px 6px',
-                                fontSize: '10px',
-                                border: '1px solid #d1d5db',
-                                borderRadius: '4px',
-                                background: '#fff'
-                              }}
-                            >
-                              {ITEM_STATUS_OPTIONS.map(status => (
-                                <option key={status} value={status}>{status}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '4px', fontSize: '11px', color: 'rgb(71, 85, 105)', alignItems: 'center' }}>
-                            <div style={{ fontWeight: 600 }}>{item.materialCode || '—'}</div>
-                            <div style={{ fontWeight: 500, color: 'rgb(17, 24, 39)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {item.materialName || '-'}
-                            </div>
-                            <div style={{ textAlign: 'right', fontWeight: 600 }}>
-                              {item.quantity || 0} adet
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                </div>
-              ) : (
-                <p style={{ color: '#6b7280', fontStyle: 'italic' }}>Bu sipariş için kayıtlı kalem bulunamadı.</p>
-              )}
+                  <div className="table-container" style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                            Satır Kodu
+                          </th>
+                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                            Malzeme Kodu
+                          </th>
+                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                            Malzeme Adı
+                          </th>
+                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                            Miktar
+                          </th>
+                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'left', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                            Durum
+                          </th>
+                          <th style={{ background: '#f9fafb', padding: '8px 12px', textAlign: 'center', fontWeight: '600', color: '#374151', borderBottom: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
+                            İşlemler
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {console.log('🔍 DEBUG: Rendering order items:', selectedOrder.items.length, 'items')}
+                        {[...(selectedOrder.items || [])]
+                          .sort((a, b) => (a.itemSequence || 0) - (b.itemSequence || 0))
+                          .map((item, index) => {
+                            const itemId = item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`
+                            const isItemUpdating = updatingItemIds.includes(itemId);
+                            const itemKey = `${selectedOrder.id}-${item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`}`
+                            const currentStatus = itemStatusUpdates[itemKey] || item.itemStatus || 'Onay Bekliyor'
+                            console.log('🔍 Rendering item:', {
+                              itemId: itemId,
+                              itemStatus: item.itemStatus,
+                              materialCode: item.materialCode,
+                              isUpdating: isItemUpdating
+                            });
+                            return (
+                              <tr key={itemId} style={{ background: '#fff' }}>
+                                <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
+                                  {item.itemCode || item.lineId || `item-${String(index + 1).padStart(2, '0')}`}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
+                                  {item.materialCode || '—'}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
+                                  {item.materialName || '-'}
+                                </td>
+                                <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
+                                  {item.quantity || 0} adet
+                                </td>
+                                <td style={{ padding: '8px 12px', color: '#111827', fontSize: '11px', borderBottom: '1px solid #f1f5f9' }}>
+                                  <span style={{ fontSize: '10px', fontWeight: 600, color: '#0f172a', background: '#e2e8f0', padding: '2px 8px', borderRadius: '999px', whiteSpace: 'nowrap', display: 'inline-block' }}>
+                                    {currentStatus}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                                  <select
+                                    value={currentStatus}
+                                    disabled={isItemUpdating}
+                                    onChange={(e) => {
+                                      console.log('🔥🔥 DROPDOWN ITEM STATUS CHANGE TRIGGERED!');
+                                      console.log('🔍 Item status değişiyor:', {
+                                        itemId: item.id,
+                                        itemLineId: item.lineId,
+                                        itemCode: item.itemCode,
+                                        oldStatus: item.itemStatus,
+                                        newStatus: e.target.value,
+                                        materialCode: item.materialCode,
+                                        disabled: isItemUpdating,
+                                        selectedOrderId: selectedOrder.id,
+                                        fullItem: item
+                                      });
+                                      console.log('🔥🔥🔥 CALLING handleItemStatusChange...');
+                                      handleItemStatusChange(selectedOrder.id, item, e.target.value);
+                                    }}
+                                    style={{
+                                      padding: '4px 8px',
+                                      fontSize: '11px',
+                                      border: '1px solid #d1d5db',
+                                      borderRadius: '4px',
+                                      background: '#fff'
+                                    }}
+                                  >
+                                    {ITEM_STATUS_OPTIONS.map(status => (
+                                      <option key={status} value={status}>{status}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p style={{ color: '#6b7280', fontStyle: 'italic' }}>Bu sipariş için kayıtlı kalem bulunamadı.</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
-      </div>
-
+    </div>
+      
       {/* Add Order Modal */}
       <AddOrderModal 
         isOpen={isAddOrderModalOpen}
@@ -2837,6 +2797,202 @@ export default function OrdersTabContent() {
           </div>
         </div>
       )}
-    </>
+      
+      {/* Add Order Modal */}
+      <AddOrderModal 
+        isOpen={isAddOrderModalOpen}
+        onClose={() => setIsAddOrderModalOpen(false)}
+        deliveredRecordMode={isDeliveredRecordMode}
+        onSave={async (newOrder) => {
+          console.log('✅ New order created:', newOrder);
+          console.log('🔄 IMMEDIATE REFRESH: Triggering aggressive refresh...');
+          
+          // ✅ IMMEDIATE REFRESH - Multiple attempts for real-time update
+          await refreshOrders();
+          
+          // ✅ BACKUP REFRESH: 500ms sonra bir daha refresh (network gecikmeleri için)
+          setTimeout(async () => {
+            console.log('🔄 BACKUP REFRESH: Second refresh...');
+            await refreshOrders();
+          }, 500);
+          
+          // ✅ FINAL REFRESH: 1.5s sonra final refresh
+          setTimeout(async () => {
+            console.log('🔄 FINAL REFRESH: Third refresh...');
+            await refreshOrders();
+          }, 1500);
+        }}
+      />
+      
+      
+      
+      {/* 📦 LOT TRACKING: Delivery Modal */}
+      {deliveryModalOpen && deliveryModalItem && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999
+          }}
+          onClick={() => !deliveryLoading && setDeliveryModalOpen(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '500px',
+              width: '90%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ marginBottom: '20px', borderBottom: '1px solid #e5e7eb', paddingBottom: '16px' }}>
+              <h2 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                📦 Malzeme Teslim Al
+              </h2>
+              <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                <div><strong>Malzeme:</strong> {deliveryModalItem.item.materialName} ({deliveryModalItem.item.materialCode})</div>
+                <div><strong>Miktar:</strong> {deliveryModalItem.item.quantity} adet</div>
+              </div>
+            </div>
+            
+            {/* Form Fields */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Delivery Date */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                  Teslim Tarihi <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <input
+                  type="date"
+                  className="mes-filter-input"
+                  value={deliveryFormData.actualDeliveryDate}
+                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, actualDeliveryDate: e.target.value }))}
+                  max={new Date().toISOString().split('T')[0]}
+                  required
+                  disabled={deliveryLoading}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              
+              {/* Supplier Lot Code */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                  Tedarikçi Lot/Batch Kodu <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                </label>
+                <input
+                  type="text"
+                  className="mes-filter-input"
+                  placeholder="Örn: BATCH-2025-001"
+                  value={deliveryFormData.supplierLotCode}
+                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, supplierLotCode: e.target.value }))}
+                  maxLength={100}
+                  disabled={deliveryLoading}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              
+              {/* Manufacturing Date */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                  Üretim Tarihi <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                </label>
+                <input
+                  type="date"
+                  className="mes-filter-input"
+                  value={deliveryFormData.manufacturingDate}
+                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, manufacturingDate: e.target.value }))}
+                  max={new Date().toISOString().split('T')[0]}
+                  disabled={deliveryLoading}
+                  style={{ width: '100%' }}
+                />
+                <small style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                  Üretim tarihi bugünden ileri olamaz
+                </small>
+              </div>
+              
+              {/* Expiry Date */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                  Son Kullanma Tarihi <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                </label>
+                <input
+                  type="date"
+                  className="mes-filter-input"
+                  value={deliveryFormData.expiryDate}
+                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, expiryDate: e.target.value }))}
+                  min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
+                  disabled={deliveryLoading}
+                  style={{ width: '100%' }}
+                />
+                <small style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                  Son kullanma tarihi bugünden sonra olmalıdır
+                </small>
+              </div>
+              
+              {/* Notes */}
+              <div>
+                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                  Notlar <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                </label>
+                <textarea
+                  className="mes-filter-input"
+                  placeholder="Teslimata dair ek notlar..."
+                  value={deliveryFormData.notes}
+                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, notes: e.target.value }))}
+                  rows={3}
+                  disabled={deliveryLoading}
+                  style={{ width: '100%', resize: 'vertical' }}
+                />
+              </div>
+              
+              {/* Info Message */}
+              <div style={{
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '6px',
+                padding: '12px',
+                fontSize: '12px',
+                color: '#1e40af'
+              }}>
+                <strong>ℹ️ Bilgi:</strong> Lot numarası otomatik olarak oluşturulacaktır.<br />
+                Format: <code style={{ background: '#dbeafe', padding: '2px 4px', borderRadius: '3px' }}>LOT-{'{'}malzeme_kodu{'}'}-{'{'}YYYYMMDD{'}'}-{'{'}sıra{'}'}</code>
+              </div>
+            </div>
+            
+            {/* Action Buttons */}
+            <div style={{ marginTop: '24px', display: 'flex', gap: '12px', justifyContent: 'flex-end', borderTop: '1px solid #e5e7eb', paddingTop: '16px' }}>
+              <button
+                className="mes-filter-button"
+                onClick={() => setDeliveryModalOpen(false)}
+                disabled={deliveryLoading}
+                style={{ padding: '8px 16px' }}
+              >
+                İptal
+              </button>
+              <button
+                className="mes-primary-action"
+                onClick={handleDeliverItem}
+                disabled={deliveryLoading || !deliveryFormData.actualDeliveryDate}
+                style={{ padding: '8px 16px' }}
+              >
+                {deliveryLoading ? '⏳ Kaydediliyor...' : '✅ Teslimi Kaydet'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
