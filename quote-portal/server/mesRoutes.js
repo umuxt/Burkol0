@@ -1316,22 +1316,19 @@ router.get('/master-data', withAuth, async (req, res) => {
       .first();
     
     if (!result) {
-      // Return defaults if no master data exists
+      // Return minimal defaults if no master data exists
+      console.warn('⚠️ No master-data found in mes.settings, returning minimal defaults');
       return res.json({
-        availableSkills: ['Kaynak', 'Tornalama', 'Freze', 'Montaj'],
-        availableOperationTypes: ['İmalat', 'Kontrol', 'Montaj', 'Paketleme'],
+        availableSkills: [],
+        availableOperationTypes: [],
         stationEfficiency: 1.0,
         workerEfficiency: 1.0,
-        timeSettings: {
-          workType: 'fixed',
-          laneCount: 1,
-          fixedBlocks: {},
-          shiftBlocks: {}
-        }
+        timeSettings: null  // No time settings available
       });
     }
 
     const data = result.value || {};
+    
     // Map legacy field names if present
     if (!data.availableSkills && Array.isArray(data.skills)) {
       data.availableSkills = data.skills;
@@ -1339,16 +1336,13 @@ router.get('/master-data', withAuth, async (req, res) => {
     if (!data.availableOperationTypes && Array.isArray(data.operationTypes)) {
       data.availableOperationTypes = data.operationTypes;
     }
+    
     // Ensure efficiency defaults
     data.stationEfficiency = data.stationEfficiency ?? 1.0;
     data.workerEfficiency = data.workerEfficiency ?? 1.0;
-    // Ensure timeSettings exists with safe defaults
-    data.timeSettings = data.timeSettings || { 
-      workType: 'fixed', 
-      laneCount: 1, 
-      fixedBlocks: {}, 
-      shiftBlocks: {} 
-    };
+    
+    // Return timeSettings as-is from database (no default injection)
+    // Frontend should handle missing/empty timeSettings gracefully
     
     res.json(data);
   } catch (error) {

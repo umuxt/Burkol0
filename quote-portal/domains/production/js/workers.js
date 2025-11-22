@@ -468,17 +468,27 @@ function safeLoadCompanyTimeSettings() {
       const cached = sessionStorage.getItem('mes_master_data_cache')
       if (cached) {
         const md = JSON.parse(cached)
-        if (md && md.timeSettings) return md.timeSettings
+        if (md && md.timeSettings) {
+          console.log('✅ Loaded timeSettings from sessionStorage cache');
+          return md.timeSettings;
+        }
       }
     } catch {}
     // Fallback to local persisted companyTimeSettings
     const raw = localStorage.getItem('companyTimeSettings')
     if (raw) {
       const data = JSON.parse(raw)
-      if (data && typeof data === 'object') return data
+      if (data && typeof data === 'object') {
+        console.log('✅ Loaded timeSettings from localStorage');
+        return data;
+      }
     }
+    console.warn('⚠️ No timeSettings found in cache or localStorage');
     return null
-  } catch { return null }
+  } catch { 
+    console.error('❌ Error loading company time settings');
+    return null 
+  }
 }
 
 // Backward-compat name retained; used as core builder
@@ -489,19 +499,13 @@ function renderCompanyScheduleGrid(company, shiftNo) {
     break: 'background: rgba(251,191,36,.15); color:#92400e; border:1px solid #fbbf24;',
     rest: 'background: rgba(156,163,175,.2); color:#1f2937; border:1px solid #9ca3af;'
   }
-  const useShift = company?.workType === 'shift'
   let buf = ''
   
   // Build blocks per day and render compact static weekly timeline
   const blocksByDay = {}
   for (const d of days) {
-    const fixedList = company?.fixedBlocks?.[d] || []
-    let list = []
-    if (useShift) {
-      list = getShiftBlocksForDay(company, d, shiftNo)
-    } else {
-      list = fixedList
-    }
+    // ALWAYS use getShiftBlocksForDay - it handles all formats (fixed, shift, shiftByLane, etc.)
+    const list = getShiftBlocksForDay(company, d, shiftNo) || []
     blocksByDay[d] = list
   }
   
@@ -518,10 +522,21 @@ function getShiftBlocksForDay(ts, day, shiftNo) {
     }
   }
   
-  // 0.5) FIXED SCHEDULE FALLBACK: If workType is 'fixed', use fixedBlocks
+  // 0.5) FIXED SCHEDULE: workType='fixed' should use shiftByLane (not fixedBlocks)
+  // This handles the case where workType is 'fixed' but data is stored in shiftByLane
+  if (ts?.workType === 'fixed' && ts?.shiftByLane) {
+    const lane = shiftNo || '1';
+    const blocks = ts.shiftByLane[String(lane)]?.[day];
+    if (Array.isArray(blocks) && blocks.length > 0) {
+      console.log(`📌 Using shiftByLane for fixed schedule (${day}, lane ${lane}):`, blocks);
+      return blocks;
+    }
+  }
+  
+  // 0.6) FIXED SCHEDULE FALLBACK: If workType is 'fixed', use fixedBlocks
   if (ts?.workType === 'fixed' && ts?.fixedBlocks) {
     const blocks = ts.fixedBlocks[day];
-    if (Array.isArray(blocks)) {
+    if (Array.isArray(blocks) && blocks.length > 0) {
       console.log(`📌 Using fixed schedule blocks for ${day}:`, blocks);
       return blocks;
     }
