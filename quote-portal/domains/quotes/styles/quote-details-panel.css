@@ -1,0 +1,133 @@
+/* Quote Details Panel Styles - Side Panel (like Materials) */
+
+/* Quotes container - table on left, detail panel on right */
+.quotes-container {
+  display: flex;
+  gap: 12px;
+  height: calc(100vh - 200px);
+  flex-direction: row;
+}
+
+.quotes-table-panel {
+  flex: 1 1 0%;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+}
+
+.quote-detail-panel {
+  flex: 1 1 0%;
+  min-width: 400px;
+  height: auto;
+}
+
+.quote-detail-panel {
+  background: white;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .quotes-container {
+    flex-direction: column;
+    height: auto;
+  }
+  
+  .quote-detail-panel {
+    min-width: auto;
+    width: 100%;
+  }
+}
+
+/* Detail item styles */
+.detail-item {
+  transition: background-color 0.2s ease;
+}
+
+.detail-item:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+  border-radius: 4px;
+}
+
+/* Form input focus states */
+.quote-detail-panel input:focus,
+.quote-detail-panel textarea:focus,
+.quote-detail-panel select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Button hover effects */
+.quote-detail-panel button:not(:disabled):hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
+}
+
+.quote-detail-panel button:not(:disabled):active {
+  transform: translateY(0);
+}
+
+/* Scrollbar styling for detail panel */
+.quote-detail-panel ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.quote-detail-panel ::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.quote-detail-panel ::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.quote-detail-panel ::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Add Quote Modal Overlay */
+.add-quote-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.add-quote-modal {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

@@ -52,6 +52,8 @@ import {
   Check,
   XCircle,
   Info,
+  Lock,
+  Unlock,
   
 } from 'lucide-react';
 
@@ -106,6 +108,8 @@ export const Icons = {
   Check,
   XCircle,
   Info,
+  Lock,
+  Unlock,
 };
 
 // Helper component for consistent icon rendering
@@ -163,6 +167,8 @@ export {
   Check,
   XCircle,
   Info,
+  Lock,
+  Unlock,
 };
 
 export default Icons;

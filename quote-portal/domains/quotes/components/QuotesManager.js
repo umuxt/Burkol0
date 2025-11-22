@@ -6,7 +6,8 @@ import { statusLabel, procLabel, materialLabel } from '../../../shared/i18n.js'
 import { getTableColumns, getFieldValue, formatFieldValue } from '../lib/table-utils.js'
 import { calculatePrice, getPriceChangeType } from '../lib/price-calculator.js'
 import { createFilteredList, getFilterOptions, updateFilter, clearFilters, clearSpecificFilter, getActiveFilterCount } from '../lib/filter-utils.js'
-import { DetailModal } from '../../../src/components/modals/DetailModal.js'
+import QuoteDetailsPanel from './QuoteDetailsPanel.jsx'
+import AddQuoteModal from './AddQuoteModal.jsx'
 import SettingsModalCompact from '../../../src/components/modals/SettingsModal.js'
 import { FilterPopup } from '../../../src/components/modals/FilterPopup.js'
 import QuotesTabs from './QuotesTabs.jsx'
@@ -71,7 +72,7 @@ function isQuoteFlaggedForPricing(quote) {
 function QuotesManager({ t, onLogout }) {
   console.log('🔄 QuotesManager component loaded at:', new Date().toLocaleTimeString())
   const [list, setList] = useState([])
-  const [detail, setDetail] = useState(null)
+  const [selectedQuote, setSelectedQuote] = useState(null)
   const [creating, setCreating] = useState(false)
   const [selected, setSelected] = useState(new Set())
   const [settingsModal, setSettingsModal] = useState(false)
@@ -267,16 +268,16 @@ function QuotesManager({ t, onLogout }) {
     }
   }
 
-  // Update detail modal when list changes
+  // Update detail panel when list changes
   React.useEffect(() => {
-    if (detail && detail.id && list && list.length > 0) {
-      const updatedItem = list.find(item => item.id === detail.id)
-      if (updatedItem && JSON.stringify(updatedItem) !== JSON.stringify(detail)) {
-        console.log('🔧 Updating detail modal with refreshed data from list change')
-        setDetail(updatedItem)
+    if (selectedQuote && selectedQuote.id && list && list.length > 0) {
+      const updatedItem = list.find(item => item.id === selectedQuote.id)
+      if (updatedItem && JSON.stringify(updatedItem) !== JSON.stringify(selectedQuote)) {
+        console.log('🔧 Updating detail panel with refreshed data from list change')
+        setSelectedQuote(updatedItem)
       }
     }
-  }, [list, detail])
+  }, [list, selectedQuote])
 
   async function handleAddRecord(recordData) {
     console.log('🔧 DEBUG: handleAddRecord called with:', recordData)
@@ -302,8 +303,8 @@ function QuotesManager({ t, onLogout }) {
       await API.updateStatus(itemId, newStatus)
       
       // Update the detail item if it's currently being viewed
-      if (detail && detail.id === itemId) {
-        setDetail(prev => ({ ...prev, status: newStatus }))
+      if (selectedQuote && selectedQuote.id === itemId) {
+        setSelectedQuote(prev => ({ ...prev, status: newStatus }))
       }
       
       await refresh() // Reload the list
@@ -639,8 +640,8 @@ function QuotesManager({ t, onLogout }) {
     // Remove the specific quote from the list instead of full refresh
     setList(prevList => prevList.filter(quote => quote.id !== id))
     // If this was the detail view, close it
-    if (detail && detail.id === id) {
-      setDetail(null)
+    if (selectedQuote && selectedQuote.id === id) {
+      setSelectedQuote(null)
     }
     showToast('Kayıt silindi!', 'success')
   }
@@ -795,8 +796,8 @@ function QuotesManager({ t, onLogout }) {
         if (response?.quote) {
           const updatedQuote = response.quote
           setList(prevList => prevList.map(q => q.id === id ? { ...q, ...updatedQuote } : q))
-          if (detail && detail.id === id) {
-            setDetail(prev => prev ? { ...prev, ...updatedQuote } : prev)
+          if (selectedQuote && selectedQuote.id === id) {
+            setSelectedQuote(prev => prev ? { ...prev, ...updatedQuote } : prev)
           }
         }
       } catch (error) {
@@ -974,8 +975,8 @@ function QuotesManager({ t, onLogout }) {
 
       setList(prevList => prevList.map(quote => quote.id === priceReview.item.id ? { ...quote, ...updatedQuote } : quote))
 
-      if (detail && detail.id === priceReview.item.id) {
-        setDetail(prev => ({ ...prev, ...updatedQuote }))
+      if (selectedQuote && selectedQuote.id === priceReview.item.id) {
+        setSelectedQuote(prev => ({ ...prev, ...updatedQuote }))
       }
 
       showToast('Fiyat güncellendi!', 'success')
@@ -1015,8 +1016,8 @@ function QuotesManager({ t, onLogout }) {
 
       setList(prevList => prevList.map(quote => quote.id === priceReview.item.id ? { ...quote, ...updatedQuote } : quote))
 
-      if (detail && detail.id === priceReview.item.id) {
-        setDetail(prev => ({ ...prev, ...updatedQuote }))
+      if (selectedQuote && selectedQuote.id === priceReview.item.id) {
+        setSelectedQuote(prev => ({ ...prev, ...updatedQuote }))
       }
 
       showToast('Versiyon güncellendi!', 'success')
@@ -1054,8 +1055,8 @@ function QuotesManager({ t, onLogout }) {
 
       setList(prevList => prevList.map(quote => quote.id === priceReview.item.id ? { ...quote, ...updatedQuote } : quote))
 
-      if (detail && detail.id === priceReview.item.id) {
-        setDetail(prev => ({ ...prev, ...updatedQuote }))
+      if (selectedQuote && selectedQuote.id === priceReview.item.id) {
+        setSelectedQuote(prev => ({ ...prev, ...updatedQuote }))
       }
 
       showToast('Uyarı gizlendi', 'success')
@@ -1256,9 +1257,12 @@ function QuotesManager({ t, onLogout }) {
           )
         ),
 
-    // Data table
-    React.createElement('div', { className: 'quotes-table-container' },
-      React.createElement('div', { className: 'quotes-table-wrapper' },
+    // Quotes container - table on left, detail panel on right (like materials)
+    React.createElement('div', { className: 'quotes-container' },
+      // Left side - Table
+      React.createElement('div', { className: 'quotes-table-panel' },
+        React.createElement('div', { className: 'quotes-table-container' },
+          React.createElement('div', { className: 'quotes-table-wrapper' },
         // Loading overlay for table only
         loading && !bulkProgress && React.createElement('div', { className: 'quotes-loading' },
           React.createElement('div', { className: 'spinner' }),
@@ -1275,25 +1279,29 @@ function QuotesManager({ t, onLogout }) {
         React.createElement('table', { className: 'quotes-table' },
           React.createElement('thead', null,
             React.createElement('tr', null,
-              React.createElement('th', null,
+              React.createElement('th', { style: { width: '40px', textAlign: 'center' } },
                 React.createElement('input', {
                   type: 'checkbox',
                   checked: selected.size === filtered.length && filtered.length > 0,
                   onChange: (e) => toggleAll(e.target.checked),
-                  onClick: (e) => e.stopPropagation()
+                  onClick: (e) => e.stopPropagation(),
+                  title: 'Tümünü seç'
                 })
               ),
               ...tableColumns.map(col => {
                 const isActive = sortConfig?.columnId === col.id
                 const indicator = isActive ? (sortConfig.direction === 'asc' ? '↑' : '↓') : '↕'
-                return React.createElement('th', { key: col.id },
+                return React.createElement('th', { 
+                  key: col.id,
+                  style: { minWidth: '120px', whiteSpace: 'nowrap' }
+                },
                   React.createElement('button', {
                     type: 'button',
                     onClick: () => handleSort(col.id),
-                    className: isActive ? 'quotes-sort-button active' : 'quotes-sort-button'
+                    className: isActive ? 'mes-sort-button active' : 'mes-sort-button'
                   },
                     col.label,
-                    React.createElement('span', { className: 'quotes-sort-icon' }, indicator)
+                    React.createElement('span', { className: 'mes-sort-icon' }, indicator)
                   )
                 )
               })
@@ -1308,7 +1316,7 @@ function QuotesManager({ t, onLogout }) {
                 key: item.id,
                 onClick: () => {
                   console.log('🔧 DEBUG: Row clicked for item:', item.id, item);
-                  setDetail(item);
+                  setSelectedQuote(item);
                 },
                 className: selected.has(item.id) ? 'selected' : '',
                 style: { cursor: 'pointer' }
@@ -1402,6 +1410,28 @@ function QuotesManager({ t, onLogout }) {
         React.createElement('option', { value: 50 }, '50 kayıt')
       )
     )
+      ), // End of quotes-table-panel
+
+      // Right side - Detail Panel
+      selectedQuote && React.createElement(QuoteDetailsPanel, {
+        quote: selectedQuote,
+        onClose: () => setSelectedQuote(null),
+        onSave: async (quoteId, quoteData) => {
+          await API.update(quoteId, quoteData)
+          await refresh()
+        },
+        onDelete: remove,
+        onStatusChange: setItemStatus,
+        formConfig,
+        t,
+        loading: loading,
+        onRefreshQuote: refresh,
+        globalProcessing,
+        setGlobalProcessing,
+        checkAndProcessVersionUpdates,
+        currentQuotes: list
+      })
+    ), // End of quotes-container
     ), // End of Tab 1: Teklifler content
     
     // Tab 2: Fiyatlandırma
@@ -1443,17 +1473,14 @@ function QuotesManager({ t, onLogout }) {
       checkAndProcessVersionUpdates
     }),
 
-    detail && React.createElement(DetailModal, {
-      item: detail,
-      onClose: () => setDetail(null),
-      setItemStatus: setItemStatus,
+    // Add Quote Modal
+    showAddModal && React.createElement(AddQuoteModal, {
+      onClose: () => setShowAddModal(false),
       onSaved: refresh,
       formConfig,
       t,
       globalProcessing,
-      setGlobalProcessing,
-      checkAndProcessVersionUpdates,
-      currentQuotes: list
+      setGlobalProcessing
     }),
 
     filterPopup && React.createElement(FilterPopup, {

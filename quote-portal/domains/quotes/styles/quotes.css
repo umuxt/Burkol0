@@ -1,4 +1,6 @@
 /* Quotes Dashboard - MES Design System */
+@import './quote-details-panel.css';
+
 .quotes-page {
   display: flex;
   flex-direction: column;
@@ -660,8 +662,9 @@ input.mes-search-input:focus,
   padding: 2px 4px !important;
 }
 
-/* Sort Button in Header */
-.quotes-sort-button {
+/* Sort Button in Header - MES Style */
+.quotes-sort-button,
+.mes-sort-button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -672,15 +675,24 @@ input.mes-search-input:focus,
   font: inherit;
   color: inherit;
   font-weight: 600;
+  transition: opacity 0.15s ease;
 }
 
-.quotes-sort-button:hover {
-  color: rgb(17, 24, 39);
+.quotes-sort-button:hover,
+.mes-sort-button:hover {
+  opacity: 0.7;
 }
 
-.quotes-sort-icon {
+.quotes-sort-icon,
+.mes-sort-icon {
   font-size: 12px;
   opacity: 0.6;
+  transition: opacity 0.15s ease;
+}
+
+.quotes-sort-button:hover .quotes-sort-icon,
+.mes-sort-button:hover .mes-sort-icon {
+  opacity: 1;
 }
 
 /* Table Body */
