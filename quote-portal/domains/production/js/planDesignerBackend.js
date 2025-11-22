@@ -880,13 +880,26 @@ function buildMaterialList(query, rowIdx) {
 
 export function selectMaterialFromDropdown(id, rowIdx) {
   try {
-    const m = (_materialsCacheFull||[]).find(x => (x.id===id) || (x.code===id) || (x.name===id))
+    console.log('🎯 selectMaterialFromDropdown called:', { id, rowIdx, idType: typeof id })
+    // Convert id to both string and number for flexible matching
+    const idStr = String(id)
+    const idNum = parseInt(id, 10)
+    const m = (_materialsCacheFull||[]).find(x => 
+      x.id === id || x.id === idStr || x.id === idNum ||
+      x.code === id || x.code === idStr ||
+      x.name === id
+    )
+    console.log('🔍 Material found:', m ? `${m.code} - ${m.name}` : 'NOT FOUND')
     const disp = document.getElementById('edit-material-display-' + rowIdx)
     const idEl = document.getElementById('edit-material-id-' + rowIdx)
     const nameEl = document.getElementById('edit-material-name-' + rowIdx)
     const unitEl = document.getElementById('edit-material-unit-' + rowIdx)
     const dd = document.getElementById('edit-material-dropdown-' + rowIdx)
-    if (!m || !disp || !idEl || !nameEl || !dd) return
+    console.log('🔍 DOM elements:', { disp: !!disp, idEl: !!idEl, nameEl: !!nameEl, dd: !!dd })
+    if (!m || !disp || !idEl || !nameEl || !dd) {
+      console.warn('❌ Selection failed - missing:', { m: !!m, disp: !!disp, idEl: !!idEl, nameEl: !!nameEl, dd: !!dd })
+      return
+    }
     
     const node = planDesignerState.selectedNode;
     
@@ -915,15 +928,19 @@ export function selectMaterialFromDropdown(id, rowIdx) {
       }
     }
     
-    idEl.value = m.id || m.code || ''
+    // Store material CODE (M-001), not database ID (7) - materialCode field expects code
+    idEl.value = m.code || m.id || ''
     nameEl.value = m.name || m.title || ''
     disp.value = formatMaterialLabel(m)
     if (unitEl) {
       unitEl.value = m.unit || m.measurementUnit || m.birim || ''
     }
     dd.style.display = 'none'
+    console.log('✅ Material selected:', { code: m.code, name: m.name })
     try { updateOutputCodePreviewBackend() } catch {}
-  } catch {}
+  } catch (err) {
+    console.error('❌ Error in selectMaterialFromDropdown:', err)
+  }
 }
 
 function handleMaterialClickOutside(ev, rowIdx) {
@@ -1953,6 +1970,14 @@ window.applyOutputTemplate = function(templateIndex) {
     qtyInput.addEventListener('input', calculateMaterialsFromTemplate);
   }
 };
+
+// Expose material-related functions globally for inline onclick handlers
+window.openMaterialDropdown = openMaterialDropdown;
+window.filterMaterialDropdown = filterMaterialDropdown;
+window.selectMaterialFromDropdown = selectMaterialFromDropdown;
+window.addMaterialRow = addMaterialRow;
+window.removeMaterialRow = removeMaterialRow;
+window.updateOutputCodePreviewBackend = updateOutputCodePreviewBackend;
 
 // Helper: Attach bidirectional proportional update listeners to material quantity inputs
 function attachTemplateMaterialListeners(node) {

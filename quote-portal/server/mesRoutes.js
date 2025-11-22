@@ -2082,6 +2082,65 @@ router.post('/worker-assignments/:id/complete', withAuth, async (req, res) => {
 });
 
 // ============================================================================
+// OUTPUT CODES (SEMI-CODES)
+// ============================================================================
+
+/**
+ * POST /api/mes/output-codes/preview
+ * Generate preview of output code (semi-code) for an operation
+ * 
+ * Body: {
+ *   operationCode: "Be",
+ *   stationId: "ST-Be-001",
+ *   materials: [{ id: "M-001", qty: 100, unit: "adet" }],
+ *   outputQty: 50,
+ *   outputUnit: "adet"
+ * }
+ * 
+ * Response: { code: "Be-M001-100" }
+ */
+router.post('/output-codes/preview', withAuth, async (req, res) => {
+  try {
+    const { operationCode, stationId, materials, outputQty, outputUnit } = req.body;
+    
+    if (!operationCode) {
+      return res.status(400).json({ error: 'operationCode is required' });
+    }
+    
+    // Simple output code generation logic:
+    // Format: <OpCode>-<MaterialCode>-<Quantity>
+    // Example: Be-M001-100, Ka-M002-50
+    
+    let code = operationCode;
+    
+    // Add primary material code (first material in list)
+    if (materials && Array.isArray(materials) && materials.length > 0) {
+      const primaryMaterial = materials[0];
+      const matCode = (primaryMaterial.id || '').replace('M-', '');
+      if (matCode) {
+        code += `-${matCode}`;
+      }
+      
+      // Add quantity
+      const qty = Math.round(primaryMaterial.qty || 0);
+      if (qty > 0) {
+        code += `-${qty}`;
+      }
+    }
+    
+    console.log(`🏷️  Output code preview: ${code}`);
+    
+    res.json({ code });
+  } catch (error) {
+    console.error('❌ Error generating output code preview:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate output code preview',
+      details: error.message 
+    });
+  }
+});
+
+// ============================================================================
 // SCRAP MANAGEMENT
 // ============================================================================
 
