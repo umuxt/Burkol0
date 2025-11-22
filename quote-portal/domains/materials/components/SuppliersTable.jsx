@@ -13,7 +13,7 @@ import {
   SUPPLIER_STATUSES,
   MATERIAL_STATUSES 
 } from '../utils/material-status-utils'
-import { showToast } from '../../../shared/components/Toast.js'
+import { showToast } from '../../../shared/components/MESToast.js'
 import { Phone, Mail, ShoppingCart, Edit, Trash2, Info, RotateCw, Save, X, ArrowLeft } from '../../../shared/components/Icons'
 
 export default function SuppliersTable({ 

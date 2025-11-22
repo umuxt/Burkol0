@@ -12,7 +12,7 @@ import { FilterPopup } from '../../../src/components/modals/FilterPopup.js'
 import QuotesTabs from './QuotesTabs.jsx'
 import PricingManager from './PricingManager.jsx'
 import FormManager from './FormManager.jsx'
-import { showToast } from '../../../shared/components/Toast.js'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 const { useState, useEffect, useMemo, useRef } = React;
 

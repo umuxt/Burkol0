@@ -1,7 +1,7 @@
 // Users Tab - User management interface for admin settings
 import React from 'react';
 import API from '../../../shared/lib/api.js'
-import { showToast } from '../../../shared/components/Toast.js'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 const { useState, useEffect } = React;
 

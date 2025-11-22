@@ -1,4 +1,4 @@
-import { showToast } from '../../../shared/components/Toast.js';
+import { showToast } from '../../../shared/components/MESToast.js';
 // Quotes Form Manager - Dynamic form configuration for quotes domain
 import React from 'react';
 import { formsApi } from '../api/index.js';

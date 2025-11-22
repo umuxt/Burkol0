@@ -1,6 +1,6 @@
 // Operations management UI backed by backend API
 import { getOperations, saveOperations, normalizeOperation, genId, getMasterData, addSkill, addOperationType, updateOperationType, deleteOperationType, getWorkers, getSkillsFromSQL } from './mesApi.js'
-import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/MESToast.js';
 
 let operationsState = []
 let editingOperationId = null

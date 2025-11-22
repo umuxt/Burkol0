@@ -1,4 +1,4 @@
-import { showToast } from '../../../shared/components/Toast.js';
+import { showToast } from '../../../shared/components/MESToast.js';
 // Account Settings Tab - Company and account information management
 import React, { useState, useEffect } from 'react';
 import UsersTab from './UsersTab.jsx';

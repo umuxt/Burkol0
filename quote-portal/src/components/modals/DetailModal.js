@@ -3,7 +3,7 @@ import API, { API_BASE } from '../../../shared/lib/api.js'
 import { uid, downloadDataUrl, ACCEPT_EXT, MAX_FILES, MAX_FILE_MB, MAX_PRODUCT_FILES, extOf, readFileAsDataUrl, isImageExt } from '../../../shared/lib/utils.js'
 import { statusLabel } from '../../../shared/i18n.js'
 import { PriceStatusBadge } from '../../../domains/quotes/components/PriceStatusBadge.js'
-import { showToast } from '../../../shared/components/Toast.js'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 export function DetailModal({ item, onClose, setItemStatus, onSaved, t, isNew, formConfig, globalProcessing, setGlobalProcessing, checkAndProcessVersionUpdates, currentQuotes }) {
   console.log('🔧 DEBUG: DetailModal rendered with item:', item?.id, 'formConfig:', !!formConfig)

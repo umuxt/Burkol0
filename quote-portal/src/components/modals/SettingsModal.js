@@ -1,7 +1,7 @@
 // Compact Settings Modal - User management settings interface
 import React from 'react';
 import UsersTab from '../settings/UsersTab.jsx'
-import { showToast } from '../../../shared/components/Toast.js'
+import { showToast } from '../../../shared/components/MESToast.js'
 
 const { useEffect } = React;
 

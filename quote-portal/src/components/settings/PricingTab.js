@@ -1,4 +1,4 @@
-import { showToast } from '../../../shared/components/Toast.js';
+import { showToast } from '../../../shared/components/MESToast.js';
 // Pricing Tab Component - Price parameter and formula management
 import React from 'react';
 import API from '../../../shared/lib/api.js'

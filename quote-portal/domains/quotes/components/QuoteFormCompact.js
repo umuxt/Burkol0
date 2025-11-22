@@ -1,4 +1,4 @@
-import { showToast } from '../../../shared/components/Toast.js';
+import { showToast } from '../../../shared/components/MESToast.js';
 // Compact Quote Form - Multi-step form with validation and file upload
 // Note: DynamicFormRenderer is the primary form implementation
 import { useI18n, statusLabel, procLabel, materialLabel, finishLabel } from '../../../shared/i18n.js'

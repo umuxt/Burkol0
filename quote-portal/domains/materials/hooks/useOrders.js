@@ -2,7 +2,7 @@
 // Orders ve OrderItems için React hooks
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { showToast } from '../../../shared/components/Toast.js';
+import { showToast } from '../../../shared/components/MESToast.js';
 import { fetchWithTimeout, API_BASE, API } from '../../../shared/lib/api.js';
 function withAuth(headers = {}) { try { const t = localStorage.getItem('bk_admin_token') || (window.location.hostname === 'localhost' ? 'dev-admin-token' : ''); return t ? { ...headers, Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' } : { ...headers, 'Content-Type': 'application/json' } } catch { return { ...headers, 'Content-Type': 'application/json' } } }
 import { OrdersService, OrderItemsService, getOrderWithItems, updateOrderStatusBasedOnItems } from '../services/orders-service.js';
@@ -44,14 +44,14 @@ export function useOrders(filters = {}, options = {}) {
       console.error('❌ Error loading orders:', error);
       setError(error.message);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Siparişler yüklenirken hata oluştu: ' + error.message, 'error');
       }
       
     } finally {
       setLoading(false);
     }
-  }, [filters, options, initialized, showNotification]);
+  }, [filters, options, initialized]);
   
   // **LOAD DELIVERY STATUSES**
   const loadDeliveryStatuses = useCallback(async () => {
@@ -80,7 +80,7 @@ export function useOrders(filters = {}, options = {}) {
       
     } catch (error) {
       console.error('❌ Error loading delivery statuses:', error);
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Teslimat durumları yüklenirken hata: ' + error.message, 'error');
       }
     } finally {
@@ -184,7 +184,7 @@ export function useOrderActions() {
       
       const newOrder = await OrdersService.createOrder(orderData);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast(`Sipariş başarıyla oluşturuldu: ${newOrder.orderCode || newOrder.id}`, 'success');
       }
       
@@ -195,7 +195,7 @@ export function useOrderActions() {
       console.error('❌ Error creating order:', error);
       setError(error.message);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş oluşturulurken hata oluştu: ' + error.message, 'error');
       }
       
@@ -204,7 +204,7 @@ export function useOrderActions() {
     } finally {
       setLoading(false);
     }
-  }, [showNotification]);
+  }, []);
   
   // **UPDATE ORDER**
   const updateOrder = useCallback(async (orderId, updateData) => {
@@ -214,7 +214,7 @@ export function useOrderActions() {
       
       const updatedOrder = await OrdersService.updateOrder(orderId, updateData);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş başarıyla güncellendi', 'success');
       }
       
@@ -225,7 +225,7 @@ export function useOrderActions() {
       console.error('❌ Error updating order:', error);
       setError(error.message);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş güncellenirken hata oluştu: ' + error.message, 'error');
       }
       
@@ -234,7 +234,7 @@ export function useOrderActions() {
     } finally {
       setLoading(false);
     }
-  }, [showNotification]);
+  }, []);
   
   // **DELETE ORDER**
   const deleteOrder = useCallback(async (orderId) => {
@@ -244,7 +244,7 @@ export function useOrderActions() {
       
       await OrdersService.deleteOrder(orderId);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş başarıyla silindi', 'success');
       }
       
@@ -254,7 +254,7 @@ export function useOrderActions() {
       console.error('❌ Error deleting order:', error);
       setError(error.message);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş silinirken hata oluştu: ' + error.message, 'error');
       }
       
@@ -263,7 +263,7 @@ export function useOrderActions() {
     } finally {
       setLoading(false);
     }
-  }, [showNotification]);
+  }, []);
   
   // **CREATE ORDER WITH ITEMS**
   const createOrderWithItems = useCallback(async (orderData, itemsData, options = {}) => {
@@ -353,7 +353,7 @@ export function useOrderActions() {
         }
       }
 
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast(`Sipariş ve ${newOrder.items?.length || 0} kalem başarıyla oluşturuldu`, 'success');
       }
       
@@ -364,7 +364,7 @@ export function useOrderActions() {
       console.error('❌ Error creating order with items:', error);
       setError(error.message);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş oluşturulurken hata oluştu: ' + error.message, 'error');
       }
       
@@ -373,7 +373,7 @@ export function useOrderActions() {
     } finally {
       setLoading(false);
     }
-  }, [showNotification]);
+  }, []);
   
   return {
     loading,
@@ -449,14 +449,14 @@ export function useOrderItems(orderId) {
       console.error('❌ Error loading order items:', error);
       setError(error.message);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş kalemleri yüklenirken hata oluştu: ' + error.message, 'error');
       }
       
     } finally {
       setLoading(false);
     }
-  }, [orderId, showNotification, serializeItemsForOrder]);
+  }, [orderId, serializeItemsForOrder]);
   
   // **UPDATE ORDER ITEM WITH STOCK MANAGEMENT**
   const updateOrderItem = useCallback(async (itemId, updateData) => {
@@ -497,7 +497,7 @@ export function useOrderItems(orderId) {
         // Refresh items from updated order
         await loadItems();
         
-        if (showNotification) {
+        if (false) { // showNotification removed
           showToast('Sipariş kalemi başarıyla güncellendi', 'success');
         }
         
@@ -584,7 +584,7 @@ export function useOrderItems(orderId) {
             }));
           }
           
-          if (showNotification) {
+          if (false) { // showNotification removed
             showToast(
               `Stok güncellendi: ${currentItem.materialName} (+${currentItem.quantity}) → ${result.newStock}`, 
               'success'
@@ -594,7 +594,7 @@ export function useOrderItems(orderId) {
         } catch (stockError) {
           console.error('❌ DEBUG: Stock update error:', stockError);
           
-          if (showNotification) {
+          if (false) { // showNotification removed
             showToast(
               `Stok güncellenemedi: ${stockError.message}`, 
               'warning'
@@ -608,7 +608,7 @@ export function useOrderItems(orderId) {
         await updateOrderStatusBasedOnItems(orderId);
       }
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş kalemi başarıyla güncellendi', 'success');
       }
       
@@ -618,13 +618,13 @@ export function useOrderItems(orderId) {
     } catch (error) {
       console.error('❌ Error updating order item:', error);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş kalemi güncellenirken hata oluştu: ' + error.message, 'error');
       }
       
       throw error;
     }
-  }, [orderId, showNotification, loadItems]);
+  }, [orderId, loadItems]);
   
   // **DELETE ORDER ITEM**
   const deleteOrderItem = useCallback(async (itemId) => {
@@ -655,7 +655,7 @@ export function useOrderItems(orderId) {
         await updateOrderStatusBasedOnItems(orderId);
       }
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş kalemi başarıyla silindi', 'success');
       }
       
@@ -664,13 +664,13 @@ export function useOrderItems(orderId) {
     } catch (error) {
       console.error('❌ Error deleting order item:', error);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş kalemi silinirken hata oluştu: ' + error.message, 'error');
       }
       
       throw error;
     }
-  }, [orderId, showNotification, serializeItemsForOrder]);
+  }, [orderId, serializeItemsForOrder]);
   
   // **ADD ORDER ITEM**
   const addOrderItem = useCallback(async (itemData) => {
@@ -713,7 +713,7 @@ export function useOrderItems(orderId) {
         }
       }
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Yeni sipariş kalemi eklendi', 'success');
       }
       
@@ -723,13 +723,13 @@ export function useOrderItems(orderId) {
     } catch (error) {
       console.error('❌ Error adding order item:', error);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş kalemi eklenirken hata oluştu: ' + error.message, 'error');
       }
       
       throw error;
     }
-  }, [orderId, showNotification, serializeItemsForOrder]);
+  }, [orderId, serializeItemsForOrder]);
   
   // **LOAD ITEMS ON ORDER ID CHANGE**
   useEffect(() => {
@@ -779,14 +779,14 @@ export function useSingleOrder(orderId) {
       console.error('❌ Error loading order:', error);
       setError(error.message);
       
-      if (showNotification) {
+      if (false) { // showNotification removed
         showToast('Sipariş yüklenirken hata oluştu: ' + error.message, 'error');
       }
       
     } finally {
       setLoading(false);
     }
-  }, [orderId, showNotification]);
+  }, [orderId]);
   
   // **LOAD ORDER ON ID CHANGE**
   useEffect(() => {

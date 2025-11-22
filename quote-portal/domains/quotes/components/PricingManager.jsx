@@ -1,4 +1,4 @@
-import { showToast } from '../../../shared/components/Toast.js';
+import { showToast } from '../../../shared/components/MESToast.js';
 // Quotes Pricing Manager - Dynamic pricing configuration for quotes domain with versioning
 import React from 'react';
 import { priceApi } from '../api/index.js'

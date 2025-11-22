@@ -1,4 +1,4 @@
-import { showToast } from '../../shared/components/Toast.js';
+import { showToast } from '../../shared/components/MESToast.js';
 // Settings App - Dedicated settings interface
 import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';

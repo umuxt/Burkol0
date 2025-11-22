@@ -3,7 +3,7 @@ import { API_BASE, withAuth } from '../../../shared/lib/api.js'
 // Core MES API imports
 import { updateProductionState, launchProductionPlan, pauseProductionPlan, resumeProductionPlan, cancelProductionPlan, cancelProductionPlanWithProgress, getWorkPackages, getProductionPlanDetails, checkMesMaterialAvailability } from './mesApi.js'
 import { showEnhancedProductionMonitoring, cleanupSSEConnections } from './productionMonitoring.js'
-import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js'
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/MESToast.js'
 
 let quotesState = []
 let selectedQuoteId = null

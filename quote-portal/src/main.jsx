@@ -4,7 +4,7 @@ import { useI18n } from '../shared/i18n.js';
 import API from '../shared/lib/api.js';
 import DynamicFormRenderer from '../shared/components/DynamicFormRenderer.js';
 import QuotesManager from '../domains/quotes/components/QuotesManager.js';
-import { showToast } from '../shared/components/Toast.js';
+import { showToast } from '../shared/components/MESToast.js';
 import MaterialsTabs from '../domains/materials/components/MaterialsTabs.jsx';
 import StocksTabContent from '../domains/materials/components/StocksTabContent.jsx';
 import SuppliersTabContent from '../domains/materials/components/SuppliersTabContent.jsx';

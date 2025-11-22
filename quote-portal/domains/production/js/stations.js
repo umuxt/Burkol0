@@ -1,6 +1,6 @@
 // Station management backed by backend API using mesApi
 import { getStations, saveStations, getOperations, normalizeStation, computeStationInheritedSkills, getMasterData, addSkill, invalidateStationsCache, getStationWorkers, getSubstationDetails, getSkillsFromSQL } from './mesApi.js'
-import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/MESToast.js';
 import { API_BASE, withAuth } from '../../../shared/lib/api.js';
 
 let stationsState = []

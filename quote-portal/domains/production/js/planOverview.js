@@ -4,7 +4,7 @@ import { getProductionPlans, getPlanTemplates, deleteProductionPlan, clearTempla
 import { API_BASE, withAuth } from '../../../shared/lib/api.js'
 import { loadPlanNodes, setReadOnly, setPlanMeta, resetPlanDesignerState, planDesignerState } from './planDesigner.js'
 import { loadApprovedOrdersToSelect } from './planDesignerBackend.js'
-import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/Toast.js';
+import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/MESToast.js';
 
 export function initPlanOverviewUI() {
   // Default active tab
