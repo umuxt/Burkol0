@@ -1521,11 +1521,13 @@ router.get('/templates', withAuth, async (req, res) => {
     const templates = await db('mes.production_plans as p')
       .select(
         'p.id',
+        'p.planName as name',
+        'p.description',
         'p.workOrderCode',
         'p.quoteId',
         'p.status',
         'p.createdAt',
-        db.raw('COUNT(pn.id) as nodeCount')
+        db.raw('COUNT(pn.id)::integer as "nodeCount"')
       )
       .leftJoin('mes.production_plan_nodes as pn', 'pn.planId', 'p.id')
       .where('p.status', 'template')
@@ -1548,48 +1550,110 @@ router.get('/templates', withAuth, async (req, res) => {
 router.post('/templates', withAuth, async (req, res) => {
   // Frontend sends 'orderCode' but DB uses 'workOrderCode' - normalize
   const workOrderCode = req.body.workOrderCode || req.body.orderCode || null;
-  const { quoteId, nodes, steps, templateName, name, description } = req.body;
+  const { id: templateId, quoteId, nodes, steps, templateName, name, description } = req.body;
   
   console.log('📥 Template save request:', { 
+    templateId,
     workOrderCode, 
     orderCode: req.body.orderCode,
     hasNodes: !!nodes,
     hasSteps: !!steps,
-    nodeCount: nodes?.length || steps?.length || 0
+    nodeCount: nodes?.length || steps?.length || 0,
+    isUpdate: !!templateId,
+    // DEBUG: planName tracking
+    receivedName: name,
+    receivedTemplateName: templateName,
+    willSaveAs: name || templateName || null
   });
   
   const trx = await db.transaction();
   
   try {
-    // 1. Generate plan ID (same ID system as production plans)
-    const result = await trx('mes.production_plans')
-      .max('id as maxId')
-      .first();
+    let planId;
     
-    const maxId = result?.maxId;
-    let nextNum = 1;
-    
-    if (maxId && typeof maxId === 'string' && maxId.includes('-')) {
-      const parts = maxId.split('-');
-      const numPart = parts[parts.length - 1];
-      const parsed = parseInt(numPart, 10);
-      if (!isNaN(parsed)) {
-        nextNum = parsed + 1;
+    // Check if this is an UPDATE (template id provided)
+    if (templateId) {
+      // Verify template exists
+      const existing = await trx('mes.production_plans')
+        .where({ id: templateId, status: 'template' })
+        .first();
+      
+      if (!existing) {
+        await trx.rollback();
+        return res.status(404).json({ error: 'Template not found' });
       }
+      
+      planId = templateId;
+      console.log(`🔄 Updating existing template: ${planId}`);
+      
+      // DEBUG: Track what planName will be updated to
+      const finalPlanName = name || templateName || null;
+      console.log('🔍 PLAN NAME UPDATE DEBUG:', {
+        receivedName: name,
+        receivedTemplateName: templateName,
+        finalPlanName: finalPlanName,
+        planId: planId
+      });
+      
+      // Delete existing nodes (cascade will handle related tables)
+      await trx('mes.production_plan_nodes')
+        .where('planId', planId)
+        .del();
+      
+      // Update template header
+      await trx('mes.production_plans')
+        .where('id', planId)
+        .update({
+          planName: finalPlanName,
+          description: description || null,
+          workOrderCode: workOrderCode,
+          quoteId: quoteId || null,
+          updatedAt: trx.fn.now()
+        });
+      
+    } else {
+      // CREATE new template
+      // 1. Generate plan ID (same ID system as production plans)
+      const result = await trx('mes.production_plans')
+        .max('id as maxId')
+        .first();
+      
+      const maxId = result?.maxId;
+      let nextNum = 1;
+      
+      if (maxId && typeof maxId === 'string' && maxId.includes('-')) {
+        const parts = maxId.split('-');
+        const numPart = parts[parts.length - 1];
+        const parsed = parseInt(numPart, 10);
+        if (!isNaN(parsed)) {
+          nextNum = parsed + 1;
+        }
+      }
+      
+      planId = `PLAN-${nextNum.toString().padStart(3, '0')}`;
+      
+      console.log(`📋 Creating new template: ${planId} (workOrderCode: ${workOrderCode || 'none'})`);
+      
+      // DEBUG: Track what planName will be saved
+      const finalPlanName = name || templateName || null;
+      console.log('🔍 PLAN NAME DEBUG:', {
+        receivedName: name,
+        receivedTemplateName: templateName,
+        finalPlanName: finalPlanName,
+        planId: planId
+      });
+      
+      // 2. Create template header - just a plan with status='template'
+      await trx('mes.production_plans').insert({
+        id: planId,
+        planName: finalPlanName,
+        description: description || null,
+        workOrderCode: workOrderCode,  // Can be null for templates
+        quoteId: quoteId || null,
+        status: 'template', // Only difference from regular plans
+        createdAt: trx.fn.now()
+      });
     }
-    
-    const planId = `PLAN-${nextNum.toString().padStart(3, '0')}`;
-    
-    console.log(`📋 Creating template: ${planId} (workOrderCode: ${workOrderCode || 'none'})`);
-    
-    // 2. Create template header - just a plan with status='template'
-    await trx('mes.production_plans').insert({
-      id: planId,
-      workOrderCode: workOrderCode,  // Can be null for templates
-      quoteId: quoteId || null,
-      status: 'template', // Only difference from regular plans
-      createdAt: trx.fn.now()
-    });
     
     // 3. Insert nodes if provided (frontend sends 'steps', normalize to 'nodes')
     const nodeList = nodes || steps || [];
@@ -1597,33 +1661,50 @@ router.post('/templates', withAuth, async (req, res) => {
       // Apply output code suffixes for finished products
       const processedNodes = applyOutputCodeSuffixes(nodeList);
       
+      // Build frontend ID to backend nodeId mapping
+      const idMapping = {};
+      processedNodes.forEach((node, index) => {
+        const frontendId = node.id || node.nodeId;
+        // Extract numeric part from frontend ID (e.g., "node-1" → 1) or use sequenceOrder or index
+        const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (index + 1);
+        const backendNodeId = `${planId}-node-${numericPart}`;
+        idMapping[frontendId] = backendNodeId;
+      });
+      
       for (const node of processedNodes) {
+        // Get frontend ID and calculate backend nodeId (same logic as idMapping)
+        const frontendId = node.id || node.nodeId;
+        const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || 0;
+        const stringNodeId = `${planId}-node-${numericPart}`;
+        
         // Insert node
         const [nodeRecord] = await trx('mes.production_plan_nodes')
           .insert({
             planId: planId,
-            nodeId: `${planId}-node-${node.sequenceOrder || node.nodeId || node.id}`,
+            nodeId: stringNodeId,  // Use consistent nodeId format
             workOrderCode: workOrderCode,  // Same as plan - can be null
             name: node.name,
-            operationId: node.operationId || node.operation,
+            operationId: node.operationId,
             outputCode: node.outputCode,
             outputQty: node.outputQty || 1,
             outputUnit: node.outputUnit || 'adet',
-            nominalTime: node.nominalTime || node.time || 0,
-            efficiency: node.efficiency || 1.0,
-            effectiveTime: node.effectiveTime || Math.ceil((node.nominalTime || node.time || 0) / (node.efficiency || 1.0)),
-            sequenceOrder: node.sequenceOrder || node.id?.replace(/\D/g, '') || 0,
+            nominalTime: node.nominalTime || 0,
+            efficiency: node.efficiency !== undefined ? parseFloat(node.efficiency) : 1.0,
+            effectiveTime: node.effectiveTime || Math.round((node.nominalTime || 0) / (node.efficiency !== undefined ? parseFloat(node.efficiency) : 1.0)),
+            sequenceOrder: numericPart,
             assignmentMode: node.assignmentMode || 'auto',
+            x: node.x || 80,
+            y: node.y || 80,
             createdAt: trx.fn.now()
           })
           .returning('id');
         
-        const nodeId = nodeRecord.id;
+        const dbNodeId = nodeRecord.id;  // Integer ID for internal use
         
         // Insert material inputs if any
         if (node.materialInputs && node.materialInputs.length > 0) {
           const materialInputs = node.materialInputs.map(m => ({
-            nodeId: nodeId,
+            nodeId: stringNodeId,
             materialCode: m.materialCode,
             requiredQuantity: m.requiredQuantity,
             unitRatio: m.unitRatio || 1.0,
@@ -1638,7 +1719,7 @@ router.post('/templates', withAuth, async (req, res) => {
         const stationList = node.stationIds || (node.assignedStations?.map(s => s.stationId || s.id)) || [];
         if (stationList.length > 0) {
           const stationAssignments = stationList.map((stId, idx) => ({
-            nodeId: nodeId,
+            nodeId: stringNodeId,
             stationId: stId,
             priority: idx + 1,
             createdAt: trx.fn.now()
@@ -1646,12 +1727,64 @@ router.post('/templates', withAuth, async (req, res) => {
           
           await trx('mes.node_stations').insert(stationAssignments);
         }
+        
+        // Insert predecessors if any
+        const predecessorList = node.predecessors || [];
+        if (Array.isArray(predecessorList) && predecessorList.length > 0) {
+          // Use the same stringNodeId calculated above (already in correct format)
+          const predecessorRecords = predecessorList
+            .map(predId => {
+              // Map frontend ID to backend nodeId format
+              const backendPredId = idMapping[predId] || predId;
+              return {
+                nodeId: stringNodeId,  // Use stringNodeId from above
+                predecessorNodeId: backendPredId,
+                createdAt: trx.fn.now()
+              };
+            });
+          
+          await trx('mes.node_predecessors').insert(predecessorRecords);
+        }
       }
     }
     
     await trx.commit();
     
     console.log(`✅ Template created: ${planId} with ${nodeList.length} nodes`);
+    
+    // AUTO-CREATE FINISHED PRODUCT MATERIALS (if suffix was added)
+    // Check if any nodes have "F" suffix that don't exist in materials table
+    for (const node of nodeList) {
+      if (node.outputCode && node.outputCode.endsWith('F')) {
+        const baseCode = node.outputCode.slice(0, -1); // Remove 'F'
+        
+        // Check if finished product material exists
+        const finishedExists = await db('materials.materials')
+          .where('code', node.outputCode)
+          .first();
+        
+        if (!finishedExists) {
+          // Check if base material exists
+          const baseMaterial = await db('materials.materials')
+            .where('code', baseCode)
+            .first();
+          
+          if (baseMaterial) {
+            // Auto-create finished product material
+            await db('materials.materials').insert({
+              code: node.outputCode,
+              name: `${baseMaterial.name} (Finished)`,
+              category: baseMaterial.category || 'cat_finished_product',
+              type: 'finished_product',
+              unit: baseMaterial.unit || 'adet',
+              status: 'Aktif',
+              createdAt: db.fn.now()
+            });
+            console.log(`✅ Auto-created finished product material: ${node.outputCode} from ${baseCode}`);
+          }
+        }
+      }
+    }
     
     res.json({ 
       success: true, 
@@ -1666,7 +1799,7 @@ router.post('/templates', withAuth, async (req, res) => {
     // Handle duplicate key error
     if (error.code === '23505') { // PostgreSQL unique violation
       return res.status(409).json({ 
-        error: 'Template with this work order code already exists',
+        error: `${workOrderCode} için plan tasarlanmış plan var`,
         workOrderCode
       });
     }
@@ -4060,22 +4193,43 @@ async function getPlanWithNodes(planId) {
   
   // Get nodes
   const nodes = await db('mes.production_plan_nodes as n')
-    .select('n.*')
+    .select('n.*')  // This includes x and y columns
     .where('n.planId', planId)
     .orderBy('n.sequenceOrder');
   
   // For each node, fetch materials, stations, and predecessors
   for (const node of nodes) {
-    // Get material inputs
+    // Get material inputs (use VARCHAR nodeId, not INTEGER id)
     const materialInputs = await db('mes.node_material_inputs')
-      .where('nodeId', node.id)
+      .where('nodeId', node.nodeId)
       .select('materialCode', 'requiredQuantity', 'unitRatio', 'isDerived');
+    
+    // Enrich derived materials with source node info
+    for (const mat of materialInputs) {
+      if (mat.isDerived) {
+        // Find which predecessor produces this material
+        const predecessorNodeIds = await db('mes.node_predecessors')
+          .where('nodeId', node.nodeId)
+          .pluck('predecessorNodeId');
+        
+        for (const predNodeId of predecessorNodeIds) {
+          const predNode = await db('mes.production_plan_nodes')
+            .where('nodeId', predNodeId)
+            .first();
+          
+          if (predNode && predNode.outputCode === mat.materialCode) {
+            mat.derivedFrom = predNodeId;
+            break;
+          }
+        }
+      }
+    }
     
     node.materialInputs = materialInputs;
     
     // Get assigned stations
     const stations = await db('mes.node_stations')
-      .where('nodeId', node.id)
+      .where('nodeId', node.nodeId)
       .select('stationId', 'priority')
       .orderBy('priority');
     
@@ -4083,13 +4237,35 @@ async function getPlanWithNodes(planId) {
     
     // Get predecessors
     const predecessors = await db('mes.node_predecessors')
-      .where('nodeId', node.id)
+      .where('nodeId', node.nodeId)
       .pluck('predecessorNodeId');
     
     node.predecessors = predecessors;
+    
+    // Enrich output code with material info if it exists in materials table
+    if (node.outputCode) {
+      const material = await db('materials.materials')
+        .where('code', node.outputCode)
+        .first();
+      
+      if (material) {
+        node._outputMaterialId = material.id;
+        node._outputName = material.name;
+        node._outputSelectionMode = 'existing';
+      } else {
+        // Code exists but not in materials table (new output not yet created)
+        node._outputSelectionMode = 'new';
+        node._isNewOutput = true;
+      }
+    }
   }
   
-  return { ...plan, nodes };
+  // Return plan with frontend-compatible field names
+  return { 
+    ...plan, 
+    name: plan.planName,  // Alias for frontend compatibility
+    nodes 
+  };
 }
 
 /**
@@ -4133,11 +4309,15 @@ router.get('/production-plans', withAuth, async (req, res) => {
     const plans = await db('mes.production_plans as p')
       .select(
         'p.id',
+        'p.planName as name',
+        'p.description',
         'p.workOrderCode',
         'p.quoteId',
         'p.status',
         'p.createdAt',
         'p.launchedAt',
+        'p.timingSummary',
+        'p.materialSummary',
         db.raw('count(n.id)::integer as "nodeCount"')
       )
       .leftJoin('mes.production_plan_nodes as n', 'n.planId', 'p.id')
@@ -4145,7 +4325,14 @@ router.get('/production-plans', withAuth, async (req, res) => {
       .groupBy('p.id')
       .orderBy('p.createdAt', 'desc');
     
-    res.json({ productionPlans: plans });
+    // Parse JSONB fields (PostgreSQL returns them as strings in some drivers)
+    const parsedPlans = plans.map(p => ({
+      ...p,
+      timingSummary: typeof p.timingSummary === 'string' ? JSON.parse(p.timingSummary) : p.timingSummary,
+      materialSummary: typeof p.materialSummary === 'string' ? JSON.parse(p.materialSummary) : p.materialSummary
+    }));
+    
+    res.json({ productionPlans: parsedPlans });
   } catch (error) {
     console.error('❌ Error fetching production plans:', error);
     res.status(500).json({ 
@@ -4187,18 +4374,21 @@ router.get('/production-plans', withAuth, async (req, res) => {
  * }
  */
 router.post('/production-plans', withAuth, async (req, res) => {
-  const { workOrderCode, quoteId, nodes } = req.body;
+  const { name, description, workOrderCode, orderCode, quoteId, nodes, quantity, timingSummary, materialSummary } = req.body;
+  
+  // Accept both workOrderCode and orderCode (frontend compatibility)
+  const finalOrderCode = workOrderCode || orderCode;
   
   // Validation - workOrderCode is REQUIRED for production plans
-  if (!workOrderCode) {
+  if (!finalOrderCode) {
     return res.status(400).json({ 
       error: 'Work order code is required for production plans' 
     });
   }
   
-  if (!quoteId || !nodes || !Array.isArray(nodes)) {
+  if (!nodes || !Array.isArray(nodes)) {
     return res.status(400).json({ 
-      error: 'Missing required fields: quoteId, nodes' 
+      error: 'Missing required field: nodes' 
     });
   }
   
@@ -4224,45 +4414,67 @@ router.post('/production-plans', withAuth, async (req, res) => {
     
     const planId = `PLAN-${nextNum.toString().padStart(3, '0')}`;
     
-    console.log(`📋 Creating production plan: ${planId} for WO: ${workOrderCode}`);
+    console.log(`📋 Creating production plan: ${planId} (${name || 'Unnamed'}) for WO: ${finalOrderCode}`);
     
     // 2. Create plan header
     await trx('mes.production_plans').insert({
       id: planId,
-      workOrderCode: workOrderCode,
-      quoteId: quoteId,
+      planName: name || null,
+      description: description || null,
+      workOrderCode: finalOrderCode,
+      quoteId: quoteId || null,
+      quantity: quantity || 1,
+      timingSummary: timingSummary ? JSON.stringify(timingSummary) : null,
+      materialSummary: materialSummary ? JSON.stringify(materialSummary) : null,
       status: 'draft',
       createdAt: trx.fn.now()
     });
     
     // 3. Insert nodes with materials and stations
+    // Build frontend ID to backend nodeId mapping first
+    const idMapping = {};
+    nodes.forEach((node, index) => {
+      const frontendId = node.id || node.nodeId;
+      // Extract numeric part or use sequenceOrder
+      const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (index + 1);
+      const backendNodeId = `${planId}-node-${numericPart}`;
+      idMapping[frontendId] = backendNodeId;
+    });
+    
     for (const node of nodes) {
+      // Get frontend ID and calculate backend nodeId (consistent with templates)
+      const frontendId = node.id || node.nodeId;
+      const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || 0;
+      const stringNodeId = `${planId}-node-${numericPart}`;
+      
       // 3a. Insert node
       const [nodeRecord] = await trx('mes.production_plan_nodes')
         .insert({
           planId: planId,
-          nodeId: `${planId}-node-${node.sequenceOrder}`,
-          workOrderCode: workOrderCode,
+          nodeId: stringNodeId,
+          workOrderCode: finalOrderCode,
           name: node.name,
           operationId: node.operationId,
           outputCode: node.outputCode,
           outputQty: node.outputQty,
           outputUnit: node.outputUnit,
-          nominalTime: node.nominalTime,
-          efficiency: node.efficiency || 0.85,
-          effectiveTime: Math.ceil(node.nominalTime / (node.efficiency || 0.85)),
-          sequenceOrder: node.sequenceOrder,
+          nominalTime: node.nominalTime || 0,
+          efficiency: node.efficiency !== undefined ? parseFloat(node.efficiency) : 1.0,
+          effectiveTime: Math.round((node.nominalTime || 0) / (node.efficiency !== undefined ? parseFloat(node.efficiency) : 1.0)),
+          sequenceOrder: numericPart,
           assignmentMode: 'auto',
+          x: node.x || 80,
+          y: node.y || 80,
           createdAt: trx.fn.now()
         })
         .returning('id');
       
-      const nodeId = nodeRecord.id;
+      const dbNodeId = nodeRecord.id;  // Integer ID for internal use
       
       // 3b. Insert material inputs
       if (node.materialInputs && node.materialInputs.length > 0) {
         const materialInputs = node.materialInputs.map(m => ({
-          nodeId: nodeId,
+          nodeId: stringNodeId,
           materialCode: m.materialCode,
           requiredQuantity: m.requiredQuantity,
           unitRatio: m.unitRatio || 1.0,
@@ -4276,7 +4488,7 @@ router.post('/production-plans', withAuth, async (req, res) => {
       // 3c. Insert station assignments
       if (node.stationIds && node.stationIds.length > 0) {
         const stationAssignments = node.stationIds.map((stId, idx) => ({
-          nodeId: nodeId,
+          nodeId: stringNodeId,
           stationId: stId,
           priority: idx + 1,
           createdAt: trx.fn.now()
@@ -4284,11 +4496,58 @@ router.post('/production-plans', withAuth, async (req, res) => {
         
         await trx('mes.node_stations').insert(stationAssignments);
       }
+      
+      // 3d. Insert predecessors
+      if (node.predecessors && Array.isArray(node.predecessors) && node.predecessors.length > 0) {
+        // Use the same stringNodeId calculated above
+        const predecessorRecords = node.predecessors
+          .map(predId => {
+            // Map frontend ID to backend nodeId format
+            const backendPredId = idMapping[predId] || predId;
+            return {
+              nodeId: stringNodeId,  // Use stringNodeId from above
+              predecessorNodeId: backendPredId,
+              createdAt: trx.fn.now()
+            };
+          });
+        
+        await trx('mes.node_predecessors').insert(predecessorRecords);
+      }
     }
     
     await trx.commit();
     
     console.log(`✅ Production plan created: ${planId} with ${nodes.length} nodes`);
+    
+    // AUTO-CREATE FINISHED PRODUCT MATERIALS (if suffix was added)
+    for (const node of nodes) {
+      if (node.outputCode && node.outputCode.endsWith('F')) {
+        const baseCode = node.outputCode.slice(0, -1);
+        
+        const finishedExists = await db('materials.materials')
+          .where('code', node.outputCode)
+          .first();
+        
+        if (!finishedExists) {
+          const baseMaterial = await db('materials.materials')
+            .where('code', baseCode)
+            .first();
+          
+          if (baseMaterial) {
+            await db('materials.materials').insert({
+              code: node.outputCode,
+              name: `${baseMaterial.name} (Finished)`,
+              category: baseMaterial.category || 'cat_finished_product',
+              type: 'finished_product',
+              unit: baseMaterial.unit || 'adet',
+              status: 'Aktif',
+              createdAt: db.fn.now()
+            });
+            console.log(`✅ Auto-created finished product: ${node.outputCode} from ${baseCode}`);
+          }
+        }
+      }
+    }
     
     // 4. Fetch and return complete plan
     const plan = await getPlanWithNodes(planId);
@@ -4328,32 +4587,209 @@ router.get('/production-plans/:id', withAuth, async (req, res) => {
 
 /**
  * PUT /api/mes/production-plans/:id
- * Update plan header (not nodes)
+ * Update plan (used for template conversion)
  * 
- * Body: { workOrderCode?, quoteId?, status? }
+ * Body: { name?, description?, workOrderCode?, quoteId?, status?, nodes?, quantity?, scheduleType?, materialSummary?, timingSummary? }
  */
 router.put('/production-plans/:id', withAuth, async (req, res) => {
   const { id } = req.params;
-  const { workOrderCode, quoteId, status } = req.body;
+  
+  // Frontend sends 'orderCode' but DB uses 'workOrderCode' - normalize
+  const workOrderCodeFromBody = req.body.workOrderCode || req.body.orderCode || undefined;
+  
+  const { 
+    name, 
+    description, 
+    quoteId, 
+    status, 
+    nodes, 
+    quantity, 
+    scheduleType, 
+    materialSummary, 
+    timingSummary,
+    autoAssign 
+  } = req.body;
+  
+  // Use normalized workOrderCode
+  const workOrderCode = workOrderCodeFromBody;
+  
+  // DEBUG: Track template conversion
+  console.log('🔄 PUT /production-plans/:id - Update request:', {
+    id,
+    receivedName: name,
+    receivedOrderCode: req.body.orderCode,
+    receivedWorkOrderCode: req.body.workOrderCode,
+    normalizedWorkOrderCode: workOrderCode,
+    receivedDescription: description,
+    status,
+    nodeCount: nodes?.length,
+    willUpdatePlanName: name !== undefined,
+    willUpdateWorkOrderCode: workOrderCode !== undefined
+  });
+  
+  const trx = await db.transaction();
   
   try {
-    const [updated] = await db('mes.production_plans')
+    // Build update object (only include provided fields)
+    const updateData = {
+      updatedAt: trx.fn.now()
+    };
+    
+    if (name !== undefined) updateData.planName = name;
+    if (description !== undefined) updateData.description = description;
+    if (workOrderCode !== undefined) updateData.workOrderCode = workOrderCode;
+    if (quoteId !== undefined) updateData.quoteId = quoteId;
+    if (status !== undefined) updateData.status = status;
+    if (quantity !== undefined) updateData.quantity = quantity;
+    if (autoAssign !== undefined) updateData.autoAssign = autoAssign;
+    if (timingSummary !== undefined) updateData.timingSummary = timingSummary ? JSON.stringify(timingSummary) : null;
+    if (materialSummary !== undefined) updateData.materialSummary = materialSummary ? JSON.stringify(materialSummary) : null;
+    
+    const [updated] = await trx('mes.production_plans')
       .where('id', id)
-      .update({
-        workOrderCode,
-        quoteId,
-        status,
-        updatedAt: db.fn.now()
-      })
+      .update(updateData)
       .returning('*');
     
     if (!updated) {
+      await trx.rollback();
       return res.status(404).json({ error: 'Plan not found' });
     }
     
-    console.log(`✅ Updated production plan: ${id}`);
+    console.log(`✅ Updated production plan: ${id}`, { name, workOrderCode, status, nodeCount: nodes?.length });
+    
+    // If nodes provided, delete old and insert new
+    if (Array.isArray(nodes) && nodes.length > 0) {
+      console.log(`🔄 Replacing nodes for plan ${id} (${nodes.length} nodes)`);
+      
+      // Delete existing nodes and related data
+      const existingNodes = await trx('mes.production_plan_nodes')
+        .where('planId', id)
+        .select('nodeId');
+      
+      const existingNodeIds = existingNodes.map(n => n.nodeId);
+      
+      if (existingNodeIds.length > 0) {
+        await trx('mes.node_predecessors').whereIn('nodeId', existingNodeIds).del();
+        await trx('mes.node_material_inputs').whereIn('nodeId', existingNodeIds).del();
+        await trx('mes.node_stations').whereIn('nodeId', existingNodeIds).del();
+        await trx('mes.production_plan_nodes').where('planId', id).del();
+      }
+      
+      // Process nodes (same logic as POST /templates)
+      const processedNodes = applyOutputCodeSuffixes(nodes);
+      const idMapping = {};
+      
+      processedNodes.forEach((node, index) => {
+        const frontendId = node.id || node.nodeId;
+        const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (index + 1);
+        const backendNodeId = `${id}-node-${numericPart}`;
+        idMapping[frontendId] = backendNodeId;
+      });
+      
+      for (const node of processedNodes) {
+        const frontendId = node.id || node.nodeId;
+        const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || 0;
+        const stringNodeId = `${id}-node-${numericPart}`;
+        
+        await trx('mes.production_plan_nodes').insert({
+          planId: id,
+          nodeId: stringNodeId,
+          workOrderCode: workOrderCode,
+          name: node.name,
+          operationId: node.operationId,
+          outputCode: node.outputCode,
+          outputQty: node.outputQty || 1,
+          outputUnit: node.outputUnit || 'adet',
+          nominalTime: node.nominalTime || 0,
+          efficiency: node.efficiency !== undefined ? parseFloat(node.efficiency) : 1.0,
+          effectiveTime: node.effectiveTime || Math.round((node.nominalTime || 0) / (node.efficiency !== undefined ? parseFloat(node.efficiency) : 1.0)),
+          sequenceOrder: numericPart,
+          assignmentMode: node.assignmentMode || 'auto',
+          x: node.x || 80,
+          y: node.y || 80,
+          createdAt: trx.fn.now()
+        });
+        
+        // Material inputs
+        if (node.materialInputs && node.materialInputs.length > 0) {
+          const materialInputs = node.materialInputs.map(m => ({
+            nodeId: stringNodeId,
+            materialCode: m.materialCode,
+            requiredQuantity: m.requiredQuantity,
+            unitRatio: m.unitRatio || 1.0,
+            isDerived: !!m.derivedFrom || !!m.isDerived,
+            createdAt: trx.fn.now()
+          }));
+          await trx('mes.node_material_inputs').insert(materialInputs);
+        }
+        
+        // Stations
+        const stationList = node.stationIds || (node.assignedStations?.map(s => s.stationId || s.id)) || [];
+        if (stationList.length > 0) {
+          const stationAssignments = stationList.map((stId, idx) => ({
+            nodeId: stringNodeId,
+            stationId: stId,
+            priority: idx + 1,
+            createdAt: trx.fn.now()
+          }));
+          await trx('mes.node_stations').insert(stationAssignments);
+        }
+        
+        // Predecessors
+        const predecessorList = node.predecessors || [];
+        if (Array.isArray(predecessorList) && predecessorList.length > 0) {
+          const predecessorRecords = predecessorList
+            .map(predId => {
+              const backendPredId = idMapping[predId] || predId;
+              return {
+                nodeId: stringNodeId,
+                predecessorNodeId: backendPredId,
+                createdAt: trx.fn.now()
+              };
+            });
+          await trx('mes.node_predecessors').insert(predecessorRecords);
+        }
+      }
+      
+      console.log(`✅ Replaced ${nodes.length} nodes for plan ${id}`);
+    }
+    
+    // AUTO-CREATE FINISHED PRODUCT MATERIALS (if suffix was added)
+    if (Array.isArray(nodes) && nodes.length > 0) {
+      for (const node of nodes) {
+        if (node.outputCode && node.outputCode.endsWith('F')) {
+          const baseCode = node.outputCode.slice(0, -1);
+          
+          const finishedExists = await db('materials.materials')
+            .where('code', node.outputCode)
+            .first();
+          
+          if (!finishedExists) {
+            const baseMaterial = await db('materials.materials')
+              .where('code', baseCode)
+              .first();
+            
+            if (baseMaterial) {
+              await db('materials.materials').insert({
+                code: node.outputCode,
+                name: `${baseMaterial.name} (Finished)`,
+                category: baseMaterial.category || 'cat_finished_product',
+                type: 'finished_product',
+                unit: baseMaterial.unit || 'adet',
+                status: 'Aktif',
+                createdAt: db.fn.now()
+              });
+              console.log(`✅ Auto-created finished product: ${node.outputCode} from ${baseCode}`);
+            }
+          }
+        }
+      }
+    }
+    
+    await trx.commit();
     res.json(updated);
   } catch (error) {
+    await trx.rollback();
     console.error('❌ Error updating plan:', error);
     res.status(500).json({ 
       error: 'Failed to update plan',

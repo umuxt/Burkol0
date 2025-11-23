@@ -233,7 +233,7 @@ export function updateNodeSequences() {
 
 // Compute effective duration based on station and worker efficiency
 export function computeNodeEffectiveDuration(node) {
-  const nominalTime = parseFloat(node.time) || 0;
+  const nominalTime = parseFloat(node.nominalTime) || 0;
   if (nominalTime <= 0) return 0;
   
   // In Plan Designer, we only track nominal time
@@ -301,8 +301,16 @@ export function summarizePlanTiming(nodes, planQuantity = 1) {
   const stationLoadMap = new Map(); // stationId -> cumulative effective time
   
   nodes.forEach(node => {
-    const nominalTime = parseFloat(node.time) || 0;
-    const effectiveTime = typeof node.effectiveTime === 'number' ? node.effectiveTime : nominalTime;
+    const nominalTime = parseFloat(node.nominalTime) || 0;
+    const effectiveTime = parseFloat(node.effectiveTime) || 0;
+    
+    if (effectiveTime === 0 && nominalTime > 0) {
+      console.warn(`⚠️ Node ${node.id} (${node.name}): effectiveTime is 0 but nominalTime is ${nominalTime}!`, {
+        nominalTime: node.nominalTime,
+        effectiveTime: node.effectiveTime,
+        efficiency: node.efficiency
+      });
+    }
     
     totalNominalTime += nominalTime;
     totalEffectiveTime += effectiveTime;
@@ -1023,17 +1031,31 @@ export function renderCanvas() {
   updateNodeSequences();
 
   // NEW MODEL: Render connections based on predecessors
+  const connectionsToRender = [];
   planDesignerState.nodes.forEach(toNode => {
-    if (toNode.predecessors && Array.isArray(toNode.predecessors)) {
+    if (toNode.predecessors && Array.isArray(toNode.predecessors) && toNode.predecessors.length > 0) {
       toNode.predecessors.forEach(fromId => {
         const fromNode = planDesignerState.nodes.find(n => n.id === fromId);
-        if (fromNode) renderConnection(fromNode, toNode);
+        if (fromNode) {
+          // Verify nodes have positions
+          if (fromNode.x === undefined || fromNode.y === undefined) {
+            console.warn('⚠️ fromNode missing position:', fromNode.id, fromNode);
+          }
+          if (toNode.x === undefined || toNode.y === undefined) {
+            console.warn('⚠️ toNode missing position:', toNode.id, toNode);
+          }
+          connectionsToRender.push({ from: fromNode.id, to: toNode.id, fromX: fromNode.x, toX: toNode.x });
+          renderConnection(fromNode, toNode);
+        }
       });
     }
   });
+  if (connectionsToRender.length > 0) {
+    console.log('🔗 Rendering', connectionsToRender.length, 'connections:', connectionsToRender);
+  }
   planDesignerState.nodes.forEach(node => renderNode(node));
 
-  // Recalculate timing summary cache
+  // Always recalculate timing summary from current nodes (no cache!)
   planDesignerState.timingSummary = summarizePlanTiming(
     planDesignerState.nodes, 
     planDesignerState.planQuantity || 1
@@ -1065,13 +1087,13 @@ export function renderTimingSummary() {
     return;
   }
   
-  const efficiencyGain = summary.totalNominalTime > 0 
-    ? ((summary.totalNominalTime - summary.totalEffectiveTime) / summary.totalNominalTime * 100)
+  const efficiencyGain = summary.totalEffectiveTime > 0 
+    ? ((summary.totalNominalTime / summary.totalEffectiveTime) * 100)
     : 0;
   
-  const efficiencyBadge = Math.abs(efficiencyGain) > 0.5
-    ? `<span style="color: ${efficiencyGain > 0 ? '#059669' : '#dc2626'}; font-size: 12px; font-weight: 500;">
-        (${efficiencyGain > 0 ? '↓' : '↑'} ${Math.abs(efficiencyGain).toFixed(1)}%)
+  const efficiencyBadge = summary.totalEffectiveTime > 0
+    ? `<span style="color: ${efficiencyGain >= 100 ? '#059669' : '#dc2626'}; font-size: 12px; font-weight: 500;">
+        ${efficiencyGain.toFixed(1)}% efficiency
        </span>`
     : '';
   
@@ -1156,7 +1178,8 @@ export function renderNode(node, targetCanvas = null) {
     const parts = materials.slice(0,2).map(m => {
       const nm = m.name || m.materialCode
       const qty = m.requiredQuantity != null && m.requiredQuantity !== '' ? ` (${m.requiredQuantity})` : ''
-      return (nm||'').toString() + qty
+      const derivedIcon = (m.isDerived || m.derivedFrom) ? '🔗 ' : ''
+      return derivedIcon + (nm||'').toString() + qty
     })
     const extra = materials.length > 2 ? ` +${materials.length-2} more` : ''
     return parts.join(', ') + extra
@@ -1181,11 +1204,11 @@ export function renderNode(node, targetCanvas = null) {
   
   // Time display with efficiency
   const timeDisplay = (() => {
-    const nominalTime = parseFloat(node.time) || 0;
-    const effectiveTime = typeof node.effectiveTime === 'number' ? node.effectiveTime : nominalTime;
+    const nominalTime = parseFloat(node.nominalTime) || 0;
+    const effectiveTime = parseFloat(node.effectiveTime) || 0;
     
     // If effective time differs from nominal, show both
-    if (Math.abs(effectiveTime - nominalTime) > 0.01 && (node.assignedWorkerId || (Array.isArray(node.assignedStations) && node.assignedStations.length > 0))) {
+    if (Math.abs(effectiveTime - nominalTime) > 0.01 && effectiveTime > 0) {
       return `⏱️ ${nominalTime} min → ${effectiveTime.toFixed(1)} min effective`;
     }
     return `⏱️ ${nominalTime} min`;
@@ -1846,8 +1869,8 @@ export async function editNode(nodeId) {
   const preferredStationTags = node.preferredStationTags || [];
   const tagsInputValue = preferredStationTags.join(', ');
   
-  // Get operation time (nominalTime is primary, time is internal fallback)
-  const nominalTime = node.nominalTime || node.time || 60;
+  // Get operation time from backend canonical field
+  const nominalTime = node.nominalTime || 60;
   
   // CRITICAL FIX: Parse efficiency correctly (0-1 range or percentage)
   let efficiency = 1.0;
@@ -1926,7 +1949,7 @@ export async function editNode(nodeId) {
     try {
       const label = document.getElementById('node-output-code-label');
       if (label) {
-        const preview = node.semiCode || await getSemiCodePreviewForNode(node, planDesignerState.availableOperations || [], planDesignerState.availableStations || []).catch(() => null);
+        const preview = node.outputCode || node.semiCode || await getSemiCodePreviewForNode(node, planDesignerState.availableOperations || [], planDesignerState.availableStations || []).catch(() => null);
         if (preview) {
           label.textContent = `Output: ${preview}`;
         } else {
@@ -2094,7 +2117,7 @@ export function saveNodeEdit() {
   
   // Update node with new values
   planDesignerState.selectedNode.name = name;
-  planDesignerState.selectedNode.time = time;
+  planDesignerState.selectedNode.nominalTime = time;
   
   // Extract selected station IDs from chips
   const chipsContainer = document.getElementById('station-chips-container');
@@ -2229,7 +2252,7 @@ export function closeNodeEditModal(event) {
     
     // Restore all editable properties from snapshot
     node.name = snapshot.name;
-    node.time = snapshot.time;
+    node.nominalTime = snapshot.nominalTime;
     node.efficiency = snapshot.efficiency;
     node.assignedStations = snapshot.assignedStations;
     node.assignmentMode = snapshot.assignmentMode;
@@ -2327,20 +2350,35 @@ export function propagateDerivedMaterialUpdate(fromNodeId) {
   if (!fromId) return
   const fromNode = planDesignerState.nodes.find(n => asIdString(n.id) === fromId)
   if (!fromNode) return
-  const updatedMaterialCode = fromNode.semiCode || `node-${fromId}-output`  // SCHEMA: materialCode
-  const updatedLabel = fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`
-  const updatedQty = (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : 0  // SCHEMA: requiredQuantity
+  
+  // Find all nodes that have this node as a predecessor (downstream nodes only)
+  const downstreamNodes = planDesignerState.nodes.filter(n => 
+    Array.isArray(n.predecessors) && n.predecessors.includes(fromId)
+  );
+  
+  if (downstreamNodes.length === 0) return;
+  
+  console.log(`🔄 Propagating derived material updates from node ${fromId} to ${downstreamNodes.length} downstream node(s)`);
 
-  planDesignerState.nodes.forEach(n => {
+  downstreamNodes.forEach(n => {
     if (!Array.isArray(n.materialInputs)) return
     let changed = false
     n.materialInputs.forEach(m => {
       if (m && asIdString(m.derivedFrom) === fromId) {
-        m.materialCode = updatedMaterialCode     // SCHEMA: materialCode
-        m.name = updatedLabel                    // Display only
-        m.requiredQuantity = updatedQty          // SCHEMA: requiredQuantity
-        m.unitRatio = 1                          // SCHEMA: unitRatio
+        const oldQuantity = m.requiredQuantity;
+        m.materialCode = fromNode.outputCode || `node-${fromId}-output`     // SCHEMA: materialCode (use outputCode not semiCode)
+        m.name = fromNode._outputName || fromNode.name                      // Display only (use _outputName)
+        m.requiredQuantity = (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : 0  // SCHEMA: requiredQuantity
+        m.unit = fromNode.outputUnit || ''                                  // SCHEMA: unit (CRITICAL FIX - was missing!)
+        m.unitRatio = 1                                                     // SCHEMA: unitRatio
         changed = true
+        
+        console.log(`  ✅ Updated derived material in node ${n.id}:`, {
+          materialCode: m.materialCode,
+          oldQuantity,
+          newQuantity: m.requiredQuantity,
+          unit: m.unit
+        });
       }
     })
     if (changed) {
@@ -2424,8 +2462,9 @@ function derivedLabel(mat) {
   const fromId = asIdString(mat?.derivedFrom)
   if (!fromId) return materialLabel(mat)
   const src = findNodeByIdAny(fromId)
-  // Only show semi/material, never operation names. If no semi yet, hide.
-  if (src && src.semiCode) return src.semiCode
+  // Only show semi/material, never operation names. If no output code yet, hide.
+  const outputCode = src?.outputCode || src?.semiCode;
+  if (src && outputCode) return outputCode
   return ''
 }
 
@@ -2535,6 +2574,13 @@ export function handlePeriodicFrequencyChange() {
 
 export function savePlanAsTemplate() {
   if (planDesignerState.nodes.length === 0) { showErrorToast('Cannot save empty plan as template'); return; }
+  
+  // Prevent double-submit
+  if (planDesignerState._savingTemplate) {
+    console.warn('⚠️ Template save already in progress, ignoring duplicate request');
+    return;
+  }
+  
   const planNameInput = document.getElementById('plan-name');
   const planDescInput = document.getElementById('plan-description');
   const orderSelect = document.getElementById('order-select');
@@ -2542,7 +2588,7 @@ export function savePlanAsTemplate() {
   
   let planName = planNameInput ? planNameInput.value : '';
   const planDesc = planDescInput?.value || '';
-  let orderCode = orderSelect ? orderSelect.value : '';
+  let workOrderCode = orderSelect ? orderSelect.value : '';
   const scheduleType = scheduleTypeSelect ? scheduleTypeSelect.value : 'one-time';
   
   // Get quantity from modal input if available, fallback to state
@@ -2553,17 +2599,19 @@ export function savePlanAsTemplate() {
     const base = (planDesignerState.currentPlanMeta?.name) || planName || 'Untitled';
     planName = `${base} - kopyası`;
     // Copying from a production plan: clear order linkage for the template
-    orderCode = '';
+    workOrderCode = '';
   }
   if (!planName) { showErrorToast('Please enter a plan name'); return; }
   
-  // If editing from an existing template, keep the same id to update and track lastModifiedBy
+  // If editing from an existing template, keep the same id to update
+  // Only use sourceTemplateId - this is set ONLY when editing a template
   const existingTplId = planDesignerState.currentPlanMeta?.sourceTemplateId || null;
+  
   const template = {
-    id: existingTplId || undefined,
+    id: existingTplId || undefined,  // Send ID for UPDATE, undefined for CREATE
     name: planName,
     description: planDesc,
-    orderCode: orderCode,
+    workOrderCode: workOrderCode || null,  // null for templates without work order
     scheduleType: scheduleType,
     quantity: planQuantity,
     steps: JSON.parse(JSON.stringify(planDesignerState.nodes)),
@@ -2571,59 +2619,57 @@ export function savePlanAsTemplate() {
     status: 'template'
   };
   
+  const isEditingTemplate = !!existingTplId;
+  
   // Debug: Log the template object being saved
   console.log('🔍 TEMPLATE BEING SAVED:', {
-    orderCode: template.orderCode,
+    templateId: template.id,
+    workOrderCode: template.workOrderCode,
     scheduleType: template.scheduleType,
     quantity: template.quantity,
-    planQuantity: planQuantity,
-    stateQuantity: planDesignerState.planQuantity,
-    metaQuantity: planDesignerState.currentPlanMeta?.quantity,
     name: template.name,
     description: template.description,
     status: template.status,
-    fullTemplate: template
+    isEditingTemplate: isEditingTemplate,
+    isUpdate: !!template.id,
+    nodeCount: template.steps.length
   });
-  // If no existing template id, generate a new one; otherwise update existing via POST /templates (merge)
-  const ensureId = template.id 
-    ? Promise.resolve(template.id)
-    : getNextProductionPlanId().then((newId) => { template.id = newId || genId('plan-'); return template.id })
-
-  ensureId
-    .then(async () => {
-      // Create materials for new outputs (skip on copy operation)
-      const isCopyOperation = planDesignerState.readOnly;
-      
-      if (!isCopyOperation) {
-        const newOutputs = planDesignerState.nodes.filter(n => n._isNewOutput && n._outputNeedsCreation);
-        if (newOutputs.length > 0) {
-          try {
-            console.log(`Creating ${newOutputs.length} new output materials...`);
-            const result = await createOutputMaterials(newOutputs);
-            
-            // Mark as no longer needing creation
-            newOutputs.forEach(node => {
-              node._outputNeedsCreation = false;
-            });
-            
-            console.log(`✅ Created ${result.created} materials, ${result.failed} failed`);
-          } catch (error) {
-            console.error('Failed to create output materials:', error);
-            showErrorToast('Failed to create output materials: ' + error.message);
-            throw error; // Prevent template save if material creation fails
-          }
+  
+  // Save template directly - backend handles ID generation
+  const saveTemplate = async () => {
+    // Create materials for new outputs (skip on copy operation)
+    const isCopyOperation = planDesignerState.readOnly;
+    
+    if (!isCopyOperation) {
+      const newOutputs = planDesignerState.nodes.filter(n => n._isNewOutput && n._outputNeedsCreation);
+      if (newOutputs.length > 0) {
+        try {
+          console.log(`Creating ${newOutputs.length} new output materials...`);
+          const result = await createOutputMaterials(newOutputs);
+          
+          // Mark as no longer needing creation
+          newOutputs.forEach(node => {
+            node._outputNeedsCreation = false;
+          });
+          
+          console.log(`✅ Created ${result.created} materials, ${result.failed} failed`);
+        } catch (error) {
+          console.error('Failed to create output materials:', error);
+          showErrorToast('Failed to create output materials: ' + error.message);
+          throw error; // Prevent template save if material creation fails
         }
-      } else {
-        console.log('Copy operation - skipping material creation');
       }
-      
-      return createTemplate(template);
-    })
-    .catch(() => {
-      // As an extra fallback, still try to save with a local id
-      template.id = template.id || genId('tpl-');
-      return createTemplate(template)
-    })
+    } else {
+      console.log('Copy operation - skipping material creation');
+    }
+    
+    return createTemplate(template);
+  };
+
+  // Set saving flag
+  planDesignerState._savingTemplate = true;
+
+  saveTemplate()
     .then(() => {
       const msg = existingTplId
         ? `Template updated: ${template.name}`
@@ -2641,7 +2687,11 @@ export function savePlanAsTemplate() {
     })
     .catch(e => {
       console.error('Template save failed', e);
-      showErrorToast('Template save failed');
+      showErrorToast('Template save failed: ' + (e.message || 'Unknown error'));
+    })
+    .finally(() => {
+      // Clear saving flag
+      planDesignerState._savingTemplate = false;
     });
 }
 
@@ -2716,9 +2766,8 @@ function sanitizeNodesForBackend(nodes) {
           }))
         : [],
       
-      // Output configuration
-      semiCode: node.semiCode || node.outputCode || null,
-      outputCode: node.semiCode || node.outputCode || null,
+      // Output configuration (use backend canonical names)
+      outputCode: node.outputCode || null,
       outputQty: parseFloat(node.outputQty) || 0,
       outputUnit: node.outputUnit || 'pcs',
       
@@ -2746,6 +2795,12 @@ export async function savePlanDraft() {
     sourceTemplateId: planDesignerState.currentPlanMeta?.sourceTemplateId
   });
   
+  // Prevent double-submit
+  if (planDesignerState._savingPlan) {
+    console.warn('⚠️ Plan save already in progress, ignoring duplicate request');
+    return;
+  }
+  
   // Validation
   if (planDesignerState.nodes.length === 0) { 
     showErrorToast('Cannot save empty plan'); 
@@ -2766,8 +2821,8 @@ export async function savePlanDraft() {
       nodeIds.add(node.id);
     }
     
-    // Check for nominalTime (or time as fallback)
-    const nominalTime = node.nominalTime || node.time;
+    // Check for nominalTime (backend canonical field)
+    const nominalTime = node.nominalTime;
     if (!Number.isFinite(nominalTime) || nominalTime <= 0) {
       validationErrors.push(`Node ${idx + 1} (${node.id || 'unknown'}): nominalTime must be > 0`);
     }
@@ -2790,21 +2845,27 @@ export async function savePlanDraft() {
   
   const planName = document.getElementById('plan-name')?.value || 'Untitled';
   const planDesc = document.getElementById('plan-description')?.value || '';
-  const orderCode = document.getElementById('order-select')?.value || '';
+  const workOrderCode = document.getElementById('order-select')?.value || '';
   const scheduleType = document.getElementById('schedule-type')?.value || 'one-time';
-  
-  if (!orderCode) {
-    showWarningToast('Select a work order before saving this plan');
-    return;
-  }
   
   const quantityInput = document.getElementById('modal-plan-quantity');
   const planQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : (planDesignerState.planQuantity || 1);
   
-  console.log('📝 Plan data:', { planName, orderCode, planQuantity });
+  console.log('📝 Plan data:', { planName, workOrderCode, planQuantity });
   
   const meta = planDesignerState.currentPlanMeta || {};
   const isTemplateConversion = (meta.mode === 'edit' && meta.status === 'template' && meta.sourceTemplateId);
+  
+  // Validate WO for production plans (both new and converted from template)
+  if (!workOrderCode) {
+    showWarningToast('Select a work order before saving this plan');
+    return;
+  }
+  
+  if (!planName || planName === 'Untitled') {
+    showWarningToast('Please enter a plan name');
+    return;
+  }
   
   console.log('🔀 Operation mode:', isTemplateConversion ? 'Template → Plan Conversion' : 'New Plan Creation');
   
@@ -2824,10 +2885,11 @@ export async function savePlanDraft() {
   
   const wipOutputs = [];
   planDesignerState.nodes.forEach(node => {
-    if (node.semiCode) {
+    const outputCode = node.outputCode || node.semiCode;
+    if (outputCode) {
       wipOutputs.push({
-        code: node.semiCode,
-        name: node.semiCode,
+        code: outputCode,
+        name: node._outputName || outputCode,
         quantity: (node.outputQty || 1) * planQuantity,
         unit: node.outputUnit || 'pcs',
         nodeId: node.id,
@@ -2885,7 +2947,7 @@ export async function savePlanDraft() {
     const updates = {
       name: planName,
       description: planDesc,
-      orderCode,
+      workOrderCode,
       scheduleType,
       quantity: planQuantity,
       nodes: sanitizedNodes,  // CANONICAL: Sanitized nodes with canonical field names
@@ -2894,6 +2956,9 @@ export async function savePlanDraft() {
       materialSummary,
       timingSummary
     };
+    
+    // Set saving flag
+    planDesignerState._savingPlan = true;
     
     try {
       await updateProductionPlan(templateId, updates);
@@ -2906,6 +2971,8 @@ export async function savePlanDraft() {
     } catch (e) {
       console.error('❌ Plan conversion failed', e);
       showErrorToast('Plan conversion failed');
+    } finally {
+      planDesignerState._savingPlan = false;
     }
     return;
   }
@@ -2920,7 +2987,7 @@ export async function savePlanDraft() {
     id: undefined,
     name: planName,
     description: planDesc,
-    orderCode,
+    workOrderCode,
     scheduleType,
     quantity: planQuantity,
     nodes: sanitizedNodes,  // CANONICAL: Use sanitized nodes
@@ -2944,6 +3011,9 @@ export async function savePlanDraft() {
     console.log('  - First node assignedStations:', JSON.stringify(plan.nodes[0]?.assignedStations, null, 2));
   }
   
+  // Set saving flag
+  planDesignerState._savingPlan = true;
+  
   try {
     const newId = await getNextProductionPlanId();
     plan.id = newId || genId('plan-');
@@ -2961,6 +3031,8 @@ export async function savePlanDraft() {
   } catch (e) {
     console.error('❌ Plan save failed', e);
     showErrorToast(`Plan save failed: ${e.message || 'Unknown error'}`);
+  } finally {
+    planDesignerState._savingPlan = false;
   }
 }
 
@@ -3565,7 +3637,11 @@ function normalizeIncomingNodes(rawNodes = []) {
       for (const value of candidates) {
         if (value != null) {
           const str = String(value).trim();
-          if (str) return str;
+          if (str) {
+            // Extract frontend ID from backend format (e.g., "PLAN-001-node-1" → "node-1")
+            const match = str.match(/node-(\d+)$/);
+            return match ? `node-${match[1]}` : str;
+          }
         }
       }
       return '';
@@ -3585,10 +3661,15 @@ function normalizeIncomingNodes(rawNodes = []) {
       usedIds.add(assignedId);
     }
 
+    // Map both backend format and frontend format to the same ID
     if (preferred) {
       if (!remap.has(preferred)) {
         remap.set(preferred, assignedId);
       }
+    }
+    // Also map backend nodeId format if present
+    if (node.nodeId && node.nodeId !== assignedId) {
+      remap.set(node.nodeId, assignedId);
     }
     remap.set(`__idx_${index}`, assignedId);
     node.id = assignedId;
@@ -3602,6 +3683,10 @@ function normalizeIncomingNodes(rawNodes = []) {
 
     const materials = Array.isArray(node?.materialInputs) ? node.materialInputs : [];
     node.materialInputs = materials.map(mat => ({ ...mat }));
+
+    // Ensure backend canonical fields exist
+    // Frontend now uses nominalTime, operationId, outputCode directly (no mapping)
+    // Backend MUST send these fields in canonical format
 
     if (!Number.isFinite(node?.x)) {
       node.x = 80 + (index % 6) * 180;
@@ -3623,7 +3708,7 @@ function normalizeIncomingNodes(rawNodes = []) {
     delete node.assignmentMode;
     delete node.requiresAttention;
     delete node.assignmentWarnings;
-    delete node.effectiveTime;
+    // NOTE: DO NOT delete effectiveTime - it comes from backend calculation!
     
     // Migrate legacy fields to new structure if they don't exist
     if (!node.requiredSkills && node.skills) {
@@ -3690,7 +3775,23 @@ function normalizeIncomingNodes(rawNodes = []) {
 }
 
 export function loadPlanNodes(nodes = []) {
+  console.log('📥 loadPlanNodes - Raw nodes received:', nodes.length);
+  nodes.forEach((n, i) => {
+    console.log(`  Node ${i}:`, {
+      id: n.id,
+      name: n.name,
+      predecessors: n.predecessors,
+      outputCode: n.outputCode,
+      _outputMaterialId: n._outputMaterialId,
+      materialInputs: (n.materialInputs || []).map(m => ({
+        code: m.materialCode,
+        isDerived: m.isDerived,
+        derivedFrom: m.derivedFrom
+      }))
+    });
+  });
   const { normalizedNodes, nextCounter } = normalizeIncomingNodes(nodes);
+  console.log('✅ Normalized nodes:', normalizedNodes.length);
   planDesignerState.nodes = normalizedNodes;
   planDesignerState.nodeIdCounter = nextCounter;
   renderCanvas();
@@ -3734,7 +3835,7 @@ export function setPlanMeta(meta = {}) {
     
     if (nameEl) nameEl.value = meta.name || '';
     if (descEl) descEl.value = meta.description || '';
-    if (orderSel) orderSel.value = meta.orderCode || '';
+    if (orderSel) orderSel.value = meta.workOrderCode || '';
     
     // Set plan quantity
     planDesignerState.planQuantity = meta.quantity || 1;
@@ -3746,9 +3847,9 @@ export function setPlanMeta(meta = {}) {
     
     // Update order label - try to find matching option text
     if (orderLabel) {
-      if (meta.orderCode && orderSel) {
-        const matchingOption = Array.from(orderSel.options).find(opt => opt.value === meta.orderCode);
-        orderLabel.textContent = matchingOption ? matchingOption.text : meta.orderCode;
+      if (meta.workOrderCode && orderSel) {
+        const matchingOption = Array.from(orderSel.options).find(opt => opt.value === meta.workOrderCode);
+        orderLabel.textContent = matchingOption ? matchingOption.text : meta.workOrderCode;
       } else {
         orderLabel.textContent = 'Select an order...';
       }
@@ -3833,7 +3934,7 @@ export async function loadOrdersIntoSelect() {
   const select = document.getElementById('order-select');
   if (!select) return;
 
-  const previouslySelected = select.value || planDesignerState.currentPlanMeta?.orderCode || '';
+  const previouslySelected = select.value || planDesignerState.currentPlanMeta?.workOrderCode || '';
   select.innerHTML = '<option value="">Loading orders...</option>';
 
   try {

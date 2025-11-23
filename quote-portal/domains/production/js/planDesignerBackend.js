@@ -41,7 +41,8 @@ function rebuildMaterialRowsFromNode(node) {
     if (!container || !node) return
     const rows = Array.isArray(node.materialInputs) ? node.materialInputs : []
     const buildRow = (rm, idx) => {
-      const isDerived = !!(rm && rm.derivedFrom)
+      // Check both isDerived (from DB) and derivedFrom (from runtime)
+      const isDerived = !!(rm && (rm.isDerived || rm.derivedFrom))
       const badge = isDerived ? '<span style="margin-left:6px; font-size:11px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:8px;">auto</span>' : ''
       const displayInput = isDerived
         ? `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f3f4f6; color:#6b7280; cursor: default;" />${badge}`
@@ -165,7 +166,7 @@ export async function loadApprovedOrdersToSelect() {
 
     const takenCodes = new Set(
       (Array.isArray(plans) ? plans : [])
-        .map(p => (p?.orderCode || '').trim())
+        .map(p => (p?.workOrderCode || '').trim())
         .filter(Boolean)
     )
 
@@ -174,16 +175,16 @@ export async function loadApprovedOrdersToSelect() {
     }
 
     const availableQuotes = _approvedOrders.filter(q => {
-      const code = (q?.workOrderCode || q?.id || q?.quoteId || '').trim()
+      const code = (q?.workOrderCode || '').trim()
       return code && !takenCodes.has(code)
     })
 
     const ensuredList = [...availableQuotes]
     if (previouslySelected) {
       const normalized = String(previouslySelected).trim()
-      const alreadyIncluded = ensuredList.some(q => (q?.workOrderCode || q?.id || q?.quoteId || '').trim() === normalized)
+      const alreadyIncluded = ensuredList.some(q => (q?.workOrderCode || '').trim() === normalized)
       if (!alreadyIncluded) {
-        const fallback = _approvedOrders.find(q => (q?.workOrderCode || q?.id || q?.quoteId || '').trim() === normalized)
+        const fallback = _approvedOrders.find(q => (q?.workOrderCode || '').trim() === normalized)
         if (fallback) {
           ensuredList.unshift(fallback)
         } else {
@@ -199,8 +200,7 @@ export async function loadApprovedOrdersToSelect() {
     }
 
     for (const q of ensuredList) {
-      const rawCode = q?.workOrderCode || q?.id || q?.quoteId
-      const code = (rawCode || '').trim()
+      const code = (q?.workOrderCode || '').trim()
       if (!code) continue
       _ordersByCode.set(code, q)
       const label = `${escapeHtml(code)} — ${escapeHtml(q?.company || q?.customer || q?.name || '-')}`
@@ -298,10 +298,27 @@ export async function editNodeBackend(nodeId) {
   const node = planDesignerState.nodes.find(n => n.id === nodeId)
   if (!node) return
   
+  // CRITICAL: Sync derived materials with their predecessors BEFORE opening edit modal
+  if (Array.isArray(node.materialInputs)) {
+    node.materialInputs.forEach(mat => {
+      if (mat.derivedFrom) {
+        const predecessorNode = planDesignerState.nodes.find(n => n.id === mat.derivedFrom);
+        if (predecessorNode) {
+          // Sync ALL fields from predecessor's output
+          mat.materialCode = predecessorNode.outputCode || `node-${predecessorNode.id}-output`;
+          mat.name = predecessorNode._outputName || predecessorNode.name;
+          mat.requiredQuantity = (typeof predecessorNode.outputQty === 'number' && Number.isFinite(predecessorNode.outputQty)) ? predecessorNode.outputQty : 0;
+          mat.unit = predecessorNode.outputUnit || '';
+          mat.unitRatio = 1;
+        }
+      }
+    });
+  }
+  
   // Create a deep copy snapshot of the node before editing (for cancel functionality)
   planDesignerState.nodeEditSnapshot = JSON.parse(JSON.stringify({
     name: node.name,
-    time: node.time,
+    nominalTime: node.nominalTime,
     efficiency: node.efficiency,
     assignedStations: node.assignedStations,
     assignmentMode: node.assignmentMode,
@@ -385,7 +402,7 @@ export async function editNodeBackend(nodeId) {
   const manualEnabled = true // Always allow manual assignment
 
   // Calculate effective time for display
-  const nominalTime = parseFloat(node.time) || 0;
+  const nominalTime = parseFloat(node.nominalTime) || 0;
   // Use node's efficiency override, or fall back to operation's defaultEfficiency
   const currentEfficiency = node.efficiency || operationDefaultEfficiency;
   const initialEffectiveTime = nominalTime > 0 ? Math.round(nominalTime / currentEfficiency) : 0;
@@ -400,7 +417,7 @@ export async function editNodeBackend(nodeId) {
 
   const formContent =
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Operation Name</label><input type="text" id="edit-name" value="' + escapeHtml(node.name) + '" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" /></div>' +
-    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + Number(node.time || 0) + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreviewBackend()" />' + effectiveTimeDisplay + '</div>' +
+    '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Estimated Unit Production Time (minutes)</label><input type="number" id="edit-time" value="' + Number(node.nominalTime || 0) + '" min="1" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreviewBackend()" />' + effectiveTimeDisplay + '</div>' +
     '<div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 4px; font-weight: 500;">Verimlilik Override (%) <span style="font-size: 11px; color: #6b7280; font-weight: normal;">(opsiyonel)</span></label><input type="number" id="edit-efficiency" value="' + (node.efficiency ? (node.efficiency * 100).toFixed(1) : '') + '" min="1" max="100" step="0.1" placeholder="Boş bırakın (operasyon varsayılanı: ' + Math.round(operationDefaultEfficiency * 100) + '% kullanılır)" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" oninput="updateEffectiveTimePreviewBackend()" data-operation-efficiency="' + operationDefaultEfficiency + '" /><div id="effective-time-preview-backend" style="font-size: 12px; color: #3b82f6; margin-top: 4px; font-weight: 500;">Effective Time: ' + initialEffectiveTime + ' min</div><div style="font-size: 11px; color: #6b7280; margin-top: 2px;">Bu node için özel verimlilik ayarlayın. Boş ise operasyonun varsayılan verimlilik değeri (' + Math.round(operationDefaultEfficiency * 100) + '%) kullanılır.</div></div>' +
     generateMultiStationSelector(node, compatibleStations) +
     '<div style="margin-bottom: 16px;"><label style="display:block; margin-bottom: 6px; font-weight: 500;">Worker Assignment</label>' +
@@ -416,7 +433,8 @@ export async function editNodeBackend(nodeId) {
     (function(){
       const rows = Array.isArray(node.materialInputs) ? node.materialInputs : []
       const buildRow = (rm, idx) => {
-        const isDerived = !!(rm && rm.derivedFrom)
+        // Check both isDerived (from DB) and derivedFrom (from runtime)
+        const isDerived = !!(rm && (rm.isDerived || rm.derivedFrom))
         const badge = isDerived ? '<span style="margin-left:6px; font-size:11px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:8px;">auto</span>' : ''
         const displayInput = isDerived
           ? `<input id="edit-material-display-${idx}" type="text" readonly placeholder="Select material" value="${escapeHtml(formatMaterialLabel(rm))}" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f3f4f6; color:#6b7280; cursor: default;" />${badge}`
@@ -629,9 +647,9 @@ export async function saveNodeEditBackend() {
   // STRICT VALIDATION RULES FOR NODE SAVE
   // ============================================================================
   
-  // 1. Validate operation name and estimated time
-  if (!name || !Number.isFinite(time) || time < 1) { 
-    showErrorToast('Please fill in the operation name and estimated time.');
+  // 1. Validate estimated time
+  if (!Number.isFinite(time) || time < 1) { 
+    showErrorToast('Please fill in the estimated time.');
     return;
   }
   
@@ -715,7 +733,7 @@ export async function saveNodeEditBackend() {
   // ============================================================================
   
   node.name = name
-  node.time = time
+  node.nominalTime = time
   
   // Validate and convert efficiency (percent to decimal)
   if (efficiencyInput.trim() !== '') {
@@ -831,7 +849,7 @@ export async function saveNodeEditBackend() {
     assignmentMode: node.assignmentMode,
     assignedWorkerId: node.assignedWorkerId,
     assignedWorkerName: node.assignedWorkerName,
-    time: node.time,
+    nominalTime: node.nominalTime,
     outputQty: node.outputQty,
     outputUnit: node.outputUnit
   });

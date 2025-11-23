@@ -879,19 +879,19 @@ async function fetchProductionPlans() {
     const plans = Array.isArray(plansData?.productionPlans) ? plansData.productionPlans : []
     const templates = Array.isArray(templatesData?.templates) ? templatesData.templates : []
     
-    // Create a map of orderCode to plan data
+    // Create a map of workOrderCode to plan data
     productionPlansMap = {}
     
     // Add production plans with full metadata including launchStatus
     plans.forEach(plan => {
-      if (plan.orderCode) {
-        productionPlansMap[plan.orderCode] = {
+      if (plan.workOrderCode) {
+        productionPlansMap[plan.workOrderCode] = {
           id: plan.id,
           name: plan.name,
           type: 'production',
-          status: plan.status, // 'draft', 'production', etc.
-          launchStatus: plan.launchStatus, // 'launched', 'paused', 'cancelled', undefined
-          isUrgent: plan.isUrgent || false, // ✅ Add isUrgent flag
+          status: plan.status,
+          launchStatus: plan.launchStatus,
+          isUrgent: plan.isUrgent || false,
           nodes: plan.nodes || []
         }
       }
@@ -899,8 +899,8 @@ async function fetchProductionPlans() {
     
     // Add templates
     templates.forEach(template => {
-      if (template.orderCode) {
-        productionPlansMap[template.orderCode] = {
+      if (template.workOrderCode) {
+        productionPlansMap[template.workOrderCode] = {
           id: template.id,
           name: template.name,
           type: 'template',
@@ -1049,7 +1049,7 @@ function renderApprovedQuotesTable() {
   tbody.innerHTML = rows.map(q => {
     const customer = q.customer || q.name || '-'
     const company = q.company || '-'
-    const idForRow = q.workOrderCode || q.id || q.quoteId || ''
+    const idForRow = (q?.workOrderCode || '').trim()
     const deliveryDate = q.deliveryDate || (q.quoteSnapshot && q.quoteSnapshot.deliveryDate) || ''
     const esc = (s) => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]))
     

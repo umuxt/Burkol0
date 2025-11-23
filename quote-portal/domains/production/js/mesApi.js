@@ -444,7 +444,8 @@ export async function createOrUpdateMaterial(material) {
 
 // Create or update WIP material from plan node
 export async function upsertProducedWipFromNode(node, ops = [], stations = []) {
-  if (!node || !node.semiCode) return null
+  const outputCode = node?.outputCode || node?.semiCode;
+  if (!node || !outputCode) return null
   const station = Array.isArray(stations)
     ? stations.find(s => (s.id && s.id === node.assignedStation) || (s.name && s.name === node.assignedStation))
     : null
@@ -461,8 +462,8 @@ export async function upsertProducedWipFromNode(node, ops = [], stations = []) {
     : []
   
   const body = {
-    code: node.semiCode,
-    name: node.semiCode,
+    code: outputCode,
+    name: node._outputName || outputCode,
     type: 'semi_finished',
     unit: node.outputUnit || '',
     stock: 0, // Initial stock is 0; updated during production

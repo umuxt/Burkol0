@@ -65,26 +65,46 @@ function buildGraph(nodes) {
     succs.set(id, new Set());
   }
 
+  console.log('🔍 Material Flow buildGraph - nodes:', nodes.map(n => ({
+    id: n.id,
+    predecessors: n.predecessors,
+    successor: n.successor,
+    outputCode: n.outputCode
+  })));
+
   for (const n of nodes) {
     const fromId = asIdString(n.id);
     
-    // ✅ New model: predecessors → ins (reversed for flow), successor → outs
-    // Note: We need to reverse the logic since we're building FROM this node
-    // If this node has predecessors, those are INCOMING edges
-    // If this node has a successor, that's an OUTGOING edge
-    const outs = n.successor ? [n.successor] : [];
+    // ✅ Build edges from predecessors array (NEW MODEL)
+    // Each node has predecessors array → create edges FROM predecessors TO this node
+    const predecessorIds = Array.isArray(n.predecessors) ? n.predecessors : [];
     
-    // Backward compatibility: fallback to connections array if successor not available
-    const legacyConnections = Array.isArray(n.connections) ? n.connections : [];
-    const outgoingEdges = outs.length > 0 ? outs : legacyConnections;
-    
-    for (const to of outgoingEdges) {
-      const toId = asIdString(to);
-      if (!preds.has(toId) || !succs.has(fromId)) continue;
-      preds.get(toId).add(fromId);
-      succs.get(fromId).add(toId);
-      allConnections.push({ from: fromId, to: toId });
+    for (const predId of predecessorIds) {
+      const fromPredId = asIdString(predId);
+      if (!nodeMap.has(fromPredId)) continue; // Predecessor not in current node list
+      if (!preds.has(fromId) || !succs.has(fromPredId)) continue;
+      
+      preds.get(fromId).add(fromPredId);  // This node has predecessor
+      succs.get(fromPredId).add(fromId);  // Predecessor points to this node
+      allConnections.push({ from: fromPredId, to: fromId });
     }
+    
+    // Backward compatibility: Also check successor field if exists
+    if (n.successor) {
+      const toId = asIdString(n.successor);
+      if (nodeMap.has(toId) && preds.has(toId) && succs.has(fromId)) {
+        preds.get(toId).add(fromId);
+        succs.get(fromId).add(toId);
+        allConnections.push({ from: fromId, to: toId });
+      }
+    }
+  }
+
+  console.log('✅ Material Flow buildGraph result:');
+  for (const [id, node] of nodeMap.entries()) {
+    const predList = Array.from(preds.get(id) || []);
+    const succList = Array.from(succs.get(id) || []);
+    console.log(`  ${id}: preds=[${predList.join(', ')}], succs=[${succList.join(', ')}], isEnd=${succList.length === 0}`);
   }
 
   return { nodeMap, preds, succs, allConnections };
@@ -139,7 +159,8 @@ function composeNodeInputs(nodeId, graph) {
   // predecessor outputs as intermediate tokens
   for (const pid of (preds.get(nodeId) || [])) {
     const p = nodeMap.get(pid);
-    if (p && p.semiCode) interInputs.push(String(p.semiCode));
+    const outputCode = p?.outputCode || p?.semiCode;
+    if (p && outputCode) interInputs.push(String(outputCode));
   }
 
   // raw materials consumed at this node
@@ -156,7 +177,8 @@ function composeNodeInputs(nodeId, graph) {
 // Compose tokens for a chain step box (previous step output + current raw)
 function composeChainStepTokens(prevNode, node) {
   const interInputs = [];
-  if (prevNode && prevNode.semiCode) interInputs.push(String(prevNode.semiCode));
+  const outputCode = prevNode?.outputCode || prevNode?.semiCode;
+  if (prevNode && outputCode) interInputs.push(String(outputCode));
   const rawInputs = [];
   const rms = Array.isArray(node.materialInputs) ? node.materialInputs : [];
   for (const rm of rms) {
@@ -243,6 +265,16 @@ export function renderMaterialFlow() {
   if (!container) return;
 
   const nodes = Array.isArray(planDesignerState.nodes) ? planDesignerState.nodes : [];
+  
+  console.log('🎨 renderMaterialFlow - nodes from state:', nodes.map(n => ({
+    id: n.id,
+    name: n.name,
+    outputCode: n.outputCode,
+    _outputMaterialId: n._outputMaterialId,
+    predecessors: n.predecessors,
+    successor: n.successor
+  })));
+  
   if (!nodes.length) {
     container.innerHTML = '<div style="padding: 20px; text-align: center; color: #6b7280; font-size: 14px;">Plan tasarladıktan sonra malzeme akışı burada görünecektir</div>';
     return;
@@ -287,10 +319,11 @@ function renderFlow(model) {
 
       // If end, render final product box (green) separately
       const target = graph.nodeMap.get(targetId);
-      if (isEnd && target && target.semiCode) {
+      const outputCode = target?.outputCode || target?.semiCode;
+      if (isEnd && target && outputCode) {
         segments.push(renderArrow(left));
         left += ARROW_SPACING;
-        const finalMat = { rawInputs: [], interInputs: [], outputs: [String(target.semiCode)] };
+        const finalMat = { rawInputs: [], interInputs: [], outputs: [String(outputCode)] };
         segments.push(renderNodeBox(finalMat, false, true, left, 0));
         left += NODE_STEP;
       }
@@ -304,10 +337,11 @@ function renderFlow(model) {
       left += NODE_STEP;
       if (end) {
         const node = graph.nodeMap.get(id);
-        if (node && node.semiCode) {
+        const outputCode = node?.outputCode || node?.semiCode;
+        if (node && outputCode) {
           segments.push(renderArrow(left));
           left += ARROW_SPACING;
-          const finalMat = { rawInputs: [], interInputs: [], outputs: [String(node.semiCode)] };
+          const finalMat = { rawInputs: [], interInputs: [], outputs: [String(outputCode)] };
           segments.push(renderNodeBox(finalMat, false, true, left, 0));
           left += NODE_STEP;
         }

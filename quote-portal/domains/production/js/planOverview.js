@@ -49,8 +49,8 @@ function renderProductionPlans(plans) {
       const planId = fullPlanId === '—' ? '—' : 
                     fullPlanId.startsWith('PPL-') ? fullPlanId : fullPlanId.slice(-10)
       const name = (p.name || p.id || '').toString()
-      const order = (p.orderCode || '—')
-      const steps = Array.isArray(p.nodes) ? p.nodes.length : (Array.isArray(p.steps) ? p.steps.length : (p.stepsCount || 0))
+      const order = (p.workOrderCode || '—')
+      const steps = p.nodeCount || 0
       const status = (p.status || 'Draft')
       const created = (p.createdDate && p.createdTime) ? `${p.createdDate} ${p.createdTime}` : fmtDate(p.createdAt)
       const createdBy = p.createdByName || p.createdBy || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
@@ -64,10 +64,11 @@ function renderProductionPlans(plans) {
       let tooltipText = '';
       
       if (timingSummary) {
-        // Convert minutes to hours for display
-        const nominalHrs = (timingSummary.totalNominalTime / 60).toFixed(1);
-        const effectiveHrs = (timingSummary.totalEffectiveTime / 60).toFixed(1);
-        throughputDisplay = `${nominalHrs} / ${effectiveHrs} hrs`;
+        // Display nominal/effective time with efficiency percentage
+        const nominalMin = Math.round(timingSummary.totalNominalTime || 0);
+        const effectiveMin = Math.round(timingSummary.totalEffectiveTime || 0);
+        const efficiencyPercent = effectiveMin > 0 ? ((nominalMin / effectiveMin) * 100).toFixed(1) : '0.0';
+        throughputDisplay = `(${nominalMin}/${effectiveMin}) <strong>${efficiencyPercent}%</strong>`;
         
         if (timingSummary.bottleneck) {
           const loadMin = timingSummary.bottleneck.load.toFixed(0);
@@ -116,8 +117,8 @@ function renderTemplatesList(templates) {
       const templateId = fullTemplateId === '—' ? '—' : 
                          fullTemplateId.startsWith('PPL-') ? fullTemplateId : fullTemplateId.slice(-10)
       const name = (t.name || t.id || '').toString()
-      const order = (t.orderCode || '—')
-      const steps = Array.isArray(t.steps) ? t.steps.length : (t.stepsCount || 0)
+      const order = (t.workOrderCode || '—')
+      const steps = t.nodeCount || 0
       const created = (t.createdDate && t.createdTime) ? `${t.createdDate} ${t.createdTime}` : fmtDate(t.createdAt)
       const createdBy = t.createdByName || t.ownerName || t.createdBy || t.owner || (_currentUser && (_currentUser.name || _currentUser.email)) || '—'
       const updated = (t.updatedDate && t.updatedTime) ? `${t.updatedDate} ${t.updatedTime}` : fmtDate(t.lastModifiedAt || t.updatedAt || t.createdAt)
@@ -230,12 +231,14 @@ export async function viewProductionPlan(id) {
     setPlanMeta({ 
       name: p.name, 
       description: p.description, 
-      orderCode: p.orderCode, 
+      workOrderCode: p.workOrderCode, 
       scheduleType: p.scheduleType, 
       quantity: p.quantity || 1,
       mode: 'view',
       status: p.status || 'production',
-      id: p.id
+      id: p.id,
+      timingSummary: p.timingSummary,
+      materialSummary: p.materialSummary
     })
     
     console.log('✅ View Plan mode initialized:', {
@@ -282,9 +285,9 @@ export async function releasePlanFromOverview(planId, planName) {
   }
   
   // NEW WORKFLOW: Direct users to Approved Quotes for launch
-  const orderCode = window._currentPlanMeta?.orderCode;
+  const workOrderCode = window._currentPlanMeta?.workOrderCode;
   
-  if (!orderCode) {
+  if (!workOrderCode) {
     window.showToast?.('Bu planın iş emri bulunamadı. Lütfen plana bir iş emri atayın.', 'warning');
     return;
   }
@@ -356,15 +359,15 @@ export function editTemplateById(id) {
       console.log('📋 Template loaded:', {
         id: tpl.id,
         name: tpl.name,
-        orderCode: tpl.workOrderCode,
+        workOrderCode: tpl.workOrderCode,
         nodeCount: tpl.nodes?.length || 0
       });
       
       // Set mode to 'edit' with template status
       setPlanMeta({ 
         name: tpl.name || tpl.workOrderCode || tpl.id, 
-        description: tpl.description || '', 
-        orderCode: tpl.workOrderCode || '', 
+        description: tpl.description || '',
+        workOrderCode: tpl.workOrderCode || '',
         scheduleType: tpl.scheduleType || 'one-time',
         quantity: tpl.quantity || 1,
         mode: 'edit',
@@ -514,7 +517,7 @@ export function openCreatePlan() {
     setPlanMeta({ 
       name: '', 
       description: '', 
-      orderCode: '', 
+      workOrderCode: '', 
       scheduleType: 'one-time',
       quantity: 1,
       mode: 'create',
