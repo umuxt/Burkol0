@@ -36,16 +36,26 @@ function toggleAQPlanType() {
   renderApprovedQuotesTable()
 }
 
-// Production state management - simulated for UI only
-let productionStates = {} // Map of workOrderCode to production state
-
-// Production state constants
+// Production state constants (backend canonical values from mes.work_orders.productionState)
 const PRODUCTION_STATES = {
   WAITING_APPROVAL: 'Üretim Onayı Bekliyor',
   IN_PRODUCTION: 'Üretiliyor', 
   PAUSED: 'Üretim Durduruldu',
   COMPLETED: 'Üretim Tamamlandı',
   CANCELLED: 'İptal Edildi'
+}
+
+// Map backend state values to frontend display labels
+function mapBackendStateToFrontend(backendState) {
+  const stateMap = {
+    'pending': PRODUCTION_STATES.WAITING_APPROVAL,
+    'planned': PRODUCTION_STATES.WAITING_APPROVAL,
+    'in_progress': PRODUCTION_STATES.IN_PRODUCTION,
+    'paused': PRODUCTION_STATES.PAUSED,
+    'completed': PRODUCTION_STATES.COMPLETED,
+    'cancelled': PRODUCTION_STATES.CANCELLED
+  }
+  return stateMap[backendState] || backendState
 }
 
 export async function initializeApprovedQuotesUI() {
@@ -149,36 +159,30 @@ try { window.refreshApprovedQuotes = () => loadQuotesAndRender() } catch {}
 
 // Production state management functions
 function getProductionState(workOrderCode) {
-  // First check if we have it from server data
-  const quote = quotesState.find(q => (q.workOrderCode || q.id || q.quoteId) === workOrderCode)
-  if (quote && quote.productionState) {
-    return quote.productionState
-  }
-  
-  // Fallback to local state or default
-  return productionStates[workOrderCode] || PRODUCTION_STATES.WAITING_APPROVAL
+  // Single source of truth: quotesState from backend (mes.work_orders.productionState)
+  const quote = quotesState.find(q => q.workOrderCode === workOrderCode)
+  return quote?.productionState || 'pending'
 }
 
 async function setProductionState(workOrderCode, newState, updateServer = true) {
   try {
-    // Update local state first for immediate UI feedback
-    productionStates[workOrderCode] = newState
+    // Update backend first (single source of truth)
+    if (updateServer) {
+      await updateProductionState(workOrderCode, newState)
+    }
     
-    // Update the quote in quotesState as well
-    const quoteIndex = quotesState.findIndex(q => (q.workOrderCode || q.id || q.quoteId) === workOrderCode)
+    // Update local cache
+    const quoteIndex = quotesState.findIndex(q => q.workOrderCode === workOrderCode)
     if (quoteIndex !== -1) {
       quotesState[quoteIndex].productionState = newState
+      quotesState[quoteIndex].productionStateUpdatedAt = new Date().toISOString()
     }
     
     renderApprovedQuotesTable()
     
-    // Only update server if it's a valid state (not temporary states like 'Başlatılıyor...')
-    if (updateServer) {
-      await updateProductionState(workOrderCode, newState)
-      console.log(`Production state updated to ${newState} for ${workOrderCode}`)
-    }
+    console.log(`✅ Production state updated: ${workOrderCode} -> ${newState}`)
   } catch (error) {
-    console.error('Failed to update production state:', error)
+    console.error('❌ Failed to update production state:', error)
     alert('Üretim durumu güncellenirken hata oluştu. Lütfen tekrar deneyin.')
     throw error; // Re-throw to allow caller to handle
   }
@@ -266,7 +270,7 @@ async function startProduction(workOrderCode) {
     // Find the production plan for this work order
     const plan = productionPlansMap[workOrderCode];
     
-    if (!plan || plan.type !== 'production') {
+    if (!plan || plan.status === 'template') {
       alert('Üretim planı bulunamadı. Lütfen önce bir üretim planı oluşturun.');
       return;
     }
@@ -471,7 +475,7 @@ async function pauseProduction(workOrderCode) {
   try {
     const plan = productionPlansMap[workOrderCode];
     
-    if (!plan || plan.type !== 'production') {
+    if (!plan || plan.status === 'template') {
       alert('Üretim planı bulunamadı.');
       return;
     }
@@ -535,7 +539,7 @@ async function resumeProduction(workOrderCode) {
   try {
     const plan = productionPlansMap[workOrderCode];
     
-    if (!plan || plan.type !== 'production') {
+    if (!plan || plan.status === 'template') {
       alert('Üretim planı bulunamadı.');
       return;
     }
@@ -602,7 +606,7 @@ async function cancelProduction(workOrderCode) {
   try {
     const plan = productionPlansMap[workOrderCode];
     
-    if (!plan || plan.type !== 'production') {
+    if (!plan || plan.status === 'template') {
       alert('Üretim planı bulunamadı.');
       return;
     }
@@ -867,7 +871,7 @@ async function ensureApprovedQuote(quoteId) {
 
 async function fetchProductionPlans() {
   try {
-    // Fetch both production plans and templates
+    // Fetch both production plans and templates from same table (filtered by status)
     const [plansRes, templatesRes] = await Promise.all([
       fetch(`${API_BASE}/api/mes/production-plans?_t=${Date.now()}`, { headers: withAuth() }),
       fetch(`${API_BASE}/api/mes/templates?_t=${Date.now()}`, { headers: withAuth() })
@@ -879,38 +883,59 @@ async function fetchProductionPlans() {
     const plans = Array.isArray(plansData?.productionPlans) ? plansData.productionPlans : []
     const templates = Array.isArray(templatesData?.templates) ? templatesData.templates : []
     
+    console.log('📦 Fetched production plans:', plans.map(p => ({
+      id: p.id,
+      workOrderCode: p.workOrderCode,
+      status: p.status,
+      nodeCount: p.nodeCount,
+      launchStatus: p.launchStatus
+    })));
+    
+    console.log('📦 Fetched templates:', templates.map(t => ({
+      id: t.id,
+      workOrderCode: t.workOrderCode,
+      status: t.status,
+      nodeCount: t.nodeCount
+    })));
+    
     // Create a map of workOrderCode to plan data
     productionPlansMap = {}
     
-    // Add production plans with full metadata including launchStatus
+    // Add production plans (status='production' or 'draft')
     plans.forEach(plan => {
       if (plan.workOrderCode) {
         productionPlansMap[plan.workOrderCode] = {
           id: plan.id,
-          name: plan.name,
-          type: 'production',
-          status: plan.status,
-          launchStatus: plan.launchStatus,
-          isUrgent: plan.isUrgent || false,
-          nodes: plan.nodes || []
+          name: plan.name || plan.planName,
+          type: plan.status === 'template' ? 'template' : 'production',
+          status: plan.status, // 'draft', 'production', or 'template'
+          launchStatus: plan.launchStatus, // null, 'launched', 'paused', 'cancelled'
+          launchedAt: plan.launchedAt,
+          nodeCount: plan.nodeCount || 0,
+          timingSummary: plan.timingSummary,
+          materialSummary: plan.materialSummary
         }
       }
     })
     
-    // Add templates
+    // Add templates (status='template') - these usually don't have workOrderCode
     templates.forEach(template => {
+      // Templates might not have workOrderCode (stored as reusable templates)
+      // Only add to map if they DO have workOrderCode (linked to specific WO)
       if (template.workOrderCode) {
         productionPlansMap[template.workOrderCode] = {
           id: template.id,
-          name: template.name,
+          name: template.name || template.planName,
           type: 'template',
           status: 'template',
-          nodes: template.nodes || []
+          nodeCount: template.nodeCount || 0
         }
       }
     })
+    
+    console.log('✅ Production plans map built:', Object.keys(productionPlansMap).length, 'entries');
   } catch (e) {
-    console.error('Failed to fetch production plans:', e)
+    console.error('❌ Failed to fetch production plans:', e)
     productionPlansMap = {}
   }
 }
@@ -1098,9 +1123,11 @@ function renderApprovedQuotesTable() {
       const shortPlanId = fullPlanId.startsWith('PPL-') ? fullPlanId : 
                          (fullPlanId.length > 10 ? fullPlanId.slice(-10) : fullPlanId)
       const planName = plan.name || ''
-      const typeIcon = plan.type === 'production' ? '<i class="fa-solid fa-check-circle" style="color: #10b981;"></i>' : '<i class="fa-solid fa-square-check" style="color: #6b7280;"></i>'
-      const actionIcon = plan.type === 'production' ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-edit"></i>'
-      const actionMode = plan.type === 'production' ? 'view' : 'edit'
+      // Check if template or production plan (based on status field)
+      const isTemplate = plan.status === 'template'
+      const typeIcon = !isTemplate ? '<i class="fa-solid fa-check-circle" style="color: #10b981;"></i>' : '<i class="fa-solid fa-square-check" style="color: #6b7280;"></i>'
+      const actionIcon = !isTemplate ? '<i class="fa-solid fa-eye"></i>' : '<i class="fa-solid fa-edit"></i>'
+      const actionMode = !isTemplate ? 'view' : 'edit'
       const planUrl = `../pages/production.html?${actionMode}PlanId=${encodeURIComponent(fullPlanId)}&orderCode=${encodeURIComponent(idForRow)}`
       planCell = `<span style=\\"display:inline-flex; align-items:center; gap:4px;\\">${shortPlanId} ${typeIcon}<button onclick="event.stopPropagation(); window.open('${planUrl}', '_blank')" style="border:none; background:transparent; cursor:pointer; font-size:12px; line-height:1; padding:0 2px; vertical-align:baseline;" title="${actionMode === 'view' ? 'View Plan' : 'Edit Plan'}">${actionIcon}</button></span>`
     } else {
@@ -1109,21 +1136,32 @@ function renderApprovedQuotesTable() {
       planCell = `<span style=\\"display:inline-flex; align-items:center;\\"><button onclick="event.stopPropagation(); window.open('${createPlanUrl}', '_blank')" style="background: var(--primary); color: var(--primary-foreground); padding: 3px 8px; border: none; border-radius: 4px; font-size: 11px; font-weight: 500; cursor: pointer; white-space: nowrap; line-height:1; height:22px; display:inline-flex; align-items:center;" title="Üretim Planı Oluştur">+ Üretim Planı Oluştur</button></span>`
     }
 
-    // Production state/actions only visible if a production plan exists
-    const hasProductionPlan = !!plan && plan.type === 'production'
+    // Production state/actions only visible if a production plan exists (status != 'template')
+    const hasProductionPlan = !!plan && plan.status !== 'template'
     let productionStateCell = '<span style=\"font-size:11px; color:#6b7280;\">—</span>'
     let actionsCell = ''
     
     if (hasProductionPlan) {
-      // Determine actual production state - prefer quote.productionState over plan metadata
+      // Determine actual production state - map backend state to frontend labels
       let currentState = PRODUCTION_STATES.WAITING_APPROVAL;
       
-      // First check quote's productionState (most authoritative)
-      const quoteState = getProductionState(idForRow);
-      if (quoteState && quoteState !== PRODUCTION_STATES.WAITING_APPROVAL) {
-        currentState = quoteState;
+      // Get backend production state and map to frontend label
+      const backendState = getProductionState(idForRow);
+      const mappedState = mapBackendStateToFrontend(backendState);
+      
+      console.log('🎯 State mapping:', {
+        workOrderCode: idForRow,
+        backendState,
+        mappedState,
+        planStatus: plan.status,
+        launchStatus: plan.launchStatus
+      });
+      
+      // Use mapped state if it's a valid known state
+      if (mappedState !== backendState) {
+        currentState = mappedState;
       } 
-      // Fall back to plan's launchStatus only if quote state is missing
+      // Otherwise check plan metadata
       else if (plan.launchStatus === 'cancelled') {
         currentState = PRODUCTION_STATES.CANCELLED;
       } else if (plan.launchStatus === 'paused') {
@@ -1132,8 +1170,10 @@ function renderApprovedQuotesTable() {
         currentState = PRODUCTION_STATES.IN_PRODUCTION;
       } else {
         // Not launched yet - check if plan is ready to launch
-        if (plan.status === 'production' && plan.nodes && plan.nodes.length > 0) {
+        if (plan.status === 'production' && plan.nodeCount > 0) {
           currentState = PRODUCTION_STATES.WAITING_APPROVAL; // Ready to launch
+        } else if (plan.status === 'draft') {
+          currentState = 'Plan Hazırlanıyor'; // Draft plan
         } else {
           currentState = 'Plan Hazırlanıyor'; // Plan not ready
         }
@@ -1159,10 +1199,18 @@ function renderApprovedQuotesTable() {
       // Button rendering based on state
       const buttonStyle = 'border: none; background: transparent; cursor: pointer; font-size: 9px; padding: 1px 3px; margin: 1px; border-radius: 3px; white-space: nowrap; display: inline-block;'
       
-      // Only show "Başla" if plan is ready (status=production, has nodes, not launched)
+      // Show "Başla" if plan is ready (status=production, has nodes, not launched)
       const canLaunch = plan.status === 'production' && 
-                        plan.nodes && plan.nodes.length > 0 && 
+                        plan.nodeCount > 0 && 
                         !plan.launchStatus;
+      
+      console.log('🔍 Launch check:', {
+        workOrderCode: idForRow,
+        status: plan.status,
+        nodeCount: plan.nodeCount,
+        launchStatus: plan.launchStatus,
+        canLaunch
+      });
       
       if (currentState === PRODUCTION_STATES.WAITING_APPROVAL && canLaunch) {
         actionsCell += `<button onclick=\"event.stopPropagation(); startProduction('${esc(idForRow)}')\" class="btn-action btn-start" title=\"Üretimi Başlat\">🏁 Başlat</button>`
