@@ -4278,10 +4278,19 @@ async function findAvailableWorkerWithSkills(trx, requiredSkills, stationId) {
       .first();
   }
   
-  // Find workers with matching skills
-  const workers = await trx('mes.workers')
-    .where('isActive', true)
-    .whereRaw('skills::jsonb ?| ?', [requiredSkills]);
+  // ✅ FIXED: Find workers with matching skills using jsonb contains
+  let query = trx('mes.workers').where('isActive', true);
+  
+  const skillConditions = requiredSkills.map(skill => 
+    trx.raw(`skills::jsonb @> ?::jsonb`, [JSON.stringify([skill])])
+  );
+  
+  const workers = await query.where(function() {
+    skillConditions.forEach((condition, idx) => {
+      if (idx === 0) this.where(condition);
+      else this.orWhere(condition);
+    });
+  });
   
   if (workers.length === 0) return null;
   
@@ -4426,7 +4435,7 @@ router.post('/production-plans', withAuth, async (req, res) => {
       quantity: quantity || 1,
       timingSummary: timingSummary ? JSON.stringify(timingSummary) : null,
       materialSummary: materialSummary ? JSON.stringify(materialSummary) : null,
-      status: 'draft',
+      status: 'production', // ✅ FIXED: Production plans are ready to launch immediately
       createdAt: trx.fn.now()
     });
     
@@ -4972,8 +4981,20 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
   // Get workers with matching skills (or all if no skills required)
   let query = trx('mes.workers').where('isActive', true);
   
+  // ✅ FIXED: Use jsonb_path_exists to check if ANY skill matches
   if (requiredSkills && requiredSkills.length > 0) {
-    query = query.whereRaw('skills::jsonb ?| ?', [requiredSkills]);
+    // Check if worker.skills array contains any of the required skills
+    const skillConditions = requiredSkills.map(skill => 
+      trx.raw(`skills::jsonb @> ?::jsonb`, [JSON.stringify([skill])])
+    );
+    
+    // OR condition: worker must have at least ONE of the required skills
+    query = query.where(function() {
+      skillConditions.forEach((condition, idx) => {
+        if (idx === 0) this.where(condition);
+        else this.orWhere(condition);
+      });
+    });
   }
   
   const workers = await query;
@@ -5076,7 +5097,7 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
     // 1. Validate plan
     const plan = await trx('mes.production_plans')
       .where('id', id)
-      .where('status', 'draft')
+      .where('status', 'production') // ✅ FIXED: Plans are now saved as 'production', not 'draft'
       .first();
     
     if (!plan) {
@@ -5183,11 +5204,11 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       if (isQueued) queuedCount++;
       
       // 5h. Create worker assignment
-      // ✅ FIXED: nodeId is VARCHAR foreign key to production_plan_nodes.nodeId
+      // ✅ FIXED: nodeId is INTEGER foreign key to production_plan_nodes.id (NOT nodeId VARCHAR!)
       await trx('mes.worker_assignments').insert({
         planId: id,
         workOrderCode: plan.workOrderCode,
-        nodeId: node.nodeId, // VARCHAR foreign key to production_plan_nodes.nodeId
+        nodeId: node.id, // INTEGER foreign key to production_plan_nodes.id
         workerId: worker.id,
         substationId: substation.id,
         operationId: node.operationId,
@@ -5224,7 +5245,7 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         .where('id', substation.id)
         .update({
           status: 'reserved',
-          currentAssignmentId: node.nodeId, // ✅ FIXED: VARCHAR nodeId
+          currentAssignmentId: node.id, // ✅ FIXED: INTEGER (production_plan_nodes.id)
           assignedWorkerId: worker.id,
           currentOperation: node.operationId,
           reservedAt: trx.fn.now(),
