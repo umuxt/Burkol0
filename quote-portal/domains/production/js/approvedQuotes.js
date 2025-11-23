@@ -336,6 +336,7 @@ async function startProduction(workOrderCode) {
       await setProductionState(workOrderCode, PRODUCTION_STATES.IN_PRODUCTION, true);
       
       // Build success message with launch summary
+      const totalNodes = result.summary?.totalNodes || 0;
       const assignedCount = result.summary?.assignedNodes || result.assignments?.length || 0;
       const totalWorkers = result.summary?.totalWorkers || 0;
       const queuedCount = result.queuedTasks || 0;
@@ -343,8 +344,15 @@ async function startProduction(workOrderCode) {
       const parallelPaths = result.summary?.parallelPaths || 0;
       
       let message = `🚀 Üretim başarıyla başlatıldı!\n\n`;
-      message += `✅ ${assignedCount} operasyon atandı\n`;
+      message += `✅ ${assignedCount}${totalNodes > 0 ? ` / ${totalNodes}` : ''} operasyon atandı\n`;
       message += `👷 ${totalWorkers} işçi görevlendirildi\n`;
+      
+      // Show unassigned nodes warning if any
+      if (totalNodes > assignedCount) {
+        const unassigned = totalNodes - assignedCount;
+        message += `⚠️ ${unassigned} operasyon atama bekliyor (kaynak müsait değil)\n`;
+      }
+      
       if (queuedCount > 0) {
         message += `⏳ ${queuedCount} operasyon kuyrukta\n`;
       }
