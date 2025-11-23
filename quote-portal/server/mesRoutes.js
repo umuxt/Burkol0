@@ -4995,21 +4995,28 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
 /**
  * Topological sort for parallel execution
  */
+/**
+ * Topological sort using Kahn's algorithm
+ * ✅ FIXED: Uses node.nodeId (VARCHAR) instead of node.id (INTEGER)
+ */
 function topologicalSort(nodes, predecessors) {
   const graph = new Map();
   const inDegree = new Map();
   
+  // ✅ FIXED: Use node.nodeId (VARCHAR)
   nodes.forEach(n => {
-    graph.set(n.id, []);
-    inDegree.set(n.id, 0);
+    graph.set(n.nodeId, []);
+    inDegree.set(n.nodeId, 0);
   });
   
+  // Predecessors already use VARCHAR nodeId/predecessorNodeId
   predecessors.forEach(p => {
     graph.get(p.predecessorNodeId).push(p.nodeId);
     inDegree.set(p.nodeId, inDegree.get(p.nodeId) + 1);
   });
   
-  const queue = nodes.filter(n => inDegree.get(n.id) === 0).map(n => n.id);
+  // ✅ FIXED: Filter and map using node.nodeId
+  const queue = nodes.filter(n => inDegree.get(n.nodeId) === 0).map(n => n.nodeId);
   const order = [];
   
   while (queue.length > 0) {
@@ -5084,8 +5091,9 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       .where('planId', id)
       .orderBy('sequenceOrder');
     
+    // ✅ FIXED: Use nodeId (VARCHAR) not id (INTEGER)
     const predecessors = await trx('mes.node_predecessors')
-      .whereIn('nodeId', nodes.map(n => n.id));
+      .whereIn('nodeId', nodes.map(n => n.nodeId));  // VARCHAR foreign key!
     
     // 3. Topological sort for execution order
     const executionOrder = topologicalSort(nodes, predecessors);
@@ -5099,7 +5107,8 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
     
     // 5. Process nodes in topological order
     for (const nodeId of executionOrder) {
-      const node = nodes.find(n => n.id === nodeId);
+      // ✅ FIXED: executionOrder contains nodeId (VARCHAR strings)
+      const node = nodes.find(n => n.nodeId === nodeId);
       
       // 5a. Calculate earliest start (wait for predecessors)
       const predecessorIds = predecessors
@@ -5115,8 +5124,9 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       }
       
       // 5b. Get station options
+      // ✅ FIXED: Use node.nodeId (VARCHAR) not node.id (INTEGER)
       const stationOptions = await trx('mes.node_stations')
-        .where('nodeId', node.id)
+        .where('nodeId', node.nodeId)
         .orderBy('priority');
       
       // 5c. Find earliest available substation
@@ -5172,11 +5182,12 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       const isQueued = sequenceNumber > 1;
       if (isQueued) queuedCount++;
       
-      // 5h. Create worker assignment (now uses INTEGER foreign key)
+      // 5h. Create worker assignment
+      // ✅ FIXED: nodeId is VARCHAR foreign key to production_plan_nodes.nodeId
       await trx('mes.worker_assignments').insert({
         planId: id,
         workOrderCode: plan.workOrderCode,
-        nodeId: node.id, // INTEGER foreign key to production_plan_nodes.id
+        nodeId: node.nodeId, // VARCHAR foreign key to production_plan_nodes.nodeId
         workerId: worker.id,
         substationId: substation.id,
         operationId: node.operationId,
@@ -5205,14 +5216,15 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       subSchedule.push({ start: actualStart, end: actualEnd });
       substationSchedule.set(substation.id, subSchedule);
       
-      nodeCompletionTimes.set(node.id, actualEnd);
+      // ✅ FIXED: Use node.nodeId (VARCHAR) for predecessor lookup
+      nodeCompletionTimes.set(node.nodeId, actualEnd);
       
       // 5k. Reserve substation
       await trx('mes.substations')
         .where('id', substation.id)
         .update({
           status: 'reserved',
-          currentAssignmentId: node.id,
+          currentAssignmentId: node.nodeId, // ✅ FIXED: VARCHAR nodeId
           assignedWorkerId: worker.id,
           currentOperation: node.operationId,
           reservedAt: trx.fn.now(),
