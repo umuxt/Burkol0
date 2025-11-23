@@ -1,6 +1,6 @@
 // Plan Overview UI: tabs, filter, and create action
 
-import { getProductionPlans, getPlanTemplates, deleteProductionPlan, clearTemplateFromApprovedQuotes } from './mesApi.js'
+import { getProductionPlans, getPlanTemplates, deleteProductionPlan, clearTemplateFromApprovedQuotes, getProductionPlanById } from './mesApi.js'
 import { API_BASE, withAuth } from '../../../shared/lib/api.js'
 import { loadPlanNodes, setReadOnly, setPlanMeta, resetPlanDesignerState, planDesignerState } from './planDesigner.js'
 import { loadApprovedOrdersToSelect } from './planDesignerBackend.js'
@@ -356,16 +356,15 @@ export function editTemplateById(id) {
       console.log('📋 Template loaded:', {
         id: tpl.id,
         name: tpl.name,
-        orderCode: tpl.orderCode,
-        scheduleType: tpl.scheduleType,
-        quantity: tpl.quantity
+        orderCode: tpl.workOrderCode,
+        nodeCount: tpl.nodes?.length || 0
       });
       
       // Set mode to 'edit' with template status
       setPlanMeta({ 
-        name: tpl.name, 
+        name: tpl.name || tpl.workOrderCode || tpl.id, 
         description: tpl.description || '', 
-        orderCode: tpl.orderCode || '', 
+        orderCode: tpl.workOrderCode || '', 
         scheduleType: tpl.scheduleType || 'one-time',
         quantity: tpl.quantity || 1,
         mode: 'edit',
@@ -398,16 +397,23 @@ export function editTemplateById(id) {
         }
       })();
       
-      loadPlanNodes(tpl.steps || [])
+      loadPlanNodes(tpl.nodes || [])
     }
 
-    let t = (_templatesCache || []).find(x => x.id === id)
-    if (t) { openTpl(t); return }
-    // Fallback: refresh templates from backend then try again
-    getPlanTemplates()
-      .then(list => { _templatesCache = list || []; openTpl((_templatesCache || []).find(x => x.id === id)) })
-      .catch(e => console.warn('editTemplateById reload failed', e?.message))
-  } catch (e) { console.warn('editTemplateById failed', e?.message) }
+    // Always fetch fresh from backend - bypass cache
+    getProductionPlanById(id)
+      .then(plan => {
+        console.log('🔍 Backend returned plan:', plan);
+        openTpl(plan);
+      })
+      .catch(e => {
+        console.error('❌ Failed to load template:', e);
+        showErrorToast('Failed to load template');
+      })
+  } catch (e) { 
+    console.error('❌ editTemplateById failed:', e);
+    showErrorToast('Failed to open template');
+  }
 }
 
 export async function deleteTemplateById(id) {

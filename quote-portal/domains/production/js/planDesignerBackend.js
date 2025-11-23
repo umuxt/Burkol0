@@ -4,6 +4,7 @@ import { getOperations, getStations, getSubstations, getApprovedQuotes, getMater
 import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate, aggregatePlanMaterials, checkMaterialAvailability, computeNodeEffectiveDuration } from './planDesigner.js'
 import { getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
+import { API_BASE } from '../../../shared/lib/api.js'
 
 // Helper functions to manage body scroll lock
 function lockBodyScroll() {
@@ -2318,6 +2319,12 @@ window.openOutputSelectionDropdown = async function() {
   
   if (!dropdown || !listContainer) return;
   
+  // Toggle: if already open, close it
+  if (dropdown.style.display === 'block') {
+    dropdown.style.display = 'none';
+    return;
+  }
+  
   const node = planDesignerState.selectedNode;
   if (!node) return;
   
@@ -2330,7 +2337,7 @@ window.openOutputSelectionDropdown = async function() {
     dropdown.style.display = 'block';
     
     // Fetch existing outputs with this prefix
-    const url = prefix ? `/api/mes/output-codes/existing?prefix=${encodeURIComponent(prefix)}` : '/api/mes/output-codes/existing';
+    const url = prefix ? `${API_BASE}/api/mes/output-codes/existing?prefix=${encodeURIComponent(prefix)}` : `${API_BASE}/api/mes/output-codes/existing`;
     const response = await fetch(url, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });
@@ -2343,23 +2350,25 @@ window.openOutputSelectionDropdown = async function() {
     
     if (outputs.length === 0) {
       listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted-foreground); font-size: 12px;">No existing outputs found</div>';
+      listContainer.style.display = 'block';
       return;
     }
     
     // Render output list
     listContainer.innerHTML = outputs.map(o => `
       <div onclick="selectExistingOutput('${o.code}', '${o.name.replace(/'/g, "\\'")}', '${o.unit}', ${o.id})" 
-           style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.15s;"
+           style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.15s; font-size: 12px;"
            onmouseover="this.style.background='rgb(249, 250, 251)'" 
            onmouseout="this.style.background='white'">
-        <div style="font-size: 13px; font-weight: 600;">${o.code}</div>
-        <div style="font-size: 11px; color: var(--muted-foreground); margin-top: 2px;">${o.name} - ${o.unit}</div>
+        <span style="font-weight: 600;">${o.code}</span> · <span>${o.name}</span> · <span style="color: var(--muted-foreground);">${o.unit}</span>
       </div>
     `).join('');
+    listContainer.style.display = 'block';
     
   } catch (error) {
     console.error('Error loading outputs:', error);
     listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #ef4444; font-size: 12px;">Error loading outputs</div>';
+    listContainer.style.display = 'block';
   }
 };
 
@@ -2367,12 +2376,20 @@ window.selectExistingOutput = function(code, name, unit, materialId) {
   const node = planDesignerState.selectedNode;
   if (!node) return;
   
-  // Store in temporary UI state (will be saved to node on saveNodeEdit)
+  // ✅ IMMEDIATELY store in node (not just UI dataset)
+  node.outputCode = code;
+  node._outputMaterialId = materialId;
+  node._outputName = name;
+  node._outputSelectionMode = 'existing';
+  node._isNewOutput = false;
+  node.outputUnit = unit;
+  
+  // Also update UI display
   const displayEl = document.getElementById('selected-output-display');
   if (displayEl) {
     displayEl.textContent = `Selected: ${code} - ${name}`;
     displayEl.style.display = 'block';
-    // Store selection data in display element for retrieval on save
+    // Store selection data in display element as backup
     displayEl.dataset.code = code;
     displayEl.dataset.unit = unit;
     displayEl.dataset.materialId = materialId;
@@ -2390,7 +2407,7 @@ window.selectExistingOutput = function(code, name, unit, materialId) {
     qtyInput.focus();
   }
   
-  console.log('✅ Existing output selected (stored in UI dataset only):', { code, name, unit, materialId });
+  console.log('✅ Existing output selected and saved to node:', { code, name, unit, materialId });
 };
 
 window.updateNewOutputPreview = function() {
@@ -2436,7 +2453,7 @@ window.validateOutputCodeUniqueness = async function() {
   if (!suffixInput) return true;
   
   try {
-    const response = await fetch(`/api/mes/output-codes/validate?code=${encodeURIComponent(node.outputCode)}`, {
+    const response = await fetch(`${API_BASE}/api/mes/output-codes/validate?code=${encodeURIComponent(node.outputCode)}`, {
       headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
     });
     

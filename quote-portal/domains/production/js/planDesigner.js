@@ -1022,11 +1022,13 @@ export function renderCanvas() {
   // Sequence'leri güncelle
   updateNodeSequences();
 
-  // NEW MODEL: Render successor connections
-  planDesignerState.nodes.forEach(node => {
-    if (node.successor) {
-      const targetNode = planDesignerState.nodes.find(n => n.id === node.successor);
-      if (targetNode) renderConnection(node, targetNode);
+  // NEW MODEL: Render connections based on predecessors
+  planDesignerState.nodes.forEach(toNode => {
+    if (toNode.predecessors && Array.isArray(toNode.predecessors)) {
+      toNode.predecessors.forEach(fromId => {
+        const fromNode = planDesignerState.nodes.find(n => n.id === fromId);
+        if (fromNode) renderConnection(fromNode, toNode);
+      });
     }
   });
   planDesignerState.nodes.forEach(node => renderNode(node));
@@ -1465,12 +1467,13 @@ export function connectNodes(fromId, toId) {
 
   // Material propagation: from's output becomes input material of to (SCHEMA-COMPLIANT)
   if (!Array.isArray(toNode.materialInputs)) toNode.materialInputs = [];
-  const existingIdx = toNode.materialInputs.findIndex(m => m && (m.derivedFrom === fromId || m.materialCode === (fromNode.semiCode || `node-${fromId}-output`)));
+  const existingIdx = toNode.materialInputs.findIndex(m => m && (m.derivedFrom === fromId || m.materialCode === (fromNode.outputCode || `node-${fromId}-output`)));
   if (existingIdx === -1) {
     const autoMat = {
-      materialCode: fromNode.semiCode || `node-${fromId}-output`,  // SCHEMA: materialCode
-      name: fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`,  // Display only
+      materialCode: fromNode.outputCode || `node-${fromId}-output`,  // SCHEMA: materialCode - use outputCode instead of semiCode
+      name: fromNode.outputCode ? `${fromNode._outputName || fromNode.name}` : `${fromNode.name} (semi)`,  // Display only
       requiredQuantity: (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : 0,  // SCHEMA: requiredQuantity
+      unit: fromNode.outputUnit || '',  // SCHEMA: unit - use fromNode's output unit
       unitRatio: 1,  // SCHEMA: unitRatio
       derivedFrom: fromId  // Tracking only
     };
@@ -1481,9 +1484,10 @@ export function connectNodes(fromId, toId) {
     const m = toNode.materialInputs[existingIdx]
     if (m) {
       m.derivedFrom = fromId
-      m.materialCode = fromNode.semiCode || `node-${fromId}-output`  // SCHEMA
-      m.name = fromNode.semiCode ? `${fromNode.semiCode}` : `${fromNode.name} (semi)`
+      m.materialCode = fromNode.outputCode || `node-${fromId}-output`  // SCHEMA - use outputCode
+      m.name = fromNode.outputCode ? `${fromNode._outputName || fromNode.name}` : `${fromNode.name} (semi)`
       m.requiredQuantity = (typeof fromNode.outputQty === 'number' && Number.isFinite(fromNode.outputQty)) ? fromNode.outputQty : 0  // SCHEMA
+      m.unit = fromNode.outputUnit || ''  // SCHEMA: unit
       m.unitRatio = 1  // SCHEMA
       try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toId } })) } catch {}
     }

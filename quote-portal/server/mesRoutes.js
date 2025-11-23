@@ -145,9 +145,14 @@ function applyOutputCodeSuffixes(nodes) {
   return nodes.map(node => {
     if (!node.outputCode) return node;
     
+    // Skip if this is an existing output (not newly created)
+    if (node._outputMaterialId || node._outputSelectionMode === 'existing') {
+      return node;
+    }
+    
     // Check if this node is a finished product (no other nodes use it as predecessor)
     const isFinishedProduct = !nodes.some(n => 
-      Array.isArray(n.predecessors) && n.predecessors.includes(node.nodeId)
+      Array.isArray(n.predecessors) && n.predecessors.includes(node.id || node.nodeId)
     );
     
     // If it's a finished product and doesn't already have 'F' suffix, add it
@@ -1541,53 +1546,73 @@ router.get('/templates', withAuth, async (req, res) => {
 
 // POST /api/mes/templates
 router.post('/templates', withAuth, async (req, res) => {
-  const { workOrderCode, quoteId, nodes } = req.body;
+  // Frontend sends 'orderCode' but DB uses 'workOrderCode' - normalize
+  const workOrderCode = req.body.workOrderCode || req.body.orderCode || null;
+  const { quoteId, nodes, steps, templateName, name, description } = req.body;
   
-  if (!workOrderCode) {
-    return res.status(400).json({ error: 'Work order code is required' });
-  }
+  console.log('📥 Template save request:', { 
+    workOrderCode, 
+    orderCode: req.body.orderCode,
+    hasNodes: !!nodes,
+    hasSteps: !!steps,
+    nodeCount: nodes?.length || steps?.length || 0
+  });
   
   const trx = await db.transaction();
   
   try {
     // 1. Generate plan ID (same ID system as production plans)
-    const [{ maxId }] = await trx('mes.production_plans')
-      .max('id as maxId');
-    const nextNum = maxId ? parseInt(maxId.split('-')[1]) + 1 : 1;
+    const result = await trx('mes.production_plans')
+      .max('id as maxId')
+      .first();
+    
+    const maxId = result?.maxId;
+    let nextNum = 1;
+    
+    if (maxId && typeof maxId === 'string' && maxId.includes('-')) {
+      const parts = maxId.split('-');
+      const numPart = parts[parts.length - 1];
+      const parsed = parseInt(numPart, 10);
+      if (!isNaN(parsed)) {
+        nextNum = parsed + 1;
+      }
+    }
+    
     const planId = `PLAN-${nextNum.toString().padStart(3, '0')}`;
     
-    console.log(`📋 Creating template: ${planId}`);
+    console.log(`📋 Creating template: ${planId} (workOrderCode: ${workOrderCode || 'none'})`);
     
     // 2. Create template header - just a plan with status='template'
     await trx('mes.production_plans').insert({
       id: planId,
-      workOrderCode: workOrderCode,
+      workOrderCode: workOrderCode,  // Can be null for templates
       quoteId: quoteId || null,
       status: 'template', // Only difference from regular plans
       createdAt: trx.fn.now()
     });
     
-    // 2. Insert nodes if provided (templates can have pre-defined workflows)
-    if (nodes && Array.isArray(nodes) && nodes.length > 0) {
+    // 3. Insert nodes if provided (frontend sends 'steps', normalize to 'nodes')
+    const nodeList = nodes || steps || [];
+    if (Array.isArray(nodeList) && nodeList.length > 0) {
       // Apply output code suffixes for finished products
-      const processedNodes = applyOutputCodeSuffixes(nodes);
+      const processedNodes = applyOutputCodeSuffixes(nodeList);
       
       for (const node of processedNodes) {
         // Insert node
         const [nodeRecord] = await trx('mes.production_plan_nodes')
           .insert({
             planId: planId,
-            nodeId: `${planId}-node-${node.sequenceOrder || node.nodeId}`,
-            workOrderCode: workOrderCode,
+            nodeId: `${planId}-node-${node.sequenceOrder || node.nodeId || node.id}`,
+            workOrderCode: workOrderCode,  // Same as plan - can be null
             name: node.name,
-            operationId: node.operationId,
+            operationId: node.operationId || node.operation,
             outputCode: node.outputCode,
             outputQty: node.outputQty || 1,
             outputUnit: node.outputUnit || 'adet',
-            nominalTime: node.nominalTime || 0,
-            efficiency: node.efficiency || 0.85,
-            effectiveTime: node.effectiveTime || Math.ceil((node.nominalTime || 0) / (node.efficiency || 0.85)),
-            sequenceOrder: node.sequenceOrder || node.nodeId,
+            nominalTime: node.nominalTime || node.time || 0,
+            efficiency: node.efficiency || 1.0,
+            effectiveTime: node.effectiveTime || Math.ceil((node.nominalTime || node.time || 0) / (node.efficiency || 1.0)),
+            sequenceOrder: node.sequenceOrder || node.id?.replace(/\D/g, '') || 0,
             assignmentMode: node.assignmentMode || 'auto',
             createdAt: trx.fn.now()
           })
@@ -1602,7 +1627,7 @@ router.post('/templates', withAuth, async (req, res) => {
             materialCode: m.materialCode,
             requiredQuantity: m.requiredQuantity,
             unitRatio: m.unitRatio || 1.0,
-            isDerived: m.isDerived || false,
+            isDerived: !!m.derivedFrom,
             createdAt: trx.fn.now()
           }));
           
@@ -1610,8 +1635,9 @@ router.post('/templates', withAuth, async (req, res) => {
         }
         
         // Insert station assignments if any
-        if (node.stationIds && node.stationIds.length > 0) {
-          const stationAssignments = node.stationIds.map((stId, idx) => ({
+        const stationList = node.stationIds || (node.assignedStations?.map(s => s.stationId || s.id)) || [];
+        if (stationList.length > 0) {
+          const stationAssignments = stationList.map((stId, idx) => ({
             nodeId: nodeId,
             stationId: stId,
             priority: idx + 1,
@@ -1625,12 +1651,12 @@ router.post('/templates', withAuth, async (req, res) => {
     
     await trx.commit();
     
-    console.log(`✅ Template created: ${planId}${nodes ? ` with ${nodes.length} nodes` : ''}`);
+    console.log(`✅ Template created: ${planId} with ${nodeList.length} nodes`);
     
     res.json({ 
       success: true, 
       id: planId,
-      nodeCount: nodes ? nodes.length : 0,
+      nodeCount: nodeList.length,
       message: `Template ${planId} created successfully`
     });
     
@@ -2131,7 +2157,7 @@ router.get('/output-codes/existing', withAuth, async (req, res) => {
     const { prefix } = req.query;
     
     let query = db('materials.materials')
-      .whereIn('category', ['Yarı Mamül', 'Bitmiş Ürün'])
+      .whereIn('type', ['semi_finished', 'finished_product'])
       .where('status', 'Aktif')
       .orderBy('code', 'asc');
     
@@ -4038,7 +4064,7 @@ async function getPlanWithNodes(planId) {
     .where('n.planId', planId)
     .orderBy('n.sequenceOrder');
   
-  // For each node, fetch materials and stations
+  // For each node, fetch materials, stations, and predecessors
   for (const node of nodes) {
     // Get material inputs
     const materialInputs = await db('mes.node_material_inputs')
@@ -4054,6 +4080,13 @@ async function getPlanWithNodes(planId) {
       .orderBy('priority');
     
     node.assignedStations = stations;
+    
+    // Get predecessors
+    const predecessors = await db('mes.node_predecessors')
+      .where('nodeId', node.id)
+      .pluck('predecessorNodeId');
+    
+    node.predecessors = predecessors;
   }
   
   return { ...plan, nodes };
@@ -4156,10 +4189,16 @@ router.get('/production-plans', withAuth, async (req, res) => {
 router.post('/production-plans', withAuth, async (req, res) => {
   const { workOrderCode, quoteId, nodes } = req.body;
   
-  // Validation
-  if (!workOrderCode || !quoteId || !nodes || !Array.isArray(nodes)) {
+  // Validation - workOrderCode is REQUIRED for production plans
+  if (!workOrderCode) {
     return res.status(400).json({ 
-      error: 'Missing required fields: workOrderCode, quoteId, nodes' 
+      error: 'Work order code is required for production plans' 
+    });
+  }
+  
+  if (!quoteId || !nodes || !Array.isArray(nodes)) {
+    return res.status(400).json({ 
+      error: 'Missing required fields: quoteId, nodes' 
     });
   }
   
@@ -4167,12 +4206,25 @@ router.post('/production-plans', withAuth, async (req, res) => {
   
   try {
     // 1. Generate plan ID
-    const [{ maxId }] = await trx('mes.production_plans')
-      .max('id as maxId');
-    const nextNum = maxId ? parseInt(maxId.split('-')[1]) + 1 : 1;
+    const result = await trx('mes.production_plans')
+      .max('id as maxId')
+      .first();
+    
+    const maxId = result?.maxId;
+    let nextNum = 1;
+    
+    if (maxId && typeof maxId === 'string' && maxId.includes('-')) {
+      const parts = maxId.split('-');
+      const numPart = parts[parts.length - 1];
+      const parsed = parseInt(numPart, 10);
+      if (!isNaN(parsed)) {
+        nextNum = parsed + 1;
+      }
+    }
+    
     const planId = `PLAN-${nextNum.toString().padStart(3, '0')}`;
     
-    console.log(`📋 Creating production plan: ${planId}`);
+    console.log(`📋 Creating production plan: ${planId} for WO: ${workOrderCode}`);
     
     // 2. Create plan header
     await trx('mes.production_plans').insert({
