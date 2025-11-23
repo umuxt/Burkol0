@@ -2,7 +2,7 @@
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/MESToast.js';
 import { getOperations, getStations, getSubstations, getApprovedQuotes, getMaterials, getProductionPlans, getWorkers } from './mesApi.js'
 import { planDesignerState, renderCanvas, closeNodeEditModal, renderPlanOrderListFromSelect, propagateDerivedMaterialUpdate, aggregatePlanMaterials, checkMaterialAvailability, computeNodeEffectiveDuration } from './planDesigner.js'
-import { computeAndAssignSemiCode, getSemiCodePreviewForNode, getPrefixForNode } from './semiCode.js'
+import { getPrefixForNode } from './semiCode.js'
 import { populateUnitSelect } from './units.js'
 
 // Helper functions to manage body scroll lock
@@ -50,7 +50,8 @@ function rebuildMaterialRowsFromNode(node) {
            <div style=\"padding:6px; border-bottom:1px solid var(--border);\"><input id=\"edit-material-search-${idx}\" type=\"text\" placeholder=\"Ara: kod, isim, tedarikçi\" oninput=\"filterMaterialDropdown(${idx})\" style=\"width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;\" /></div>
            <div id=\"edit-material-list-${idx}\" style=\"max-height:220px; overflow:auto; font-size:13px;\"></div>
          </div>`)
-      const qtyInput = `<input id="edit-material-qty-${idx}" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;${isDerived ? ' background:#f3f4f6; color:#6b7280;' : ''}" value="${rm?.requiredQuantity ?? ''}" ${isDerived ? 'disabled' : 'oninput="updateOutputCodePreviewBackend()"'} />`
+      // Phase 3.3: Removed oninput="updateOutputCodePreviewBackend()"
+      const qtyInput = `<input id="edit-material-qty-${idx}" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;${isDerived ? ' background:#f3f4f6; color:#6b7280;' : ''}" value="${rm?.requiredQuantity ?? ''}" ${isDerived ? 'disabled' : ''} />`
       const removeBtn = isDerived ? '' : `<button type=\"button\" onclick=\"removeMaterialRow(${idx})\" title=\"Kaldır\" style=\"width:28px; height:32px; border:1px solid var(--border); background:#fee2e2; color:#ef4444; border-radius:6px;\">-</button>`
       return (
         `<div class=\"material-row\" data-row-index=\"${idx}\" ${isDerived?'data-derived=\"1\"':''} style=\"display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;\">` +
@@ -91,6 +92,7 @@ let _workersCacheFull = [] // Add workers cache
 let modalEscapeHandler = null;
 // Listener for live-sync of materials when graph changes while modal is open
 let materialChangeHandler = null;
+let graphChangeHandler = null;
 
 export async function loadOperationsToolboxBackend() {
   const listContainer = document.getElementById('operations-list')
@@ -309,8 +311,22 @@ export async function editNodeBackend(nodeId) {
     outputUnit: node.outputUnit,
     _isTemplateApplied: node._isTemplateApplied,
     _templateCode: node._templateCode,
-    _templateRatios: node._templateRatios
+    _templateRatios: node._templateRatios,
+    // Output selection fields (Phase 4)
+    outputCode: node.outputCode,
+    _outputSelectionMode: node._outputSelectionMode,
+    _outputMaterialId: node._outputMaterialId,
+    _outputName: node._outputName,
+    _isNewOutput: node._isNewOutput
   }));
+  
+  console.log('📸 Snapshot created - output fields:', {
+    outputCode: node.outputCode,
+    _outputSelectionMode: node._outputSelectionMode,
+    _outputMaterialId: node._outputMaterialId,
+    _outputName: node._outputName,
+    _isNewOutput: node._isNewOutput
+  });
   
   planDesignerState.selectedNode = node
   
@@ -410,7 +426,7 @@ export async function editNodeBackend(nodeId) {
               <div style="padding:6px; border-bottom:1px solid var(--border);"><input id="edit-material-search-${idx}" type="text" placeholder="Ara: kod, isim, tedarikçi" oninput="filterMaterialDropdown(${idx})" style="width:100%; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:12px;" /></div>
               <div id="edit-material-list-${idx}" style="max-height:220px; overflow:auto; font-size:13px;"></div>
             </div>`
-        const qtyInput = `<input id="edit-material-qty-${idx}" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;${isDerived ? ' background:#f3f4f6; color:#6b7280;' : ''}" value="${rm?.requiredQuantity ?? ''}" ${isDerived ? 'disabled' : 'oninput="updateOutputCodePreviewBackend()"'} />`
+        const qtyInput = `<input id="edit-material-qty-${idx}" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;${isDerived ? ' background:#f3f4f6; color:#6b7280;' : ''}" value="${rm?.requiredQuantity ?? ''}" ${isDerived ? 'disabled' : ''} />`
         const removeBtn = isDerived ? '' : `<button type="button" onclick="removeMaterialRow(${idx})" title="Kaldır" style="width:28px; height:32px; border:1px solid var(--border); background:#fee2e2; color:#ef4444; border-radius:6px;">-</button>`
         return (
           `<div class="material-row" data-row-index="${idx}" ${isDerived?'data-derived="1"':''} style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">` +
@@ -456,12 +472,20 @@ export async function editNodeBackend(nodeId) {
       if (unitEl) populateUnitSelect(unitEl, node.outputUnit || '')
       // dynamic preview on output qty/unit change
       try {
-        if (qtyEl) qtyEl.addEventListener('input', updateOutputCodePreviewBackend)
-        if (unitEl) unitEl.addEventListener('change', updateOutputCodePreviewBackend)
+        // Phase 3.3: Removed auto-preview listeners
+        // if (qtyEl) qtyEl.addEventListener('input', updateOutputCodePreviewBackend)
+        // if (unitEl) unitEl.addEventListener('change', updateOutputCodePreviewBackend)
       } catch {}
     } catch {}
     // Initial output code preview
     try { updateOutputCodePreviewBackend() } catch {}
+    
+    // Initialize output selection UI
+    try {
+      initializeOutputSelectionUI(node);
+    } catch (e) {
+      console.error('Failed to initialize output selection UI:', e);
+    }
 
     // Live update: when connections/materials change on this node while modal is open
     try {
@@ -483,9 +507,41 @@ export async function editNodeBackend(nodeId) {
           // Rebuild rows from current node state to include auto-derived materials and then refresh preview
           rebuildMaterialRowsFromNode(node)
           updateOutputCodePreviewBackend()
+          
+          // Update "F" suffix for new output mode if modal is open
+          const newOutputSection = document.getElementById('new-output-section');
+          if (newOutputSection && newOutputSection.style.display !== 'none') {
+            updateNewOutputPreview();
+          }
         } catch (e) { console.warn('materialChangeHandler failed', e) }
       }
       window.addEventListener('nodeMaterialsChanged', materialChangeHandler)
+    } catch {}
+    
+    // Listen for graph changes (connections added/removed) to update "F" suffix
+    try {
+      if (graphChangeHandler) {
+        window.removeEventListener('graphChanged', graphChangeHandler)
+        graphChangeHandler = null
+      }
+      graphChangeHandler = (ev) => {
+        try {
+          const modalEl = document.getElementById('node-edit-modal')
+          if (!modalEl || modalEl.style.display === 'none') {
+            window.removeEventListener('graphChanged', graphChangeHandler)
+            graphChangeHandler = null
+            return
+          }
+          
+          // Update "F" suffix for new output mode
+          const newOutputSection = document.getElementById('new-output-section');
+          if (newOutputSection && newOutputSection.style.display !== 'none') {
+            console.log('🔄 Graph changed, updating output preview...');
+            updateNewOutputPreview();
+          }
+        } catch (e) { console.warn('graphChangeHandler failed', e) }
+      }
+      window.addEventListener('graphChanged', graphChangeHandler)
     } catch {}
     
     // Setup drag and drop for station selection
@@ -511,7 +567,7 @@ export function handleAssignModeChangeBackend() {
   // Actual assignment happens when production starts
 }
 
-export function saveNodeEditBackend() {
+export async function saveNodeEditBackend() {
   const node = planDesignerState.selectedNode
   if (!node) return
   const name = document.getElementById('edit-name')?.value?.trim()
@@ -520,7 +576,20 @@ export function saveNodeEditBackend() {
   const assignMode = (document.querySelector('input[name="edit-assign-mode"]:checked')?.value || null)
   const workerChoice = document.getElementById('edit-worker')?.value || null // Get selected worker
   const outQtyVal = document.getElementById('edit-output-qty')?.value
-  const outUnit = document.getElementById('edit-output-unit')?.value || ''
+  
+  // Get output unit from the correct field based on output mode
+  const outputMode = document.querySelector('input[name="output-mode"]:checked')?.value;
+  let outUnit = '';
+  if (outputMode === 'new') {
+    // For new outputs, use the output-unit-new field
+    outUnit = document.getElementById('output-unit-new')?.value || '';
+  } else if (outputMode === 'existing') {
+    // For existing outputs, unit is stored in the node or display element
+    outUnit = node.outputUnit || '';
+  } else {
+    // Fallback to legacy field
+    outUnit = document.getElementById('edit-output-unit')?.value || '';
+  }
   
   // collect materials rows
   const rowsContainer = document.getElementById('edit-materials-rows')
@@ -596,6 +665,39 @@ export function saveNodeEditBackend() {
     }
   }
 
+  // 3.5. Validate output mode selection (PHASE 4 requirement)
+  if (!outputMode) {
+    showErrorToast('Please select an output option (existing or new).');
+    return;
+  }
+
+  // 3.6. Validate output selection/creation based on mode
+  if (outputMode === 'existing') {
+    if (!node._outputMaterialId) {
+      showErrorToast('Please select an existing output material.');
+      return;
+    }
+  } else if (outputMode === 'new') {
+    const suffix = document.getElementById('output-suffix')?.value;
+    const outputName = document.getElementById('output-name')?.value?.trim();
+    const outputUnit = document.getElementById('output-unit-new')?.value;
+    
+    if (!suffix || !/^\d+$/.test(suffix)) {
+      showErrorToast('Please enter a valid numeric suffix.');
+      return;
+    }
+    
+    if (!outputName || outputName === '') {
+      showErrorToast('Please enter an output material name.');
+      return;
+    }
+    
+    if (!outputUnit || outputUnit === '') {
+      showErrorToast('Please select an output unit.');
+      return;
+    }
+  }
+
   // 4. Validate output quantity and unit
   const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal);
   if (!Number.isFinite(outQtyNum) || outQtyNum <= 0) {
@@ -645,6 +747,65 @@ export function saveNodeEditBackend() {
   node.assignmentMode = assignMode || 'auto'
   node.outputQty = outQtyNum // Already validated as finite number > 0
   node.outputUnit = outUnit.trim() // Already validated as non-empty
+
+  // ============================================================================
+  // SAVE OUTPUT METADATA (PHASE 4)
+  // ============================================================================
+  if (outputMode === 'existing') {
+    // Store existing material reference
+    node._outputSelectionMode = 'existing';
+    node._isNewOutput = false;
+    node._outputNeedsCreation = false;
+    // _outputMaterialId should already be set by selectExistingOutput()
+    // outputCode should already be set by selectExistingOutput()
+    console.log(`✅ Using existing output: ${node.outputCode} (ID: ${node._outputMaterialId})`);
+  } else if (outputMode === 'new') {
+    // Store new material metadata for creation
+    const suffix = document.getElementById('output-suffix')?.value;
+    const outputName = document.getElementById('output-name')?.value?.trim();
+    const outputUnit = document.getElementById('output-unit-new')?.value;
+    const finalCodeSpan = document.getElementById('output-code-final');
+    const finalCode = finalCodeSpan?.dataset?.finalCode || node.outputCode;
+    
+    // ✅ VALIDATE CODE UNIQUENESS BEFORE SAVE
+    try {
+      const response = await fetch(`/api/mes/output-codes/validate?code=${encodeURIComponent(finalCode)}`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      
+      const result = await response.json();
+      
+      if (result.exists) {
+        showErrorToast(`Material code ${finalCode} already exists! Please use a different suffix.`);
+        // Highlight suffix input to show error
+        const suffixInput = document.getElementById('output-suffix');
+        if (suffixInput) {
+          suffixInput.style.border = '2px solid #ef4444';
+          suffixInput.style.background = '#fef2f2';
+          suffixInput.focus();
+        }
+        return; // ✅ STOP SAVE, KEEP MODAL OPEN
+      }
+    } catch (error) {
+      console.warn('Code validation failed, proceeding anyway:', error);
+      // Don't block save on validation errors (network issues etc)
+    }
+    
+    // Detect if this is a final node (no other nodes use it as predecessor)
+    const isFinalNode = !planDesignerState.nodes.some(n => 
+      Array.isArray(n.predecessors) && n.predecessors.includes(node.id)
+    );
+    
+    node._outputSelectionMode = 'new';
+    node._isNewOutput = true;
+    node._outputNeedsCreation = true;
+    node._outputName = outputName;
+    node._isFinalNode = isFinalNode; // ✅ Set final node flag for category determination
+    node.outputCode = finalCode; // Use the preview code with potential "F" suffix
+    node.outputUnit = outputUnit;
+    
+    console.log(`✅ New output to create: ${finalCode} (${outputName}) - ${outputUnit}${isFinalNode ? ' [FINAL NODE]' : ''}`);
+  }
 
   // Worker assignment based on mode
   if (assignMode === 'manual') {
@@ -705,15 +866,8 @@ export function saveNodeEditBackend() {
       nodeMaterialInputs: node.materialInputs
     });
     
-    // Compute/update semi-finished product code preview (not committed yet)
-    // Actual commit happens when the plan is saved
-    try {
-      computeAndAssignSemiCode(node, _opsCache, planDesignerState.availableStations || [])
-      // Propagate changes to downstream nodes (derived materials)
-      try { propagateDerivedMaterialUpdate(node.id) } catch {}
-    } catch (e) {
-      console.warn('Semi-code computation failed:', e)
-    }
+    // Propagate changes to downstream nodes (derived materials)
+    try { propagateDerivedMaterialUpdate(node.id) } catch {}
     
     // Invalidate timing summary cache when node changes
     planDesignerState.timingSummary = null;
@@ -904,6 +1058,7 @@ export function selectMaterialFromDropdown(id, rowIdx) {
     const node = planDesignerState.selectedNode;
     
     // Check if material code changed (breaks template lock)
+    // NOTE: When materials change, template lock is released and user can select new output code
     if (node && node._isTemplateApplied) {
       const oldMaterialCode = idEl.value;
       const newMaterialCode = m.id || m.code || '';
@@ -972,7 +1127,7 @@ export function addMaterialRow() {
         '</div>' +
       '</div>' +
       '<div style="flex:2;">' +
-        '<input id="edit-material-qty-'+idx+'" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" value="" oninput="updateOutputCodePreviewBackend()" />' +
+        '<input id="edit-material-qty-'+idx+'" type="number" min="0" step="0.01" placeholder="Qty" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;" value="" />' +
       '</div>' +
       '<div style="flex:1;">' +
         '<input id="edit-material-unit-'+idx+'" type="text" readonly placeholder="Unit" style="width:100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: #f9fafb; color: #6b7280;" value="" />' +
@@ -988,59 +1143,32 @@ export function addMaterialRow() {
 }
 
 // Update footer output code label based on current form values
+// Phase 3.3: Simplified output code display - no auto-preview, just shows current state
 export async function updateOutputCodePreviewBackend() {
   try {
     const node = planDesignerState.selectedNode
     if (!node) return
     
-    // If template is locked, don't recalculate code - show template code
+    const label = document.getElementById('node-output-code-label')
+    if (!label) return
+    
+    // If template is locked, show template code
     if (node._isTemplateApplied && node._templateCode) {
-      const label = document.getElementById('node-output-code-label')
-      if (label) {
-        label.textContent = `Output: ${node._templateCode}`
-        label.style.color = '#10b981'; // Green = locked
-      }
+      label.textContent = `Output: ${node._templateCode}`
+      label.style.color = '#10b981'; // Green = locked
       console.log('🔒 Template locked - showing template code:', node._templateCode);
       return;
     }
     
-    // Collect material inputs from form
-    const rowsContainer = document.getElementById('edit-materials-rows')
-    const rows = rowsContainer ? Array.from(rowsContainer.querySelectorAll('.material-row')) : []
-    const materialInputs = []
-    for (const row of rows) {
-      const idx = row.getAttribute('data-row-index')
-      const materialCode = document.getElementById('edit-material-id-'+idx)?.value || ''
-      const qtyVal = document.getElementById('edit-material-qty-'+idx)?.value
-      const requiredQuantity = qtyVal === '' ? null : parseFloat(qtyVal)
-      const unit = document.getElementById('edit-material-unit-'+idx)?.value || ''
-      if (materialCode) {
-        materialInputs.push({ 
-          materialCode, 
-          requiredQuantity: Number.isFinite(requiredQuantity) ? requiredQuantity : null,
-          unit,
-          unitRatio: 1
-        })
-      }
-    }
-    
-    // Create temp node with current form values (schema-compliant)
-    const temp = { 
-      ...node, 
-      materialInputs,
-      assignedStations: node.assignedStations || []
-    }
-    
-    const code = await getSemiCodePreviewForNode(temp, _opsCache, _stationsCacheFull).catch(() => null)
-    const label = document.getElementById('node-output-code-label')
-    if (label) {
-      if (code) {
-        label.textContent = `Output: ${code}`
-        label.style.color = ''; // Default color = unlocked
-      } else {
-        const prefix = getPrefixForNode(temp, _opsCache, _stationsCacheFull)
-        label.textContent = prefix ? `Output: ${prefix}-` : 'Output: —'
-      }
+    // Show current outputCode or prefix only
+    const currentCode = node.outputCode;
+    if (currentCode) {
+      label.textContent = `Output: ${currentCode}`
+      label.style.color = ''; // Default color
+    } else {
+      const prefix = getPrefixForNode(node, _opsCache, _stationsCacheFull)
+      label.textContent = prefix ? `Prefix: ${prefix}` : 'Output: —'
+      label.style.color = '#6b7280'; // Gray for prefix
     }
   } catch (e) {
     console.warn('updateOutputCodePreviewBackend failed', e)
@@ -1896,6 +2024,14 @@ window.applyOutputTemplate = function(templateIndex) {
     node._isTemplateApplied = true;
     node._templateCode = template.code;
     
+    // Preserve output code from template (no new material creation needed)
+    node.outputCode = template.code;
+    node._isNewOutput = false; // Template outputs already exist
+    node._outputNeedsCreation = false; // Don't create duplicate materials
+    node._outputSelectionMode = 'template'; // Special mode for template-locked outputs
+    
+    console.log('🔒 Template applied - output locked:', template.code);
+    
     // If we calculated output quantity from predecessor, set it and calculate remaining materials
     if (autoCalculatedOutputQty !== null) {
       const qtyInput = document.getElementById('edit-output-qty');
@@ -1968,6 +2104,358 @@ window.applyOutputTemplate = function(templateIndex) {
   if (qtyInput && !qtyInput.hasAttribute('data-template-listener')) {
     qtyInput.setAttribute('data-template-listener', 'true');
     qtyInput.addEventListener('input', calculateMaterialsFromTemplate);
+  }
+};
+
+/* ============================================================
+   NEW OUTPUT SELECTION MODE FUNCTIONS
+   ============================================================ */
+
+// Export for use in cancel restore
+window.initializeOutputSelectionUI = initializeOutputSelectionUI;
+
+function initializeOutputSelectionUI(node) {
+  if (!node) return;
+  
+  // Read from NODE (like other fields: outputQty, name, time)
+  // Snapshot is only for restore on cancel, not for initial UI population
+  
+  console.log('🎨 Initializing output UI from NODE:', {
+    mode: node._outputSelectionMode,
+    code: node.outputCode,
+    materialId: node._outputMaterialId,
+    name: node._outputName,
+    templateLocked: node._isTemplateApplied && node._templateCode
+  });
+  
+  // ===== TEMPLATE LOCK CHECK =====
+  if (node._isTemplateApplied && node._templateCode) {
+    console.log('🔒 Template locked - disabling output selection UI');
+    
+    // Disable all output mode radios
+    document.querySelectorAll('input[name="output-mode"]').forEach(radio => {
+      radio.disabled = true;
+      radio.checked = false; // Uncheck all
+    });
+    
+    // Hide all sections
+    const existingSection = document.getElementById('existing-output-section');
+    const newSection = document.getElementById('new-output-section');
+    if (existingSection) existingSection.style.display = 'none';
+    if (newSection) newSection.style.display = 'none';
+    
+    // Add template lock banner
+    const container = document.getElementById('output-selection-container');
+    if (container) {
+      // Remove any existing banner first
+      const existingBanner = container.querySelector('.template-lock-banner');
+      if (existingBanner) existingBanner.remove();
+      
+      // Add new banner at the top
+      container.insertAdjacentHTML('afterbegin',
+        '<div class="template-lock-banner" style="background:#dcfce7; color:#166534; padding:8px; border-radius:4px; margin-bottom:12px; font-weight:500;">' +
+          '🔒 Output code locked from template: <strong>' + node._templateCode + '</strong><br>' +
+          '<span style="font-size:0.9em; opacity:0.8;">To change output code, modify materials or station first (this will unlock template)</span>' +
+        '</div>'
+      );
+    }
+    
+    return; // Exit early - no further UI initialization needed
+  }
+  
+  // ===== NORMAL MODE (NOT LOCKED) =====
+  
+  // Check if node already has output selection mode set
+  if (node._outputSelectionMode === 'existing' && node.outputCode) {
+    // Select "existing" radio and populate display
+    const existingRadio = document.querySelector('input[name="output-mode"][value="existing"]');
+    if (existingRadio) {
+      existingRadio.checked = true;
+      toggleOutputMode('existing');
+      
+      // Display selected output
+      const displayEl = document.getElementById('selected-output-display');
+      if (displayEl && node._outputMaterialId) {
+        displayEl.textContent = `Selected: ${node.outputCode}`;
+        displayEl.style.display = 'block';
+        // Store in dataset for save
+        displayEl.dataset.code = node.outputCode;
+        displayEl.dataset.unit = node.outputUnit || '';
+        displayEl.dataset.materialId = node._outputMaterialId;
+      }
+    }
+  } else if (node._outputSelectionMode === 'new' && node.outputCode) {
+    // Select "new" radio and populate fields
+    const newRadio = document.querySelector('input[name="output-mode"][value="new"]');
+    if (newRadio) {
+      newRadio.checked = true;
+      toggleOutputMode('new');
+      
+      // Parse code to extract suffix
+      const prefix = getPrefixForNode(node, _opsCache, _stationsCacheFull);
+      const prefixInput = document.getElementById('output-prefix');
+      if (prefixInput) {
+        prefixInput.value = prefix || '—';
+      }
+      
+      // Extract suffix (remove prefix and "F" if present)
+      let code = node.outputCode;
+      if (code.endsWith('F')) {
+        code = code.slice(0, -1);
+      }
+      if (code.startsWith(prefix)) {
+        const suffix = code.substring(prefix.length);
+        const suffixInput = document.getElementById('output-suffix');
+        if (suffixInput && suffix) {
+          suffixInput.value = parseInt(suffix, 10); // Remove leading zeros
+        }
+      }
+      
+      // Populate name and unit
+      if (node._outputName) {
+        const nameInput = document.getElementById('output-name');
+        if (nameInput) nameInput.value = node._outputName;
+      }
+      
+      if (node.outputUnit) {
+        const unitSelect = document.getElementById('output-unit-new');
+        if (unitSelect) unitSelect.value = node.outputUnit;
+      }
+      
+      // Update preview
+      updateNewOutputPreview();
+    }
+  } else {
+    // No mode selected - reset UI to clean state
+    console.log('🧹 No output mode selected - clearing UI');
+    
+    // Uncheck all radio buttons
+    document.querySelectorAll('input[name="output-mode"]').forEach(radio => {
+      radio.checked = false;
+    });
+    
+    // Hide both sections
+    const existingSection = document.getElementById('existing-output-section');
+    const newSection = document.getElementById('new-output-section');
+    if (existingSection) existingSection.style.display = 'none';
+    if (newSection) newSection.style.display = 'none';
+    
+    // Clear existing output display
+    const displayEl = document.getElementById('selected-output-display');
+    if (displayEl) {
+      displayEl.textContent = '';
+      displayEl.style.display = 'none';
+      delete displayEl.dataset.code;
+      delete displayEl.dataset.unit;
+      delete displayEl.dataset.materialId;
+    }
+    
+    // Clear new output fields
+    const suffixInput = document.getElementById('output-suffix');
+    const nameInput = document.getElementById('output-name');
+    const unitSelect = document.getElementById('output-unit-new');
+    const finalCodeSpan = document.getElementById('output-code-final');
+    const prefixInput = document.getElementById('output-prefix');
+    
+    if (prefixInput) prefixInput.value = '';
+    if (suffixInput) suffixInput.value = '';
+    if (nameInput) nameInput.value = '';
+    if (unitSelect) unitSelect.value = '';
+    if (finalCodeSpan) {
+      finalCodeSpan.textContent = '—';
+      delete finalCodeSpan.dataset.finalCode;
+    }
+    
+    // Check template lock
+    if (node._isTemplateApplied && node._templateCode) {
+      // Template locked - show banner and disable selection
+      const container = document.getElementById('output-selection-container');
+      if (container) {
+        container.insertAdjacentHTML('afterbegin',
+          '<div class="template-lock-banner" style="background:#dcfce7; color:#166534; padding:8px 12px; border-radius:4px; margin-bottom:12px; font-size:13px;">' +
+            '🔒 Output code locked from template: <strong>' + node._templateCode + '</strong>' +
+          '</div>'
+        );
+        
+        // Disable radio buttons
+        document.querySelectorAll('input[name="output-mode"]').forEach(radio => {
+          radio.disabled = true;
+        });
+      }
+    }
+  }
+}
+
+window.toggleOutputMode = function(mode) {
+  const existingSection = document.getElementById('existing-output-section');
+  const newSection = document.getElementById('new-output-section');
+  const outputUnitContainer = document.getElementById('output-unit-container');
+  
+  if (mode === 'existing') {
+    existingSection.style.display = 'block';
+    newSection.style.display = 'none';
+    outputUnitContainer.style.display = 'none'; // Hide unit selector for existing
+  } else if (mode === 'new') {
+    existingSection.style.display = 'none';
+    newSection.style.display = 'block';
+    outputUnitContainer.style.display = 'none'; // Hide for new (has own unit selector)
+    
+    // Initialize prefix
+    const node = planDesignerState.selectedNode;
+    if (node) {
+      const prefix = getPrefixForNode(node, _opsCache, _stationsCacheFull);
+      const prefixInput = document.getElementById('output-prefix');
+      if (prefixInput) {
+        prefixInput.value = prefix || '—';
+      }
+    }
+  }
+};
+
+window.openOutputSelectionDropdown = async function() {
+  const dropdown = document.getElementById('output-dropdown');
+  const listContainer = document.getElementById('output-dropdown-list');
+  
+  if (!dropdown || !listContainer) return;
+  
+  const node = planDesignerState.selectedNode;
+  if (!node) return;
+  
+  try {
+    // Get prefix for filtering
+    const prefix = getPrefixForNode(node, _opsCache, _stationsCacheFull);
+    
+    // Show loading
+    listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted-foreground); font-size: 12px;">Loading...</div>';
+    dropdown.style.display = 'block';
+    
+    // Fetch existing outputs with this prefix
+    const url = prefix ? `/api/mes/output-codes/existing?prefix=${encodeURIComponent(prefix)}` : '/api/mes/output-codes/existing';
+    const response = await fetch(url, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch existing outputs');
+    }
+    
+    const outputs = await response.json();
+    
+    if (outputs.length === 0) {
+      listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--muted-foreground); font-size: 12px;">No existing outputs found</div>';
+      return;
+    }
+    
+    // Render output list
+    listContainer.innerHTML = outputs.map(o => `
+      <div onclick="selectExistingOutput('${o.code}', '${o.name.replace(/'/g, "\\'")}', '${o.unit}', ${o.id})" 
+           style="padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border); transition: background 0.15s;"
+           onmouseover="this.style.background='rgb(249, 250, 251)'" 
+           onmouseout="this.style.background='white'">
+        <div style="font-size: 13px; font-weight: 600;">${o.code}</div>
+        <div style="font-size: 11px; color: var(--muted-foreground); margin-top: 2px;">${o.name} - ${o.unit}</div>
+      </div>
+    `).join('');
+    
+  } catch (error) {
+    console.error('Error loading outputs:', error);
+    listContainer.innerHTML = '<div style="padding: 12px; text-align: center; color: #ef4444; font-size: 12px;">Error loading outputs</div>';
+  }
+};
+
+window.selectExistingOutput = function(code, name, unit, materialId) {
+  const node = planDesignerState.selectedNode;
+  if (!node) return;
+  
+  // Store in temporary UI state (will be saved to node on saveNodeEdit)
+  const displayEl = document.getElementById('selected-output-display');
+  if (displayEl) {
+    displayEl.textContent = `Selected: ${code} - ${name}`;
+    displayEl.style.display = 'block';
+    // Store selection data in display element for retrieval on save
+    displayEl.dataset.code = code;
+    displayEl.dataset.unit = unit;
+    displayEl.dataset.materialId = materialId;
+  }
+  
+  // Hide dropdown
+  const dropdown = document.getElementById('output-dropdown');
+  if (dropdown) {
+    dropdown.style.display = 'none';
+  }
+  
+  // Focus on quantity field
+  const qtyInput = document.getElementById('edit-output-qty');
+  if (qtyInput) {
+    qtyInput.focus();
+  }
+  
+  console.log('✅ Existing output selected (stored in UI dataset only):', { code, name, unit, materialId });
+};
+
+window.updateNewOutputPreview = function() {
+  const node = planDesignerState.selectedNode;
+  if (!node) return;
+  
+  const prefix = getPrefixForNode(node, _opsCache, _stationsCacheFull);
+  const suffixInput = document.getElementById('output-suffix');
+  const finalCodeSpan = document.getElementById('output-code-final');
+  
+  if (!suffixInput || !finalCodeSpan) return;
+  
+  const suffix = suffixInput.value;
+  
+  if (!suffix || !/^\d+$/.test(suffix)) {
+    finalCodeSpan.textContent = `${prefix}—`;
+    return;
+  }
+  
+  // Pad to 3 digits
+  const paddedSuffix = suffix.padStart(3, '0');
+  let finalCode = `${prefix}${paddedSuffix}`;
+  
+  // Check if final node → add "F"
+  const isFinalNode = !planDesignerState.nodes.some(n => 
+    Array.isArray(n.predecessors) && n.predecessors.includes(node.id)
+  );
+  
+  if (isFinalNode) {
+    finalCode += 'F';
+  }
+  
+  finalCodeSpan.textContent = finalCode;
+  // Store final code in span's dataset for retrieval on save
+  finalCodeSpan.dataset.finalCode = finalCode;
+};
+
+window.validateOutputCodeUniqueness = async function() {
+  const node = planDesignerState.selectedNode;
+  if (!node || !node.outputCode) return true;
+  
+  const suffixInput = document.getElementById('output-suffix');
+  if (!suffixInput) return true;
+  
+  try {
+    const response = await fetch(`/api/mes/output-codes/validate?code=${encodeURIComponent(node.outputCode)}`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    });
+    
+    const result = await response.json();
+    
+    if (result.exists) {
+      showErrorToast(`Code ${node.outputCode} already exists! Please use a different suffix.`);
+      suffixInput.style.border = '1px solid #ef4444';
+      suffixInput.style.background = '#fef2f2';
+      return false;
+    }
+    
+    suffixInput.style.border = '1px solid var(--border)';
+    suffixInput.style.background = 'white';
+    return true;
+    
+  } catch (error) {
+    console.error('Error validating code:', error);
+    return true; // Don't block on validation errors
   }
 };
 

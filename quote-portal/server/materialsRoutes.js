@@ -538,6 +538,75 @@ export async function consumeMaterials(consumptionList, options = {}) {
 // ================================
 // ROUTE SETUP
 // ================================
+// BATCH OPERATIONS
+// ================================
+
+/**
+ * POST /api/materials/batch - Batch create materials
+ * Used for creating multiple output materials from production plans
+ */
+async function batchCreateMaterials(req, res) {
+  try {
+    const { materials } = req.body
+
+    if (!Array.isArray(materials) || materials.length === 0) {
+      return res.status(400).json({ error: 'Materials array required' })
+    }
+
+    const created = []
+    const errors = []
+
+    for (const materialData of materials) {
+      try {
+        // Validate required fields
+        if (!materialData.code || !materialData.name || !materialData.category) {
+          errors.push({
+            code: materialData.code || 'UNKNOWN',
+            error: 'Missing required fields (code, name, category)'
+          })
+          continue
+        }
+
+        // Check if already exists
+        const existing = await Materials.getMaterialByCode(materialData.code)
+        if (existing) {
+          errors.push({
+            code: materialData.code,
+            error: 'Material already exists'
+          })
+          continue
+        }
+
+        // Create material
+        const newMaterial = await Materials.createMaterial({
+          ...materialData,
+          createdBy: req.user?.email || 'system'
+        })
+        created.push(newMaterial)
+
+      } catch (err) {
+        console.error(`Error creating material ${materialData.code}:`, err)
+        errors.push({
+          code: materialData.code || 'UNKNOWN',
+          error: err.message
+        })
+      }
+    }
+
+    res.json({
+      created: created.length,
+      failed: errors.length,
+      materials: created,
+      errors
+    })
+
+  } catch (error) {
+    console.error('Batch create materials error:', error)
+    res.status(500).json({ error: error.message })
+  }
+}
+
+// ================================
 
 export function setupMaterialsRoutes(app) {
   // Materials CRUD
@@ -548,6 +617,9 @@ export function setupMaterialsRoutes(app) {
   app.patch('/api/materials/:id', requireAuth, updateMaterial)
   app.delete('/api/materials/:id', requireAuth, deleteMaterial)
   app.delete('/api/materials/:id/permanent', requireAuth, permanentDeleteMaterial)
+
+  // Batch operations
+  app.post('/api/materials/batch', requireAuth, batchCreateMaterials)
 
   // Stock management
   app.patch('/api/materials/:code/stock', requireAuth, updateStock)

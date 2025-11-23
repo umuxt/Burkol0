@@ -390,6 +390,13 @@ export async function getProductionPlans() {
   return Array.isArray(data?.productionPlans) ? data.productionPlans : []
 }
 
+// Fetch single production plan with full details (nodes, materials, stations)
+export async function getProductionPlanById(planId) {
+  const res = await fetch(`${API_BASE}/api/mes/production-plans/${planId}`, { headers: withAuth() })
+  if (!res.ok) throw new Error(`production_plan_load_failed ${res.status}`)
+  return await res.json()
+}
+
 // Fetch plan templates
 export async function getPlanTemplates() {
   const res = await fetch(`${API_BASE}/api/mes/templates`, { headers: withAuth() })
@@ -1206,43 +1213,67 @@ if (typeof window !== 'undefined') {
 }
 
 // ============================================================================
-// SEMI-FINISHED CODE REGISTRY API
+// OUTPUT MATERIAL CREATION API
 // ============================================================================
 
 /**
- * Preview semi-finished product code
- * @param {Object} payload - { operationId, operationCode, stationId, materials: [{ id, qty, unit }] }
- * @returns {Promise<Object>} - { code, reserved, message? }
+ * Create output materials from production plan nodes
+ * Called when saving template or production plan (NOT draft)
+ * 
+ * @param {Array} nodes - Nodes with _isNewOutput flag
+ * @returns {Promise<Object>} - { created, failed, materials, errors }
  */
-export async function getSemiCodePreview(payload) {
-  const res = await fetch(`${API_BASE}/api/mes/output-codes/preview`, {
+export async function createOutputMaterials(nodes) {
+  const materialsToCreate = [];
+  
+  for (const node of nodes) {
+    if (!node._isNewOutput || !node._outputNeedsCreation) continue;
+    
+    // Determine category and type based on final node flag
+    const isFinalNode = node._isFinalNode || false;
+    const category = isFinalNode ? 'cat_finished_product' : 'cat_semi_finished';
+    const type = isFinalNode ? 'finished_product' : 'semi_finished';
+    
+    materialsToCreate.push({
+      code: node.outputCode,
+      name: node._outputName,
+      unit: node.outputUnit,
+      category: category,
+      type: type,
+      status: 'Aktif',
+      stock: 0,
+      reserved: 0,
+      wipReserved: 0,
+      reorderPoint: 0,
+      description: `Auto-created from production plan${isFinalNode ? ' (Final Product)' : ''}`
+    });
+  }
+  
+  if (materialsToCreate.length === 0) {
+    return { created: 0, failed: 0, materials: [], errors: [] };
+  }
+  
+  // Batch create materials
+  const res = await fetch(`${API_BASE}/api/materials/batch`, {
     method: 'POST',
     headers: withAuth({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ materials: materialsToCreate })
   });
   
   if (!res.ok) {
-    throw new Error(`semi_code_preview_failed ${res.status}`);
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to create materials');
   }
   
-  return await res.json();
+  const result = await res.json();
+  console.log(`✅ Created ${result.created} output materials`);
+  
+  // Check if any materials failed to create
+  if (result.failed > 0) {
+    const errorDetails = result.errors.map(e => `${e.code}: ${e.error}`).join(', ');
+    throw new Error(`Failed to create ${result.failed} material(s): ${errorDetails}`);
+  }
+  
+  return result;
 }
 
-/**
- * Commit semi-finished product codes when plan/template is saved
- * @param {Array} assignments - [{ prefix, signature, code, operationId, stationId, materialsHash }]
- * @returns {Promise<Object>} - { committed, skipped, errors? }
- */
-export async function commitSemiCodes(assignments) {
-  const res = await fetch(`${API_BASE}/api/mes/output-codes/commit`, {
-    method: 'POST',
-    headers: withAuth({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ assignments })
-  });
-  
-  if (!res.ok) {
-    throw new Error(`semi_code_commit_failed ${res.status}`);
-  }
-  
-  return await res.json();
-}

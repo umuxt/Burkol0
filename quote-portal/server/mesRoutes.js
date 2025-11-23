@@ -2082,61 +2082,77 @@ router.post('/worker-assignments/:id/complete', withAuth, async (req, res) => {
 });
 
 // ============================================================================
-// OUTPUT CODES (SEMI-CODES)
+// OUTPUT CODE MANAGEMENT
 // ============================================================================
 
 /**
- * POST /api/mes/output-codes/preview
- * Generate preview of output code (semi-code) for an operation
- * 
- * Body: {
- *   operationCode: "Be",
- *   stationId: "ST-Be-001",
- *   materials: [{ id: "M-001", qty: 100, unit: "adet" }],
- *   outputQty: 50,
- *   outputUnit: "adet"
- * }
- * 
- * Response: { code: "Be-M001-100" }
+ * GET /api/mes/output-codes/validate?code=Be-008
+ * Validate if output code already exists in materials table
  */
-router.post('/output-codes/preview', withAuth, async (req, res) => {
+router.get('/output-codes/validate', withAuth, async (req, res) => {
   try {
-    const { operationCode, stationId, materials, outputQty, outputUnit } = req.body;
+    const { code } = req.query;
     
-    if (!operationCode) {
-      return res.status(400).json({ error: 'operationCode is required' });
+    if (!code) {
+      return res.status(400).json({ error: 'code parameter required' });
     }
     
-    // Simple output code generation logic:
-    // Format: <OpCode>-<MaterialCode>-<Quantity>
-    // Example: Be-M001-100, Ka-M002-50
+    const material = await db('materials.materials')
+      .where({ code })
+      .first();
     
-    let code = operationCode;
-    
-    // Add primary material code (first material in list)
-    if (materials && Array.isArray(materials) && materials.length > 0) {
-      const primaryMaterial = materials[0];
-      const matCode = (primaryMaterial.id || '').replace('M-', '');
-      if (matCode) {
-        code += `-${matCode}`;
-      }
-      
-      // Add quantity
-      const qty = Math.round(primaryMaterial.qty || 0);
-      if (qty > 0) {
-        code += `-${qty}`;
-      }
+    if (material) {
+      res.json({
+        exists: true,
+        material: {
+          id: material.id,
+          code: material.code,
+          name: material.name,
+          unit: material.unit,
+          category: material.category
+        }
+      });
+    } else {
+      res.json({ exists: false });
     }
-    
-    console.log(`🏷️  Output code preview: ${code}`);
-    
-    res.json({ code });
   } catch (error) {
-    console.error('❌ Error generating output code preview:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate output code preview',
-      details: error.message 
-    });
+    console.error('Error validating output code:', error);
+    res.status(500).json({ error: 'Failed to validate output code' });
+  }
+});
+
+/**
+ * GET /api/mes/output-codes/existing?prefix=Be
+ * Query existing semi-finished and finished products
+ * Optionally filter by prefix
+ */
+router.get('/output-codes/existing', withAuth, async (req, res) => {
+  try {
+    const { prefix } = req.query;
+    
+    let query = db('materials.materials')
+      .whereIn('category', ['Yarı Mamül', 'Bitmiş Ürün'])
+      .where('status', 'Aktif')
+      .orderBy('code', 'asc');
+    
+    if (prefix) {
+      query = query.where('code', 'like', `${prefix}%`);
+    }
+    
+    const materials = await query;
+    
+    const outputs = materials.map(m => ({
+      id: m.id,
+      code: m.code,
+      name: m.name,
+      unit: m.unit,
+      category: m.category
+    }));
+    
+    res.json(outputs);
+  } catch (error) {
+    console.error('Error fetching existing outputs:', error);
+    res.status(500).json({ error: 'Failed to fetch existing outputs' });
   }
 });
 
@@ -4096,7 +4112,7 @@ router.get('/production-plans', withAuth, async (req, res) => {
       .groupBy('p.id')
       .orderBy('p.createdAt', 'desc');
     
-    res.json(plans);
+    res.json({ productionPlans: plans });
   } catch (error) {
     console.error('❌ Error fetching production plans:', error);
     res.status(500).json({ 

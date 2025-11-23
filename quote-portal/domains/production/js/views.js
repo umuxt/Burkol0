@@ -1484,30 +1484,96 @@ export function generatePlanDesigner() {
           </div>
           <div style="padding: 16px 20px; background: rgb(249, 250, 251); max-height: calc(80vh - 120px); overflow-y: auto;">
             <div id="node-edit-form"></div>
-          </div>
-          <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <div style="position: relative; display: flex; align-items: center; gap: 4px;">
-                <div id="node-output-code-label" style="font-size: 12px; color: var(--muted-foreground);">Output: —</div>
-                <button id="output-template-btn" onclick="openOutputTemplateDropdown()" title="Load from template" style="padding: 2px 6px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; display: flex; align-items: center; font-size: 10px;">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            
+            <!-- Output Selection Container -->
+            <div id="output-selection-container" style="margin-top: 16px; padding: 16px; background: white; border: 1px solid var(--border); border-radius: 6px;">
+              <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600;">Output Material</h4>
+              
+              <!-- Radio Button Group -->
+              <div class="output-mode-selector" style="display: flex; gap: 16px; margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+                  <input type="radio" name="output-mode" value="existing" onchange="toggleOutputMode('existing')" style="cursor: pointer;" />
+                  <span>Select Existing Output</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px;">
+                  <input type="radio" name="output-mode" value="new" onchange="toggleOutputMode('new')" style="cursor: pointer;" />
+                  <span>Create New Output</span>
+                </label>
+              </div>
+              
+              <!-- Existing Output Selection -->
+              <div id="existing-output-section" style="display: none;">
+                <button id="output-select-btn" onclick="openOutputSelectionDropdown()" style="width: 100%; padding: 8px 12px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; font-size: 13px; text-align: left;">
+                  <span>Select Output Material...</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </button>
-                <div id="output-template-dropdown" style="display: none; position: absolute; left: 0; bottom: 32px; min-width: 300px; max-height: 300px; overflow-y: auto; background: white; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000;">
-                  <div style="padding: 8px; border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 600; color: var(--muted-foreground);">Select Template</div>
-                  <div id="output-template-list"></div>
+                <div id="output-dropdown" style="display: none; margin-top: 8px; max-height: 200px; overflow-y: auto; background: white; border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                  <div id="output-dropdown-list"></div>
+                </div>
+                <div id="selected-output-display" style="margin-top: 8px; padding: 8px; background: rgb(249, 250, 251); border-radius: 4px; font-size: 12px; color: var(--muted-foreground); display: none;"></div>
+              </div>
+              
+              <!-- New Output Creation -->
+              <div id="new-output-section" style="display: none;">
+                <div style="display: grid; gap: 12px;">
+                  <div class="form-row">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Prefix (Auto)</label>
+                    <input id="output-prefix" readonly style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; background: rgb(249, 250, 251); color: var(--muted-foreground);" />
+                  </div>
+                  <div class="form-row">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Suffix (Numeric) *</label>
+                    <input id="output-suffix" type="number" min="1" placeholder="e.g., 8 → 008" oninput="updateNewOutputPreview()" onblur="validateOutputCodeUniqueness()" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;" />
+                  </div>
+                  <div class="form-row">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Name *</label>
+                    <input id="output-name" placeholder="Material name" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;" />
+                  </div>
+                  <div class="form-row">
+                    <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Unit *</label>
+                    <select id="output-unit-new" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; background: white;">
+                      <option value="">Select unit</option>
+                      <option value="kg">kg</option>
+                      <option value="adet">adet</option>
+                      <option value="m">m</option>
+                      <option value="m²">m²</option>
+                      <option value="m³">m³</option>
+                      <option value="litre">litre</option>
+                    </select>
+                  </div>
+                  <div id="output-code-preview" style="padding: 8px 12px; background: rgb(249, 250, 251); border-radius: 4px; font-size: 12px;">
+                    Final Code: <strong><span id="output-code-final" style="color: var(--primary);">—</span></strong>
+                  </div>
                 </div>
               </div>
-              <input id="edit-output-qty" type="number" min="0" step="0.01" placeholder="Qty" title="Output quantity" style="width: 90px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px;" />
-              <select id="edit-output-unit" title="Output unit" style="width: 110px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; background: white;">
-                <option value="">Birim seçin</option>
-              </select>
+              
+              <!-- Output Quantity (always visible) -->
+              <div class="form-row" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);">
+                <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Output Quantity *</label>
+                <input id="edit-output-qty" type="number" min="0" step="0.01" placeholder="Quantity" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px;" />
+              </div>
+              
+              <!-- Output Unit (for existing selection) -->
+              <div id="output-unit-container" class="form-row" style="margin-top: 12px; display: none;">
+                <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 500; color: var(--muted-foreground);">Output Unit *</label>
+                <select id="edit-output-unit" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; background: white;">
+                  <option value="">Birim seçin</option>
+                  <option value="kg">kg</option>
+                  <option value="adet">adet</option>
+                  <option value="m">m</option>
+                  <option value="m²">m²</option>
+                  <option value="m³">m³</option>
+                  <option value="litre">litre</option>
+                </select>
+              </div>
             </div>
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <button onclick="closeNodeEditModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer;">Cancel</button>
-              <button onclick="saveNodeEdit()" style="padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 4px; cursor: pointer;">Save</button>
-            </div>
+          </div>
+          
+          <!-- Modal Footer -->
+          <div style="padding: 12px 20px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: flex-end; gap: 8px;">
+            <button onclick="closeNodeEditModal()" style="padding: 8px 16px; background: white; border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 13px;">Cancel</button>
+            <button onclick="saveNodeEdit()" style="padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Save</button>
           </div>
         </div>
       </div>

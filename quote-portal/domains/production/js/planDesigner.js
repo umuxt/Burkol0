@@ -1,7 +1,7 @@
 // Plan Designer logic and state
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/MESToast.js';
-import { computeAndAssignSemiCode, getSemiCodePreviewForNode, getPrefixForNode, collectPendingSemiCodes } from './semiCode.js';
-import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments, getMaterials, checkMesMaterialAvailability, getGeneralMaterials, activateWorkerAssignments, commitSemiCodes } from './mesApi.js';
+import { getPrefixForNode } from './semiCode.js';
+import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments, getMaterials, checkMesMaterialAvailability, getGeneralMaterials, activateWorkerAssignments, createOutputMaterials } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
 import { API_BASE, withAuth } from '../../../shared/lib/api.js';
@@ -117,6 +117,36 @@ function wouldCreateCycle(fromId, toId) {
   }
   
   return dfs(fromId);
+}
+
+/**
+ * Detect final nodes in the production plan graph.
+ * A node is considered "final" if it is not a predecessor of any other node.
+ * Updates _isFinalNode flag and appends/removes "F" suffix from outputCode.
+ * @param {Array} nodes - Array of plan nodes
+ */
+export function detectFinalNodes(nodes) {
+  nodes.forEach(node => {
+    // Check if this node is a predecessor of any other node
+    const isFinalNode = !nodes.some(n => 
+      Array.isArray(n.predecessors) && n.predecessors.includes(node.id)
+    );
+    
+    node._isFinalNode = isFinalNode;
+    
+    // Update outputCode with/without "F" suffix
+    if (node.outputCode) {
+      const hasF = node.outputCode.endsWith('F');
+      
+      if (isFinalNode && !hasF) {
+        node.outputCode += 'F';
+        console.log(`🏁 Node ${node.id} marked as final, added "F" suffix: ${node.outputCode}`);
+      } else if (!isFinalNode && hasF) {
+        node.outputCode = node.outputCode.slice(0, -1);
+        console.log(`🔄 Node ${node.id} no longer final, removed "F" suffix: ${node.outputCode}`);
+      }
+    }
+  });
 }
 
 /**
@@ -1356,6 +1386,12 @@ export function deleteConnection(fromNodeId, toNodeId) {
     try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toNodeId } })) } catch {}
   }
   
+  // Emit graph change event for UI updates (e.g., "F" suffix in output codes)
+  try { window.dispatchEvent(new CustomEvent('graphChanged')) } catch {}
+  
+  // Detect and update final nodes ("F" suffix logic)
+  detectFinalNodes(planDesignerState.nodes);
+  
   // Sequence'leri yeniden hesapla
   updateNodeSequences();
   
@@ -1424,6 +1460,9 @@ export function connectNodes(fromId, toId) {
   if (!Array.isArray(toNode.predecessors)) toNode.predecessors = [];
   if (!toNode.predecessors.includes(fromId)) toNode.predecessors.push(fromId);
 
+  // Emit graph change event for UI updates (e.g., "F" suffix in output codes)
+  try { window.dispatchEvent(new CustomEvent('graphChanged')) } catch {}
+
   // Material propagation: from's output becomes input material of to (SCHEMA-COMPLIANT)
   if (!Array.isArray(toNode.materialInputs)) toNode.materialInputs = [];
   const existingIdx = toNode.materialInputs.findIndex(m => m && (m.derivedFrom === fromId || m.materialCode === (fromNode.semiCode || `node-${fromId}-output`)));
@@ -1449,6 +1488,9 @@ export function connectNodes(fromId, toId) {
       try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toId } })) } catch {}
     }
   }
+
+  // Detect and update final nodes ("F" suffix logic)
+  detectFinalNodes(planDesignerState.nodes);
 
   // Sequence'leri yeniden hesapla
   updateNodeSequences();
@@ -1996,6 +2038,24 @@ export function saveNodeEdit() {
     return; 
   }
   
+  // Validate output selection (Phase 4)
+  let selectedOutputMode = document.querySelector('input[name="output-mode"]:checked');
+  if (selectedOutputMode) {
+    const mode = selectedOutputMode.value;
+    
+    if (mode === 'new') {
+      const unitSelect = document.getElementById('output-unit-new');
+      if (!unitSelect || !unitSelect.value) {
+        showErrorToast('An output unit must be selected.');
+        if (unitSelect) {
+          unitSelect.style.border = '2px solid #ef4444';
+          setTimeout(() => { unitSelect.style.border = '1px solid var(--border)'; }, 2000);
+        }
+        return;
+      }
+    }
+  }
+  
   // Validate manual allocation has worker selected
   if (assignmentMode === 'manual') {
     const selectedWorkerId = workerSelect?.value || '';
@@ -2061,23 +2121,72 @@ export function saveNodeEdit() {
     planDesignerState.selectedNode.assignedWorkerId = null;
   }
   
-  // Update output qty/unit
+  // Update output qty/unit (only if no output selection mode is active)
   const outQtyNum = outQtyVal === '' ? null : parseFloat(outQtyVal);
   planDesignerState.selectedNode.outputQty = Number.isFinite(outQtyNum) ? outQtyNum : null;
-  planDesignerState.selectedNode.outputUnit = (outUnit || '').trim();
   
-  // Update semi-code
-  try { 
-    computeAndAssignSemiCode(
-      planDesignerState.selectedNode, 
-      planDesignerState.availableOperations || [], 
-      planDesignerState.availableStations || []
-    ); 
-  } catch {}
+  // Save output selection (Phase 4)
+  const selectedMode = document.querySelector('input[name="output-mode"]:checked');
+  if (selectedMode) {
+    const mode = selectedMode.value;
+    console.log('💾 SAVE - Output mode selected:', mode);
+    
+    if (mode === 'existing') {
+      // Get values from display element's dataset
+      const displayEl = document.getElementById('selected-output-display');
+      if (displayEl && displayEl.dataset.code) {
+        planDesignerState.selectedNode.outputCode = displayEl.dataset.code;
+        planDesignerState.selectedNode.outputUnit = displayEl.dataset.unit || '';
+        planDesignerState.selectedNode._outputSelectionMode = 'existing';
+        planDesignerState.selectedNode._outputMaterialId = displayEl.dataset.materialId ? parseInt(displayEl.dataset.materialId) : null;
+        planDesignerState.selectedNode._isNewOutput = false;
+        console.log('💾 SAVE - Existing output saved to node:', {
+          code: displayEl.dataset.code,
+          unit: displayEl.dataset.unit,
+          materialId: displayEl.dataset.materialId
+        });
+      } else {
+        console.log('⚠️ SAVE - No existing output selected (displayEl missing or no dataset)');
+      }
+    } else if (mode === 'new') {
+      // Get final code from preview span's dataset
+      const finalCodeSpan = document.getElementById('output-code-final');
+      const nameInput = document.getElementById('output-name');
+      const unitSelect = document.getElementById('output-unit-new');
+      
+      if (finalCodeSpan && finalCodeSpan.dataset.finalCode) {
+        planDesignerState.selectedNode.outputCode = finalCodeSpan.dataset.finalCode;
+        planDesignerState.selectedNode._outputSelectionMode = 'new';
+        planDesignerState.selectedNode._outputName = nameInput ? nameInput.value : '';
+        planDesignerState.selectedNode.outputUnit = unitSelect ? unitSelect.value : '';
+        planDesignerState.selectedNode._isNewOutput = true;
+        planDesignerState.selectedNode._outputMaterialId = null;
+        console.log('💾 SAVE - New output saved to node:', {
+          code: finalCodeSpan.dataset.finalCode,
+          name: nameInput?.value,
+          unit: unitSelect?.value
+        });
+      } else {
+        console.log('⚠️ SAVE - New output incomplete (no finalCode in dataset)');
+      }
+    }
+  } else {
+    // No mode selected - use legacy output unit field
+    planDesignerState.selectedNode.outputUnit = (outUnit || '').trim();
+  }
+  
+  // Update semi-code - DISABLED: Manual entry in Phase 4
+  // try { 
+  //   computeAndAssignSemiCode(
+  //     planDesignerState.selectedNode, 
+  //     planDesignerState.availableOperations || [], 
+  //     planDesignerState.availableStations || []
+  //   ); 
+  // } catch {}
   
   // Upsert WIP material
   try {
-    if (planDesignerState.selectedNode.semiCode) {
+    if (planDesignerState.selectedNode.outputCode) {
       getStations().then(sts => upsertProducedWipFromNode(planDesignerState.selectedNode, planDesignerState.availableOperations || [], sts)).catch(()=>{})
     }
   } catch {}
@@ -2102,6 +2211,18 @@ export function closeNodeEditModal(event) {
     const node = planDesignerState.selectedNode;
     const snapshot = planDesignerState.nodeEditSnapshot;
     
+    console.log('🔙 CANCEL - Restoring from snapshot. Before restore:', {
+      nodeOutputCode: node.outputCode,
+      nodeMode: node._outputSelectionMode,
+      nodeMaterialId: node._outputMaterialId
+    });
+    
+    console.log('🔙 CANCEL - Snapshot values:', {
+      snapshotOutputCode: snapshot.outputCode,
+      snapshotMode: snapshot._outputSelectionMode,
+      snapshotMaterialId: snapshot._outputMaterialId
+    });
+    
     // Restore all editable properties from snapshot
     node.name = snapshot.name;
     node.time = snapshot.time;
@@ -2117,6 +2238,59 @@ export function closeNodeEditModal(event) {
     node._templateCode = snapshot._templateCode;
     node._templateRatios = snapshot._templateRatios;
     
+    // Restore output selection fields (Phase 4)
+    // Delete properties if they were undefined in snapshot (newly added in this session)
+    if (snapshot.outputCode !== undefined) {
+      node.outputCode = snapshot.outputCode;
+    } else {
+      delete node.outputCode;
+    }
+    
+    if (snapshot._outputSelectionMode !== undefined) {
+      node._outputSelectionMode = snapshot._outputSelectionMode;
+    } else {
+      delete node._outputSelectionMode;
+    }
+    
+    if (snapshot._outputMaterialId !== undefined) {
+      node._outputMaterialId = snapshot._outputMaterialId;
+    } else {
+      delete node._outputMaterialId;
+    }
+    
+    if (snapshot._outputName !== undefined) {
+      node._outputName = snapshot._outputName;
+    } else {
+      delete node._outputName;
+    }
+    
+    // Also clean up _isNewOutput if it was set during editing
+    if (snapshot._isNewOutput !== undefined) {
+      node._isNewOutput = snapshot._isNewOutput;
+    } else {
+      delete node._isNewOutput;
+    }
+    
+    console.log('✅ CANCEL - After restore:', {
+      nodeOutputCode: node.outputCode,
+      nodeMode: node._outputSelectionMode,
+      nodeMaterialId: node._outputMaterialId,
+      nodeIsNewOutput: node._isNewOutput
+    });
+    
+    // Re-initialize output selection UI from restored node state
+    // This is crucial: other fields (name, time) are restored via their input values,
+    // but output selection needs explicit UI re-initialization
+    try {
+      // Import and call initializeOutputSelectionUI from planDesignerBackend
+      if (window.initializeOutputSelectionUI) {
+        window.initializeOutputSelectionUI(node);
+        console.log('🔄 Output selection UI re-initialized after cancel');
+      }
+    } catch (e) {
+      console.warn('Failed to re-initialize output UI:', e);
+    }
+    
     // Re-render canvas to show restored state
     renderCanvas();
   }
@@ -2130,6 +2304,16 @@ export function closeNodeEditModal(event) {
   if (modalEscapeHandler) {
     document.removeEventListener('keydown', modalEscapeHandler);
     modalEscapeHandler = null;
+  }
+  
+  // Remove graph change listener (for "F" suffix updates)
+  if (window.graphChangeHandler) {
+    try {
+      window.removeEventListener('graphChanged', window.graphChangeHandler);
+      window.graphChangeHandler = null;
+    } catch (e) {
+      console.warn('Failed to remove graphChangeHandler:', e);
+    }
   }
 }
 
@@ -2258,11 +2442,14 @@ export function deleteNode(nodeId) {
       if (Array.isArray(node.predecessors)) {
         node.predecessors = node.predecessors.filter(pid => pid !== nodeId);
       }
-      // Auto-propagated materials that originated from the deleted node
-      if (Array.isArray(node.materialInputs)) {
-        node.materialInputs = node.materialInputs.filter(m => !(m && m.derivedFrom === nodeId));
-      }
+    // Auto-propagated materials that originated from the deleted node
+    if (Array.isArray(node.materialInputs)) {
+      node.materialInputs = node.materialInputs.filter(m => !(m && m.derivedFrom === nodeId));
+    }
     });
+    
+    // Detect and update final nodes ("F" suffix logic)
+    detectFinalNodes(planDesignerState.nodes);
     
     // Sequence'leri yeniden hesapla
     updateNodeSequences();
@@ -2273,9 +2460,7 @@ export function deleteNode(nodeId) {
       if (fullscreenCanvas) renderCanvasContent(fullscreenCanvas);
     } else {
       renderCanvas();
-    }
-    
-    showSuccessToast('Operation deleted');
+    }    showSuccessToast('Operation deleted');
   }
 }
 
@@ -2402,24 +2587,30 @@ export function savePlanAsTemplate() {
 
   ensureId
     .then(async () => {
-      // Commit pending semi codes before saving template
-      const pendingCodes = collectPendingSemiCodes(planDesignerState.nodes);
-      if (pendingCodes.length > 0) {
-        try {
-          console.log(`Committing ${pendingCodes.length} semi codes...`);
-          const result = await commitSemiCodes(pendingCodes);
-          console.log(`Semi codes committed: ${result.committed}, skipped: ${result.skipped}`);
-          
-          // Clear pending flags
-          planDesignerState.nodes.forEach(node => {
-            if (node._semiCodePending) {
-              node._semiCodePending = false;
-            }
-          });
-        } catch (error) {
-          console.error('Failed to commit semi codes:', error);
-          showWarningToast('Warning: Semi codes may not be persisted');
+      // Create materials for new outputs (skip on copy operation)
+      const isCopyOperation = planDesignerState.readOnly;
+      
+      if (!isCopyOperation) {
+        const newOutputs = planDesignerState.nodes.filter(n => n._isNewOutput && n._outputNeedsCreation);
+        if (newOutputs.length > 0) {
+          try {
+            console.log(`Creating ${newOutputs.length} new output materials...`);
+            const result = await createOutputMaterials(newOutputs);
+            
+            // Mark as no longer needing creation
+            newOutputs.forEach(node => {
+              node._outputNeedsCreation = false;
+            });
+            
+            console.log(`✅ Created ${result.created} materials, ${result.failed} failed`);
+          } catch (error) {
+            console.error('Failed to create output materials:', error);
+            showErrorToast('Failed to create output materials: ' + error.message);
+            throw error; // Prevent template save if material creation fails
+          }
         }
+      } else {
+        console.log('Copy operation - skipping material creation');
       }
       
       return createTemplate(template);
@@ -2659,22 +2850,23 @@ export async function savePlanDraft() {
   
   const timingSummary = planDesignerState.timingSummary || summarizePlanTiming(planDesignerState.nodes, planQuantity);
   
-  // Commit semi codes before saving
-  const pendingCodes = collectPendingSemiCodes(planDesignerState.nodes);
-  if (pendingCodes.length > 0) {
+  // Create materials for new outputs
+  const newOutputs = planDesignerState.nodes.filter(n => n._isNewOutput && n._outputNeedsCreation);
+  if (newOutputs.length > 0) {
     try {
-      console.log(`Committing ${pendingCodes.length} semi codes...`);
-      const result = await commitSemiCodes(pendingCodes);
-      console.log(`Semi codes committed: ${result.committed}, skipped: ${result.skipped}`);
+      console.log(`Creating ${newOutputs.length} new output materials...`);
+      const result = await createOutputMaterials(newOutputs);
       
-      planDesignerState.nodes.forEach(node => {
-        if (node._semiCodePending) {
-          node._semiCodePending = false;
-        }
+      // Mark as no longer needing creation
+      newOutputs.forEach(node => {
+        node._outputNeedsCreation = false;
       });
+      
+      console.log(`✅ Created ${result.created} materials, ${result.failed} failed`);
     } catch (error) {
-      console.error('Failed to commit semi codes:', error);
-      showWarningToast('Warning: Semi codes may not be persisted');
+      console.error('Failed to create output materials:', error);
+      showErrorToast('Failed to create output materials: ' + error.message);
+      return; // Don't save plan if material creation fails
     }
   }
   

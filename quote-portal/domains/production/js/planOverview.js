@@ -177,15 +177,16 @@ export async function viewProductionPlan(id) {
   console.log('👁️ Opening View Production Plan mode for:', id);
   
   try {
-    let p = (_plansCache || []).find(x => x.id === id)
-    if (!p) {
-      // Cache miss: reload plans from backend and try again
-      try {
-        const fresh = await getProductionPlans().catch(() => [])
-        _plansCache = fresh
-        p = (_plansCache || []).find(x => x.id === id)
-      } catch {}
+    // Fetch full plan details with nodes from backend
+    let p;
+    try {
+      const { getProductionPlanById } = await import('./mesApi.js');
+      p = await getProductionPlanById(id);
+    } catch (e) {
+      console.warn('Failed to fetch plan details, trying cache:', e?.message);
+      p = (_plansCache || []).find(x => x.id === id);
     }
+    
     if (!p) {
       console.error('❌ Plan not found:', id);
       return;
