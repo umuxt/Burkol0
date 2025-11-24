@@ -3349,17 +3349,186 @@ router.get('/workers/:workerId/tasks/next', async (req, res) => {
 router.get('/workers/:workerId/tasks/queue', async (req, res) => {
   try {
     const { workerId } = req.params;
-    const limit = parseInt(req.query.limit) || 10;
     
-    const queue = await getWorkerTaskQueue(workerId, limit);
-    const stats = await getWorkerTaskStats(workerId);
-    
+    // Canonical SQL-LAUNCH query - get full task data with all relationships
+    const tasks = await db('mes.worker_assignments as wa')
+      .select(
+        // Assignment core fields
+        'wa.id as assignmentId',
+        'wa.status',
+        'wa.isUrgent',
+        'wa.priority',
+        'wa.sequenceNumber',
+        
+        // IDs for relationships
+        'wa.workerId',
+        'wa.planId',
+        'wa.nodeId',
+        'wa.operationId',
+        'wa.stationId',
+        'wa.substationId',
+        'wa.workOrderCode',
+        
+        // Timing fields
+        'wa.expectedStart',
+        'wa.plannedEnd',
+        'wa.startedAt as actualStart',
+        'wa.completedAt as actualEnd',
+        'wa.nominalTime',
+        'wa.effectiveTime',
+        
+        // Material & output fields (JSONB)
+        'wa.preProductionReservedAmount',
+        'wa.plannedOutput',
+        'wa.actualReservedAmounts',
+        'wa.materialReservationStatus',
+        'wa.inputScrapCount',
+        'wa.productionScrapCount',
+        'wa.defectQuantity',
+        'wa.actualQuantity',
+        
+        // Metadata
+        'wa.notes',
+        'wa.createdAt',
+        
+        // Worker info
+        'w.name as workerName',
+        'w.skills as workerSkills',
+        
+        // Node info
+        'n.name as nodeName',
+        'n.outputCode',
+        'n.outputQty',
+        
+        // Operation info
+        'op.name as operationName',
+        
+        // Station info
+        'st.name as stationName',
+        
+        // Substation info  
+        'sub.id as substationCode'
+      )
+      .leftJoin('mes.workers as w', 'w.id', 'wa.workerId')
+      .leftJoin('mes.production_plan_nodes as n', function() {
+        this.on('n.id', '=', db.raw('wa."nodeId"::integer'));
+      })
+      .leftJoin('mes.operations as op', 'op.id', 'wa.operationId')
+      .leftJoin('mes.stations as st', 'st.id', 'wa.stationId')
+      .leftJoin('mes.substations as sub', 'sub.id', 'wa.substationId')
+      .where('wa.workerId', workerId)
+      .whereIn('wa.status', ['pending', 'ready', 'in_progress', 'paused'])
+      .orderBy([
+        { column: 'wa.isUrgent', order: 'desc' },
+        { column: 'wa.expectedStart', order: 'asc' },
+        { column: 'wa.createdAt', order: 'asc' }
+      ]);
+
+    // Get material inputs for each task (from junction table)
+    const nodeIds = [...new Set(tasks.map(t => t.nodeId).filter(Boolean))];
+    const materialInputs = nodeIds.length > 0
+      ? await db('mes.node_material_inputs')
+          .whereIn('nodeId', nodeIds)
+          .select('nodeId', 'materialCode', 'requiredQuantity')
+      : [];
+
+    // Group materials by nodeId
+    const materialsByNode = materialInputs.reduce((acc, m) => {
+      if (!acc[m.nodeId]) acc[m.nodeId] = {};
+      acc[m.nodeId][m.materialCode] = m.requiredQuantity;
+      return acc;
+    }, {});
+
+    // Get next task ID (first ready/pending task)
+    const nextTask = tasks.find(t => ['ready', 'pending'].includes(t.status));
+    const nextTaskId = nextTask?.assignmentId || null;
+
+    // Format response with canonical schema
+    const formattedTasks = tasks.map(t => {
+      // Parse JSONB fields safely
+      const parseJsonb = (val) => {
+        if (!val) return {};
+        if (typeof val === 'string') return JSON.parse(val);
+        return val;
+      };
+
+      const preProductionReservedAmount = parseJsonb(t.preProductionReservedAmount);
+      const plannedOutput = parseJsonb(t.plannedOutput);
+      const actualReservedAmounts = parseJsonb(t.actualReservedAmounts);
+      const inputScrapCount = parseJsonb(t.inputScrapCount);
+      const productionScrapCount = parseJsonb(t.productionScrapCount);
+
+      // Calculate canStart flag
+      const canStart = t.status === 'ready' && t.materialReservationStatus === 'reserved';
+
+      return {
+        // Assignment ID
+        assignmentId: t.assignmentId,
+        status: t.status,
+        
+        // Work Order & Product
+        workOrderCode: t.workOrderCode,
+        customer: '', // TODO: Join with work_orders table if needed
+        productName: null, // TODO: Get from materials/quotes if needed
+        
+        // Node/Operation
+        name: t.nodeName,
+        operationId: t.operationId,
+        operationName: t.operationName,
+        outputCode: t.outputCode,
+        outputQty: t.outputQty,
+        
+        // Worker
+        workerId: t.workerId,
+        workerName: t.workerName,
+        workerSkills: t.workerSkills || [],
+        
+        // Station/Substation
+        stationId: t.stationId,
+        stationName: t.stationName,
+        substationId: t.substationId,
+        substationCode: t.substationCode,
+        
+        // Material inputs (from junction table)
+        materialInputs: materialsByNode[t.nodeId] || {},
+        preProductionReservedAmount,
+        plannedOutput,
+        actualReservedAmounts,
+        materialReservationStatus: t.materialReservationStatus,
+        
+        // Timing
+        estimatedNominalTime: t.nominalTime,
+        estimatedEffectiveTime: t.effectiveTime,
+        expectedStart: t.expectedStart,
+        plannedEnd: t.plannedEnd,
+        actualStart: t.actualStart,
+        actualEnd: t.actualEnd,
+        
+        // Scrap & defects
+        inputScrapCount,
+        productionScrapCount,
+        defectQuantity: t.defectQuantity || 0,
+        
+        // Status flags
+        isUrgent: t.isUrgent || false,
+        canStart,
+        isPaused: t.status === 'paused',
+        materialStatus: t.materialReservationStatus === 'reserved' ? 'ok' : 'pending',
+        
+        // Metadata
+        createdAt: t.createdAt,
+        actualQuantity: t.actualQuantity,
+        notes: t.notes,
+        priority: t.priority,
+        sequenceNumber: t.sequenceNumber
+      };
+    });
+
     res.json({
       success: true,
-      workerId,
-      queue,
-      stats,
-      queueLength: queue.length
+      tasks: formattedTasks,
+      nextTaskId,
+      queueLength: formattedTasks.length
     });
     
   } catch (error) {

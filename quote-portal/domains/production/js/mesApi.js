@@ -818,22 +818,18 @@ export async function updateProductionState(workOrderCode, productionState) {
 
 /**
  * Get active tasks for worker portal
- * @param {string} workerId - Optional worker ID (uses authenticated user's workerId if not provided)
+ * @param {string} workerId - Worker ID
  * @returns {Promise<{tasks: Array, nextTaskId: string|null}>}
  */
-export async function getWorkerPortalTasks(workerId = null) {
-  // Build URL with workerId query param if provided (for admin requests)
-  const url = workerId 
-    ? `${API_BASE}/api/mes/worker-portal/tasks?workerId=${encodeURIComponent(workerId)}`
-    : `${API_BASE}/api/mes/worker-portal/tasks`;
-    
-  const res = await fetch(url, { 
+export async function getWorkerPortalTasks(workerId) {
+  if (!workerId) throw new Error('workerId is required');
+  
+  const res = await fetch(`${API_BASE}/api/mes/workers/${encodeURIComponent(workerId)}/tasks/queue`, { 
     headers: withAuth(),
     credentials: 'include'
   });
   
   if (!res.ok) {
-    // Parse error response to extract code and message
     let errorData;
     try {
       errorData = await res.json();
@@ -841,8 +837,7 @@ export async function getWorkerPortalTasks(workerId = null) {
       errorData = { code: 'unknown_error', message: `HTTP ${res.status}` };
     }
     
-    // Throw structured error with code and message
-    const error = new Error(errorData.message || `worker_portal_tasks_load_failed ${res.status}`);
+    const error = new Error(errorData.message || `worker_tasks_load_failed ${res.status}`);
     error.code = errorData.code || 'unknown_error';
     error.status = res.status;
     throw error;

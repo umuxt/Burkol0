@@ -1,4 +1,3 @@
-import { showToast } from '../../shared/components/MESToast.js';
 // Worker Portal Domain Module
 // Handles worker task management, status updates, and scrap reporting
 
@@ -1391,30 +1390,6 @@ function updateTotalsSummary() {
   summaryEl.innerHTML = entries.length > 0 
     ? entries.join('') 
     : '<p class="no-data">Henüz fire kaydı yok</p>';
-}
-
-// Show toast notification (brief feedback)
-function showToast(message, type = 'info') {
-  const toast = document.createElement('div');
-  toast.className = `toast toast-${type}`;
-  toast.textContent = message;
-  toast.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    padding: 12px 20px;
-    background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
-    color: white;
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    z-index: 10001;
-    font-size: 13px;
-    font-weight: 500;
-  `;
-  
-  document.body.appendChild(toast);
-  
-  setTimeout(() => toast.remove(), 2000);
 }
 
 // Decrement scrap counter (undo)
