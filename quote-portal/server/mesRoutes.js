@@ -3144,6 +3144,7 @@ router.get('/work-packages', withAuth, async (req, res) => {
         // Material data
         'wa.materials as materialInputs',
         'wa.preProductionReservedAmount',
+        'wa.plannedOutput',
         'wa.actualReservedAmounts',
         'wa.materialReservationStatus',
         
@@ -3213,8 +3214,15 @@ router.get('/work-packages', withAuth, async (req, res) => {
       
       // Material
       materialInputs: wp.material_inputs || {},
-      preProductionReservedAmount: wp.preProductionReservedAmount || {},
-      actualReservedAmounts: wp.actualReservedAmounts || {},
+      preProductionReservedAmount: typeof wp.preProductionReservedAmount === 'string' 
+        ? JSON.parse(wp.preProductionReservedAmount) 
+        : (wp.preProductionReservedAmount || {}),
+      plannedOutput: typeof wp.plannedOutput === 'string'
+        ? JSON.parse(wp.plannedOutput)
+        : (wp.plannedOutput || {}),
+      actualReservedAmounts: typeof wp.actualReservedAmounts === 'string'
+        ? JSON.parse(wp.actualReservedAmounts)
+        : (wp.actualReservedAmounts || {}),
       materialReservationStatus: wp.materialReservationStatus,
       outputCode: wp.outputCode,
       
@@ -4895,6 +4903,7 @@ function calculateEarliestSlot(schedule, afterTime) {
 
 /**
  * Find earliest available substation from station options
+ * ✅ FAZ 3: Added currentExpectedEnd database field check
  */
 async function findEarliestSubstation(trx, stationOptions, scheduleMap, afterTime) {
   let bestSubstation = null;
@@ -4906,8 +4915,25 @@ async function findEarliestSubstation(trx, stationOptions, scheduleMap, afterTim
       .where('isActive', true);
     
     for (const sub of substations) {
-      const schedule = scheduleMap.get(sub.id) || [];
-      const availableAt = calculateEarliestSlot(schedule, afterTime);
+      // ✅ FAZ 3: Check database currentExpectedEnd field
+      let dbEnd = afterTime;
+      if (sub.currentExpectedEnd) {
+        const dbEndTime = new Date(sub.currentExpectedEnd);
+        if (dbEndTime > afterTime) {
+          dbEnd = dbEndTime;
+        }
+      }
+      
+      // Check memory schedule
+      const memSchedule = scheduleMap.get(sub.id) || [];
+      const memEnd = calculateEarliestSlot(memSchedule, afterTime);
+      
+      // Use the latest of: afterTime, dbEnd, memEnd
+      const availableAt = new Date(Math.max(
+        afterTime.getTime(),
+        dbEnd.getTime(),
+        memEnd.getTime()
+      ));
       
       if (!earliestTime || availableAt < earliestTime) {
         bestSubstation = sub;
@@ -4974,6 +5000,7 @@ function isWithinShiftBlocks(startTime, durationMinutes, shiftBlocks) {
 
 /**
  * Find worker with skill check and shift availability
+ * ✅ FAZ 3: Added worker status filtering
  */
 async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTime, duration) {
   const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][startTime.getDay()];
@@ -4999,9 +5026,33 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
   
   const workers = await query;
   
+  // ✅ FAZ 3: Filter by worker status (available/busy only, not break/inactive)
+  const eligibleWorkers = workers.filter(w => {
+    // Worker status filtering
+    const status = normalizeWorkerStatus(w);
+    if (status === 'inactive' || status === 'break') {
+      return false;
+    }
+    
+    // Check if on leave (future: add onLeave field to workers table)
+    // const onLeave = w.onLeave || false;
+    // if (onLeave) return false;
+    
+    return true;
+  });
+  
+  if (eligibleWorkers.length === 0) {
+    console.warn(`⚠️  No eligible workers found (${workers.length} filtered out by status)`);
+    return null;
+  }
+  
   // Filter by shift availability
-  for (const worker of workers) {
-    const schedule = worker.personalSchedule;
+  for (const worker of eligibleWorkers) {
+    // Parse personalSchedule if it's a string (safety check)
+    const schedule = typeof worker.personalSchedule === 'string' 
+      ? JSON.parse(worker.personalSchedule) 
+      : worker.personalSchedule;
+    
     const shiftBlocks = getShiftBlocksForDay(schedule, dayOfWeek);
     
     if (isWithinShiftBlocks(startTime, duration, shiftBlocks)) {
@@ -5009,8 +5060,129 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
     }
   }
   
-  // If no shift match, return first available worker (fallback)
-  return workers[0] || null;
+  // If no shift match, return first eligible worker (fallback)
+  console.warn(`⚠️  No worker matches shift for ${dayOfWeek}, returning first eligible`);
+  return eligibleWorkers[0] || null;
+}
+
+/**
+ * Normalize worker status to standard enum
+ * ✅ FAZ 3: Worker status normalization
+ * 
+ * @param {Object} worker - Worker object
+ * @returns {string} - 'available' | 'busy' | 'break' | 'inactive'
+ */
+function normalizeWorkerStatus(worker) {
+  if (!worker) return 'inactive';
+  
+  let status = worker.status || worker.availability || 'available';
+  status = status.toString().toLowerCase();
+  
+  // Legacy value normalization
+  if (/active|enabled|on|available/i.test(status)) return 'available';
+  if (/inactive|off|removed|disabled/i.test(status)) return 'inactive';
+  if (/break|paused|rest|lunch/i.test(status)) return 'break';
+  if (/busy|working|occupied/i.test(status)) return 'busy';
+  
+  // Default to available if unclear
+  return 'available';
+}
+
+/**
+ * Validate materials for launch (non-blocking warnings)
+ * ✅ FAZ 3: Material validation for start nodes + M-00 materials
+ * 
+ * @param {Object} trx - Knex transaction
+ * @param {string} planId - Production plan ID
+ * @param {Array} nodes - Plan nodes (with materialInputs already attached)
+ * @param {Array} predecessors - Node predecessors
+ * @returns {Promise<Array>} - Array of material warnings
+ */
+async function validateMaterialsForLaunch(trx, planId, nodes, predecessors) {
+  const warnings = [];
+  
+  // 1. Identify start nodes (no predecessors)
+  const startNodeIds = new Set(
+    nodes
+      .filter(n => {
+        const hasPred = predecessors.some(p => p.nodeId === n.nodeId);
+        return !hasPred;
+      })
+      .map(n => n.nodeId)
+  );
+  
+  console.log(`🔍 Material validation: ${startNodeIds.size} start nodes`);
+  
+  // 2. Collect materials to check (start nodes + M-00 raw materials)
+  const materialsToCheck = new Map();
+  
+  for (const node of nodes) {
+    const shouldCheckNode = startNodeIds.has(node.nodeId);
+    
+    // Use pre-loaded materialInputs from node
+    const inputs = node.materialInputs || [];
+    
+    for (const mat of inputs) {
+      const isRawMaterial = mat.materialCode && mat.materialCode.startsWith('M-00');
+      const shouldCheck = shouldCheckNode || isRawMaterial;
+      
+      if (shouldCheck && !mat.isDerived) {
+        const key = mat.materialCode;
+        const existing = materialsToCheck.get(key) || {
+          materialCode: key,
+          requiredQuantity: 0,
+          unit: mat.unit || 'adet',
+          nodeNames: new Set()
+        };
+        
+        existing.requiredQuantity += parseFloat(mat.requiredQuantity || 0);
+        existing.nodeNames.add(node.name || node.nodeId);
+        materialsToCheck.set(key, existing);
+      }
+    }
+  }
+  
+  console.log(`📊 Checking ${materialsToCheck.size} materials`);
+  
+  // 3. Check stock availability
+  for (const [code, mat] of materialsToCheck) {
+    try {
+      const stock = await trx('materials.materials')
+        .where('code', code)
+        .first();
+      
+      const available = parseFloat(stock?.stock || stock?.available || 0);
+      const required = mat.requiredQuantity;
+      
+      if (available < required) {
+        warnings.push({
+          nodeName: Array.from(mat.nodeNames).join(', '),
+          materialCode: code,
+          required: Math.round(required * 100) / 100,
+          available: Math.round(available * 100) / 100,
+          shortage: Math.round((required - available) * 100) / 100,
+          unit: mat.unit
+        });
+      }
+    } catch (error) {
+      console.warn(`⚠️  Material ${code} not found in stock table`);
+      warnings.push({
+        nodeName: Array.from(mat.nodeNames).join(', '),
+        materialCode: code,
+        required: Math.round(mat.requiredQuantity * 100) / 100,
+        available: 0,
+        shortage: Math.round(mat.requiredQuantity * 100) / 100,
+        unit: mat.unit,
+        error: 'Material not found in stock'
+      });
+    }
+  }
+  
+  if (warnings.length > 0) {
+    console.warn(`⚠️  ${warnings.length} material shortage(s) detected (non-blocking)`);
+  }
+  
+  return warnings;
 }
 
 /**
@@ -5112,12 +5284,39 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       .where('planId', id)
       .orderBy('sequenceOrder');
     
+    // 2a. Load material inputs for each node (needed for pre-production calculations)
+    const allMaterialInputs = await trx('mes.node_material_inputs')
+      .whereIn('nodeId', nodes.map(n => n.nodeId));
+    
+    // Get unique material codes to fetch units
+    const uniqueMaterialCodes = [...new Set(allMaterialInputs.map(mi => mi.materialCode))];
+    const materialsWithUnits = await trx('materials.materials')
+      .select('code', 'unit')
+      .whereIn('code', uniqueMaterialCodes);
+    
+    const materialUnitMap = new Map(materialsWithUnits.map(m => [m.code, m.unit]));
+    
+    // Attach materialInputs array to each node
+    nodes.forEach(node => {
+      node.materialInputs = allMaterialInputs
+        .filter(mi => mi.nodeId === node.nodeId)
+        .map(mi => ({
+          materialCode: mi.materialCode,
+          requiredQuantity: parseFloat(mi.requiredQuantity) || 0,
+          unit: materialUnitMap.get(mi.materialCode) || node.outputUnit || 'adet',
+          isDerived: mi.isDerived || false
+        }));
+    });
+    
     // ✅ FIXED: Use nodeId (VARCHAR) not id (INTEGER)
     const predecessors = await trx('mes.node_predecessors')
       .whereIn('nodeId', nodes.map(n => n.nodeId));  // VARCHAR foreign key!
     
     // 3. Topological sort for execution order
     const executionOrder = topologicalSort(nodes, predecessors);
+    
+    // ✅ FAZ 3: Material validation (non-blocking warnings)
+    const materialWarnings = await validateMaterialsForLaunch(trx, id, nodes, predecessors);
     
     // 4. Initialize tracking maps
     const workerSchedule = new Map();      // workerId → [{ start, end, seq }]
@@ -5162,20 +5361,22 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         throw new Error(`No substation for node ${node.name}`);
       }
       
-      // 5d. Get operation skills
+      // 5d. Get operation skills and defect rate
       const operation = await trx('mes.operations')
         .where('id', node.operationId)
         .first();
       
       const requiredSkills = operation?.skills || [];
+      const expectedDefectRate = operation?.expectedDefectRate || 0;
       
       // 5e. Find worker with shift check
+      const effectiveDuration = parseFloat(node.effectiveTime) || 0;
       const worker = await findWorkerWithShiftCheck(
         trx,
         requiredSkills,
         substation.stationId,
         availableAt,
-        node.effectiveTime
+        effectiveDuration
       );
       
       if (!worker) {
@@ -5191,19 +5392,56 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         ? workerQueue[workerQueue.length - 1].end
         : availableAt;
       
-      const actualStart = new Date(Math.max(
+      let actualStart = new Date(Math.max(
         workerAvailableAt.getTime(),
         availableAt.getTime()
       ));
       
-      const actualEnd = new Date(
-        actualStart.getTime() + node.effectiveTime * 60000
-      );
+      // ✅ FAZ 3: Adjust start time for worker schedule (avoid breaks)
+      const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][actualStart.getDay()];
+      
+      // Parse worker's personal schedule safely
+      const personalSchedule = typeof worker.personalSchedule === 'string'
+        ? JSON.parse(worker.personalSchedule)
+        : worker.personalSchedule;
+      
+      const scheduleBlocks = getShiftBlocksForDay(personalSchedule, dayOfWeek);
+      
+      if (scheduleBlocks.length === 0) {
+        // Use default schedule if worker has no personal schedule
+        const defaultBlocks = getDefaultWorkSchedule(dayOfWeek);
+        if (defaultBlocks.length > 0) {
+          actualStart = adjustStartTimeForSchedule(actualStart, defaultBlocks);
+        }
+      } else {
+        actualStart = adjustStartTimeForSchedule(actualStart, scheduleBlocks);
+      }
+      
+      // ✅ FAZ 3: Calculate end time with breaks
+      let actualEnd;
+      const effectiveSchedule = scheduleBlocks.length > 0 ? scheduleBlocks : getDefaultWorkSchedule(dayOfWeek);
+      const effectiveTimeMinutes = parseFloat(node.effectiveTime) || 0;
+      
+      if (effectiveSchedule.length > 0) {
+        actualEnd = calculateEndTimeWithBreaks(actualStart, effectiveTimeMinutes, effectiveSchedule);
+      } else {
+        // No schedule - simple addition
+        actualEnd = new Date(actualStart.getTime() + effectiveTimeMinutes * 60000);
+      }
       
       const isQueued = sequenceNumber > 1;
       if (isQueued) queuedCount++;
       
-      // 5h. Create worker assignment
+      // 5h. Calculate pre-production reserved amount and planned output
+      const planQuantity = plan.quantity || 1;
+      const preProductionReservedAmount = calculatePreProductionReservedAmount(
+        node,
+        expectedDefectRate,
+        planQuantity
+      );
+      const plannedOutput = calculatePlannedOutput(node, planQuantity);
+      
+      // 5i. Create worker assignment
       // ✅ FIXED: nodeId is INTEGER foreign key to production_plan_nodes.id (NOT nodeId VARCHAR!)
       await trx('mes.worker_assignments').insert({
         planId: id,
@@ -5216,6 +5454,13 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         estimatedStartTime: actualStart,
         estimatedEndTime: actualEnd,
         sequenceNumber: sequenceNumber,
+        preProductionReservedAmount: Object.keys(preProductionReservedAmount).length > 0 
+          ? JSON.stringify(preProductionReservedAmount) 
+          : null,
+        plannedOutput: Object.keys(plannedOutput).length > 0 
+          ? JSON.stringify(plannedOutput) 
+          : null,
+        materialReservationStatus: 'pending',
         createdAt: trx.fn.now()
       });
       
@@ -5263,7 +5508,14 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         estimatedStart: actualStart,
         estimatedEnd: actualEnd,
         sequenceNumber,
-        isQueued
+        isQueued,
+        preProductionReservedAmount: Object.keys(preProductionReservedAmount).length > 0 
+          ? preProductionReservedAmount 
+          : null,
+        plannedOutput: Object.keys(plannedOutput).length > 0 
+          ? plannedOutput 
+          : null,
+        materialReservationStatus: 'pending'
       });
       
       console.log(`   ✓ ${node.name}: ${worker.name} @ ${substation.name} (seq ${sequenceNumber})`);
@@ -5303,7 +5555,7 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       },
       assignments,
       queuedTasks: queuedCount,
-      warnings: []
+      warnings: materialWarnings.length > 0 ? { materials: materialWarnings } : undefined
     });
     
   } catch (error) {
