@@ -5220,29 +5220,6 @@ function topologicalSort(nodes, predecessors) {
 }
 
 /**
- * Calculate number of parallel execution paths
- */
-function calculateParallelPaths(executionOrder, predecessors) {
-  const levels = new Map();
-  let maxLevel = 0;
-  
-  for (const nodeId of executionOrder) {
-    const preds = predecessors.filter(p => p.nodeId === nodeId);
-    
-    if (preds.length === 0) {
-      levels.set(nodeId, 0);
-    } else {
-      const predLevels = preds.map(p => levels.get(p.predecessorNodeId) || 0);
-      const level = Math.max(...predLevels) + 1;
-      levels.set(nodeId, level);
-      maxLevel = Math.max(maxLevel, level);
-    }
-  }
-  
-  return maxLevel + 1;
-}
-
-/**
  * POST /api/mes/production-plans/:id/launch
  * Launch plan with enhanced algorithm
  */
@@ -5559,8 +5536,7 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         totalSubstations: substationSchedule.size,
         estimatedStartTime: minStart,
         estimatedEndTime: maxEnd,
-        estimatedDuration: Math.ceil((maxEnd - minStart) / 60000),
-        parallelPaths: calculateParallelPaths(executionOrder, predecessors)
+        estimatedDuration: Math.ceil((maxEnd - minStart) / 60000)
       },
       assignments,
       queuedTasks: queuedCount,
