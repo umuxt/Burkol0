@@ -1,7 +1,7 @@
 // Plan Designer logic and state
 import { showSuccessToast, showErrorToast, showWarningToast, showInfoToast } from '../../../shared/components/MESToast.js';
 import { getPrefixForNode } from './semiCode.js';
-import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, getNextProductionPlanId, genId, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments, getMaterials, checkMesMaterialAvailability, getGeneralMaterials, activateWorkerAssignments, createOutputMaterials } from './mesApi.js';
+import { upsertProducedWipFromNode, getStations, createProductionPlan, createTemplate, updateProductionPlan, getApprovedQuotes, getProductionPlans, getOperations, getWorkers, getWorkerAssignments, getSubstations, batchWorkerAssignments, getMaterials, checkMesMaterialAvailability, getGeneralMaterials, activateWorkerAssignments, createOutputMaterials } from './mesApi.js';
 import { cancelPlanCreation, setActivePlanTab } from './planOverview.js';
 import { populateUnitSelect } from './units.js';
 import { API_BASE, withAuth } from '../../../shared/lib/api.js';
@@ -2748,6 +2748,15 @@ function sanitizeNodesForBackend(nodes) {
             ).filter(Boolean)
           : []),
       
+      // stationIds: array of strings for backend plan save (mes.node_stations table)
+      stationIds: node.assignedStationId && typeof node.assignedStationId === 'string'
+        ? [node.assignedStationId]
+        : (Array.isArray(node.assignedStations) 
+          ? node.assignedStations.map(s => 
+              typeof s === 'string' ? s : (s && s.stationId ? s.stationId : null)
+            ).filter(Boolean)
+          : (Array.isArray(node.stationIds) ? node.stationIds : [])),
+      
       // Worker assignment
       assignedSubstations: Array.isArray(node.assignedSubstations) ? node.assignedSubstations : [],
       assignmentMode: node.assignmentMode || 'auto',
@@ -3015,10 +3024,7 @@ export async function savePlanDraft() {
   planDesignerState._savingPlan = true;
   
   try {
-    const newId = await getNextProductionPlanId();
-    plan.id = newId || genId('plan-');
-    console.log('🆔 Generated plan ID:', plan.id);
-    
+    // Backend generates plan ID automatically during creation
     await createProductionPlan(plan);
     console.log('✅ Plan created successfully');
     

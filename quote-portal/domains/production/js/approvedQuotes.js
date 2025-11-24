@@ -421,8 +421,17 @@ async function startProduction(workOrderCode) {
         ).join('\n');
         alert(`Kaynak Ataması Başarısız\n\n${errorList}\n\nLütfen planı kontrol edip tekrar deneyin.`);
       } else {
-        // Generic error
-        alert(`Üretim Başlatılamadı\n\n${error.message || 'Bilinmeyen hata'}\n\nLütfen tekrar deneyin.`);
+        // Generic error - try to extract meaningful message from backend
+        let errorMessage = 'Bilinmeyen hata';
+        
+        // Check if error message contains Turkish user-friendly text
+        if (error.message && error.message.includes('yetenek uyuşması')) {
+          errorMessage = error.message;
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        
+        alert(`Üretim Başlatılamadı\n\n${errorMessage}\n\nLütfen tekrar deneyin.`);
       }
     }
   } catch (error) {

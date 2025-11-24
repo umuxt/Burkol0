@@ -5008,19 +5008,11 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
   // Get workers with matching skills (or all if no skills required)
   let query = trx('mes.workers').where('isActive', true);
   
-  // ✅ FIXED: Use jsonb_path_exists to check if ANY skill matches
+  // ✅ FIXED: Worker must have ALL required skills (AND logic)
   if (requiredSkills && requiredSkills.length > 0) {
-    // Check if worker.skills array contains any of the required skills
-    const skillConditions = requiredSkills.map(skill => 
-      trx.raw(`skills::jsonb @> ?::jsonb`, [JSON.stringify([skill])])
-    );
-    
-    // OR condition: worker must have at least ONE of the required skills
-    query = query.where(function() {
-      skillConditions.forEach((condition, idx) => {
-        if (idx === 0) this.where(condition);
-        else this.orWhere(condition);
-      });
+    // Check if worker.skills array contains ALL required skills
+    requiredSkills.forEach(skill => {
+      query = query.whereRaw(`skills::jsonb @> ?::jsonb`, [JSON.stringify([skill])]);
     });
   }
   
@@ -5366,7 +5358,16 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         .where('id', node.operationId)
         .first();
       
-      const requiredSkills = operation?.skills || [];
+      // Get station's additional skill requirements
+      const station = await trx('mes.stations')
+        .where('id', substation.stationId)
+        .first();
+      
+      // Combine operation skills + station subSkills (both required)
+      const operationSkills = operation?.skills || [];
+      const stationSkills = station?.subSkills || [];
+      const requiredSkills = [...new Set([...operationSkills, ...stationSkills])]; // Unique skills
+      
       const expectedDefectRate = operation?.expectedDefectRate || 0;
       
       // 5e. Find worker with shift check
@@ -5380,7 +5381,15 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       );
       
       if (!worker) {
-        throw new Error(`No worker for ${node.name} at ${availableAt}`);
+        // Fetch skill names from database
+        let skillNames = 'genel';
+        if (requiredSkills.length > 0) {
+          const skills = await trx('mes.skills')
+            .whereIn('id', requiredSkills)
+            .select('name');
+          skillNames = skills.map(s => s.name).join(', ');
+        }
+        throw new Error(`"${node.name}" işi için yetenek uyuşması sağlanan personel bulunamadı\n\nGerekli yetenekler: ${skillNames}`);
       }
       
       // 5f. Calculate worker queue position
@@ -5563,6 +5572,7 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
     console.error('❌ Error launching plan:', error);
     res.status(500).json({ 
       error: 'Failed to launch plan',
+      message: error.message,  // Frontend reads this field
       details: error.message 
     });
   }
