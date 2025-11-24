@@ -28,15 +28,28 @@
 
 ## 📋 İçindekiler
 
-1. [Genel Bakış](#genel-bakış)
-2. [Launch Akışı (10 Adım)](#launch-akışı-10-adım)
-3. [Real Implementation Details](#real-implementation-details)
-4. [Topological Sort Algoritması](#topological-sort-implementation-kahns-algorithm)
-5. [Worker & Substation Finding](#worker--substation-finding-logic)
-6. [Material Validation](#material-validation-pre-launch-check)
-7. [Testing Scenarios](#testing-scenarios-real-examples)
-8. [Common Issues](#common-issues--solutions)
-9. [Performance Metrics](#performance-metrics)
+### BÖLÜM 1: Konseptler & Algoritmalar
+1. [Genel Bakış](#genel-bakış) - Launch nedir, ne yapar?
+2. [Kahn's Topological Sort](#topological-sort-algorithm)
+3. [3-Way Constraint Scheduling](#3-way-constraint-scheduling)
+4. [Database Schema](#database-schema)
+
+### BÖLÜM 2: Runtime Akışı (Kullanıcı Perspektifi)
+**Kullanıcı 🏁 Başlat butonuna tıkladığında 10 adımda ne olur:**
+- [STEP 1-10: Frontend → Backend → Database → Response](#runtime-flow-10-steps)
+
+### BÖLÜM 3: Geliştirme Roadmap (Proje Perspektifi)
+**Sistemi sıfırdan nasıl kurduk (5 Faz):**
+- [FAZ 1: Database Schema Setup](#faz-1-database-schema-setup) ✅
+- [FAZ 2: Core Implementation](#faz-2-core-implementation) ✅
+- [FAZ 3: Edge Cases & Advanced Logic](#faz-3-edge-cases--advanced-logic) 🔧
+- [FAZ 4: Testing & Validation](#faz-4-testing--validation) ⏳
+- [FAZ 5: Monitoring & Optimization](#faz-5-monitoring--optimization) ⏳
+
+### BÖLÜM 4: Referans & Sorun Giderme
+- [Common Issues](#common-issues--solutions)
+- [Performance Tips](#performance-tips)
+- [API Reference](#api-reference)
 
 ---
 
@@ -60,84 +73,655 @@ Production Plan Launch, bir üretim planının **tasarım fazından (draft) → 
 
 ---
 
-## Launch Akışı (10 Adım)
+## 📖 BÖLÜM 1: KONSEPTLER & ALGORİTMALAR
+
+### Launch Nedir?
+
+Production Plan Launch = **Tasarım → Üretim** geçişi
+
+```
+DRAFT (Planlama)          ACTIVE (Üretim)
+├─ Nodes designed         ├─ Workers assigned
+├─ Materials listed       ├─ Machines reserved  
+├─ No schedule            ├─ Timeline calculated
+└─ Status: "draft"        └─ Status: "active"
+```
+
+**Kritik Özellikler:**
+- ⚡ **Atomik:** Ya tamamen başarılı, ya hiç (ACID transaction)
+- 🔒 **Thread-safe:** Aynı plan 2 kez launch edilemez (table locks)
+- 🧠 **Akıllı:** Skill matching, shift checking, dependency tracking
+- ⚠️ **Esnek:** Malzeme eksikliği launch'ı engellemez (warning only)
+
+---
+
+### Topological Sort Algorithm
+
+**Amaç:** Node'ları **bağımlılık sırasına** göre dizmek
+
+**Firebase'de:** Kahn's Algorithm  
+**PostgreSQL'de:** Kahn's Algorithm ✅ (Aynı)
+
+```javascript
+// Predecessor bağımlılıkları
+A → B → D
+A → C → D
+
+// Topological Order
+[A, B, C, D]  veya  [A, C, B, D]
+// İkisi de geçerli (B ve C paralel)
+```
+
+**Implementation:**
+```javascript
+function topologicalSort(nodes, predecessors) {
+  const graph = new Map();
+  const inDegree = new Map();
+  
+  // Initialize
+  nodes.forEach(n => {
+    graph.set(n.nodeId, []);
+    inDegree.set(n.nodeId, 0);
+  });
+  
+  // Build graph
+  predecessors.forEach(p => {
+    graph.get(p.predecessorNodeId).push(p.nodeId);
+    inDegree.set(p.nodeId, inDegree.get(p.nodeId) + 1);
+  });
+  
+  // Kahn's algorithm
+  const queue = nodes.filter(n => inDegree.get(n.nodeId) === 0)
+                     .map(n => n.nodeId);
+  const order = [];
+  
+  while (queue.length > 0) {
+    const nodeId = queue.shift();
+    order.push(nodeId);
+    
+    for (const neighbor of graph.get(nodeId)) {
+      inDegree.set(neighbor, inDegree.get(neighbor) - 1);
+      if (inDegree.get(neighbor) === 0) {
+        queue.push(neighbor);
+      }
+    }
+  }
+  
+  // Cycle detection
+  if (order.length !== nodes.length) {
+    throw new Error('Cycle detected!');
+  }
+  
+  return order;
+}
+```
+
+---
+
+### 3-Way Constraint Scheduling
+
+**Problem:** Her node için **başlangıç zamanı** ne olmalı?
+
+**3 Kısıt:**
+1. **Predecessor:** Önceki işler bitmiş olmalı
+2. **Worker:** İşçi müsait olmalı
+3. **Substation:** Makine boş olmalı
+
+```javascript
+actualStart = MAX(
+  predecessorEnd,    // En geç biten predecessor
+  workerAvailable,   // İşçinin müsait olduğu an
+  substationFree     // Makinenin boşaldığı an
+)
+```
+
+**Örnek:**
+```
+Node A bitiş: 10:00
+Worker müsait: 10:30  ← EN GEÇ
+Makine boş: 09:45
+
+→ Start time: 10:30
+```
+
+---
+
+### Database Schema
+
+**Kritik Tasarım:** Dual ID System
+
+```sql
+-- Business ID (VARCHAR) - Görsel/Referans
+production_plan_nodes.nodeId = "PLAN-008-node-1"
+
+-- Database PK (INTEGER) - Performance
+production_plan_nodes.id = 42
+
+-- Foreign Key Kullanımı
+worker_assignments.nodeId → production_plan_nodes.id  (INTEGER!)
+node_predecessors.nodeId → production_plan_nodes.nodeId  (VARCHAR!)
+```
+
+**Neden İki ID?**
+- **VARCHAR nodeId:** Human-readable, debugging, UI display
+- **INTEGER id:** Fast JOINs, indexing, foreign keys
+
+---
+
+## 📺 BÖLÜM 2: RUNTIME AKIŞI (10 STEP)
+
+### Kullanıcı Deneyimi Perspektifi
+
+**Soru:** "Kullanıcı 🏁 Başlat butonuna tıkladığında tam olarak ne olur?"
+
+**Cevap:** 10 adımlık atomik işlem
+
+---
+
+## STEP 1-3: Frontend Validation
 
 ```
 User clicks "🏁 Başlat"
      ↓
 ┌────────────────────────────────────────────────────────────────┐
-│ STEP 1: Acquire Locks                                         │
+│ STEP 1: Plan Check (Frontend)                                 │
+│ ├─ Plan exists?                                               │
+│ ├─ Status = "production"?                                     │
+│ └─ Has nodes?                                                 │
+└────────────────────────────────────────────────────────────────┘
+     ↓
+┌────────────────────────────────────────────────────────────────┐
+│ STEP 2: User Confirmation                                     │
+│ ├─ Show confirmation dialog                                   │
+│ ├─ "Bu planı başlatmak istediğinizden emin misiniz?"         │
+│ └─ User clicks "Evet"                                         │
+└────────────────────────────────────────────────────────────────┘
+     ↓
+┌────────────────────────────────────────────────────────────────┐
+│ STEP 3: API Call                                              │
+│ └─ POST /api/mes/production-plans/:id/launch                  │
+└────────────────────────────────────────────────────────────────┘
+     ↓
+┌────────────────────────────────────────────────────────────────┐
+│ STEP 4: Backend - Acquire Locks                               │
 │ ├─ LOCK TABLE mes.worker_assignments IN EXCLUSIVE MODE        │
-│ └─ LOCK TABLE mes.substations IN EXCLUSIVE MODE               │
+│ ├─ LOCK TABLE mes.substations IN EXCLUSIVE MODE               │
+│ └─ Prevents concurrent launches                               │
 └────────────────────────────────────────────────────────────────┘
      ↓
 ┌────────────────────────────────────────────────────────────────┐
-│ STEP 2: Validate Plan                                         │
-│ ├─ SELECT * FROM mes.production_plans WHERE id=:id            │
-│ ├─ Check status = 'draft'                                     │
-│ └─ Rollback if not found                                      │
+│ STEP 5: Validate Plan (Database)                              │
+│ ├─ SELECT * FROM production_plans WHERE id=:id                │
+│ ├─ Check status = 'production'                                │
+│ └─ Rollback if not found or already active                    │
 └────────────────────────────────────────────────────────────────┘
      ↓
 ┌────────────────────────────────────────────────────────────────┐
-│ STEP 3: Load Nodes & Dependencies                             │
-│ ├─ SELECT * FROM mes.production_plan_nodes WHERE planId=:id   │
-│ └─ SELECT * FROM mes.node_predecessors WHERE nodeId IN (...)  │
+│ STEP 6: Load Dependencies                                     │
+│ ├─ Load nodes (nodeId, operationId, effectiveTime...)         │
+│ ├─ Load predecessors (nodeId → predecessorNodeId)             │
+│ └─ Topological sort (Kahn's Algorithm)                        │
 └────────────────────────────────────────────────────────────────┘
      ↓
 ┌────────────────────────────────────────────────────────────────┐
-│ STEP 4: Topological Sort (Kahn's Algorithm)                   │
-│ ├─ Build inDegree map & adjacency list                        │
-│ ├─ Process nodes with 0 incoming edges                        │
-│ ├─ Detect cycles (if not all processed)                       │
-│ └─ Return execution order array                               │
+│ STEP 7: Initialize Tracking Maps                              │
+│ ├─ workerSchedule: Map<workerId, queue[]>                     │
+│ ├─ substationSchedule: Map<substationId, blocks[]>            │
+│ └─ nodeCompletionTimes: Map<nodeId, endTime>                  │
 └────────────────────────────────────────────────────────────────┘
      ↓
 ┌────────────────────────────────────────────────────────────────┐
-│ STEP 5: Initialize Tracking                                   │
-│ ├─ workerSchedule = new Map() (workerId → queue)              │
-│ ├─ substationSchedule = new Map() (substationId → blocks)     │
-│ └─ nodeCompletionTimes = new Map() (nodeId → end time)        │
+│ STEP 8: Assignment Loop (FOR EACH node in order)              │
+│ FOR nodeId IN executionOrder:                                 │
+│   a. Wait for predecessors → earliestStart                    │
+│   b. Find station (priority-based)                            │
+│   c. Find substation (earliest available)                     │
+│   d. Find worker (skill + shift check)                        │
+│   e. Calculate queue position                                 │
+│   f. Determine actualStart = MAX(worker, substation, pred)    │
+│   g. INSERT worker_assignment                                 │
+│   h. UPDATE node estimated times                              │
+│   i. Reserve substation                                       │
+│   j. Update tracking maps                                     │
 └────────────────────────────────────────────────────────────────┘
      ↓
 ┌────────────────────────────────────────────────────────────────┐
-│ STEP 6: Process Each Node (Loop)                              │
-│ FOR EACH nodeId IN executionOrder:                            │
-│   6a. Calculate earliestStart (wait for predecessors)         │
-│   6b. Get station options (priority-based)                    │
-│   6c. Find earliest available substation                      │
-│   6d. Get operation required skills                           │
-│   6e. Find qualified worker (skill + shift check)             │
-│   6f. Calculate queue position (sequenceNumber)               │
-│   6g. Determine actualStart (MAX of constraints)              │
-│   6h. INSERT worker_assignment (nodeId = INTEGER FK)          │
-│   6i. UPDATE production_plan_nodes (estimated times)          │
-│   6j. Update tracking maps                                    │
-└────────────────────────────────────────────────────────────────┘
-     ↓
-┌────────────────────────────────────────────────────────────────┐
-│ STEP 7: Update Plan Status                                    │
-│ └─ UPDATE production_plans SET status='active', launchedAt=NOW│
-└────────────────────────────────────────────────────────────────┘
-     ↓
-┌────────────────────────────────────────────────────────────────┐
-│ STEP 8: Commit Transaction                                    │
-│ └─ await trx.commit()                                          │
-└────────────────────────────────────────────────────────────────┘
-     ↓
-┌────────────────────────────────────────────────────────────────┐
-│ STEP 9: Send Response                                         │
-│ └─ { success, assignmentsCreated, queuedCount }               │
+│ STEP 9: Finalize                                              │
+│ ├─ UPDATE production_plans SET status='active'                │
+│ ├─ COMMIT transaction                                         │
+│ └─ Build response summary                                     │
 └────────────────────────────────────────────────────────────────┘
      ↓
 ┌────────────────────────────────────────────────────────────────┐
 │ STEP 10: Frontend Update                                      │
-│ ├─ Refresh production plans table                             │
 │ ├─ Show success toast                                         │
-│ └─ Navigate to active plans view                              │
+│ ├─ Refresh table                                              │
+│ └─ Hide launch button (plan is now active)                    │
 └────────────────────────────────────────────────────────────────┘
 ```
 
-### Launch Öncesi ve Sonrası
+**Timeline:** ~200-500ms (2 node plan)
+
+---
+
+## 🛠️ BÖLÜM 3: GELİŞTİRME ROADMAP (5 FAZ)
+
+### Proje Geliştirme Perspektifi
+
+**Soru:** "Bu sistemi sıfırdan nasıl kurduk?"
+
+**Cevap:** 5 fazlı geliştirme süreci
+
+---
+
+## FAZ 1: Database Schema Setup ✅
+
+**Hedef:** PostgreSQL tablolarını oluştur
+
+**Tamamlanan:**
+- [x] `mes.production_plans` table
+- [x] `mes.production_plan_nodes` table (dual ID: id + nodeId)
+- [x] `mes.node_predecessors` table
+- [x] `mes.node_material_inputs` table
+- [x] `mes.node_stations` table (priority support)
+- [x] `mes.worker_assignments` table
+- [x] `mes.workers` table (skills as jsonb)
+- [x] `mes.substations` table
+- [x] Foreign key constraints
+- [x] Indexes for performance
+
+**Kritik Kararlar:**
+```sql
+-- nodeId: VARCHAR for business logic
+-- id: INTEGER for database performance
+CREATE TABLE mes.production_plan_nodes (
+  id SERIAL PRIMARY KEY,              -- DB key
+  "nodeId" VARCHAR(100) NOT NULL,     -- Business key
+  "planId" VARCHAR(50) NOT NULL,
+  -- ...
+);
+
+-- Different tables use different FK types!
+CREATE TABLE mes.worker_assignments (
+  "nodeId" INTEGER REFERENCES production_plan_nodes(id)  -- Uses INTEGER!
+);
+
+CREATE TABLE mes.node_predecessors (
+  "nodeId" VARCHAR(100) REFERENCES production_plan_nodes("nodeId")  -- Uses VARCHAR!
+);
+```
+
+**Durum:** ✅ Tamamlandı (Commit: STEP-14)
+
+---
+
+## FAZ 2: Core Implementation ✅
+
+**Hedef:** Temel launch logic'ini implement et
+
+**Tamamlanan:**
+- [x] Transaction wrapper
+- [x] Table locking (EXCLUSIVE MODE)
+- [x] Topological sort (Kahn's Algorithm)
+- [x] Worker finding (skill matching with jsonb)
+- [x] Substation finding (earliest available)
+- [x] 3-way constraint scheduling
+- [x] Worker queue management (sequenceNumber)
+- [x] Assignment creation
+- [x] Plan status update
+- [x] Response builder
+
+**Code Location:** `server/mesRoutes.js` lines 5075-5320
+
+**Test:** ✅ PLAN-009 başarıyla launch edildi
+
+**Durum:** ✅ Tamamlandı (Commit: b218ac8)
+
+---
+
+## FAZ 3: Edge Cases & Advanced Logic 🔧
+
+**Hedef:** Firebase'den eksik kalan operational logic'leri ekle
+
+### 3.1 Worker Status Normalization ❌
+
+**Firebase'de:**
+```javascript
+// Worker status enum: available | busy | break | inactive
+// onLeave kontrolü
+const eligibleWorkers = workers.filter(w => 
+  (w.status === 'available' || w.status === 'busy') && !w.onLeave
+);
+```
+
+**PostgreSQL'de:** ❌ YOK
+- Tüm `isActive=true` işçiler döner
+- Status filtreleme yok
+- onLeave kontrolü yok
+
+**Implement edilecek:**
+```javascript
+// 1. Worker status normalization
+const normalizeWorkerStatus = (worker) => {
+  let status = worker.status || worker.availability || 'available';
+  
+  // Legacy cleanup
+  if (/active|enabled|on/i.test(status)) status = 'available';
+  if (/inactive|off|removed/i.test(status)) status = 'inactive';
+  if (/break|paused|rest/i.test(status)) status = 'break';
+  if (/busy|working/i.test(status)) status = 'busy';
+  
+  return status;
+};
+
+// 2. Filter eligible workers
+const eligibleWorkers = allWorkers.filter(w => {
+  const status = normalizeWorkerStatus(w);
+  const onLeave = isWorkerOnLeave(w);
+  
+  return (status === 'available' || status === 'busy') && !onLeave;
+});
+```
+
+---
+
+### 3.2 Worker Schedule Adjustment ⚠️ KISMİ
+
+**Firebase'de:**
+```javascript
+// Çalışma saatleri dışında iş atama
+if (scheduleBlocks.length > 0) {
+  startTime = adjustStartTimeForSchedule(startTime, scheduleBlocks);
+  endTime = calculateEndTimeWithBreaks(startTime, duration, scheduleBlocks);
+}
+```
+
+**PostgreSQL'de:** ⚠️ Sadece shift check var
+- `isWithinShiftBlocks()` sadece boolean döner
+- Start time ayarlaması YOK
+- End time break calculation YOK
+
+**Örnek:**
+```javascript
+// MEVCUT (Yanlış)
+Target time: 12:30 (mola saati)
+Result: Worker assigned → ❌ Mola saatine iş atandı!
+
+// OLACAK (Doğru)
+Target time: 12:30
+Adjusted: 13:00 (mola sonrası)
+```
+
+**Implement edilecek:**
+```javascript
+// mesRoutes.js'e eklenecek
+function adjustStartTimeForSchedule(targetTime, workBlocks) {
+  let currentTime = new Date(targetTime);
+  
+  while (iterations < MAX_ITERATIONS) {
+    const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+    
+    for (const block of workBlocks) {
+      const blockStart = parseTime(block.start);
+      const blockEnd = parseTime(block.end);
+      
+      // İçindeyse OK
+      if (currentMinutes >= blockStart && currentMinutes < blockEnd) {
+        return currentTime;
+      }
+      
+      // Öncesindeyse bloğun başına ayarla
+      if (currentMinutes < blockStart) {
+        return setTime(currentTime, blockStart);
+      }
+    }
+    
+    // Tüm blokların sonrasındaysa ertesi gün
+    currentTime.setDate(currentTime.getDate() + 1);
+    currentTime = setTime(currentTime, workBlocks[0].start);
+  }
+  
+  return currentTime;
+}
+
+function calculateEndTimeWithBreaks(startTime, duration, workBlocks) {
+  let currentTime = new Date(startTime);
+  let remaining = duration;
+  
+  while (remaining > 0) {
+    const currentBlock = findCurrentBlock(currentTime, workBlocks);
+    
+    if (!currentBlock) {
+      // Çalışma saati dışı → sonraki bloğa atla
+      currentTime = jumpToNextBlock(currentTime, workBlocks);
+      continue;
+    }
+    
+    const blockEnd = parseTime(currentBlock.end);
+    const timeLeft = blockEnd - getCurrentMinutes(currentTime);
+    
+    if (remaining <= timeLeft) {
+      // Bu blokta bitir
+      currentTime.setMinutes(currentTime.getMinutes() + remaining);
+      remaining = 0;
+    } else {
+      // Bloğu doldur, sonraki bloğa geç
+      remaining -= timeLeft;
+      currentTime = jumpToNextBlock(currentTime, workBlocks);
+    }
+  }
+  
+  return currentTime;
+}
+```
+
+---
+
+### 3.3 Material Validation (Non-Blocking) ❌
+
+**Firebase'de:**
+```javascript
+// Sadece start nodes + M-00 materials check edilir
+// Eksiklik varsa WARNING döner (launch engellenmez)
+const materialWarnings = await validateMaterialAvailability(plan);
+
+if (materialWarnings.length > 0) {
+  response.warnings = { materials: materialWarnings };
+}
+```
+
+**PostgreSQL'de:** ❌ YOK
+- Material check endpoint var (`/materials/check-availability`)
+- Ama launch sırasında çağrılmıyor
+- Frontend'de ayrı check var ama backend bypass edilebilir
+
+**Implement edilecek:**
+```javascript
+// Launch içinde eklenecek
+async function validateMaterialsForLaunch(trx, planId, nodes) {
+  // 1. Start node'ları tespit et
+  const startNodes = nodes.filter(n => 
+    !n.predecessors || n.predecessors.length === 0
+  );
+  
+  // 2. Start nodes + M-00 materials
+  const materialsToCheck = [];
+  
+  for (const node of startNodes) {
+    const inputs = await trx('mes.node_material_inputs')
+      .where('nodeId', node.nodeId);
+    
+    materialsToCheck.push(...inputs.filter(m => 
+      !m.isDerived || m.materialCode.startsWith('M-00')
+    ));
+  }
+  
+  // 3. Stock kontrolü
+  const warnings = [];
+  
+  for (const mat of materialsToCheck) {
+    const stock = await trx('materials')
+      .where('code', mat.materialCode)
+      .first();
+    
+    const available = parseFloat(stock?.stock || 0);
+    const required = mat.requiredQuantity;
+    
+    if (available < required) {
+      warnings.push({
+        materialCode: mat.materialCode,
+        required,
+        available,
+        unit: mat.unit || 'adet'
+      });
+    }
+  }
+  
+  return warnings;
+}
+```
+
+---
+
+### 3.4 Substation currentExpectedEnd Check ⚠️ KISMİ
+
+**Firebase'de:**
+```javascript
+// Hem memory schedule hem DB field kontrol edilir
+let lastEnd = new Date();
+
+if (substation.currentExpectedEnd) {
+  lastEnd = new Date(substation.currentExpectedEnd);
+}
+
+const queuedJobs = scheduleMap.get(substation.id) || [];
+if (queuedJobs.length > 0) {
+  const lastQueued = queuedJobs[queuedJobs.length - 1];
+  if (lastQueued.end > lastEnd) {
+    lastEnd = lastQueued.end;
+  }
+}
+```
+
+**PostgreSQL'de:** ⚠️ Sadece memory schedule
+- `substationSchedule` Map kullanılıyor
+- Database `currentExpectedEnd` field'ı kontrol edilmiyor
+
+**Risk:** Restart sonrası memory temizlenir, DB'deki iş unutulur
+
+**Implement edilecek:**
+```javascript
+async function findEarliestSubstation(trx, stationOptions, scheduleMap, afterTime) {
+  let bestSubstation = null;
+  let earliestTime = null;
+  
+  for (const stOpt of stationOptions) {
+    const substations = await trx('mes.substations')
+      .where('stationId', stOpt.stationId)
+      .where('isActive', true);
+    
+    for (const sub of substations) {
+      // ✅ FIX: Database field'ı da kontrol et
+      let dbEnd = new Date();
+      if (sub.currentExpectedEnd) {
+        dbEnd = new Date(sub.currentExpectedEnd);
+      }
+      
+      // Memory schedule
+      const memSchedule = scheduleMap.get(sub.id) || [];
+      let memEnd = afterTime;
+      if (memSchedule.length > 0) {
+        memEnd = memSchedule[memSchedule.length - 1].end;
+      }
+      
+      // En geç olanı al
+      const availableAt = new Date(Math.max(
+        dbEnd.getTime(),
+        memEnd.getTime(),
+        afterTime.getTime()
+      ));
+      
+      if (!earliestTime || availableAt < earliestTime) {
+        bestSubstation = sub;
+        earliestTime = availableAt;
+      }
+    }
+  }
+  
+  return { substation: bestSubstation, availableAt: earliestTime };
+}
+```
+
+---
+
+### FAZ 3 Status Özeti
+
+| Feature | Firebase | PostgreSQL | Durum |
+|---------|----------|------------|-------|
+| Worker Status Filter | ✅ | ❌ | TODO |
+| Worker onLeave Check | ✅ | ❌ | TODO |
+| Start Time Adjustment | ✅ | ❌ | TODO |
+| End Time with Breaks | ✅ | ❌ | TODO |
+| Material Validation | ✅ | ❌ | TODO |
+| Substation DB Check | ✅ | ⚠️ | PARTIAL |
+
+**Öncelik Sırası:**
+1. 🔴 **Worker Schedule Adjustment** (En kritik - mola saatlerine iş atanıyor!)
+2. 🟠 **Worker Status Filtering** (Molada olan işçilere iş atanıyor)
+3. 🟡 **Material Validation** (Stok kontrolsüz launch)
+4. 🟢 **Substation DB Check** (Restart edge case)
+
+---
+
+## FAZ 4: Testing & Validation ⏳
+
+**Hedef:** Tüm senaryoları test et
+
+**Test Scenarios:**
+- [ ] Single node plan
+- [ ] Sequential plan (A → B → C)
+- [ ] Parallel plan (A → B, A → C)
+- [ ] Worker queue (same worker, 3+ nodes)
+- [ ] Shift boundary (worker ends shift during task)
+- [ ] Break period (task spans lunch break)
+- [ ] Material shortage (warning display)
+- [ ] No workers available
+- [ ] No substation available
+- [ ] Cycle detection
+- [ ] Concurrent launch prevention
+- [ ] Transaction rollback
+
+**Durum:** ⏳ FAZ 3 bitince başlanacak
+
+---
+
+## FAZ 5: Monitoring & Optimization ⏳
+
+**Hedef:** Production-ready hale getir
+
+- [ ] Detailed logging
+- [ ] Performance metrics
+- [ ] Database query optimization
+- [ ] Caching (operations, workers, stations)
+- [ ] SSE for real-time progress
+- [ ] Webhook notifications
+- [ ] Alert system
+
+**Durum:** ⏳ FAZ 4 bitince başlanacak
+
+---
+
+## 📌 ŞU ANKİ KONUM
+
+```
+✅ FAZ 1: Database Schema ────────── 100%
+✅ FAZ 2: Core Implementation ───── 100%
+🔧 FAZ 3: Edge Cases ───────────────  20%  ← ŞU ANDA BURADAYIZ
+⏳ FAZ 4: Testing ──────────────────   0%
+⏳ FAZ 5: Monitoring ───────────────   0%
+```
+
+**Sıradaki Adım:** FAZ 3'ü tamamla (4 eksik feature implement et)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
