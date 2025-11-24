@@ -236,6 +236,11 @@ async function loadWorkerTasks() {
 
 async function loadLotPreviews() {
   try {
+    // TODO: Re-enable when lot-preview endpoint is implemented
+    console.log('📦 Lot preview loading temporarily disabled (endpoint not yet implemented)');
+    return;
+    
+    /* DISABLED - Re-enable when endpoint is ready
     // Only load previews for ready/pending tasks
     const tasksNeedingPreview = state.tasks.filter(t => 
       (t.status === 'ready' || t.status === 'pending') && 
@@ -263,13 +268,14 @@ async function loadLotPreviews() {
           return;
         }
         
-        // Fetch lot preview from API
+        // Fetch lot preview from API (silently fail if endpoint not implemented)
         const queryString = encodeURIComponent(JSON.stringify(materialRequirements));
-        const response = await fetch(`/api/mes/assignments/${task.assignmentId}/lot-preview?materialRequirements=${queryString}`);
+        const response = await fetch(`/api/mes/assignments/${task.assignmentId}/lot-preview?materialRequirements=${queryString}`)
+          .catch(() => null); // Silently catch network errors
         
-        if (!response.ok) {
-          console.warn(`Failed to load lot preview for ${task.assignmentId}`);
-          task.lotPreview = { materials: [], error: 'Yüklenemedi' };
+        if (!response || !response.ok) {
+          // Silently skip - lot preview endpoint not yet implemented
+          task.lotPreview = { materials: [], error: null };
           return;
         }
         
@@ -278,10 +284,11 @@ async function loadLotPreviews() {
         
         console.log(`✅ Lot preview loaded for ${task.assignmentId}:`, data.materials?.length || 0, 'materials');
       } catch (error) {
-        console.error(`Error loading lot preview for ${task.assignmentId}:`, error);
-        task.lotPreview = { materials: [], error: error.message };
+        // Silently skip errors
+        task.lotPreview = { materials: [], error: null };
       }
     }));
+    */
     
   } catch (error) {
     console.error('Error loading lot previews:', error);
@@ -777,7 +784,7 @@ function showTaskDetailModal(assignmentId) {
             </div>
             <div>
               <span style="color: #6b7280; font-weight: 500;">İstasyon:</span><br>
-              <span style="color: #111827;">${task.stationName || 'Belirsiz'}</span>
+              <span style="color: #111827;">${task.substationCode || task.stationName || 'Belirsiz'}</span>
             </div>
             <div>
               <span style="color: #6b7280; font-weight: 500;">Plan ID:</span><br>
@@ -1838,7 +1845,7 @@ function renderTaskRow(task, isNextTask, fifoPosition) {
         </div>
       </td>
       <td>
-        <div class="station-info">${task.stationName || 'Belirsiz'}</div>
+        <div class="station-info">${task.substationCode || task.stationName || 'Belirsiz'}</div>
       </td>
       <td>
         <div class="duration-info" 
@@ -1875,7 +1882,7 @@ function renderOperationalDetails(task) {
   const details = [];
   
   // Station info
-  if (task.stationName && task.stationName !== 'Belirsiz') {
+  if ((task.substationCode || task.stationName) && task.stationName !== 'Belirsiz') {
     details.push(`🏭 İstasyon: <strong>${task.stationName}</strong>`);
   }
   

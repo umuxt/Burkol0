@@ -249,13 +249,13 @@ async function saveTimeManagement() {
     const timeSettingsData = { workType, laneCount, fixedBlocks, shiftBlocks, shiftByLane };
     
     try {
-      console.log('Saving timeSettings to Firebase:', timeSettingsData);
+      console.log('Saving timeSettings to database:', timeSettingsData);
       
       // Use saveMasterData to ensure cache is updated
       const { saveMasterData } = await import('./mesApi.js');
       await saveMasterData({ timeSettings: timeSettingsData });
       
-      console.log('Firebase save successful, cache updated');
+      console.log('Database save successful, cache updated');
     } catch (e) {
       remoteOk = false;
       console.error('Master time settings save error:', e);

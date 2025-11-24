@@ -2511,7 +2511,7 @@ export function handleOrderChange() {
   const select = document.getElementById('order-select');
   const selectedOrder = select.value;
   if (selectedOrder) {
-    // TODO: Get order data from Firebase/backend
+    // TODO: Get order data from backend API
     const orderData = {};
     const order = orderData[selectedOrder];
     if (order) {

@@ -435,7 +435,7 @@ export async function deleteTemplateById(id) {
     // 1. First, clear production plan references from approved quotes
     await clearTemplateFromApprovedQuotes(id);
     
-    // 2. Then delete the template from Firebase
+    // 2. Then delete the template from database
     await deleteProductionPlan(id);
     
     // 3. Update local cache

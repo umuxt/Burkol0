@@ -1902,7 +1902,7 @@ export async function initActiveTasksWidget() {
     // Import API functions dynamically
     const { getWorkerPortalTasks, getWorkers } = await import('./mesApi.js');
     
-    // Get real workers from Firestore (not hardcoded state.js mock data)
+    // Get real workers from PostgreSQL (not hardcoded state.js mock data)
     const workers = await getWorkers();
     
     // If no workers exist yet, show empty state
@@ -2469,8 +2469,11 @@ function renderWorkPackagesTable() {
   };
   
   const getMaterialBadge = (status) => {
-    if (status === 'ok') return '<span class="badge badge-success" style="padding: 1px 8px; font-size: 0.75rem;">OK</span>';
+    if (status === 'sufficient') return '<span class="badge badge-success" style="padding: 1px 8px; font-size: 0.75rem;">Stok Yeterli</span>';
+    if (status === 'insufficient') return '<span class="badge badge-destructive" style="padding: 1px 8px; font-size: 0.75rem;">Stok Yetersiz</span>';
+    if (status === 'ok' || status === 'reserved') return '<span class="badge badge-success" style="padding: 1px 8px; font-size: 0.75rem;">OK</span>';
     if (status === 'short') return '<span class="badge badge-destructive" style="padding: 1px 8px; font-size: 0.75rem;">Short</span>';
+    if (status === 'pending') return '<span class="badge badge-warning" style="padding: 1px 8px; font-size: 0.75rem;">Pending</span>';
     return '<span class="badge badge-outline" style="padding: 1px 8px; font-size: 0.75rem;">Unknown</span>';
   };
   
@@ -2519,13 +2522,13 @@ function renderWorkPackagesTable() {
           <div class="mes-muted-text">${esc(pkg.customer || pkg.company)}</div>
         </td>
         <td>
-          <div>${esc(pkg.nodeName)}</div>
+          <div>${esc(pkg.nodeName || pkg.operationName || '—')}</div>
         </td>
         <td>
           <div>${esc(pkg.workerName)}</div>
         </td>
         <td>
-          <div>${esc(pkg.stationName)}</div>
+          <div>${esc(pkg.substationCode || pkg.stationName || '—')}</div>
         </td>
         <td class="text-center">
           <div>${getStatusBadge(pkg.status)}</div>
@@ -2537,7 +2540,7 @@ function renderWorkPackagesTable() {
           ${getMaterialBadge(pkg.materialStatus)}
         </td>
         <td>
-          <div class="mes-muted-text" style="font-size: 50%;">Start: ${formatTime(pkg.actualStart || pkg.plannedStart)}</div>
+          <div class="mes-muted-text" style="font-size: 50%;">Start: ${formatTime(pkg.actualStart || pkg.expectedStart || pkg.plannedStart)}</div>
           <div class="mes-muted-text" style="font-size: 50%;">End: ${formatTime(pkg.actualEnd || pkg.plannedEnd)}</div>
         </td>
       </tr>

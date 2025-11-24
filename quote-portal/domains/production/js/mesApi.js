@@ -269,7 +269,7 @@ export async function getWorkerStations(workerId) {
 
 export async function getMaterials(force = false) {
   if (!force && Array.isArray(_materialsCache)) return _materialsCache
-  // Use shared Materials API (Firestore 'materials' collection)
+  // Use shared Materials API (PostgreSQL materials.materials table)
   const res = await fetch(`${API_BASE}/api/materials?_t=${Date.now()}`, { headers: withAuth() })
   if (!res.ok) throw new Error(`materials_load_failed ${res.status}`)
   const data = await res.json()
