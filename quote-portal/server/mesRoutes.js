@@ -5891,6 +5891,18 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         actualStart = adjustStartTimeForSchedule(actualStart, scheduleBlocks);
       }
       
+      // ✅ FAZ 2: Check if actualStart is a holiday, reschedule to next working day
+      if (await isHoliday(trx, actualStart)) {
+        console.log(`⚠️  actualStart ${actualStart.toISOString()} is a holiday, finding next working day...`);
+        const nextWorkingDay = await findNextWorkingDay(trx, actualStart, worker);
+        if (nextWorkingDay) {
+          actualStart = nextWorkingDay;
+          console.log(`✅ Rescheduled to next working day: ${actualStart.toISOString()}`);
+        } else {
+          console.error(`❌ No working day found within 365 days from ${actualStart.toISOString()}`);
+        }
+      }
+      
       // ✅ FAZ 3: Calculate end time with breaks
       let actualEnd;
       // ✅ FAZ 1B: Use async calculateEndTimeWithBreaks with worker context
