@@ -3159,46 +3159,73 @@ async function findNextWorkingDay(trx, startDate, worker = null, maxDaysToCheck 
 
 /**
  * Helper function: Calculate end time considering breaks and work schedule
- * Skips break periods and non-work hours when calculating task duration
+ * ✅ FAZ 1B: Async version with multi-day support, holiday/absence checking
  * 
- * @param {Date} startTime - Task start time (must be in a work block)
- * @param {number} durationInMinutes - Net work time required
- * @param {Array} scheduleBlocks - Array of { type: 'work'|'break', start: 'HH:MM', end: 'HH:MM' }
- * @returns {Date} - Actual end time considering breaks
+ * Skips break periods, non-work hours, holidays, and worker absences
+ * Automatically moves to next working day when needed
+ * 
+ * @param {Object} trx - Database transaction
+ * @param {Date} startTime - Task start time
+ * @param {number} durationInMinutes - Task duration in minutes
+ * @param {Object} worker - Worker object with personalSchedule and absences
+ * @returns {Promise<Date>} Calculated end time
  */
-function calculateEndTimeWithBreaks(startTime, durationInMinutes, scheduleBlocks) {
-  if (!scheduleBlocks || scheduleBlocks.length === 0) {
-    // No schedule constraints - simple addition
-    return new Date(startTime.getTime() + durationInMinutes * 60000);
-  }
-  
+async function calculateEndTimeWithBreaks(trx, startTime, durationInMinutes, worker) {
   let remainingDuration = durationInMinutes;
   let currentTime = new Date(startTime);
   
-  // Get work blocks sorted by start time
-  const workBlocks = scheduleBlocks
-    .filter(b => b.type === 'work' && b.start && b.end)
-    .map(b => {
-      const [startHour, startMin] = b.start.split(':').map(Number);
-      const [endHour, endMin] = b.end.split(':').map(Number);
-      return {
-        startHour,
-        startMin,
-        endHour,
-        endMin,
-        startMinutes: startHour * 60 + startMin,
-        endMinutes: endHour * 60 + endMin
-      };
-    })
-    .sort((a, b) => a.startMinutes - b.startMinutes);
+  // Safety check: max 365 days to prevent infinite loops
+  const maxIterations = 365;
+  let iterations = 0;
   
-  if (workBlocks.length === 0) {
-    // No work blocks - simple addition
-    return new Date(startTime.getTime() + durationInMinutes * 60000);
-  }
-  
-  // Iterate through work blocks until duration is consumed
-  while (remainingDuration > 0) {
+  while (remainingDuration > 0 && iterations < maxIterations) {
+    iterations++;
+    
+    // ✅ FAZ 1B-1: Get work schedule for current date
+    const scheduleBlocks = await getWorkScheduleForDate(trx, currentTime, worker);
+    
+    if (!scheduleBlocks || scheduleBlocks.length === 0) {
+      // No work blocks for this day (holiday or no schedule)
+      // ✅ FAZ 1B-2: Find next working day
+      const nextWorkingDay = await findNextWorkingDay(trx, currentTime, worker);
+      
+      if (!nextWorkingDay) {
+        console.error('❌ No working day found within 365 days!');
+        // Fallback: just add remaining time
+        return new Date(currentTime.getTime() + remainingDuration * 60000);
+      }
+      
+      currentTime = nextWorkingDay;
+      continue; // Re-check schedule for new day
+    }
+    
+    // Get work blocks sorted by start time
+    const workBlocks = scheduleBlocks
+      .filter(b => b.type === 'work' && b.start && b.end)
+      .map(b => {
+        const [startHour, startMin] = b.start.split(':').map(Number);
+        const [endHour, endMin] = b.end.split(':').map(Number);
+        return {
+          startHour,
+          startMin,
+          endHour,
+          endMin,
+          startMinutes: startHour * 60 + startMin,
+          endMinutes: endHour * 60 + endMin
+        };
+      })
+      .sort((a, b) => a.startMinutes - b.startMinutes);
+    
+    if (workBlocks.length === 0) {
+      // No work blocks today - move to next day
+      const nextWorkingDay = await findNextWorkingDay(trx, currentTime, worker);
+      if (!nextWorkingDay) {
+        return new Date(currentTime.getTime() + remainingDuration * 60000);
+      }
+      currentTime = nextWorkingDay;
+      continue;
+    }
+    
     const hour = currentTime.getHours();
     const minute = currentTime.getMinutes();
     const currentMinutes = hour * 60 + minute;
@@ -3235,9 +3262,9 @@ function calculateEndTimeWithBreaks(startTime, durationInMinutes, scheduleBlocks
         // Find next work block
         const nextBlockIndex = workBlocks.findIndex(wb => wb.startMinutes > currentBlock.endMinutes);
         if (nextBlockIndex === -1) {
-          // No more work blocks today - move to next day's first block
+          // No more work blocks today - move to next working day
           currentTime.setDate(currentTime.getDate() + 1);
-          currentTime.setHours(workBlocks[0].startHour, workBlocks[0].startMin, 0, 0);
+          currentTime.setHours(0, 0, 0, 0); // Reset to midnight, will find first block in next iteration
         } else {
           // Move to next work block
           const nextWb = workBlocks[nextBlockIndex];
@@ -3248,10 +3275,14 @@ function calculateEndTimeWithBreaks(startTime, durationInMinutes, scheduleBlocks
       // We're in a break or before schedule - jump to next work block
       currentTime.setHours(nextBlock.startHour, nextBlock.startMin, 0, 0);
     } else {
-      // Past all work blocks today - move to next day's first block
+      // Past all work blocks today - move to next working day
       currentTime.setDate(currentTime.getDate() + 1);
-      currentTime.setHours(workBlocks[0].startHour, workBlocks[0].startMin, 0, 0);
+      currentTime.setHours(0, 0, 0, 0); // Will find first block in next iteration
     }
+  }
+  
+  if (iterations >= maxIterations) {
+    console.error('⚠️  calculateEndTimeWithBreaks: Maximum iterations reached!');
   }
   
   return currentTime;
@@ -5862,20 +5893,11 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       
       // ✅ FAZ 3: Calculate end time with breaks
       let actualEnd;
-      // ✅ FAZ 1A-1: Use async getDefaultWorkSchedule for effectiveSchedule
-      let effectiveSchedule = scheduleBlocks;
-      if (effectiveSchedule.length === 0) {
-        const shiftNo = personalSchedule?.shiftNo || '1';
-        effectiveSchedule = await getDefaultWorkSchedule(trx, dayOfWeek, shiftNo);
-      }
+      // ✅ FAZ 1B: Use async calculateEndTimeWithBreaks with worker context
       const effectiveTimeMinutes = parseFloat(node.effectiveTime) || 0;
       
-      if (effectiveSchedule.length > 0) {
-        actualEnd = calculateEndTimeWithBreaks(actualStart, effectiveTimeMinutes, effectiveSchedule);
-      } else {
-        // No schedule - simple addition
-        actualEnd = new Date(actualStart.getTime() + effectiveTimeMinutes * 60000);
-      }
+      // ✅ FAZ 1B: Always use async calculateEndTimeWithBreaks (handles multi-day, holidays, absences)
+      actualEnd = await calculateEndTimeWithBreaks(trx, actualStart, effectiveTimeMinutes, worker);
       
       const isQueued = sequenceNumber > 1;
       if (isQueued) queuedCount++;
