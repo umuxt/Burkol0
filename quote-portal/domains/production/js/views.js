@@ -334,6 +334,14 @@ export function generateSettings() {
           </select>
         </div>
         
+        <!-- FAZ 3: Shift selection for multi-lane schedules -->
+        <div id="block-shift-selector" style="margin-bottom: 12px; display: none;">
+          <label style="display: block; margin-bottom: 4px; font-weight: 600;">Vardiya:</label>
+          <select id="block-shift" style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px;">
+            <option value="0">Vardiya 1</option>
+          </select>
+        </div>
+        
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
           <div>
             <label style="display: block; margin-bottom: 4px; font-weight: 600;">Başlangıç:</label>

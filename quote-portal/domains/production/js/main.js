@@ -752,7 +752,15 @@ function initializeLaneControls() {
   });
   if (inp) inp.addEventListener('change', (e) => {
     const v = clampLane(parseInt(e.target.value, 10));
-    if (window.timelineEditMode) setInputOnly(v); else applyImmediate(v);
+    console.log(`🔄 Lane count input changed to: ${v}`);
+    applyImmediate(v);
+  });
+  if (inp) inp.addEventListener('input', (e) => {
+    const v = clampLane(parseInt(e.target.value, 10));
+    if (!window.timelineEditMode) {
+      console.log(`🔄 Lane count input changed (live) to: ${v}`);
+      applyImmediate(v);
+    }
   });
   // First time apply to reflect current value
   applyImmediate(parseInt(inp?.value || '1', 10));
@@ -762,15 +770,33 @@ function initializeLaneControls() {
 
 function setTimelineLaneCount(n) {
   timelineLaneCount = n;
+  
+  // ✅ FAZ 3: Save existing schedule blocks before updating lanes
+  const existingBlocks = [];
+  document.querySelectorAll('.day-timeline-vertical [data-block-info]').forEach(blockEl => {
+    const day = blockEl.closest('.day-timeline-vertical')?.dataset?.day;
+    if (day) {
+      existingBlocks.push({
+        day,
+        element: blockEl,
+        data: blockEl.dataset
+      });
+    }
+  });
+  
   // Reset per-day round‑robin indices
   document.querySelectorAll('.day-timeline-vertical').forEach(col => {
     nextLaneByDay[col.dataset.day] = 0;
     // Update lane guides (simple separators)
-    // Remove old
+    // Remove old overlays and labels
     col.querySelectorAll('.lanes-overlay, .lanes-labels').forEach(x => x.remove());
+    
+    // ✅ FAZ 3: Remove existing schedule blocks (will be re-added with updated width)
+    col.querySelectorAll('[data-block-info]').forEach(x => x.remove());
 
     // Update outside lane header for this day
     const headerCell = document.getElementById(`lanes-header-${col.dataset.day}`);
+    console.log(`🔍 Updating lane header for day: ${col.dataset.day}, header found:`, !!headerCell, `lane count: ${timelineLaneCount}`);
     if (headerCell) {
       headerCell.innerHTML = '';
       headerCell.style.display = 'grid';
@@ -810,6 +836,42 @@ function setTimelineLaneCount(n) {
       col.appendChild(overlay);
     }
   });
+  
+  // ✅ FAZ 3: Restore schedule blocks with updated lane positioning
+  existingBlocks.forEach(block => {
+    const dayCol = document.querySelector(`.day-timeline-vertical[data-day="${block.day}"]`);
+    if (dayCol) {
+      // Recalculate lane position based on new lane count
+      const oldLaneIdx = parseInt(block.data.laneIndex || '0', 10);
+      const newLaneIdx = Math.min(oldLaneIdx, timelineLaneCount - 1);
+      
+      // Update block element styling for new lane count
+      const laneWidthPct = 100 / timelineLaneCount;
+      block.element.style.left = `calc(${newLaneIdx * laneWidthPct}% + 2px)`;
+      block.element.style.width = `calc(${laneWidthPct}% - 4px)`;
+      block.element.dataset.laneIndex = newLaneIdx;
+      
+      const blocksContainer = dayCol.querySelector(`[id^="blocks-"]`);
+      if (blocksContainer) {
+        blocksContainer.appendChild(block.element);
+      }
+    }
+  });
+  
+  // ✅ FAZ 3: Update shift selector options in modal
+  const shiftSelector = document.getElementById('block-shift');
+  const shiftSelectorContainer = document.getElementById('block-shift-selector');
+  if (shiftSelector && shiftSelectorContainer) {
+    shiftSelector.innerHTML = '';
+    for (let i = 0; i < timelineLaneCount; i++) {
+      const option = document.createElement('option');
+      option.value = i;
+      option.textContent = `Vardiya ${i + 1}`;
+      shiftSelector.appendChild(option);
+    }
+    // Show/hide shift selector based on lane count
+    shiftSelectorContainer.style.display = timelineLaneCount > 1 ? 'block' : 'none';
+  }
 }
 
 // Switch work type: 'fixed' | 'shift'
@@ -832,6 +894,8 @@ function showBlockTypeModal(startHour, endHour, dayIdOrDays, top, height) {
   const blockType = document.getElementById('block-type');
   const blockStart = document.getElementById('block-start');
   const blockEnd = document.getElementById('block-end');
+  const blockShift = document.getElementById('block-shift');
+  const shiftSelectorContainer = document.getElementById('block-shift-selector');
   
   // Convert hours to HH:MM format
   const startTime = formatHourToTime(startHour);
@@ -840,6 +904,12 @@ function showBlockTypeModal(startHour, endHour, dayIdOrDays, top, height) {
   blockType.value = 'work';
   blockStart.value = startTime;
   blockEnd.value = endTime;
+  
+  // ✅ FAZ 3: Set default shift and show/hide selector
+  if (blockShift) blockShift.value = '0';
+  if (shiftSelectorContainer) {
+    shiftSelectorContainer.style.display = timelineLaneCount > 1 ? 'block' : 'none';
+  }
   
   // Store creation data
   const daysArray = Array.isArray(dayIdOrDays) ? dayIdOrDays : null;
@@ -877,6 +947,8 @@ function editScheduleBlock(blockElement) {
   const blockType = document.getElementById('block-type');
   const blockStart = document.getElementById('block-start');
   const blockEnd = document.getElementById('block-end');
+  const blockShift = document.getElementById('block-shift');
+  const shiftSelectorContainer = document.getElementById('block-shift-selector');
   
   // Get block data from element
   const blockData = JSON.parse(blockElement.dataset.blockInfo || '{}');
@@ -884,6 +956,13 @@ function editScheduleBlock(blockElement) {
   blockType.value = blockData.type || 'work';
   blockStart.value = blockData.startTime || '08:00';
   blockEnd.value = blockData.endTime || '17:00';
+  
+  // ✅ FAZ 3: Set current lane/shift and show selector if multi-lane
+  const currentLane = parseInt(blockElement.dataset.laneIndex || '0', 10);
+  if (blockShift) blockShift.value = String(currentLane);
+  if (shiftSelectorContainer) {
+    shiftSelectorContainer.style.display = timelineLaneCount > 1 ? 'block' : 'none';
+  }
   
   window.currentEditBlock = {
     isNew: false,
@@ -898,6 +977,7 @@ function saveScheduleBlock() {
   const blockType = document.getElementById('block-type').value;
   const blockStart = document.getElementById('block-start').value;
   const blockEnd = document.getElementById('block-end').value;
+  const blockShift = document.getElementById('block-shift');
   const editData = window.currentEditBlock;
   
   if (!editData) return;
@@ -910,16 +990,19 @@ function saveScheduleBlock() {
     return;
   }
   
+  // ✅ FAZ 3: Get selected shift/lane from modal
+  const selectedLane = blockShift ? parseInt(blockShift.value, 10) : 0;
+  
   if (editData.isNew) {
     // Create new block(s)
     if (Array.isArray(editData.days) && editData.days.length) {
-      editData.days.forEach(d => createScheduleBlock(d, blockType, startHour, endHour, blockStart, blockEnd, (editData.laneIndex || 0)));
+      editData.days.forEach(d => createScheduleBlock(d, blockType, startHour, endHour, blockStart, blockEnd, selectedLane));
     } else {
-      createScheduleBlock(editData.dayId, blockType, startHour, endHour, blockStart, blockEnd, (editData.laneIndex || 0));
+      createScheduleBlock(editData.dayId, blockType, startHour, endHour, blockStart, blockEnd, selectedLane);
     }
   } else {
     // Update existing block
-    updateScheduleBlock(editData.element, blockType, startHour, endHour, blockStart, blockEnd);
+    updateScheduleBlock(editData.element, blockType, startHour, endHour, blockStart, blockEnd, selectedLane);
   }
   
   cancelScheduleEdit();
@@ -1036,7 +1119,7 @@ function createScheduleBlock(dayId, type, startHour, endHour, startTime, endTime
   if (window.timelineEditMode && typeof markTimelineDirty === 'function') markTimelineDirty();
 }
 
-function updateScheduleBlock(blockElement, type, startHour, endHour, startTime, endTime) {
+function updateScheduleBlock(blockElement, type, startHour, endHour, startTime, endTime, newLaneIdx = null) {
   const timeline = blockElement.closest('.day-timeline-vertical');
   // Position linearly across full 24h height
   const top = (startHour / 24) * 100;
@@ -1056,8 +1139,9 @@ function updateScheduleBlock(blockElement, type, startHour, endHour, startTime, 
   
   blockElement.style.top = `${top}%`;
   blockElement.style.height = `${height}%`;
-  // Recompute lane left/width
-  const laneIdx = parseInt(blockElement.dataset.laneIndex || '0', 10) || 0;
+  // ✅ FAZ 3: Update lane index if provided
+  const laneIdx = newLaneIdx !== null ? newLaneIdx : (parseInt(blockElement.dataset.laneIndex || '0', 10) || 0);
+  blockElement.dataset.laneIndex = String(laneIdx);
   const laneWidthPct = 100 / Math.max(1, timelineLaneCount);
   const leftPct = laneIdx * laneWidthPct;
   blockElement.style.left = `calc(${leftPct}% + 2px)`;

@@ -7155,4 +7155,144 @@ router.get('/analytics/master-timeline', withAuth, async (req, res) => {
   }
 });
 
+// ============================================
+// HOLIDAY MANAGEMENT ENDPOINTS (FAZ 3)
+// ============================================
+
+/**
+ * GET /api/mes/holidays
+ * Get all company holidays
+ */
+router.get('/holidays', withAuth, async (req, res) => {
+  try {
+    const holidays = await getHolidays(knex);
+    res.json({ holidays });
+  } catch (error) {
+    console.error('❌ Get holidays error:', error);
+    res.status(500).json({ error: 'Failed to fetch holidays', details: error.message });
+  }
+});
+
+/**
+ * POST /api/mes/holidays
+ * Add a new holiday
+ * Body: { date, name, isWorkingDay, workHours }
+ */
+router.post('/holidays', withAuth, async (req, res) => {
+  try {
+    const { date, name, isWorkingDay, workHours } = req.body;
+    
+    if (!date || !name) {
+      return res.status(400).json({ error: 'date and name are required' });
+    }
+    
+    // Get current holidays
+    const currentHolidays = await getHolidays(knex);
+    
+    // Generate new ID
+    const newId = `holiday-${Date.now()}`;
+    
+    // Create new holiday
+    const newHoliday = {
+      id: newId,
+      date,
+      name,
+      isWorkingDay: isWorkingDay || false,
+      workHours: workHours || null,
+      createdAt: new Date().toISOString()
+    };
+    
+    // Add to array
+    const updatedHolidays = [...currentHolidays, newHoliday];
+    
+    // Update in database
+    await knex('mes.settings')
+      .where('key', 'company-holidays')
+      .update({
+        value: JSON.stringify({ holidays: updatedHolidays })
+      });
+    
+    res.json({ holiday: newHoliday });
+  } catch (error) {
+    console.error('❌ Add holiday error:', error);
+    res.status(500).json({ error: 'Failed to add holiday', details: error.message });
+  }
+});
+
+/**
+ * PUT /api/mes/holidays/:id
+ * Update an existing holiday
+ * Body: { date, name, isWorkingDay, workHours }
+ */
+router.put('/holidays/:id', withAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date, name, isWorkingDay, workHours } = req.body;
+    
+    // Get current holidays
+    const currentHolidays = await getHolidays(knex);
+    
+    // Find and update holiday
+    const holidayIndex = currentHolidays.findIndex(h => h.id === id);
+    if (holidayIndex === -1) {
+      return res.status(404).json({ error: 'Holiday not found' });
+    }
+    
+    // Update holiday
+    currentHolidays[holidayIndex] = {
+      ...currentHolidays[holidayIndex],
+      date: date || currentHolidays[holidayIndex].date,
+      name: name || currentHolidays[holidayIndex].name,
+      isWorkingDay: isWorkingDay !== undefined ? isWorkingDay : currentHolidays[holidayIndex].isWorkingDay,
+      workHours: workHours !== undefined ? workHours : currentHolidays[holidayIndex].workHours,
+      updatedAt: new Date().toISOString()
+    };
+    
+    // Update in database
+    await knex('mes.settings')
+      .where('key', 'company-holidays')
+      .update({
+        value: JSON.stringify({ holidays: currentHolidays })
+      });
+    
+    res.json({ holiday: currentHolidays[holidayIndex] });
+  } catch (error) {
+    console.error('❌ Update holiday error:', error);
+    res.status(500).json({ error: 'Failed to update holiday', details: error.message });
+  }
+});
+
+/**
+ * DELETE /api/mes/holidays/:id
+ * Delete a holiday
+ */
+router.delete('/holidays/:id', withAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get current holidays
+    const currentHolidays = await getHolidays(knex);
+    
+    // Filter out the holiday
+    const updatedHolidays = currentHolidays.filter(h => h.id !== id);
+    
+    if (updatedHolidays.length === currentHolidays.length) {
+      return res.status(404).json({ error: 'Holiday not found' });
+    }
+    
+    // Update in database
+    await knex('mes.settings')
+      .where('key', 'company-holidays')
+      .update({
+        value: JSON.stringify({ holidays: updatedHolidays })
+      });
+    
+    res.json({ success: true, deletedId: id });
+  } catch (error) {
+    console.error('❌ Delete holiday error:', error);
+    res.status(500).json({ error: 'Failed to delete holiday', details: error.message });
+  }
+});
+
 export default router;
+
