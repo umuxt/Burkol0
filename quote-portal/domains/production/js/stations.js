@@ -988,11 +988,11 @@ export async function showSubStationDetail(substationId) {
     // Get substation status badge
     const getStatusBadge = (status) => {
       const badges = {
-        active: '<span class="badge badge-success">Active</span>',
-        maintenance: '<span class="badge badge-warning">Maintenance</span>',
-        inactive: '<span class="badge badge-default">Inactive</span>'
+        active: '<span class="badge badge-success">Aktif</span>',
+        passive: '<span class="badge badge-default">Pasif</span>',
+        maintenance: '<span class="badge badge-warning">Bakımda</span>'
       }
-      return badges[status] || badges.inactive
+      return badges[status] || badges.passive
     }
     
     // Render detail panel
@@ -1009,8 +1009,12 @@ export async function showSubStationDetail(substationId) {
           <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(substation.stationId)}</span>
         </div>
         <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 0;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Durum:</span>
-          <span class="detail-value" style="font-size: 12px;">${getStatusBadge(substation.status)}</span>
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teknik Durum:</span>
+          <select id="technical-status-select" style="font-size: 12px; padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer;" onchange="updateTechnicalStatus('${escapeHtml(substationId)}', this.value)">
+            <option value="active" ${substation.technicalStatus === 'active' ? 'selected' : ''}>🟢 Aktif</option>
+            <option value="passive" ${substation.technicalStatus === 'passive' ? 'selected' : ''}>⚪ Pasif</option>
+            <option value="maintenance" ${substation.technicalStatus === 'maintenance' ? 'selected' : ''}>🟡 Bakımda</option>
+          </select>
         </div>
       </div>
       
@@ -1903,6 +1907,57 @@ export function deleteStationFromModal() {
   deleteStation(editingStationId)
   document.getElementById('station-modal').style.display = 'none'
 }
+
+// Update technical status of substation
+export async function updateTechnicalStatus(substationId, newStatus) {
+  try {
+    const response = await fetch(`/api/mes/substations/${substationId}/technical-status`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ technicalStatus: newStatus })
+    })
+    
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Teknik durum güncellenemedi')
+    }
+    
+    const result = await response.json()
+    
+    // Başarılı mesajı göster
+    const statusNames = {
+      active: 'Aktif',
+      passive: 'Pasif',
+      maintenance: 'Bakımda'
+    }
+    showSuccessToast(`Teknik durum güncellendi: ${statusNames[newStatus]}`)
+    
+    // Eğer detail panel açıksa, yenile
+    const detailPanel = document.getElementById('substation-detail-panel')
+    if (detailPanel && detailPanel.style.display !== 'none') {
+      showSubStationDetail(substationId)
+    }
+    
+    // Ana station listesini de güncelle
+    renderStations()
+    
+  } catch (error) {
+    console.error('Technical status update error:', error)
+    showErrorToast(error.message || 'Teknik durum güncellenemedi')
+    
+    // Hata durumunda dropdown'u eski haline döndür
+    const select = document.getElementById('technical-status-select')
+    if (select) {
+      // API'den mevcut durumu tekrar çek
+      showSubStationDetail(substationId)
+    }
+  }
+}
+
+// Make function globally available
+window.updateTechnicalStatus = updateTechnicalStatus
 
 function escapeHtml(str) {
   return String(str || '')

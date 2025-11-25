@@ -2728,54 +2728,128 @@ router.patch('/substations/:id', withAuth, async (req, res) => {
   }
 });
 
-// GET /api/mes/substations/:id/details - Get detailed info about a substation
-router.get('/substations/:id/details', withAuth, async (req, res) => {
-  const { id } = req.params; // This is the substation code like "ST-Cu-001-1"
+// PUT /api/mes/substations/:id/technical-status - Update technical status
+router.put('/substations/:id/technical-status', withAuth, async (req, res) => {
+  const { id } = req.params;
+  const { technicalStatus } = req.body;
   
   try {
-    // Substations are stored in stations.substations JSONB column
-    // Extract station_id from substation code (e.g., "ST-Cu-001-1" -> "ST-Cu-001")
-    const parts = id.split('-');
-    if (parts.length < 4) {
-      return res.status(400).json({ error: 'Invalid substation code format' });
+    // Validate technical status
+    const validStatuses = ['active', 'passive', 'maintenance'];
+    if (!validStatuses.includes(technicalStatus)) {
+      return res.status(400).json({ error: 'Invalid technical status. Must be: active, passive, or maintenance' });
     }
     
-    // Rebuild station ID from first 3 parts
-    const stationId = parts.slice(0, 3).join('-');
+    // Map technicalStatus to isActive
+    const isActive = technicalStatus === 'active';
     
-    // Get station with substations
-    const station = await db('mes.stations')
-      .select('id', 'name', 'substations')
-      .where('id', stationId)
+    const result = await db('mes.substations')
+      .where({ id })
+      .update({
+        technicalStatus,
+        isActive,
+        updatedAt: db.fn.now()
+      })
+      .returning('*');
+    
+    if (!result || result.length === 0) {
+      return res.status(404).json({ error: 'Substation not found' });
+    }
+    
+    // If deactivating (passive/maintenance), remove from station's substations array
+    if (!isActive) {
+      const substation = result[0];
+      const station = await db('mes.stations')
+        .select('substations')
+        .where('id', substation.stationId)
+        .first();
+      
+      if (station && station.substations) {
+        const updatedSubstations = (station.substations || []).filter(subId => subId !== id);
+        await db('mes.stations')
+          .where('id', substation.stationId)
+          .update({
+            substations: JSON.stringify(updatedSubstations),
+            updatedAt: db.fn.now()
+          });
+      }
+    }
+    
+    res.json(result[0]);
+  } catch (error) {
+    console.error('Error updating technical status:', error);
+    res.status(500).json({ error: 'Failed to update technical status' });
+  }
+});
+
+// GET /api/mes/substations/:id/details - Get detailed info about a substation
+router.get('/substations/:id/details', withAuth, async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    console.log('[Substation Details] Fetching details for ID:', id);
+    
+    // Get substation from mes.substations table
+    const substation = await db('mes.substations')
+      .select('*')
+      .where({ id })
       .first();
     
-    if (!station) {
-      return res.status(404).json({ error: 'Station not found for substation' });
-    }
-
-    // Find the specific substation in the JSONB array
-    const substations = station.substations || [];
-    const substation = substations.find(s => s.code === id);
+    console.log('[Substation Details] Found substation:', substation ? 'YES' : 'NO');
     
     if (!substation) {
       return res.status(404).json({ error: 'Substation not found' });
     }
 
+    // Get station info
+    const station = await db('mes.stations')
+      .select('id', 'name')
+      .where('id', substation.stationId)
+      .first();
+
+    // Get current assignment if exists
+    let currentTask = null;
+    if (substation.currentAssignmentId) {
+      const assignment = await db('mes.workerAssignments')
+        .select('*')
+        .where({ id: substation.currentAssignmentId })
+        .first();
+      
+      if (assignment) {
+        const operation = await db('mes.operations')
+          .select('name')
+          .where({ id: assignment.operationId })
+          .first();
+        
+        currentTask = {
+          assignmentId: assignment.id,
+          operationName: operation?.name || 'Unknown',
+          workerId: assignment.workerId,
+          startTime: assignment.startTime,
+          expectedEnd: substation.currentExpectedEnd,
+          timeRemaining: null // Calculate if needed
+        };
+      }
+    }
+
     // Return substation details
-    // For now, return basic info - task assignments would need separate implementation
     res.json({
       substation: {
-        id: substation.code,
-        code: substation.code,
-        stationId: station.id,
-        stationName: station.name,
-        status: substation.status || 'active',
-        description: null,
-        isActive: substation.status === 'active',
-        createdAt: null,
-        updatedAt: null
+        id: substation.id,
+        code: substation.id,
+        stationId: substation.stationId,
+        stationName: station?.name || 'Unknown',
+        name: substation.name,
+        technicalStatus: substation.technicalStatus || 'active',
+        isActive: substation.isActive,
+        currentOperation: substation.currentOperation,
+        currentAssignmentId: substation.currentAssignmentId,
+        assignedWorkerId: substation.assignedWorkerId,
+        currentExpectedEnd: substation.currentExpectedEnd,
+        createdAt: substation.createdAt,
+        updatedAt: substation.updatedAt
       },
-      currentTask: null,
+      currentTask,
       upcomingTasks: [],
       performance: {
         totalCompleted: 0,
@@ -2785,8 +2859,9 @@ router.get('/substations/:id/details', withAuth, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error fetching substation details:', error);
-    res.status(500).json({ error: 'Failed to fetch substation details' });
+    console.error('[Substation Details] Error:', error.message);
+    console.error('[Substation Details] Stack:', error.stack);
+    res.status(500).json({ error: 'Failed to fetch substation details', details: error.message });
   }
 });
 
