@@ -3039,6 +3039,39 @@ async function getDefaultWorkSchedule(trx, dayName, shiftNo = '1') {
  * @param {Date} date - Date to check
  * @returns {Promise<Object|null>} Holiday object if found, null otherwise
  */
+/**
+ * Get all company holidays
+ * ✅ FAZ 3: Helper for holiday management
+ */
+async function getHolidays(trx) {
+  try {
+    const result = await trx('mes.settings')
+      .where('key', 'company-holidays')
+      .first();
+    
+    if (!result || !result.value) {
+      return []; // No holidays configured
+    }
+    
+    const data = typeof result.value === 'string' 
+      ? JSON.parse(result.value) 
+      : result.value;
+    
+    return data.holidays || [];
+  } catch (error) {
+    console.error('❌ Error fetching holidays:', error);
+    return [];
+  }
+}
+
+/**
+ * Check if a given date is a holiday
+ * ✅ FAZ 1A-2: Holiday system integration
+ * 
+ * @param {Object} trx - Database transaction
+ * @param {Date} date - Date to check
+ * @returns {Promise<Object|null>} Holiday object if found, null otherwise
+ */
 async function isHoliday(trx, date) {
   try {
     const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD format
@@ -7165,7 +7198,7 @@ router.get('/analytics/master-timeline', withAuth, async (req, res) => {
  */
 router.get('/holidays', withAuth, async (req, res) => {
   try {
-    const holidays = await getHolidays(knex);
+    const holidays = await getHolidays(db);
     res.json({ holidays });
   } catch (error) {
     console.error('❌ Get holidays error:', error);
@@ -7187,7 +7220,7 @@ router.post('/holidays', withAuth, async (req, res) => {
     }
     
     // Get current holidays
-    const currentHolidays = await getHolidays(knex);
+    const currentHolidays = await getHolidays(db);
     
     // Generate new ID
     const newId = `holiday-${Date.now()}`;
@@ -7205,12 +7238,20 @@ router.post('/holidays', withAuth, async (req, res) => {
     // Add to array
     const updatedHolidays = [...currentHolidays, newHoliday];
     
-    // Update in database
-    await knex('mes.settings')
-      .where('key', 'company-holidays')
-      .update({
+    // Update in database (INSERT if not exists)
+    const existing = await db('mes.settings').where('key', 'company-holidays').first();
+    if (existing) {
+      await db('mes.settings')
+        .where('key', 'company-holidays')
+        .update({
+          value: JSON.stringify({ holidays: updatedHolidays })
+        });
+    } else {
+      await db('mes.settings').insert({
+        key: 'company-holidays',
         value: JSON.stringify({ holidays: updatedHolidays })
       });
+    }
     
     res.json({ holiday: newHoliday });
   } catch (error) {
@@ -7230,7 +7271,7 @@ router.put('/holidays/:id', withAuth, async (req, res) => {
     const { date, name, isWorkingDay, workHours } = req.body;
     
     // Get current holidays
-    const currentHolidays = await getHolidays(knex);
+    const currentHolidays = await getHolidays(db);
     
     // Find and update holiday
     const holidayIndex = currentHolidays.findIndex(h => h.id === id);
@@ -7249,7 +7290,7 @@ router.put('/holidays/:id', withAuth, async (req, res) => {
     };
     
     // Update in database
-    await knex('mes.settings')
+    await db('mes.settings')
       .where('key', 'company-holidays')
       .update({
         value: JSON.stringify({ holidays: currentHolidays })
@@ -7271,7 +7312,7 @@ router.delete('/holidays/:id', withAuth, async (req, res) => {
     const { id } = req.params;
     
     // Get current holidays
-    const currentHolidays = await getHolidays(knex);
+    const currentHolidays = await getHolidays(db);
     
     // Filter out the holiday
     const updatedHolidays = currentHolidays.filter(h => h.id !== id);
@@ -7281,7 +7322,7 @@ router.delete('/holidays/:id', withAuth, async (req, res) => {
     }
     
     // Update in database
-    await knex('mes.settings')
+    await db('mes.settings')
       .where('key', 'company-holidays')
       .update({
         value: JSON.stringify({ holidays: updatedHolidays })
