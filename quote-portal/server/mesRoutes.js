@@ -401,6 +401,7 @@ router.get('/workers', withAuth, async (req, res) => {
         'phone',
         'skills',
         'personalSchedule',
+        'absences',
         'isActive',
         'currentTaskPlanId',
         'currentTaskNodeId',
@@ -419,6 +420,7 @@ router.get('/workers', withAuth, async (req, res) => {
       phone: w.phone,
       skills: typeof w.skills === 'string' ? JSON.parse(w.skills) : w.skills,
       personalSchedule: typeof w.personalSchedule === 'string' ? JSON.parse(w.personalSchedule) : w.personalSchedule,
+      absences: typeof w.absences === 'string' ? JSON.parse(w.absences) : (w.absences || []),
       isActive: w.isActive,
       currentTaskPlanId: w.currentTaskPlanId,
       currentTaskNodeId: w.currentTaskNodeId,
@@ -448,7 +450,7 @@ router.post('/workers', withAuth, async (req, res) => {
     
     try {
       for (const worker of workers) {
-        const { id, name, skills, personalSchedule, isActive, email, phone } = worker;
+        const { id, name, skills, personalSchedule, absences, isActive, email, phone } = worker;
         
         // Validate required fields
         if (!name) {
@@ -456,6 +458,9 @@ router.post('/workers', withAuth, async (req, res) => {
         }
         if (!Array.isArray(skills) || skills.length === 0) {
           throw new Error('At least one skill is required');
+        }
+        if (absences && !Array.isArray(absences)) {
+          throw new Error('Absences must be an array');
         }
         
         // Generate worker ID if not provided (WK-001 format)
@@ -474,6 +479,7 @@ router.post('/workers', withAuth, async (req, res) => {
           phone: phone || null,
           skills: JSON.stringify(skills),
           personalSchedule: personalSchedule ? JSON.stringify(personalSchedule) : null,
+          absences: absences ? JSON.stringify(absences) : '[]',
           isActive: isActive !== undefined ? isActive : true,
           updatedAt: trx.fn.now()
         };
@@ -498,7 +504,7 @@ router.post('/workers', withAuth, async (req, res) => {
       
       // Return updated workers with field mapping
       const results = await db('mes.workers')
-        .select('id', 'name', 'skills', 'personalSchedule', 'isActive', 'createdAt', 'updatedAt')
+        .select('id', 'name', 'skills', 'personalSchedule', 'absences', 'isActive', 'createdAt', 'updatedAt')
         .whereIn('id', workers.map(w => w.id).filter(Boolean))
         .orWhere(function() {
           this.whereIn('name', workers.map(w => w.name));
@@ -509,6 +515,7 @@ router.post('/workers', withAuth, async (req, res) => {
         name: w.name,
         skills: typeof w.skills === 'string' ? JSON.parse(w.skills) : w.skills,
         personalSchedule: typeof w.personalSchedule === 'string' ? JSON.parse(w.personalSchedule) : w.personalSchedule,
+        absences: typeof w.absences === 'string' ? JSON.parse(w.absences) : (w.absences || []),
         isActive: w.isActive,
         createdAt: w.createdAt,
         updatedAt: w.updatedAt
@@ -5424,9 +5431,15 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
       return false;
     }
     
-    // Check if on leave (future: add onLeave field to workers table)
-    // const onLeave = w.onLeave || false;
-    // if (onLeave) return false;
+    // ✅ FAZ 1A-3: Check if worker is absent on the task start date
+    const taskDate = typeof startTime === 'string' ? startTime : startTime.toISOString().split('T')[0];
+    const absences = typeof w.absences === 'string' ? JSON.parse(w.absences) : (w.absences || []);
+    const workerWithAbsences = { ...w, absences };
+    
+    if (isWorkerAbsent(workerWithAbsences, new Date(taskDate))) {
+      console.log(`⚠️  Worker ${w.name} is absent on ${taskDate}, skipping...`);
+      return false;
+    }
     
     return true;
   });
@@ -5453,6 +5466,51 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
   // If no shift match, return first eligible worker (fallback)
   console.warn(`⚠️  No worker matches shift for ${dayOfWeek}, returning first eligible`);
   return eligibleWorkers[0] || null;
+}
+
+/**
+ * Check if worker is absent on a given date
+ * ✅ FAZ 1A-3: Worker absence management
+ * 
+ * Worker absences structure:
+ * worker.absences = [
+ *   {
+ *     id: "abs-001",
+ *     type: "vacation" | "sick" | "training" | "meeting" | "other",
+ *     startDate: "2025-12-20",
+ *     endDate: "2025-12-27",
+ *     reason: "Yıllık izin",
+ *     createdAt: "2025-11-20T10:00:00Z",
+ *     createdBy: "admin-id"
+ *   }
+ * ]
+ * 
+ * @param {Object} worker - Worker object with absences array
+ * @param {Date} date - Date to check
+ * @returns {Object|null} Absence record if found, null otherwise
+ */
+function isWorkerAbsent(worker, date) {
+  if (!worker || !worker.absences || !Array.isArray(worker.absences)) {
+    return null; // No absences configured
+  }
+  
+  const checkDate = date.getTime ? date.getTime() : new Date(date).getTime();
+  
+  for (const absence of worker.absences) {
+    if (!absence.startDate || !absence.endDate) {
+      continue; // Skip invalid absence records
+    }
+    
+    const start = new Date(absence.startDate).setHours(0, 0, 0, 0);
+    const end = new Date(absence.endDate).setHours(23, 59, 59, 999);
+    
+    // Check if date falls within absence period (inclusive)
+    if (checkDate >= start && checkDate <= end) {
+      return absence;
+    }
+  }
+  
+  return null; // Not absent
 }
 
 /**

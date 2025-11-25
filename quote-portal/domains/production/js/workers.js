@@ -818,10 +818,20 @@ function generateCurrentTaskSection(worker) {
 function generateWorkerDetailContentWithStations(worker, workerStationsData, assignments = []) {
   const skills = Array.isArray(worker.skills) ? worker.skills : (typeof worker.skills === 'string' ? worker.skills.split(',').map(s=>s.trim()).filter(Boolean) : [])
   
-  // Determine UI status from backend status + leave fields
-  let uiStatus = worker.status || 'available'
-  if (worker.leaveStart && worker.leaveEnd && worker.leaveReason) {
-    uiStatus = worker.leaveReason === 'Hasta' ? 'leave-sick' : 'leave-vacation'
+  // Check if worker has active absence today
+  const now = new Date().toISOString().split('T')[0];
+  const currentAbsence = worker.absences?.find(abs => abs.startDate <= now && abs.endDate >= now);
+  
+  // Determine current status badge
+  let statusBadge = '';
+  if (!worker.isActive) {
+    statusBadge = '<span style="background: rgb(156, 163, 175); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">❌ İşten Ayrılmış</span>';
+  } else if (currentAbsence) {
+    const typeEmoji = currentAbsence.type === 'sick' ? '🤒' : currentAbsence.type === 'vacation' ? '🏖️' : currentAbsence.type === 'training' ? '📚' : currentAbsence.type === 'meeting' ? '📅' : '📝';
+    const typeText = currentAbsence.type === 'sick' ? 'Hasta' : currentAbsence.type === 'vacation' ? 'İzinli' : currentAbsence.type === 'training' ? 'Eğitimde' : currentAbsence.type === 'meeting' ? 'Toplantıda' : 'Devamsız';
+    statusBadge = `<span style="background: rgb(220, 38, 38); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">${typeEmoji} ${typeText} (${currentAbsence.startDate} - ${currentAbsence.endDate})</span>`;
+  } else {
+    statusBadge = '<span style="background: rgb(34, 197, 94); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">✅ Çalışıyor</span>';
   }
   
   return `
@@ -845,14 +855,19 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
             ? `<a class="detail-value" href="${telHref(worker.phone)}" style="font-size: 12px; color: rgb(37, 99, 235); text-decoration: none;">${escapeHtml(worker.phone)}</a>`
             : '<span class="detail-value" style="font-size: 12px; color: rgb(107, 114, 128);">-</span>'}
         </div>
-        <!-- Genel Durum (Manuel) -->
+        
+        <!-- Bugünkü Durum (Otomatik - Absences'den hesaplanan) -->
+        <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 12px; padding-top: 8px; border-top: 1px solid rgb(229, 231, 235);">
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Bugünkü Durum:</span>
+          ${statusBadge}
+        </div>
+        
+        <!-- Çalışma Durumu (Manuel - Sadece İşten Ayrılma) -->
         <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Genel Durum:</span>
-          <select id="worker-status-select" onchange="handleWorkerStatusChange()" style="flex: 1; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;">
-            <option value="available" ${uiStatus === 'available' ? 'selected' : ''}><i class="fa-solid fa-check-circle"></i> Çalışıyor</option>
-            <option value="inactive" ${uiStatus === 'inactive' ? 'selected' : ''}><i class="fa-solid fa-times-circle"></i> İşten ayrıldı</option>
-            <option value="leave-sick" ${uiStatus === 'leave-sick' ? 'selected' : ''}>🤒 Hasta</option>
-            <option value="leave-vacation" ${uiStatus === 'leave-vacation' ? 'selected' : ''}>🏖️ İzinli</option>
+          <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Çalışma Durumu:</span>
+          <select id="worker-employment-status" onchange="handleEmploymentStatusChange()" style="flex: 1; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px; background: white;">
+            <option value="active" ${worker.isActive ? 'selected' : ''}>✅ Aktif Çalışan</option>
+            <option value="inactive" ${!worker.isActive ? 'selected' : ''}>❌ İşten Ayrılmış</option>
           </select>
         </div>
         
@@ -864,26 +879,94 @@ function generateWorkerDetailContentWithStations(worker, workerStationsData, ass
           </span>
         </div>
         
-        <!-- Leave Date Fields (shown only for Hasta/İzinli) -->
-        <div id="leave-dates-container" style="display: ${['leave-sick', 'leave-vacation'].includes(uiStatus) ? 'block' : 'none'}; margin-top: 12px; padding: 12px; background: rgb(254, 242, 242); border: 1px solid rgb(254, 202, 202); border-radius: 6px;">
-          <div style="margin-bottom: 8px; font-size: 11px; font-weight: 600; color: rgb(153, 27, 27);"><i class="fa-solid fa-exclamation-triangle"></i> İzin Tarihleri - Bu tarihler arasında görev atanamaz</div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div>
-              <label style="display: block; font-size: 11px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">Başlangıç:</label>
-              <input type="date" id="worker-leave-start" value="${worker.leaveStart || ''}" style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px;">
+        <!-- İzin Yönetimi -->
+        <div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid rgb(229, 231, 235);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4 style="margin: 0; font-size: 13px; font-weight: 600; color: rgb(17, 24, 39);">
+              <i class="fa-solid fa-calendar-days"></i> İzin Kayıtları
+            </h4>
+            <button type="button" onclick="openAddAbsenceForm()" style="padding: 6px 12px; background: rgb(37, 99, 235); color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+              <i class="fa-solid fa-plus"></i> Yeni İzin Ekle
+            </button>
+          </div>
+          
+          <!-- Add Absence Form (Initially Hidden) -->
+          <div id="add-absence-form" style="display: none; margin-bottom: 12px; padding: 12px; background: rgb(239, 246, 255); border: 1px solid rgb(191, 219, 254); border-radius: 6px;">
+            <div style="margin-bottom: 8px; font-size: 11px; font-weight: 600; color: rgb(30, 64, 175);">
+              <i class="fa-solid fa-calendar-plus"></i> Yeni İzin Kaydı Oluştur
             </div>
-            <div>
-              <label style="display: block; font-size: 11px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">Bitiş:</label>
-              <input type="date" id="worker-leave-end" value="${worker.leaveEnd || ''}" style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 12px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+              <div>
+                <label style="display: block; font-size: 10px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">Başlangıç Tarihi:</label>
+                <input type="date" id="new-absence-start" style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 11px;">
+              </div>
+              <div>
+                <label style="display: block; font-size: 10px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">Bitiş Tarihi:</label>
+                <input type="date" id="new-absence-end" style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 11px;">
+              </div>
+            </div>
+            <div style="margin-bottom: 8px;">
+              <label style="display: block; font-size: 10px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">İzin Tipi:</label>
+              <select id="new-absence-type" style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 11px;">
+                <option value="vacation">🏖️ Yıllık İzin</option>
+                <option value="sick">🤒 Hastalık İzni</option>
+                <option value="training">📚 Eğitim</option>
+                <option value="meeting">📅 Toplantı</option>
+                <option value="other">📝 Diğer</option>
+              </select>
+            </div>
+            <div style="margin-bottom: 8px;">
+              <label style="display: block; font-size: 10px; font-weight: 600; color: rgb(55, 65, 81); margin-bottom: 4px;">Sebep/Açıklama:</label>
+              <input type="text" id="new-absence-reason" placeholder="Örn: Yıllık izin, grip, eğitim semineri..." style="width: 100%; padding: 6px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; font-size: 11px;">
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" onclick="saveNewAbsence()" style="flex: 1; padding: 6px; background: rgb(34, 197, 94); color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+                <i class="fa-solid fa-check"></i> Kaydet
+              </button>
+              <button type="button" onclick="closeAddAbsenceForm()" style="flex: 1; padding: 6px; background: rgb(156, 163, 175); color: white; border: none; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer;">
+                <i class="fa-solid fa-times"></i> İptal
+              </button>
             </div>
           </div>
-        </div>
-        
-        <!-- Save Button -->
-        <div style="margin-top: 12px;">
-          <button type="button" onclick="saveWorkerStatus()" id="save-worker-status-btn" style="width: 100%; padding: 8px; background: rgb(37, 99, 235); color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
-            <i class="fa-solid fa-save"></i> Durumu Kaydet
-          </button>
+          
+          <!-- Absences List -->
+          ${worker.absences && worker.absences.length > 0 ? `
+            <div style="max-height: 250px; overflow-y: auto;">
+              ${worker.absences.sort((a, b) => new Date(b.startDate) - new Date(a.startDate)).map(abs => {
+                const isPast = abs.endDate < now;
+                const isCurrent = abs.startDate <= now && abs.endDate >= now;
+                const typeEmoji = abs.type === 'sick' ? '🤒' : abs.type === 'vacation' ? '🏖️' : abs.type === 'training' ? '📚' : abs.type === 'meeting' ? '📅' : '📝';
+                const statusBadge = isCurrent 
+                  ? '<span style="background: rgb(220, 38, 38); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 4px;">AKTİF</span>' 
+                  : isPast 
+                  ? '<span style="background: rgb(156, 163, 175); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 4px;">GEÇMİŞ</span>' 
+                  : '<span style="background: rgb(59, 130, 246); color: white; padding: 2px 6px; border-radius: 3px; font-size: 10px; margin-left: 4px;">GELECEK</span>';
+                
+                return `
+                  <div style="padding: 8px; margin-bottom: 6px; background: white; border: 1px solid rgb(229, 231, 235); border-radius: 4px; ${isCurrent ? 'border-left: 3px solid rgb(220, 38, 38);' : ''}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                      <span style="font-size: 11px; font-weight: 600; color: rgb(17, 24, 39);">
+                        ${typeEmoji} ${escapeHtml(abs.reason || abs.type)}
+                        ${statusBadge}
+                      </span>
+                      ${!isPast ? `
+                        <button type="button" onclick="deleteAbsence('${abs.id}')" style="padding: 2px 6px; background: rgb(239, 68, 68); color: white; border: none; border-radius: 3px; font-size: 10px; cursor: pointer;">
+                          <i class="fa-solid fa-trash"></i>
+                        </button>
+                      ` : ''}
+                    </div>
+                    <div style="font-size: 10px; color: rgb(107, 114, 128);">
+                      ${abs.startDate} → ${abs.endDate}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `
+            <div style="padding: 16px; text-align: center; color: rgb(107, 114, 128); font-size: 11px;">
+              <i class="fa-solid fa-inbox"></i> Henüz izin kaydı yok
+            </div>
+          `}
         </div>
       </div>
 
@@ -2259,78 +2342,19 @@ function generatePrerequisitesIcons(prerequisites) {
 }
 
 // ============================================================================
-// WORKER STATUS & LEAVE HANDLERS
+// WORKER STATUS & ABSENCE HANDLERS (FAZ 1A-3)
 // ============================================================================
 
 /**
- * Handle worker status dropdown change - show/hide leave date fields
+ * Handle employment status change (Active/Inactive only)
  */
-window.handleWorkerStatusChange = function() {
-  const statusSelect = document.getElementById('worker-status-select');
-  const leaveDatesContainer = document.getElementById('leave-dates-container');
-  const saveBtn = document.getElementById('save-worker-status-btn');
+window.handleEmploymentStatusChange = async function() {
+  if (!selectedWorkerId) return;
   
-  if (!statusSelect || !leaveDatesContainer) return;
+  const statusSelect = document.getElementById('worker-employment-status');
+  if (!statusSelect) return;
   
-  const status = statusSelect.value;
-  const needsLeave = ['leave-sick', 'leave-vacation'].includes(status);
-  
-  leaveDatesContainer.style.display = needsLeave ? 'block' : 'none';
-  
-  // Enable/disable save button based on validation
-  if (saveBtn) {
-    if (needsLeave) {
-      // Check if dates are filled when needed
-      const startInput = document.getElementById('worker-leave-start');
-      const endInput = document.getElementById('worker-leave-end');
-      const hasValidDates = startInput && endInput && startInput.value && endInput.value;
-      saveBtn.disabled = !hasValidDates;
-      saveBtn.style.opacity = hasValidDates ? '1' : '0.5';
-      saveBtn.style.cursor = hasValidDates ? 'pointer' : 'not-allowed';
-    } else {
-      saveBtn.disabled = false;
-      saveBtn.style.opacity = '1';
-      saveBtn.style.cursor = 'pointer';
-    }
-  }
-};
-
-/**
- * Save worker status and leave dates
- */
-window.saveWorkerStatus = async function() {
-  if (!selectedWorkerId) {
-    showWarningToast('İşçi seçili değil');
-    return;
-  }
-  
-  const statusSelect = document.getElementById('worker-status-select');
-  const leaveStartInput = document.getElementById('worker-leave-start');
-  const leaveEndInput = document.getElementById('worker-leave-end');
-  
-  if (!statusSelect) {
-    showErrorToast('Durum alanı bulunamadı');
-    return;
-  }
-  
-  const status = statusSelect.value;
-  const needsLeave = ['leave-sick', 'leave-vacation'].includes(status);
-  
-  // Validate leave dates if needed
-  if (needsLeave) {
-    if (!leaveStartInput?.value || !leaveEndInput?.value) {
-      showWarningToast('İzin tarihleri gerekli');
-      return;
-    }
-    
-    const start = new Date(leaveStartInput.value);
-    const end = new Date(leaveEndInput.value);
-    
-    if (end < start) {
-      showWarningToast('Bitiş tarihi başlangıç tarihinden önce olamaz');
-      return;
-    }
-  }
+  const isActive = statusSelect.value === 'active';
   
   // Find worker in state
   const workerIndex = workersState.findIndex(w => w.id === selectedWorkerId);
@@ -2341,36 +2365,168 @@ window.saveWorkerStatus = async function() {
   
   // Update worker state
   const updatedWorker = { ...workersState[workerIndex] };
+  updatedWorker.isActive = isActive;
   
-  // Map UI status to backend status
-  if (status === 'leave-sick' || status === 'leave-vacation') {
-    updatedWorker.status = 'available'; // Backend expects available with leave dates
-    updatedWorker.leaveStart = leaveStartInput.value;
-    updatedWorker.leaveEnd = leaveEndInput.value;
-    updatedWorker.leaveReason = status === 'leave-sick' ? 'Hasta' : 'İzinli';
-  } else {
-    updatedWorker.status = status;
-    updatedWorker.leaveStart = null;
-    updatedWorker.leaveEnd = null;
-    updatedWorker.leaveReason = null;
+  // If worker is being marked inactive, remove future absences (keep history)
+  if (!isActive && updatedWorker.absences) {
+    const now = new Date().toISOString().split('T')[0];
+    updatedWorker.absences = updatedWorker.absences.filter(abs => abs.endDate < now);
   }
   
   workersState[workerIndex] = updatedWorker;
   
   try {
+    await persistWorkers();
+    showSuccessToast(isActive ? 'İşçi aktif olarak işaretlendi' : 'İşçi işten ayrılmış olarak işaretlendi');
+    
+    // Refresh UI
+    await showWorkerDetail(selectedWorkerId);
+    await renderWorkersTable();
+  } catch (error) {
+    console.error('Failed to update employment status:', error);
+    showErrorToast('Durum güncellenemedi: ' + (error.message || 'Bilinmeyen hata'));
+  }
+};
+
+/**
+ * Open add absence form
+ */
+window.openAddAbsenceForm = function() {
+  const form = document.getElementById('add-absence-form');
+  if (form) {
+    form.style.display = 'block';
+    // Set default start date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('new-absence-start').value = today;
+  }
+};
+
+/**
+ * Close add absence form
+ */
+window.closeAddAbsenceForm = function() {
+  const form = document.getElementById('add-absence-form');
+  if (form) {
+    form.style.display = 'none';
+    // Clear form
+    document.getElementById('new-absence-start').value = '';
+    document.getElementById('new-absence-end').value = '';
+    document.getElementById('new-absence-type').value = 'vacation';
+    document.getElementById('new-absence-reason').value = '';
+  }
+};
+
+/**
+ * Save new absence
+ */
+window.saveNewAbsence = async function() {
+  if (!selectedWorkerId) {
+    showWarningToast('İşçi seçili değil');
+    return;
+  }
+  
+  const startDate = document.getElementById('new-absence-start').value;
+  const endDate = document.getElementById('new-absence-end').value;
+  const type = document.getElementById('new-absence-type').value;
+  const reason = document.getElementById('new-absence-reason').value;
+  
+  // Validation
+  if (!startDate || !endDate) {
+    showWarningToast('Başlangıç ve bitiş tarihleri gerekli');
+    return;
+  }
+  
+  if (new Date(endDate) < new Date(startDate)) {
+    showWarningToast('Bitiş tarihi başlangıç tarihinden önce olamaz');
+    return;
+  }
+  
+  if (!reason.trim()) {
+    showWarningToast('Lütfen bir sebep/açıklama girin');
+    return;
+  }
+  
+  // Find worker in state
+  const workerIndex = workersState.findIndex(w => w.id === selectedWorkerId);
+  if (workerIndex === -1) {
+    showErrorToast('İşçi bulunamadı');
+    return;
+  }
+  
+  // Create new absence
+  const updatedWorker = { ...workersState[workerIndex] };
+  if (!updatedWorker.absences) {
+    updatedWorker.absences = [];
+  }
+  
+  const absenceId = `abs-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const newAbsence = {
+    id: absenceId,
+    type: type,
+    startDate: startDate,
+    endDate: endDate,
+    reason: reason.trim(),
+    createdAt: new Date().toISOString(),
+    createdBy: 'current-user' // TODO: Replace with actual user ID
+  };
+  
+  updatedWorker.absences.push(newAbsence);
+  workersState[workerIndex] = updatedWorker;
+  
+  try {
+    await persistWorkers();
+    showSuccessToast('İzin kaydı eklendi');
+    
+    // Close form and refresh
+    closeAddAbsenceForm();
+    await showWorkerDetail(selectedWorkerId);
+    await renderWorkersTable();
+  } catch (error) {
+    console.error('Failed to add absence:', error);
+    showErrorToast('İzin kaydı eklenemedi: ' + (error.message || 'Bilinmeyen hata'));
+  }
+};
+
+/**
+ * Delete an absence record from worker
+ */
+window.deleteAbsence = async function(absenceId) {
+  if (!selectedWorkerId) {
+    showWarningToast('İşçi seçili değil');
+    return;
+  }
+  
+  if (!confirm('Bu izin kaydını silmek istediğinizden emin misiniz?')) {
+    return;
+  }
+  
+  try {
+    // Find worker in state
+    const workerIndex = workersState.findIndex(w => w.id === selectedWorkerId);
+    if (workerIndex === -1) {
+      showErrorToast('İşçi bulunamadı');
+      return;
+    }
+    
+    // Update worker state - remove absence
+    const updatedWorker = { ...workersState[workerIndex] };
+    updatedWorker.absences = (updatedWorker.absences || []).filter(abs => abs.id !== absenceId);
+    
+    workersState[workerIndex] = updatedWorker;
+    
     // Persist to backend
     await persistWorkers();
     
-    showSuccessToast('İşçi durumu güncellendi');
+    showSuccessToast('İzin kaydı silindi');
     
     // Refresh worker detail panel
     await showWorkerDetail(selectedWorkerId);
     
-    // Refresh table to show updated status badge
+    // Refresh table
     await renderWorkersTable();
   } catch (error) {
-    console.error('Failed to save worker status:', error);
-    showErrorToast('Durum kaydedilemedi: ' + (error.message || 'Bilinmeyen hata'));
+    console.error('Failed to delete absence:', error);
+    showErrorToast('İzin kaydı silinemedi: ' + (error.message || 'Bilinmeyen hata'));
   }
 };
 
