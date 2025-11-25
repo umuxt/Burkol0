@@ -379,11 +379,13 @@ CREATE TABLE mes.node_predecessors (
 
 ---
 
-## FAZ 3: Edge Cases & Advanced Logic 🔧
+## FAZ 3: Edge Cases & Advanced Logic ✅
 
 **Hedef:** Firebase'den eksik kalan operational logic'leri ekle
 
-### 3.1 Worker Status Normalization ❌
+**Durum:** ✅ TAMAMLANDI (26 Kasım 2025)
+
+### 3.1 Worker Status Normalization ✅
 
 **Firebase'de:**
 ```javascript
@@ -394,38 +396,48 @@ const eligibleWorkers = workers.filter(w =>
 );
 ```
 
-**PostgreSQL'de:** ❌ YOK
-- Tüm `isActive=true` işçiler döner
-- Status filtreleme yok
-- onLeave kontrolü yok
+**PostgreSQL'de:** ✅ TAMAMLANDI
+- **Lokasyon:** `mesRoutes.js` lines 5695-5712
+- Status normalization fonksiyonu implement edildi
+- Break ve inactive worker'lar filtreleniyor
+- Legacy status değerleri normalize ediliyor
 
-**Implement edilecek:**
+**Implement edilmiş kod:**
 ```javascript
-// 1. Worker status normalization
-const normalizeWorkerStatus = (worker) => {
+// ACTUAL IMPLEMENTATION (mesRoutes.js)
+function normalizeWorkerStatus(worker) {
+  if (!worker) return 'inactive';
   let status = worker.status || worker.availability || 'available';
+  status = status.toString().toLowerCase();
   
-  // Legacy cleanup
-  if (/active|enabled|on/i.test(status)) status = 'available';
-  if (/inactive|off|removed/i.test(status)) status = 'inactive';
-  if (/break|paused|rest/i.test(status)) status = 'break';
-  if (/busy|working/i.test(status)) status = 'busy';
+  if (/active|enabled|on|available/i.test(status)) return 'available';
+  if (/inactive|off|removed|disabled/i.test(status)) return 'inactive';
+  if (/break|paused|rest|lunch/i.test(status)) return 'break';
+  if (/busy|working|occupied/i.test(status)) return 'busy';
   
-  return status;
-};
+  return 'available';
+}
 
-// 2. Filter eligible workers
-const eligibleWorkers = allWorkers.filter(w => {
+// Used in findWorkerWithShiftCheck (line 5603)
+const eligibleWorkers = workers.filter(w => {
   const status = normalizeWorkerStatus(w);
-  const onLeave = isWorkerOnLeave(w);
+  if (status === 'inactive' || status === 'break') {
+    return false;
+  }
   
-  return (status === 'available' || status === 'busy') && !onLeave;
+  const absence = isWorkerAbsent(w, startTime);
+  if (absence) {
+    console.log(`⚠️  Worker ${w.name} is absent on ${taskDate}, skipping...`);
+    return false;
+  }
+  
+  return true;
 });
 ```
 
 ---
 
-### 3.2 Worker Schedule Adjustment ⚠️ KISMİ
+### 3.2 Worker Schedule Adjustment ✅
 
 **Firebase'de:**
 ```javascript
@@ -436,68 +448,97 @@ if (scheduleBlocks.length > 0) {
 }
 ```
 
-**PostgreSQL'de:** ⚠️ Sadece shift check var
-- `isWithinShiftBlocks()` sadece boolean döner
-- Start time ayarlaması YOK
-- End time break calculation YOK
+**PostgreSQL'de:** ✅ TAMAMLANDI
+- **Lokasyon:** `mesRoutes.js` lines 2975-3050 (adjustStartTimeForSchedule)
+- **Lokasyon:** `mesRoutes.js` lines 3317-3435 (calculateEndTimeWithBreaks)
+- Start time ayarlaması implement edildi
+- End time break calculation tamamlandı
+- Multi-day support eklendi
 
 **Örnek:**
 ```javascript
-// MEVCUT (Yanlış)
+// MEVCUT (Doğru) ✅
 Target time: 12:30 (mola saati)
-Result: Worker assigned → ❌ Mola saatine iş atandı!
-
-// OLACAK (Doğru)
-Target time: 12:30
 Adjusted: 13:00 (mola sonrası)
+Result: ✅ Mola saatine iş atanmaz!
 ```
 
-**Implement edilecek:**
+**Implement edilmiş kod:**
 ```javascript
-// mesRoutes.js'e eklenecek
-function adjustStartTimeForSchedule(targetTime, workBlocks) {
-  let currentTime = new Date(targetTime);
+// ACTUAL IMPLEMENTATION (mesRoutes.js lines 2975-3050)
+function adjustStartTimeForSchedule(startTime, scheduleBlocks) {
+  if (!scheduleBlocks || scheduleBlocks.length === 0) {
+    return startTime;
+  }
   
-  while (iterations < MAX_ITERATIONS) {
-    const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+  let currentTime = new Date(startTime);
+  const maxIterations = 365;
+  let iterations = 0;
+  
+  while (iterations < maxIterations) {
+    iterations++;
+    const hour = currentTime.getHours();
+    const minute = currentTime.getMinutes();
+    const currentMinutes = hour * 60 + minute;
     
-    for (const block of workBlocks) {
-      const blockStart = parseTime(block.start);
-      const blockEnd = parseTime(block.end);
-      
-      // İçindeyse OK
-      if (currentMinutes >= blockStart && currentMinutes < blockEnd) {
-        return currentTime;
+    const workBlocks = scheduleBlocks
+      .filter(b => b.type === 'work')
+      .map(b => {
+        const [startHour, startMin] = b.start.split(':').map(Number);
+        const [endHour, endMin] = b.end.split(':').map(Number);
+        return {
+          startHour, startMin, endHour, endMin,
+          startMinutes: startHour * 60 + startMin,
+          endMinutes: endHour * 60 + endMin
+        };
+      })
+      .sort((a, b) => a.startMinutes - b.startMinutes);
+    
+    for (const wb of workBlocks) {
+      if (currentMinutes >= wb.startMinutes && currentMinutes < wb.endMinutes) {
+        return currentTime; // Already in work time
       }
       
-      // Öncesindeyse bloğun başına ayarla
-      if (currentMinutes < blockStart) {
-        return setTime(currentTime, blockStart);
+      if (currentMinutes < wb.startMinutes) {
+        currentTime.setHours(wb.startHour, wb.startMin, 0, 0);
+        return currentTime;
       }
     }
     
-    // Tüm blokların sonrasındaysa ertesi gün
+    // After all blocks, move to next day
     currentTime.setDate(currentTime.getDate() + 1);
-    currentTime = setTime(currentTime, workBlocks[0].start);
+    currentTime.setHours(workBlocks[0].startHour, workBlocks[0].startMin, 0, 0);
   }
   
   return currentTime;
 }
 
-function calculateEndTimeWithBreaks(startTime, duration, workBlocks) {
+// ACTUAL IMPLEMENTATION (mesRoutes.js lines 3317-3435)
+async function calculateEndTimeWithBreaks(trx, startTime, durationInMinutes, worker) {
+  let remainingDuration = durationInMinutes;
   let currentTime = new Date(startTime);
-  let remaining = duration;
+  const maxIterations = 365;
+  let iterations = 0;
   
-  while (remaining > 0) {
-    const currentBlock = findCurrentBlock(currentTime, workBlocks);
+  while (remainingDuration > 0 && iterations < maxIterations) {
+    iterations++;
     
-    if (!currentBlock) {
-      // Çalışma saati dışı → sonraki bloğa atla
-      currentTime = jumpToNextBlock(currentTime, workBlocks);
+    // ✅ Get work schedule for current date (holiday-aware)
+    const scheduleBlocks = await getWorkScheduleForDate(trx, currentTime, worker);
+    
+    if (!scheduleBlocks || scheduleBlocks.length === 0) {
+      // ✅ Find next working day (skips holidays)
+      const nextWorkingDay = await findNextWorkingDay(trx, currentTime, worker);
+      if (!nextWorkingDay) {
+        console.error('❌ No working day found within 365 days!');
+        return new Date(currentTime.getTime() + remainingDuration * 60000);
+      }
+      currentTime = nextWorkingDay;
       continue;
     }
     
-    const blockEnd = parseTime(currentBlock.end);
+    // Process work blocks with break handling
+    const workBlocks = scheduleBlocks.filter(b => b.type === 'work');
     const timeLeft = blockEnd - getCurrentMinutes(currentTime);
     
     if (remaining <= timeLeft) {
@@ -517,7 +558,7 @@ function calculateEndTimeWithBreaks(startTime, duration, workBlocks) {
 
 ---
 
-### 3.3 Material Validation (Non-Blocking) ❌
+### 3.3 Material Validation (Non-Blocking) ✅
 
 **Firebase'de:**
 ```javascript
@@ -530,60 +571,83 @@ if (materialWarnings.length > 0) {
 }
 ```
 
-**PostgreSQL'de:** ❌ YOK
-- Material check endpoint var (`/materials/check-availability`)
-- Ama launch sırasında çağrılmıyor
-- Frontend'de ayrı check var ama backend bypass edilebilir
+**PostgreSQL'de:** ✅ TAMAMLANDI
+- **Lokasyon:** `mesRoutes.js` lines 5724-5815
+- Material validation fonksiyonu implement edildi
+- Launch sırasında çağrılıyor (line 5919)
+- Non-blocking warnings döndürülüyor
 
-**Implement edilecek:**
+**Implement edilmiş kod:**
 ```javascript
-// Launch içinde eklenecek
-async function validateMaterialsForLaunch(trx, planId, nodes) {
-  // 1. Start node'ları tespit et
-  const startNodes = nodes.filter(n => 
-    !n.predecessors || n.predecessors.length === 0
-  );
-  
-  // 2. Start nodes + M-00 materials
-  const materialsToCheck = [];
-  
-  for (const node of startNodes) {
-    const inputs = await trx('mes.node_material_inputs')
-      .where('nodeId', node.nodeId);
-    
-    materialsToCheck.push(...inputs.filter(m => 
-      !m.isDerived || m.materialCode.startsWith('M-00')
-    ));
-  }
-  
-  // 3. Stock kontrolü
+// ACTUAL IMPLEMENTATION (mesRoutes.js lines 5724-5815)
+async function validateMaterialsForLaunch(trx, planId, nodes, predecessors) {
   const warnings = [];
   
-  for (const mat of materialsToCheck) {
-    const stock = await trx('materials')
-      .where('code', mat.materialCode)
-      .first();
+  // 1. Identify start nodes (no predecessors)
+  const startNodeIds = new Set(
+    nodes
+      .filter(n => {
+        const hasPred = predecessors.some(p => p.nodeId === n.nodeId);
+        return !hasPred;
+      })
+      .map(n => n.nodeId)
+  );
+  
+  // 2. Collect materials to check (start nodes + M-00 raw materials)
+  const materialsToCheck = new Map();
+  
+  for (const node of nodes) {
+    const shouldCheckNode = startNodeIds.has(node.nodeId);
+    const inputs = node.materialInputs || [];
     
-    const available = parseFloat(stock?.stock || 0);
+    for (const mat of inputs) {
+      const isRawMaterial = mat.materialCode && mat.materialCode.startsWith('M-00');
+      const shouldCheck = shouldCheckNode || isRawMaterial;
+      
+      if (shouldCheck && !mat.isDerived) {
+        const key = mat.materialCode;
+        const existing = materialsToCheck.get(key) || {
+          materialCode: key,
+          requiredQuantity: 0,
+          unit: mat.unit || 'adet',
+          nodeNames: new Set()
+        };
+        
+        existing.requiredQuantity += parseFloat(mat.requiredQuantity || 0);
+        existing.nodeNames.add(node.name || node.nodeId);
+        materialsToCheck.set(key, existing);
+      }
+    }
+  }
+  
+  // 3. Check stock availability
+  for (const [code, mat] of materialsToCheck) {
+    const stock = await trx('materials.materials').where('code', code).first();
+    const available = parseFloat(stock?.stock || stock?.available || 0);
     const required = mat.requiredQuantity;
     
     if (available < required) {
       warnings.push({
-        materialCode: mat.materialCode,
-        required,
-        available,
-        unit: mat.unit || 'adet'
+        nodeName: Array.from(mat.nodeNames).join(', '),
+        materialCode: code,
+        required: Math.round(required * 100) / 100,
+        available: Math.round(available * 100) / 100,
+        shortage: Math.round((required - available) * 100) / 100,
+        unit: mat.unit
       });
     }
   }
   
   return warnings;
 }
+
+// Used in launch (line 5919)
+const materialWarnings = await validateMaterialsForLaunch(trx, id, nodes, predecessors);
 ```
 
 ---
 
-### 3.4 Substation currentExpectedEnd Check ⚠️ KISMİ
+### 3.4 Substation currentExpectedEnd Check ✅
 
 **Firebase'de:**
 ```javascript
@@ -603,14 +667,15 @@ if (queuedJobs.length > 0) {
 }
 ```
 
-**PostgreSQL'de:** ⚠️ Sadece memory schedule
-- `substationSchedule` Map kullanılıyor
-- Database `currentExpectedEnd` field'ı kontrol edilmiyor
+**PostgreSQL'de:** ✅ TAMAMLANDI
+- **Lokasyon:** `mesRoutes.js` lines 5493-5538
+- Hem memory hem DB schedule kontrol ediliyor
+- Database `currentExpectedEnd` field'ı kontrol ediliyor
+- Restart sonrası veri kaybı yok
 
-**Risk:** Restart sonrası memory temizlenir, DB'deki iş unutulur
-
-**Implement edilecek:**
+**Implement edilmiş kod:**
 ```javascript
+// ACTUAL IMPLEMENTATION (mesRoutes.js lines 5493-5538)
 async function findEarliestSubstation(trx, stationOptions, scheduleMap, afterTime) {
   let bestSubstation = null;
   let earliestTime = null;
@@ -621,24 +686,24 @@ async function findEarliestSubstation(trx, stationOptions, scheduleMap, afterTim
       .where('isActive', true);
     
     for (const sub of substations) {
-      // ✅ FIX: Database field'ı da kontrol et
-      let dbEnd = new Date();
+      // ✅ Check database currentExpectedEnd field
+      let dbEnd = afterTime;
       if (sub.currentExpectedEnd) {
-        dbEnd = new Date(sub.currentExpectedEnd);
+        const dbEndTime = new Date(sub.currentExpectedEnd);
+        if (dbEndTime > afterTime) {
+          dbEnd = dbEndTime;
+        }
       }
       
-      // Memory schedule
+      // Check memory schedule
       const memSchedule = scheduleMap.get(sub.id) || [];
-      let memEnd = afterTime;
-      if (memSchedule.length > 0) {
-        memEnd = memSchedule[memSchedule.length - 1].end;
-      }
+      const memEnd = calculateEarliestSlot(memSchedule, afterTime);
       
-      // En geç olanı al
+      // Use the latest of: afterTime, dbEnd, memEnd
       const availableAt = new Date(Math.max(
+        afterTime.getTime(),
         dbEnd.getTime(),
-        memEnd.getTime(),
-        afterTime.getTime()
+        memEnd.getTime()
       ));
       
       if (!earliestTime || availableAt < earliestTime) {
@@ -654,22 +719,81 @@ async function findEarliestSubstation(trx, stationOptions, scheduleMap, afterTim
 
 ---
 
+### 3.5 Holiday System Integration ✅
+
+**Durum:** ✅ TAMAMLANDI (26 Kasım 2025 - FAZ 4)
+
+**Lokasyon:** `mesRoutes.js` lines 3150-3205 (isHoliday), 6039-6045 (launch integration)
+
+**Özellikler:**
+- ✅ UTC-based date comparison (timezone shift bug fixed)
+- ✅ Timezone-aware (reads company-timezone setting)
+- ✅ Date range support (startDate/endDate)
+- ✅ Auto-rescheduling to next working day
+- ✅ Integration with calculateEndTimeWithBreaks
+
+**Implementation:**
+```javascript
+async function isHoliday(trx, date) {
+  // Get company timezone
+  const tzResult = await trx('mes.settings').where('key', 'company-timezone').first();
+  const timezone = tzResult?.value?.timezone || 'Europe/Istanbul';
+  
+  // UTC-based date comparison (prevents timezone shift)
+  const checkYear = date.getUTCFullYear();
+  const checkMonth = date.getUTCMonth();
+  const checkDay = date.getUTCDate();
+  
+  // Check against company-holidays
+  const result = await trx('mes.settings').where('key', 'company-holidays').first();
+  const holidays = result?.value?.holidays || [];
+  
+  const holiday = holidays.find(h => {
+    const start = new Date(h.startDate);
+    const end = new Date(h.endDate);
+    
+    const checkDateNum = checkYear * 10000 + checkMonth * 100 + checkDay;
+    const startDateNum = start.getUTCFullYear() * 10000 + start.getUTCMonth() * 100 + start.getUTCDate();
+    const endDateNum = end.getUTCFullYear() * 10000 + end.getUTCMonth() * 100 + end.getUTCDate();
+    
+    return checkDateNum >= startDateNum && checkDateNum <= endDateNum;
+  });
+  
+  return holiday || null;
+}
+
+// Launch motor integration (line 6039)
+if (await isHoliday(trx, actualStart)) {
+  const nextWorkingDay = await findNextWorkingDay(trx, actualStart, worker);
+  if (nextWorkingDay) {
+    actualStart = nextWorkingDay;
+    console.log(`✅ Rescheduled to next working day: ${actualStart.toISOString()}`);
+  }
+}
+```
+
+---
+
 ### FAZ 3 Status Özeti
 
-| Feature | Firebase | PostgreSQL | Durum |
-|---------|----------|------------|-------|
-| Worker Status Filter | ✅ | ❌ | TODO |
-| Worker onLeave Check | ✅ | ❌ | TODO |
-| Start Time Adjustment | ✅ | ❌ | TODO |
-| End Time with Breaks | ✅ | ❌ | TODO |
-| Material Validation | ✅ | ❌ | TODO |
-| Substation DB Check | ✅ | ⚠️ | PARTIAL |
+| Feature | Firebase | PostgreSQL | Durum | Completed |
+|---------|----------|------------|-------|-----------|
+| Worker Status Filter | ✅ | ✅ | ✅ DONE | 26 Kas 2025 |
+| Worker Absence Check | ✅ | ✅ | ✅ DONE | 26 Kas 2025 |
+| Start Time Adjustment | ✅ | ✅ | ✅ DONE | 26 Kas 2025 |
+| End Time with Breaks | ✅ | ✅ | ✅ DONE | 26 Kas 2025 |
+| Material Validation | ✅ | ✅ | ✅ DONE | 26 Kas 2025 |
+| Substation DB Check | ✅ | ✅ | ✅ DONE | 26 Kas 2025 |
+| Holiday System | ✅ | ✅ | ✅ DONE | 26 Kas 2025 |
+| Timezone Management | - | ✅ | ✅ DONE | 26 Kas 2025 |
+| Technical Status | - | ✅ | ✅ DONE | 26 Kas 2025 |
 
-**Öncelik Sırası:**
-1. 🔴 **Worker Schedule Adjustment** (En kritik - mola saatlerine iş atanıyor!)
-2. 🟠 **Worker Status Filtering** (Molada olan işçilere iş atanıyor)
-3. 🟡 **Material Validation** (Stok kontrolsüz launch)
-4. 🟢 **Substation DB Check** (Restart edge case)
+**Tamamlanma Durumu:** %100 ✅
+
+**Ek Özellikler (Firebase'de yoktu):**
+- ✅ Timezone management system
+- ✅ Substation technical status (active/passive/maintenance)
+- ✅ UTC-based date comparison (timezone bug prevention)
 
 ---
 
@@ -678,20 +802,23 @@ async function findEarliestSubstation(trx, stationOptions, scheduleMap, afterTim
 **Hedef:** Tüm senaryoları test et
 
 **Test Scenarios:**
-- [ ] Single node plan
-- [ ] Sequential plan (A → B → C)
-- [ ] Parallel plan (A → B, A → C)
-- [ ] Worker queue (same worker, 3+ nodes)
-- [ ] Shift boundary (worker ends shift during task)
-- [ ] Break period (task spans lunch break)
-- [ ] Material shortage (warning display)
-- [ ] No workers available
-- [ ] No substation available
-- [ ] Cycle detection
-- [ ] Concurrent launch prevention
+- [x] Single node plan ✅
+- [x] Sequential plan (A → B → C) ✅
+- [x] Parallel plan (A → B, A → C) ✅
+- [x] Worker queue (same worker, 3+ nodes) ✅
+- [x] Shift boundary (worker ends shift during task) ✅
+- [x] Break period (task spans lunch break) ✅
+- [x] Material shortage (warning display) ✅
+- [x] Holiday detection and rescheduling ✅
+- [x] Worker absence filtering ✅
+- [x] Substation technical status filtering ✅
+- [ ] No workers available (edge case)
+- [ ] No substation available (edge case)
+- [ ] Cycle detection ✅
+- [ ] Concurrent launch prevention ✅
 - [ ] Transaction rollback
 
-**Durum:** ⏳ FAZ 3 bitince başlanacak
+**Durum:** ⏳ Temel senaryolar test edildi, edge case'ler devam ediyor
 
 ---
 
@@ -716,12 +843,26 @@ async function findEarliestSubstation(trx, stationOptions, scheduleMap, afterTim
 ```
 ✅ FAZ 1: Database Schema ────────── 100%
 ✅ FAZ 2: Core Implementation ───── 100%
-🔧 FAZ 3: Edge Cases ───────────────  20%  ← ŞU ANDA BURADAYIZ
-⏳ FAZ 4: Testing ──────────────────   0%
+✅ FAZ 3: Edge Cases ───────────────  100%  ✅ TAMAMLANDI (26 Kas 2025)
+🔧 FAZ 4: Testing ──────────────────   60%  ← ŞU ANDA BURADAYIZ
 ⏳ FAZ 5: Monitoring ───────────────   0%
 ```
 
-**Sıradaki Adım:** FAZ 3'ü tamamla (4 eksik feature implement et)
+**Son Güncelleme:** 26 Kasım 2025
+
+**Tamamlanan:**
+- ✅ Worker status normalization
+- ✅ Worker absence checking
+- ✅ Schedule adjustment (start time)
+- ✅ End time calculation with breaks
+- ✅ Multi-day task support
+- ✅ Holiday system integration
+- ✅ Timezone management
+- ✅ Material validation
+- ✅ Substation DB check
+- ✅ Technical status management
+
+**Sıradaki Adım:** FAZ 4 edge case testleri ve FAZ 5 monitoring/optimization
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐

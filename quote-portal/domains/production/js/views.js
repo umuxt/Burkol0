@@ -299,6 +299,31 @@ export function generateSettings() {
         <div class="card-title" style="font-size: 1.1em;">Zaman Yönetimi</div>
       </div>
       <div class="card-content" style="padding: 16px 20px;">
+        <!-- Timezone Selection -->
+        <div id="timezone-section" style="margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid var(--border);">
+          <div style="display:flex; align-items:center; justify-content: space-between; margin-bottom:12px;">
+            <h3 style="font-size: 16px; font-weight: 600; margin: 0; color: var(--foreground);">Saat Dilimi</h3>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <select id="timezone-select" style="flex: 1; max-width: 400px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: white;">
+              <option value="Europe/Istanbul">🇹🇷 Europe/Istanbul (GMT+3)</option>
+              <option value="UTC">🌍 UTC (GMT+0)</option>
+              <option value="Europe/London">🇬🇧 Europe/London (GMT+0/+1)</option>
+              <option value="Europe/Paris">🇫🇷 Europe/Paris (GMT+1/+2)</option>
+              <option value="Europe/Berlin">🇩🇪 Europe/Berlin (GMT+1/+2)</option>
+              <option value="America/New_York">🇺🇸 America/New_York (GMT-5/-4)</option>
+              <option value="America/Los_Angeles">🇺🇸 America/Los_Angeles (GMT-8/-7)</option>
+              <option value="Asia/Tokyo">🇯🇵 Asia/Tokyo (GMT+9)</option>
+              <option value="Asia/Shanghai">🇨🇳 Asia/Shanghai (GMT+8)</option>
+              <option value="Asia/Dubai">🇦🇪 Asia/Dubai (GMT+4)</option>
+            </select>
+            <button onclick="saveTimezone()" class="mes-primary-action is-compact">Kaydet</button>
+          </div>
+          <div style="margin-top: 8px; font-size: 12px; color: var(--muted-foreground);">
+            Bu saat dilimi tüm planlama, zamanlama ve tatil hesaplamalarında kullanılacaktır.
+          </div>
+        </div>
+        
         <div id="shift-schedule" style="display: block;">
           <div style="display:flex; align-items:center; justify-content: space-between; gap:12px; margin-bottom:16px;">
             <div style="display:flex; align-items:center; gap:12px;">
@@ -317,6 +342,14 @@ export function generateSettings() {
           </div>
         </div>
 
+        <!-- Tatil ve İzin Günleri -->
+        <div id="holidays-section" style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border);">
+          <div style="display:flex; align-items:center; justify-content: space-between; margin-bottom:16px;">
+            <h3 style="font-size: 16px; font-weight: 600; margin: 0; color: var(--foreground);">Tatil ve İzin Günleri</h3>
+            <button onclick="openHolidayModal()" style="background: var(--primary); color: var(--primary-foreground); padding: 6px 12px; border: none; border-radius: 6px; font-weight: 500; cursor: pointer; font-size: 12px;">+ Yeni Tatil Ekle</button>
+          </div>
+          <div id="holidays-calendar"></div>
+        </div>
         
       </div>
     </div>

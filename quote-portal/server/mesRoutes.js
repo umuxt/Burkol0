@@ -3149,7 +3149,22 @@ async function getHolidays(trx) {
  */
 async function isHoliday(trx, date) {
   try {
-    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    // Get company timezone
+    const tzResult = await trx('mes.settings')
+      .where('key', 'company-timezone')
+      .first();
+    
+    const timezone = tzResult && tzResult.value 
+      ? (typeof tzResult.value === 'string' ? JSON.parse(tzResult.value).timezone : tzResult.value.timezone)
+      : 'Europe/Istanbul';
+    
+    // Convert date to company timezone for comparison
+    const checkDate = new Date(date);
+    // For now, use UTC comparison (timezone conversion would require moment-timezone or date-fns-tz)
+    // TODO: Implement proper timezone conversion
+    const checkYear = checkDate.getUTCFullYear();
+    const checkMonth = checkDate.getUTCMonth();
+    const checkDay = checkDate.getUTCDate();
     
     // Fetch company-holidays from database
     const result = await trx('mes.settings')
@@ -3166,7 +3181,28 @@ async function isHoliday(trx, date) {
       : result.value;
     
     const holidays = data.holidays || [];
-    const holiday = holidays.find(h => h.date === dateStr);
+    
+    // Check if date falls within any holiday period
+    const holiday = holidays.find(h => {
+      const start = new Date(h.startDate);
+      const end = new Date(h.endDate);
+      
+      // Get UTC date components for comparison
+      const startYear = start.getUTCFullYear();
+      const startMonth = start.getUTCMonth();
+      const startDay = start.getUTCDate();
+      
+      const endYear = end.getUTCFullYear();
+      const endMonth = end.getUTCMonth();
+      const endDay = end.getUTCDate();
+      
+      // Compare dates using UTC components
+      const checkDateNum = checkYear * 10000 + checkMonth * 100 + checkDay;
+      const startDateNum = startYear * 10000 + startMonth * 100 + startDay;
+      const endDateNum = endYear * 10000 + endMonth * 100 + endDay;
+      
+      return checkDateNum >= startDateNum && checkDateNum <= endDateNum;
+    });
     
     return holiday || null;
   } catch (error) {
@@ -7288,10 +7324,10 @@ router.get('/holidays', withAuth, async (req, res) => {
  */
 router.post('/holidays', withAuth, async (req, res) => {
   try {
-    const { date, name, isWorkingDay, workHours } = req.body;
+    const { startDate, endDate, name } = req.body;
     
-    if (!date || !name) {
-      return res.status(400).json({ error: 'date and name are required' });
+    if (!startDate || !endDate || !name) {
+      return res.status(400).json({ error: 'startDate, endDate and name are required' });
     }
     
     // Get current holidays
@@ -7303,10 +7339,9 @@ router.post('/holidays', withAuth, async (req, res) => {
     // Create new holiday
     const newHoliday = {
       id: newId,
-      date,
+      startDate,
+      endDate,
       name,
-      isWorkingDay: isWorkingDay || false,
-      workHours: workHours || null,
       createdAt: new Date().toISOString()
     };
     
@@ -7343,7 +7378,7 @@ router.post('/holidays', withAuth, async (req, res) => {
 router.put('/holidays/:id', withAuth, async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, name, isWorkingDay, workHours } = req.body;
+    const { startDate, endDate, name } = req.body;
     
     // Get current holidays
     const currentHolidays = await getHolidays(db);
@@ -7357,10 +7392,9 @@ router.put('/holidays/:id', withAuth, async (req, res) => {
     // Update holiday
     currentHolidays[holidayIndex] = {
       ...currentHolidays[holidayIndex],
-      date: date || currentHolidays[holidayIndex].date,
+      startDate: startDate || currentHolidays[holidayIndex].startDate,
+      endDate: endDate || currentHolidays[holidayIndex].endDate,
       name: name || currentHolidays[holidayIndex].name,
-      isWorkingDay: isWorkingDay !== undefined ? isWorkingDay : currentHolidays[holidayIndex].isWorkingDay,
-      workHours: workHours !== undefined ? workHours : currentHolidays[holidayIndex].workHours,
       updatedAt: new Date().toISOString()
     };
     
@@ -7407,6 +7441,81 @@ router.delete('/holidays/:id', withAuth, async (req, res) => {
   } catch (error) {
     console.error('❌ Delete holiday error:', error);
     res.status(500).json({ error: 'Failed to delete holiday', details: error.message });
+  }
+});
+
+/**
+ * GET /api/mes/timezone
+ * Get company timezone setting
+ */
+router.get('/timezone', withAuth, async (req, res) => {
+  try {
+    const result = await db('mes.settings')
+      .where('key', 'company-timezone')
+      .first();
+    
+    if (!result || !result.value) {
+      // Return default timezone
+      return res.json({ timezone: 'Europe/Istanbul' });
+    }
+    
+    const data = typeof result.value === 'string' 
+      ? JSON.parse(result.value) 
+      : result.value;
+    
+    res.json({ timezone: data.timezone || 'Europe/Istanbul' });
+  } catch (error) {
+    console.error('❌ Get timezone error:', error);
+    res.status(500).json({ error: 'Failed to fetch timezone', details: error.message });
+  }
+});
+
+/**
+ * PUT /api/mes/timezone
+ * Update company timezone setting
+ * Body: { timezone }
+ */
+router.put('/timezone', withAuth, async (req, res) => {
+  try {
+    const { timezone } = req.body;
+    
+    if (!timezone) {
+      return res.status(400).json({ error: 'timezone is required' });
+    }
+    
+    // Validate timezone (basic check)
+    const validTimezones = [
+      'Europe/Istanbul', 'UTC', 'Europe/London', 'Europe/Paris', 'Europe/Berlin',
+      'America/New_York', 'America/Los_Angeles', 'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Dubai'
+    ];
+    
+    if (!validTimezones.includes(timezone)) {
+      return res.status(400).json({ error: 'Invalid timezone' });
+    }
+    
+    // Update or insert
+    const existing = await db('mes.settings').where('id', 'company-timezone').first();
+    
+    if (existing) {
+      await db('mes.settings')
+        .where('id', 'company-timezone')
+        .update({
+          value: JSON.stringify({ timezone }),
+          updatedAt: db.fn.now()
+        });
+    } else {
+      await db('mes.settings').insert({
+        id: 'company-timezone',
+        key: 'company-timezone',
+        value: JSON.stringify({ timezone }),
+        description: 'Company timezone setting for scheduling and time calculations'
+      });
+    }
+    
+    res.json({ timezone });
+  } catch (error) {
+    console.error('❌ Update timezone error:', error);
+    res.status(500).json({ error: 'Failed to update timezone', details: error.message });
   }
 });
 

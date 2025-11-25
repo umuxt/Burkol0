@@ -11,6 +11,8 @@ import { initializeOperationsUI, openAddOperationModal, editOperation, deleteOpe
 import { openHelp, closeHelp, switchHelpTab, toggleFAQ, initHelp } from './help.js';
 import { initializeApprovedQuotesUI, showApprovedQuoteDetail, closeApprovedQuoteDetail, toggleAQFilterPanel, hideAQFilterPanel, onAQFilterChange, clearAQFilter, clearAllAQFilters, applyAQDeliveryFilter, toggleAQPlanType, applyOverdueFilter, applyQuickDateFilter, sortApprovedQuotes } from './approvedQuotes.js';
 import { initMasterDataUI, addSkillFromSettings, renameSkill, deleteSkill, activateSkillRow, onSkillNameInput, cancelSkillEdit, onSkillsSearchInput, openSkillModal, closeSkillModal, saveNewSkillFromModal, onOperationsSearchInput, activateOperationRow, onOperationDefectRateInput, onOperationEfficiencyInput, cancelOperationEdit, saveOperationEdit, deleteOperationFromMaster } from './masterData.js';
+import { initHolidaysUI } from './holidays.js';
+import { initTimezoneUI } from './timezone.js';
 import { toggleMobileNav, closeMobileNav } from './mobile.js';
 import { API_BASE, withAuth } from '../../../shared/lib/api.js';
 import { getMasterData, invalidateMasterDataCache } from './mesApi.js';
@@ -97,6 +99,8 @@ function renderView(viewId) {
         try { invalidateMasterDataCache() } catch {}
         clearOldTimeSettings();
         initMasterDataUI();
+        initHolidaysUI();
+        initTimezoneUI();
         initializeTimeline();
         applyCompanyTimeSettingsToUI();
       }, 0); 
