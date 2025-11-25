@@ -50,6 +50,11 @@ async function init() {
   // Load initial data
   await loadWorkerTasks();
   
+  // Initialize Lucide icons
+  if (typeof lucide !== 'undefined' && lucide.createIcons) {
+    lucide.createIcons();
+  }
+  
   // Listen for assignment updates from other parts of the app
   window.addEventListener('assignments:updated', () => {
     console.log('Assignments updated, reloading tasks...');
@@ -1490,6 +1495,11 @@ function render() {
     ${renderTaskList()}
   `;
   
+  // Initialize Lucide icons
+  if (typeof lucide !== 'undefined' && lucide.createIcons) {
+    lucide.createIcons();
+  }
+  
   // Attach event listeners
   attachEventListeners();
   
@@ -1499,20 +1509,37 @@ function render() {
 
 function renderLoading() {
   return `
-    <div class="loading-container">
-      <div class="spinner"></div>
-      <p>Görevler yükleniyor...</p>
+    <div class="loading-container" style="text-align: center; padding: 64px 24px;">
+      <div style="display: inline-block; margin-bottom: 20px;">
+        <i data-lucide="loader" style="width: 48px; height: 48px; color: var(--primary); animation: spin 1s linear infinite;"></i>
+      </div>
+      <p style="color: var(--muted-foreground); font-size: 14px;">Görevler yükleniyor...</p>
     </div>
+    <style>
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+    </style>
   `;
 }
 
 function renderError(error) {
   return `
-    <div class="error-container">
-      <div class="error-icon">⚠️</div>
-      <h3>Görevler Yüklenemedi</h3>
-      <p>${error}</p>
-      <button class="btn-primary" onclick="window.workerPortalApp.loadWorkerTasks()">Tekrar Dene</button>
+    <div class="error-container" style="text-align: center; padding: 64px 24px;">
+      <div style="display: inline-block; margin-bottom: 20px;">
+        <i data-lucide="alert-circle" style="width: 48px; height: 48px; color: #ef4444;"></i>
+      </div>
+      <h3 style="font-size: 18px; font-weight: 600; color: var(--foreground); margin-bottom: 8px;">
+        Bir Hata Oluştu
+      </h3>
+      <p style="color: var(--muted-foreground); font-size: 14px; margin-bottom: 16px;">
+        ${error}
+      </p>
+      <button class="btn-primary" onclick="window.workerPortalApp.loadWorkerTasks()" style="display: inline-flex; align-items: center; gap: 8px;">
+        <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+        <span>Tekrar Dene</span>
+      </button>
     </div>
   `;
 }
@@ -1648,7 +1675,9 @@ function renderTaskList() {
   if (state.tasks.length === 0) {
     return `
       <div class="empty-state">
-        <div class="empty-icon">📋</div>
+        <div class="empty-icon">
+          <i data-lucide="clipboard-list" style="width: 64px; height: 64px; opacity: 0.3;"></i>
+        </div>
         <h3>Görev Bulunamadı</h3>
         <p>Henüz size atanmış aktif görev bulunmuyor</p>
         <div style="margin-top: 16px; padding: 12px; background: var(--muted); border-radius: 8px; text-align: left;">
@@ -1661,19 +1690,20 @@ function renderTaskList() {
         </div>
         <button 
           onclick="window.workerPortalApp.loadWorkerTasks()" 
-          style="margin-top: 16px; padding: 10px 20px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 6px; font-size: 14px; cursor: pointer; font-weight: 500;"
+          class="btn-primary"
+          style="margin-top: 16px; display: inline-flex; align-items: center; gap: 8px;"
         >
-          🔄 Görevleri Yenile
+          <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+          <span>Görevleri Yenile</span>
         </button>
       </div>
     `;
   }
   
   // ========================================================================
-  // STEP 9: FIFO Task Queue Sorting
+  // MODERN CARD-BASED LAYOUT
   // ========================================================================
-  // Sort tasks by FIFO order (expectedStart or optimizedStart)
-  // This ensures workers see tasks in the correct production sequence
+  // Sort tasks by FIFO order
   const sortedTasks = [...state.tasks].sort((a, b) => {
     // Urgent tasks always come first
     if (a.isUrgent !== b.isUrgent) {
@@ -1686,45 +1716,257 @@ function renderTaskList() {
     return aStart - bStart;
   });
   
-  // ========================================================================
-  // STEP 9: Identify Next Task (FIFO Position #1)
-  // ========================================================================
-  // Find the first ready/pending task - this is the ONLY task that can start
-  // All other tasks must wait until this one is started/completed (FIFO enforcement)
+  // Identify next task (FIFO Position #1)
   const nextTask = sortedTasks.find(t => t.status === 'ready' || t.status === 'pending');
   
   // Assign FIFO positions to ready/pending tasks
   let fifoPosition = 1;
-  const rows = sortedTasks.map(task => {
+  const cards = sortedTasks.map(task => {
     const isNextTask = nextTask && task.assignmentId === nextTask.assignmentId;
     const currentFifoPosition = (task.status === 'ready' || task.status === 'pending') ? fifoPosition++ : null;
-    return renderTaskRow(task, isNextTask, currentFifoPosition);
+    return renderModernTaskCard(task, isNextTask, currentFifoPosition);
   }).join('');
   
   return `
     <div class="task-list-container">
-      <div class="task-list-header">
-        <h2 class="section-title">Görevler</h2>
-        <p class="section-subtitle">Öncelik sırasına göre görevleriniz</p>
+      <div class="task-list-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div>
+          <h2 class="section-title" style="display: flex; align-items: center; gap: 12px; margin: 0 0 4px 0;">
+            <i data-lucide="clipboard-list" style="width: 28px; height: 28px; color: var(--primary);"></i>
+            <span>Görevlerim</span>
+          </h2>
+          <p class="section-subtitle">${sortedTasks.length} görev • FIFO sıralama aktif</p>
+        </div>
+        <button class="btn-secondary" onclick="window.workerPortalApp.loadWorkerTasks()" style="display: inline-flex; align-items: center; gap: 8px;">
+          <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
+          <span>Yenile</span>
+        </button>
       </div>
       
-      <div class="table-container">
-        <table class="task-table">
-          <thead>
-            <tr>
-              <th style="width: 50px;">#</th>
-              <th style="width: 150px;">Durum</th>
-              <th>Görev</th>
-              <th style="width: 120px;">İstasyon</th>
-              <th style="width: 100px;">Süre (dk)</th>
-              <th style="width: 200px;">İşlemler</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
+      <div class="task-cards-container">
+        ${cards}
       </div>
+    </div>
+  `;
+}
+
+// ============================================================================
+// MODERN TASK CARD RENDERING
+// ============================================================================
+
+function renderModernTaskCard(task, isNextTask, fifoPosition) {
+  const statusInfo = getStatusInfo(task.status);
+  
+  // Extract material information
+  const inputMaterials = [];
+  const outputMaterials = [];
+  
+  // materialInputs comes as object from backend: { "M-001": 100, "M-002": 50 }
+  // This is the REAL required quantity (not defect-adjusted)
+  if (task.materialInputs && typeof task.materialInputs === 'object' && Object.keys(task.materialInputs).length > 0) {
+    Object.entries(task.materialInputs).forEach(([code, qty]) => {
+      inputMaterials.push({ code, qty: parseFloat(qty) });
+    });
+  } else if (task.preProductionReservedAmount) {
+    // Fallback: preProductionReservedAmount includes defect rate buffer
+    Object.entries(task.preProductionReservedAmount).forEach(([code, qty]) => {
+      inputMaterials.push({ code, qty: parseFloat(qty) });
+    });
+  }
+  
+  if (task.plannedOutput) {
+    Object.entries(task.plannedOutput).forEach(([code, qty]) => {
+      outputMaterials.push({ code, qty });
+    });
+  }
+  
+  // Card styling based on status
+  let cardClass = 'task-card-modern';
+  if (isNextTask) cardClass += ' task-card-next';
+  if (task.status === 'in_progress' || task.status === 'in-progress') cardClass += ' task-card-active';
+  if (task.isUrgent) cardClass += ' task-card-urgent';
+  
+  // FIFO Position Badge
+  const fifoBadgeHtml = fifoPosition 
+    ? `<div class="fifo-badge ${fifoPosition === 1 ? 'fifo-badge-next' : 'fifo-badge-waiting'}">
+        <i data-lucide="hash" style="width: 14px; height: 14px;"></i>
+        <span>${fifoPosition}</span>
+      </div>`
+    : '';
+  
+  return `
+    <div class="${cardClass}" data-assignment-id="${task.assignmentId}">
+      <!-- Card Header -->
+      <div class="task-card-header">
+        <div class="task-card-title-row">
+          <div class="task-card-title">
+            <i data-lucide="wrench" style="width: 20px; height: 20px; color: var(--primary);"></i>
+            <h3>${task.name || task.operationName || 'İsimsiz Görev'}</h3>
+          </div>
+          <div class="task-card-badges">
+            ${fifoBadgeHtml}
+            <span class="status-badge-modern status-${task.status}">
+              ${statusInfo.icon} ${statusInfo.label}
+            </span>
+            ${task.isUrgent ? '<span class="urgent-badge-modern"><i data-lucide="zap" style="width: 14px; height: 14px;"></i> ÖNCELİKLİ</span>' : ''}
+          </div>
+        </div>
+        <div class="task-card-meta">
+          <span><i data-lucide="package" style="width: 14px; height: 14px;"></i> ${task.workPackageId || task.planId}</span>
+          ${task.planName ? `<span style="margin-left: 4px; opacity: 0.7;">• ${task.planName}</span>` : ''}
+        </div>
+      </div>
+      
+      <!-- Card Body -->
+      <div class="task-card-body">
+        <!-- Station Info (Prominent) -->
+        <div class="info-section-primary">
+          <div class="info-icon">
+            <i data-lucide="factory" style="width: 24px; height: 24px; color: #3b82f6;"></i>
+          </div>
+          <div class="info-content">
+            <div class="info-label">Çalışılacak Makine</div>
+            <div class="info-value">${task.substationCode || task.stationName || 'Belirsiz'}</div>
+            ${task.stationName && task.substationCode ? `<div class="info-sub">${task.stationName}</div>` : ''}
+          </div>
+        </div>
+        
+        <!-- Materials Grid -->
+        ${inputMaterials.length > 0 || outputMaterials.length > 0 ? `
+        <div class="materials-section">
+          <div class="section-title-small">
+            <i data-lucide="package-2" style="width: 16px; height: 16px;"></i>
+            <span>Malzemeler</span>
+          </div>
+          <div class="materials-grid">
+            ${inputMaterials.length > 0 ? `
+            <div class="material-group">
+              <div class="material-group-label">
+                <i data-lucide="arrow-down-to-line" style="width: 14px; height: 14px;"></i>
+                GİRDİ
+              </div>
+              <div class="material-tags">
+                ${inputMaterials.map(m => `
+                  <div class="material-tag material-tag-input">
+                    <span class="material-code">${m.code}</span>
+                    <span class="material-qty">× ${m.qty}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+            ` : ''}
+            ${outputMaterials.length > 0 ? `
+            <div class="material-group">
+              <div class="material-group-label">
+                <i data-lucide="arrow-up-from-line" style="width: 14px; height: 14px;"></i>
+                ÇIKTI
+              </div>
+              <div class="material-tags">
+                ${outputMaterials.map(m => `
+                  <div class="material-tag material-tag-output">
+                    <span class="material-code">${m.code}</span>
+                    <span class="material-qty">× ${m.qty}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+            ` : ''}
+          </div>
+        </div>
+        ` : ''}
+        
+        <!-- Time & Duration Info -->
+        <div class="info-grid">
+          <div class="info-item">
+            <i data-lucide="clock" style="width: 16px; height: 16px; color: #6b7280;"></i>
+            <div>
+              <div class="info-item-label">Tahmini Süre</div>
+              <div class="info-item-value">${formatDuration(task.estimatedEffectiveTime || task.estimatedNominalTime)}</div>
+            </div>
+          </div>
+          <div class="info-item">
+            <i data-lucide="calendar-clock" style="width: 16px; height: 16px; color: #6b7280;"></i>
+            <div>
+              <div class="info-item-label">Başlangıç</div>
+              <div class="info-item-value">${task.plannedStart ? formatTime(task.plannedStart) : '—'}</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Additional Info for Active Tasks -->
+        ${task.status === 'in_progress' || task.status === 'in-progress' ? `
+        <div class="active-task-banner">
+          <i data-lucide="activity" style="width: 18px; height: 18px;"></i>
+          <div>
+            <div style="font-weight: 600; margin-bottom: 2px;">Görev Devam Ediyor</div>
+            <div style="font-size: 12px; opacity: 0.9;">Başladı: ${task.actualStart ? formatTime(task.actualStart) : '—'}</div>
+          </div>
+        </div>
+        ` : ''}
+      </div>
+      
+      <!-- Card Actions -->
+      <div class="task-card-actions">
+        ${renderModernTaskActions(task, isNextTask, fifoPosition)}
+      </div>
+    </div>
+  `;
+}
+
+function renderModernTaskActions(task, isNextTask, fifoPosition) {
+  const canStart = task.canStart || (isNextTask && (task.status === 'ready' || task.status === 'pending'));
+  
+  if (task.status === 'in_progress' || task.status === 'in-progress') {
+    return `
+      <div class="action-buttons-row">
+        <button class="btn-outline action-btn" onclick="pauseTask('${task.assignmentId}')">
+          <i data-lucide="pause" style="width: 16px; height: 16px;"></i>
+          <span>Duraklat</span>
+        </button>
+        <button class="btn-primary action-btn" onclick="completeTaskFlow('${task.assignmentId}')">
+          <i data-lucide="check-circle" style="width: 16px; height: 16px;"></i>
+          <span>Tamamla</span>
+        </button>
+      </div>
+    `;
+  }
+  
+  if (task.status === 'paused') {
+    return `
+      <div class="action-buttons-row">
+        <button class="btn-primary action-btn" onclick="resumeTask('${task.assignmentId}')">
+          <i data-lucide="play" style="width: 16px; height: 16px;"></i>
+          <span>Devam Et</span>
+        </button>
+      </div>
+    `;
+  }
+  
+  if (canStart) {
+    return `
+      <div class="action-buttons-row">
+        <button class="btn-outline action-btn" onclick="viewTaskDetails('${task.assignmentId}')">
+          <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+          <span>Detaylar</span>
+        </button>
+        <button class="btn-success action-btn" onclick="startTaskFlow('${task.assignmentId}')">
+          <i data-lucide="play-circle" style="width: 16px; height: 16px;"></i>
+          <span>${isNextTask ? 'ŞİMDİ BAŞLAT' : 'Başlat'}</span>
+        </button>
+      </div>
+    `;
+  }
+  
+  return `
+    <div class="action-buttons-row">
+      <button class="btn-outline action-btn" onclick="viewTaskDetails('${task.assignmentId}')">
+        <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+        <span>Detaylar</span>
+      </button>
+      <button class="btn-outline action-btn" disabled title="Sıranız bekleniyor">
+        <i data-lucide="clock" style="width: 16px; height: 16px;"></i>
+        <span>Bekliyor${fifoPosition ? ` (#${fifoPosition})` : ''}</span>
+      </button>
     </div>
   `;
 }

@@ -3813,7 +3813,10 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
         'st.name as stationName',
         
         // Substation info  
-        'sub.id as substationCode'
+        'sub.id as substationCode',
+        
+        // Plan info
+        'p.planName as planName'
       )
       .leftJoin('mes.workers as w', 'w.id', 'wa.workerId')
       .leftJoin('mes.production_plan_nodes as n', function() {
@@ -3822,6 +3825,7 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
       .leftJoin('mes.operations as op', 'op.id', 'wa.operationId')
       .leftJoin('mes.stations as st', 'st.id', 'wa.stationId')
       .leftJoin('mes.substations as sub', 'sub.id', 'wa.substationId')
+      .leftJoin('mes.production_plans as p', 'p.id', 'wa.planId')
       .where('wa.workerId', workerId)
       .whereIn('wa.status', ['pending', 'ready', 'in_progress', 'paused'])
       .orderBy([
@@ -3833,21 +3837,50 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
     // Get material inputs for each task (from junction table)
     const nodeIds = [...new Set(tasks.map(t => t.nodeIdString).filter(Boolean))];
     const materialInputs = nodeIds.length > 0
-      ? await db('mes.node_material_inputs')
-          .whereIn('nodeId', nodeIds)
-          .select('nodeId', 'materialCode', 'requiredQuantity')
+      ? await db('mes.node_material_inputs as nmi')
+          .leftJoin('materials as m', 'm.code', 'nmi.materialCode')
+          .whereIn('nmi.nodeId', nodeIds)
+          .select('nmi.nodeId', 'nmi.materialCode', 'nmi.requiredQuantity', 'm.name as materialName', 'm.unit as materialUnit')
       : [];
 
-    // Group materials by nodeId
+    // Group materials by nodeId with name and unit
     const materialsByNode = materialInputs.reduce((acc, m) => {
       if (!acc[m.nodeId]) acc[m.nodeId] = {};
-      acc[m.nodeId][m.materialCode] = m.requiredQuantity;
+      acc[m.nodeId][m.materialCode] = {
+        qty: m.requiredQuantity,
+        name: m.materialName,
+        unit: m.materialUnit
+      };
       return acc;
     }, {});
 
     // Get next task ID (first ready/pending task)
     const nextTask = tasks.find(t => ['ready', 'pending'].includes(t.status));
     const nextTaskId = nextTask?.assignmentId || null;
+
+    // Get all unique material codes from plannedOutput for output material info
+    const allOutputCodes = new Set();
+    tasks.forEach(t => {
+      const parseJsonb = (val) => {
+        if (!val) return {};
+        if (typeof val === 'string') return JSON.parse(val);
+        return val;
+      };
+      const plannedOutput = parseJsonb(t.plannedOutput);
+      Object.keys(plannedOutput).forEach(code => allOutputCodes.add(code));
+    });
+
+    // Fetch material info for output codes
+    const outputMaterialsInfo = allOutputCodes.size > 0
+      ? await db('materials')
+          .whereIn('code', Array.from(allOutputCodes))
+          .select('code', 'name', 'unit')
+      : [];
+
+    const outputMaterialsMap = outputMaterialsInfo.reduce((acc, m) => {
+      acc[m.code] = { name: m.name, unit: m.unit };
+      return acc;
+    }, {});
 
     // Format response with canonical schema
     const formattedTasks = tasks.map(t => {
@@ -3874,6 +3907,7 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
         
         // Plan & Node IDs
         planId: t.planId,
+        planName: t.planName,
         nodeId: t.nodeId,
         
         // Work Order & Product
