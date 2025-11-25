@@ -485,6 +485,45 @@ async function completeTask(assignmentId) {
   }
 }
 
+async function resumeTask(assignmentId) {
+  try {
+    await updateWorkPackage(assignmentId, { action: 'resume' });
+    await loadWorkerTasks();
+    
+    window.dispatchEvent(new CustomEvent('assignments:updated'));
+    
+    showToast('Görev devam ettiriliyor', 'success');
+  } catch (err) {
+    console.error('Failed to resume task:', err);
+    showToast('Görev devam ettirilemedi: ' + err.message, 'error');
+  }
+}
+
+// ============================================================================
+// GLOBAL FUNCTIONS FOR ONCLICK HANDLERS (Modern Card UI)
+// ============================================================================
+
+// Make functions globally accessible for onclick handlers
+window.startTaskFlow = async (assignmentId) => {
+  await startTaskWithLotPreview(assignmentId);
+};
+
+window.pauseTask = async (assignmentId) => {
+  await pauseTask(assignmentId);
+};
+
+window.resumeTask = async (assignmentId) => {
+  await resumeTask(assignmentId);
+};
+
+window.completeTaskFlow = async (assignmentId) => {
+  await completeTask(assignmentId);
+};
+
+window.viewTaskDetails = (assignmentId) => {
+  showTaskDetailModal(assignmentId);
+};
+
 // ============================================================================
 // MODALS
 // ============================================================================
@@ -1606,7 +1645,9 @@ function renderWorkerSummary() {
     return `
       <div class="worker-card">
         <div class="worker-card-header">
-          <div class="worker-avatar">👷</div>
+          <div class="worker-avatar" style="background: var(--muted); display: flex; align-items: center; justify-content: center;">
+            <i data-lucide="user-x" style="width: 32px; height: 32px; color: var(--muted-foreground);"></i>
+          </div>
           <div>
             <h3 class="worker-name">Henüz görev atanmadı</h3>
             <p class="worker-subtitle">Yöneticinizle iletişime geçin</p>
@@ -1644,7 +1685,9 @@ function renderWorkerSummary() {
   return `
     <div class="worker-card">
       <div class="worker-card-header">
-        <div class="worker-avatar">👷</div>
+        <div class="worker-avatar" style="background: linear-gradient(135deg, #3b82f6, #1e40af); display: flex; align-items: center; justify-content: center;">
+          <i data-lucide="user" style="width: 32px; height: 32px; color: white;"></i>
+        </div>
         <div style="flex: 1;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <h3 class="worker-name">${state.currentWorker.name || 'İsimsiz İşçi'}</h3>
@@ -1654,14 +1697,17 @@ function renderWorkerSummary() {
         </div>
         <div class="worker-stats">
           <div class="stat-item">
+            <i data-lucide="play-circle" style="width: 18px; height: 18px; color: #3b82f6; margin-bottom: 4px;"></i>
             <div class="stat-value">${activeTasks}</div>
             <div class="stat-label">Devam Eden</div>
           </div>
           <div class="stat-item">
+            <i data-lucide="check-circle" style="width: 18px; height: 18px; color: #10b981; margin-bottom: 4px;"></i>
             <div class="stat-value">${readyTasks}</div>
             <div class="stat-label">Hazır</div>
           </div>
           <div class="stat-item">
+            <i data-lucide="clock" style="width: 18px; height: 18px; color: #6b7280; margin-bottom: 4px;"></i>
             <div class="stat-value">${pendingTasks}</div>
             <div class="stat-label">Bekleyen</div>
           </div>
@@ -1719,23 +1765,33 @@ function renderTaskList() {
   // Identify next task (FIFO Position #1)
   const nextTask = sortedTasks.find(t => t.status === 'ready' || t.status === 'pending');
   
-  // Assign FIFO positions to ready/pending tasks
+  // Separate current/active tasks from upcoming tasks
+  const currentTasks = [];
+  const upcomingTasks = [];
+  
   let fifoPosition = 1;
-  const cards = sortedTasks.map(task => {
+  sortedTasks.forEach(task => {
     const isNextTask = nextTask && task.assignmentId === nextTask.assignmentId;
     const currentFifoPosition = (task.status === 'ready' || task.status === 'pending') ? fifoPosition++ : null;
-    return renderModernTaskCard(task, isNextTask, currentFifoPosition);
-  }).join('');
+    
+    // Current tasks: in-progress, paused, or the next task
+    if (task.status === 'in_progress' || task.status === 'in-progress' || task.status === 'paused' || isNextTask) {
+      currentTasks.push(renderModernTaskCard(task, isNextTask, currentFifoPosition));
+    } 
+    // Upcoming tasks: other ready/pending tasks
+    else if (task.status === 'ready' || task.status === 'pending') {
+      upcomingTasks.push(renderCompactTaskCard(task, currentFifoPosition));
+    }
+  });
   
   return `
     <div class="task-list-container">
       <div class="task-list-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
         <div>
-          <h2 class="section-title" style="display: flex; align-items: center; gap: 12px; margin: 0 0 4px 0;">
+          <h2 class="section-title" style="display: flex; align-items: center; gap: 12px; margin: 0;">
             <i data-lucide="clipboard-list" style="width: 28px; height: 28px; color: var(--primary);"></i>
             <span>Görevlerim</span>
           </h2>
-          <p class="section-subtitle">${sortedTasks.length} görev • FIFO sıralama aktif</p>
         </div>
         <button class="btn-secondary" onclick="window.workerPortalApp.loadWorkerTasks()" style="display: inline-flex; align-items: center; gap: 8px;">
           <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
@@ -1744,7 +1800,21 @@ function renderTaskList() {
       </div>
       
       <div class="task-cards-container">
-        ${cards}
+        <!-- Current Task(s) - Left Column -->
+        <div class="current-tasks-column">
+          ${currentTasks.length > 0 ? currentTasks.join('') : '<div class="empty-state-small">Aktif görev yok</div>'}
+        </div>
+        
+        <!-- Upcoming Tasks - Right Column -->
+        <div class="upcoming-tasks-column">
+          ${upcomingTasks.length > 0 ? `
+            <div style="font-size: 12px; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; padding: 0 4px;">
+              <i data-lucide="clock" style="width: 14px; height: 14px;"></i>
+              Sırada Bekleyenler (${upcomingTasks.length})
+            </div>
+            ${upcomingTasks.join('')}
+          ` : '<div class="empty-state-small">Bekleyen görev yok</div>'}
+        </div>
       </div>
     </div>
   `;
@@ -1755,17 +1825,35 @@ function renderTaskList() {
 // ============================================================================
 
 function renderModernTaskCard(task, isNextTask, fifoPosition) {
+  // If this is NOT the next task and is in pending/ready status, render compact version
+  if (!isNextTask && (task.status === 'ready' || task.status === 'pending')) {
+    return renderCompactTaskCard(task, fifoPosition);
+  }
+  
+  // Otherwise render full card (for next task, in-progress, paused, etc.)
   const statusInfo = getStatusInfo(task.status);
   
   // Extract material information
   const inputMaterials = [];
   const outputMaterials = [];
   
-  // materialInputs comes as object from backend: { "M-001": 100, "M-002": 50 }
-  // This is the REAL required quantity (not defect-adjusted)
+  // materialInputs comes as object from backend in two possible formats:
+  // Format 1: { "M-001": { qty: 100, name: "...", unit: "..." } } (new format with details)
+  // Format 2: { "M-001": 100 } (legacy simple format)
   if (task.materialInputs && typeof task.materialInputs === 'object' && Object.keys(task.materialInputs).length > 0) {
-    Object.entries(task.materialInputs).forEach(([code, qty]) => {
-      inputMaterials.push({ code, qty: parseFloat(qty) });
+    Object.entries(task.materialInputs).forEach(([code, data]) => {
+      // Check if data is an object with qty property or just a number
+      if (typeof data === 'object' && data !== null && 'qty' in data) {
+        inputMaterials.push({ 
+          code, 
+          qty: parseFloat(data.qty),
+          name: data.name,
+          unit: data.unit
+        });
+      } else {
+        // Legacy format: data is just the quantity
+        inputMaterials.push({ code, qty: parseFloat(data) });
+      }
     });
   } else if (task.preProductionReservedAmount) {
     // Fallback: preProductionReservedAmount includes defect rate buffer
@@ -1775,8 +1863,19 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
   }
   
   if (task.plannedOutput) {
-    Object.entries(task.plannedOutput).forEach(([code, qty]) => {
-      outputMaterials.push({ code, qty });
+    Object.entries(task.plannedOutput).forEach(([code, data]) => {
+      // Check if data is an object with qty property or just a number
+      if (typeof data === 'object' && data !== null && 'qty' in data) {
+        outputMaterials.push({ 
+          code, 
+          qty: parseFloat(data.qty),
+          name: data.name,
+          unit: data.unit
+        });
+      } else {
+        // Legacy format: data is just the quantity
+        outputMaterials.push({ code, qty: data });
+      }
     });
   }
   
@@ -1812,7 +1911,7 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
           </div>
         </div>
         <div class="task-card-meta">
-          <span><i data-lucide="package" style="width: 14px; height: 14px;"></i> ${task.workPackageId || task.planId}</span>
+          <span><i data-lucide="package" style="width: 14px; height: 14px;"></i> ${task.planId}</span>
           ${task.planName ? `<span style="margin-left: 4px; opacity: 0.7;">• ${task.planName}</span>` : ''}
         </div>
       </div>
@@ -1847,9 +1946,10 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
               </div>
               <div class="material-tags">
                 ${inputMaterials.map(m => `
-                  <div class="material-tag material-tag-input">
+                  <div class="material-tag material-tag-input" title="${m.name || m.code}">
                     <span class="material-code">${m.code}</span>
-                    <span class="material-qty">× ${m.qty}</span>
+                    ${m.name ? `<span class="material-name" style="font-size: 11px; opacity: 0.8;">${m.name}</span>` : ''}
+                    <span class="material-qty">× ${m.qty}${m.unit ? ' ' + m.unit : ''}</span>
                   </div>
                 `).join('')}
               </div>
@@ -1863,9 +1963,10 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
               </div>
               <div class="material-tags">
                 ${outputMaterials.map(m => `
-                  <div class="material-tag material-tag-output">
+                  <div class="material-tag material-tag-output" title="${m.name || m.code}">
                     <span class="material-code">${m.code}</span>
-                    <span class="material-qty">× ${m.qty}</span>
+                    ${m.name ? `<span class="material-name" style="font-size: 11px; opacity: 0.8;">${m.name}</span>` : ''}
+                    <span class="material-qty">× ${m.qty}${m.unit ? ' ' + m.unit : ''}</span>
                   </div>
                 `).join('')}
               </div>
@@ -1885,29 +1986,81 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
             </div>
           </div>
           <div class="info-item">
-            <i data-lucide="calendar-clock" style="width: 16px; height: 16px; color: #6b7280;"></i>
+            <i data-lucide="${task.actualStart ? 'play-circle' : 'calendar-clock'}" style="width: 16px; height: 16px; color: ${task.actualStart ? '#10b981' : '#6b7280'};"></i>
             <div>
-              <div class="info-item-label">Başlangıç</div>
-              <div class="info-item-value">${task.plannedStart ? formatTime(task.plannedStart) : '—'}</div>
+              <div class="info-item-label">${task.actualStart ? 'Başlangıç' : 'Tahmini Başlangıç'}</div>
+              <div class="info-item-value">${task.actualStart ? formatTime(task.actualStart) : (task.plannedStart ? formatTime(task.plannedStart) : '—')}</div>
             </div>
           </div>
-        </div>
-        
-        <!-- Additional Info for Active Tasks -->
-        ${task.status === 'in_progress' || task.status === 'in-progress' ? `
-        <div class="active-task-banner">
-          <i data-lucide="activity" style="width: 18px; height: 18px;"></i>
-          <div>
-            <div style="font-weight: 600; margin-bottom: 2px;">Görev Devam Ediyor</div>
-            <div style="font-size: 12px; opacity: 0.9;">Başladı: ${task.actualStart ? formatTime(task.actualStart) : '—'}</div>
+          ${task.status === 'in_progress' || task.status === 'in-progress' ? `
+          <div class="info-item" style="background: linear-gradient(135deg, #dbeafe, #eff6ff); border-color: #3b82f6;">
+            <i data-lucide="timer" style="width: 16px; height: 16px; color: #3b82f6;"></i>
+            <div>
+              <div class="info-item-label">Geçen Süre</div>
+              <div class="info-item-value duration-live" data-actual-start="${task.actualStart}" data-assignment-id="${task.assignmentId}">—</div>
+            </div>
           </div>
+          ` : `
+          <div class="info-item">
+            <i data-lucide="flag" style="width: 16px; height: 16px; color: #6b7280;"></i>
+            <div>
+              <div class="info-item-label">Tahmini Bitiş</div>
+              <div class="info-item-value">${task.plannedEnd ? formatTime(task.plannedEnd) : '—'}</div>
+            </div>
+          </div>
+          `}
         </div>
-        ` : ''}
       </div>
       
       <!-- Card Actions -->
       <div class="task-card-actions">
         ${renderModernTaskActions(task, isNextTask, fifoPosition)}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================================
+// COMPACT TASK CARD (for future tasks in queue)
+// ============================================================================
+
+function renderCompactTaskCard(task, fifoPosition) {
+  const statusInfo = getStatusInfo(task.status);
+  
+  // FIFO Position Badge
+  const fifoBadgeHtml = fifoPosition 
+    ? `<div class="fifo-badge fifo-badge-waiting">
+        <i data-lucide="hash" style="width: 14px; height: 14px;"></i>
+        <span>${fifoPosition}</span>
+      </div>`
+    : '';
+  
+  return `
+    <div class="task-card-compact" data-assignment-id="${task.assignmentId}">
+      <div class="task-card-header">
+        <div class="task-card-title-row">
+          <div class="task-card-title">
+            <i data-lucide="wrench" style="width: 20px; height: 20px; color: var(--primary);"></i>
+            <h3>${task.name || task.operationName || 'İsimsiz Görev'}</h3>
+          </div>
+          <div class="task-card-badges">
+            ${fifoBadgeHtml}
+            <span class="status-badge-modern status-${task.status}">
+              ${statusInfo.icon} ${statusInfo.label}
+            </span>
+            ${task.isUrgent ? '<span class="urgent-badge-modern"><i data-lucide="zap" style="width: 14px; height: 14px;"></i> ÖNCELİKLİ</span>' : ''}
+          </div>
+        </div>
+        <div class="task-card-meta" style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <span><i data-lucide="package" style="width: 14px; height: 14px;"></i> ${task.planId}</span>
+            ${task.planName ? `<span style="margin-left: 4px; opacity: 0.7;">• ${task.planName}</span>` : ''}
+          </div>
+          <div style="font-size: 11px; opacity: 0.5; display: flex; gap: 8px; align-items: center;">
+            ${task.plannedStart ? `<div style="display: flex; align-items: center; gap: 3px;"><i data-lucide="play-circle" style="width: 12px; height: 12px;"></i> <span>${formatTime(task.plannedStart)}</span></div>` : ''}
+            ${task.plannedEnd ? `<div style="display: flex; align-items: center; gap: 3px;"><i data-lucide="flag" style="width: 12px; height: 12px;"></i> <span>${formatTime(task.plannedEnd)}</span></div>` : ''}
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -1920,11 +2073,11 @@ function renderModernTaskActions(task, isNextTask, fifoPosition) {
     return `
       <div class="action-buttons-row">
         <button class="btn-outline action-btn" onclick="pauseTask('${task.assignmentId}')">
-          <i data-lucide="pause" style="width: 16px; height: 16px;"></i>
+          <i data-lucide="pause" style="width: 32px; height: 32px;"></i>
           <span>Duraklat</span>
         </button>
         <button class="btn-primary action-btn" onclick="completeTaskFlow('${task.assignmentId}')">
-          <i data-lucide="check-circle" style="width: 16px; height: 16px;"></i>
+          <i data-lucide="check-circle" style="width: 32px; height: 32px;"></i>
           <span>Tamamla</span>
         </button>
       </div>
@@ -1935,7 +2088,7 @@ function renderModernTaskActions(task, isNextTask, fifoPosition) {
     return `
       <div class="action-buttons-row">
         <button class="btn-primary action-btn" onclick="resumeTask('${task.assignmentId}')">
-          <i data-lucide="play" style="width: 16px; height: 16px;"></i>
+          <i data-lucide="play" style="width: 32px; height: 32px;"></i>
           <span>Devam Et</span>
         </button>
       </div>
@@ -1946,11 +2099,11 @@ function renderModernTaskActions(task, isNextTask, fifoPosition) {
     return `
       <div class="action-buttons-row">
         <button class="btn-outline action-btn" onclick="viewTaskDetails('${task.assignmentId}')">
-          <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+          <i data-lucide="info" style="width: 32px; height: 32px;"></i>
           <span>Detaylar</span>
         </button>
         <button class="btn-success action-btn" onclick="startTaskFlow('${task.assignmentId}')">
-          <i data-lucide="play-circle" style="width: 16px; height: 16px;"></i>
+          <i data-lucide="play-circle" style="width: 32px; height: 32px;"></i>
           <span>${isNextTask ? 'ŞİMDİ BAŞLAT' : 'Başlat'}</span>
         </button>
       </div>
@@ -1960,11 +2113,11 @@ function renderModernTaskActions(task, isNextTask, fifoPosition) {
   return `
     <div class="action-buttons-row">
       <button class="btn-outline action-btn" onclick="viewTaskDetails('${task.assignmentId}')">
-        <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+        <i data-lucide="info" style="width: 32px; height: 32px;"></i>
         <span>Detaylar</span>
       </button>
       <button class="btn-outline action-btn" disabled title="Sıranız bekleniyor">
-        <i data-lucide="clock" style="width: 16px; height: 16px;"></i>
+        <i data-lucide="clock" style="width: 32px; height: 32px;"></i>
         <span>Bekliyor${fifoPosition ? ` (#${fifoPosition})` : ''}</span>
       </button>
     </div>
@@ -2676,6 +2829,7 @@ function startDurationUpdates() {
   
   // Update all in-progress task durations every second
   durationUpdateInterval = setInterval(() => {
+    // Update old table-based durations (backward compatibility)
     document.querySelectorAll('.duration-info[data-status="in-progress"], .duration-info[data-status="in_progress"]').forEach(el => {
       const actualStart = el.dataset.actualStart;
       if (!actualStart) return;
@@ -2715,6 +2869,20 @@ function startDurationUpdates() {
         console.error('Error updating duration:', err);
       }
     });
+    
+    // Update new card-based live durations
+    document.querySelectorAll('.duration-live').forEach(el => {
+      const actualStart = el.dataset.actualStart;
+      if (!actualStart) return;
+      
+      try {
+        const startTime = new Date(actualStart);
+        const elapsed = Math.floor((Date.now() - startTime.getTime()) / 60000); // minutes
+        el.textContent = formatDuration(elapsed);
+      } catch (err) {
+        console.error('Error updating live duration:', err);
+      }
+    });
   }, 1000); // Update every second
 }
 
@@ -2734,16 +2902,16 @@ document.addEventListener('visibilitychange', () => {
 
 function getStatusInfo(status) {
   const statusMap = {
-    'pending': { label: 'Bekliyor', icon: '⏳', color: 'gray' },
-    'ready': { label: 'Hazır', icon: '✅', color: 'green' },
-    'blocked': { label: 'Bloke', icon: '🚫', color: 'red' },
-    'in_progress': { label: 'Devam Ediyor', icon: '▶️', color: 'blue' },
-    'paused': { label: 'Duraklatıldı', icon: '⏸️', color: 'orange' },
-    'completed': { label: 'Tamamlandı', icon: '✓', color: 'success' },
-    'cancelled_pending_report': { label: 'İptal - Rapor Gerekli', icon: '❌', color: 'red' }
+    'pending': { label: 'Bekliyor', icon: '<i data-lucide="clock" style="width: 14px; height: 14px;"></i>', color: 'gray' },
+    'ready': { label: 'Hazır', icon: '<i data-lucide="check-circle" style="width: 14px; height: 14px;"></i>', color: 'green' },
+    'blocked': { label: 'Bloke', icon: '<i data-lucide="ban" style="width: 14px; height: 14px;"></i>', color: 'red' },
+    'in_progress': { label: 'Devam Ediyor', icon: '<i data-lucide="play-circle" style="width: 14px; height: 14px;"></i>', color: 'blue' },
+    'paused': { label: 'Duraklatıldı', icon: '<i data-lucide="pause-circle" style="width: 14px; height: 14px;"></i>', color: 'orange' },
+    'completed': { label: 'Tamamlandı', icon: '<i data-lucide="check" style="width: 14px; height: 14px;"></i>', color: 'success' },
+    'cancelled_pending_report': { label: 'İptal - Rapor Gerekli', icon: '<i data-lucide="x-circle" style="width: 14px; height: 14px;"></i>', color: 'red' }
   };
   
-  return statusMap[status] || { label: status, icon: '❓', color: 'gray' };
+  return statusMap[status] || { label: status, icon: '<i data-lucide="help-circle" style="width: 14px; height: 14px;"></i>', color: 'gray' };
 }
 
 function formatDuration(minutes) {

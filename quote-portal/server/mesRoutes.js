@@ -3838,7 +3838,7 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
     const nodeIds = [...new Set(tasks.map(t => t.nodeIdString).filter(Boolean))];
     const materialInputs = nodeIds.length > 0
       ? await db('mes.node_material_inputs as nmi')
-          .leftJoin('materials as m', 'm.code', 'nmi.materialCode')
+          .leftJoin('materials.materials as m', 'm.code', 'nmi.materialCode')
           .whereIn('nmi.nodeId', nodeIds)
           .select('nmi.nodeId', 'nmi.materialCode', 'nmi.requiredQuantity', 'm.name as materialName', 'm.unit as materialUnit')
       : [];
@@ -3872,7 +3872,7 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
 
     // Fetch material info for output codes
     const outputMaterialsInfo = allOutputCodes.size > 0
-      ? await db('materials')
+      ? await db('materials.materials')
           .whereIn('code', Array.from(allOutputCodes))
           .select('code', 'name', 'unit')
       : [];
@@ -3896,6 +3896,16 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
       const actualReservedAmounts = parseJsonb(t.actualReservedAmounts);
       const inputScrapCount = parseJsonb(t.inputScrapCount);
       const productionScrapCount = parseJsonb(t.productionScrapCount);
+
+      // Enrich plannedOutput with material name and unit
+      const enrichedPlannedOutput = {};
+      Object.entries(plannedOutput).forEach(([code, qty]) => {
+        enrichedPlannedOutput[code] = {
+          qty,
+          name: outputMaterialsMap[code]?.name,
+          unit: outputMaterialsMap[code]?.unit
+        };
+      });
 
       // Calculate canStart flag
       const canStart = t.status === 'ready' && t.materialReservationStatus === 'reserved';
@@ -3936,7 +3946,7 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
         // Material inputs (from junction table)
         materialInputs: materialsByNode[t.nodeIdString] || {},
         preProductionReservedAmount,
-        plannedOutput,
+        plannedOutput: enrichedPlannedOutput,
         actualReservedAmounts,
         materialReservationStatus: t.materialReservationStatus,
         

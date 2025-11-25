@@ -9,8 +9,8 @@
   background: white;
   border: 1px solid var(--border, #e5e7eb);
   border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
+  padding: 16px;
+  margin-bottom: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
@@ -21,22 +21,22 @@
 }
 
 .worker-avatar {
-  width: 64px;
-  height: 64px;
+  width: 56px;
+  height: 56px;
   background: linear-gradient(135deg, #3b82f6, #1d4ed8);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
+  font-size: 28px;
   flex-shrink: 0;
 }
 
 .worker-name {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--foreground, #111827);
-  margin: 0 0 4px 0;
+  margin: 0 0 2px 0;
 }
 
 .worker-subtitle {
@@ -53,14 +53,17 @@
 
 .stat-item {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .stat-value {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
   color: var(--foreground, #111827);
   line-height: 1;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .stat-label {
@@ -206,14 +209,27 @@
 
 .task-cards-container {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+  grid-template-columns: 1fr 400px;
   gap: 20px;
+  align-items: start;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   .task-cards-container {
     grid-template-columns: 1fr;
   }
+}
+
+/* Full task cards - left column */
+.task-card-modern {
+  width: 100%;
+}
+
+/* Compact cards container - right column */
+.upcoming-tasks-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .task-card-modern {
@@ -318,6 +334,41 @@
   color: var(--muted-foreground, #6b7280);
 }
 
+/* ============================================================================
+   COMPACT TASK CARD (for queue preview)
+   ============================================================================ */
+
+.task-card-compact {
+  background: white;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  opacity: 0.85;
+}
+
+.task-card-compact:hover {
+  opacity: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  transform: translateX(4px);
+}
+
+.task-card-compact .task-card-header {
+  padding: 10px 16px;
+  border-bottom: none;
+  background: rgba(249, 250, 251, 0.3);
+}
+
+.task-card-compact .task-card-title h3 {
+  font-size: 14px;
+}
+
+.task-card-compact .task-card-meta {
+  margin-top: 6px;
+}
+
+
 /* Status Badge Modern */
 .status-badge-modern {
   display: inline-flex;
@@ -353,8 +404,8 @@
 .info-section-primary {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 16px;
+  gap: 8px;
+  padding: 8px;
   background: linear-gradient(135deg, #eff6ff, #f0f9ff);
   border-radius: 10px;
   border: 1px solid #bfdbfe;
@@ -402,7 +453,7 @@
 /* Materials Section */
 .materials-section {
   margin-bottom: 20px;
-  padding: 16px;
+  padding: 8px;
   background: var(--muted, #f9fafb);
   border-radius: 10px;
 }
@@ -450,6 +501,7 @@
   border-radius: 8px;
   font-size: 12px;
   border: 1px solid;
+  flex-wrap: wrap;
 }
 
 .material-tag-input {
@@ -469,8 +521,15 @@
   font-family: 'Courier New', monospace;
 }
 
+.material-name {
+  font-size: 11px;
+  opacity: 0.8;
+  font-weight: 400;
+}
+
 .material-qty {
   opacity: 0.8;
+  font-weight: 500;
 }
 
 /* Info Grid */
@@ -484,8 +543,8 @@
 .info-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
+  gap: 5px;
+  padding: 6px;
   background: white;
   border: 1px solid var(--border, #e5e7eb);
   border-radius: 8px;
@@ -521,7 +580,7 @@
 
 /* Card Actions */
 .task-card-actions {
-  padding: 16px 20px;
+  padding: 8px 20px;
   background: rgba(249, 250, 251, 0.5);
   border-top: 1px solid var(--border, #e5e7eb);
 }
@@ -537,8 +596,9 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 16px;
-  font-size: 14px;
+  padding: 5px 16px;
+  height: 96px;
+  font-size: 40px;
   font-weight: 500;
   border-radius: 8px;
   cursor: pointer;
@@ -565,6 +625,16 @@
   text-align: center;
   padding: 64px 24px;
   color: var(--muted-foreground, #6b7280);
+}
+
+.empty-state-small {
+  text-align: center;
+  padding: 32px 16px;
+  color: var(--muted-foreground, #9ca3af);
+  font-size: 13px;
+  background: var(--muted, #f9fafb);
+  border-radius: 8px;
+  border: 1px dashed var(--border, #e5e7eb);
 }
 
 .empty-icon {
@@ -851,12 +921,12 @@
 }
 
 .btn-secondary {
-  padding: 10px 20px;
+  padding: 6px 12px;
   background: white;
   color: var(--foreground, #374151);
   border: 1px solid var(--border, #d1d5db);
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
