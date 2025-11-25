@@ -2955,38 +2955,199 @@ function adjustStartTimeForSchedule(startTime, scheduleBlocks) {
  * @param {string} dayName - Day name (lowercase: monday, tuesday, etc.)
  * @returns {Array} - Array of schedule blocks: [{ type: 'work'|'break', start: 'HH:MM', end: 'HH:MM' }]
  */
-function getDefaultWorkSchedule(dayName) {
-  const defaultSchedules = {
-    monday: [
-      { type: 'work', start: '08:00', end: '12:00' },
-      { type: 'break', start: '12:00', end: '13:00' },
-      { type: 'work', start: '13:00', end: '17:00' }
-    ],
-    tuesday: [
-      { type: 'work', start: '08:00', end: '12:00' },
-      { type: 'break', start: '12:00', end: '13:00' },
-      { type: 'work', start: '13:00', end: '17:00' }
-    ],
-    wednesday: [
-      { type: 'work', start: '08:00', end: '12:00' },
-      { type: 'break', start: '12:00', end: '13:00' },
-      { type: 'work', start: '13:00', end: '17:00' }
-    ],
-    thursday: [
-      { type: 'work', start: '08:00', end: '12:00' },
-      { type: 'break', start: '12:00', end: '13:00' },
-      { type: 'work', start: '13:00', end: '17:00' }
-    ],
-    friday: [
-      { type: 'work', start: '08:00', end: '12:00' },
-      { type: 'break', start: '12:00', end: '13:00' },
-      { type: 'work', start: '13:00', end: '16:00' }
-    ],
-    saturday: [],  // Hafta sonu çalışmıyor
-    sunday: []     // Hafta sonu çalışmıyor
-  };
+/**
+ * Get default work schedule from master-data (database)
+ * ✅ FAZ 1A-1: Removed hardcoded schedules, now fetches from mes.settings
+ * 
+ * @param {Object} trx - Database transaction
+ * @param {string} dayName - Day name (monday, tuesday, etc.)
+ * @param {string} shiftNo - Shift number for shift-based schedules (default: '1')
+ * @returns {Promise<Array>} Schedule blocks [{ type: 'work'|'break', start: 'HH:MM', end: 'HH:MM' }]
+ */
+async function getDefaultWorkSchedule(trx, dayName, shiftNo = '1') {
+  try {
+    // Fetch master-data from database
+    const result = await trx('mes.settings')
+      .where('key', 'master-data')
+      .first();
+    
+    if (!result || !result.value) {
+      console.warn('⚠️  No master-data found in mes.settings, returning empty schedule');
+      return [];
+    }
+    
+    // Parse master-data (handle both JSON string and object)
+    const masterData = typeof result.value === 'string' 
+      ? JSON.parse(result.value) 
+      : result.value;
+    
+    const timeSettings = masterData.timeSettings;
+    if (!timeSettings) {
+      console.warn('⚠️  No timeSettings in master-data');
+      return [];
+    }
+    
+    // Return schedule based on workType
+    if (timeSettings.workType === 'fixed') {
+      // Fixed schedule: same for all workers
+      const blocks = timeSettings.fixedBlocks?.[dayName] || [];
+      console.log(`📅 Fixed schedule for ${dayName}: ${blocks.length} blocks`);
+      return blocks;
+    } else if (timeSettings.workType === 'shift') {
+      // Shift-based schedule: different per shift/lane
+      
+      // Preferred structure: shiftByLane (most granular)
+      if (timeSettings.shiftByLane && timeSettings.shiftByLane[shiftNo]) {
+        const blocks = timeSettings.shiftByLane[shiftNo][dayName] || [];
+        console.log(`📅 Shift ${shiftNo} schedule for ${dayName}: ${blocks.length} blocks (shiftByLane)`);
+        return blocks;
+      }
+      
+      // Fallback: shiftBlocks (legacy structure)
+      const key = `shift-${dayName}`;
+      const allBlocks = timeSettings.shiftBlocks?.[key] || [];
+      
+      // Filter by lane index (shiftNo - 1)
+      const laneIndex = parseInt(shiftNo, 10) - 1;
+      const blocks = allBlocks.filter(b => 
+        typeof b.laneIndex === 'number' ? b.laneIndex === laneIndex : true
+      );
+      console.log(`📅 Shift ${shiftNo} schedule for ${dayName}: ${blocks.length} blocks (legacy shiftBlocks)`);
+      return blocks;
+    }
+    
+    console.warn('⚠️  Unknown workType in timeSettings:', timeSettings.workType);
+    return [];
+  } catch (error) {
+    console.error('❌ Error fetching default work schedule:', error);
+    return [];
+  }
+}
+
+/**
+ * Check if a given date is a company holiday
+ * ✅ FAZ 1A-2: Holiday system implementation
+ * 
+ * @param {Object} trx - Database transaction
+ * @param {Date} date - Date to check
+ * @returns {Promise<Object|null>} Holiday object if found, null otherwise
+ */
+async function isHoliday(trx, date) {
+  try {
+    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    
+    // Fetch company-holidays from database
+    const result = await trx('mes.settings')
+      .where('key', 'company-holidays')
+      .first();
+    
+    if (!result || !result.value) {
+      return null; // No holidays configured
+    }
+    
+    // Parse holidays data (handle both JSON string and object)
+    const data = typeof result.value === 'string' 
+      ? JSON.parse(result.value) 
+      : result.value;
+    
+    const holidays = data.holidays || [];
+    const holiday = holidays.find(h => h.date === dateStr);
+    
+    return holiday || null;
+  } catch (error) {
+    console.error('❌ Error checking holiday:', error);
+    return null;
+  }
+}
+
+/**
+ * Get work schedule for a specific date (considers holidays and worker personal schedule)
+ * ✅ FAZ 1A-2: Combines holiday system with worker schedules
+ * 
+ * Worker Schedule Logic:
+ * - mode='personal' → Worker'ın kendi blocks'ları kullanılır
+ * - mode='company' → Master-data'dan shiftNo ile schedule çekilir (getDefaultWorkSchedule)
+ * 
+ * @param {Object} trx - Database transaction
+ * @param {Date} date - Date to get schedule for
+ * @param {Object} worker - Worker object (optional, for personal schedule)
+ * @returns {Promise<Array>} Schedule blocks for the day
+ */
+async function getWorkScheduleForDate(trx, date, worker = null) {
+  const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][date.getDay()];
   
-  return defaultSchedules[dayName.toLowerCase()] || [];
+  // 1. Check if it's a holiday
+  const holiday = await isHoliday(trx, date);
+  
+  if (holiday) {
+    if (!holiday.isWorkingDay) {
+      console.log(`🎉 Holiday: ${holiday.name} (${holiday.date}) - No work scheduled`);
+      return []; // No work on this holiday
+    }
+    
+    if (holiday.workHours && Array.isArray(holiday.workHours)) {
+      console.log(`🎉 Holiday: ${holiday.name} (${holiday.date}) - Custom hours`);
+      return holiday.workHours; // Custom holiday hours (e.g., half-day)
+    }
+  }
+  
+  // 2. Get worker's schedule based on mode
+  if (worker?.personalSchedule) {
+    const personalSchedule = typeof worker.personalSchedule === 'string'
+      ? JSON.parse(worker.personalSchedule)
+      : worker.personalSchedule;
+    
+    // Mode 'personal': Use worker's personal blocks
+    if (personalSchedule.mode === 'personal' && personalSchedule.blocks) {
+      const blocks = personalSchedule.blocks[dayOfWeek] || [];
+      console.log(`👤 Using worker personal schedule for ${dayOfWeek}: ${blocks.length} blocks`);
+      return blocks;
+    }
+    
+    // Mode 'company': Use master-data with shiftNo
+    if (personalSchedule.mode === 'company') {
+      const shiftNo = personalSchedule.shiftNo || '1';
+      const blocks = await getDefaultWorkSchedule(trx, dayOfWeek, shiftNo);
+      console.log(`🏢 Using company schedule for ${dayOfWeek}, shift ${shiftNo}: ${blocks.length} blocks`);
+      return blocks;
+    }
+  }
+  
+  // 3. Fallback: No worker schedule, use company default (shift 1)
+  const blocks = await getDefaultWorkSchedule(trx, dayOfWeek, '1');
+  console.log(`🏢 Using company default schedule for ${dayOfWeek}: ${blocks.length} blocks`);
+  return blocks;
+}
+
+/**
+ * Find next working day (skip holidays and weekends)
+ * ✅ FAZ 1A-2: Smart date navigation with holiday awareness
+ * 
+ * @param {Object} trx - Database transaction
+ * @param {Date} startDate - Starting date (will check from next day)
+ * @param {Object} worker - Worker object (for schedule check)
+ * @param {number} maxDaysToCheck - Maximum days to search (default: 30)
+ * @returns {Promise<Date|null>} Next working day or null if not found
+ */
+async function findNextWorkingDay(trx, startDate, worker = null, maxDaysToCheck = 30) {
+  let currentDate = new Date(startDate);
+  currentDate.setDate(currentDate.getDate() + 1); // Start from next day
+  
+  for (let i = 0; i < maxDaysToCheck; i++) {
+    const schedule = await getWorkScheduleForDate(trx, currentDate, worker);
+    
+    if (schedule.length > 0) {
+      // Found a day with work schedule
+      console.log(`✅ Next working day found: ${currentDate.toISOString().split('T')[0]}`);
+      return new Date(currentDate); // Return a copy
+    }
+    
+    // Move to next day
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  console.warn(`⚠️  No working day found in next ${maxDaysToCheck} days from ${startDate.toISOString().split('T')[0]}`);
+  return null;
 }
 
 /**
@@ -5631,8 +5792,9 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       const scheduleBlocks = getShiftBlocksForDay(personalSchedule, dayOfWeek);
       
       if (scheduleBlocks.length === 0) {
-        // Use default schedule if worker has no personal schedule
-        const defaultBlocks = getDefaultWorkSchedule(dayOfWeek);
+        // ✅ FAZ 1A-1: Worker has no personal schedule, fetch from master-data (async)
+        const shiftNo = personalSchedule?.shiftNo || '1';
+        const defaultBlocks = await getDefaultWorkSchedule(trx, dayOfWeek, shiftNo);
         if (defaultBlocks.length > 0) {
           actualStart = adjustStartTimeForSchedule(actualStart, defaultBlocks);
         }
@@ -5642,7 +5804,12 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       
       // ✅ FAZ 3: Calculate end time with breaks
       let actualEnd;
-      const effectiveSchedule = scheduleBlocks.length > 0 ? scheduleBlocks : getDefaultWorkSchedule(dayOfWeek);
+      // ✅ FAZ 1A-1: Use async getDefaultWorkSchedule for effectiveSchedule
+      let effectiveSchedule = scheduleBlocks;
+      if (effectiveSchedule.length === 0) {
+        const shiftNo = personalSchedule?.shiftNo || '1';
+        effectiveSchedule = await getDefaultWorkSchedule(trx, dayOfWeek, shiftNo);
+      }
       const effectiveTimeMinutes = parseFloat(node.effectiveTime) || 0;
       
       if (effectiveSchedule.length > 0) {
