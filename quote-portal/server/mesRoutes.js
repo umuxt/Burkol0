@@ -5783,7 +5783,9 @@ function getShiftBlocksForDay(schedule, dayOfWeek) {
  * Check if time slot falls within shift blocks
  */
 function isWithinShiftBlocks(startTime, durationMinutes, shiftBlocks) {
-  if (shiftBlocks.length === 0) return true; // No restrictions
+  // ✅ CRITICAL: Empty schedule should NOT match (fall through to least-busy selection)
+  // Previously returned true, which caused first worker to always be selected
+  if (shiftBlocks.length === 0) return false;
   
   const startHour = startTime.getHours() + startTime.getMinutes() / 60;
   const endHour = startHour + durationMinutes / 60;
@@ -5844,6 +5846,8 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
   }
   
   // Filter by shift availability AND current schedule conflicts
+  let hasValidShiftConfig = false; // Track if ANY worker has valid shift blocks
+  
   for (const worker of eligibleWorkers) {
     // ✅ CRITICAL: Calculate worker's actual availability
     const workerQueue = workerSchedule.get(worker.id) || [];
@@ -5884,14 +5888,36 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
     const actualDayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][actualStart.getDay()];
     const shiftBlocks = getShiftBlocksForDay(schedule, actualDayOfWeek);
     
+    // Track if shift config exists
+    if (shiftBlocks.length > 0) {
+      hasValidShiftConfig = true;
+    }
+    
     if (isWithinShiftBlocks(actualStart, duration, shiftBlocks)) {
       return worker;
     }
   }
   
-  // If no shift match, return first eligible worker (fallback)
-  console.warn(`⚠️  No worker matches shift for ${dayOfWeek}, returning first eligible`);
-  return eligibleWorkers[0] || null;
+  // ✅ FALLBACK: If no shift match OR no valid shift config, select least busy worker
+  // Prevents always selecting first worker alphabetically when schedule is empty
+  if (!hasValidShiftConfig) {
+    console.warn(`⚠️  No shift configuration found for any worker on ${dayOfWeek}, selecting least busy worker`);
+  } else {
+    console.warn(`⚠️  No worker matches shift for ${dayOfWeek}, selecting least busy worker`);
+  }
+  
+  const workerAvailability = eligibleWorkers.map(worker => {
+    const workerQueue = workerSchedule.get(worker.id) || [];
+    const availableAt = workerQueue.length > 0
+      ? new Date(workerQueue[workerQueue.length - 1].end.getTime() + 1000)
+      : startTime;
+    return { worker, availableAt };
+  });
+  
+  // Sort by earliest availability
+  workerAvailability.sort((a, b) => a.availableAt.getTime() - b.availableAt.getTime());
+  
+  return workerAvailability[0]?.worker || null;
 }
 
 /**
