@@ -2496,22 +2496,75 @@ router.post('/substations/reset-all', withAuth, async (req, res) => {
   try {
     console.log('🔧 Resetting all substations to active state...');
     
-    // Simple reset: ensure all substations are active
-    const result = await db('mes.substations')
-      .update({
-        isActive: true,
-        updatedAt: db.fn.now()
-      })
-      .returning('id');
+    const { applyDeferredReservation } = await import('./utils/fifoScheduler.js');
     
-    const resetCount = result.length;
+    // ✅ TRANSACTION: Prevent race conditions between concurrent resets
+    const result = await db.transaction(async (trx) => {
+      // ✅ STEP 1: Find substations with orphaned/stale reservations (limbo state)
+      // These have currentAssignmentId but:
+      // - Assignment doesn't exist
+      // - Assignment is completed/cancelled
+      // - Assignment is pending/queued (never started, safe to re-reserve)
+      const orphaned = await trx('mes.substations as s')
+        .leftJoin('mes.worker_assignments as a', 's.currentAssignmentId', 'a.id')
+        .whereNotNull('s.currentAssignmentId')
+        .where(function() {
+          this.whereNull('a.id') // Assignment doesn't exist
+              .orWhereIn('a.status', ['completed', 'cancelled', 'pending', 'queued']); // Done or never started
+        })
+        .select('s.id');
+      
+      if (orphaned.length > 0) {
+        console.log(`🧹 [RESET] Cleaning ${orphaned.length} orphaned/stale substation reservations...`);
+        await trx('mes.substations')
+          .whereIn('id', orphaned.map(s => s.id))
+          .update({
+            status: 'available',
+            currentAssignmentId: null,
+            assignedWorkerId: null,
+            currentOperation: null,
+            reservedAt: null,
+            updatedAt: trx.fn.now()
+          });
+      }
+      
+      // ✅ STEP 2: Reset isActive flag (skip in_use stations with active work)
+      const substations = await trx('mes.substations')
+        .whereNotIn('status', ['in_use']) // Skip stations with active work
+        .update({
+          isActive: true,
+          updatedAt: trx.fn.now()
+        })
+        .returning('id');
+      
+      return { substations, orphanedCount: orphaned.length };
+    });
+    
+    const { substations, orphanedCount } = result;
+    const resetCount = substations.length;
     
     console.log(`✅ Reset complete: ${resetCount} substation(s) set to active`);
+    if (orphanedCount > 0) {
+      console.log(`🧹 Cleaned ${orphanedCount} orphaned reservations`);
+    }
+    
+    // Check deferred reservations AFTER transaction completes
+    console.log('🔍 Checking deferred reservations after reset...');
+    let appliedCount = 0;
+    for (const sub of substations) {
+      const applied = await applyDeferredReservation(sub.id);
+      if (applied) appliedCount++;
+    }
+    if (appliedCount > 0) {
+      console.log(`✅ Applied ${appliedCount} deferred reservations`);
+    }
     
     res.json({
       success: true,
       resetCount,
-      message: `${resetCount} alt istasyon sıfırlandı`
+      orphanedCleaned: orphanedCount,
+      appliedReservations: appliedCount,
+      message: `${resetCount} alt istasyon sıfırlandı${orphanedCount > 0 ? `, ${orphanedCount} limbo temizlendi` : ''}${appliedCount > 0 ? `, ${appliedCount} rezervasyon uygulandı` : ''}`
     });
   } catch (error) {
     console.error('Error resetting substations:', error);
@@ -2620,6 +2673,19 @@ router.put('/substations/:id/technical-status', withAuth, async (req, res) => {
             substations: JSON.stringify(updatedSubstations),
             updatedAt: db.fn.now()
           });
+      }
+    }
+    
+    // If activating (active status), check for deferred reservations
+    if (isActive && result[0].status === 'available') {
+      console.log(`🔍 Checking deferred reservations for activated substation ${id}...`);
+      const { applyDeferredReservation } = await import('./utils/fifoScheduler.js');
+      const applied = await applyDeferredReservation(id);
+      if (applied) {
+        console.log(`✅ Applied deferred reservation for substation ${id}`);
+        // Reload substation to get updated status
+        const updated = await db('mes.substations').where({ id }).first();
+        return res.json(updated);
       }
     }
     
@@ -5761,20 +5827,11 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
   const workers = await query;
   
   // ✅ FAZ 3: Filter by worker status (available/busy only, not break/inactive)
+  // NOTE: Absence check is done later in the loop using actualStart
   const eligibleWorkers = workers.filter(w => {
     // Worker status filtering
     const status = normalizeWorkerStatus(w);
     if (status === 'inactive' || status === 'break') {
-      return false;
-    }
-    
-    // ✅ FAZ 1A-3: Check if worker is absent on the task start date
-    const taskDate = typeof startTime === 'string' ? startTime : startTime.toISOString().split('T')[0];
-    const absences = typeof w.absences === 'string' ? JSON.parse(w.absences) : (w.absences || []);
-    const workerWithAbsences = { ...w, absences };
-    
-    if (isWorkerAbsent(workerWithAbsences, new Date(taskDate))) {
-      console.log(`⚠️  Worker ${w.name} is absent on ${taskDate}, skipping...`);
       return false;
     }
     
@@ -5788,16 +5845,33 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
   
   // Filter by shift availability AND current schedule conflicts
   for (const worker of eligibleWorkers) {
-    // ✅ CRITICAL: Check if worker is already busy during this time
+    // ✅ CRITICAL: Calculate worker's actual availability
     const workerQueue = workerSchedule.get(worker.id) || [];
-    const proposedEnd = new Date(startTime.getTime() + duration * 60000);
+    const workerAvailableAt = workerQueue.length > 0
+      ? new Date(workerQueue[workerQueue.length - 1].end.getTime() + 1000) // Last task end + 1 second
+      : startTime; // If no queue, use requested start time
     
+    // Use the later of worker availability or requested start time
+    const actualStart = new Date(Math.max(workerAvailableAt.getTime(), startTime.getTime()));
+    const proposedEnd = new Date(actualStart.getTime() + duration * 60000);
+    
+    // ✅ CRITICAL: Check absence on ACTUAL start date, not requested date
+    const actualTaskDate = actualStart.toISOString().split('T')[0];
+    const absences = typeof worker.absences === 'string' ? JSON.parse(worker.absences) : (worker.absences || []);
+    const workerWithAbsences = { ...worker, absences };
+    
+    if (isWorkerAbsent(workerWithAbsences, actualStart)) {
+      console.log(`⚠️  Worker ${worker.name} is absent on ${actualTaskDate} (actual start), skipping...`);
+      continue; // Skip this worker, try next
+    }
+    
+    // Check conflicts using worker's actual start time
     const hasConflict = workerQueue.some(task => {
-      return (startTime < task.end && proposedEnd > task.start);
+      return (actualStart < task.end && proposedEnd > task.start);
     });
     
     if (hasConflict) {
-      console.log(`⚠️  Worker ${worker.name} has schedule conflict, skipping...`);
+      console.log(`⚠️  Worker ${worker.name} has schedule conflict at ${actualStart.toISOString()}, skipping...`);
       continue; // Skip this worker, try next
     }
     
@@ -5806,9 +5880,11 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
       ? JSON.parse(worker.personalSchedule) 
       : worker.personalSchedule;
     
-    const shiftBlocks = getShiftBlocksForDay(schedule, dayOfWeek);
+    // ✅ CRITICAL: Check shift blocks using ACTUAL start time, not requested time
+    const actualDayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][actualStart.getDay()];
+    const shiftBlocks = getShiftBlocksForDay(schedule, actualDayOfWeek);
     
-    if (isWithinShiftBlocks(startTime, duration, shiftBlocks)) {
+    if (isWithinShiftBlocks(actualStart, duration, shiftBlocks)) {
       return worker;
     }
   }
@@ -6022,6 +6098,12 @@ function topologicalSort(nodes, predecessors) {
     }
   }
   
+  // ✅ CRITICAL: Detect dependency cycles
+  if (order.length !== nodes.length) {
+    const missingNodes = nodes.filter(n => !order.includes(n.nodeId)).map(n => n.name);
+    throw new Error(`Dependency cycle detected! Cannot process nodes: ${missingNodes.join(', ')}`);
+  }
+  
   return order;
 }
 
@@ -6101,9 +6183,10 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
     let queuedCount = 0;
     
     // ✅ CRITICAL: Load existing worker assignments to prevent conflicts
+    // Include 'paused' - a paused worker/substation is still occupied!
     const existingAssignments = await trx('mes.worker_assignments')
       .select('workerId', 'substationId', 'expectedStart', 'plannedEnd', 'sequenceNumber')
-      .whereIn('status', ['pending', 'queued', 'in_progress'])
+      .whereIn('status', ['pending', 'queued', 'in_progress', 'paused'])
       .orderBy('expectedStart');
     
     // Populate schedules from existing assignments
@@ -6183,11 +6266,12 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       
       // 5e. Find worker with shift check
       const effectiveDuration = parseFloat(node.effectiveTime) || 0;
+      
       const worker = await findWorkerWithShiftCheck(
         trx,
         requiredSkills,
         substation.stationId,
-        availableAt,
+        availableAt, // Pass substation availability
         effectiveDuration,
         workerSchedule  // ✅ CRITICAL: Pass current schedule to avoid conflicts
       );
@@ -6337,17 +6421,22 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       // ✅ FIXED: Use node.nodeId (VARCHAR) for predecessor lookup
       nodeCompletionTimes.set(node.nodeId, actualEnd);
       
-      // 5k. Reserve substation with worker assignment ID
-      await trx('mes.substations')
-        .where('id', substation.id)
-        .update({
-          status: 'reserved',
-          currentAssignmentId: createdAssignment.id, // ✅ Use worker_assignment.id for consistency
-          assignedWorkerId: worker.id,
-          currentOperation: node.operationId,
-          reservedAt: trx.fn.now(),
-          updatedAt: trx.fn.now()
-        });
+      // 5k. Reserve substation ONLY for pending (first-in-queue) tasks
+      // Queued tasks should NOT reserve the substation until they become pending
+      if (!isQueued) {
+        await trx('mes.substations')
+          .where('id', substation.id)
+          .update({
+            status: 'reserved',
+            currentAssignmentId: createdAssignment.id, // ✅ Use worker_assignment.id for consistency
+            assignedWorkerId: worker.id,
+            currentOperation: node.operationId,
+            reservedAt: trx.fn.now(),
+            updatedAt: trx.fn.now()
+          });
+      } else {
+        console.log(`⏭️  Node "${node.name}" is queued (seq ${sequenceNumber}), substation NOT reserved yet`);
+      }
       
       // 5l. Track for response
       assignments.push({

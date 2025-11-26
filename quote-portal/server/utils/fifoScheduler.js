@@ -27,6 +27,75 @@ import { recordStatusChange } from './statusHistory.js';
 import { generateLotNumber } from './lotGenerator.js';
 
 /**
+ * Apply deferred reservation for a specific substation
+ * Checks for pending assignments waiting for this substation
+ * @param {number} substationId - The substation ID
+ * @returns {Promise<boolean>} - True if reservation was applied
+ */
+export async function applyDeferredReservation(substationId) {
+  try {
+    return await db.transaction(async (trx) => {
+      // Get substation status
+      const substation = await trx('mes.substations')
+        .where('id', substationId)
+        .first();
+      
+      if (!substation) {
+        return false;
+      }
+      
+      // ✅ CRITICAL: Check if substation has an existing owner FIRST
+      // Prevents stealing substations from paused/in_progress tasks
+      if (substation.currentAssignmentId) {
+        const existingOwner = await trx('mes.worker_assignments')
+          .where('id', substation.currentAssignmentId)
+          .whereIn('status', ['in_progress', 'paused'])
+          .first();
+        
+        if (existingOwner) {
+          console.log(`⏸️  [FIFO] Substation ${substationId} still owned by ${existingOwner.status} task ${existingOwner.id}, skipping deferred reservation`);
+          return false; // Substation still owned by active/paused task
+        }
+      }
+      
+      // Now check if available for new reservations
+      if (substation.status !== 'available') {
+        return false; // Not available (in_use or reserved for someone else)
+      }
+      
+      // Find pending assignment waiting for this substation
+      const waitingAssignment = await trx('mes.worker_assignments')
+        .where('substationId', substationId)
+        .where('status', 'pending')
+        .orderBy('expectedStart', 'asc')
+        .first();
+      
+      if (!waitingAssignment) {
+        return false; // No pending assignments
+      }
+      
+      // Reserve substation for the pending assignment
+      await trx('mes.substations')
+        .where('id', substationId)
+        .update({
+          status: 'reserved',
+          currentAssignmentId: waitingAssignment.id,
+          assignedWorkerId: waitingAssignment.workerId,
+          currentOperation: waitingAssignment.operationId,
+          reservedAt: trx.fn.now(),
+          updatedAt: trx.fn.now()
+        });
+      
+      console.log(`🔄 [FIFO] Applied deferred reservation: substation ${substationId} → assignment ${waitingAssignment.id}`);
+      return true;
+    });
+  } catch (error) {
+    console.error(`Error applying deferred reservation for substation ${substationId}:`, error);
+    return false;
+  }
+}
+
+/**
  * Get the next task for a worker using FIFO scheduling
  * 
  * @param {string} workerId - Worker ID (e.g., 'W-001')
@@ -295,6 +364,29 @@ export async function startTask(assignmentId, workerId) {
         .first();
       
       if (assignmentData?.substationId) {
+        // CRITICAL: Verify substation is actually reserved for this assignment
+        // Prevents starting on busy/unreserved substations (deferred reservation case)
+        const substation = await trx('mes.substations')
+          .where('id', assignmentData.substationId)
+          .first();
+        
+        if (!substation) {
+          throw new Error(`Substation ${assignmentData.substationId} not found`);
+        }
+        
+        // Check if substation is available for this assignment
+        const canStart = 
+          substation.status === 'available' ||
+          (substation.status === 'reserved' && substation.currentAssignmentId === assignmentId);
+        
+        if (!canStart) {
+          throw new Error(
+            `Substation ${substation.name} is ${substation.status}` +
+            (substation.currentAssignmentId ? ` (assigned to ${substation.currentAssignmentId})` : '') +
+            `. Cannot start assignment ${assignmentId}.`
+          );
+        }
+        
         await trx('mes.substations')
           .where('id', assignmentData.substationId)
           .update({
@@ -747,23 +839,115 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
           });
         
         console.log(`🔓 [FIFO] Freed substation ${assignment.substationId} after completion`);
+        
+        // ✅ CRITICAL: Check ALL workers' queued tasks for this substation
+        // Promotes first queued task (any worker) to pending + reserves substation
+        const queuedForSubstation = await trx('mes.worker_assignments')
+          .where('substationId', assignment.substationId)
+          .where('status', 'queued')
+          .orderBy('expectedStart', 'asc')
+          .first();
+        
+        if (queuedForSubstation) {
+          // Promote queued → pending
+          await trx('mes.worker_assignments')
+            .where('id', queuedForSubstation.id)
+            .update({ status: 'pending' });
+          
+          // Reserve substation
+          await trx('mes.substations')
+            .where('id', assignment.substationId)
+            .update({
+              status: 'reserved',
+              currentAssignmentId: queuedForSubstation.id,
+              assignedWorkerId: queuedForSubstation.workerId,
+              currentOperation: queuedForSubstation.operationId,
+              reservedAt: trx.fn.now(),
+              updatedAt: trx.fn.now()
+            });
+          
+          console.log(`🎯 [FIFO] Promoted queued task ${queuedForSubstation.id} (worker ${queuedForSubstation.workerId}) for freed substation ${assignment.substationId}`);
+        } else {
+          // No queued tasks, check if any pending assignments waiting
+          const waitingPending = await trx('mes.worker_assignments')
+            .where('substationId', assignment.substationId)
+            .where('status', 'pending')
+            .orderBy('expectedStart', 'asc')
+            .first();
+          
+          if (waitingPending) {
+            await trx('mes.substations')
+              .where('id', assignment.substationId)
+              .update({
+                status: 'reserved',
+                currentAssignmentId: waitingPending.id,
+                assignedWorkerId: waitingPending.workerId,
+                currentOperation: waitingPending.operationId,
+                reservedAt: trx.fn.now(),
+                updatedAt: trx.fn.now()
+              });
+            
+            console.log(`🔄 [FIFO] Reserved for pending task ${waitingPending.id} on freed substation ${assignment.substationId}`);
+          }
+        }
       }
       
-      // ✅ FIFO: Activate next queued task for this worker AND substation
-      // Only activate tasks for the same substation to maintain FIFO per station
-      const nextQueued = await trx('mes.worker_assignments')
+      // ✅ FIFO: Activate next queued task for this worker (across all substations)
+      // Prefer same plan, but fallback to other plans if current plan is done
+      let nextQueued = await trx('mes.worker_assignments')
         .where('workerId', assignment.workerId)
-        .where('substationId', assignment.substationId) // ✅ FIX: Same substation only
+        .where('planId', assignment.planId) // Try same plan first
         .where('status', 'queued')
         .orderBy('sequenceNumber', 'asc')
         .first();
       
-      if (nextQueued) {
-        await trx('mes.worker_assignments')
-          .where('id', nextQueued.id)
-          .update({ status: 'pending' });
+      // ✅ FALLBACK: If no queued tasks in current plan, check other plans
+      if (!nextQueued) {
+        nextQueued = await trx('mes.worker_assignments')
+          .where('workerId', assignment.workerId)
+          .where('status', 'queued')
+          .orderBy('expectedStart', 'asc') // Use expected start time for cross-plan priority
+          .first();
         
-        console.log(`🔄 [FIFO] Activated next queued task: ${nextQueued.id} (worker ${assignment.workerId}, substation ${assignment.substationId}, seq ${nextQueued.sequenceNumber})`);
+        if (nextQueued) {
+          console.log(`🔀 [FIFO] No queued tasks in plan ${assignment.planId}, promoting from plan ${nextQueued.planId}`);
+        }
+      }
+      
+      if (nextQueued) {
+        // ✅ CRITICAL: Reserve substation ONLY if it's truly free
+        // Don't steal substations reserved for other assignments
+        const substation = await trx('mes.substations')
+          .where('id', nextQueued.substationId)
+          .first();
+        
+        const canReserve = substation && (
+          substation.status === 'available' || 
+          (substation.status === 'reserved' && substation.currentAssignmentId === nextQueued.id)
+        );
+        
+        if (canReserve) {
+          // Safe to reserve AND promote (only when reservation succeeds)
+          await trx('mes.worker_assignments')
+            .where('id', nextQueued.id)
+            .update({ status: 'pending' });
+          
+          await trx('mes.substations')
+            .where('id', nextQueued.substationId)
+            .update({
+              status: 'reserved',
+              currentAssignmentId: nextQueued.id,
+              assignedWorkerId: nextQueued.workerId,
+              currentOperation: nextQueued.operationId,
+              reservedAt: trx.fn.now(),
+              updatedAt: trx.fn.now()
+            });
+          
+          console.log(`🔒 [FIFO] Substation ${nextQueued.substationId} reserved for assignment ${nextQueued.id}`);
+          console.log(`🔄 [FIFO] Activated next queued task: ${nextQueued.id} (worker ${nextQueued.workerId}, substation ${nextQueued.substationId}, seq ${nextQueued.sequenceNumber})`);
+        } else {
+          console.log(`⏳ [FIFO] Next queued task (assignment ${nextQueued.id}) stays queued - substation ${nextQueued.substationId} not available (${substation?.status})`);
+        }
       }
       
       // Record status change in history
