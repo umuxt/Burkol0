@@ -542,18 +542,19 @@ export async function releaseMaterialReservations(assignmentId) {
           notes: `Released reservation for cancelled assignment ${assignmentId}`
         });
 
+        // ✅ BUG FIX #3: Use camelCase field names
         // Update material aggregates
         await trx('materials.materials')
           .where('code', res.materialCode)
           .update({
-            stock: trx.raw('stock + ?', [res.actual_reserved_qty])
+            stock: trx.raw('stock + ?', [res.actualReservedQty])
           });
 
         // Update reservation status
         await trx('mes.assignment_material_reservations')
           .where('id', res.id)
           .update({
-            reservation_status: 'released'
+            reservationStatus: 'released'
           });
       }
 

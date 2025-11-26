@@ -1,6 +1,6 @@
 import express from 'express';
 import db from '../db/connection.js';
-import { getSession } from './auth.js'
+import { getSession } from './auth.js';
 import WorkOrders from '../db/models/workOrders.js';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
@@ -25,10 +25,10 @@ import {
 } from './utils/sseStream.js';
 import { recordStatusChange } from './utils/statusHistory.js';
 
-const require = createRequire(import.meta.url);
-const planSchema = require('./models/ProductionPlanSchema.json');
-const assignmentSchema = require('./models/AssignmentSchema.json');
-const featureFlags = require('../config/featureFlags.cjs');
+const requireModule = createRequire(import.meta.url);
+const planSchema = requireModule('./models/ProductionPlanSchema.json');
+const assignmentSchema = requireModule('./models/AssignmentSchema.json');
+const featureFlags = requireModule('../config/featureFlags.cjs');
 
 const ajv = new Ajv({ allErrors: true });
 addFormats(ajv);
@@ -579,7 +579,7 @@ router.get('/workers/:id/assignments', withAuth, async (req, res) => {
     
     // Filter by status if provided
     if (status === 'active') {
-      query = query.whereIn('status', ['pending', 'ready', 'in-progress']);
+      query = query.whereIn('status', ['pending', 'ready', 'in_progress']);
     } else if (status) {
       query = query.where('status', status);
     }
@@ -1677,10 +1677,11 @@ router.post('/templates', withAuth, async (req, res) => {
         idMapping[frontendId] = backendNodeId;
       });
       
-      for (const node of processedNodes) {
+      for (let nodeIndex = 0; nodeIndex < processedNodes.length; nodeIndex++) {
+        const node = processedNodes[nodeIndex];
         // Get frontend ID and calculate backend nodeId (same logic as idMapping)
         const frontendId = node.id || node.nodeId;
-        const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || 0;
+        const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (nodeIndex + 1);
         const stringNodeId = `${planId}-node-${numericPart}`;
         
         // Insert node
@@ -2657,7 +2658,7 @@ router.get('/substations/:id/details', withAuth, async (req, res) => {
     // Get current assignment if exists
     let currentTask = null;
     if (substation.currentAssignmentId) {
-      const assignment = await db('mes.workerAssignments')
+      const assignment = await db('mes.worker_assignments')
         .select('*')
         .where({ id: substation.currentAssignmentId })
         .first();
@@ -2920,6 +2921,7 @@ async function getDefaultWorkSchedule(trx, dayName, shiftNo = '1') {
     if (timeSettings.workType === 'fixed') {
       // Fixed schedule: same for all workers
       const blocks = timeSettings.fixedBlocks?.[dayName] || [];
+      console.log(`🔍 DEBUG: dayName="${dayName}", available days:`, Object.keys(timeSettings.fixedBlocks || {}));
       console.log(`📅 Fixed schedule for ${dayName}: ${blocks.length} blocks`);
       return blocks;
     } else if (timeSettings.workType === 'shift') {
@@ -5192,14 +5194,16 @@ router.post('/production-plans', withAuth, async (req, res) => {
       idMapping[frontendId] = backendNodeId;
     });
     
-    for (const node of nodes) {
-      // Get frontend ID and calculate backend nodeId (consistent with templates)
+    // Step 1: Insert all nodes first
+    for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+      const node = nodes[nodeIndex];
+      // Get frontend ID and calculate backend nodeId (consistent with idMapping)
       const frontendId = node.id || node.nodeId;
-      const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || 0;
+      const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (nodeIndex + 1);
       const stringNodeId = `${planId}-node-${numericPart}`;
       
       // 3a. Insert node
-      const [nodeRecord] = await trx('mes.production_plan_nodes')
+      await trx('mes.production_plan_nodes')
         .insert({
           planId: planId,
           nodeId: stringNodeId,
@@ -5217,10 +5221,7 @@ router.post('/production-plans', withAuth, async (req, res) => {
           x: node.x || 80,
           y: node.y || 80,
           createdAt: trx.fn.now()
-        })
-        .returning('id');
-      
-      const dbNodeId = nodeRecord.id;  // Integer ID for internal use
+        });
       
       // 3b. Insert material inputs
       if (node.materialInputs && node.materialInputs.length > 0) {
@@ -5247,16 +5248,22 @@ router.post('/production-plans', withAuth, async (req, res) => {
         
         await trx('mes.node_stations').insert(stationAssignments);
       }
+    }
+    
+    // Step 2: Insert all predecessors AFTER all nodes exist
+    for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+      const node = nodes[nodeIndex];
+      const frontendId = node.id || node.nodeId;
+      const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (nodeIndex + 1);
+      const stringNodeId = `${planId}-node-${numericPart}`;
       
-      // 3d. Insert predecessors
       if (node.predecessors && Array.isArray(node.predecessors) && node.predecessors.length > 0) {
-        // Use the same stringNodeId calculated above
         const predecessorRecords = node.predecessors
           .map(predId => {
             // Map frontend ID to backend nodeId format
             const backendPredId = idMapping[predId] || predId;
             return {
-              nodeId: stringNodeId,  // Use stringNodeId from above
+              nodeId: stringNodeId,
               predecessorNodeId: backendPredId,
               createdAt: trx.fn.now()
             };
@@ -5437,9 +5444,10 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
         idMapping[frontendId] = backendNodeId;
       });
       
-      for (const node of processedNodes) {
+      for (let nodeIndex = 0; nodeIndex < processedNodes.length; nodeIndex++) {
+        const node = processedNodes[nodeIndex];
         const frontendId = node.id || node.nodeId;
-        const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || 0;
+        const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (nodeIndex + 1);
         const stringNodeId = `${id}-node-${numericPart}`;
         
         await trx('mes.production_plan_nodes').insert({
@@ -5736,7 +5744,7 @@ function isWithinShiftBlocks(startTime, durationMinutes, shiftBlocks) {
  * Find worker with skill check and shift availability
  * ✅ FAZ 3: Added worker status filtering
  */
-async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTime, duration) {
+async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTime, duration, workerSchedule = new Map()) {
   const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][startTime.getDay()];
   
   // Get workers with matching skills (or all if no skills required)
@@ -5778,8 +5786,21 @@ async function findWorkerWithShiftCheck(trx, requiredSkills, stationId, startTim
     return null;
   }
   
-  // Filter by shift availability
+  // Filter by shift availability AND current schedule conflicts
   for (const worker of eligibleWorkers) {
+    // ✅ CRITICAL: Check if worker is already busy during this time
+    const workerQueue = workerSchedule.get(worker.id) || [];
+    const proposedEnd = new Date(startTime.getTime() + duration * 60000);
+    
+    const hasConflict = workerQueue.some(task => {
+      return (startTime < task.end && proposedEnd > task.start);
+    });
+    
+    if (hasConflict) {
+      console.log(`⚠️  Worker ${worker.name} has schedule conflict, skipping...`);
+      continue; // Skip this worker, try next
+    }
+    
     // Parse personalSchedule if it's a string (safety check)
     const schedule = typeof worker.personalSchedule === 'string' 
       ? JSON.parse(worker.personalSchedule) 
@@ -6072,12 +6093,40 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
     // ✅ FAZ 3: Material validation (non-blocking warnings)
     const materialWarnings = await validateMaterialsForLaunch(trx, id, nodes, predecessors);
     
-    // 4. Initialize tracking maps
+    // 4. Initialize tracking maps from existing assignments
     const workerSchedule = new Map();      // workerId → [{ start, end, seq }]
     const substationSchedule = new Map();  // substationId → [{ start, end }]
     const nodeCompletionTimes = new Map(); // nodeId → estimatedEnd
     const assignments = [];
     let queuedCount = 0;
+    
+    // ✅ CRITICAL: Load existing worker assignments to prevent conflicts
+    const existingAssignments = await trx('mes.worker_assignments')
+      .select('workerId', 'substationId', 'expectedStart', 'plannedEnd', 'sequenceNumber')
+      .whereIn('status', ['pending', 'queued', 'in_progress'])
+      .orderBy('expectedStart');
+    
+    // Populate schedules from existing assignments
+    existingAssignments.forEach(a => {
+      // Worker schedule
+      const workerQueue = workerSchedule.get(a.workerId) || [];
+      workerQueue.push({ 
+        start: new Date(a.expectedStart), 
+        end: new Date(a.plannedEnd), 
+        sequenceNumber: a.sequenceNumber 
+      });
+      workerSchedule.set(a.workerId, workerQueue);
+      
+      // Substation schedule
+      const subSchedule = substationSchedule.get(a.substationId) || [];
+      subSchedule.push({ 
+        start: new Date(a.expectedStart), 
+        end: new Date(a.plannedEnd) 
+      });
+      substationSchedule.set(a.substationId, subSchedule);
+    });
+    
+    console.log(`📋 Loaded ${existingAssignments.length} existing assignments into schedule maps`);
     
     // 5. Process nodes in topological order
     for (const nodeId of executionOrder) {
@@ -6139,7 +6188,8 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         requiredSkills,
         substation.stationId,
         availableAt,
-        effectiveDuration
+        effectiveDuration,
+        workerSchedule  // ✅ CRITICAL: Pass current schedule to avoid conflicts
       );
       
       if (!worker) {
@@ -6154,22 +6204,27 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         throw new Error(`"${node.name}" işi için yetenek uyuşması sağlanan personel bulunamadı\n\nGerekli yetenekler: ${skillNames}`);
       }
       
-      // 5f. Calculate worker queue position
+      // 5f. Calculate worker queue position (worker-specific sequence)
       const workerQueue = workerSchedule.get(worker.id) || [];
+      // sequenceNumber is per-worker, not global
       const sequenceNumber = workerQueue.length + 1;
       
+      console.log('[LAUNCH] Node "' + node.name + '" - Worker ' + worker.name + ': Sequence=' + sequenceNumber + ', Queue=' + workerQueue.length + ', LastEnd=' + (workerQueue.length > 0 ? workerQueue[workerQueue.length - 1].end.toISOString() : 'N/A') + ', SubAvail=' + availableAt.toISOString());
+      
       // 5g. Determine actual start (max of worker and substation)
-      const workerAvailableAt = workerQueue.length > 0
-        ? workerQueue[workerQueue.length - 1].end
+      let workerAvailableAt = workerQueue.length > 0
+        ? new Date(workerQueue[workerQueue.length - 1].end.getTime() + 1000) // Add 1 second gap
         : availableAt;
       
-      let actualStart = new Date(Math.max(
+      // ⚠️ CRITICAL FIX: First determine the earliest possible start (considering worker + substation)
+      let earliestPossibleStart = new Date(Math.max(
         workerAvailableAt.getTime(),
         availableAt.getTime()
       ));
       
       // ✅ FAZ 3: Adjust start time for worker schedule (avoid breaks)
-      const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][actualStart.getDay()];
+      // BUT: Only adjust if it doesn't conflict with worker availability
+      const dayOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][earliestPossibleStart.getDay()];
       
       // Parse worker's personal schedule safely
       const personalSchedule = typeof worker.personalSchedule === 'string'
@@ -6178,16 +6233,27 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       
       const scheduleBlocks = getShiftBlocksForDay(personalSchedule, dayOfWeek);
       
+      let actualStart;
       if (scheduleBlocks.length === 0) {
         // ✅ FAZ 1A-1: Worker has no personal schedule, fetch from master-data (async)
         const shiftNo = personalSchedule?.shiftNo || '1';
         const defaultBlocks = await getDefaultWorkSchedule(trx, dayOfWeek, shiftNo);
         if (defaultBlocks.length > 0) {
-          actualStart = adjustStartTimeForSchedule(actualStart, defaultBlocks);
+          actualStart = adjustStartTimeForSchedule(earliestPossibleStart, defaultBlocks);
+        } else {
+          actualStart = earliestPossibleStart;
         }
       } else {
-        actualStart = adjustStartTimeForSchedule(actualStart, scheduleBlocks);
+        actualStart = adjustStartTimeForSchedule(earliestPossibleStart, scheduleBlocks);
       }
+      
+      // ⚠️ CRITICAL: If schedule adjustment moved start BEFORE worker is available, override it
+      if (actualStart < workerAvailableAt) {
+        console.warn('[LAUNCH] Schedule conflict: Worker not available until ' + workerAvailableAt.toISOString() + ', but schedule suggests ' + actualStart.toISOString() + '. Using worker availability.');
+        actualStart = new Date(workerAvailableAt);
+      }
+      
+      console.log('[LAUNCH] Node "' + node.name + '" - Timing: Earliest=' + earliestPossibleStart.toISOString() + ', Adjusted=' + actualStart.toISOString() + ', WorkerAvail=' + workerAvailableAt.toISOString() + ', SubAvail=' + availableAt.toISOString());
       
       // ✅ FAZ 2: Check if actualStart is a holiday, reschedule to next working day
       if (await isHoliday(trx, actualStart)) {
@@ -6221,32 +6287,34 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       );
       const plannedOutput = calculatePlannedOutput(node, planQuantity);
       
-      // 5i. Create worker assignment
+      // 5i. Create worker assignment and get its ID
       // ✅ FIXED: nodeId is INTEGER foreign key to production_plan_nodes.id (NOT nodeId VARCHAR!)
-      await trx('mes.worker_assignments').insert({
-        planId: id,
-        workOrderCode: plan.workOrderCode,
-        nodeId: node.id, // INTEGER foreign key to production_plan_nodes.id
-        workerId: worker.id,
-        substationId: substation.id,
-        operationId: node.operationId,
-        status: isQueued ? 'queued' : 'pending',
-        nominalTime: parseInt(node.nominalTime) || null,
-        effectiveTime: parseInt(node.effectiveTime) || null,
-        expectedStart: actualStart,
-        plannedEnd: actualEnd,
-        estimatedStartTime: actualStart,
-        estimatedEndTime: actualEnd,
-        sequenceNumber: sequenceNumber,
-        preProductionReservedAmount: Object.keys(preProductionReservedAmount).length > 0 
-          ? JSON.stringify(preProductionReservedAmount) 
-          : null,
-        plannedOutput: Object.keys(plannedOutput).length > 0 
-          ? JSON.stringify(plannedOutput) 
-          : null,
-        materialReservationStatus: 'pending',
-        createdAt: trx.fn.now()
-      });
+      const [createdAssignment] = await trx('mes.worker_assignments')
+        .insert({
+          planId: id,
+          workOrderCode: plan.workOrderCode,
+          nodeId: node.id, // INTEGER foreign key to production_plan_nodes.id
+          workerId: worker.id,
+          substationId: substation.id,
+          operationId: node.operationId,
+          status: isQueued ? 'queued' : 'pending',
+          nominalTime: parseInt(node.nominalTime) || null,
+          effectiveTime: parseInt(node.effectiveTime) || null,
+          expectedStart: actualStart,
+          plannedEnd: actualEnd,
+          estimatedStartTime: actualStart,
+          estimatedEndTime: actualEnd,
+          sequenceNumber: sequenceNumber,
+          preProductionReservedAmount: Object.keys(preProductionReservedAmount).length > 0 
+            ? JSON.stringify(preProductionReservedAmount) 
+            : null,
+          plannedOutput: Object.keys(plannedOutput).length > 0 
+            ? JSON.stringify(plannedOutput) 
+            : null,
+          materialReservationStatus: 'pending',
+          createdAt: trx.fn.now()
+        })
+        .returning('id'); // ✅ Get the assignment ID
       
       // 5i. Update node
       await trx('mes.production_plan_nodes')
@@ -6269,12 +6337,12 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       // ✅ FIXED: Use node.nodeId (VARCHAR) for predecessor lookup
       nodeCompletionTimes.set(node.nodeId, actualEnd);
       
-      // 5k. Reserve substation
+      // 5k. Reserve substation with worker assignment ID
       await trx('mes.substations')
         .where('id', substation.id)
         .update({
           status: 'reserved',
-          currentAssignmentId: node.id, // ✅ FIXED: INTEGER (production_plan_nodes.id)
+          currentAssignmentId: createdAssignment.id, // ✅ Use worker_assignment.id for consistency
           assignedWorkerId: worker.id,
           currentOperation: node.operationId,
           reservedAt: trx.fn.now(),

@@ -289,6 +289,23 @@ export async function startTask(assignmentId, workerId) {
         }
       }
 
+      // ✅ BUG FIX #2: Release substation from reserved state
+      const assignmentData = await trx('mes.worker_assignments')
+        .where('id', assignmentId)
+        .first();
+      
+      if (assignmentData?.substationId) {
+        await trx('mes.substations')
+          .where('id', assignmentData.substationId)
+          .update({
+            status: 'in_use',
+            currentAssignmentId: assignmentId,
+            updatedAt: trx.fn.now()
+          });
+        
+        console.log(`🔓 [FIFO] Released substation ${assignmentData.substationId} for use`);
+      }
+      
       // Update assignment to in_progress
       const [updated] = await trx('mes.worker_assignments')
         .where('id', assignmentId)
@@ -482,7 +499,10 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
           
           console.log(`  📦 LOT ${reservation.lotNumber}: Reserved=${reserved.toFixed(2)}, Consumed=${lotConsumed.toFixed(2)}, Delta=${delta > 0 ? '+' : ''}${delta.toFixed(2)}`);
           
-          materialsConsumed++;
+          // ✅ BUG FIX: Only count if actual consumption happened
+          if (lotConsumed > 0) {
+            materialsConsumed++;
+          }
           
           adjustments.push({
             materialCode,
@@ -497,14 +517,17 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
               ratio
             }
           });
-        
-        console.log(`📊 [FIFO] ${materialCode}: Reserved=${reserved}, Consumed=${totalConsumed}, Delta=${delta > 0 ? '+' : ''}${delta}`);
+        }
+
+        const materialDelta = totalReserved - totalConsumed;
+        const deltaSign = materialDelta > 0 ? '+' : '';
+        console.log(`📊 [FIFO] ${materialCode}: Reserved=${totalReserved}, Consumed=${totalConsumed}, Delta=${materialDelta === 0 ? 0 : `${deltaSign}${materialDelta}`}`);
         
         // STEP 5: Stock adjustment based on delta
-        if (delta !== 0) {
-          const absDelta = Math.abs(delta);
+        if (materialDelta !== 0) {
+          const absDelta = Math.abs(materialDelta);
           
-          if (delta > 0) {
+          if (materialDelta > 0) {
             // Over-reserved: Return excess to stock
             // Get current stock for this material
             const material = await trx('materials.materials')
@@ -529,7 +552,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
               relatedPlanId: node.planId,
               relatedNodeId: node.nodeId,
               nodeSequence: assignment.sequenceNumber,
-              notes: `Fazla rezervasyon iadesi - Reserved: ${reserved}, Consumed: ${totalConsumed}`
+              notes: `Fazla rezervasyon iadesi - Reserved: ${totalReserved}, Consumed: ${totalConsumed}`
             });
             
             // Update material stock
@@ -568,7 +591,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
               relatedPlanId: node.planId,
               relatedNodeId: node.nodeId,
               nodeSequence: assignment.sequenceNumber,
-              notes: `Eksik rezervasyon tamamlama - Reserved: ${reserved}, Consumed: ${totalConsumed}`
+              notes: `Eksik rezervasyon tamamlama - Reserved: ${totalReserved}, Consumed: ${totalConsumed}`
             });
             
             // Update material stock
@@ -710,6 +733,38 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
           notes: completionData.notes || null
         })
         .returning('*');
+      
+      // ✅ BUG FIX #2: Free substation after task completion
+      if (assignment.substationId) {
+        await trx('mes.substations')
+          .where('id', assignment.substationId)
+          .update({
+            status: 'available',
+            currentAssignmentId: null,
+            assignedWorkerId: null,
+            currentOperation: null,
+            updatedAt: trx.fn.now()
+          });
+        
+        console.log(`🔓 [FIFO] Freed substation ${assignment.substationId} after completion`);
+      }
+      
+      // ✅ FIFO: Activate next queued task for this worker AND substation
+      // Only activate tasks for the same substation to maintain FIFO per station
+      const nextQueued = await trx('mes.worker_assignments')
+        .where('workerId', assignment.workerId)
+        .where('substationId', assignment.substationId) // ✅ FIX: Same substation only
+        .where('status', 'queued')
+        .orderBy('sequenceNumber', 'asc')
+        .first();
+      
+      if (nextQueued) {
+        await trx('mes.worker_assignments')
+          .where('id', nextQueued.id)
+          .update({ status: 'pending' });
+        
+        console.log(`🔄 [FIFO] Activated next queued task: ${nextQueued.id} (worker ${assignment.workerId}, substation ${assignment.substationId}, seq ${nextQueued.sequenceNumber})`);
+      }
       
       // Record status change in history
       await recordStatusChange(
