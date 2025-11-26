@@ -2896,11 +2896,14 @@ function adjustStartTimeForSchedule(startTime, scheduleBlocks) {
   const timeInMinutes = hour * 60 + minute;
   
   // Find if current time is within a work block
+  // ✅ FIX: Handle both 'start'/'end' and 'startTime'/'endTime' formats
   for (const block of scheduleBlocks) {
-    if (block.type !== 'work' || !block.start || !block.end) continue;
+    const startStr = block.start || block.startTime;
+    const endStr = block.end || block.endTime;
+    if (block.type !== 'work' || !startStr || !endStr) continue;
     
-    const [startHour, startMin] = block.start.split(':').map(Number);
-    const [endHour, endMin] = block.end.split(':').map(Number);
+    const [startHour, startMin] = startStr.split(':').map(Number);
+    const [endHour, endMin] = endStr.split(':').map(Number);
     const blockStart = startHour * 60 + startMin;
     const blockEnd = endHour * 60 + endMin;
     
@@ -2911,10 +2914,12 @@ function adjustStartTimeForSchedule(startTime, scheduleBlocks) {
   }
   
   // Not in a work block - find next work block
+  // ✅ FIX: Handle both 'start'/'end' and 'startTime'/'endTime' formats
   const workBlocks = scheduleBlocks
-    .filter(b => b.type === 'work' && b.start && b.end)
+    .filter(b => b.type === 'work' && (b.start || b.startTime) && (b.end || b.endTime))
     .map(b => {
-      const [startHour, startMin] = b.start.split(':').map(Number);
+      const startStr = b.start || b.startTime;
+      const [startHour, startMin] = startStr.split(':').map(Number);
       return {
         startMinutes: startHour * 60 + startMin,
         startHour,
@@ -3259,11 +3264,14 @@ async function calculateEndTimeWithBreaks(trx, startTime, durationInMinutes, wor
     }
     
     // Get work blocks sorted by start time
+    // ✅ FIX: Handle both 'start'/'end' and 'startTime'/'endTime' formats
     const workBlocks = scheduleBlocks
-      .filter(b => b.type === 'work' && b.start && b.end)
+      .filter(b => b.type === 'work' && (b.start || b.startTime) && (b.end || b.endTime))
       .map(b => {
-        const [startHour, startMin] = b.start.split(':').map(Number);
-        const [endHour, endMin] = b.end.split(':').map(Number);
+        const startStr = b.start || b.startTime;
+        const endStr = b.end || b.endTime;
+        const [startHour, startMin] = startStr.split(':').map(Number);
+        const [endHour, endMin] = endStr.split(':').map(Number);
         return {
           startHour,
           startMin,

@@ -330,8 +330,32 @@ export async function startTask(assignmentId, workerId) {
       throw new Error(`Assignment ${assignmentId} is not in pending/ready state (current: ${assignment.status})`);
     }
 
-    // Get material requirements for this node
-    const materialRequirements = await getMaterialRequirements(assignment.nodeId, assignment.planId);
+    // ✅ Get both preProductionReservedAmount (with defect buffer) AND base requirements
+    const preProductionReservedAmount = assignment.preProductionReservedAmount || {};
+    
+    // Get base material requirements from node_material_inputs (without defect buffer)
+    const baseRequirements = await getMaterialRequirements(assignment.nodeId, assignment.planId);
+    const baseRequirementsMap = {};
+    baseRequirements.forEach(m => {
+      baseRequirementsMap[m.materialCode] = parseFloat(m.requiredQty) || 0;
+    });
+    
+    // Build material requirements with fallback logic
+    const materialRequirements = [];
+    
+    for (const [materialCode, reserveQty] of Object.entries(preProductionReservedAmount)) {
+      const reserveAmount = parseFloat(reserveQty) || 0;
+      const baseAmount = baseRequirementsMap[materialCode] || reserveAmount; // Fallback to reserve if no base
+      
+      if (reserveAmount > 0) {
+        materialRequirements.push({
+          materialCode,
+          requiredQty: reserveAmount,          // Primary: with defect buffer (e.g., 102)
+          fallbackQty: baseAmount,             // Fallback: base production requirement (e.g., 100)
+          useFallback: false                   // Will be set true if primary fails
+        });
+      }
+    }
 
     // Start a transaction for atomic operation
     const result = await db.transaction(async (trx) => {
@@ -345,17 +369,18 @@ export async function startTask(assignmentId, workerId) {
       if (materialRequirements.length > 0) {
         console.log(`📦 [FIFO] Reserving ${materialRequirements.length} materials for assignment ${assignmentIdInt}`);
         
-        reservationResult = await reserveMaterialsWithLotTracking(
+        // ✅ SMART FALLBACK: Try with defect buffer first, fallback to base if insufficient
+        reservationResult = await reserveMaterialsWithFallback(
           assignmentIdInt,
           materialRequirements,
-          trx // Pass transaction for atomicity
+          trx
         );
 
         if (!reservationResult.success) {
           throw new Error(`Material reservation failed: ${reservationResult.error}`);
         }
 
-        console.log(`✅ [FIFO] Reserved materials with ${reservationResult.reservations.length} lot(s)`);
+        console.log(`✅ [FIFO] Reserved materials with ${reservationResult.reservations.length} reservation(s)`);
         
         if (reservationResult.warnings.length > 0) {
           console.warn(`⚠️  [FIFO] Warnings:`, reservationResult.warnings);
@@ -1091,6 +1116,100 @@ async function getMaterialRequirements(nodeId, planId) {
     // Return empty array on error (task can still start without materials)
     return [];
   }
+}
+
+/**
+ * Reserve materials with smart fallback logic
+ * 
+ * Tries to reserve preProductionReservedAmount (with defect buffer) first.
+ * If stock is insufficient for that but sufficient for base production,
+ * falls back to reserving only the base amount.
+ * 
+ * Example:
+ * - preProductionReservedAmount: 102 (with 2% defect buffer)
+ * - baseRequirement: 100 (actual production need)
+ * - Stock: 101
+ * - Result: Reserve 100 (fallback), production can proceed
+ * 
+ * @param {number} assignmentId - Worker assignment ID
+ * @param {Array} materialRequirements - Array of { materialCode, requiredQty, fallbackQty }
+ * @param {Object} trx - Knex transaction
+ * @returns {Promise<Object>} Reservation result
+ */
+async function reserveMaterialsWithFallback(assignmentId, materialRequirements, trx) {
+  const reservations = [];
+  const warnings = [];
+  
+  for (const req of materialRequirements) {
+    const { materialCode, requiredQty, fallbackQty } = req;
+    
+    // Get current stock for this material
+    const material = await (trx || db)('materials.materials')
+      .where('code', materialCode)
+      .first();
+    
+    const currentStock = parseFloat(material?.stock) || 0;
+    
+    console.log(`📦 [FALLBACK] Material ${materialCode}: Stock=${currentStock}, Required=${requiredQty}, Fallback=${fallbackQty}`);
+    
+    let qtyToReserve = requiredQty;
+    let usedFallback = false;
+    
+    // Check if we need fallback
+    if (currentStock < requiredQty && currentStock >= fallbackQty) {
+      // Stock insufficient for full reserve (with defect buffer)
+      // But sufficient for base production requirement
+      qtyToReserve = fallbackQty;
+      usedFallback = true;
+      
+      console.log(`⚠️  [FALLBACK] Using fallback for ${materialCode}: ${requiredQty} → ${fallbackQty}`);
+      warnings.push({
+        materialCode,
+        message: `Stok yetersiz (${currentStock}), fire payı olmadan devam ediliyor. İstenen: ${requiredQty}, Rezerve: ${fallbackQty}`,
+        originalQty: requiredQty,
+        fallbackQty: fallbackQty,
+        availableStock: currentStock
+      });
+    } else if (currentStock < fallbackQty) {
+      // Stock insufficient even for base production - this is a real problem
+      console.error(`❌ [FALLBACK] Insufficient stock for ${materialCode}: Stock=${currentStock}, MinRequired=${fallbackQty}`);
+      warnings.push({
+        materialCode,
+        message: `Kritik stok yetersizliği! Stok: ${currentStock}, Minimum gereken: ${fallbackQty}`,
+        originalQty: requiredQty,
+        fallbackQty: fallbackQty,
+        availableStock: currentStock,
+        critical: true
+      });
+      // Continue with partial reservation (let reserveMaterialsWithLotTracking handle it)
+      qtyToReserve = currentStock > 0 ? Math.min(currentStock, fallbackQty) : fallbackQty;
+    }
+    
+    // Now reserve the determined quantity
+    const singleReservation = await reserveMaterialsWithLotTracking(
+      assignmentId,
+      [{ materialCode, requiredQty: qtyToReserve }],
+      trx
+    );
+    
+    if (singleReservation.success && singleReservation.reservations.length > 0) {
+      const resData = singleReservation.reservations[0];
+      resData.usedFallback = usedFallback;
+      resData.originalRequiredQty = requiredQty;
+      reservations.push(resData);
+    }
+    
+    // Merge warnings from lot tracking
+    if (singleReservation.warnings) {
+      warnings.push(...singleReservation.warnings);
+    }
+  }
+  
+  return {
+    success: true,
+    reservations,
+    warnings
+  };
 }
 
 // Export all functions

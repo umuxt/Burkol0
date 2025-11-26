@@ -1112,6 +1112,10 @@ export default function MaterialDetailsPanel({
                             typeLabel = 'WIP';
                             typeColor = '#3b82f6';
                             break;
+                          case 'realized_consumption':
+                            typeLabel = 'Sarf';
+                            typeColor = '#1e293b';
+                            break;
                           case 'adjustment_in':
                             typeLabel = 'Ayarlama (+)';
                             typeColor = '#8b5cf6';

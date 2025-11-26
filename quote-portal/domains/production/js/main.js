@@ -200,11 +200,11 @@ async function saveTimeManagement() {
     const laneCount = laneInput ? parseInt(laneInput.value || '1', 10) || 1 : 1;
     const workType = laneCount > 1 ? 'shift' : 'fixed';
 
-    // Collect blocks from fixed schedule
-    const fixedBlocks = {};
-    ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].forEach(day => {
-      const col = document.getElementById(`timeline-${day}`);
-      const blocks = col ? Array.from(col.querySelectorAll('[data-block-info]')).map(el => {
+    // Helper to collect blocks from timeline elements
+    const collectBlocksFromTimeline = (dayId) => {
+      const col = document.getElementById(`timeline-${dayId}`);
+      if (!col) return [];
+      return Array.from(col.querySelectorAll('[data-block-info]')).map(el => {
         try { 
           const block = JSON.parse(el.dataset.blockInfo);
           // Migrate legacy block types: rest/Dinlenme -> break
@@ -213,26 +213,29 @@ async function saveTimeManagement() {
           }
           return block;
         } catch { return null }
-      }).filter(Boolean) : [];
-      fixedBlocks[day] = blocks;
-    });
+      }).filter(Boolean);
+    };
 
-    // Collect blocks from shift schedule
+    // Note: UI renders single timeline with 'shift-' prefix (e.g., timeline-shift-monday)
+    // We collect from shift-prefixed IDs and populate BOTH fixedBlocks and shiftBlocks
+    // for backward compatibility with different consumption patterns
+    
+    const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+    
+    // Collect blocks from the actual rendered timeline (shift-prefixed)
+    const fixedBlocks = {};
     const shiftBlocks = {};
-    ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].forEach(day => {
-      const key = `shift-${day}`;
-      const col = document.getElementById(`timeline-${key}`);
-      const blocks = col ? Array.from(col.querySelectorAll('[data-block-info]')).map(el => {
-        try { 
-          const block = JSON.parse(el.dataset.blockInfo);
-          // Migrate legacy block types: rest/Dinlenme -> break
-          if (block && (block.type === 'rest' || block.type === 'Dinlenme' || block.type === 'dinlenme')) {
-            block.type = 'break';
-          }
-          return block;
-        } catch { return null }
-      }).filter(Boolean) : [];
-      shiftBlocks[key] = blocks;
+    
+    days.forEach(day => {
+      const shiftKey = `shift-${day}`;
+      // Timeline elements are rendered with shift- prefix
+      const blocks = collectBlocksFromTimeline(shiftKey);
+      
+      // Populate both structures for compatibility
+      fixedBlocks[day] = blocks;
+      shiftBlocks[shiftKey] = blocks;
+      
+      console.log(`[saveTimeManagement] ${day}: found ${blocks.length} blocks`);
     });
 
     // Build split-by-lane structure for shift (easier consumption: Pazartesi 1, Pazartesi 2, ...)
@@ -449,9 +452,22 @@ function timelinesEqual(snapA, snapB) {
 // Populate Settings timeline from saved company time settings (master-data)
 async function applyCompanyTimeSettingsToUI() {
   try {
-    const md = await getMasterData().catch(() => null);
+    // Force fresh data from database to avoid stale cache
+    const md = await getMasterData(true).catch(() => null);
     const ts = md && md.timeSettings ? md.timeSettings : null;
-    if (!ts) return;
+    
+    console.log('[applyCompanyTimeSettingsToUI] timeSettings from DB:', ts ? 'exists' : 'null');
+    
+    if (!ts) {
+      console.log('[applyCompanyTimeSettingsToUI] No timeSettings found, clearing UI blocks');
+      // Clear any existing blocks when DB has no data
+      const days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+      days.forEach(d => {
+        const blocksContainer = document.getElementById(`blocks-shift-${d}`);
+        if (blocksContainer) blocksContainer.innerHTML = '';
+      });
+      return;
+    }
 
     // Set work type radio and lane count
     const workType = ts.workType === 'shift' ? 'shift' : 'fixed';
