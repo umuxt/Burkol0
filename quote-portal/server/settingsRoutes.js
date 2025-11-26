@@ -1,0 +1,58 @@
+import express from 'express';
+import Settings from '../db/models/settings.js';
+import { getSession } from './auth.js';
+
+const router = express.Router();
+
+function withAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '') || '';
+  if (!token && req.hostname !== 'localhost') {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  try {
+    if (token && token.startsWith('dev-')) {
+      req.user = { email: 'dev@burkol.com', userName: 'Dev User' };
+    } else if (token) {
+      const s = getSession(token);
+      if (s) req.user = s;
+    }
+  } catch {}
+  next();
+}
+
+// GET /api/settings/system
+router.get('/system', withAuth, async (req, res) => {
+  try {
+    const config = await Settings.getSetting('system_config');
+    // Return default values if not set
+    res.json(config || { 
+      lotTracking: true, // Default ON
+      currency: 'TRY',
+      dateFormat: 'DD.MM.YYYY'
+    });
+  } catch (error) {
+    console.error('Error fetching system settings:', error);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
+// POST /api/settings/system
+router.post('/system', withAuth, async (req, res) => {
+  try {
+    const settings = req.body;
+    const updatedBy = req.user?.email || 'system';
+    
+    // Merge with existing settings to avoid overwriting other keys
+    const current = await Settings.getSetting('system_config') || {};
+    const merged = { ...current, ...settings };
+    
+    const updated = await Settings.setSetting('system_config', merged, updatedBy);
+    
+    res.json(updated.value);
+  } catch (error) {
+    console.error('Error updating system settings:', error);
+    res.status(500).json({ error: 'Failed to update settings' });
+  }
+});
+
+export default router;

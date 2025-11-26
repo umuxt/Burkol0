@@ -7,6 +7,7 @@ import db from '../connection.js';
 import Materials from './materials.js';
 import StockMovements from './stockMovements.js';
 import { generateLotNumber } from '../../server/utils/lotGenerator.js';
+import { isLotTrackingEnabled } from './settings.js';
 
 const OrderItems = {
   /**
@@ -154,15 +155,25 @@ const OrderItems = {
         throw new Error('Item already delivered with lot tracking. Cannot re-deliver.');
       }
       
-      // Generate lot number for this delivery (or update existing delivery with lot tracking)
-      const lotNumber = await generateLotNumber(item.materialCode, actualDeliveryDate);
-      const lotDate = actualDeliveryDate instanceof Date 
-        ? actualDeliveryDate.toISOString().split('T')[0] 
-        : new Date(actualDeliveryDate).toISOString().split('T')[0];
+      // Check if Lot Tracking is enabled in system settings
+      const lotTrackingEnabled = await isLotTrackingEnabled();
       
-      console.log(`📦 [LOT] Generated lot number: ${lotNumber} for material ${item.materialCode}`);
+      // Generate lot number for this delivery (only if enabled)
+      let lotNumber = null;
+      let lotDate = null;
       
-      // Update item status to delivered with lot information
+      if (lotTrackingEnabled) {
+        lotNumber = await generateLotNumber(item.materialCode, actualDeliveryDate);
+        lotDate = actualDeliveryDate instanceof Date 
+          ? actualDeliveryDate.toISOString().split('T')[0] 
+          : new Date(actualDeliveryDate).toISOString().split('T')[0];
+        
+        console.log(`📦 [LOT] Generated lot number: ${lotNumber} for material ${item.materialCode}`);
+      } else {
+        console.log(`🚫 [LOT] Lot tracking disabled - skipping lot generation for ${item.materialCode}`);
+      }
+      
+      // Update item status to delivered with lot information (or null if disabled)
       const [updatedItem] = await trx('materials.order_items')
         .where({ id: itemId })
         .update({
@@ -194,7 +205,7 @@ const OrderItems = {
           0  // wipReservedChange
         );
         
-        // Create stock movement record for audit trail WITH LOT TRACKING
+        // Create stock movement record for audit trail
         const movement = await StockMovements.createMovement({
           materialId: item.materialId,
           materialCode: item.materialCode,
@@ -212,13 +223,13 @@ const OrderItems = {
           reference: item.orderCode,
           referenceType: 'order_delivery',
           location: 'Warehouse',
-          notes: `Order delivery: ${item.orderCode} - Item ${item.itemCode} - Lot: ${lotNumber}`,
+          notes: `Order delivery: ${item.orderCode} - Item ${item.itemCode}${lotNumber ? ` - Lot: ${lotNumber}` : ''}`,
           reason: 'Order item delivered',
           movementDate: actualDeliveryDate,
           approved: true,
           userId: deliveredBy,
           userName: deliveredBy,
-          // Lot tracking fields
+          // Lot tracking fields (null if disabled)
           lotNumber: lotNumber,
           lotDate: lotDate,
           supplierLotCode: supplierLotCode || null,
@@ -226,9 +237,28 @@ const OrderItems = {
           expiryDate: expiryDate || null
         });
         
-        console.log(`✅ [LOT] New delivery with lot ${lotNumber}`);
+        const msg = lotNumber 
+          ? `✅ [LOT] New delivery with lot ${lotNumber}`
+          : `✅ [NO-LOT] New delivery (lot tracking disabled)`;
+        console.log(msg);
       } else {
-        // Update existing stock movement with lot tracking information
+        // Update existing stock movement with lot information (if enabled)
+        // If disabled, we can still update other fields, or skip if lotNumber is null
+        
+        const updateData = {
+          supplierLotCode: supplierLotCode || null,
+          manufacturingDate: manufacturingDate || null,
+          expiryDate: expiryDate || null,
+          updatedAt: new Date()
+        };
+        
+        // Only update lot fields if we have a lot number
+        if (lotNumber) {
+          updateData.lotNumber = lotNumber;
+          updateData.lotDate = lotDate;
+          updateData.notes = `Order delivery: ${item.orderCode} - Item ${item.itemCode} - Lot: ${lotNumber}`;
+        }
+        
         await trx('materials.stock_movements')
           .where({
             materialCode: item.materialCode,
@@ -236,30 +266,20 @@ const OrderItems = {
             type: 'in',
             subType: 'order_delivery'
           })
-          .update({
-            lotNumber: lotNumber,
-            lotDate: lotDate,
-            supplierLotCode: supplierLotCode || null,
-            manufacturingDate: manufacturingDate || null,
-            expiryDate: expiryDate || null,
-            notes: `Order delivery: ${item.orderCode} - Item ${item.itemCode} - Lot: ${lotNumber}`,
-            updatedAt: new Date()
-          });
+          .update(updateData);
         
-        console.log(`✅ [LOT] Updated existing delivery with lot tracking: ${lotNumber}`);
+        const msg = lotNumber
+          ? `✅ [LOT] Updated existing delivery with lot tracking: ${lotNumber}`
+          : `✅ [NO-LOT] Updated existing delivery (lot tracking disabled)`;
+        console.log(msg);
       }
       
       await trx.commit();
       
-      const logMessage = isAlreadyDelivered 
-        ? `✅ [LOT] Updated existing delivery with lot ${lotNumber}`
-        : `✅ [LOT] New delivery with lot ${lotNumber}`;
-      console.log(logMessage);
-      
       // Build response object
       const response = {
         item: updatedItem,
-        lotNumber, // Return generated lot number to API response
+        lotNumber, // Return generated lot number (or null) to API response
         isUpdate: isAlreadyDelivered // Indicate if this was an update vs new delivery
       };
       

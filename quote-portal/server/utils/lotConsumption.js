@@ -17,6 +17,7 @@
  */
 
 import db from '../../db/connection.js';
+import { isLotTrackingEnabled } from '../../db/models/settings.js';
 
 /**
  * Reserve materials with lot tracking using FIFO consumption
@@ -115,6 +116,13 @@ export async function reserveMaterialsWithLotTracking(assignmentId, materialRequ
     const transaction = trx || await db.transaction({ isolationLevel: 'serializable' });
 
     try {
+      // Check if Lot Tracking is enabled
+      const lotTrackingEnabled = await isLotTrackingEnabled();
+      
+      if (!lotTrackingEnabled) {
+        console.log('[FIFO] Lot tracking disabled - using simple stock reservation');
+      }
+
       // Process each material requirement
       for (const req of materialRequirements) {
         const { materialCode, requiredQty } = req;
@@ -122,12 +130,6 @@ export async function reserveMaterialsWithLotTracking(assignmentId, materialRequ
         if (!materialCode || requiredQty <= 0) {
           throw new Error(`Invalid material requirement: ${JSON.stringify(req)}`);
         }
-
-        // Get available lots for this material (FIFO order)
-        const availableLots = await getAvailableLots(materialCode, transaction);
-
-        // Calculate consumption from lots
-        const consumption = calculateLotConsumption(availableLots, requiredQty);
 
         // Get assignment context for reference fields
         const assignment = await transaction('mes.worker_assignments')
@@ -149,15 +151,35 @@ export async function reserveMaterialsWithLotTracking(assignmentId, materialRequ
           sequenceNumber: assignment?.sequenceNumber || null
         };
 
-        // Create stock movements and reservations
-        const reservation = await createReservationRecords(
-          assignmentIdInt,
-          materialCode,
-          requiredQty,
-          consumption,
-          assignmentContext,
-          transaction
-        );
+        let reservation;
+
+        if (lotTrackingEnabled) {
+          // LOT TRACKING ENABLED: Use FIFO logic
+          // Get available lots for this material (FIFO order)
+          const availableLots = await getAvailableLots(materialCode, transaction);
+
+          // Calculate consumption from lots
+          const consumption = calculateLotConsumption(availableLots, requiredQty);
+
+          // Create stock movements and reservations
+          reservation = await createReservationRecords(
+            assignmentIdInt,
+            materialCode,
+            requiredQty,
+            consumption,
+            assignmentContext,
+            transaction
+          );
+        } else {
+          // LOT TRACKING DISABLED: Use simple stock reservation
+          reservation = await createReservationRecordsWithoutLot(
+            assignmentIdInt,
+            materialCode,
+            requiredQty,
+            assignmentContext,
+            transaction
+          );
+        }
 
         result.reservations.push(reservation);
 
@@ -398,6 +420,107 @@ async function createReservationRecords(assignmentId, materialCode, requiredQty,
 }
 
 /**
+ * Create reservation records WITHOUT lot tracking (Simple Stock Reservation)
+ * 
+ * Used when Lot Tracking is disabled in system settings.
+ * 
+ * @param {string} assignmentId - Assignment ID
+ * @param {string} materialCode - Material code
+ * @param {number} requiredQty - Required quantity
+ * @param {Object} assignmentContext - Assignment context
+ * @param {Object} trx - Database transaction
+ * @returns {Promise<Object>} Reservation summary
+ * 
+ * @private
+ */
+async function createReservationRecordsWithoutLot(assignmentId, materialCode, requiredQty, assignmentContext, trx) {
+  // Get current material stock
+  const material = await trx('materials.materials')
+    .select('stock')
+    .where('code', materialCode)
+    .first();
+
+  if (!material) {
+    throw new Error(`Material ${materialCode} not found`);
+  }
+
+  const currentStock = parseFloat(material.stock || 0);
+  
+  // Calculate available amount (simple stock check)
+  // For simple reservation, we can only reserve what we have
+  const reservedQty = Math.min(currentStock, requiredQty);
+  const partialReservation = reservedQty < requiredQty;
+  const shortfall = requiredQty - reservedQty;
+  
+  // Calculate stock after
+  const stockBefore = currentStock;
+  const stockAfter = currentStock - reservedQty;
+
+  if (reservedQty > 0) {
+    // Create stock movement (OUT) without lot info
+    await trx('materials.stock_movements').insert({
+      materialCode: materialCode,
+      type: 'out',
+      subType: 'wip_reservation',
+      quantity: reservedQty,
+      stockBefore: stockBefore,
+      stockAfter: stockAfter,
+      movementDate: trx.fn.now(),
+      lotNumber: null, // No lot
+      assignmentId: assignmentId,
+      reference: assignmentContext?.workOrderCode || null,
+      referenceType: assignmentContext?.workOrderCode ? 'production_plan' : null,
+      relatedPlanId: assignmentContext?.planId || null,
+      relatedNodeId: assignmentContext?.nodeId || null,
+      nodeSequence: assignmentContext?.sequenceNumber || null,
+      requestedQuantity: requiredQty,
+      partialReservation: partialReservation,
+      warning: partialReservation 
+        ? `Partial reservation (No Lot): requested ${requiredQty}, reserved ${reservedQty} (shortfall: ${shortfall})`
+        : null,
+      notes: `Stock reservation for assignment ${assignmentId} (Lot Tracking Disabled)`
+    });
+
+    // Insert assignment_material_reservation record (with null lot)
+    // Check if a no-lot reservation already exists for this assignment/material
+    const existingReservation = await trx('mes.assignment_material_reservations')
+      .where('assignmentId', assignmentId)
+      .where('materialCode', materialCode)
+      .whereNull('lotNumber')
+      .first();
+
+    if (existingReservation) {
+      // Update existing reservation
+      await trx('mes.assignment_material_reservations')
+        .where('id', existingReservation.id)
+        .update({
+          actualReservedQty: trx.raw('actualReservedQty + ?', [reservedQty]),
+          reservationStatus: 'reserved'
+        });
+    } else {
+      // Create new reservation
+      await trx('mes.assignment_material_reservations').insert({
+        assignmentId: assignmentId,
+        materialCode: materialCode,
+        lotNumber: null, // Explicitly null
+        preProductionQty: requiredQty,
+        actualReservedQty: reservedQty,
+        consumedQty: 0,
+        reservationStatus: 'reserved',
+        createdAt: trx.fn.now()
+      });
+    }
+  }
+
+  return {
+    materialCode,
+    lotsConsumed: [], // Empty array as no lots consumed
+    totalReserved: reservedQty,
+    partialReservation
+  };
+}
+
+/**
  * Update material aggregate stock fields
  * 
  * Updates materials.stock and materials.wip_reserved after reservation
@@ -451,13 +574,16 @@ async function updateMaterialAggregates(materialCode, reservedQty, trx) {
 export async function getLotConsumptionPreview(materialRequirements) {
   try {
     const materials = [];
+    
+    // Check if Lot Tracking is enabled
+    const lotTrackingEnabled = await isLotTrackingEnabled();
 
     for (const req of materialRequirements) {
       const { materialCode, requiredQty } = req;
 
       // Get material details
       const material = await db('materials.materials')
-        .select('code', 'name')
+        .select('code', 'name', 'stock')
         .where('code', materialCode)
         .first();
 
@@ -474,20 +600,35 @@ export async function getLotConsumptionPreview(materialRequirements) {
         continue;
       }
 
-      // Get available lots (read-only query, no transaction needed)
-      const availableLots = await getAvailableLots(materialCode, db);
+      if (lotTrackingEnabled) {
+        // Get available lots (read-only query, no transaction needed)
+        const availableLots = await getAvailableLots(materialCode, db);
 
-      // Calculate consumption (preview only)
-      const consumption = calculateLotConsumption(availableLots, requiredQty);
+        // Calculate consumption (preview only)
+        const consumption = calculateLotConsumption(availableLots, requiredQty);
 
-      materials.push({
-        materialCode,
-        materialName: material.name,
-        requiredQty,
-        lotsToConsume: consumption.lotsToConsume,
-        totalAvailable: consumption.totalAvailable,
-        sufficient: !consumption.partialReservation
-      });
+        materials.push({
+          materialCode,
+          materialName: material.name,
+          requiredQty,
+          lotsToConsume: consumption.lotsToConsume,
+          totalAvailable: consumption.totalAvailable,
+          sufficient: !consumption.partialReservation
+        });
+      } else {
+        // Lot tracking disabled - simplified preview
+        const availableStock = parseFloat(material.stock || 0);
+        
+        materials.push({
+          materialCode,
+          materialName: material.name,
+          requiredQty,
+          lotsToConsume: [], // No lots
+          totalAvailable: availableStock,
+          sufficient: availableStock >= requiredQty,
+          note: 'Lot tracking disabled'
+        });
+      }
     }
 
     return { materials };
@@ -540,7 +681,7 @@ export async function releaseMaterialReservations(assignmentId) {
           stockBefore: stockBefore,
           stockAfter: stockAfter,
           movementDate: trx.fn.now(),
-          lotNumber: res.lotNumber,
+          lotNumber: res.lotNumber, // Can be null if lot tracking disabled
           assignmentId: assignmentId,
           notes: `Released reservation for cancelled assignment ${assignmentId}`
         });

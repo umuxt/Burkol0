@@ -3,99 +3,106 @@
  * Establishes order management system with individual item tracking
  */
 
-export function up(knex) {
-  return knex.schema
-    // Orders table under materials schema (part of materials/inventory system)
-    .withSchema('materials').createTable('orders', (table) => {
-      table.increments('id').primary();
-      table.string('orderCode', 50).unique().notNullable(); // ORD-2025-0001
-      table.integer('orderSequence').notNullable();
-      
-      // Supplier relationship
-      table.integer('supplierId').unsigned();
-      table.foreign('supplierId')
-        .references('id')
-        .inTable('materials.suppliers')
-        .onDelete('RESTRICT'); // Can't delete supplier with active orders
-      table.string('supplierName', 255); // Denormalized - maps to suppliers.name
-      
-      // Order details
-      table.string('orderStatus', 50).defaultTo('Taslak');
-      table.timestamp('orderDate').defaultTo(knex.fn.now());
-      table.date('expectedDeliveryDate');
-      
-      // Financial
-      table.decimal('totalAmount', 15, 2).defaultTo(0);
-      table.string('currency', 3).defaultTo('TRY');
-      table.integer('itemCount').defaultTo(0);
-      
-      // Additional info
-      table.text('notes');
-      
-      // Audit fields
-      table.string('createdBy', 100);
-      table.timestamp('createdAt').defaultTo(knex.fn.now());
-      table.timestamp('updatedAt').defaultTo(knex.fn.now());
-      
-      // Indexes
-      table.index('supplierId');
-      table.index('orderStatus');
-      table.index('orderDate');
-      table.index(['orderDate', 'orderStatus']); // Composite for reporting
-    })
+export async function up(knex) {
+  const hasOrders = await knex.schema.withSchema('materials').hasTable('orders');
+  if (!hasOrders) {
+    await knex.schema
+      // Orders table under materials schema (part of materials/inventory system)
+      .withSchema('materials').createTable('orders', (table) => {
+        table.increments('id').primary();
+        table.string('orderCode', 50).unique().notNullable(); // ORD-2025-0001
+        table.integer('orderSequence').notNullable();
+        
+        // Supplier relationship
+        table.integer('supplierId').unsigned();
+        table.foreign('supplierId')
+          .references('id')
+          .inTable('materials.suppliers')
+          .onDelete('RESTRICT'); // Can't delete supplier with active orders
+        table.string('supplierName', 255); // Denormalized - maps to suppliers.name
+        
+        // Order details
+        table.string('orderStatus', 50).defaultTo('Taslak');
+        table.timestamp('orderDate').defaultTo(knex.fn.now());
+        table.date('expectedDeliveryDate');
+        
+        // Financial
+        table.decimal('totalAmount', 15, 2).defaultTo(0);
+        table.string('currency', 3).defaultTo('TRY');
+        table.integer('itemCount').defaultTo(0);
+        
+        // Additional info
+        table.text('notes');
+        
+        // Audit fields
+        table.string('createdBy', 100);
+        table.timestamp('createdAt').defaultTo(knex.fn.now());
+        table.timestamp('updatedAt').defaultTo(knex.fn.now());
+        
+        // Indexes
+        table.index('supplierId');
+        table.index('orderStatus');
+        table.index('orderDate');
+        table.index(['orderDate', 'orderStatus']); // Composite for reporting
+      });
+  }
+
+  const hasOrderItems = await knex.schema.withSchema('materials').hasTable('order_items');
+  if (!hasOrderItems) {
+    await knex.schema
+      // Order items table under materials schema
+      .withSchema('materials').createTable('order_items', (table) => {
+        table.increments('id').primary();
+        table.string('itemCode', 50).unique().notNullable(); // item-01, item-02
+        table.integer('itemSequence').notNullable();
+        
+        // Order relationship
+        table.integer('orderId').unsigned().notNullable();
+        table.foreign('orderId')
+          .references('id')
+          .inTable('materials.orders')
+          .onDelete('CASCADE'); // Delete items when order deleted
+        table.string('orderCode', 50).notNullable(); // Denormalized
+        
+        // Material relationship
+        table.integer('materialId').unsigned().notNullable();
+        table.foreign('materialId')
+          .references('id')
+          .inTable('materials.materials')
+          .onDelete('RESTRICT'); // Can't delete material with order items
+        table.string('materialCode', 50).notNullable(); // Denormalized - maps to materials.code
+        table.string('materialName', 255); // Denormalized - maps to materials.name
+        
+        // Quantity and pricing
+        table.decimal('quantity', 15, 3).notNullable();
+        table.string('unit', 20);
+        table.decimal('unitPrice', 15, 2);
+        table.decimal('totalPrice', 15, 2);
+        
+        // Item status tracking
+        table.string('itemStatus', 50).defaultTo('Onay Bekliyor');
+        table.date('expectedDeliveryDate');
+        table.timestamp('actualDeliveryDate');
+        table.string('deliveredBy', 100);
+        
+        // Additional info
+        table.text('notes');
+        
+        // Audit fields
+        table.timestamp('createdAt').defaultTo(knex.fn.now());
+        table.timestamp('updatedAt').defaultTo(knex.fn.now());
+        
+        // Indexes for performance
+        table.index('orderId'); // Fast lookup by order
+        table.index('materialId'); // Fast lookup by material
+        table.index('itemStatus'); // Fast filtering by status
+        table.index('actualDeliveryDate'); // Stock movement tracking
+        table.index(['orderId', 'itemStatus']); // Order status calculation
+      });
+  }
     
-    // Order items table under materials schema
-    .withSchema('materials').createTable('order_items', (table) => {
-      table.increments('id').primary();
-      table.string('itemCode', 50).unique().notNullable(); // item-01, item-02
-      table.integer('itemSequence').notNullable();
-      
-      // Order relationship
-      table.integer('orderId').unsigned().notNullable();
-      table.foreign('orderId')
-        .references('id')
-        .inTable('materials.orders')
-        .onDelete('CASCADE'); // Delete items when order deleted
-      table.string('orderCode', 50).notNullable(); // Denormalized
-      
-      // Material relationship
-      table.integer('materialId').unsigned().notNullable();
-      table.foreign('materialId')
-        .references('id')
-        .inTable('materials.materials')
-        .onDelete('RESTRICT'); // Can't delete material with order items
-      table.string('materialCode', 50).notNullable(); // Denormalized - maps to materials.code
-      table.string('materialName', 255); // Denormalized - maps to materials.name
-      
-      // Quantity and pricing
-      table.decimal('quantity', 15, 3).notNullable();
-      table.string('unit', 20);
-      table.decimal('unitPrice', 15, 2);
-      table.decimal('totalPrice', 15, 2);
-      
-      // Item status tracking
-      table.string('itemStatus', 50).defaultTo('Onay Bekliyor');
-      table.date('expectedDeliveryDate');
-      table.timestamp('actualDeliveryDate');
-      table.string('deliveredBy', 100);
-      
-      // Additional info
-      table.text('notes');
-      
-      // Audit fields
-      table.timestamp('createdAt').defaultTo(knex.fn.now());
-      table.timestamp('updatedAt').defaultTo(knex.fn.now());
-      
-      // Indexes for performance
-      table.index('orderId'); // Fast lookup by order
-      table.index('materialId'); // Fast lookup by material
-      table.index('itemStatus'); // Fast filtering by status
-      table.index('actualDeliveryDate'); // Stock movement tracking
-      table.index(['orderId', 'itemStatus']); // Order status calculation
-    })
-    
-    // Create function to generate order code under materials schema
-    .raw(`
+  // Function creation is idempotent with CREATE OR REPLACE
+  await knex.schema.raw(`
       CREATE OR REPLACE FUNCTION materials.generate_order_code(order_year INTEGER)
       RETURNS VARCHAR AS $$
       DECLARE

@@ -166,6 +166,24 @@ export default function MaterialDetailsPanel({
   // Lot inventory
   const { lots, loading: lotsLoading, error: lotsError, loadLots, hasLoaded: lotsHasLoaded } = useMaterialLots(material)
 
+  // System settings for lot tracking toggle
+  const [systemSettings, setSystemSettings] = useState({ lotTracking: true })
+  
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/settings/system')
+        if (res.ok) {
+          const data = await res.json()
+          setSystemSettings(data || { lotTracking: true })
+        }
+      } catch (error) {
+        console.error('Failed to load system settings:', error)
+      }
+    }
+    fetchSettings()
+  }, [])
+
   // Global stock update event listener
   useEffect(() => {
     if (!material) return;
@@ -898,7 +916,8 @@ export default function MaterialDetailsPanel({
               </div>
             </div>
 
-            {/* Lot Envanteri */}
+            {/* Lot Envanteri - Only show when lot tracking is enabled */}
+            {systemSettings.lotTracking && (
             <div style={{ 
               marginBottom: '16px', 
               padding: '12px', 
@@ -1002,6 +1021,7 @@ export default function MaterialDetailsPanel({
                 </table>
               </div>
             </div>
+            )}
 
             {/* Üretim Geçmişi */}
             <div style={{ 

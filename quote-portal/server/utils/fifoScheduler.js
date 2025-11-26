@@ -25,6 +25,7 @@ import db from '../../db/connection.js';
 import { reserveMaterialsWithLotTracking } from './lotConsumption.js';
 import { recordStatusChange } from './statusHistory.js';
 import { generateLotNumber } from './lotGenerator.js';
+import { isLotTrackingEnabled } from '../../db/models/settings.js';
 
 /**
  * Apply deferred reservation for a specific substation
@@ -501,6 +502,9 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
       throw new Error(`Assignment ${assignmentIdInt} is not in progress (current: ${assignment.status})`);
     }
 
+    // Check if Lot Tracking is enabled
+    const lotTrackingEnabled = await isLotTrackingEnabled();
+
     // Use transaction for atomic completion
     const result = await db.transaction(async (trx) => {
       // STEP 1: Get VARCHAR nodeId from production_plan_nodes and plan info
@@ -596,7 +600,9 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
               reservationStatus: 'consumed'
             });
           
-          console.log(`  📦 LOT ${reservation.lotNumber}: Reserved=${reserved.toFixed(2)}, Consumed=${lotConsumed.toFixed(2)}, Delta=${delta > 0 ? '+' : ''}${delta.toFixed(2)}`);
+          // Display correct lot information (or No Lot)
+          const lotDisplay = reservation.lotNumber ? `LOT ${reservation.lotNumber}` : `NO LOT (ID:${reservation.id})`;
+          console.log(`  📦 ${lotDisplay}: Reserved=${reserved.toFixed(2)}, Consumed=${lotConsumed.toFixed(2)}, Delta=${delta > 0 ? '+' : ''}${delta.toFixed(2)}`);
           
           // ✅ BUG FIX: Only count if actual consumption happened
           if (lotConsumed > 0) {
@@ -605,7 +611,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
           
           adjustments.push({
             materialCode,
-            lotNumber: reservation.lotNumber,
+            lotNumber: reservation.lotNumber, // Can be null
             reserved,
             consumed: lotConsumed,
             delta,
@@ -703,7 +709,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
         }
       }
 
-      // STEP 6: Add OUTPUT to stock WITH LOT TRACKING
+      // STEP 6: Add OUTPUT to stock WITH LOT TRACKING (If enabled)
       const completionTime = new Date(); // Use for LOT date consistency
       
       if (actualQty > 0 && node.outputCode) {
@@ -714,10 +720,13 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
         const outputStockBefore = parseFloat(outputMaterial?.stock || 0);
         const outputStockAfter = outputStockBefore + actualQty;
         
-        // Generate LOT number for output
-        const outputLotNumber = await generateLotNumber(node.outputCode, completionTime, trx);
+        // Generate LOT number for output (if enabled)
+        let outputLotNumber = null;
+        if (lotTrackingEnabled) {
+          outputLotNumber = await generateLotNumber(node.outputCode, completionTime, trx);
+        }
         
-        // Create output stock movement (IN) WITH LOT
+        // Create output stock movement (IN) WITH LOT (or null)
         await trx('materials.stock_movements').insert({
           materialCode: node.outputCode,
           type: 'in',
@@ -726,7 +735,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
           stockBefore: outputStockBefore,
           stockAfter: outputStockAfter,
           lotNumber: outputLotNumber,
-          lotDate: completionTime,
+          lotDate: lotTrackingEnabled ? completionTime : null,
           movementDate: trx.fn.now(),
           assignmentId: assignmentId,
           reference: workOrderCode,
@@ -742,7 +751,10 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
           .where('code', node.outputCode)
           .update({ stock: outputStockAfter });
         
-        console.log(`📦 [FIFO] Added ${actualQty} ${node.outputCode} to stock with LOT ${outputLotNumber} (${outputStockBefore} → ${outputStockAfter})`);
+        const logMsg = outputLotNumber 
+          ? `📦 [FIFO] Added ${actualQty} ${node.outputCode} to stock with LOT ${outputLotNumber}`
+          : `📦 [FIFO] Added ${actualQty} ${node.outputCode} to stock (No Lot)`;
+        console.log(`${logMsg} (${outputStockBefore} → ${outputStockAfter})`);
       }
       
       // STEP 7: Add SCRAP to stock (material codes ending with -H)
@@ -786,10 +798,13 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
           const scrapStockBefore = parseFloat(scrapMaterial?.stock || 0);
           const scrapStockAfter = scrapStockBefore + scrapQty;
           
-          // Generate LOT number for scrap
-          const scrapLotNumber = await generateLotNumber(scrapCode, completionTime, trx);
+          // Generate LOT number for scrap (if enabled)
+          let scrapLotNumber = null;
+          if (lotTrackingEnabled) {
+            scrapLotNumber = await generateLotNumber(scrapCode, completionTime, trx);
+          }
           
-          // Create scrap stock movement (IN) WITH LOT
+          // Create scrap stock movement (IN) WITH LOT (or null)
           await trx('materials.stock_movements').insert({
             materialCode: scrapCode,
             type: 'in',
@@ -798,7 +813,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
             stockBefore: scrapStockBefore,
             stockAfter: scrapStockAfter,
             lotNumber: scrapLotNumber,
-            lotDate: completionTime,
+            lotDate: lotTrackingEnabled ? completionTime : null,
             movementDate: trx.fn.now(),
             assignmentId: assignmentId,
             reference: workOrderCode,
@@ -814,7 +829,10 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
             .where('code', scrapCode)
             .update({ stock: scrapStockAfter });
           
-          console.log(`♻️  [FIFO] Added ${scrapQty} ${scrapCode} scrap to stock with LOT ${scrapLotNumber} (${scrapStockBefore} → ${scrapStockAfter})`);
+          const logMsg = scrapLotNumber
+            ? `♻️  [FIFO] Added ${scrapQty} ${scrapCode} scrap to stock with LOT ${scrapLotNumber}`
+            : `♻️  [FIFO] Added ${scrapQty} ${scrapCode} scrap to stock (No Lot)`;
+          console.log(`${logMsg} (${scrapStockBefore} → ${scrapStockAfter})`);
         }
       }
 

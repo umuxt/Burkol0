@@ -22,7 +22,8 @@ const state = {
   error: null,
   currentWorker: null,
   currentWorkerDetails: null, // Full worker object with status/leave info
-  nextTaskId: null
+  nextTaskId: null,
+  systemSettings: { lotTracking: true } // System settings for lot tracking toggle
 };
 
 // ============================================================================
@@ -31,6 +32,9 @@ const state = {
 
 async function init() {
   console.log('Initializing Worker Portal...');
+  
+  // Load system settings first
+  await loadSystemSettings();
   
   // Get workerId from URL parameter
   const urlParams = new URLSearchParams(window.location.search);
@@ -142,6 +146,27 @@ async function init() {
 }
 
 // ============================================================================
+// SYSTEM SETTINGS
+// ============================================================================
+
+/**
+ * Load system settings (lot tracking enabled/disabled)
+ */
+async function loadSystemSettings() {
+  try {
+    const response = await fetch('/api/settings/system');
+    if (response.ok) {
+      const settings = await response.json();
+      state.systemSettings = settings || { lotTracking: true };
+      console.log('⚙️ System settings loaded:', state.systemSettings);
+    }
+  } catch (error) {
+    console.error('Failed to load system settings:', error);
+    // Keep default (lotTracking: true)
+  }
+}
+
+// ============================================================================
 // DATA LOADING
 // ============================================================================
 
@@ -241,6 +266,12 @@ async function loadWorkerTasks() {
 
 async function loadLotPreviews() {
   try {
+    // Skip lot preview loading if lot tracking is disabled
+    if (!state.systemSettings.lotTracking) {
+      console.log('📦 Lot tracking disabled - skipping lot preview loading');
+      return;
+    }
+
     // Only load previews for ready/pending tasks
     const tasksNeedingPreview = state.tasks.filter(t => 
       (t.status === 'ready' || t.status === 'pending') && 
@@ -301,9 +332,17 @@ async function loadLotPreviews() {
 /**
  * Show lot preview modal and start task on confirmation
  * STEP 11: Material Reservation - Lot Preview UI Integration
+ * If lot tracking is disabled, start task directly without preview modal
  */
 async function startTaskWithLotPreview(assignmentId) {
   console.log(`🚀 Starting task with lot preview: ${assignmentId}`);
+  
+  // If lot tracking is disabled, start directly without preview modal
+  if (!state.systemSettings.lotTracking) {
+    console.log('📦 Lot tracking disabled - starting task directly');
+    await startTaskDirectly(assignmentId);
+    return;
+  }
   
   // Show lot preview modal
   await showLotPreviewModal(assignmentId, async (confirmedAssignmentId) => {
@@ -2518,6 +2557,11 @@ function renderMaterialPreview(task) {
 }
 
 function renderLotPreview(task) {
+  // Skip if lot tracking is disabled
+  if (!state.systemSettings.lotTracking) {
+    return '';
+  }
+
   // Only show lot preview for ready/pending tasks that haven't started yet
   if (task.status !== 'ready' && task.status !== 'pending') {
     return '';

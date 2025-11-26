@@ -172,7 +172,9 @@ app.use('/api/mes', async (req, res, next) => {
   }
 })
 
-// Settings routes disabled
+// Settings routes (System config)
+import settingsRoutes from './server/settingsRoutes.js'
+app.use('/api/settings', settingsRoutes)
 
 // Setup suppliers routes (PostgreSQL)
 app.get('/api/suppliers', getAllSuppliers)

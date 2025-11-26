@@ -43,6 +43,22 @@ function getDeliveryStatusText(status, daysRemaining = 0) {
   }
 }
 
+// Helper to get local date string (fixes timezone issues)
+function getLocalDateString(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Helper to get tomorrow's local date string
+function getTomorrowDateString() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  return getLocalDateString(tomorrow);
+}
+
 // Auth helper
 async function fetchJsonWith401Retry(url, options = {}, timeoutMs = 10000) {
   const res = await fetchWithTimeout(url, options, timeoutMs)
@@ -727,11 +743,29 @@ export default function OrdersTabContent() {
     })
   }
   
+  // System settings for conditional lot tracking UI
+  const [systemSettings, setSystemSettings] = useState({ lotTracking: true })
+
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetchWithTimeout('/api/settings/system', { headers: withAuth() })
+        if (res.ok) {
+          const data = await res.json()
+          setSystemSettings(data || { lotTracking: true })
+        }
+      } catch (error) {
+        console.error('Failed to load system settings:', error)
+      }
+    }
+    fetchSettings()
+  }, [])
+
   // Delivery modal state for lot tracking
   const [deliveryModalOpen, setDeliveryModalOpen] = useState(false)
   const [deliveryModalItem, setDeliveryModalItem] = useState(null)
   const [deliveryFormData, setDeliveryFormData] = useState({
-    actualDeliveryDate: new Date().toISOString().split('T')[0],
+    actualDeliveryDate: getLocalDateString(),
     supplierLotCode: '',
     manufacturingDate: '',
     expiryDate: '',
@@ -1851,7 +1885,7 @@ export default function OrdersTabContent() {
       console.log('📦 Opening delivery modal for lot tracking');
       setDeliveryModalItem({ orderId, item });
       setDeliveryFormData({
-        actualDeliveryDate: new Date().toISOString().split('T')[0],
+        actualDeliveryDate: getLocalDateString(),
         supplierLotCode: '',
         manufacturingDate: '',
         expiryDate: '',
@@ -2104,7 +2138,7 @@ export default function OrdersTabContent() {
     const itemId = item.id || item.itemCode || item.lineId || `item-${item.materialCode || 'unknown'}`;
     
     // Validate form data
-    const today = new Date().toISOString().split('T')[0];
+    const today = getLocalDateString();
     
     if (deliveryFormData.manufacturingDate && deliveryFormData.manufacturingDate > today) {
       alert('Üretim tarihi bugünden ileri olamaz');
@@ -2723,67 +2757,72 @@ export default function OrdersTabContent() {
                   className="mes-filter-input"
                   value={deliveryFormData.actualDeliveryDate}
                   onChange={(e) => setDeliveryFormData(prev => ({ ...prev, actualDeliveryDate: e.target.value }))}
-                  max={new Date().toISOString().split('T')[0]}
+                  max={getLocalDateString()}
                   required
                   disabled={deliveryLoading}
                   style={{ width: '100%' }}
                 />
               </div>
               
-              {/* Supplier Lot Code */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
-                  Tedarikçi Lot/Batch Kodu <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
-                </label>
-                <input
-                  type="text"
-                  className="mes-filter-input"
-                  placeholder="Örn: BATCH-2025-001"
-                  value={deliveryFormData.supplierLotCode}
-                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, supplierLotCode: e.target.value }))}
-                  maxLength={100}
-                  disabled={deliveryLoading}
-                  style={{ width: '100%' }}
-                />
-              </div>
-              
-              {/* Manufacturing Date */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
-                  Üretim Tarihi <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
-                </label>
-                <input
-                  type="date"
-                  className="mes-filter-input"
-                  value={deliveryFormData.manufacturingDate}
-                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, manufacturingDate: e.target.value }))}
-                  max={new Date().toISOString().split('T')[0]}
-                  disabled={deliveryLoading}
-                  style={{ width: '100%' }}
-                />
-                <small style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
-                  Üretim tarihi bugünden ileri olamaz
-                </small>
-              </div>
-              
-              {/* Expiry Date */}
-              <div>
-                <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
-                  Son Kullanma Tarihi <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
-                </label>
-                <input
-                  type="date"
-                  className="mes-filter-input"
-                  value={deliveryFormData.expiryDate}
-                  onChange={(e) => setDeliveryFormData(prev => ({ ...prev, expiryDate: e.target.value }))}
-                  min={new Date(Date.now() + 86400000).toISOString().split('T')[0]}
-                  disabled={deliveryLoading}
-                  style={{ width: '100%' }}
-                />
-                <small style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
-                  Son kullanma tarihi bugünden sonra olmalıdır
-                </small>
-              </div>
+              {/* Lot Tracking Fields - Only show when lotTracking is enabled */}
+              {systemSettings.lotTracking && (
+                <>
+                  {/* Supplier Lot Code */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                      Tedarikçi Lot/Batch Kodu <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="mes-filter-input"
+                      placeholder="Örn: BATCH-2025-001"
+                      value={deliveryFormData.supplierLotCode}
+                      onChange={(e) => setDeliveryFormData(prev => ({ ...prev, supplierLotCode: e.target.value }))}
+                      maxLength={100}
+                      disabled={deliveryLoading}
+                      style={{ width: '100%' }}
+                    />
+                  </div>
+                  
+                  {/* Manufacturing Date */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                      Üretim Tarihi <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                    </label>
+                    <input
+                      type="date"
+                      className="mes-filter-input"
+                      value={deliveryFormData.manufacturingDate}
+                      onChange={(e) => setDeliveryFormData(prev => ({ ...prev, manufacturingDate: e.target.value }))}
+                      max={getLocalDateString()}
+                      disabled={deliveryLoading}
+                      style={{ width: '100%' }}
+                    />
+                    <small style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                      Üretim tarihi bugünden ileri olamaz
+                    </small>
+                  </div>
+                  
+                  {/* Expiry Date */}
+                  <div>
+                    <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: '500', color: '#374151' }}>
+                      Son Kullanma Tarihi <span style={{ fontSize: '11px', color: '#6b7280', fontWeight: '400' }}>(opsiyonel)</span>
+                    </label>
+                    <input
+                      type="date"
+                      className="mes-filter-input"
+                      value={deliveryFormData.expiryDate}
+                      onChange={(e) => setDeliveryFormData(prev => ({ ...prev, expiryDate: e.target.value }))}
+                      min={getTomorrowDateString()}
+                      disabled={deliveryLoading}
+                      style={{ width: '100%' }}
+                    />
+                    <small style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', display: 'block' }}>
+                      Son kullanma tarihi bugünden sonra olmalıdır
+                    </small>
+                  </div>
+                </>
+              )}
               
               {/* Notes */}
               <div>
@@ -2801,18 +2840,20 @@ export default function OrdersTabContent() {
                 />
               </div>
               
-              {/* Info Message */}
-              <div style={{
-                background: '#eff6ff',
-                border: '1px solid #bfdbfe',
-                borderRadius: '6px',
-                padding: '12px',
-                fontSize: '12px',
-                color: '#1e40af'
-              }}>
-                <strong>ℹ️ Bilgi:</strong> Lot numarası otomatik olarak oluşturulacaktır.<br />
-                Format: <code style={{ background: '#dbeafe', padding: '2px 4px', borderRadius: '3px' }}>LOT-{'{'}malzeme_kodu{'}'}-{'{'}YYYYMMDD{'}'}-{'{'}sıra{'}'}</code>
-              </div>
+              {/* Info Message - Only show when lotTracking is enabled */}
+              {systemSettings.lotTracking && (
+                <div style={{
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: '6px',
+                  padding: '12px',
+                  fontSize: '12px',
+                  color: '#1e40af'
+                }}>
+                  <strong>ℹ️ Bilgi:</strong> Lot numarası otomatik olarak oluşturulacaktır.<br />
+                  Format: <code style={{ background: '#dbeafe', padding: '2px 4px', borderRadius: '3px' }}>LOT-{'{'}malzeme_kodu{'}'}-{'{'}YYYYMMDD{'}'}-{'{'}sıra{'}'}</code>
+                </div>
+              )}
             </div>
             
             {/* Action Buttons */}
