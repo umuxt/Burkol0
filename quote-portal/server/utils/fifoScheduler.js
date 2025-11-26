@@ -24,6 +24,7 @@
 import db from '../../db/connection.js';
 import { reserveMaterialsWithLotTracking } from './lotConsumption.js';
 import { recordStatusChange } from './statusHistory.js';
+import { generateLotNumber } from './lotGenerator.js';
 
 /**
  * Get the next task for a worker using FIFO scheduling
@@ -386,7 +387,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
 
     // Use transaction for atomic completion
     const result = await db.transaction(async (trx) => {
-      // STEP 1: Get VARCHAR nodeId from production_plan_nodes
+      // STEP 1: Get VARCHAR nodeId from production_plan_nodes and plan info
       const node = await trx('mes.production_plan_nodes')
         .where('id', assignment.nodeId)
         .first();
@@ -395,17 +396,26 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
         throw new Error(`Node ${assignment.nodeId} not found`);
       }
       
-      // STEP 2: Get material input requirements with ratios using VARCHAR nodeId
+      // Get plan details for reference
+      const plan = await trx('mes.production_plans')
+        .where('id', node.planId)
+        .first();
+      
+      const workOrderCode = plan?.workOrderCode || `WO-${node.planId}`;
+      
+      // STEP 2: Get material input requirements with unit ratios using VARCHAR nodeId
       const materialInputs = await trx('mes.node_material_inputs')
         .where('nodeId', node.nodeId) // Use VARCHAR nodeId
-        .select('materialCode', 'requiredQuantity as ratio');
+        .select('materialCode', 'unitRatio');
       
+      // unitRatio = input consumed per unit output (e.g., 0.5 kg input per 1 kg output)
       const ratioMap = materialInputs.reduce((acc, m) => {
-        acc[m.materialCode] = m.ratio || 1;
+        acc[m.materialCode] = m.unitRatio || 1.0;
         return acc;
       }, {});
       
       console.log(`📋 [FIFO] Found ${materialInputs.length} material inputs for node ${node.nodeId} (id: ${assignment.nodeId})`);
+      console.log(`📊 [FIFO] Unit ratios:`, ratioMap);
       
       // STEP 3: Calculate actual consumption per material
       const actualQty = completionData.quantityProduced || 0;
@@ -422,43 +432,71 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
       const adjustments = [];
       let materialsConsumed = 0;
       
-      // STEP 4: For each reservation, calculate consumed qty
-      for (const reservation of reservations) {
-        const materialCode = reservation.materialCode;
-        const ratio = ratioMap[materialCode] || 1;
+      // STEP 4: Group reservations by material and calculate total consumption per material
+      const reservationsByMaterial = {};
+      for (const res of reservations) {
+        if (!reservationsByMaterial[res.materialCode]) {
+          reservationsByMaterial[res.materialCode] = [];
+        }
+        reservationsByMaterial[res.materialCode].push(res);
+      }
+      
+      // Process each material
+      for (const [materialCode, materialReservations] of Object.entries(reservationsByMaterial)) {
+        const ratio = ratioMap[materialCode] || 1.0;
         
-        // Formula: consumed = inputScrap + productionScrap + (actualQty × ratio) + (defectQty × ratio)
+        // Calculate TOTAL consumption for this material
         const inputScrapQty = inputScrap[materialCode] || 0;
         const productionScrapQty = productionScrap[materialCode] || 0;
         const productionConsumed = (actualQty + defectQty) * ratio;
-        
         const totalConsumed = inputScrapQty + productionScrapQty + productionConsumed;
-        const reserved = reservation.actualReservedQty;
-        const delta = reserved - totalConsumed; // Positive = over-reserved, negative = under-reserved
         
-        // Update reservation with actual consumed qty
-        await trx('mes.assignment_material_reservations')
-          .where('id', reservation.id)
-          .update({
-            consumedQty: totalConsumed,
-            reservationStatus: 'consumed',
-            consumedAt: trx.fn.now()
+        // Calculate total reserved for this material (sum of all lots)
+        const totalReserved = materialReservations.reduce((sum, r) => sum + parseFloat(r.actualReservedQty), 0);
+        
+        console.log(`📊 [FIFO] ${materialCode}: Total Reserved=${totalReserved.toFixed(2)}, Total Consumed=${totalConsumed.toFixed(2)}`);
+        
+        // Distribute consumption proportionally across lots
+        let remainingConsumption = totalConsumed;
+        
+        for (let i = 0; i < materialReservations.length; i++) {
+          const reservation = materialReservations[i];
+          const reserved = parseFloat(reservation.actualReservedQty);
+          
+          // Last lot gets remaining consumption (to avoid rounding errors)
+          const lotConsumed = (i === materialReservations.length - 1) 
+            ? remainingConsumption 
+            : (reserved / totalReserved) * totalConsumed;
+          
+          remainingConsumption -= lotConsumed;
+          
+          const delta = reserved - lotConsumed;
+          
+          // Update reservation with consumed qty
+          await trx('mes.assignment_material_reservations')
+            .where('id', reservation.id)
+            .update({
+              consumedQty: lotConsumed,
+              reservationStatus: 'consumed'
+            });
+          
+          console.log(`  📦 LOT ${reservation.lotNumber}: Reserved=${reserved.toFixed(2)}, Consumed=${lotConsumed.toFixed(2)}, Delta=${delta > 0 ? '+' : ''}${delta.toFixed(2)}`);
+          
+          materialsConsumed++;
+          
+          adjustments.push({
+            materialCode,
+            lotNumber: reservation.lotNumber,
+            reserved,
+            consumed: lotConsumed,
+            delta,
+            breakdown: {
+              inputScrap: inputScrapQty,
+              productionScrap: productionScrapQty,
+              productionUsed: productionConsumed,
+              ratio
+            }
           });
-        
-        materialsConsumed++;
-        
-        adjustments.push({
-          materialCode,
-          reserved,
-          consumed: totalConsumed,
-          delta,
-          breakdown: {
-            inputScrap: inputScrapQty,
-            productionScrap: productionScrapQty,
-            productionUsed: productionConsumed,
-            ratio
-          }
-        });
         
         console.log(`📊 [FIFO] ${materialCode}: Reserved=${reserved}, Consumed=${totalConsumed}, Delta=${delta > 0 ? '+' : ''}${delta}`);
         
@@ -476,17 +514,22 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
             const stockBefore = parseFloat(material?.stock || 0);
             const stockAfter = stockBefore + absDelta;
             
-            // Create positive adjustment (add back to stock)
+            // Create positive adjustment (return to stock)
             await trx('materials.stock_movements').insert({
               materialCode,
               type: 'in',
+              subType: 'adjustment',
               quantity: absDelta,
               stockBefore,
               stockAfter,
               movementDate: trx.fn.now(),
               assignmentId: assignmentId,
-              notes: `Fazla rezervasyon iadesi - Reserved: ${reserved}, Consumed: ${totalConsumed}`,
-              createdBy: workerId
+              reference: workOrderCode,
+              referenceType: 'production_plan',
+              relatedPlanId: node.planId,
+              relatedNodeId: node.nodeId,
+              nodeSequence: assignment.sequenceNumber,
+              notes: `Fazla rezervasyon iadesi - Reserved: ${reserved}, Consumed: ${totalConsumed}`
             });
             
             // Update material stock
@@ -514,13 +557,18 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
             await trx('materials.stock_movements').insert({
               materialCode,
               type: 'out',
+              subType: 'adjustment',
               quantity: absDelta,
               stockBefore,
               stockAfter,
               movementDate: trx.fn.now(),
               assignmentId: assignmentId,
-              notes: `Eksik rezervasyon tamamlama - Reserved: ${reserved}, Consumed: ${totalConsumed}`,
-              createdBy: workerId
+              reference: workOrderCode,
+              referenceType: 'production_plan',
+              relatedPlanId: node.planId,
+              relatedNodeId: node.nodeId,
+              nodeSequence: assignment.sequenceNumber,
+              notes: `Eksik rezervasyon tamamlama - Reserved: ${reserved}, Consumed: ${totalConsumed}`
             });
             
             // Update material stock
@@ -533,8 +581,9 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
         }
       }
 
-      // STEP 6: Add OUTPUT to stock
-      const actualQty = completionData.quantityProduced || 0;
+      // STEP 6: Add OUTPUT to stock WITH LOT TRACKING
+      const completionTime = new Date(); // Use for LOT date consistency
+      
       if (actualQty > 0 && node.outputCode) {
         const outputMaterial = await trx('materials.materials')
           .where('code', node.outputCode)
@@ -543,17 +592,27 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
         const outputStockBefore = parseFloat(outputMaterial?.stock || 0);
         const outputStockAfter = outputStockBefore + actualQty;
         
-        // Create output stock movement (IN)
+        // Generate LOT number for output
+        const outputLotNumber = await generateLotNumber(node.outputCode, completionTime, trx);
+        
+        // Create output stock movement (IN) WITH LOT
         await trx('materials.stock_movements').insert({
           materialCode: node.outputCode,
           type: 'in',
+          subType: 'production',
           quantity: actualQty,
           stockBefore: outputStockBefore,
           stockAfter: outputStockAfter,
+          lotNumber: outputLotNumber,
+          lotDate: completionTime,
           movementDate: trx.fn.now(),
           assignmentId: assignmentId,
-          notes: `Üretim çıktısı - Assignment ${assignmentId}`,
-          createdBy: workerId
+          reference: workOrderCode,
+          referenceType: 'production_plan',
+          relatedPlanId: node.planId,
+          relatedNodeId: node.nodeId, // VARCHAR nodeId
+          nodeSequence: assignment.sequenceNumber,
+          notes: `Üretim çıktısı - ${workOrderCode} - Node ${node.nodeId}`
         });
         
         // Update output material stock
@@ -561,14 +620,13 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
           .where('code', node.outputCode)
           .update({ stock: outputStockAfter });
         
-        console.log(`📦 [FIFO] Added ${actualQty} ${node.outputCode} to stock (${outputStockBefore} → ${outputStockAfter})`);
+        console.log(`📦 [FIFO] Added ${actualQty} ${node.outputCode} to stock with LOT ${outputLotNumber} (${outputStockBefore} → ${outputStockAfter})`);
       }
       
       // STEP 7: Add SCRAP to stock (material codes ending with -H)
       const totalScrap = Object.entries(inputScrap).concat(Object.entries(productionScrap));
       
       // Add output defect scrap if exists
-      const defectQty = completionData.defectQuantity || 0;
       if (defectQty > 0 && node.outputCode) {
         totalScrap.push([node.outputCode, defectQty]);
       }
@@ -591,11 +649,12 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
             await trx('materials.materials').insert({
               code: scrapCode,
               name: `${baseMaterial?.name || materialCode} - Hurda`,
-              categoryId: baseMaterial?.categoryId || null,
+              type: 'scrap',
+              category: baseMaterial?.category || null,
               unit: baseMaterial?.unit || 'kg',
               stock: 0,
-              minStock: 0,
-              isActive: true
+              status: 'Aktif',
+              createdAt: trx.fn.now()
             });
             
             scrapMaterial = { stock: 0, unit: baseMaterial?.unit || 'kg' };
@@ -605,17 +664,27 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
           const scrapStockBefore = parseFloat(scrapMaterial?.stock || 0);
           const scrapStockAfter = scrapStockBefore + scrapQty;
           
-          // Create scrap stock movement (IN)
+          // Generate LOT number for scrap
+          const scrapLotNumber = await generateLotNumber(scrapCode, completionTime, trx);
+          
+          // Create scrap stock movement (IN) WITH LOT
           await trx('materials.stock_movements').insert({
             materialCode: scrapCode,
             type: 'in',
+            subType: 'scrap',
             quantity: scrapQty,
             stockBefore: scrapStockBefore,
             stockAfter: scrapStockAfter,
+            lotNumber: scrapLotNumber,
+            lotDate: completionTime,
             movementDate: trx.fn.now(),
             assignmentId: assignmentId,
-            notes: `Üretim hurdası - ${materialCode} - Assignment ${assignmentId}`,
-            createdBy: workerId
+            reference: workOrderCode,
+            referenceType: 'production_plan',
+            relatedPlanId: node.planId,
+            relatedNodeId: node.nodeId,
+            nodeSequence: assignment.sequenceNumber,
+            notes: `Üretim hurdası - ${materialCode} - ${workOrderCode} - Node ${node.nodeId}`
           });
           
           // Update scrap material stock
@@ -623,7 +692,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
             .where('code', scrapCode)
             .update({ stock: scrapStockAfter });
           
-          console.log(`♻️  [FIFO] Added ${scrapQty} ${scrapCode} scrap to stock (${scrapStockBefore} → ${scrapStockAfter})`);
+          console.log(`♻️  [FIFO] Added ${scrapQty} ${scrapCode} scrap to stock with LOT ${scrapLotNumber} (${scrapStockBefore} → ${scrapStockAfter})`);
         }
       }
 

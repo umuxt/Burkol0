@@ -236,6 +236,16 @@ export default function EditMaterialModal({
   // Production history: load on demand for all materials
   const { items: productionItems, loading: productionLoading, error: productionError, loadHistory: loadProductionHistory, isLoadedForMaterial: isProductionLoaded } = useMaterialProductionHistory(material)
 
+  // Debug: productionItems değişikliklerini logla
+  useEffect(() => {
+    console.log('🔍 EditMaterialModal: productionItems updated:', {
+      count: productionItems?.length || 0,
+      loading: productionLoading,
+      error: productionError,
+      items: productionItems
+    })
+  }, [productionItems, productionLoading, productionError])
+
   // Lot inventory: load on demand (lazy-loading pattern)
   const { lots, loading: lotsLoading, error: lotsError, loadLots, hasLoaded: lotsHasLoaded } = useMaterialLots(material)
 
@@ -630,7 +640,7 @@ export default function EditMaterialModal({
                           value={safeRender(formData.category)}
                           onChange={handleCategoryChange}
                           className="detail-input"
-                          required
+                          required={!['finished_product', 'semi_finished', 'scrap'].includes(formData.type)}
                         >
                           <option value="">Kategori seçin</option>
                           {categories.map(cat => (
@@ -1157,81 +1167,6 @@ export default function EditMaterialModal({
             </div>
           </div>
           
-          {/* Üretim Geçmişi - Yarı Mamül ve Bitmiş Ürün için */}
-          {(material?.type === 'semi_finished' || material?.type === 'finished_product') && material?.productionHistory && material.productionHistory.length > 0 && (
-            <div className="production-history-section">
-              <h3>Üretim Geçmişi</h3>
-              <div className="table-container">
-                <table className="custom-table">
-                  <thead>
-                    <tr>
-                      <th>Tarih</th>
-                      <th>İş Emri</th>
-                      <th>Operasyon</th>
-                      <th>Miktar</th>
-                      <th>Tür</th>
-                      <th>Üretim Yapan</th>
-                      <th>Durum</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {material.productionHistory
-                      .sort((a, b) => {
-                        // Tarihsel sıralama - en yeni üstte
-                        const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
-                        const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
-                        return dateB - dateA;
-                      })
-                      .map((record, index) => {
-                        const recordDate = record.timestamp?.toDate ? record.timestamp.toDate() : new Date(record.timestamp || 0);
-                        const isScrap = record.type === 'scrap' || record.isScrap;
-                        
-                        return (
-                          <tr key={index} style={isScrap ? { backgroundColor: '#fef2f2' } : {}}>
-                            <td>{recordDate.toLocaleDateString('tr-TR')} {recordDate.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</td>
-                            <td>{record.workOrderCode || record.workOrderId || '-'}</td>
-                            <td>{record.operationName || record.operationId || '-'}</td>
-                            <td>
-                              {isScrap ? (
-                                <span style={{ color: '#dc2626', fontWeight: 600 }}>
-                                  {record.actualQuantity || record.quantity || 0} {material.unit}
-                                </span>
-                              ) : (
-                                <span>
-                                  {record.actualQuantity || record.quantity || 0} {material.unit}
-                                </span>
-                              )}
-                            </td>
-                            <td>
-                              {isScrap ? (
-                                <span className="badge badge-danger">🗑️ Hurda</span>
-                              ) : record.type === 'production' ? (
-                                <span className="badge badge-success">✅ Üretim</span>
-                              ) : record.type === 'consumption' ? (
-                                <span className="badge badge-info">📦 Tüketim</span>
-                              ) : (
-                                <span className="badge badge-secondary">-</span>
-                              )}
-                            </td>
-                            <td>{record.workerName || record.workerId || '-'}</td>
-                            <td>
-                              {record.status === 'completed' ? (
-                                <span className="badge badge-success">Tamamlandı</span>
-                              ) : record.status === 'pending' ? (
-                                <span className="badge badge-warning">Bekliyor</span>
-                              ) : (
-                                <span className="badge badge-secondary">{record.status || '-'}</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-          
           {/* Üretim geçmişi tablosu */}
           <div className="production-history-section" style={{ marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -1263,7 +1198,7 @@ export default function EditMaterialModal({
               </button>
             </div>
             
-            <div className="supply-history-table">
+            <div className="production-history-table">
               <table>
                 <thead>
                   <tr>

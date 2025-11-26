@@ -380,49 +380,45 @@ async function getMaterialLots(req, res) {
     
     console.log('📦 Fetching lots for material:', code)
 
-    // Check if lot_number column exists in stock_movements table
+    // Check if lotNumber column exists in stock_movements table
     // If not, return empty array (lot tracking not yet implemented)
     const columnCheckQuery = `
       SELECT column_name 
       FROM information_schema.columns 
       WHERE table_schema = 'materials' 
         AND table_name = 'stock_movements' 
-        AND column_name = 'lot_number'
+        AND column_name = 'lotNumber'
     `
     
     const columnCheck = await db.raw(columnCheckQuery)
     
     if (columnCheck.rows.length === 0) {
-      console.log('⚠️ Lot tracking not yet implemented (lot_number column does not exist)')
+      console.log('⚠️ Lot tracking not yet implemented (lotNumber column does not exist)')
       return res.json({ lots: [] })
     }
 
-    // Query stock_movements for lot-level inventory
-    // Aggregate by lot_number, calculate balance, determine status
-    const query = `
-      SELECT 
-        sm.lot_number,
-        sm.lot_date,
-        sm.supplier_lot_code,
-        sm.manufacturing_date,
-        sm.expiry_date,
-        SUM(CASE WHEN sm.type = 'in' THEN sm.quantity ELSE -sm.quantity END) as lot_balance,
+    // Query stock_movements for lot-level inventory using query builder
+    const lots = await db('materials.stock_movements')
+      .select(
+        'lotNumber',
+        'lotDate',
+        'supplierLotCode',
+        'manufacturingDate',
+        'expiryDate'
+      )
+      .select(db.raw('SUM(CASE WHEN type = ? THEN quantity ELSE -quantity END) as balance', ['in']))
+      .select(db.raw(`
         CASE
-          WHEN sm.expiry_date < CURRENT_DATE THEN 'expired'
-          WHEN sm.expiry_date < CURRENT_DATE + INTERVAL '30 days' THEN 'expiring_soon'
+          WHEN "expiryDate" < CURRENT_DATE THEN 'expired'
+          WHEN "expiryDate" < CURRENT_DATE + INTERVAL '30 days' THEN 'expiring_soon'
           ELSE 'active'
-        END as lot_status,
-        ROW_NUMBER() OVER (PARTITION BY sm.material_code ORDER BY sm.lot_date) as fifo_order
-      FROM materials.stock_movements sm
-      WHERE sm.material_code = ? 
-        AND sm.lot_number IS NOT NULL
-      GROUP BY sm.lot_number, sm.lot_date, sm.supplier_lot_code, sm.manufacturing_date, sm.expiry_date, sm.material_code
-      HAVING SUM(CASE WHEN sm.type = 'in' THEN sm.quantity ELSE -sm.quantity END) > 0
-      ORDER BY sm.lot_date ASC
-    `
-
-    const result = await db.raw(query, [code])
-    const lots = result.rows || []
+        END as status
+      `))
+      .where('materialCode', code)
+      .whereNotNull('lotNumber')
+      .groupBy('lotNumber', 'lotDate', 'supplierLotCode', 'manufacturingDate', 'expiryDate')
+      .havingRaw('SUM(CASE WHEN type = ? THEN quantity ELSE -quantity END) > 0', ['in'])
+      .orderBy('lotDate', 'asc')
 
     console.log(`✅ Found ${lots.length} active lots for material ${code}`)
 
@@ -559,10 +555,13 @@ async function batchCreateMaterials(req, res) {
     for (const materialData of materials) {
       try {
         // Validate required fields
-        if (!materialData.code || !materialData.name || !materialData.category) {
+        // Category is optional for finished_product, semi_finished, and scrap
+        const requiresCategory = !['finished_product', 'semi_finished', 'scrap'].includes(materialData.type);
+        
+        if (!materialData.code || !materialData.name || (requiresCategory && !materialData.category)) {
           errors.push({
             code: materialData.code || 'UNKNOWN',
-            error: 'Missing required fields (code, name, category)'
+            error: `Missing required fields (code, name${requiresCategory ? ', category' : ''})`
           })
           continue
         }

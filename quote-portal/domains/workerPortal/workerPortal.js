@@ -241,11 +241,6 @@ async function loadWorkerTasks() {
 
 async function loadLotPreviews() {
   try {
-    // TODO: Re-enable when lot-preview endpoint is implemented
-    console.log('📦 Lot preview loading temporarily disabled (endpoint not yet implemented)');
-    return;
-    
-    /* DISABLED - Re-enable when endpoint is ready
     // Only load previews for ready/pending tasks
     const tasksNeedingPreview = state.tasks.filter(t => 
       (t.status === 'ready' || t.status === 'pending') && 
@@ -293,7 +288,6 @@ async function loadLotPreviews() {
         task.lotPreview = { materials: [], error: null };
       }
     }));
-    */
     
   } catch (error) {
     console.error('Error loading lot previews:', error);

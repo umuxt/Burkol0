@@ -149,7 +149,10 @@ export default function AddMaterialModal({
     const finalCategory = showNewCategory ? newCategory : formData.category;
     const finalCode = formData.code.trim() || nextCode;
     
-    if (!finalCode || !formData.name || !formData.type || !finalCategory || !formData.unit || !formData.stock || !formData.reorderPoint) {
+    // Category is optional for finished_product, semi_finished, and scrap
+    const requiresCategory = !['finished_product', 'semi_finished', 'scrap'].includes(formData.type);
+    
+    if (!finalCode || !formData.name || !formData.type || (requiresCategory && !finalCategory) || !formData.unit || !formData.stock || !formData.reorderPoint) {
       alert('Lütfen tüm zorunlu alanları doldurun!');
       return;
     }
@@ -256,11 +259,15 @@ export default function AddMaterialModal({
         </div>
 
         <div className="form-group">
-          <label>Kategori *</label>
+          <label>
+            Kategori {['finished_product', 'semi_finished', 'scrap'].includes(formData.type) 
+              ? <span className="optional">(opsiyonel)</span> 
+              : '*'}
+          </label>
           <select
             value={showNewCategory ? 'new-category' : formData.category}
             onChange={handleCategoryChange}
-            required
+            required={!['finished_product', 'semi_finished', 'scrap'].includes(formData.type)}
           >
             <option value="">Kategori seçin</option>
             {categories.map(cat => (

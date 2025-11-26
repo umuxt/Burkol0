@@ -68,6 +68,12 @@ export default function MaterialsTable({
     // Kategori boşsa veya null ise
     if (!categoryId) return 'Kategori seçilmemiş';
     
+    // Debug: categories array'ini logla
+    if (!categories || categories.length === 0) {
+      console.warn('⚠️ Categories array boş veya undefined!', { categories, categoryId });
+      return 'Kategoriler yüklenmedi';
+    }
+    
     // Kategoriler listesinde ara
     const category = categories.find(cat => cat.id === categoryId);
     if (category) return category.name;

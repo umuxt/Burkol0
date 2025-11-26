@@ -126,12 +126,33 @@ export async function reserveMaterialsWithLotTracking(assignmentId, materialRequ
         // Calculate consumption from lots
         const consumption = calculateLotConsumption(availableLots, requiredQty);
 
+        // Get assignment context for reference fields
+        const assignment = await transaction('mes.worker_assignments')
+          .where('id', assignmentId)
+          .first();
+        
+        const node = assignment ? await transaction('mes.production_plan_nodes')
+          .where('id', assignment.nodeId)
+          .first() : null;
+        
+        const plan = node ? await transaction('mes.production_plans')
+          .where('id', node.planId)
+          .first() : null;
+        
+        const assignmentContext = {
+          workOrderCode: plan?.workOrderCode || null,
+          nodeId: node?.nodeId || null,
+          planId: node?.planId || null,
+          sequenceNumber: assignment?.sequenceNumber || null
+        };
+
         // Create stock movements and reservations
         const reservation = await createReservationRecords(
           assignmentId,
           materialCode,
           requiredQty,
           consumption,
+          assignmentContext,
           transaction
         );
 
@@ -198,9 +219,9 @@ async function getAvailableLots(materialCode, trx) {
           WHEN type = 'in' THEN quantity 
           ELSE -quantity 
         END) as available_qty
-      `),
-      trx.raw('MIN(movementDate) as first_movement')
+      `)
     )
+    .min('movementDate as firstMovement')
     .where('materialCode', materialCode)
     .whereNotNull('lotNumber')
     .groupBy('lotNumber', 'lotDate')
@@ -212,7 +233,7 @@ async function getAvailableLots(materialCode, trx) {
     `)
     .orderBy([
       { column: 'lotDate', order: 'asc' },
-      { column: 'first_movement', order: 'asc' }
+      { column: 'firstMovement', order: 'asc' }
     ]);
 
   return lots.map(lot => ({
@@ -252,7 +273,9 @@ function calculateLotConsumption(availableLots, requiredQty) {
     lotsToConsume.push({
       lotNumber: lot.lotNumber,
       lotDate: lot.lotDate,
-      qty: consumeFromThisLot
+      qty: consumeFromThisLot, // Internal field for reservation
+      consumeQty: consumeFromThisLot, // Frontend display field
+      availableQty: lot.availableQty // Frontend display field
     });
 
     remainingQty -= consumeFromThisLot;
@@ -281,12 +304,13 @@ function calculateLotConsumption(availableLots, requiredQty) {
  * @param {string} materialCode - Material code
  * @param {number} requiredQty - Originally required quantity
  * @param {Object} consumption - Consumption plan from calculateLotConsumption()
+ * @param {Object} assignmentContext - Assignment context (workOrderCode, nodeId, planId, sequenceNumber)
  * @param {Object} trx - Database transaction
  * @returns {Promise<Object>} Reservation summary
  * 
  * @private
  */
-async function createReservationRecords(assignmentId, materialCode, requiredQty, consumption, trx) {
+async function createReservationRecords(assignmentId, materialCode, requiredQty, consumption, assignmentContext, trx) {
   const { lotsToConsume, totalReserved, partialReservation, shortfall } = consumption;
 
   // Get current material stock for stock_before/stock_after tracking
@@ -310,12 +334,18 @@ async function createReservationRecords(assignmentId, materialCode, requiredQty,
     await trx('materials.stock_movements').insert({
       materialCode: materialCode,
       type: 'out',
+      subType: 'wip_reservation',
       quantity: lot.qty,
       stockBefore: stockBefore,
       stockAfter: stockAfter,
       movementDate: trx.fn.now(),
       lotNumber: lot.lotNumber,
       assignmentId: assignmentId,
+      reference: assignmentContext?.workOrderCode || null,
+      referenceType: assignmentContext?.workOrderCode ? 'production_plan' : null,
+      relatedPlanId: assignmentContext?.planId || null,
+      relatedNodeId: assignmentContext?.nodeId || null,
+      nodeSequence: assignmentContext?.sequenceNumber || null,
       requestedQuantity: requiredQty,
       partialReservation: partialReservation,
       warning: partialReservation 
@@ -380,8 +410,7 @@ async function updateMaterialAggregates(materialCode, reservedQty, trx) {
   await trx('materials.materials')
     .where('code', materialCode)
     .update({
-      stock: trx.raw('stock - ?', [reservedQty]),
-      wip_reserved: trx.raw('wip_reserved + ?', [reservedQty])
+      stock: trx.raw('stock - ?', [reservedQty])
     });
 }
 
@@ -493,7 +522,7 @@ export async function releaseMaterialReservations(assignmentId) {
       for (const res of reservations) {
         // Get current material stock
         const material = await trx('materials.materials')
-          .select('stock', 'wip_reserved')
+          .select('stock')
           .where('code', res.materialCode)
           .first();
 
@@ -517,8 +546,7 @@ export async function releaseMaterialReservations(assignmentId) {
         await trx('materials.materials')
           .where('code', res.materialCode)
           .update({
-            stock: trx.raw('stock + ?', [res.actual_reserved_qty]),
-            wip_reserved: trx.raw('wip_reserved - ?', [res.actual_reserved_qty])
+            stock: trx.raw('stock + ?', [res.actual_reserved_qty])
           });
 
         // Update reservation status

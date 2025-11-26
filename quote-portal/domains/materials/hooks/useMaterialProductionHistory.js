@@ -36,37 +36,57 @@ export default function useMaterialProductionHistory(material) {
       const movements = data.movements || []
 
       console.log(`✅ Fetched ${movements.length} stock movements for ${material.code}`)
+      console.log('📦 Raw movements data:', movements)
+      if (movements.length > 0) {
+        console.table(movements[0])
+      }
 
-      // Filter for production-related movements
+      // Filter for MES production-related movements only
+      // Only show movements that have assignmentId (linked to production tasks)
+      // OR have subType indicating production activity
       const productionMovements = movements.filter(m => {
-        const status = m.status || ''
         const subType = m.subType || ''
-        return (
-          status === 'wip' ||                           // WIP durumu
-          status === 'consumption' ||                   // Sarf
-          subType === 'production_consumption' ||       // Legacy: Sarf
-          subType === 'production_output' ||            // Üretim
+        const hasAssignment = m.assignmentId !== null && m.assignmentId !== undefined
+        
+        // Must have assignmentId OR be production-related subType
+        const isProductionRelated = 
+          subType === 'production' ||
+          subType === 'scrap' ||
+          subType === 'production_consumption' ||
+          subType === 'production_scrap' ||
+          subType === 'production_output' ||
           subType === 'production_output_new_material' ||
-          subType === 'wip_reservation'                 // Legacy: WIP
-        )
+          subType === 'wip_reservation' ||
+          subType === 'adjustment' // Only if linked to assignment
+        
+        return hasAssignment && isProductionRelated
       })
+
+      console.log(`📋 Filtered ${productionMovements.length}/${movements.length} production-related movements`)
 
       // Transform to production history format
       const historyItems = productionMovements.map(m => {
-        // Prefer status field, fallback to subType for legacy records
-        let type = 'wip'
-        if (m.status === 'consumption') {
-          type = 'consumption'
-        } else if (m.status === 'production') {
+        // Determine type based on subType and type fields
+        let type = 'other'
+        const subType = m.subType || ''
+        const movementType = m.type || ''
+        
+        if (subType === 'production' || subType === 'production_output' || subType === 'production_output_new_material') {
           type = 'production'
-        } else if (m.status === 'wip') {
-          type = 'wip'
-        } else if (m.subType === 'production_consumption') {
+        } else if (subType === 'scrap' || subType === 'production_scrap') {
+          type = 'scrap'
+        } else if (subType === 'production_consumption' || m.status === 'consumption') {
           type = 'consumption'
-        } else if (m.subType === 'production_output' || m.subType === 'production_output_new_material') {
-          type = 'production'
-        } else if (m.subType === 'wip_reservation') {
+        } else if (subType === 'wip_reservation' || m.status === 'wip') {
           type = 'wip'
+        } else if (subType === 'adjustment') {
+          type = movementType === 'in' ? 'adjustment_in' : 'adjustment_out'
+        } else if (subType === 'order_delivery') {
+          type = 'order'
+        } else if (movementType === 'in') {
+          type = 'stock_in'
+        } else if (movementType === 'out') {
+          type = 'stock_out'
         }
 
         return {
@@ -96,6 +116,10 @@ export default function useMaterialProductionHistory(material) {
       setLoadedMaterialCode(material.code)
       
       console.log(`✅ Loaded ${historyItems.length} production history entries for ${material.code}`)
+      console.log('📊 Transformed history items:', historyItems)
+      if (historyItems.length > 0) {
+        console.table(historyItems[0])
+      }
 
     } catch (e) {
       console.error('❌ Error loading production history:', e)

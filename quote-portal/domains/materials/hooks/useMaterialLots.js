@@ -49,16 +49,16 @@ export function useMaterialLots(material) {
 
       console.log('✅ Lots loaded:', lotsData.length)
 
-      // Map and normalize lot data
+      // Map and normalize lot data (camelCase)
       const normalizedLots = lotsData.map(lot => ({
-        lotNumber: lot.lot_number || '',
-        lotDate: normalizeDate(lot.lot_date),
-        supplierLotCode: lot.supplier_lot_code || '-',
-        manufacturingDate: normalizeDate(lot.manufacturing_date),
-        expiryDate: normalizeDate(lot.expiry_date),
-        balance: Number(lot.lot_balance) || 0,
-        status: lot.lot_status || 'active',
-        fifoOrder: Number(lot.fifo_order) || 0
+        lotNumber: lot.lotNumber || '',
+        lotDate: normalizeDate(lot.lotDate),
+        supplierLotCode: lot.supplierLotCode || '-',
+        manufacturingDate: normalizeDate(lot.manufacturingDate),
+        expiryDate: normalizeDate(lot.expiryDate),
+        balance: Number(lot.balance) || 0,
+        status: lot.status || 'active',
+        fifoOrder: Number(lot.fifoOrder) || 0
       }))
 
       setLots(normalizedLots)

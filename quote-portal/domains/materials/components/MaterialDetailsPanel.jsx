@@ -560,7 +560,7 @@ export default function MaterialDetailsPanel({
                           width: '100%',
                           fontSize: '14px'
                         }}
-                        required
+                        required={!['finished_product', 'semi_finished', 'scrap'].includes(formData.type)}
                       >
                         <option value="">Kategori seçin</option>
                         {categories.map(cat => (
@@ -964,7 +964,7 @@ export default function MaterialDetailsPanel({
                       lots.map((lot, idx) => {
                         const mfgDate = lot.manufacturingDate ? new Date(lot.manufacturingDate).toLocaleDateString('tr-TR') : '-';
                         const expDate = lot.expiryDate ? new Date(lot.expiryDate).toLocaleDateString('tr-TR') : '-';
-                        const qty = Number(lot.currentQuantity || 0);
+                        const qty = Number(lot.balance || 0);
                         const unit = material?.unit || '';
                         
                         return (
@@ -1046,9 +1046,9 @@ export default function MaterialDetailsPanel({
                     <tr style={{ borderBottom: '1px solid #e5e7eb', background: '#f9fafb' }}>
                       <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Tarih</th>
                       <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>İş Emri</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Ürün</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Kullanılan</th>
-                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Durum</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Operasyon</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '600', color: '#374151' }}>Miktar</th>
+                      <th style={{ padding: '6px 8px', textAlign: 'left', fontWeight: '600', color: '#374151' }}>Tip</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1066,17 +1066,61 @@ export default function MaterialDetailsPanel({
                       </tr>
                     ) : productionItems && productionItems.length > 0 ? (
                       productionItems.map((item, idx) => {
-                        const dateStr = item.usageDate ? new Date(item.usageDate).toLocaleDateString('tr-TR') : '-';
-                        const qty = Number(item.quantityUsed || 0);
+                        const dateStr = item.timestamp ? new Date(item.timestamp).toLocaleDateString('tr-TR') : '-';
+                        const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '';
+                        const qty = Number(item.quantity || 0);
                         const unit = material?.unit || '';
                         
+                        // Type badge with comprehensive mapping
+                        let typeLabel = 'Diğer';
+                        let typeColor = '#6b7280';
+                        
+                        switch(item.type) {
+                          case 'consumption':
+                            typeLabel = 'Sarf';
+                            typeColor = '#ef4444';
+                            break;
+                          case 'production':
+                            typeLabel = 'Üretim';
+                            typeColor = '#10b981';
+                            break;
+                          case 'scrap':
+                            typeLabel = 'Hurda';
+                            typeColor = '#f59e0b';
+                            break;
+                          case 'wip':
+                            typeLabel = 'WIP';
+                            typeColor = '#3b82f6';
+                            break;
+                          case 'adjustment_in':
+                            typeLabel = 'Ayarlama (+)';
+                            typeColor = '#8b5cf6';
+                            break;
+                          case 'adjustment_out':
+                            typeLabel = 'Ayarlama (-)';
+                            typeColor = '#ec4899';
+                            break;
+                          case 'order':
+                            typeLabel = 'Sipariş';
+                            typeColor = '#06b6d4';
+                            break;
+                          case 'stock_in':
+                            typeLabel = 'Giriş';
+                            typeColor = '#84cc16';
+                            break;
+                          case 'stock_out':
+                            typeLabel = 'Çıkış';
+                            typeColor = '#f97316';
+                            break;
+                        }
+                        
                         return (
-                          <tr key={`${item.workOrderId}-${idx}`} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{dateStr}</td>
+                          <tr key={item.id || idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '6px 8px', color: '#111827' }}>{dateStr} {timeStr}</td>
                             <td style={{ padding: '6px 8px', fontWeight: '600', color: '#1d4ed8' }}>{item.workOrderCode || '-'}</td>
-                            <td style={{ padding: '6px 8px', color: '#111827' }}>{item.productName || '-'}</td>
+                            <td style={{ padding: '6px 8px', color: '#111827' }}>{item.nodeId || '-'}</td>
                             <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: '600', color: '#111827' }}>
-                              {!isNaN(qty) ? `${qty} ${unit}`.trim() : '-'}
+                              {!isNaN(qty) ? `${qty} ${unit}`.trim() : '0 ' + unit}
                             </td>
                             <td style={{ padding: '6px 8px' }}>
                               <span style={{
@@ -1084,10 +1128,10 @@ export default function MaterialDetailsPanel({
                                 borderRadius: '4px',
                                 fontSize: '10px',
                                 fontWeight: '600',
-                                background: item.status === 'completed' ? '#dcfce7' : '#dbeafe',
-                                color: item.status === 'completed' ? '#16a34a' : '#2563eb'
+                                background: typeColor + '20',
+                                color: typeColor
                               }}>
-                                {item.status === 'completed' ? 'Tamamlandı' : item.status || '-'}
+                                {typeLabel}
                               </span>
                             </td>
                           </tr>

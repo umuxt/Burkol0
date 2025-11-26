@@ -3974,15 +3974,30 @@ router.get('/assignments/:assignmentId/lot-preview', async (req, res) => {
       });
     }
     
-    // Get material requirements for this node
+    // Get VARCHAR nodeId from production_plan_nodes
+    // (worker_assignments.nodeId is INTEGER FK to production_plan_nodes.id)
+    // (node_material_inputs.nodeId is VARCHAR FK to production_plan_nodes.nodeId)
+    const node = await db('mes.production_plan_nodes')
+      .where('id', assignment.nodeId)
+      .first();
+    
+    if (!node) {
+      console.warn(`⚠️  [LOT-PREVIEW] Node ${assignment.nodeId} not found`);
+      return res.status(404).json({
+        success: false,
+        error: 'Production node not found'
+      });
+    }
+    
+    // Get material requirements using VARCHAR nodeId
     const materialRequirements = await db('mes.node_material_inputs as nmi')
       .select(
         'nmi.materialCode as materialCode',
         'nmi.requiredQuantity as requiredQty'
       )
-      .where('nmi.nodeId', parseInt(assignment.nodeId));
+      .where('nmi.nodeId', node.nodeId); // Use VARCHAR nodeId
     
-    console.log(`📋 [LOT-PREVIEW] Found ${materialRequirements.length} material requirement(s)`);
+    console.log(`📋 [LOT-PREVIEW] Found ${materialRequirements.length} material requirement(s) for node ${node.nodeId} (id: ${assignment.nodeId})`);
     
     // Get lot consumption preview (no reservation)
     const preview = await getLotConsumptionPreview(materialRequirements);

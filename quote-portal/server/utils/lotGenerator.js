@@ -28,6 +28,7 @@ import db from '../../db/connection.js';
  * 
  * @param {string} materialCode - Material code (e.g., 'M-00-001')
  * @param {Date} [date=new Date()] - Delivery date (defaults to today)
+ * @param {Object} [existingTrx=null] - Optional existing transaction (for nested calls)
  * @returns {Promise<string>} Generated lot number
  * 
  * @example
@@ -39,9 +40,15 @@ import db from '../../db/connection.js';
  * const lot2 = await generateLotNumber('M-00-001', new Date('2025-11-20'));
  * // Returns: 'LOT-M-00-001-20251120-002'
  * 
+ * // Within existing transaction
+ * await db.transaction(async (trx) => {
+ *   const lot = await generateLotNumber('M-00-001', new Date(), trx);
+ *   // Use lot in same transaction...
+ * });
+ * 
  * @throws {Error} If materialCode is invalid or database error occurs
  */
-export async function generateLotNumber(materialCode, date = new Date()) {
+export async function generateLotNumber(materialCode, date = new Date(), existingTrx = null) {
   // Validate inputs
   if (!materialCode || typeof materialCode !== 'string') {
     throw new Error('Invalid material code: must be a non-empty string');
@@ -65,8 +72,8 @@ export async function generateLotNumber(materialCode, date = new Date()) {
   const prefix = `LOT-${materialCode}-${dateStr}`;
 
   try {
-    // Use transaction to prevent race conditions (concurrent lot generation)
-    const result = await db.transaction(async (trx) => {
+    // Use existing transaction if provided, otherwise create new one
+    const generateLot = async (trx) => {
       // Query existing lots for this material and date
       // Pattern: LOT-{materialCode}-{YYYYMMDD}-%
       const existingLots = await trx('materials.stock_movements')
@@ -96,7 +103,12 @@ export async function generateLotNumber(materialCode, date = new Date()) {
       const lotNumber = `${prefix}-${seqStr}`;
 
       return lotNumber;
-    });
+    };
+
+    // If existing transaction provided, use it; otherwise create new transaction
+    const result = existingTrx 
+      ? await generateLot(existingTrx)
+      : await db.transaction(generateLot);
 
     return result;
 
