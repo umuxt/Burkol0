@@ -1,7 +1,6 @@
 import express from 'express';
 import db from '../db/connection.js';
 import { getSession } from './auth.js'
-import { adjustMaterialStock, consumeMaterials } from './materialsRoutes.js'
 import WorkOrders from '../db/models/workOrders.js';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
@@ -9,8 +8,7 @@ import { createRequire } from 'module';
 import { 
   reserveMaterialsWithLotTracking, 
   getLotConsumptionPreview,
-  releaseMaterialReservations,
-  markMaterialsConsumed 
+  releaseMaterialReservations
 } from './utils/lotConsumption.js';
 import {
   getWorkerNextTask,
@@ -25,6 +23,7 @@ import {
   createWorkerFilter,
   createPlanFilter
 } from './utils/sseStream.js';
+import { recordStatusChange } from './utils/statusHistory.js';
 
 const require = createRequire(import.meta.url);
 const planSchema = require('./models/ProductionPlanSchema.json');
@@ -2095,158 +2094,6 @@ router.get('/worker-assignments/:workerId', withAuth, async (req, res) => {
   }
 });
 
-// POST /api/mes/worker-assignments/:id/start
-router.post('/worker-assignments/:id/start', withAuth, async (req, res) => {
-  const { id } = req.params;
-  
-  const trx = await db.transaction();
-  try {
-    // Get assignment details
-    const [assignment] = await trx('mes.worker_assignments')
-      .where({ id })
-      .select('*');
-    
-    if (!assignment) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Assignment not found' });
-    }
-    
-    // Verify status is pending
-    if (assignment.status !== 'pending') {
-      await trx.rollback();
-      return res.status(400).json({ 
-        error: `Cannot start assignment with status ${assignment.status}` 
-      });
-    }
-    
-    // Update assignment to in_progress
-    await trx('mes.worker_assignments')
-      .where({ id })
-      .update({
-        status: 'in_progress',
-        startedAt: trx.fn.now()
-      });
-    
-    // Update substation status
-    await trx('mes.substations')
-      .where({ id: assignment.substationId })
-      .update({
-        status: 'in_use',
-        currentAssignmentId: id,
-        updatedAt: trx.fn.now()
-      });
-    
-    // Update node status
-    await trx('mes.production_plan_nodes')
-      .where({ id: assignment.nodeId })
-      .update({
-        status: 'in_progress',
-        startedAt: trx.fn.now()
-      });
-    
-    await trx.commit();
-    
-    res.json({ 
-      success: true, 
-      id,
-      status: 'in_progress',
-      startedAt: new Date()
-    });
-  } catch (error) {
-    await trx.rollback();
-    console.error('Error starting assignment:', error);
-    res.status(500).json({ error: 'Failed to start assignment' });
-  }
-});
-
-// POST /api/mes/worker-assignments/:id/complete
-router.post('/worker-assignments/:id/complete', withAuth, async (req, res) => {
-  const { id } = req.params;
-  const { actualQuantity, notes } = req.body;
-  
-  const trx = await db.transaction();
-  try {
-    // Get assignment details
-    const [assignment] = await trx('mes.worker_assignments')
-      .where({ id })
-      .select('*');
-    
-    if (!assignment) {
-      await trx.rollback();
-      return res.status(404).json({ error: 'Assignment not found' });
-    }
-    
-    // Verify status is in_progress
-    if (assignment.status !== 'in_progress') {
-      await trx.rollback();
-      return res.status(400).json({ 
-        error: `Cannot complete assignment with status ${assignment.status}` 
-      });
-    }
-    
-    // Update assignment to completed
-    await trx('mes.worker_assignments')
-      .where({ id })
-      .update({
-        status: 'completed',
-        completedAt: trx.fn.now(),
-        actualQuantity: actualQuantity,
-        notes: notes
-      });
-    
-    // Free substation
-    await trx('mes.substations')
-      .where({ id: assignment.substationId })
-      .update({
-        status: 'available',
-        currentAssignmentId: null,
-        updatedAt: trx.fn.now()
-      });
-    
-    // Update node status
-    await trx('mes.production_plan_nodes')
-      .where({ id: assignment.nodeId })
-      .update({
-        status: 'completed',
-        completedAt: trx.fn.now(),
-        actualQuantity: actualQuantity
-      });
-    
-    // Activate next queued task for this worker (if any)
-    const [nextQueued] = await trx('mes.worker_assignments')
-      .where({
-        workerId: assignment.workerId,
-        status: 'queued'
-      })
-      .orderBy('sequenceNumber', 'asc')
-      .limit(1);
-    
-    if (nextQueued) {
-      await trx('mes.worker_assignments')
-        .where({ id: nextQueued.id })
-        .update({
-          status: 'pending'
-        });
-    }
-    
-    // TODO: Create WIP output record (lot tracking)
-    // This will be implemented in materials management phase
-    
-    await trx.commit();
-    
-    res.json({ 
-      success: true, 
-      id,
-      status: 'completed',
-      completedAt: new Date()
-    });
-  } catch (error) {
-    await trx.rollback();
-    console.error('Error completing assignment:', error);
-    res.status(500).json({ error: 'Failed to complete assignment' });
-  }
-});
-
 // ============================================================================
 // OUTPUT CODE MANAGEMENT
 // ============================================================================
@@ -4064,6 +3911,99 @@ router.get('/workers/:workerId/tasks/stats', async (req, res) => {
  *   }
  * }
  */
+
+/**
+ * GET /api/mes/assignments/:assignmentId/lot-preview
+ * Preview which lots will be consumed (read-only, no reservation)
+ * 
+ * This endpoint shows workers which material lots will be consumed
+ * when they start a task, using FIFO logic. No actual reservation happens.
+ * 
+ * Response:
+ * {
+ *   success: true,
+ *   assignmentId: 'WO-001-001',
+ *   taskName: 'Kesme',
+ *   materials: [
+ *     {
+ *       materialCode: 'M-00-001',
+ *       materialName: 'Çelik Sac',
+ *       requiredQty: 100,
+ *       availableQty: 250,
+ *       lotsToConsume: [
+ *         {
+ *           lotNumber: 'LOT-M-00-001-20251101-001',
+ *           lotDate: '2025-11-01',
+ *           lotBalance: 150,
+ *           consumeQty: 100,
+ *           expiryDate: '2026-11-01',
+ *           fifoOrder: 1
+ *         }
+ *       ],
+ *       sufficient: true
+ *     }
+ *   ]
+ * }
+ */
+router.get('/assignments/:assignmentId/lot-preview', async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    
+    console.log(`📦 [LOT-PREVIEW] Fetching lot preview for assignment ${assignmentId}`);
+    
+    // Get assignment details with operation name
+    const assignment = await db('mes.worker_assignments as wa')
+      .select(
+        'wa.id',
+        'wa.nodeId',
+        'wa.planId',
+        'op.name as operationName',
+        'n.name as nodeName'
+      )
+      .leftJoin('mes.operations as op', 'op.id', 'wa.operationId')
+      .leftJoin('mes.production_plan_nodes as n', function() {
+        this.on('n.id', '=', db.raw('wa."nodeId"::integer'));
+      })
+      .where('wa.id', assignmentId)
+      .first();
+    
+    if (!assignment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Assignment not found'
+      });
+    }
+    
+    // Get material requirements for this node
+    const materialRequirements = await db('mes.node_material_inputs as nmi')
+      .select(
+        'nmi.materialCode as materialCode',
+        'nmi.requiredQuantity as requiredQty'
+      )
+      .where('nmi.nodeId', parseInt(assignment.nodeId));
+    
+    console.log(`📋 [LOT-PREVIEW] Found ${materialRequirements.length} material requirement(s)`);
+    
+    // Get lot consumption preview (no reservation)
+    const preview = await getLotConsumptionPreview(materialRequirements);
+    
+    res.json({
+      success: true,
+      assignmentId,
+      taskName: assignment.operationName || assignment.nodeName || 'Task',
+      materials: preview.materials
+    });
+    
+  } catch (error) {
+    console.error('❌ [LOT-PREVIEW] Error fetching lot preview:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch lot preview',
+      details: error.message
+    });
+  }
+});
+
 router.post('/assignments/:assignmentId/start', async (req, res) => {
   try {
     const { assignmentId } = req.params;
@@ -4119,34 +4059,39 @@ router.post('/assignments/:assignmentId/start', async (req, res) => {
  * POST /api/mes/assignments/:assignmentId/complete
  * Complete a task (in_progress → completed)
  * 
- * STEP 7 INTEGRATION: Now marks materials as consumed!
+ * UPDATED: Now calculates actual consumption based on scrap counters!
  * 
  * Body:
  * - workerId: Worker ID (for verification)
- * - quantityProduced: Number (optional)
- * - defectQuantity: Number (optional)
- * - qualityOk: Boolean (optional, default: true)
+ * - quantityProduced: Number - Actual good units produced
+ * - defectQuantity: Number - Output defects
+ * - inputScrapCounters: Object - { 'M-001': 2, ... } - Damaged incoming materials
+ * - productionScrapCounters: Object - { 'M-001': 5, ... } - Materials damaged during production
  * - notes: String (optional)
  * 
+ * Material Consumption Formula:
+ * consumed = inputScrap + productionScrap + (actualQty × ratio) + (defectQty × ratio)
+ * 
  * Side effects:
- * - Marks reserved materials as 'consumed'
- * - Updates consumed_qty in assignment_material_reservations
+ * - Calculates actual material consumption per formula
+ * - Marks reserved materials as 'consumed' with calculated qty
+ * - Creates stock adjustments for over/under reservations
  * - Updates status to completed
- * - Sets actual_end timestamp
- * - Records completion data
+ * - Records status history with adjustment details
  * - Triggers real-time notification
  * 
  * Response:
  * {
  *   success: true,
  *   assignment: { ... updated assignment ... },
- *   materialsConsumed: 3  // Number of material reservations marked as consumed
+ *   materialsConsumed: 3,
+ *   adjustments: [{ materialCode, reserved, consumed, delta, breakdown }]
  * }
  */
 router.post('/assignments/:assignmentId/complete', async (req, res) => {
   try {
     const { assignmentId } = req.params;
-    const { workerId, quantityProduced, defectQuantity, qualityOk, notes } = req.body;
+    const { workerId, quantityProduced, defectQuantity, inputScrapCounters, productionScrapCounters, notes } = req.body;
     
     if (!workerId) {
       return res.status(400).json({
@@ -4156,12 +4101,19 @@ router.post('/assignments/:assignmentId/complete', async (req, res) => {
     }
     
     console.log(`✅ [FIFO] Completing task ${assignmentId} for worker ${workerId}`);
+    console.log(`📊 Completion data:`, {
+      quantityProduced,
+      defectQuantity,
+      inputScrapCounters,
+      productionScrapCounters
+    });
     
     // Complete task with integrated material consumption
     const result = await completeTask(assignmentId, workerId, {
       quantityProduced,
       defectQuantity,
-      qualityOk,
+      inputScrapCounters,
+      productionScrapCounters,
       notes
     });
     
@@ -4169,9 +4121,16 @@ router.post('/assignments/:assignmentId/complete', async (req, res) => {
       return res.status(400).json(result);
     }
     
-    // Log material consumption
+    // Log material consumption and adjustments
     if (result.materialsConsumed > 0) {
-      console.log(`📦 [FIFO] Marked ${result.materialsConsumed} material reservation(s) as consumed`);
+      console.log(`📦 [FIFO] Processed ${result.materialsConsumed} material consumption(s)`);
+    }
+    
+    if (result.adjustments && result.adjustments.length > 0) {
+      console.log(`📊 [FIFO] Stock adjustments:`)
+      result.adjustments.forEach(adj => {
+        console.log(`  ${adj.materialCode}: Reserved=${adj.reserved}, Consumed=${adj.consumed}, Delta=${adj.delta > 0 ? '+' : ''}${adj.delta}`);
+      });
     }
     
     res.json({
@@ -4184,6 +4143,142 @@ router.post('/assignments/:assignmentId/complete', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to complete task',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/mes/assignments/:assignmentId/pause
+ * Pause a task (in_progress → paused)
+ * 
+ * Body: { workerId: 'w-xxx' }
+ * 
+ * Response: { success: true, assignment: {...} }
+ */
+router.post('/assignments/:assignmentId/pause', async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    const { workerId } = req.body;
+    
+    if (!workerId) {
+      return res.status(400).json({
+        success: false,
+        error: 'workerId is required'
+      });
+    }
+    
+    // Verify worker owns this task
+    const assignment = await db('mes.worker_assignments')
+      .where('id', assignmentId)
+      .where('workerId', workerId)
+      .first();
+    
+    if (!assignment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Assignment not found or does not belong to worker'
+      });
+    }
+    
+    if (assignment.status !== 'in_progress') {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot pause task with status ${assignment.status}`
+      });
+    }
+    
+    // Update to paused
+    const [updated] = await db('mes.worker_assignments')
+      .where('id', assignmentId)
+      .update({
+        status: 'paused'
+      })
+      .returning('*');
+    
+    // Record status change in history
+    await recordStatusChange(assignmentId, 'in_progress', 'paused', workerId);
+    
+    console.log(`⏸️  Task ${assignmentId} paused by worker ${workerId}`);
+    
+    res.json({
+      success: true,
+      assignment: updated
+    });
+    
+  } catch (error) {
+    console.error('❌ Error pausing task:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to pause task',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * POST /api/mes/assignments/:assignmentId/resume
+ * Resume a paused task (paused → in_progress)
+ * 
+ * Body: { workerId: 'w-xxx' }
+ * 
+ * Response: { success: true, assignment: {...} }
+ */
+router.post('/assignments/:assignmentId/resume', async (req, res) => {
+  try {
+    const { assignmentId } = req.params;
+    const { workerId } = req.body;
+    
+    if (!workerId) {
+      return res.status(400).json({
+        success: false,
+        error: 'workerId is required'
+      });
+    }
+    
+    // Verify worker owns this task
+    const assignment = await db('mes.worker_assignments')
+      .where('id', assignmentId)
+      .where('workerId', workerId)
+      .first();
+    
+    if (!assignment) {
+      return res.status(404).json({
+        success: false,
+        error: 'Assignment not found or does not belong to worker'
+      });
+    }
+    
+    if (assignment.status !== 'paused') {
+      return res.status(400).json({
+        success: false,
+        error: `Cannot resume task with status ${assignment.status}`
+      });
+    }
+    
+    // Update to in_progress
+    const [updated] = await db('mes.worker_assignments')
+      .where('id', assignmentId)
+      .update({
+        status: 'in_progress'
+      })
+      .returning('*');
+    
+    // Record status change in history
+    await recordStatusChange(assignmentId, 'paused', 'in_progress', workerId);
+    
+    console.log(`▶️  Task ${assignmentId} resumed by worker ${workerId}`);
+    
+    res.json({
+      success: true,
+      assignment: updated
+    });
+    
+  } catch (error) {
+    console.error('❌ Error resuming task:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to resume task',
       details: error.message
     });
   }

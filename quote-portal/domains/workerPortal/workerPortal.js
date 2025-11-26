@@ -323,22 +323,31 @@ async function startTaskWithLotPreview(assignmentId) {
  */
 async function startTaskDirectly(assignmentId) {
   try {
-    const result = await updateWorkPackage(assignmentId, { action: 'start' });
+    // Call new FIFO-enabled start endpoint
+    const response = await fetch(`/api/mes/assignments/${assignmentId}/start`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        workerId: state.currentWorker.id
+      }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
     
-    // Check if backend rejected due to preconditions
-    if (result.error && result.error.includes('precondition')) {
-      showToast('Görev başlatılamadı: Önkoşullar sağlanmadı', 'warning');
-      
-      // Mark task as blocked in UI
-      const task = state.tasks.find(t => t.assignmentId === assignmentId);
-      if (task) {
-        task.status = 'blocked'; // Temporarily mark as blocked
-      }
-      render();
-      
-      // Reload tasks to get fresh status
-      await loadWorkerTasks();
-      return;
+    // Check for warnings (partial material reservations)
+    if (result.materialReservation?.warnings?.length > 0) {
+      const warningMsg = result.materialReservation.warnings.join('<br>');
+      showToast(`Görev başlatıldı (uyarılar var):<br>${warningMsg}`, 'warning', 8000);
+    } else {
+      showToast('Görev başlatıldı', 'success');
     }
     
     await loadWorkerTasks();
@@ -346,7 +355,6 @@ async function startTaskDirectly(assignmentId) {
     // Notify other components
     window.dispatchEvent(new CustomEvent('assignments:updated'));
     
-    showToast('Görev başlatıldı', 'success');
   } catch (err) {
     console.error('Failed to start task:', err);
     
@@ -364,7 +372,8 @@ async function startTaskDirectly(assignmentId) {
       );
       
       // Mark task as blocked
-      const task = state.tasks.find(t => t.assignmentId === assignmentId);
+      const numericId = typeof assignmentId === 'string' ? parseInt(assignmentId, 10) : assignmentId;
+      const task = state.tasks.find(t => t.assignmentId === numericId);
       if (task) {
         task.status = 'blocked';
         task.blockReasons = ['Malzeme eksik'];
@@ -380,7 +389,8 @@ async function startTaskDirectly(assignmentId) {
     // Check if error has precondition_failed code
     if (err.code === 'precondition_failed') {
       // Display inline error with details
-      const task = state.tasks.find(t => t.assignmentId === assignmentId);
+      const numericId = typeof assignmentId === 'string' ? parseInt(assignmentId, 10) : assignmentId;
+      const task = state.tasks.find(t => t.assignmentId === numericId);
       if (task) {
         task.status = 'blocked';
         task.blockReasons = err.details || [err.message];
@@ -407,12 +417,22 @@ async function startTaskDirectly(assignmentId) {
 }
 
 async function pauseTask(assignmentId) {
+  const numericId = typeof assignmentId === 'string' ? parseInt(assignmentId, 10) : assignmentId;
   try {
-    await updateWorkPackage(assignmentId, { action: 'pause' });
+    const response = await fetch(`/api/mes/assignments/${numericId}/pause`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workerId: state.currentWorker.id }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to pause task');
+    }
+
     await loadWorkerTasks();
-    
     window.dispatchEvent(new CustomEvent('assignments:updated'));
-    
     showToast('Görev duraklatıldı', 'info');
   } catch (err) {
     console.error('Failed to pause task:', err);
@@ -441,25 +461,39 @@ async function reportStationError(assignmentId) {
 }
 
 async function completeTask(assignmentId) {
+  // Convert to number if string (from HTML onclick attributes)
+  const numericId = typeof assignmentId === 'string' ? parseInt(assignmentId, 10) : assignmentId;
+  
   // Find the task to get plannedOutput information
-  const task = state.tasks.find(t => t.assignmentId === assignmentId);
+  const task = state.tasks.find(t => t.assignmentId === numericId);
+  
+  if (!task) {
+    console.error('❌ Task not found! assignmentId:', numericId);
+    showToast('Görev bulunamadı', 'error');
+    return;
+  }
   
   const completionData = await showCompletionModal(task);
   if (completionData === null) return; // User cancelled
   
   try {
-    // Backend expects: { workerId, quantityProduced, defectQuantity, qualityOk, notes }
-    // Note: Scrap counters are already tracked separately via POST /work-packages/:id/scrap
+    // Get scrap counters for this assignment
+    const counters = completionData.scrapCounters || await getScrapCounters(task.assignmentId);
+    
+    // Backend expects: { workerId, quantityProduced, defectQuantity, inputScrapCounters, productionScrapCounters, notes }
     const payload = { 
-      workerId: task.workerId,
+      workerId: task.workerId || state.currentWorker.id,
       quantityProduced: completionData.actualOutputQuantity,
       defectQuantity: completionData.defectQuantity,
-      qualityOk: true,
+      inputScrapCounters: counters.inputScrapCounters || {},
+      productionScrapCounters: counters.productionScrapCounters || {},
       notes: completionData.notes || ''
     };
     
+    console.log('📤 Sending completion data with scrap counters:', payload);
+    
     // Use FIFO complete endpoint
-    const response = await fetch(`/api/mes/assignments/${assignmentId}/complete`, {
+    const response = await fetch(`/api/mes/assignments/${task.assignmentId}/complete`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -471,6 +505,15 @@ async function completeTask(assignmentId) {
     }
     const result = await response.json();
     console.log('✅ Task completed successfully:', result);
+    
+    // Log material adjustments if any
+    if (result.adjustments && result.adjustments.length > 0) {
+      console.log('📊 Material consumption adjustments:');
+      result.adjustments.forEach(adj => {
+        console.log(`  ${adj.materialCode}: Reserved=${adj.reserved}, Consumed=${adj.consumed}, Delta=${adj.delta > 0 ? '+' : ''}${adj.delta}`);
+        console.log(`    → Input scrap: ${adj.breakdown.inputScrap}, Production scrap: ${adj.breakdown.productionScrap}, Production used: ${adj.breakdown.productionUsed}`);
+      });
+    }
     
     await loadWorkerTasks();
     window.dispatchEvent(new CustomEvent('assignments:updated'));
@@ -486,12 +529,22 @@ async function completeTask(assignmentId) {
 }
 
 async function resumeTask(assignmentId) {
+  const numericId = typeof assignmentId === 'string' ? parseInt(assignmentId, 10) : assignmentId;
   try {
-    await updateWorkPackage(assignmentId, { action: 'resume' });
+    const response = await fetch(`/api/mes/assignments/${numericId}/resume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workerId: state.currentWorker.id }),
+      credentials: 'include'
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to resume task');
+    }
+
     await loadWorkerTasks();
-    
     window.dispatchEvent(new CustomEvent('assignments:updated'));
-    
     showToast('Görev devam ettiriliyor', 'success');
   } catch (err) {
     console.error('Failed to resume task:', err);
@@ -585,6 +638,12 @@ function showStationErrorModal() {
 
 function showCompletionModal(task) {
   return new Promise(async (resolve) => {
+    if (!task) {
+      console.error('❌ showCompletionModal called without task');
+      resolve(null);
+      return;
+    }
+    
     // Extract planned output information
     let plannedQty = 0;
     let outputUnit = 'adet';
@@ -1078,8 +1137,10 @@ function calculateTotalScrap(counters) {
 
 // Open fire modal for an assignment
 async function openFireModal(assignmentId) {
+  const numericId = typeof assignmentId === 'string' ? parseInt(assignmentId, 10) : assignmentId;
+  
   // Find assignment from current tasks
-  const task = state.tasks.find(t => t.assignmentId === assignmentId);
+  const task = state.tasks.find(t => t.assignmentId === numericId);
   if (!task) {
     showToast('Görev bulunamadı', 'error');
     return;
@@ -1503,6 +1564,7 @@ async function decrementScrap(materialCode, scrapType, quantity) {
 }
 
 // Make functions globally accessible for onclick handlers
+window.openFireModal = openFireModal;
 window.closeFireModal = closeFireModal;
 window.showScrapTypeSelector = showScrapTypeSelector;
 window.closeScrapTypeModal = closeScrapTypeModal;
@@ -2071,14 +2133,18 @@ function renderModernTaskActions(task, isNextTask, fifoPosition) {
   
   if (task.status === 'in_progress' || task.status === 'in-progress') {
     return `
-      <div class="action-buttons-row">
-        <button class="btn-outline action-btn" onclick="pauseTask('${task.assignmentId}')">
-          <i data-lucide="pause" style="width: 32px; height: 32px;"></i>
-          <span>Duraklat</span>
+      <div class="action-buttons-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+        <button class="btn-danger action-btn" onclick="openFireModal(${task.assignmentId})" style="padding: 12px 8px;">
+          <i data-lucide="flame" style="width: 28px; height: 28px;"></i>
+          <span style="font-size: 13px;">Fire</span>
         </button>
-        <button class="btn-primary action-btn" onclick="completeTaskFlow('${task.assignmentId}')">
-          <i data-lucide="check-circle" style="width: 32px; height: 32px;"></i>
-          <span>Tamamla</span>
+        <button class="btn-outline action-btn" onclick="pauseTask('${task.assignmentId}')" style="padding: 12px 8px;">
+          <i data-lucide="pause" style="width: 28px; height: 28px;"></i>
+          <span style="font-size: 13px;">Duraklat</span>
+        </button>
+        <button class="btn-primary action-btn" onclick="completeTaskFlow('${task.assignmentId}')" style="padding: 12px 8px;">
+          <i data-lucide="check-circle" style="width: 28px; height: 28px;"></i>
+          <span style="font-size: 13px;">Tamamla</span>
         </button>
       </div>
     `;

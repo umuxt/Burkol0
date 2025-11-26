@@ -75,6 +75,16 @@
   background: linear-gradient(180deg, #c82333, var(--btn-danger));
 }
 
+.btn-danger {
+  background: linear-gradient(180deg, var(--btn-danger), #c82333); 
+  border-color: var(--btn-danger);
+  color: white;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(180deg, #c82333, var(--btn-danger));
+}
+
 .btn.success {
   background: linear-gradient(180deg, var(--btn-success), #218838);
   border-color: var(--btn-success);
