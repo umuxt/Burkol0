@@ -312,9 +312,12 @@ export async function getWorkerTaskStats(workerId) {
  */
 export async function startTask(assignmentId, workerId) {
   try {
+    // ✅ CRITICAL: Convert assignmentId to integer for DB comparison
+    const assignmentIdInt = parseInt(assignmentId, 10);
+    
     // Verify worker owns this task
     const assignment = await db('mes.worker_assignments')
-      .where('id', assignmentId)
+      .where('id', assignmentIdInt)
       .where('workerId', workerId)
       .first();
 
@@ -339,10 +342,10 @@ export async function startTask(assignmentId, workerId) {
 
       // Reserve materials with FIFO lot consumption (if needed)
       if (materialRequirements.length > 0) {
-        console.log(`📦 [FIFO] Reserving ${materialRequirements.length} materials for assignment ${assignmentId}`);
+        console.log(`📦 [FIFO] Reserving ${materialRequirements.length} materials for assignment ${assignmentIdInt}`);
         
         reservationResult = await reserveMaterialsWithLotTracking(
-          assignmentId,
+          assignmentIdInt,
           materialRequirements,
           trx // Pass transaction for atomicity
         );
@@ -360,7 +363,7 @@ export async function startTask(assignmentId, workerId) {
 
       // ✅ BUG FIX #2: Release substation from reserved state
       const assignmentData = await trx('mes.worker_assignments')
-        .where('id', assignmentId)
+        .where('id', assignmentIdInt)
         .first();
       
       if (assignmentData?.substationId) {
@@ -375,15 +378,16 @@ export async function startTask(assignmentId, workerId) {
         }
         
         // Check if substation is available for this assignment
+        // ✅ FIXED: Use assignmentIdInt for comparison with DB integer field
         const canStart = 
           substation.status === 'available' ||
-          (substation.status === 'reserved' && substation.currentAssignmentId === assignmentId);
+          (substation.status === 'reserved' && substation.currentAssignmentId === assignmentIdInt);
         
         if (!canStart) {
           throw new Error(
             `Substation ${substation.name} is ${substation.status}` +
             (substation.currentAssignmentId ? ` (assigned to ${substation.currentAssignmentId})` : '') +
-            `. Cannot start assignment ${assignmentId}.`
+            `. Cannot start assignment ${assignmentIdInt}.`
           );
         }
         
@@ -391,7 +395,7 @@ export async function startTask(assignmentId, workerId) {
           .where('id', assignmentData.substationId)
           .update({
             status: 'in_use',
-            currentAssignmentId: assignmentId,
+            currentAssignmentId: assignmentIdInt,
             updatedAt: trx.fn.now()
           });
         
@@ -400,7 +404,7 @@ export async function startTask(assignmentId, workerId) {
       
       // Update assignment to in_progress
       const [updated] = await trx('mes.worker_assignments')
-        .where('id', assignmentId)
+        .where('id', assignmentIdInt)
         .update({
           status: 'in_progress',
           startedAt: trx.fn.now(),
@@ -480,18 +484,21 @@ export async function startTask(assignmentId, workerId) {
  */
 export async function completeTask(assignmentId, workerId, completionData = {}) {
   try {
+    // ✅ CRITICAL: Convert assignmentId to integer for DB comparison
+    const assignmentIdInt = parseInt(assignmentId, 10);
+    
     // Verify worker owns this task
     const assignment = await db('mes.worker_assignments')
-      .where('id', assignmentId)
+      .where('id', assignmentIdInt)
       .where('workerId', workerId)
       .first();
 
     if (!assignment) {
-      throw new Error(`Assignment ${assignmentId} not found for worker ${workerId}`);
+      throw new Error(`Assignment ${assignmentIdInt} not found for worker ${workerId}`);
     }
 
     if (assignment.status !== 'in_progress') {
-      throw new Error(`Assignment ${assignmentId} is not in progress (current: ${assignment.status})`);
+      throw new Error(`Assignment ${assignmentIdInt} is not in progress (current: ${assignment.status})`);
     }
 
     // Use transaction for atomic completion
@@ -952,7 +959,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
       
       // Record status change in history
       await recordStatusChange(
-        assignmentId,
+        assignmentIdInt,
         'in_progress',
         'completed',
         workerId,
@@ -966,7 +973,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
         }
       );
 
-      console.log(`✅ [FIFO] Task ${assignmentId} completed by worker ${workerId}`);
+      console.log(`✅ [FIFO] Task ${assignmentIdInt} completed by worker ${workerId}`);
       
       if (materialsConsumed > 0) {
         console.log(`📦 [FIFO] Processed ${materialsConsumed} material consumption(s)`);

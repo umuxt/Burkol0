@@ -3742,7 +3742,7 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
       .leftJoin('mes.substations as sub', 'sub.id', 'wa.substationId')
       .leftJoin('mes.production_plans as p', 'p.id', 'wa.planId')
       .where('wa.workerId', workerId)
-      .whereIn('wa.status', ['pending', 'ready', 'in_progress', 'paused'])
+      .whereIn('wa.status', ['pending', 'queued', 'ready', 'in_progress', 'paused'])
       .orderBy([
         { column: 'wa.isUrgent', order: 'desc' },
         { column: 'wa.expectedStart', order: 'asc' },
@@ -6450,7 +6450,8 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       // 5k. Reserve substation ONLY for pending (first-in-queue) tasks
       // Queued tasks should NOT reserve the substation until they become pending
       if (!isQueued) {
-        await trx('mes.substations')
+        console.log(`🔒 Reserving substation ${substation.id} for assignment ${createdAssignment.id} (worker ${worker.id}, seq ${sequenceNumber})`);
+        const updateResult = await trx('mes.substations')
           .where('id', substation.id)
           .update({
             status: 'reserved',
@@ -6460,6 +6461,7 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
             reservedAt: trx.fn.now(),
             updatedAt: trx.fn.now()
           });
+        console.log(`   ✓ Substation reserved (${updateResult} rows affected)`);
       } else {
         console.log(`⏭️  Node "${node.name}" is queued (seq ${sequenceNumber}), substation NOT reserved yet`);
       }

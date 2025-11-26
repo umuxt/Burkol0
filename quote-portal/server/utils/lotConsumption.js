@@ -86,13 +86,16 @@ import db from '../../db/connection.js';
  * }
  */
 export async function reserveMaterialsWithLotTracking(assignmentId, materialRequirements, trx = null) {
-  // Validate inputs
-  if (!assignmentId || typeof assignmentId !== 'string') {
+  // Validate inputs - accept both string and number assignmentId
+  if (!assignmentId || (typeof assignmentId !== 'string' && typeof assignmentId !== 'number')) {
     return {
       success: false,
       error: 'Invalid assignment ID'
     };
   }
+  
+  // Ensure assignmentId is integer for DB operations
+  const assignmentIdInt = typeof assignmentId === 'string' ? parseInt(assignmentId, 10) : assignmentId;
 
   if (!Array.isArray(materialRequirements) || materialRequirements.length === 0) {
     return {
@@ -128,7 +131,7 @@ export async function reserveMaterialsWithLotTracking(assignmentId, materialRequ
 
         // Get assignment context for reference fields
         const assignment = await transaction('mes.worker_assignments')
-          .where('id', assignmentId)
+          .where('id', assignmentIdInt)
           .first();
         
         const node = assignment ? await transaction('mes.production_plan_nodes')
@@ -148,7 +151,7 @@ export async function reserveMaterialsWithLotTracking(assignmentId, materialRequ
 
         // Create stock movements and reservations
         const reservation = await createReservationRecords(
-          assignmentId,
+          assignmentIdInt,
           materialCode,
           requiredQty,
           consumption,
@@ -174,7 +177,7 @@ export async function reserveMaterialsWithLotTracking(assignmentId, materialRequ
         await transaction.commit();
       }
 
-      console.log(`[FIFO] Successfully reserved materials for assignment ${assignmentId}`);
+      console.log(`[FIFO] Successfully reserved materials for assignment ${assignmentIdInt}`);
       return result;
 
     } catch (error) {
