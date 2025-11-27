@@ -2566,7 +2566,7 @@ function renderWorkPackagesTable() {
       'queued': { label: 'Queued', className: 'badge badge-outline' },
       'ready': { label: 'Ready', className: 'badge badge-warning' },
       'in-progress': { label: 'In Progress', className: 'badge badge-success' },
-      'paused': { label: 'Paused', className: 'badge badge-destructive' },
+      'paused': { label: 'Paused', className: 'badge badge-warning' },
       'completed': { label: 'Completed', className: 'badge badge-success' },
       'cancelled': { label: 'Cancelled', className: 'badge badge-destructive' }
     };
@@ -2619,9 +2619,10 @@ function renderWorkPackagesTable() {
     }
   };
   
-  const tableRows = packages.map(pkg => {
+  const tableRows = packages.map((pkg, index) => {
     const quoteUrl = `/pages/production.html?view=approved-quotes&highlight=${encodeURIComponent(pkg.workOrderCode)}`;
     const planUrl = `/pages/production.html?view=plan-designer&action=view&id=${encodeURIComponent(pkg.planId)}`;
+    const rowBackground = index % 2 === 0 ? '#ffffff' : '#f7f8fb';
     
     // DEBUG: Log each package being rendered
     console.log(`🎨 Rendering package:`, {
@@ -2633,7 +2634,7 @@ function renderWorkPackagesTable() {
     });
     
     return `
-      <tr class="mes-table-row" onclick="showWorkPackageDetail('${esc(pkg.assignmentId || pkg.id)}')" style="cursor: pointer;">
+      <tr class="mes-table-row" onclick="showWorkPackageDetail('${esc(pkg.assignmentId || pkg.id)}')" style="cursor: pointer; background-color: ${rowBackground};">
         <td>
           <div class="mes-muted-text" style="font-size: 11px; font-family: monospace;">
             ${esc(pkg.workPackageId || pkg.assignmentId || pkg.id || '—')}
@@ -2676,7 +2677,7 @@ function renderWorkPackagesTable() {
   const headerRow = `
     <tr>
       <th style="width: 1%; white-space: nowrap;">ID</th>
-      <th style="width: 1%; white-space: nowrap;">Work Order</th>
+      <th style="width: 140px; white-space: nowrap;">Work Order</th>
       <th style="max-width: 180px; width: 180px; white-space: nowrap;">Operation</th>
       <th style="max-width: 200px; width: 200px; white-space: nowrap;">Worker</th>
       <th>Station</th>

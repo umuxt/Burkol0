@@ -1857,11 +1857,13 @@ function renderTaskList() {
     return aStart - bStart;
   });
   
-  // Check if there's already an in-progress task
-  const hasInProgressTask = sortedTasks.some(t => t.status === 'in_progress' || t.status === 'in-progress');
+  // Check if there's already an in-progress or paused task (active work exists)
+  const hasActiveTask = sortedTasks.some(t => 
+    t.status === 'in_progress' || t.status === 'in-progress' || t.status === 'paused'
+  );
   
-  // Identify next task (FIFO Position #1) - only if no in-progress task exists
-  const nextTask = hasInProgressTask 
+  // Identify next task (FIFO Position #1) - only if no active task exists
+  const nextTask = hasActiveTask 
     ? null 
     : sortedTasks.find(t => t.status === 'ready' || t.status === 'pending');
   
