@@ -569,13 +569,13 @@ router.get('/workers/:id/assignments', withAuth, async (req, res) => {
         'assignedAt',
         'startedAt',
         'completedAt',
-        'expectedStart',
-        'plannedEnd',
+        'estimatedStartTime',
+        'estimatedEndTime',
         'estimatedStartTime',
         'estimatedEndTime'
       )
       .where('workerId', id)
-      .orderBy('expectedStart', 'asc');
+      .orderBy('estimatedStartTime', 'asc');
     
     // Filter by status if provided
     if (status === 'active') {
@@ -2524,6 +2524,8 @@ router.post('/substations/reset-all', withAuth, async (req, res) => {
             assignedWorkerId: null,
             currentOperation: null,
             reservedAt: null,
+            inUseSince: null,
+            currentExpectedEnd: null,
             updatedAt: trx.fn.now()
           });
       }
@@ -3384,10 +3386,10 @@ router.get('/work-packages', withAuth, async (req, res) => {
         'wa.workOrderCode',
         
         // Timing fields
-        'wa.expectedStart',
-        'wa.plannedEnd',
-        'wa.startedAt as actualStart',
-        'wa.completedAt as actualEnd',
+        'wa.estimatedStartTime',
+        'wa.estimatedEndTime',
+        'wa.startedAt',
+        'wa.completedAt',
         'wa.nominalTime',
         'wa.effectiveTime',
         
@@ -3433,7 +3435,7 @@ router.get('/work-packages', withAuth, async (req, res) => {
       .leftJoin('mes.substations as sub', 'sub.id', 'wa.substationId')
       .orderBy([
         { column: 'wa.isUrgent', order: 'desc' },
-        { column: 'wa.expectedStart', order: 'asc' },
+        { column: 'wa.estimatedStartTime', order: 'asc' },
         { column: 'wa.createdAt', order: 'asc' }
       ])
       .limit(maxResults);
@@ -3548,11 +3550,10 @@ router.get('/work-packages', withAuth, async (req, res) => {
       // Timing
       estimatedNominalTime: t.nominalTime,
       estimatedEffectiveTime: t.effectiveTime,
-      expectedStart: t.expectedStart,
-      plannedStart: t.expectedStart, // Alias for backwards compatibility
-      plannedEnd: t.plannedEnd,
-      actualStart: t.actualStart,
-      actualEnd: t.actualEnd,
+      estimatedStartTime: t.estimatedStartTime,
+      estimatedEndTime: t.estimatedEndTime,
+      startedAt: t.startedAt,
+      completedAt: t.completedAt,
       
       // Scrap & defects
       inputScrapCount: parseJsonb(t.inputScrapCount),
@@ -3698,10 +3699,10 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
         'wa.workOrderCode',
         
         // Timing fields
-        'wa.expectedStart',
-        'wa.plannedEnd',
-        'wa.startedAt as actualStart',
-        'wa.completedAt as actualEnd',
+        'wa.estimatedStartTime',
+        'wa.estimatedEndTime',
+        'wa.startedAt',
+        'wa.completedAt',
         'wa.nominalTime',
         'wa.effectiveTime',
         
@@ -3753,7 +3754,7 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
       .whereIn('wa.status', ['pending', 'queued', 'ready', 'in_progress', 'paused'])
       .orderBy([
         { column: 'wa.isUrgent', order: 'desc' },
-        { column: 'wa.expectedStart', order: 'asc' },
+        { column: 'wa.estimatedStartTime', order: 'asc' },
         { column: 'wa.createdAt', order: 'asc' }
       ]);
 
@@ -3876,11 +3877,10 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
         // Timing
         estimatedNominalTime: t.nominalTime,
         estimatedEffectiveTime: t.effectiveTime,
-        expectedStart: t.expectedStart,
-        plannedStart: t.expectedStart, // Alias for frontend compatibility
-        plannedEnd: t.plannedEnd,
-        actualStart: t.actualStart,
-        actualEnd: t.actualEnd,
+        estimatedStartTime: t.estimatedStartTime,
+        estimatedEndTime: t.estimatedEndTime,
+        startedAt: t.startedAt,
+        completedAt: t.completedAt,
         
         // Scrap & defects
         inputScrapCount,
@@ -6219,17 +6219,17 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
     // ✅ CRITICAL: Load existing worker assignments to prevent conflicts
     // Include 'paused' - a paused worker/substation is still occupied!
     const existingAssignments = await trx('mes.worker_assignments')
-      .select('workerId', 'substationId', 'expectedStart', 'plannedEnd', 'sequenceNumber')
+      .select('workerId', 'substationId', 'estimatedStartTime', 'estimatedEndTime', 'sequenceNumber')
       .whereIn('status', ['pending', 'queued', 'in_progress', 'paused'])
-      .orderBy('expectedStart');
+      .orderBy('estimatedStartTime');
     
     // Populate schedules from existing assignments
     existingAssignments.forEach(a => {
       // Worker schedule
       const workerQueue = workerSchedule.get(a.workerId) || [];
       workerQueue.push({ 
-        start: new Date(a.expectedStart), 
-        end: new Date(a.plannedEnd), 
+        start: new Date(a.estimatedStartTime), 
+        end: new Date(a.estimatedEndTime), 
         sequenceNumber: a.sequenceNumber 
       });
       workerSchedule.set(a.workerId, workerQueue);
@@ -6237,8 +6237,8 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
       // Substation schedule
       const subSchedule = substationSchedule.get(a.substationId) || [];
       subSchedule.push({ 
-        start: new Date(a.expectedStart), 
-        end: new Date(a.plannedEnd) 
+        start: new Date(a.estimatedStartTime), 
+        end: new Date(a.estimatedEndTime) 
       });
       substationSchedule.set(a.substationId, subSchedule);
     });
@@ -6418,8 +6418,8 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
           status: isQueued ? 'queued' : 'pending',
           nominalTime: parseInt(node.nominalTime) || null,
           effectiveTime: parseInt(node.effectiveTime) || null,
-          expectedStart: actualStart,
-          plannedEnd: actualEnd,
+          estimatedStartTime: actualStart,
+          estimatedEndTime: actualEnd,
           estimatedStartTime: actualStart,
           estimatedEndTime: actualEnd,
           sequenceNumber: sequenceNumber,
@@ -6467,9 +6467,10 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
             assignedWorkerId: worker.id,
             currentOperation: node.operationId,
             reservedAt: trx.fn.now(),
+            currentExpectedEnd: actualEnd, // ✅ Set expected end time from FIFO estimation
             updatedAt: trx.fn.now()
           });
-        console.log(`   ✓ Substation reserved (${updateResult} rows affected)`);
+        console.log(`   ✓ Substation reserved (${updateResult} rows affected), expected end: ${actualEnd}`);
       } else {
         console.log(`⏭️  Node "${node.name}" is queued (seq ${sequenceNumber}), substation NOT reserved yet`);
       }
@@ -7608,8 +7609,8 @@ router.get('/analytics/master-timeline', withAuth, async (req, res) => {
         'wa.status',
         'wa.estimatedStartTime',
         'wa.estimatedEndTime',
-        'wa.actualStartTime',
-        'wa.actualEndTime'
+        'wa.startedAt',
+        'wa.completedAt'
       );
     
     // Group assignments by plan
@@ -7621,14 +7622,14 @@ router.get('/analytics/master-timeline', withAuth, async (req, res) => {
         .filter(a => a.planId === plan.id)
         .map(a => ({
           nodeId: a.nodeId,
-          nodeName: a.node_name,
+          nodeName: a.nodeName,
           workerId: a.workerId,
           workerName: a.workerName,
           substationId: a.substationId,
           substationName: a.substationName,
           status: a.status,
-          start: a.actual_start_time || a.estimatedStartTime,
-          end: a.actual_end_time || a.estimatedEndTime
+          start: a.startedAt || a.estimatedStartTime,
+          end: a.completedAt || a.estimatedEndTime
         }))
     }));
     

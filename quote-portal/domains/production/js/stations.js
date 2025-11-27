@@ -1041,11 +1041,11 @@ export async function showSubStationDetail(substationId) {
                 <span style="font-weight: 500;">İşçi:</span> ${escapeHtml(currentTask.workerName)}
               </div>
               <div style="margin-bottom: 3px;">
-                <span style="font-weight: 500;">Başlangıç:</span> ${formatTime(currentTask.actualStart)}
+                <span style="font-weight: 500;">Başlangıç:</span> ${formatTime(currentTask.startedAt)}
               </div>
-              ${currentTask.plannedEnd ? `
+              ${currentTask.estimatedEndTime ? `
                 <div style="margin-bottom: 3px;">
-                  <span style="font-weight: 500;">Tahmini Bitiş:</span> ${formatTime(currentTask.plannedEnd)}
+                  <span style="font-weight: 500;">Tahmini Bitiş:</span> ${formatTime(currentTask.estimatedEndTime)}
                 </div>
               ` : ''}
             </div>
@@ -1092,7 +1092,7 @@ export async function showSubStationDetail(substationId) {
                   <span style="font-weight: 500;">İşçi:</span> ${escapeHtml(task.workerName)}
                 </div>
                 <div style="font-size: 10px; color: rgb(107, 114, 128);">
-                  <span style="font-weight: 500;">Planlanan:</span> ${formatTime(task.plannedStart)}
+                  <span style="font-weight: 500;">Tahmini Başlangıç:</span> ${formatTime(task.estimatedStartTime)}
                   ${task.estimatedTime ? ` | <span style="font-weight: 500;">Süre:</span> ${formatDuration(task.estimatedTime)}` : ''}
                 </div>
               </div>

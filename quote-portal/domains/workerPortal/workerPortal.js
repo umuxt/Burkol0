@@ -202,10 +202,10 @@ async function loadWorkerTasks() {
         name: state.tasks[0].name,
         estimatedNominalTime: state.tasks[0].estimatedNominalTime,
         estimatedEffectiveTime: state.tasks[0].estimatedEffectiveTime,
-        plannedStart: state.tasks[0].plannedStart,
-        plannedEnd: state.tasks[0].plannedEnd,
-        actualStart: state.tasks[0].actualStart,
-        actualStartType: typeof state.tasks[0].actualStart,
+        estimatedStartTime: state.tasks[0].estimatedStartTime,
+        estimatedEndTime: state.tasks[0].estimatedEndTime,
+        startedAt: state.tasks[0].startedAt,
+        startedAtType: typeof state.tasks[0].startedAt,
         status: state.tasks[0].status,
         assignmentId: state.tasks[0].assignmentId
       });
@@ -216,7 +216,7 @@ async function loadWorkerTasks() {
         console.log('⏱️ In-progress task for timer:', {
           name: inProgressTask.name,
           status: inProgressTask.status,
-          actualStart: inProgressTask.actualStart,
+          startedAt: inProgressTask.startedAt,
           estimatedEffectiveTime: inProgressTask.estimatedEffectiveTime,
           estimatedNominalTime: inProgressTask.estimatedNominalTime
         });
@@ -887,8 +887,8 @@ function showTaskDetailModal(assignmentId) {
   // Format times
   const estimatedStart = formatTime(task.estimatedStartTime);
   const estimatedEnd = formatTime(task.estimatedEndTime);
-  const actualStartTime = task.actualStart ? formatTime(task.actualStart) : '—';
-  const actualEndTime = task.actualEnd ? formatTime(task.actualEnd) : '—';
+  const actualStartTime = task.startedAt ? formatTime(task.startedAt) : '—';
+  const actualEndTime = task.completedAt ? formatTime(task.completedAt) : '—';
   
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
@@ -1852,8 +1852,8 @@ function renderTaskList() {
     }
     
     // Then sort by expected start time (FIFO)
-    const aStart = new Date(a.optimizedStart || a.expectedStart || a.plannedStart).getTime();
-    const bStart = new Date(b.optimizedStart || b.expectedStart || b.plannedStart).getTime();
+    const aStart = new Date(a.optimizedStart || a.estimatedStartTime || a.estimatedStartTime).getTime();
+    const bStart = new Date(b.optimizedStart || b.estimatedStartTime || b.estimatedStartTime).getTime();
     return aStart - bStart;
   });
   
@@ -2081,10 +2081,10 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
             </div>
           </div>
           <div class="info-item">
-            <i data-lucide="${task.actualStart ? 'play-circle' : 'calendar-clock'}" style="width: 16px; height: 16px; color: ${task.actualStart ? '#10b981' : '#6b7280'};"></i>
+            <i data-lucide="${task.startedAt ? 'play-circle' : 'calendar-clock'}" style="width: 16px; height: 16px; color: ${task.startedAt ? '#10b981' : '#6b7280'};"></i>
             <div>
-              <div class="info-item-label">${task.actualStart ? 'Başlangıç' : 'Tahmini Başlangıç'}</div>
-              <div class="info-item-value">${task.actualStart ? formatTime(task.actualStart) : (task.plannedStart ? formatTime(task.plannedStart) : '—')}</div>
+              <div class="info-item-label">${task.startedAt ? 'Başlangıç' : 'Tahmini Başlangıç'}</div>
+              <div class="info-item-value">${task.startedAt ? formatTime(task.startedAt) : (task.estimatedStartTime ? formatTime(task.estimatedStartTime) : '—')}</div>
             </div>
           </div>
           ${task.status === 'in_progress' || task.status === 'in-progress' ? `
@@ -2092,7 +2092,7 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
             <i data-lucide="timer" style="width: 16px; height: 16px; color: #3b82f6;"></i>
             <div>
               <div class="info-item-label">Geçen Süre</div>
-              <div class="info-item-value duration-live" data-actual-start="${task.actualStart}" data-assignment-id="${task.assignmentId}">—</div>
+              <div class="info-item-value duration-live" data-started-at="${task.startedAt}" data-assignment-id="${task.assignmentId}">—</div>
             </div>
           </div>
           ` : `
@@ -2100,7 +2100,7 @@ function renderModernTaskCard(task, isNextTask, fifoPosition) {
             <i data-lucide="flag" style="width: 16px; height: 16px; color: #6b7280;"></i>
             <div>
               <div class="info-item-label">Tahmini Bitiş</div>
-              <div class="info-item-value">${task.plannedEnd ? formatTime(task.plannedEnd) : '—'}</div>
+              <div class="info-item-value">${task.estimatedEndTime ? formatTime(task.estimatedEndTime) : '—'}</div>
             </div>
           </div>
           `}
@@ -2152,8 +2152,8 @@ function renderCompactTaskCard(task, fifoPosition) {
             ${task.planName ? `<span style="margin-left: 4px; opacity: 0.7;">• ${task.planName}</span>` : ''}
           </div>
           <div style="font-size: 11px; opacity: 0.5; display: flex; gap: 8px; align-items: center;">
-            ${task.plannedStart ? `<div style="display: flex; align-items: center; gap: 3px;"><i data-lucide="play-circle" style="width: 12px; height: 12px;"></i> <span>${formatTime(task.plannedStart)}</span></div>` : ''}
-            ${task.plannedEnd ? `<div style="display: flex; align-items: center; gap: 3px;"><i data-lucide="flag" style="width: 12px; height: 12px;"></i> <span>${formatTime(task.plannedEnd)}</span></div>` : ''}
+            ${task.estimatedStartTime ? `<div style="display: flex; align-items: center; gap: 3px;"><i data-lucide="play-circle" style="width: 12px; height: 12px;"></i> <span>${formatTime(task.estimatedStartTime)}</span></div>` : ''}
+            ${task.estimatedEndTime ? `<div style="display: flex; align-items: center; gap: 3px;"><i data-lucide="flag" style="width: 12px; height: 12px;"></i> <span>${formatTime(task.estimatedEndTime)}</span></div>` : ''}
           </div>
         </div>
       </div>
@@ -2345,9 +2345,9 @@ function renderTaskRow(task, isNextTask, fifoPosition) {
         <div class="duration-info" 
              data-assignment-id="${task.assignmentId}"
              data-status="${task.status}"
-             data-actual-start="${task.actualStart ? (typeof task.actualStart === 'object' ? JSON.stringify(task.actualStart) : task.actualStart) : ''}"
+             data-started-at="${task.startedAt ? (typeof task.startedAt === 'object' ? JSON.stringify(task.startedAt) : task.startedAt) : ''}"
              data-estimated-time="${task.estimatedEffectiveTime || task.estimatedNominalTime || 0}">
-          ${task.actualStart && (task.status === 'in-progress' || task.status === 'in_progress') ? '⏱️ 0dk' : formatDuration(task.estimatedEffectiveTime || task.estimatedNominalTime)}
+          ${task.startedAt && (task.status === 'in-progress' || task.status === 'in_progress') ? '⏱️ 0dk' : formatDuration(task.estimatedEffectiveTime || task.estimatedNominalTime)}
         </div>
       </td>
       <td>
@@ -2415,71 +2415,71 @@ function renderOperationalDetails(task) {
   const timingDetails = [];
   
   // If task has started, show expected times in gray (muted)
-  if (task.actualStart) {
+  if (task.startedAt) {
     // Show expected start/end in muted style
-    if (task.plannedStart || task.plannedEnd) {
+    if (task.estimatedStartTime || task.estimatedEndTime) {
       const plannedParts = [];
-      if (task.plannedStart) {
-        plannedParts.push(`Beklenen: ${formatTime(task.plannedStart)}`);
+      if (task.estimatedStartTime) {
+        plannedParts.push(`Beklenen: ${formatTime(task.estimatedStartTime)}`);
       }
-      if (task.plannedEnd) {
-        plannedParts.push(`${formatTime(task.plannedEnd)}`);
+      if (task.estimatedEndTime) {
+        plannedParts.push(`${formatTime(task.estimatedEndTime)}`);
       }
       timingDetails.push(`<span style="color: #9ca3af; font-size: 10px;">${plannedParts.join(' → ')}</span>`);
     }
     
     // Show actual start time prominently
-    const actualStartTime = formatTime(task.actualStart);
+    const actualStartTime = formatTime(task.startedAt);
     timingDetails.push(`<span style="color: #059669;">▶️ Başladı: <strong>${actualStartTime}</strong></span>`);
     
     // Calculate expected end based on actual start + effective time
-    // Always calculate from actualStart, not plannedEnd
+    // Always calculate from startedAt, not estimatedEndTime
     try {
       let startDate;
       
       // Handle Firestore Timestamp objects
-      if (typeof task.actualStart === 'object' && task.actualStart._seconds !== undefined) {
-        startDate = new Date(task.actualStart._seconds * 1000);
+      if (typeof task.startedAt === 'object' && task.startedAt._seconds !== undefined) {
+        startDate = new Date(task.startedAt._seconds * 1000);
       } else {
-        startDate = new Date(task.actualStart);
+        startDate = new Date(task.startedAt);
       }
       
-      // Use effective time if available, otherwise use nominal time, otherwise calculate from plannedEnd
+      // Use effective time if available, otherwise use nominal time, otherwise calculate from estimatedEndTime
       let durationMinutes = task.estimatedEffectiveTime || task.estimatedNominalTime;
       
-      if (!durationMinutes && task.plannedEnd && task.plannedStart) {
+      if (!durationMinutes && task.estimatedEndTime && task.estimatedStartTime) {
         // Calculate duration from planned times as fallback
-        const plannedEndDate = new Date(task.plannedEnd);
-        const plannedStartDate = new Date(task.plannedStart);
-        durationMinutes = Math.round((plannedEndDate - plannedStartDate) / 60000);
+        const estimatedEndTimeDate = new Date(task.estimatedEndTime);
+        const estimatedStartTimeDate = new Date(task.estimatedStartTime);
+        durationMinutes = Math.round((estimatedEndTimeDate - estimatedStartTimeDate) / 60000);
       }
       
       if (durationMinutes > 0) {
         const expectedEndDate = new Date(startDate.getTime() + (durationMinutes * 60000));
         const expectedEndTime = formatTime(expectedEndDate.toISOString());
         timingDetails.push(`<span style="color: #dc2626;">🎯 Bitmeli: <strong>${expectedEndTime}</strong></span>`);
-      } else if (task.plannedEnd) {
+      } else if (task.estimatedEndTime) {
         // Fallback to planned end if no effective time
-        const expectedEndTime = formatTime(task.plannedEnd);
+        const expectedEndTime = formatTime(task.estimatedEndTime);
         timingDetails.push(`<span style="color: #dc2626;">🎯 Bitmeli: <strong>${expectedEndTime}</strong></span>`);
       }
     } catch (err) {
       console.error('Error calculating expected end:', err);
       // Fallback to planned end if calculation fails
-      if (task.plannedEnd) {
-        const expectedEndTime = formatTime(task.plannedEnd);
+      if (task.estimatedEndTime) {
+        const expectedEndTime = formatTime(task.estimatedEndTime);
         timingDetails.push(`<span style="color: #dc2626;">🎯 Bitmeli: <strong>${expectedEndTime}</strong></span>`);
       }
     }
   } else {
     // Task not started yet - show expected times normally
-    if (task.plannedStart) {
-      const expectedStartTime = formatTime(task.plannedStart);
-      timingDetails.push(`📅 Beklenen Başlangıç: <strong>${expectedStartTime}</strong>`);
+    if (task.estimatedStartTime) {
+      const estimatedStartTimeTime = formatTime(task.estimatedStartTime);
+      timingDetails.push(`📅 Beklenen Başlangıç: <strong>${estimatedStartTimeTime}</strong>`);
     }
     
-    if (task.plannedEnd) {
-      const expectedEndTime = formatTime(task.plannedEnd);
+    if (task.estimatedEndTime) {
+      const expectedEndTime = formatTime(task.estimatedEndTime);
       timingDetails.push(`🎯 Beklenen Bitiş: <strong>${expectedEndTime}</strong>`);
     }
   }
@@ -2629,53 +2629,53 @@ function renderLotPreview(task) {
 
 function renderTimeInfo(task) {
   // Show actual times if task has started, otherwise show planned times
-  if (task.actualStart) {
+  if (task.startedAt) {
     let timeHtml = `
       <div class="time-info" style="margin-top: 8px; padding: 8px; background: #f0f9ff; border-radius: 4px; border-left: 3px solid #3b82f6;">
         <div style="font-size: 11px; color: #1e40af; display: flex; align-items: center; gap: 6px;">
           <span>⏰</span>
-          <span><strong>Başlangıç:</strong> ${formatTime(task.actualStart)}</span>
+          <span><strong>Başlangıç:</strong> ${formatTime(task.startedAt)}</span>
     `;
     
     // Show planned start time for comparison if different
-    if (task.plannedStart) {
-      const actualDate = new Date(task.actualStart);
-      const plannedDate = new Date(task.plannedStart);
+    if (task.estimatedStartTime) {
+      const actualDate = new Date(task.startedAt);
+      const plannedDate = new Date(task.estimatedStartTime);
       const diff = Math.abs(actualDate - plannedDate) / 60000; // minutes
       if (diff > 5) { // Show if difference > 5 minutes
-        timeHtml += ` <span style="color: #9ca3af;">(Plan: ${formatTime(task.plannedStart)})</span>`;
+        timeHtml += ` <span style="color: #9ca3af;">(Plan: ${formatTime(task.estimatedStartTime)})</span>`;
       }
     }
     timeHtml += `</div>`;
     
     // Show end time if completed
-    if (task.actualEnd) {
+    if (task.completedAt) {
       timeHtml += `
         <div style="font-size: 11px; color: #059669; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
           <span>✅</span>
-          <span><strong>Bitiş:</strong> ${formatTime(task.actualEnd)}</span>
+          <span><strong>Bitiş:</strong> ${formatTime(task.completedAt)}</span>
         </div>
       `;
-    } else if (task.plannedEnd) {
+    } else if (task.estimatedEndTime) {
       // Show expected end time
       timeHtml += `
         <div style="font-size: 11px; color: #6b7280; margin-top: 4px; display: flex; align-items: center; gap: 6px;">
           <span>📅</span>
-          <span><strong>Tahmini Bitiş:</strong> ${formatTime(task.plannedEnd)}</span>
+          <span><strong>Tahmini Bitiş:</strong> ${formatTime(task.estimatedEndTime)}</span>
         </div>
       `;
     }
     
     timeHtml += `</div>`;
     return timeHtml;
-  } else if (task.plannedStart) {
+  } else if (task.estimatedStartTime) {
     // Task hasn't started yet, show planned times
     return `
       <div class="time-info" style="margin-top: 8px; padding: 6px; background: #f9fafb; border-radius: 4px; border-left: 3px solid #d1d5db;">
         <div style="font-size: 11px; color: #6b7280; display: flex; align-items: center; gap: 6px;">
           <span>📅</span>
-          <span><strong>Planlanan:</strong> ${formatTime(task.plannedStart)}</span>
-          ${task.plannedEnd ? ` <span>→</span> <span>${formatTime(task.plannedEnd)}</span>` : ''}
+          <span><strong>Planlanan:</strong> ${formatTime(task.estimatedStartTime)}</span>
+          ${task.estimatedEndTime ? ` <span>→</span> <span>${formatTime(task.estimatedEndTime)}</span>` : ''}
         </div>
       </div>
     `;
@@ -2935,23 +2935,23 @@ function startDurationUpdates() {
   durationUpdateInterval = setInterval(() => {
     // Update old table-based durations (backward compatibility)
     document.querySelectorAll('.duration-info[data-status="in-progress"], .duration-info[data-status="in_progress"]').forEach(el => {
-      const actualStart = el.dataset.actualStart;
-      if (!actualStart) return;
+      const startedAt = el.dataset.startedAt;
+      if (!startedAt) return;
       
       try {
         let startTime;
         
         // Try to parse as Firestore Timestamp JSON
         try {
-          const parsed = JSON.parse(actualStart);
+          const parsed = JSON.parse(startedAt);
           if (parsed._seconds !== undefined) {
             startTime = new Date(parsed._seconds * 1000);
           } else {
-            startTime = new Date(actualStart);
+            startTime = new Date(startedAt);
           }
         } catch {
           // Not JSON, treat as ISO string
-          startTime = new Date(actualStart);
+          startTime = new Date(startedAt);
         }
         
         const elapsed = Math.floor((Date.now() - startTime.getTime()) / 60000); // minutes
@@ -2976,11 +2976,11 @@ function startDurationUpdates() {
     
     // Update new card-based live durations
     document.querySelectorAll('.duration-live').forEach(el => {
-      const actualStart = el.dataset.actualStart;
-      if (!actualStart) return;
+      const startedAt = el.dataset.startedAt;
+      if (!startedAt) return;
       
       try {
-        const startTime = new Date(actualStart);
+        const startTime = new Date(startedAt);
         const elapsed = Math.floor((Date.now() - startTime.getTime()) / 60000); // minutes
         el.textContent = formatDuration(elapsed);
       } catch (err) {

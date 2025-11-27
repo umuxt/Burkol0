@@ -68,7 +68,7 @@ export async function applyDeferredReservation(substationId) {
       const waitingAssignment = await trx('mes.worker_assignments')
         .where('substationId', substationId)
         .where('status', 'pending')
-        .orderBy('expectedStart', 'asc')
+        .orderBy('estimatedStartTime', 'asc')
         .first();
       
       if (!waitingAssignment) {
@@ -84,10 +84,11 @@ export async function applyDeferredReservation(substationId) {
           assignedWorkerId: waitingAssignment.workerId,
           currentOperation: waitingAssignment.operationId,
           reservedAt: trx.fn.now(),
+          currentExpectedEnd: waitingAssignment.estimatedEndTime || null,
           updatedAt: trx.fn.now()
         });
       
-      console.log(`🔄 [FIFO] Applied deferred reservation: substation ${substationId} → assignment ${waitingAssignment.id}`);
+      console.log(`🔄 [FIFO] Applied deferred reservation: substation ${substationId} → assignment ${waitingAssignment.id} (expected end: ${waitingAssignment.estimatedEndTime || 'N/A'})`);
       return true;
     });
   } catch (error) {
@@ -112,7 +113,7 @@ export async function applyDeferredReservation(substationId) {
  *   operationId: 'OP-001',
  *   operationName: 'Kesim',
  *   status: 'pending',
- *   expectedStart: '2025-11-20T10:00:00Z',
+ *   estimatedStartTime: '2025-11-20T10:00:00Z',
  *   nominalTime: 60,
  *   effectiveTime: 70,
  *   isUrgent: false,
@@ -136,7 +137,7 @@ export async function getWorkerNextTask(workerId) {
         'a.planId as planId',
         'a.nodeId as nodeId',
         'a.status',
-        'a.expected_start as expectedStart',
+        'a."estimatedStartTime"',
         'a.nominal_time as nominalTime',
         'a.effective_time as effectiveTime',
         'a.is_urgent as isUrgent',
@@ -195,7 +196,7 @@ export async function getWorkerTaskQueue(workerId, limit = 10) {
         'a.planId as planId',
         'a.nodeId as nodeId',
         'a.status',
-        'a.expected_start as expectedStart',
+        'a."estimatedStartTime"',
         'a.nominal_time as nominalTime',
         'a.effective_time as effectiveTime',
         'a.is_urgent as isUrgent',
@@ -417,15 +418,20 @@ export async function startTask(assignmentId, workerId) {
           );
         }
         
+        // Get assignment's estimatedEndTime for currentExpectedEnd
+        const assignmentEndTime = assignmentData.estimatedEndTime;
+        
         await trx('mes.substations')
           .where('id', assignmentData.substationId)
           .update({
             status: 'in_use',
             currentAssignmentId: assignmentIdInt,
+            inUseSince: trx.fn.now(),
+            currentExpectedEnd: assignmentEndTime || null,
             updatedAt: trx.fn.now()
           });
         
-        console.log(`🔓 [FIFO] Released substation ${assignmentData.substationId} for use`);
+        console.log(`🔓 [FIFO] Substation ${assignmentData.substationId} now in_use (expected end: ${assignmentEndTime || 'N/A'})`);
       }
       
       // Update assignment to in_progress
@@ -885,6 +891,8 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
             currentAssignmentId: null,
             assignedWorkerId: null,
             currentOperation: null,
+            inUseSince: null,
+            currentExpectedEnd: null,
             updatedAt: trx.fn.now()
           });
         
@@ -895,7 +903,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
         const queuedForSubstation = await trx('mes.worker_assignments')
           .where('substationId', assignment.substationId)
           .where('status', 'queued')
-          .orderBy('expectedStart', 'asc')
+          .orderBy('estimatedStartTime', 'asc')
           .first();
         
         if (queuedForSubstation) {
@@ -913,6 +921,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
               assignedWorkerId: queuedForSubstation.workerId,
               currentOperation: queuedForSubstation.operationId,
               reservedAt: trx.fn.now(),
+              currentExpectedEnd: queuedForSubstation.estimatedEndTime || null,
               updatedAt: trx.fn.now()
             });
           
@@ -922,7 +931,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
           const waitingPending = await trx('mes.worker_assignments')
             .where('substationId', assignment.substationId)
             .where('status', 'pending')
-            .orderBy('expectedStart', 'asc')
+            .orderBy('estimatedStartTime', 'asc')
             .first();
           
           if (waitingPending) {
@@ -934,6 +943,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
                 assignedWorkerId: waitingPending.workerId,
                 currentOperation: waitingPending.operationId,
                 reservedAt: trx.fn.now(),
+                currentExpectedEnd: waitingPending.estimatedEndTime || null,
                 updatedAt: trx.fn.now()
               });
             
@@ -956,7 +966,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
         nextQueued = await trx('mes.worker_assignments')
           .where('workerId', assignment.workerId)
           .where('status', 'queued')
-          .orderBy('expectedStart', 'asc') // Use expected start time for cross-plan priority
+          .orderBy('estimatedStartTime', 'asc') // Use expected start time for cross-plan priority
           .first();
         
         if (nextQueued) {
@@ -990,6 +1000,7 @@ export async function completeTask(assignmentId, workerId, completionData = {}) 
               assignedWorkerId: nextQueued.workerId,
               currentOperation: nextQueued.operationId,
               reservedAt: trx.fn.now(),
+              currentExpectedEnd: nextQueued.estimatedEndTime || null,
               updatedAt: trx.fn.now()
             });
           

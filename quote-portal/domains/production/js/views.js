@@ -2629,8 +2629,8 @@ function renderWorkPackagesTable() {
           ${getMaterialBadge(pkg.materialStatus)}
         </td>
         <td>
-          <div class="mes-muted-text" style="font-size: 50%;">Start: ${formatTime(pkg.actualStart || pkg.expectedStart || pkg.plannedStart)}</div>
-          <div class="mes-muted-text" style="font-size: 50%;">End: ${formatTime(pkg.actualEnd || pkg.plannedEnd)}</div>
+          <div class="mes-muted-text" style="font-size: 50%;">Start: ${formatTime(pkg.startedAt || pkg.estimatedStartTime)}</div>
+          <div class="mes-muted-text" style="font-size: 50%;">End: ${formatTime(pkg.completedAt || pkg.estimatedEndTime)}</div>
         </td>
       </tr>
     `;
@@ -3463,23 +3463,23 @@ function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
     <div style="margin-bottom: 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
       <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">Zaman Bilgileri</h3>
       <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Planlanan Başlangıç:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.plannedStart)}</span>
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tahmini Başlangıç:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.estimatedStartTime)}</span>
       </div>
       <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
-        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Planlanan Bitiş:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.plannedEnd)}</span>
+        <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tahmini Bitiş:</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.estimatedEndTime)}</span>
       </div>
-      ${workPackage.actualStart ? `
+      ${workPackage.startedAt ? `
       <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 8px;">
         <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Gerçek Başlangıç:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.actualStart)}</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.startedAt)}</span>
       </div>
       ` : ''}
-      ${workPackage.actualEnd ? `
+      ${workPackage.completedAt ? `
       <div class="detail-item" style="display: flex; align-items: flex-start; margin-bottom: 0;">
         <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Gerçek Bitiş:</span>
-        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.actualEnd)}</span>
+        <span style="flex: 1 1 0%; font-size: 12px;">${formatTime(workPackage.completedAt)}</span>
       </div>
       ` : ''}
     </div>

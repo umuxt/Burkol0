@@ -58,27 +58,35 @@
       "type": "integer",
       "minimum": 1
     },
-    "expectedStart": {
-      "type": "string",
+    "estimatedStartTime": {
+      "type": ["string", "null"],
       "format": "date-time",
-      "description": "Expected start time (FIFO mode)"
+      "description": "FIFO scheduler estimated start time"
+    },
+    "estimatedEndTime": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "FIFO scheduler estimated end time"
     },
     "optimizedStart": {
       "type": ["string", "null"],
       "format": "date-time",
-      "description": "Optimized start time (optimized mode, null for FIFO)"
+      "description": "Optimized start time (future optimization model)"
     },
-    "plannedEnd": {
-      "type": "string",
-      "format": "date-time"
-    },
-    "actualStart": {
+    "optimizedEnd": {
       "type": ["string", "null"],
-      "format": "date-time"
+      "format": "date-time",
+      "description": "Optimized end time (future optimization model)"
     },
-    "actualEnd": {
+    "startedAt": {
       "type": ["string", "null"],
-      "format": "date-time"
+      "format": "date-time",
+      "description": "Actual task start time (when worker started)"
+    },
+    "completedAt": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Actual task completion time"
     },
     "preProductionReservedAmount": {
       "type": "object",

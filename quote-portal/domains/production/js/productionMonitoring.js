@@ -276,8 +276,8 @@ function renderAssignmentRows(assignments, esc) {
   return assignments.map(a => {
     const estimatedStart = a.estimatedStartTime ? new Date(a.estimatedStartTime) : null;
     const estimatedEnd = a.estimatedEndTime ? new Date(a.estimatedEndTime) : null;
-    const actualStart = a.actualStartTime ? new Date(a.actualStartTime) : null;
-    const actualEnd = a.actualEndTime ? new Date(a.actualEndTime) : null;
+    const actualStart = a.startedAt ? new Date(a.startedAt) : null;
+    const actualEnd = a.completedAt ? new Date(a.completedAt) : null;
 
     let timeDisplay = '-';
     if (actualStart && actualEnd) {
@@ -340,8 +340,8 @@ function detectBottlenecks(assignments) {
   // Check for long-running tasks
   const now = new Date();
   assignments.forEach(a => {
-    if (a.status === 'in-progress' && a.actualStartTime && a.estimatedEndTime) {
-      const actualStart = new Date(a.actualStartTime);
+    if (a.status === 'in-progress' && a.startedAt && a.estimatedEndTime) {
+      const actualStart = new Date(a.startedAt);
       const estimatedEnd = new Date(a.estimatedEndTime);
       const expectedDuration = estimatedEnd - actualStart;
       const actualDuration = now - actualStart;
