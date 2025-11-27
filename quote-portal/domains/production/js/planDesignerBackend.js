@@ -527,7 +527,7 @@ export async function editNodeBackend(nodeId) {
           rebuildMaterialRowsFromNode(node)
           updateOutputCodePreviewBackend()
           
-          // Update "F" suffix for new output mode if modal is open
+          // Update output preview if modal is open
           const newOutputSection = document.getElementById('new-output-section');
           if (newOutputSection && newOutputSection.style.display !== 'none') {
             updateNewOutputPreview();
@@ -537,7 +537,7 @@ export async function editNodeBackend(nodeId) {
       window.addEventListener('nodeMaterialsChanged', materialChangeHandler)
     } catch {}
     
-    // Listen for graph changes (connections added/removed) to update "F" suffix
+    // Listen for graph changes to update final node status
     try {
       if (graphChangeHandler) {
         window.removeEventListener('graphChanged', graphChangeHandler)
@@ -552,7 +552,7 @@ export async function editNodeBackend(nodeId) {
             return
           }
           
-          // Update "F" suffix for new output mode
+          // Update output preview for new output mode
           const newOutputSection = document.getElementById('new-output-section');
           if (newOutputSection && newOutputSection.style.display !== 'none') {
             console.log('🔄 Graph changed, updating output preview...');
@@ -819,8 +819,8 @@ export async function saveNodeEditBackend() {
     node._isNewOutput = true;
     node._outputNeedsCreation = true;
     node._outputName = outputName;
-    node._isFinalNode = isFinalNode; // ✅ Set final node flag for category determination
-    node.outputCode = finalCode; // Use the preview code with potential "F" suffix
+    node._isFinalNode = isFinalNode; // Set final node flag for category determination
+    node.outputCode = finalCode; // Output code without F suffix
     node.outputUnit = outputUnit;
     
     console.log(`✅ New output to create: ${finalCode} (${outputName}) - ${outputUnit}${isFinalNode ? ' [FINAL NODE]' : ''}`);
@@ -2217,11 +2217,8 @@ function initializeOutputSelectionUI(node) {
         prefixInput.value = prefix || '—';
       }
       
-      // Extract suffix (remove prefix and "F" if present)
-      let code = node.outputCode;
-      if (code.endsWith('F')) {
-        code = code.slice(0, -1);
-      }
+      // Extract suffix from output code
+      const code = node.outputCode;
       if (code.startsWith(prefix)) {
         const suffix = code.substring(prefix.length);
         const suffixInput = document.getElementById('output-suffix');
@@ -2447,16 +2444,7 @@ window.updateNewOutputPreview = function() {
   
   // Pad to 3 digits
   const paddedSuffix = suffix.padStart(3, '0');
-  let finalCode = `${prefix}${paddedSuffix}`;
-  
-  // Check if final node → add "F"
-  const isFinalNode = !planDesignerState.nodes.some(n => 
-    Array.isArray(n.predecessors) && n.predecessors.includes(node.id)
-  );
-  
-  if (isFinalNode) {
-    finalCode += 'F';
-  }
+  const finalCode = `${prefix}${paddedSuffix}`;
   
   finalCodeSpan.textContent = finalCode;
   // Store final code in span's dataset for retrieval on save

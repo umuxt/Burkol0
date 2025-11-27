@@ -122,7 +122,7 @@ function wouldCreateCycle(fromId, toId) {
 /**
  * Detect final nodes in the production plan graph.
  * A node is considered "final" if it is not a predecessor of any other node.
- * Updates _isFinalNode flag and appends/removes "F" suffix from outputCode.
+ * Updates _isFinalNode flag for category determination.
  * @param {Array} nodes - Array of plan nodes
  */
 export function detectFinalNodes(nodes) {
@@ -134,18 +134,7 @@ export function detectFinalNodes(nodes) {
     
     node._isFinalNode = isFinalNode;
     
-    // Update outputCode with/without "F" suffix
-    if (node.outputCode) {
-      const hasF = node.outputCode.endsWith('F');
-      
-      if (isFinalNode && !hasF) {
-        node.outputCode += 'F';
-        console.log(`🏁 Node ${node.id} marked as final, added "F" suffix: ${node.outputCode}`);
-      } else if (!isFinalNode && hasF) {
-        node.outputCode = node.outputCode.slice(0, -1);
-        console.log(`🔄 Node ${node.id} no longer final, removed "F" suffix: ${node.outputCode}`);
-      }
-    }
+    // F suffix is no longer managed in MES - will only exist in shipments table
   });
 }
 
@@ -1411,10 +1400,10 @@ export function deleteConnection(fromNodeId, toNodeId) {
     try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toNodeId } })) } catch {}
   }
   
-  // Emit graph change event for UI updates (e.g., "F" suffix in output codes)
+  // Emit graph change event for UI updates
   try { window.dispatchEvent(new CustomEvent('graphChanged')) } catch {}
   
-  // Detect and update final nodes ("F" suffix logic)
+  // Detect and update final nodes (for category determination)
   detectFinalNodes(planDesignerState.nodes);
   
   // Sequence'leri yeniden hesapla
@@ -1485,7 +1474,7 @@ export function connectNodes(fromId, toId) {
   if (!Array.isArray(toNode.predecessors)) toNode.predecessors = [];
   if (!toNode.predecessors.includes(fromId)) toNode.predecessors.push(fromId);
 
-  // Emit graph change event for UI updates (e.g., "F" suffix in output codes)
+  // Emit graph change event for UI updates
   try { window.dispatchEvent(new CustomEvent('graphChanged')) } catch {}
 
   // Material propagation: from's output becomes input material of to (SCHEMA-COMPLIANT)
@@ -1516,7 +1505,7 @@ export function connectNodes(fromId, toId) {
     }
   }
 
-  // Detect and update final nodes ("F" suffix logic)
+  // Detect and update final nodes (for category determination)
   detectFinalNodes(planDesignerState.nodes);
 
   // Sequence'leri yeniden hesapla
@@ -2333,7 +2322,7 @@ export function closeNodeEditModal(event) {
     modalEscapeHandler = null;
   }
   
-  // Remove graph change listener (for "F" suffix updates)
+  // Remove graph change listener
   if (window.graphChangeHandler) {
     try {
       window.removeEventListener('graphChanged', window.graphChangeHandler);
@@ -2491,7 +2480,7 @@ export function deleteNode(nodeId) {
     }
     });
     
-    // Detect and update final nodes ("F" suffix logic)
+    // Detect and update final nodes (for category determination)
     detectFinalNodes(planDesignerState.nodes);
     
     // Sequence'leri yeniden hesapla

@@ -132,42 +132,6 @@ function generateWorkPackageIds(workOrderCode, assignmentsCount) {
 // ============================================================================
 
 /**
- * Apply output code suffix for finished products
- * If a node is the final node (no other nodes use it as predecessor),
- * append 'F' suffix to outputCode to mark it as finished product
- * 
- * @param {Array} nodes - All nodes in the plan
- * @returns {Array} Nodes with updated outputCodes
- */
-function applyOutputCodeSuffixes(nodes) {
-  if (!nodes || !Array.isArray(nodes)) return nodes;
-  
-  return nodes.map(node => {
-    if (!node.outputCode) return node;
-    
-    // Skip if this is an existing output (not newly created)
-    if (node._outputMaterialId || node._outputSelectionMode === 'existing') {
-      return node;
-    }
-    
-    // Check if this node is a finished product (no other nodes use it as predecessor)
-    const isFinishedProduct = !nodes.some(n => 
-      Array.isArray(n.predecessors) && n.predecessors.includes(node.id || node.nodeId)
-    );
-    
-    // If it's a finished product and doesn't already have 'F' suffix, add it
-    if (isFinishedProduct && !node.outputCode.endsWith('F')) {
-      const updatedNode = { ...node };
-      updatedNode.outputCode = `${node.outputCode}F`;
-      console.log(`✅ Applied 'F' suffix to finished product: ${node.outputCode} → ${updatedNode.outputCode}`);
-      return updatedNode;
-    }
-    
-    return node;
-  });
-}
-
-/**
  * Calculate pre-production reserved amounts for a work package
  * Takes into account expected defect rate and input/output ratio
  * 
@@ -1665,12 +1629,9 @@ router.post('/templates', withAuth, async (req, res) => {
     // 3. Insert nodes if provided (frontend sends 'steps', normalize to 'nodes')
     const nodeList = nodes || steps || [];
     if (Array.isArray(nodeList) && nodeList.length > 0) {
-      // Apply output code suffixes for finished products
-      const processedNodes = applyOutputCodeSuffixes(nodeList);
-      
       // Build frontend ID to backend nodeId mapping
       const idMapping = {};
-      processedNodes.forEach((node, index) => {
+      nodeList.forEach((node, index) => {
         const frontendId = node.id || node.nodeId;
         // Extract numeric part from frontend ID (e.g., "node-1" → 1) or use sequenceOrder or index
         const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (index + 1);
@@ -1679,8 +1640,8 @@ router.post('/templates', withAuth, async (req, res) => {
       });
       
       // Step 1: Insert all nodes first (without predecessors)
-      for (let nodeIndex = 0; nodeIndex < processedNodes.length; nodeIndex++) {
-        const node = processedNodes[nodeIndex];
+      for (let nodeIndex = 0; nodeIndex < nodeList.length; nodeIndex++) {
+        const node = nodeList[nodeIndex];
         // Get frontend ID and calculate backend nodeId (same logic as idMapping)
         const frontendId = node.id || node.nodeId;
         const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (nodeIndex + 1);
@@ -1739,8 +1700,8 @@ router.post('/templates', withAuth, async (req, res) => {
       }
       
       // Step 2: Insert all predecessors AFTER all nodes exist
-      for (let nodeIndex = 0; nodeIndex < processedNodes.length; nodeIndex++) {
-        const node = processedNodes[nodeIndex];
+      for (let nodeIndex = 0; nodeIndex < nodeList.length; nodeIndex++) {
+        const node = nodeList[nodeIndex];
         const frontendId = node.id || node.nodeId;
         const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (nodeIndex + 1);
         const stringNodeId = `${planId}-node-${numericPart}`;
@@ -1766,40 +1727,6 @@ router.post('/templates', withAuth, async (req, res) => {
     await trx.commit();
     
     console.log(`✅ Template created: ${planId} with ${nodeList.length} nodes`);
-    
-    // AUTO-CREATE FINISHED PRODUCT MATERIALS (if suffix was added)
-    // Check if any nodes have "F" suffix that don't exist in materials table
-    for (const node of nodeList) {
-      if (node.outputCode && node.outputCode.endsWith('F')) {
-        const baseCode = node.outputCode.slice(0, -1); // Remove 'F'
-        
-        // Check if finished product material exists
-        const finishedExists = await db('materials.materials')
-          .where('code', node.outputCode)
-          .first();
-        
-        if (!finishedExists) {
-          // Check if base material exists
-          const baseMaterial = await db('materials.materials')
-            .where('code', baseCode)
-            .first();
-          
-          if (baseMaterial) {
-            // Auto-create finished product material
-            await db('materials.materials').insert({
-              code: node.outputCode,
-              name: `${baseMaterial.name} (Finished)`,
-              category: baseMaterial.category || 'cat_finished_product',
-              type: 'finished_product',
-              unit: baseMaterial.unit || 'adet',
-              status: 'Aktif',
-              createdAt: db.fn.now()
-            });
-            console.log(`✅ Auto-created finished product material: ${node.outputCode} from ${baseCode}`);
-          }
-        }
-      }
-    }
     
     res.json({ 
       success: true, 
@@ -5664,36 +5591,6 @@ router.post('/production-plans', withAuth, async (req, res) => {
     
     console.log(`✅ Production plan created: ${planId} with ${nodes.length} nodes`);
     
-    // AUTO-CREATE FINISHED PRODUCT MATERIALS (if suffix was added)
-    for (const node of nodes) {
-      if (node.outputCode && node.outputCode.endsWith('F')) {
-        const baseCode = node.outputCode.slice(0, -1);
-        
-        const finishedExists = await db('materials.materials')
-          .where('code', node.outputCode)
-          .first();
-        
-        if (!finishedExists) {
-          const baseMaterial = await db('materials.materials')
-            .where('code', baseCode)
-            .first();
-          
-          if (baseMaterial) {
-            await db('materials.materials').insert({
-              code: node.outputCode,
-              name: `${baseMaterial.name} (Finished)`,
-              category: baseMaterial.category || 'cat_finished_product',
-              type: 'finished_product',
-              unit: baseMaterial.unit || 'adet',
-              status: 'Aktif',
-              createdAt: db.fn.now()
-            });
-            console.log(`✅ Auto-created finished product: ${node.outputCode} from ${baseCode}`);
-          }
-        }
-      }
-    }
-    
     // 4. Fetch and return complete plan
     const plan = await getPlanWithNodes(planId);
     res.json(plan);
@@ -5821,10 +5718,9 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
       }
       
       // Process nodes (same logic as POST /templates)
-      const processedNodes = applyOutputCodeSuffixes(nodes);
       const idMapping = {};
       
-      processedNodes.forEach((node, index) => {
+      nodes.forEach((node, index) => {
         const frontendId = node.id || node.nodeId;
         const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (index + 1);
         const backendNodeId = `${id}-node-${numericPart}`;
@@ -5832,8 +5728,8 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
       });
       
       // Step 1: Insert all nodes first (without predecessors)
-      for (let nodeIndex = 0; nodeIndex < processedNodes.length; nodeIndex++) {
-        const node = processedNodes[nodeIndex];
+      for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+        const node = nodes[nodeIndex];
         const frontendId = node.id || node.nodeId;
         const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (nodeIndex + 1);
         const stringNodeId = `${id}-node-${numericPart}`;
@@ -5884,8 +5780,8 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
       }
       
       // Step 2: Insert all predecessors AFTER all nodes exist
-      for (let nodeIndex = 0; nodeIndex < processedNodes.length; nodeIndex++) {
-        const node = processedNodes[nodeIndex];
+      for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex++) {
+        const node = nodes[nodeIndex];
         const frontendId = node.id || node.nodeId;
         const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (nodeIndex + 1);
         const stringNodeId = `${id}-node-${numericPart}`;
@@ -5906,38 +5802,6 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
       }
       
       console.log(`✅ Replaced ${nodes.length} nodes for plan ${id}`);
-    }
-    
-    // AUTO-CREATE FINISHED PRODUCT MATERIALS (if suffix was added)
-    if (Array.isArray(nodes) && nodes.length > 0) {
-      for (const node of nodes) {
-        if (node.outputCode && node.outputCode.endsWith('F')) {
-          const baseCode = node.outputCode.slice(0, -1);
-          
-          const finishedExists = await db('materials.materials')
-            .where('code', node.outputCode)
-            .first();
-          
-          if (!finishedExists) {
-            const baseMaterial = await db('materials.materials')
-              .where('code', baseCode)
-              .first();
-            
-            if (baseMaterial) {
-              await db('materials.materials').insert({
-                code: node.outputCode,
-                name: `${baseMaterial.name} (Finished)`,
-                category: baseMaterial.category || 'cat_finished_product',
-                type: 'finished_product',
-                unit: baseMaterial.unit || 'adet',
-                status: 'Aktif',
-                createdAt: db.fn.now()
-              });
-              console.log(`✅ Auto-created finished product: ${node.outputCode} from ${baseCode}`);
-            }
-          }
-        }
-      }
     }
     
     await trx.commit();
