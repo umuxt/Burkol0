@@ -28,6 +28,92 @@ import { generateLotNumber } from './lotGenerator.js';
 import { isLotTrackingEnabled } from '../../db/models/settings.js';
 
 /**
+ * Check if all predecessor nodes for a given assignment are completed
+ * @param {number} assignmentId - The assignment ID
+ * @param {Object} trx - Optional transaction object
+ * @returns {Promise<{allCompleted: boolean, pendingPredecessors: Array}>}
+ */
+export async function checkPredecessorsCompleted(assignmentId, trx = null) {
+  const query = trx || db;
+  
+  try {
+    // Get the assignment's node details
+    const assignment = await query('mes.worker_assignments')
+      .where('id', assignmentId)
+      .first();
+    
+    if (!assignment) {
+      return { allCompleted: false, pendingPredecessors: [], error: 'Assignment not found' };
+    }
+    
+    // Get the node's nodeId (VARCHAR) from production_plan_nodes
+    const node = await query('mes.production_plan_nodes')
+      .where('id', assignment.nodeId)
+      .first();
+    
+    if (!node) {
+      // If no node found, assume no predecessors
+      return { allCompleted: true, pendingPredecessors: [] };
+    }
+    
+    // Get predecessors from node_predecessors table
+    // NOTE: node_predecessors has nodeId and predecessorNodeId (both VARCHAR)
+    // nodeId format is like "PLAN-001-node-2", so planId is implicit in the nodeId
+    const predecessors = await query('mes.node_predecessors')
+      .where('nodeId', node.nodeId);
+    
+    if (predecessors.length === 0) {
+      // No predecessors = can start immediately
+      console.log(`✅ [FIFO] Node ${node.nodeId} has no predecessors - can start`);
+      return { allCompleted: true, pendingPredecessors: [] };
+    }
+    
+    console.log(`🔍 [FIFO] Node ${node.nodeId} has ${predecessors.length} predecessor(s):`, predecessors.map(p => p.predecessorNodeId));
+    
+    // Get the production_plan_nodes for predecessor nodeIds
+    const predecessorNodeIds = predecessors.map(p => p.predecessorNodeId);
+    const predecessorNodes = await query('mes.production_plan_nodes')
+      .whereIn('nodeId', predecessorNodeIds)
+      .where('planId', assignment.planId);
+    
+    // Get assignments for these predecessor nodes
+    const predecessorNodeDbIds = predecessorNodes.map(n => n.id);
+    const predecessorAssignments = await query('mes.worker_assignments')
+      .whereIn('nodeId', predecessorNodeDbIds)
+      .where('planId', assignment.planId);
+    
+    // Check which predecessors are NOT completed
+    const pendingPredecessors = [];
+    
+    for (const predNode of predecessorNodes) {
+      const predAssignment = predecessorAssignments.find(a => a.nodeId === predNode.id);
+      
+      if (!predAssignment || predAssignment.status !== 'completed') {
+        pendingPredecessors.push({
+          nodeId: predNode.nodeId,
+          nodeName: predNode.name,
+          status: predAssignment?.status || 'not_assigned',
+          assignmentId: predAssignment?.id || null
+        });
+      }
+    }
+    
+    if (pendingPredecessors.length > 0) {
+      console.log(`⏳ [FIFO] Node ${node.nodeId} waiting for predecessors:`, pendingPredecessors.map(p => `${p.nodeName}(${p.status})`));
+    }
+    
+    return {
+      allCompleted: pendingPredecessors.length === 0,
+      pendingPredecessors
+    };
+    
+  } catch (error) {
+    console.error('❌ [FIFO] Error checking predecessors:', error);
+    return { allCompleted: false, pendingPredecessors: [], error: error.message };
+  }
+}
+
+/**
  * Apply deferred reservation for a specific substation
  * Checks for pending assignments waiting for this substation
  * @param {number} substationId - The substation ID
@@ -330,6 +416,22 @@ export async function startTask(assignmentId, workerId) {
     if (!['pending', 'ready'].includes(assignment.status)) {
       throw new Error(`Assignment ${assignmentId} is not in pending/ready state (current: ${assignment.status})`);
     }
+
+    // ✅ CRITICAL: Check if all predecessor nodes are completed
+    const predecessorCheck = await checkPredecessorsCompleted(assignmentIdInt);
+    
+    if (!predecessorCheck.allCompleted) {
+      const pendingNames = predecessorCheck.pendingPredecessors
+        .map(p => `${p.nodeName} (${p.status})`)
+        .join(', ');
+      
+      throw new Error(
+        `Önceki görevler tamamlanmadan bu görev başlatılamaz. ` +
+        `Bekleyen görevler: ${pendingNames}`
+      );
+    }
+    
+    console.log(`✅ [FIFO] Predecessor check passed for assignment ${assignmentIdInt}`);
 
     // ✅ Get both preProductionReservedAmount (with defect buffer) AND base requirements
     const preProductionReservedAmount = assignment.preProductionReservedAmount || {};
@@ -1243,5 +1345,6 @@ export default {
   getWorkerTaskStats,
   startTask,
   completeTask,
-  hasTasksInQueue
+  hasTasksInQueue,
+  checkPredecessorsCompleted
 };

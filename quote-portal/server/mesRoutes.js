@@ -16,7 +16,8 @@ import {
   getWorkerTaskStats,
   startTask,
   completeTask,
-  hasTasksInQueue
+  hasTasksInQueue,
+  checkPredecessorsCompleted
 } from './utils/fifoScheduler.js';
 import {
   createSSEStream,
@@ -3431,7 +3432,13 @@ router.get('/work-packages', withAuth, async (req, res) => {
         'st.name as stationName',
         
         // Substation info  
-        'sub.id as substationCode'
+        'sub.id as substationCode',
+        
+        // Plan info
+        'pp.planName as planName',
+        
+        // Work order info (for customer)
+        'wo.data as workOrderData'
       )
       .leftJoin('mes.workers as w', 'w.id', 'wa.workerId')
       .leftJoin('mes.production_plan_nodes as n', function() {
@@ -3440,6 +3447,8 @@ router.get('/work-packages', withAuth, async (req, res) => {
       .leftJoin('mes.operations as op', 'op.id', 'wa.operationId')
       .leftJoin('mes.stations as st', 'st.id', 'wa.stationId')
       .leftJoin('mes.substations as sub', 'sub.id', 'wa.substationId')
+      .leftJoin('mes.production_plans as pp', 'pp.id', 'wa.planId')
+      .leftJoin('mes.work_orders as wo', 'wo.code', 'wa.workOrderCode')
       .orderBy([
         { column: 'wa.isUrgent', order: 'desc' },
         { column: 'wa.estimatedStartTime', order: 'asc' },
@@ -3498,6 +3507,20 @@ router.get('/work-packages', withAuth, async (req, res) => {
     const outputCodes = tasks.map(t => t.outputCode).filter(Boolean);
     const allCodes = [...new Set([...allMaterialCodes, ...outputCodes])];
     
+    // Get predecessor relationships for all nodes
+    const predecessorRelations = nodeIds.length > 0
+      ? await db('mes.node_predecessors')
+          .whereIn('nodeId', nodeIds)
+          .select('nodeId', 'predecessorNodeId')
+      : [];
+    
+    // Group predecessors by nodeId
+    const predecessorsByNode = predecessorRelations.reduce((acc, p) => {
+      if (!acc[p.nodeId]) acc[p.nodeId] = [];
+      acc[p.nodeId].push(p.predecessorNodeId);
+      return acc;
+    }, {});
+    
     // Check stock availability and get names for all materials (PostgreSQL materials.materials table)
     const stockAvailability = {};
     const materialNames = {};
@@ -3539,6 +3562,11 @@ router.get('/work-packages', withAuth, async (req, res) => {
         }
       }
       
+      // Extract customer info from work order data
+      const woData = parseJsonb(t.workOrderData);
+      const quoteSnapshot = woData?.quoteSnapshot || {};
+      const customerName = quoteSnapshot.customerName || quoteSnapshot.customerCompany || '';
+      
       return {
       // Assignment IDs (backwards compatibility)
       id: t.assignmentId,
@@ -3546,9 +3574,18 @@ router.get('/work-packages', withAuth, async (req, res) => {
       workPackageId: t.assignmentId,
       status: t.status,
       
+      // Plan & Node IDs for chart predecessor highlighting
+      planId: t.planId,
+      nodeId: t.nodeId,
+      nodeIdString: t.nodeIdString,
+      predecessorNodeIds: predecessorsByNode[t.nodeIdString] || [],
+      
+      // Plan info
+      planName: t.planName || '',
+      
       // Work Order & Product
       workOrderCode: t.workOrderCode,
-      customer: '', // TODO: Join with work_orders if needed
+      customer: customerName,
       productName: null,
       
       // Node/Operation
@@ -3838,6 +3875,16 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
       return acc;
     }, {});
 
+    // ✅ CRITICAL: Check predecessor status for all pending/ready tasks
+    // Build a map of assignmentId -> predecessorCheck
+    const predecessorStatusMap = new Map();
+    const pendingReadyTasks = tasks.filter(t => ['pending', 'ready'].includes(t.status));
+    
+    for (const task of pendingReadyTasks) {
+      const check = await checkPredecessorsCompleted(task.assignmentId);
+      predecessorStatusMap.set(task.assignmentId, check);
+    }
+
     // Format response with canonical schema
     const formattedTasks = tasks.map(t => {
       // Parse JSONB fields safely
@@ -3863,8 +3910,28 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
         };
       });
 
-      // Calculate canStart flag
-      const canStart = t.status === 'ready' && t.materialReservationStatus === 'reserved';
+      // ✅ Get predecessor check result
+      const predecessorCheck = predecessorStatusMap.get(t.assignmentId) || { allCompleted: true, pendingPredecessors: [] };
+      
+      // ✅ Build prerequisites object for frontend
+      const prerequisites = {
+        predecessorsDone: predecessorCheck.allCompleted,
+        pendingPredecessors: predecessorCheck.pendingPredecessors || [],
+        materialsReady: t.materialReservationStatus === 'reserved' || t.materialReservationStatus === 'not_required',
+        // Worker and substation availability could be added here if needed
+        workerAvailable: true, // Simplified - worker is assigned
+        substationAvailable: true // Simplified - substation is assigned
+      };
+
+      // ✅ Calculate canStart flag with predecessor check
+      // Task can start if:
+      // 1. Status is pending or ready
+      // 2. All predecessors are completed
+      // 3. Materials are reserved (or not required)
+      const isPendingOrReady = ['pending', 'ready'].includes(t.status);
+      const canStart = isPendingOrReady && 
+                       prerequisites.predecessorsDone && 
+                       prerequisites.materialsReady;
 
       return {
         // Assignment ID
@@ -3924,6 +3991,9 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
         canStart,
         isPaused: t.status === 'paused',
         materialStatus: t.materialReservationStatus === 'reserved' ? 'ok' : 'pending',
+        
+        // ✅ NEW: Prerequisites object for frontend
+        prerequisites,
         
         // Metadata
         createdAt: t.createdAt,

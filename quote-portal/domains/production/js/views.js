@@ -2727,7 +2727,14 @@ function renderWorkPackagesChart() {
       status: normalizedStatus,
       workerName: pkg.workerName || '—',
       stationName: pkg.stationName || '—',
-      substationCode: pkg.substationCode || pkg.subStationCode || '—'
+      substationCode: pkg.substationCode || pkg.subStationCode || '—',
+      // Plan and customer info for tooltip
+      planName: pkg.planName || '',
+      customer: pkg.customer || '',
+      company: pkg.company || '',
+      // Predecessor highlighting data
+      nodeIdString: pkg.nodeIdString || null,
+      predecessorNodeIds: pkg.predecessorNodeIds || []
     };
   }).filter(Boolean);
 
@@ -2749,11 +2756,16 @@ function renderWorkPackagesChart() {
       const topOffset = (item.lane * laneHeight) + laneBaseOffset;
       const tooltipHtml = buildWorkPackageTooltip(item);
       const tooltipAttr = tooltipHtml.replace(/"/g, '&quot;').replace(/\n/g, '&#10;');
+      const predecessorsAttr = item.predecessorNodeIds.length > 0 
+        ? `data-predecessors="${item.predecessorNodeIds.join(',')}"` 
+        : '';
       
       return `
         <div
           class="wp-chart-bar status-${item.status.replace('_', '-')}"
           data-tooltip="${tooltipAttr}"
+          data-node-id="${item.nodeIdString || ''}"
+          ${predecessorsAttr}
           style="left:${offsetPercent}%; width:${widthPercent}%; top:${topOffset}px;"
         >
           <span class="wp-chart-bar-text">${item.assignmentId}</span>
@@ -2863,6 +2875,14 @@ function buildWorkPackageTooltip(item) {
   const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
   const rows = [];
   rows.push(`<div class="wp-chart-tooltip-title">${esc(item.assignmentId)}</div>`);
+  // Plan adı ve firma adı - paket no'nun altında
+  if (item.planName) {
+    rows.push(`<div class="wp-chart-tooltip-row"><span>Plan</span><strong>${esc(item.planName)}</strong></div>`);
+  }
+  const firmaAdi = item.customer || item.company;
+  if (firmaAdi) {
+    rows.push(`<div class="wp-chart-tooltip-row"><span>Firma</span><strong>${esc(firmaAdi)}</strong></div>`);
+  }
   if (item.nodeName) {
     rows.push(`<div class="wp-chart-tooltip-row"><span>Operasyon</span><strong>${esc(item.nodeName)}</strong></div>`);
   }
@@ -2880,9 +2900,76 @@ function setupWorkPackagesChartTooltips(rootEl) {
     const content = bar.getAttribute('data-tooltip');
     bar.onmouseenter = (event) => {
       showWorkPackagesTooltip(event, tooltip, content);
+      // Highlight predecessor bars
+      highlightPredecessorBars(bar, rootEl, true);
     };
     bar.onmousemove = (event) => positionWorkPackagesTooltip(event, tooltip);
-    bar.onmouseleave = () => hideWorkPackagesTooltip(tooltip);
+    bar.onmouseleave = () => {
+      hideWorkPackagesTooltip(tooltip);
+      // Remove predecessor highlighting
+      highlightPredecessorBars(bar, rootEl, false);
+    };
+  });
+}
+
+/**
+ * Highlight or unhighlight predecessor bars when hovering over a node
+ * Recursively highlights entire predecessor chain
+ * @param {HTMLElement} hoveredBar - The bar being hovered
+ * @param {HTMLElement} rootEl - The chart root element
+ * @param {boolean} highlight - Whether to add or remove highlight
+ */
+function highlightPredecessorBars(hoveredBar, rootEl, highlight) {
+  const predecessorsAttr = hoveredBar.getAttribute('data-predecessors');
+  if (!predecessorsAttr) return;
+  
+  const directPredecessorNodeIds = predecessorsAttr.split(',').filter(Boolean);
+  if (directPredecessorNodeIds.length === 0) return;
+  
+  // Build a map of all bars by nodeId for quick lookup
+  const allBars = rootEl.querySelectorAll('.wp-chart-bar[data-node-id]');
+  const barsByNodeId = new Map();
+  allBars.forEach(bar => {
+    const nodeId = bar.getAttribute('data-node-id');
+    if (nodeId) barsByNodeId.set(nodeId, bar);
+  });
+  
+  // Recursively collect ALL predecessors in the chain
+  const allPredecessorNodeIds = new Set();
+  
+  function collectPredecessorsRecursive(nodeIds, depth = 0) {
+    if (depth > 50) return; // Safety limit to prevent infinite loops
+    
+    nodeIds.forEach(nodeId => {
+      if (allPredecessorNodeIds.has(nodeId)) return; // Already processed
+      
+      allPredecessorNodeIds.add(nodeId);
+      
+      // Find the bar for this nodeId and get its predecessors
+      const bar = barsByNodeId.get(nodeId);
+      if (bar) {
+        const predAttr = bar.getAttribute('data-predecessors');
+        if (predAttr) {
+          const nextLevelPredecessors = predAttr.split(',').filter(Boolean);
+          collectPredecessorsRecursive(nextLevelPredecessors, depth + 1);
+        }
+      }
+    });
+  }
+  
+  // Start recursive collection from direct predecessors
+  collectPredecessorsRecursive(directPredecessorNodeIds);
+  
+  // Apply or remove highlighting to all predecessor bars
+  allPredecessorNodeIds.forEach(nodeId => {
+    const bar = barsByNodeId.get(nodeId);
+    if (bar) {
+      if (highlight) {
+        bar.classList.add('predecessor-highlight');
+      } else {
+        bar.classList.remove('predecessor-highlight');
+      }
+    }
   });
 }
 
@@ -3087,6 +3174,28 @@ function ensureWorkPackagesChartStyles() {
       background: #dbeafe;
       border-color: #3b82f6;
       color: #1e3a8a;
+    }
+    /* Predecessor highlight - red glow when hovering over dependent node */
+    .wp-chart-bar.predecessor-highlight {
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.6), 0 0 12px rgba(239, 68, 68, 0.4);
+      border-color: #ef4444 !important;
+      z-index: 10;
+      transform: scale(1.02);
+      transition: all 0.15s ease;
+    }
+    .wp-chart-bar.predecessor-highlight::before {
+      content: '⬅ Önce';
+      position: absolute;
+      top: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ef4444;
+      color: white;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+      font-weight: 600;
     }
     .wp-chart-row-track-empty {
       position: relative;
