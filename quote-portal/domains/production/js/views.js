@@ -2669,6 +2669,8 @@ function renderWorkPackagesTable() {
   const tableRows = packages.map((pkg, index) => {
     const quoteUrl = `/pages/production.html?view=approved-quotes&highlight=${encodeURIComponent(pkg.workOrderCode)}`;
     const planUrl = `/pages/production.html?view=plan-designer&action=view&id=${encodeURIComponent(pkg.planId)}`;
+    const normalizedStatus = normalizeWPStatus(pkg.status);
+    const materialCellContent = normalizedStatus === 'completed' ? '' : getMaterialBadge(pkg.materialStatus);
     const rowBackground = index % 2 === 0 ? '#ffffff' : '#f7f8fb';
     
     // DEBUG: Log each package being rendered
@@ -2714,7 +2716,7 @@ function renderWorkPackagesTable() {
           <span class="mes-muted-text" style="font-weight: 600;">#${pkg.priority || 0}</span>
         </td>
         <td class="text-center">
-          ${getMaterialBadge(pkg.materialStatus)}
+          ${materialCellContent}
         </td>
         <td>
           <div class="mes-muted-text" style="font-size: 50%;">Start: ${formatTime(pkg.startedAt || pkg.estimatedStartTime)}</div>
