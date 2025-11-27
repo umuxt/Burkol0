@@ -1677,6 +1677,7 @@ router.post('/templates', withAuth, async (req, res) => {
         idMapping[frontendId] = backendNodeId;
       });
       
+      // Step 1: Insert all nodes first (without predecessors)
       for (let nodeIndex = 0; nodeIndex < processedNodes.length; nodeIndex++) {
         const node = processedNodes[nodeIndex];
         // Get frontend ID and calculate backend nodeId (same logic as idMapping)
@@ -1734,17 +1735,23 @@ router.post('/templates', withAuth, async (req, res) => {
           
           await trx('mes.node_stations').insert(stationAssignments);
         }
+      }
+      
+      // Step 2: Insert all predecessors AFTER all nodes exist
+      for (let nodeIndex = 0; nodeIndex < processedNodes.length; nodeIndex++) {
+        const node = processedNodes[nodeIndex];
+        const frontendId = node.id || node.nodeId;
+        const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (nodeIndex + 1);
+        const stringNodeId = `${planId}-node-${numericPart}`;
         
-        // Insert predecessors if any
         const predecessorList = node.predecessors || [];
         if (Array.isArray(predecessorList) && predecessorList.length > 0) {
-          // Use the same stringNodeId calculated above (already in correct format)
           const predecessorRecords = predecessorList
             .map(predId => {
               // Map frontend ID to backend nodeId format
               const backendPredId = idMapping[predId] || predId;
               return {
-                nodeId: stringNodeId,  // Use stringNodeId from above
+                nodeId: stringNodeId,
                 predecessorNodeId: backendPredId,
                 createdAt: trx.fn.now()
               };
@@ -5518,6 +5525,7 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
         idMapping[frontendId] = backendNodeId;
       });
       
+      // Step 1: Insert all nodes first (without predecessors)
       for (let nodeIndex = 0; nodeIndex < processedNodes.length; nodeIndex++) {
         const node = processedNodes[nodeIndex];
         const frontendId = node.id || node.nodeId;
@@ -5567,8 +5575,15 @@ router.put('/production-plans/:id', withAuth, async (req, res) => {
           }));
           await trx('mes.node_stations').insert(stationAssignments);
         }
+      }
+      
+      // Step 2: Insert all predecessors AFTER all nodes exist
+      for (let nodeIndex = 0; nodeIndex < processedNodes.length; nodeIndex++) {
+        const node = processedNodes[nodeIndex];
+        const frontendId = node.id || node.nodeId;
+        const numericPart = node.sequenceOrder || parseInt(String(frontendId).replace(/\D/g, '')) || (nodeIndex + 1);
+        const stringNodeId = `${id}-node-${numericPart}`;
         
-        // Predecessors
         const predecessorList = node.predecessors || [];
         if (Array.isArray(predecessorList) && predecessorList.length > 0) {
           const predecessorRecords = predecessorList

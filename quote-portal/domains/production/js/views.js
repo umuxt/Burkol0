@@ -2072,7 +2072,8 @@ let workPackagesState = {
   hideCompleted: true, // Default: hide completed tasks
   isRefreshing: false,
   refreshDebounceTimer: null,
-  isChartVisible: false
+  isChartVisible: false,
+  chartGrouping: 'worker'
 };
 
 export async function initWorkPackagesWidget() {
@@ -2235,7 +2236,7 @@ async function refreshWorkPackagesData(showButtonState = true) {
 }
 
 function populateWorkPackagesFilters() {
-  const statusOptions = ['pending', 'ready', 'in-progress', 'paused', 'completed', 'cancelled'];
+  const statusOptions = ['pending', 'queued', 'ready', 'in-progress', 'paused', 'completed', 'cancelled'];
   
   // Status filter
   const statusList = document.getElementById('wp-filter-status-list');
@@ -2375,6 +2376,13 @@ window.clearAllWPFilters = function() {
   updateWPClearFiltersButton();
 };
 
+window.setWorkPackagesChartGrouping = function(mode) {
+  const normalized = mode === 'substation' ? 'substation' : 'worker';
+  if (workPackagesState.chartGrouping === normalized) return;
+  workPackagesState.chartGrouping = normalized;
+  renderWorkPackagesChart();
+};
+
 function updateWPFilterCount(type) {
   const countEl = document.getElementById(`wp-filter-${type}-count`);
   if (!countEl) return;
@@ -2486,6 +2494,11 @@ function updateWorkPackagesViewToggle() {
   chartToggleBtn.classList.toggle('is-active', isChart);
 }
 
+function normalizeWPStatus(status) {
+  if (!status) return '';
+  return String(status).replace(/_/g, '-');
+}
+
 
 
 function applyWorkPackagesFilters() {
@@ -2496,7 +2509,10 @@ function applyWorkPackagesFilters() {
   // Hide completed filter (applied first)
   if (workPackagesState.hideCompleted) {
     const beforeCount = filtered.length;
-    filtered = filtered.filter(pkg => pkg.status !== 'completed' && pkg.status !== 'cancelled');
+    filtered = filtered.filter(pkg => {
+      const normalized = normalizeWPStatus(pkg.status);
+      return normalized !== 'completed' && normalized !== 'cancelled';
+    });
     console.log(`  ✂️  hideCompleted: ${beforeCount} → ${filtered.length}`);
   }
   
@@ -2519,7 +2535,7 @@ function applyWorkPackagesFilters() {
   
   // Status filter
   if (workPackagesState.statusFilters.length > 0) {
-    filtered = filtered.filter(pkg => workPackagesState.statusFilters.includes(pkg.status));
+    filtered = filtered.filter(pkg => workPackagesState.statusFilters.includes(normalizeWPStatus(pkg.status)));
   }
   
   // Worker filter
@@ -2547,6 +2563,7 @@ function renderWorkPackagesTable() {
   const getStatusBadge = (status) => {
     const statusMap = {
       'pending': { label: 'Pending', className: 'badge badge-outline' },
+      'queued': { label: 'Queued', className: 'badge badge-outline' },
       'ready': { label: 'Ready', className: 'badge badge-warning' },
       'in-progress': { label: 'In Progress', className: 'badge badge-success' },
       'paused': { label: 'Paused', className: 'badge badge-destructive' },
@@ -2620,7 +2637,7 @@ function renderWorkPackagesTable() {
           <div>${esc(pkg.substationCode || pkg.stationName || '—')}</div>
         </td>
         <td class="text-center">
-          <div>${getStatusBadge(pkg.status)}</div>
+          <div>${getStatusBadge(normalizeWPStatus(pkg.status))}</div>
         </td>
         <td class="text-center">
           <span class="mes-muted-text" style="font-weight: 600;">#${pkg.priority || 0}</span>
@@ -2667,6 +2684,404 @@ function renderWorkPackagesTable() {
     </table>
     ${packages.length > 0 ? `<div class="mes-muted-text" style="margin-top: 12px; text-align: center;">Showing ${packages.length} work package(s)${workPackagesState.allPackages.length !== packages.length ? ` of ${workPackagesState.allPackages.length} total` : ''}</div>` : ''}
   `;
+
+  renderWorkPackagesChart();
+}
+
+function renderWorkPackagesChart() {
+  const chartPanel = document.getElementById('work-packages-chart-panel');
+  if (!chartPanel) return;
+
+  ensureWorkPackagesChartStyles();
+  const laneHeight = 50;
+  const lanePadding = 12;
+  const minRowHeight = 72;
+
+  const activeStatuses = new Set(['pending', 'queued', 'in-progress']);
+  const packages = (workPackagesState.filteredPackages || []).filter(pkg => {
+    const normalizedStatus = normalizeWPStatus(pkg.status);
+    return activeStatuses.has(normalizedStatus);
+  }).map(pkg => {
+    const startMs = parseChartDate(pkg.estimatedStartTime);
+    const endMs = parseChartDate(pkg.estimatedEndTime);
+    if (!startMs || !endMs) return null;
+    const normalizedStatus = normalizeWPStatus(pkg.status);
+    const assignmentId = pkg.assignmentId || pkg.workPackageId || pkg.id || '—';
+    const nodeName = pkg.nodeName || pkg.operationName || '';
+    const workerLabel = pkg.workerName || 'Unassigned Worker';
+    const substationLabel = pkg.substationCode || pkg.subStationCode || pkg.stationName || 'Unassigned Substation';
+    const workerKey = pkg.workerId || 'unassigned-worker';
+    const substationKey = pkg.substationId || pkg.subStationId || pkg.substationCode || pkg.stationId || 'unassigned-substation';
+    
+    return {
+      raw: pkg,
+      assignmentId,
+      nodeName,
+      workerKey,
+      workerLabel,
+      substationKey,
+      substationLabel,
+      startMs,
+      endMs: endMs >= startMs ? endMs : startMs,
+      status: normalizedStatus,
+      workerName: pkg.workerName || '—',
+      stationName: pkg.stationName || '—',
+      substationCode: pkg.substationCode || pkg.subStationCode || '—'
+    };
+  }).filter(Boolean);
+
+  packages.sort((a, b) => a.startMs - b.startMs);
+
+  const earliestStart = packages.length ? Math.min(...packages.map(p => p.startMs)) : null;
+  const latestEnd = packages.length ? Math.max(...packages.map(p => Math.max(p.endMs, p.startMs))) : null;
+  const totalRange = packages.length ? Math.max(latestEnd - earliestStart, 60 * 60 * 1000) : 1;
+
+  const groups = packages.length ? buildWorkPackagesChartGroups(packages) : [];
+  const rowsHtml = groups.length ? groups.map(group => {
+    const totalLaneHeight = group.laneCount * laneHeight;
+    const rowHeight = Math.max(totalLaneHeight + (lanePadding * 2), minRowHeight);
+    const laneBaseOffset = Math.max((rowHeight - totalLaneHeight) / 2, lanePadding);
+    const barsHtml = group.items.map(item => {
+      const offsetPercent = Math.min(Math.max(((item.startMs - earliestStart) / totalRange) * 100, 0), 100);
+      const rawWidth = ((Math.max(item.endMs - item.startMs, 1) / totalRange) * 100);
+      const widthPercent = Math.max(Math.min(rawWidth, 100 - offsetPercent), 1);
+      const topOffset = (item.lane * laneHeight) + laneBaseOffset;
+      const tooltip = [
+        `Assignment: ${item.assignmentId}`,
+        item.nodeName ? `Node: ${item.nodeName}` : null,
+        `Worker: ${item.workerName}`,
+        `Station/Substation: ${item.substationCode || item.stationName}`,
+        `${formatChartTime(item.startMs)} → ${formatChartTime(item.endMs)}`
+      ].filter(Boolean).join('\n');
+      
+      return `
+        <div
+          class="wp-chart-bar status-${item.status.replace('_', '-')}"
+          title="${tooltip}"
+          style="left:${offsetPercent}%; width:${widthPercent}%; top:${topOffset}px;"
+        >
+          <span class="wp-chart-bar-text">${item.assignmentId}</span>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <div class="wp-chart-row" style="min-height:${rowHeight}px;">
+        <div class="wp-chart-row-label">
+          <div class="wp-chart-row-label-title">${group.label}</div>
+          <div class="wp-chart-row-label-subtitle">${group.subtitle}</div>
+        </div>
+        <div class="wp-chart-row-track" style="height:${rowHeight}px;">
+          <div class="wp-chart-row-track-grid"></div>
+          ${barsHtml || '<div class="wp-chart-row-track-empty">No assignments</div>'}
+        </div>
+      </div>
+    `;
+  }).join('') : `
+    <div class="wp-chart-empty">
+      <div class="wp-chart-empty-icon">📭</div>
+      <div>No pending or in-progress assignments with estimated times</div>
+      <div class="wp-chart-empty-hint">Check filters or wait for new assignments</div>
+    </div>
+  `;
+
+  const chartToolbar = `
+    <div class="wp-chart-toolbar">
+      <div class="wp-chart-mode">
+        <span class="wp-chart-mode-label">List by:</span>
+        <div class="wp-chart-mode-buttons">
+          <button type="button" class="wp-chart-mode-btn ${workPackagesState.chartGrouping === 'worker' ? 'is-active' : ''}" onclick="window.setWorkPackagesChartGrouping('worker')">Workers</button>
+          <button type="button" class="wp-chart-mode-btn ${workPackagesState.chartGrouping === 'substation' ? 'is-active' : ''}" onclick="window.setWorkPackagesChartGrouping('substation')">Substations</button>
+        </div>
+      </div>
+      <div class="wp-chart-range">
+        <div class="wp-chart-range-label">Timeline</div>
+        <div class="wp-chart-range-values">${formatChartTime(earliestStart)} – ${formatChartTime(latestEnd)}</div>
+      </div>
+      <div class="wp-chart-legend">
+        <span class="wp-chart-legend-item"><span class="wp-chart-legend-dot status-pending"></span>Pending</span>
+        <span class="wp-chart-legend-item"><span class="wp-chart-legend-dot status-queued"></span>Queued</span>
+        <span class="wp-chart-legend-item"><span class="wp-chart-legend-dot status-in-progress"></span>In Progress</span>
+      </div>
+    </div>
+  `;
+
+  chartPanel.innerHTML = `
+    <div class="wp-chart-container">
+      ${chartToolbar}
+      <div class="wp-chart-rows">
+        ${rowsHtml}
+      </div>
+    </div>
+  `;
+}
+
+function buildWorkPackagesChartGroups(packages) {
+  const grouping = workPackagesState.chartGrouping === 'substation' ? 'substation' : 'worker';
+  const groupMap = new Map();
+
+  packages.forEach(item => {
+    const key = grouping === 'worker' ? item.workerKey : item.substationKey;
+    const label = grouping === 'worker' ? item.workerLabel : item.substationLabel;
+    const subtitle = grouping === 'worker'
+      ? (item.substationCode || item.stationName || '—')
+      : (item.workerName || '—');
+    
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        key,
+        label,
+        subtitle,
+        items: []
+      });
+    }
+    groupMap.get(key).items.push(item);
+  });
+
+  const groups = Array.from(groupMap.values()).sort((a, b) => a.label.localeCompare(b.label));
+
+  groups.forEach(group => {
+    group.items.sort((a, b) => a.startMs - b.startMs);
+    const laneEndTimes = [];
+    group.items.forEach(item => {
+      let laneIndex = laneEndTimes.findIndex(end => item.startMs >= end - (60 * 1000));
+      if (laneIndex === -1) {
+        laneIndex = laneEndTimes.length;
+        laneEndTimes.push(item.endMs);
+      } else {
+        laneEndTimes[laneIndex] = Math.max(item.endMs, laneEndTimes[laneIndex]);
+      }
+      item.lane = laneIndex;
+    });
+    group.laneCount = Math.max(laneEndTimes.length, 1);
+    const nodeCount = group.items.length;
+    const baseSubtitle = group.subtitle && group.subtitle !== '—' ? group.subtitle : '';
+    group.subtitle = `${baseSubtitle ? `${baseSubtitle} · ` : ''}Nodes: ${nodeCount}`;
+  });
+
+  return groups;
+}
+
+function ensureWorkPackagesChartStyles() {
+  if (document.getElementById('work-packages-chart-styles')) return;
+  const styleEl = document.createElement('style');
+  styleEl.id = 'work-packages-chart-styles';
+  styleEl.textContent = `
+    .wp-chart-container {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      height: 100%;
+    }
+    .wp-chart-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .wp-chart-mode {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .wp-chart-mode-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .wp-chart-mode-buttons {
+      display: inline-flex;
+      border: 1px solid #cbd5f5;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .wp-chart-mode-btn {
+      border: none;
+      background: transparent;
+      padding: 6px 14px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #475569;
+    }
+    .wp-chart-mode-btn.is-active {
+      background: #1d4ed8;
+      color: white;
+    }
+    .wp-chart-range {
+      text-align: center;
+      min-width: 200px;
+    }
+    .wp-chart-range-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #94a3b8;
+      letter-spacing: 0.08em;
+    }
+    .wp-chart-range-values {
+      font-weight: 600;
+      color: #1f2937;
+    }
+    .wp-chart-legend {
+      display: flex;
+      gap: 12px;
+      font-size: 12px;
+      color: #475569;
+      align-items: center;
+    }
+    .wp-chart-legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-flex;
+      margin-right: 6px;
+    }
+    .wp-chart-rows {
+      flex: 1 1 auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      background: white;
+      overflow: auto;
+      padding: 8px 0;
+    }
+    .wp-chart-row {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .wp-chart-row:last-child {
+      border-bottom: none;
+    }
+    .wp-chart-row-label {
+      padding: 3px 16px;
+      border-right: 1px solid #e2e8f0;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      background: #f8fafc;
+    }
+    .wp-chart-row-label-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .wp-chart-row-label-subtitle {
+      font-size: 12px;
+      color: #64748b;
+    }
+    .wp-chart-row-track {
+      position: relative;
+      padding: 4px 16px 12px;
+      overflow: hidden;
+    }
+    .wp-chart-row-track-grid {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background-image: linear-gradient(to right, rgba(148, 163, 184, 0.15) 1px, transparent 1px);
+      background-size: 80px 100%;
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .wp-chart-bar {
+      position: absolute;
+      height: 40px;
+      border-radius: 6px;
+      color: #0f172a;
+      font-size: 12px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 8px;
+      box-shadow: 0 2px 4px rgba(15, 23, 42, 0.15);
+      border: 1px solid rgba(15, 23, 42, 0.1);
+      background: #e2e8f0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .wp-chart-bar-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .wp-chart-bar.status-pending {
+      background: #fef9c3;
+      border-color: #facc15;
+      color: #92400e;
+    }
+    .wp-chart-bar.status-in-progress {
+      background: #dbeafe;
+      border-color: #3b82f6;
+      color: #1e3a8a;
+    }
+    .wp-chart-row-track-empty {
+      position: relative;
+      padding: 12px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .wp-chart-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #94a3b8;
+      text-align: center;
+      border: 1px dashed #dbeafe;
+      border-radius: 8px;
+      padding: 32px;
+      background: #f8fafc;
+    }
+    .wp-chart-empty-icon {
+      font-size: 32px;
+    }
+    .wp-chart-empty-hint {
+      font-size: 12px;
+      color: #cbd5f5;
+    }
+    .wp-chart-legend-dot.status-pending {
+      background: #facc15;
+    }
+    .wp-chart-legend-dot.status-queued {
+      background: #94a3b8;
+    }
+    .wp-chart-legend-dot.status-in-progress {
+      background: #3b82f6;
+    }
+  `;
+  document.head.appendChild(styleEl);
+}
+
+function parseChartDate(value) {
+  if (!value) return null;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function formatChartTime(timestamp) {
+  if (!timestamp) return '—';
+  try {
+    const date = new Date(timestamp);
+    return date.toLocaleString('tr-TR', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  } catch {
+    return '—';
+  }
 }
 
 /**
