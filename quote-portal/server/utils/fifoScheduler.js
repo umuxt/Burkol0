@@ -434,12 +434,25 @@ export async function startTask(assignmentId, workerId) {
         console.log(`🔓 [FIFO] Substation ${assignmentData.substationId} now in_use (expected end: ${assignmentEndTime || 'N/A'})`);
       }
       
+      // Build actualReservedAmounts from reservation results
+      const actualReservedAmounts = {};
+      if (reservationResult.reservations && reservationResult.reservations.length > 0) {
+        for (const res of reservationResult.reservations) {
+          actualReservedAmounts[res.materialCode] = (actualReservedAmounts[res.materialCode] || 0) + res.totalReserved;
+        }
+      }
+      
+      console.log(`📦 [FIFO] actualReservedAmounts:`, actualReservedAmounts);
+      
       // Update assignment to in_progress
       const [updated] = await trx('mes.worker_assignments')
         .where('id', assignmentIdInt)
         .update({
           status: 'in_progress',
           startedAt: trx.fn.now(),
+          actualReservedAmounts: Object.keys(actualReservedAmounts).length > 0 
+            ? JSON.stringify(actualReservedAmounts) 
+            : null,
           materialReservationStatus: materialRequirements.length > 0 
             ? (reservationResult.warnings.length > 0 ? 'partial' : 'reserved')
             : 'not_required'
