@@ -160,6 +160,9 @@ export function generateWorkerPanel() {
         <span>🔄</span>
         <span>Refresh</span>
       </button>
+      <button id="work-packages-chart-toggle" type="button" class="mes-primary-action is-compact" aria-pressed="false">
+        <span>Chart</span>
+      </button>
       <div class="mes-filter-controls">
         <input
           type="text"
@@ -227,14 +230,24 @@ export function generateWorkerPanel() {
 
     <div style="display: flex; gap: 16px; height: 100vh; max-height: calc(100vh - 280px);">
       <div class="workers-table-panel" style="flex: 1 1 0%; min-width: 300px; display: flex; flex-direction: column; height: auto;">
-        <div id="work-packages-widget" class="mes-table-container">
-          <table class="mes-table">
-            <tbody class="mes-table-body">
-              <tr class="mes-table-row is-empty">
-                <td class="mes-empty-cell text-center"><em>Yükleniyor...</em></td>
-              </tr>
-            </tbody>
-          </table>
+        <div id="work-packages-table-panel" style="flex: 1 1 auto; display: flex; flex-direction: column;">
+          <div id="work-packages-widget" class="mes-table-container">
+            <table class="mes-table">
+              <tbody class="mes-table-body">
+                <tr class="mes-table-row is-empty">
+                  <td class="mes-empty-cell text-center"><em>Yükleniyor...</em></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div id="work-packages-chart-panel" style="flex: 1 1 auto; display: none; flex-direction: column;">
+          <div class="mes-table-container" style="flex: 1 1 auto; display: flex; align-items: center; justify-content: center;">
+            <div style="text-align: center; color: var(--muted-foreground);">
+              <div style="font-size: 32px; margin-bottom: 8px;">📊</div>
+              <div>Chart view is loading...</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2058,7 +2071,8 @@ let workPackagesState = {
   stationFilters: [],
   hideCompleted: true, // Default: hide completed tasks
   isRefreshing: false,
-  refreshDebounceTimer: null
+  refreshDebounceTimer: null,
+  isChartVisible: false
 };
 
 export async function initWorkPackagesWidget() {
@@ -2390,6 +2404,14 @@ function bindWorkPackagesEvents() {
       await refreshWorkPackagesData(true); // true = show button state
     };
   }
+
+  // Chart toggle
+  const chartToggleBtn = document.getElementById('work-packages-chart-toggle');
+  if (chartToggleBtn) {
+    chartToggleBtn.onclick = () => {
+      setWorkPackagesView(!workPackagesState.isChartVisible);
+    };
+  }
   
   // Search input
   const searchInput = document.getElementById('wp-search-input');
@@ -2436,6 +2458,32 @@ function bindWorkPackagesEvents() {
   
   // Initialize clear filters button
   updateWPClearFiltersButton();
+
+  // Ensure correct view state after bindings
+  setWorkPackagesView(workPackagesState.isChartVisible);
+}
+
+function setWorkPackagesView(showChart) {
+  workPackagesState.isChartVisible = showChart;
+  const tablePanel = document.getElementById('work-packages-table-panel');
+  const chartPanel = document.getElementById('work-packages-chart-panel');
+  if (tablePanel) {
+    tablePanel.style.display = showChart ? 'none' : 'flex';
+  }
+  if (chartPanel) {
+    chartPanel.style.display = showChart ? 'flex' : 'none';
+  }
+  updateWorkPackagesViewToggle();
+}
+
+function updateWorkPackagesViewToggle() {
+  const chartToggleBtn = document.getElementById('work-packages-chart-toggle');
+  if (!chartToggleBtn) return;
+  const isChart = workPackagesState.isChartVisible;
+  chartToggleBtn.setAttribute('aria-pressed', isChart ? 'true' : 'false');
+  chartToggleBtn.innerHTML = isChart ? '<span>Table</span>' : '<span>Chart</span>';
+  chartToggleBtn.title = isChart ? 'Show table view' : 'Show chart view';
+  chartToggleBtn.classList.toggle('is-active', isChart);
 }
 
 
