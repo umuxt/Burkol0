@@ -2731,30 +2731,87 @@ router.get('/substations/:id/details', withAuth, async (req, res) => {
       .where('id', substation.stationId)
       .first();
 
-    // Get current assignment if exists
+    // Get current assignment if exists (status = in_progress)
     let currentTask = null;
-    if (substation.currentAssignmentId) {
-      const assignment = await db('mes.worker_assignments')
-        .select('*')
-        .where({ id: substation.currentAssignmentId })
-        .first();
-      
-      if (assignment) {
-        const operation = await db('mes.operations')
-          .select('name')
-          .where({ id: assignment.operationId })
-          .first();
-        
-        currentTask = {
-          assignmentId: assignment.id,
-          operationName: operation?.name || 'Unknown',
-          workerId: assignment.workerId,
-          startTime: assignment.startTime,
-          expectedEnd: substation.currentExpectedEnd,
-          timeRemaining: null // Calculate if needed
-        };
+    const currentAssignment = await db('mes.worker_assignments')
+      .select(
+        'mes.worker_assignments.*',
+        'mes.operations.name as operationName',
+        'mes.workers.name as workerName',
+        'mes.production_plans.planName as planName'
+      )
+      .leftJoin('mes.operations', 'mes.worker_assignments.operationId', 'mes.operations.id')
+      .leftJoin('mes.workers', 'mes.worker_assignments.workerId', 'mes.workers.id')
+      .leftJoin('mes.production_plans', 'mes.worker_assignments.planId', 'mes.production_plans.id')
+      .where('mes.worker_assignments.substationId', id)
+      .where('mes.worker_assignments.status', 'in_progress')
+      .first();
+    
+    if (currentAssignment) {
+      // Calculate time remaining using effectiveTime or nominalTime
+      const durationMinutes = currentAssignment.effectiveTime || currentAssignment.nominalTime || 0;
+      let timeRemaining = null;
+      if (currentAssignment.startedAt && durationMinutes) {
+        const startTime = new Date(currentAssignment.startedAt);
+        const expectedEnd = new Date(startTime.getTime() + durationMinutes * 60000);
+        const now = new Date();
+        timeRemaining = Math.max(0, Math.round((expectedEnd - now) / 60000)); // minutes
       }
+      
+      currentTask = {
+        assignmentId: currentAssignment.id,
+        operationName: currentAssignment.operationName || 'Bilinmiyor',
+        workPackageId: currentAssignment.workPackageId,
+        workerId: currentAssignment.workerId,
+        workerName: currentAssignment.workerName || 'Bilinmiyor',
+        planName: currentAssignment.planName || '',
+        startTime: currentAssignment.startedAt,
+        estimatedDuration: durationMinutes,
+        expectedEnd: currentAssignment.startedAt && durationMinutes
+          ? new Date(new Date(currentAssignment.startedAt).getTime() + durationMinutes * 60000).toISOString()
+          : null,
+        timeRemaining
+      };
     }
+
+    // Get upcoming tasks (pending/queued assignments for this substation)
+    const upcomingAssignments = await db('mes.worker_assignments')
+      .select(
+        'mes.worker_assignments.*',
+        'mes.operations.name as operationName',
+        'mes.workers.name as workerName',
+        'mes.production_plans.planName as planName'
+      )
+      .leftJoin('mes.operations', 'mes.worker_assignments.operationId', 'mes.operations.id')
+      .leftJoin('mes.workers', 'mes.worker_assignments.workerId', 'mes.workers.id')
+      .leftJoin('mes.production_plans', 'mes.worker_assignments.planId', 'mes.production_plans.id')
+      .where('mes.worker_assignments.substationId', id)
+      .whereIn('mes.worker_assignments.status', ['pending', 'queued'])
+      .orderBy('mes.worker_assignments.estimatedStartTime', 'asc')
+      .limit(10);
+    
+    const upcomingTasks = upcomingAssignments.map(a => ({
+      assignmentId: a.id,
+      operationName: a.operationName || 'Bilinmiyor',
+      workPackageId: a.workPackageId,
+      workerId: a.workerId,
+      workerName: a.workerName || 'Atanmamış',
+      planName: a.planName || '',
+      status: a.status,
+      estimatedStartTime: a.estimatedStartTime,
+      estimatedDuration: a.effectiveTime || a.nominalTime
+    }));
+
+    // Get performance stats (completed assignments for this substation)
+    // Calculate actual duration from completedAt - startedAt
+    const completedStats = await db('mes.worker_assignments')
+      .where('substationId', id)
+      .where('status', 'completed')
+      .whereNotNull('completedAt')
+      .whereNotNull('startedAt')
+      .count('id as total')
+      .select(db.raw('AVG(EXTRACT(EPOCH FROM ("completedAt" - "startedAt")) / 60) as "avgDuration"'))
+      .first();
 
     // Return substation details
     res.json({
@@ -2774,10 +2831,10 @@ router.get('/substations/:id/details', withAuth, async (req, res) => {
         updatedAt: substation.updatedAt
       },
       currentTask,
-      upcomingTasks: [],
+      upcomingTasks,
       performance: {
-        totalCompleted: 0,
-        avgCompletionTime: 0,
+        totalCompleted: parseInt(completedStats?.total || 0),
+        avgCompletionTime: Math.round(parseFloat(completedStats?.avgDuration || 0)),
         onTimeRate: 0,
         defectRate: 0
       }
@@ -3970,6 +4027,18 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
       return acc;
     }, {});
 
+    // ✅ Get stock availability for material inputs (same logic as work-packages)
+    const allMaterialCodes = [...new Set(materialInputs.map(m => m.materialCode))];
+    const stockData = allMaterialCodes.length > 0
+      ? await db('materials.materials')
+          .whereIn('code', allMaterialCodes)
+          .select('code', 'stock')
+      : [];
+    const stockAvailability = stockData.reduce((acc, s) => {
+      acc[s.code] = parseFloat(s.stock) || 0;
+      return acc;
+    }, {});
+
     // Get next task ID (first ready/pending task)
     const nextTask = tasks.find(t => ['ready', 'pending'].includes(t.status));
     const nextTaskId = nextTask?.assignmentId || null;
@@ -4036,11 +4105,32 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
       // ✅ Get predecessor check result
       const predecessorCheck = predecessorStatusMap.get(t.assignmentId) || { allCompleted: true, pendingPredecessors: [] };
       
+      // ✅ Check material availability from actual stock (same logic as work-packages)
+      const taskMaterials = materialsByNode[t.nodeIdString] || {};
+      let materialsReady = true;
+      
+      // If no materials required, it's ready
+      if (Object.keys(taskMaterials).length === 0) {
+        materialsReady = true;
+      } else {
+        // Check each material required for this task
+        for (const [materialCode, materialInfo] of Object.entries(taskMaterials)) {
+          const required = parseFloat(materialInfo.qty) || 0;
+          const available = stockAvailability[materialCode] || 0;
+          
+          // If we need more than what's available in stock
+          if (required > available) {
+            materialsReady = false;
+            break;
+          }
+        }
+      }
+      
       // ✅ Build prerequisites object for frontend
       const prerequisites = {
         predecessorsDone: predecessorCheck.allCompleted,
         pendingPredecessors: predecessorCheck.pendingPredecessors || [],
-        materialsReady: t.materialReservationStatus === 'reserved' || t.materialReservationStatus === 'not_required',
+        materialsReady,
         // Worker and substation availability could be added here if needed
         workerAvailable: true, // Simplified - worker is assigned
         substationAvailable: true // Simplified - substation is assigned
@@ -4050,11 +4140,9 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
       // Task can start if:
       // 1. Status is pending or ready
       // 2. All predecessors are completed
-      // 3. Materials are reserved (or not required)
+      // Materials is just a warning - doesn't block canStart!
       const isPendingOrReady = ['pending', 'ready'].includes(t.status);
-      const canStart = isPendingOrReady && 
-                       prerequisites.predecessorsDone && 
-                       prerequisites.materialsReady;
+      const canStart = isPendingOrReady && prerequisites.predecessorsDone;
 
       return {
         // Assignment ID
@@ -4113,7 +4201,7 @@ router.get('/workers/:workerId/tasks/queue', async (req, res) => {
         isUrgent: t.isUrgent || false,
         canStart,
         isPaused: t.status === 'paused',
-        materialStatus: t.materialReservationStatus === 'reserved' ? 'ok' : 'pending',
+        materialStatus: materialsReady ? 'sufficient' : 'insufficient',
         
         // ✅ NEW: Prerequisites object for frontend
         prerequisites,

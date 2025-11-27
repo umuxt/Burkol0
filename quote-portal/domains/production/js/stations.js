@@ -998,15 +998,18 @@ export async function showSubStationDetail(substationId) {
     // Render detail panel
     detailContent.innerHTML = `
       <!-- Temel Bilgiler -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Alt İstasyon Bilgileri</h3>
+      <div class="mes-section" style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <div class="mes-section-header" style="display: flex; align-items: center; gap: 8px; margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">
+          <i data-lucide="info" style="width: 16px; height: 16px; color: rgb(59, 130, 246);"></i>
+          Alt İstasyon Bilgileri
+        </div>
         <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
           <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Kod:</span>
           <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39); font-family: monospace;">${escapeHtml(substation.code)}</span>
         </div>
         <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
           <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ana İstasyon:</span>
-          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(substation.stationId)}</span>
+          <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${escapeHtml(substation.stationName || substation.stationId)}</span>
         </div>
         <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 0;">
           <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Teknik Durum:</span>
@@ -1019,129 +1022,168 @@ export async function showSubStationDetail(substationId) {
       </div>
       
       <!-- Mevcut Görev -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">Mevcut Görev</h3>
+      <div class="mes-section" style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <div class="mes-section-header" style="display: flex; align-items: center; gap: 8px; margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">
+          <i data-lucide="play-circle" style="width: 16px; height: 16px; color: rgb(59, 130, 246);"></i>
+          Mevcut Görev
+        </div>
         ${currentTask ? `
           <div style="padding: 12px; background: rgb(254, 249, 195); border-left: 3px solid rgb(245, 158, 11); border-radius: 4px;">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-              <div style="font-weight: 600; font-size: 13px; color: rgb(17, 24, 39);">
-                🏭 ${escapeHtml(currentTask.operationName)}
+              <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; color: rgb(17, 24, 39);">
+                <i data-lucide="factory" style="width: 14px; height: 14px; color: rgb(107, 114, 128);"></i>
+                ${escapeHtml(currentTask.operationName)}
               </div>
-              ${currentTask.timeRemaining ? `
-                <div style="background: rgb(254, 226, 226); color: rgb(153, 27, 27); padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">
-                  ⏱️ ${formatDuration(currentTask.timeRemaining)} kaldı
+              ${currentTask.timeRemaining !== null ? `
+                <div style="display: flex; align-items: center; gap: 4px; background: rgb(254, 226, 226); color: rgb(153, 27, 27); padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 600;">
+                  <i data-lucide="clock" style="width: 12px; height: 12px;"></i>
+                  ${formatDuration(currentTask.timeRemaining)} kaldı
                 </div>
               ` : ''}
             </div>
             <div style="font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 6px;">
-              <div style="margin-bottom: 3px;">
-                <span style="font-weight: 500;">İş Paketi:</span> ${escapeHtml(currentTask.workPackageId)}
+              ${currentTask.planName ? `
+              <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+                <i data-lucide="clipboard-list" style="width: 11px; height: 11px;"></i>
+                <span style="font-weight: 500;">Plan:</span> ${escapeHtml(currentTask.planName)}
               </div>
-              <div style="margin-bottom: 3px;">
+              ` : ''}
+              <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+                <i data-lucide="package" style="width: 11px; height: 11px;"></i>
+                <span style="font-weight: 500;">İş Paketi:</span> ${escapeHtml(currentTask.workPackageId || '-')}
+              </div>
+              <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+                <i data-lucide="user" style="width: 11px; height: 11px;"></i>
                 <span style="font-weight: 500;">İşçi:</span> ${escapeHtml(currentTask.workerName)}
               </div>
-              <div style="margin-bottom: 3px;">
-                <span style="font-weight: 500;">Başlangıç:</span> ${formatTime(currentTask.startedAt)}
+              <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+                <i data-lucide="play" style="width: 11px; height: 11px;"></i>
+                <span style="font-weight: 500;">Başlangıç:</span> ${formatTime(currentTask.startTime)}
               </div>
-              ${currentTask.estimatedEndTime ? `
-                <div style="margin-bottom: 3px;">
-                  <span style="font-weight: 500;">Tahmini Bitiş:</span> ${formatTime(currentTask.estimatedEndTime)}
+              ${currentTask.expectedEnd ? `
+                <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+                  <i data-lucide="flag" style="width: 11px; height: 11px;"></i>
+                  <span style="font-weight: 500;">Tahmini Bitiş:</span> ${formatTime(currentTask.expectedEnd)}
+                </div>
+              ` : ''}
+              ${currentTask.estimatedDuration ? `
+                <div style="display: flex; align-items: center; gap: 4px;">
+                  <i data-lucide="timer" style="width: 11px; height: 11px;"></i>
+                  <span style="font-weight: 500;">Süre:</span> ${formatDuration(currentTask.estimatedDuration)}
                 </div>
               ` : ''}
             </div>
-            ${Object.keys(currentTask.materialInputs || {}).length > 0 ? `
-              <div style="margin-top: 8px; padding: 8px; background: white; border-radius: 4px;">
-                <div style="font-size: 11px; font-weight: 600; color: rgb(17, 24, 39); margin-bottom: 4px;">📦 Girdi Malzemeler:</div>
-                <div style="font-size: 11px; color: rgb(55, 65, 81);">${formatMaterials(currentTask.materialInputs)}</div>
-              </div>
-            ` : ''}
-            ${Object.keys(currentTask.materialOutputs || {}).length > 0 ? `
-              <div style="margin-top: 6px; padding: 8px; background: white; border-radius: 4px;">
-                <div style="font-size: 11px; font-weight: 600; color: rgb(17, 24, 39); margin-bottom: 4px;">📦 Çıktı Malzemeler:</div>
-                <div style="font-size: 11px; color: rgb(55, 65, 81);">${formatMaterials(currentTask.materialOutputs)}</div>
-              </div>
-            ` : ''}
           </div>
         ` : `
           <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
-            💤 Şu anda atanmış bir görev bulunmuyor
+            <i data-lucide="coffee" style="width: 24px; height: 24px; margin-bottom: 8px; opacity: 0.5;"></i>
+            <div>Şu anda atanmış bir görev bulunmuyor</div>
           </div>
         `}
       </div>
       
       <!-- Yaklaşan Görevler -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-          <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">Yaklaşan Görevler (${upcomingTasks.length})</h3>
-          <button type="button" onclick="showSubStationDetail('${escapeHtml(substationId)}')" style="padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px;">🔄 Yenile</button>
+      <div class="mes-section" style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">
+          <div class="mes-section-header" style="display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39);">
+            <i data-lucide="list-todo" style="width: 16px; height: 16px; color: rgb(59, 130, 246);"></i>
+            Yaklaşan Görevler
+            <span style="background: rgb(229, 231, 235); color: rgb(55, 65, 81); padding: 1px 6px; border-radius: 10px; font-size: 11px; font-weight: 600;">${upcomingTasks.length}</span>
+          </div>
+          <button type="button" onclick="showSubStationDetail('${escapeHtml(substationId)}')" style="display: flex; align-items: center; gap: 4px; padding: 4px 8px; border: 1px solid rgb(209, 213, 219); border-radius: 4px; background: white; cursor: pointer; font-size: 11px;">
+            <i data-lucide="refresh-cw" style="width: 12px; height: 12px;"></i>
+            Yenile
+          </button>
         </div>
         ${upcomingTasks.length > 0 ? `
-          <div style="display: grid; gap: 8px;">
-            ${upcomingTasks.map(task => `
-              <div style="padding: 10px; background: rgb(249, 250, 251); border-left: 3px solid rgb(59, 130, 246); border-radius: 4px;">
+          <div style="display: grid; gap: 8px; max-height: 300px; overflow-y: auto;">
+            ${upcomingTasks.map((task, index) => `
+              <div style="padding: 10px; background: rgb(249, 250, 251); border-left: 3px solid ${task.status === 'pending' ? 'rgb(34, 197, 94)' : 'rgb(156, 163, 175)'}; border-radius: 4px;">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                  <div style="font-weight: 600; font-size: 12px; color: rgb(17, 24, 39);">
+                  <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; color: rgb(17, 24, 39);">
+                    <span style="background: rgb(229, 231, 235); color: rgb(55, 65, 81); padding: 0 6px; border-radius: 3px; font-size: 10px;">#${index + 1}</span>
+                    <i data-lucide="factory" style="width: 12px; height: 12px; color: rgb(107, 114, 128);"></i>
                     ${escapeHtml(task.operationName)}
                   </div>
-                  <span style="background: rgb(219, 234, 254); color: rgb(30, 64, 175); padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">
-                    ${escapeHtml(task.status)}
+                  <span style="background: ${task.status === 'pending' ? 'rgb(220, 252, 231)' : 'rgb(243, 244, 246)'}; color: ${task.status === 'pending' ? 'rgb(22, 101, 52)' : 'rgb(75, 85, 99)'}; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600;">
+                    ${task.status === 'pending' ? 'Bekliyor' : 'Kuyrukta'}
                   </span>
                 </div>
-                <div style="font-size: 10px; color: rgb(107, 114, 128); margin-bottom: 3px;">
-                  <span style="font-weight: 500;">İş Paketi:</span> ${escapeHtml(task.workPackageId)} | 
-                  <span style="font-weight: 500;">İşçi:</span> ${escapeHtml(task.workerName)}
-                </div>
                 <div style="font-size: 10px; color: rgb(107, 114, 128);">
-                  <span style="font-weight: 500;">Tahmini Başlangıç:</span> ${formatTime(task.estimatedStartTime)}
-                  ${task.estimatedTime ? ` | <span style="font-weight: 500;">Süre:</span> ${formatDuration(task.estimatedTime)}` : ''}
+                  ${task.planName ? `
+                  <div style="margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+                    <i data-lucide="clipboard-list" style="width: 10px; height: 10px;"></i>
+                    <span style="font-weight: 500;">Plan:</span> ${escapeHtml(task.planName)}
+                  </div>
+                  ` : ''}
+                  <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px;">
+                    <i data-lucide="package" style="width: 10px; height: 10px;"></i>
+                    <span style="font-weight: 500;">İş Paketi:</span> ${escapeHtml(task.workPackageId || '-')}
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 4px; margin-bottom: 3px;">
+                    <i data-lucide="user" style="width: 10px; height: 10px;"></i>
+                    <span style="font-weight: 500;">İşçi:</span> ${escapeHtml(task.workerName)}
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 4px;">
+                    <i data-lucide="calendar" style="width: 10px; height: 10px;"></i>
+                    <span style="font-weight: 500;">Tahmini Başlangıç:</span> ${formatTime(task.estimatedStartTime)}
+                    ${task.estimatedDuration ? ` <span style="margin-left: 8px;"><i data-lucide="timer" style="width: 10px; height: 10px; display: inline;"></i> ${formatDuration(task.estimatedDuration)}</span>` : ''}
+                  </div>
                 </div>
               </div>
             `).join('')}
           </div>
         ` : `
           <div style="text-align: center; padding: 20px; color: rgb(107, 114, 128); font-style: italic; font-size: 12px;">
-            Yaklaşan görev bulunmuyor
+            <i data-lucide="inbox" style="width: 24px; height: 24px; margin-bottom: 8px; opacity: 0.5;"></i>
+            <div>Yaklaşan görev bulunmuyor</div>
           </div>
         `}
       </div>
       
       <!-- Performans Bilgileri -->
-      <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
-        <h3 style="margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">
+      <div class="mes-section" style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid rgb(229, 231, 235);">
+        <div class="mes-section-header" style="display: flex; align-items: center; gap: 8px; margin: 0px 0px 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid rgb(229, 231, 235); padding-bottom: 6px;">
+          <i data-lucide="bar-chart-2" style="width: 16px; height: 16px; color: rgb(59, 130, 246);"></i>
           Performans Özeti
-          <span style="font-size: 11px; font-weight: 400; color: rgb(107, 114, 128); margin-left: 8px;">(${performance.period})</span>
-        </h3>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px;">
-          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Tamamlanan Görev:</span>
-            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${performance.totalCompleted || 0}</span>
-          </div>
-          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Ortalama Süre:</span>
-            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${formatDuration(performance.avgDuration)}</span>
-          </div>
         </div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
-          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Toplam Üretim:</span>
-            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">${performance.totalOutputQuantity || 0}</span>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div style="padding: 10px; background: rgb(249, 250, 251); border-radius: 6px; text-align: center;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 4px;">
+              <i data-lucide="check-circle" style="width: 12px; height: 12px;"></i>
+              Tamamlanan
+            </div>
+            <div style="font-size: 20px; font-weight: 700; color: rgb(17, 24, 39);">${performance.totalCompleted || 0}</div>
           </div>
-          <div class="detail-item" style="display: flex; align-items: center; margin-bottom: 8px;">
-            <span class="detail-label" style="font-weight: 600; font-size: 12px; color: rgb(55, 65, 81); min-width: 120px; margin-right: 8px;">Kalite Oranı:</span>
-            <span class="detail-value" style="font-size: 12px; color: rgb(17, 24, 39);">
-              ${performance.qualityRate ? `<span style="color: ${parseFloat(performance.qualityRate) >= 95 ? 'rgb(22, 163, 74)' : parseFloat(performance.qualityRate) >= 90 ? 'rgb(202, 138, 4)' : 'rgb(220, 38, 38)'}; font-weight: 600;">%${performance.qualityRate}</span>` : '-'}
-            </span>
+          <div style="padding: 10px; background: rgb(249, 250, 251); border-radius: 6px; text-align: center;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 11px; color: rgb(107, 114, 128); margin-bottom: 4px;">
+              <i data-lucide="clock" style="width: 12px; height: 12px;"></i>
+              Ort. Süre
+            </div>
+            <div style="font-size: 20px; font-weight: 700; color: rgb(17, 24, 39);">${formatDuration(performance.avgCompletionTime) || '-'}</div>
           </div>
         </div>
         ${performance.totalDefects > 0 ? `
           <div style="margin-top: 12px; padding: 8px; background: rgb(254, 226, 226); border-left: 3px solid rgb(220, 38, 38); border-radius: 4px;">
-            <div style="font-size: 11px; color: rgb(127, 29, 29);">
-              <span style="font-weight: 600;">⚠️ Toplam Kusur:</span> ${performance.totalDefects}
+            <div style="display: flex; align-items: center; gap: 4px; font-size: 11px; color: rgb(127, 29, 29);">
+              <i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i>
+              <span style="font-weight: 600;">Toplam Kusur:</span> ${performance.totalDefects}
             </div>
           </div>
         ` : ''}
       </div>
     `
+    
+    // Initialize Lucide icons in the detail panel
+    if (window.lucide) {
+      setTimeout(() => {
+        try {
+          window.lucide.createIcons({ attrs: { 'stroke-width': 2 } })
+        } catch (e) {
+          console.warn('Lucide icons initialization failed:', e)
+        }
+      }, 0)
+    }
   } catch (error) {
     console.error('Error loading substation details:', error)
     detailContent.innerHTML = `
