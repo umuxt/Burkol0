@@ -3491,16 +3491,20 @@ router.get('/work-packages', withAuth, async (req, res) => {
       return acc;
     }, {});
 
-    // Get all unique material codes needed across all tasks
+    // Get all unique material codes needed across all tasks (inputs + outputs)
     const allMaterialCodes = [...new Set(materialInputs.map(m => m.materialCode))];
+    
+    // Also collect output codes from tasks
+    const outputCodes = tasks.map(t => t.outputCode).filter(Boolean);
+    const allCodes = [...new Set([...allMaterialCodes, ...outputCodes])];
     
     // Check stock availability and get names for all materials (PostgreSQL materials.materials table)
     const stockAvailability = {};
     const materialNames = {};
-    if (allMaterialCodes.length > 0) {
+    if (allCodes.length > 0) {
       const stockLevels = await db('materials.materials')
         .select('code', 'stock', 'name')
-        .whereIn('code', allMaterialCodes);
+        .whereIn('code', allCodes);
       
       stockLevels.forEach(s => {
         stockAvailability[s.code] = parseFloat(s.stock) || 0;
@@ -3595,6 +3599,7 @@ router.get('/work-packages', withAuth, async (req, res) => {
       // Metadata
       createdAt: t.createdAt,
       actualQuantity: t.actualQuantity,
+      actualOutputQuantity: t.actualQuantity, // Alias for frontend compatibility
       notes: t.notes,
       priority: t.priority,
       sequenceNumber: t.sequenceNumber

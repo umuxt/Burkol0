@@ -3845,41 +3845,7 @@ function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
           </div>
         </div>
         
-        ${(workPackage.actualOutputQuantity || workPackage.defectQuantity) ? `
-          <div class="mes-detail-section">
-            <div class="mes-detail-section-header">
-              <div class="mes-detail-section-icon mes-detail-icon-result">
-                <i data-lucide="activity"></i>
-              </div>
-              <div>
-                <div class="mes-detail-section-title">Üretim Sonuçları</div>
-                <div class="mes-detail-section-subtitle">Gerçekleşen Arşiv</div>
-              </div>
-            </div>
-            <div class="mes-detail-list">
-              ${workPackage.actualOutputQuantity ? `
-                <div class="mes-detail-list-item">
-                  <div>
-                    <div class="mes-detail-list-label">Üretilen</div>
-                  </div>
-                  <div class="mes-detail-list-value text-success">
-                    ${workPackage.actualOutputQuantity} ${workPackage.unit || 'adet'}
-                  </div>
-                </div>
-              ` : ''}
-              ${workPackage.defectQuantity ? `
-                <div class="mes-detail-list-item">
-                  <div>
-                    <div class="mes-detail-list-label">Fire</div>
-                  </div>
-                  <div class="mes-detail-list-value text-danger">
-                    ${workPackage.defectQuantity} ${workPackage.unit || 'adet'}
-                  </div>
-                </div>
-              ` : ''}
-            </div>
-          </div>
-        ` : ''}
+        ${renderProductionResults(workPackage, esc)}
       </div>
     </div>
 
@@ -3999,29 +3965,148 @@ function renderMaterialList(materials, type, unitLabel, escFn = (v) => v) {
   `).join('');
 }
 
-function renderOutputList(workPackage, escFn = (v) => v) {
-  const outputs = workPackage.plannedOutput || {};
-  const outputEntries = Object.entries(outputs);
-
-  if (!outputEntries.length && workPackage.outputCode) {
-    const outputQty = workPackage.outputQty || workPackage.plannedOutputQty || 0;
-    if (outputQty > 0) {
-      return `
-        <div class="mes-detail-list-item">
-          <div>
-            <div class="mes-detail-list-code">${escFn(workPackage.outputCode)}</div>
-          </div>
-          <div class="mes-detail-list-value">${outputQty} ${workPackage.unit || 'adet'}</div>
-        </div>
-      `;
-    }
+/**
+ * Renders the production results section with all 3 types of scrap/fire
+ * @param {Object} workPackage - The work package data
+ * @param {Function} escFn - The escape function for HTML safety
+ * @returns {string} HTML string for production results
+ */
+function renderProductionResults(workPackage, escFn = (v) => v) {
+  // Parse scrap data - inputScrapCount and productionScrapCount are JSONB objects
+  const inputScrap = workPackage.inputScrapCount || {};
+  const productionScrap = workPackage.productionScrapCount || {};
+  const defectQty = parseFloat(workPackage.defectQuantity) || 0;
+  
+  // Check if there's any scrap data to show
+  const hasInputScrap = Object.keys(inputScrap).length > 0;
+  const hasProductionScrap = Object.keys(productionScrap).length > 0;
+  const hasDefect = defectQty > 0;
+  
+  // Only show section if there's any fire/scrap data
+  if (!hasInputScrap && !hasProductionScrap && !hasDefect) {
+    return '';
   }
+  
+  const unitLabel = workPackage.unit || 'adet';
+  const materialNames = workPackage.materialNames || {};
+  
+  // Helper function to get material name
+  const getMaterialName = (code) => {
+    return materialNames[code] || code || '—';
+  };
+  
+  // Build scrap rows for JSONB scrap data
+  const buildScrapRows = (scrapData, category, badgeColor) => {
+    return Object.entries(scrapData).map(([code, qty]) => {
+      const quantity = parseFloat(qty) || 0;
+      if (quantity <= 0) return '';
+      return `
+        <tr>
+          <td><span class="badge badge-${badgeColor}" style="font-size: 11px;">${category}</span></td>
+          <td>${escFn(code || '—')}</td>
+          <td>${escFn(getMaterialName(code))}</td>
+          <td class="is-number text-danger">${quantity} ${unitLabel}</td>
+        </tr>
+      `;
+    }).join('');
+  };
+  
+  // Build rows for each scrap type
+  const inputScrapRows = buildScrapRows(inputScrap, 'Hasarlı Gelen', 'warning');
+  const productionScrapRows = buildScrapRows(productionScrap, 'Üretim Hasarı', 'danger');
+  
+  // Defect quantity row (for finished product)
+  const defectRow = hasDefect ? `
+    <tr>
+      <td><span class="badge badge-danger" style="font-size: 11px;">Hatalı Çıktı</span></td>
+      <td>${escFn(workPackage.outputCode || '—')}</td>
+      <td>${escFn(getMaterialName(workPackage.outputCode))}</td>
+      <td class="is-number text-danger">${defectQty} ${unitLabel}</td>
+    </tr>
+  ` : '';
+  
+  const allScrapRows = inputScrapRows + productionScrapRows + defectRow;
+  
+  // Calculate total scrap
+  const totalInputScrap = Object.values(inputScrap).reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
+  const totalProductionScrap = Object.values(productionScrap).reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
+  const totalScrap = totalInputScrap + totalProductionScrap + defectQty;
+  
+  return `
+    <div class="mes-detail-section">
+      <div class="mes-detail-section-header">
+        <div class="mes-detail-section-icon" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); color: #d97706;">
+          <i data-lucide="flame"></i>
+        </div>
+        <div>
+          <div class="mes-detail-section-title">Fire Kayıtları</div>
+          <div class="mes-detail-section-subtitle">Toplam: ${totalScrap} ${unitLabel}</div>
+        </div>
+      </div>
+      ${allScrapRows ? `
+        <div class="mes-detail-table-wrapper">
+            <table class="mes-detail-table">
+              <thead>
+                <tr>
+                  <th>Fire Tipi</th>
+                  <th>Malzeme Kodu</th>
+                  <th>Malzeme Adı</th>
+                  <th>Miktar</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${allScrapRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
 
-  if (!outputEntries.length) {
+function renderOutputList(workPackage, escFn = (v) => v) {
+  const plannedMap = getPlannedOutputMap(workPackage);
+  const entries = Object.entries(plannedMap);
+  if (!entries.length) {
     return '<div class="mes-detail-empty">Çıkış ürünü yok</div>';
   }
+  const actualMap = getActualOutputMap(workPackage);
+  const status = normalizeWPStatus(workPackage.status);
+  const unitLabel = workPackage.unit || 'adet';
 
-  return renderMaterialList(outputs, 'outputs', workPackage.unit || 'adet', escFn);
+  const rows = entries.map(([code, plannedQty]) => {
+    const plannedValue = normalizeQuantityValue(plannedQty);
+    const actualValue = (status === 'in-progress' || status === 'completed') && typeof actualMap[code] !== 'undefined'
+      ? formatQuantityValue(actualMap[code], unitLabel)
+      : '-';
+    return `
+      <tr>
+        <td>${escFn(code || '—')}</td>
+        <td>${escFn(getOutputMaterialName(workPackage, code))}</td>
+        <td class="is-number">${plannedValue} ${unitLabel}</td>
+        <td class="is-number">${actualValue}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="mes-detail-table-wrapper">
+      <table class="mes-detail-table">
+        <thead>
+          <tr>
+            <th>Malzeme Kodu</th>
+            <th>Malzeme Adı</th>
+            <th>Planlanan Üretim</th>
+            <th>Üretim</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 function getPlannedMaterialConsumption(workPackage) {
@@ -4059,6 +4144,68 @@ function formatQuantityValue(value, unit) {
   const numeric = typeof value === 'number' ? value : parseFloat(value);
   const formatted = Number.isFinite(numeric) ? numeric : value;
   return `${formatted} ${unit || ''}`.trim();
+}
+
+function getPlannedOutputMap(workPackage) {
+  if (Array.isArray(workPackage.plannedOutputs)) {
+    const map = {};
+    workPackage.plannedOutputs.forEach(item => {
+      if (!item) return;
+      const code = item.code || item.materialCode || item.outputCode;
+      const qty = item.quantity ?? item.qty ?? item.plannedQuantity ?? item.requiredQuantity;
+      if (!code || qty == null) return;
+      map[code] = qty;
+    });
+    if (Object.keys(map).length > 0) return map;
+  }
+  if (Array.isArray(workPackage.plannedOutputDetails)) {
+    const map = {};
+    workPackage.plannedOutputDetails.forEach(item => {
+      if (!item) return;
+      const code = item.code || item.materialCode || item.outputCode;
+      const qty = item.quantity ?? item.qty ?? item.plannedQuantity ?? item.requiredQuantity;
+      if (!code || qty == null) return;
+      map[code] = qty;
+    });
+    if (Object.keys(map).length > 0) return map;
+  }
+  if (workPackage.plannedOutput && typeof workPackage.plannedOutput === 'object' && Object.keys(workPackage.plannedOutput).length > 0) {
+    return workPackage.plannedOutput;
+  }
+  if (workPackage.outputCode) {
+    const qty = workPackage.outputQty || workPackage.plannedOutputQty || workPackage.expectedOutputQuantity;
+    if (qty != null) return { [workPackage.outputCode]: qty };
+  }
+  return {};
+}
+
+function getActualOutputMap(workPackage) {
+  // Backend sends actualQuantity - use it directly with outputCode
+  if (workPackage.outputCode && workPackage.actualQuantity != null) {
+    return { [workPackage.outputCode]: parseFloat(workPackage.actualQuantity) };
+  }
+  return {};
+}
+
+function getOutputMaterialName(workPackage, code) {
+  if (!code) return '—';
+  if (workPackage.outputMaterialNames && workPackage.outputMaterialNames[code]) {
+    return workPackage.outputMaterialNames[code];
+  }
+  if (workPackage.productNames && workPackage.productNames[code]) {
+    return workPackage.productNames[code];
+  }
+  if (workPackage.productName && (code === workPackage.productCode || code === workPackage.outputCode)) {
+    return workPackage.productName;
+  }
+  return getMaterialNameFromPackage(workPackage, code);
+}
+
+function normalizeQuantityValue(value) {
+  if (value == null || value === '') return 0;
+  if (typeof value === 'number') return value;
+  const numeric = parseFloat(value);
+  return Number.isFinite(numeric) ? numeric : value;
 }
 
 function ensureWorkPackageDetailStyles() {
