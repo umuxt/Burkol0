@@ -7,6 +7,7 @@ import BulkProgressModal from './BulkProgressModal.jsx'
 import AddOrderModal from './AddOrderModal.jsx'
 import AddMaterialModal from './AddMaterialModal.jsx'
 import MaterialDetailsPanel from './MaterialDetailsPanel.jsx'
+import ShipmentModalInStock from './ShipmentModalInStock.jsx'
 import { materialsService } from '../services/materials-service.js'
 
 export default function StocksTabContent({ 
@@ -16,7 +17,7 @@ export default function StocksTabContent({
   handleFilterChange, 
   handleAddMaterial, 
   handleMaterialSelect,
-  handleEditMaterial,
+  handleEditMaterial, 
   handleDeleteMaterial,
   handleCategoryManage,
   refreshMaterials,
@@ -33,11 +34,36 @@ export default function StocksTabContent({
   const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false);
   const [orderModalMaterial, setOrderModalMaterial] = useState(null);
 
+  // Shipment modal state
+  const [shipmentModalState, setShipmentModalState] = useState({ 
+    isOpen: false, 
+    material: null, 
+    anchorPosition: null 
+  });
+
   // Handle order button click
   const handleOrderClick = (material) => {
     console.log('🛒 Order button clicked for material:', material.name);
     setOrderModalMaterial(material);
     setIsAddOrderModalOpen(true);
+  };
+
+  // Handle shipment button click
+  const handleShipmentClick = (material, event) => {
+    console.log('🚚 Shipment button clicked for material:', material.name);
+    
+    // Calculate position
+    const rect = event.currentTarget.getBoundingClientRect();
+    // Position the modal to the left of the button, but ensure it fits on screen
+    // Modal width is approx 340px
+    const left = Math.max(10, Math.min(rect.left - 300, window.innerWidth - 360));
+    const top = Math.min(rect.bottom + 5, window.innerHeight - 500); // Ensure it doesn't go too far down
+
+    setShipmentModalState({
+      isOpen: true,
+      material,
+      anchorPosition: { top, left }
+    });
   };
 
   // Handle material row click - open detail panel
@@ -400,6 +426,7 @@ export default function StocksTabContent({
             selectedMaterials={selectedMaterials}
             onSelectedMaterialsChange={setSelectedMaterials}
             onOrderClick={handleOrderClick}
+            onShipmentClick={handleShipmentClick}
             loading={loading}
             error={error}
             onAddMaterial={handleAddMaterial}
@@ -457,6 +484,18 @@ export default function StocksTabContent({
         categories={categories}
         types={materialTypes}
         materials={materials}
+      />
+
+      {/* Shipment Modal */}
+      <ShipmentModalInStock
+        isOpen={shipmentModalState.isOpen}
+        onClose={() => setShipmentModalState(prev => ({ ...prev, isOpen: false }))}
+        material={shipmentModalState.material}
+        anchorPosition={shipmentModalState.anchorPosition}
+        onSuccess={() => {
+          console.log('✅ Shipment created, refreshing materials...');
+          refreshMaterials && refreshMaterials();
+        }}
       />
     </div>
   )

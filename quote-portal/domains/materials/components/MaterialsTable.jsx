@@ -1,19 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import StockBar from '../../../shared/components/StockBar.jsx'
 import { Truck } from '../../../shared/components/Icons.jsx' // Import Truck icon
-import ShipmentModalInStock from './ShipmentModalInStock.jsx'
 
-export default function MaterialsTable({ 
-  materials, 
-  types, 
+export default function MaterialsTable({
+  materials,
+  types,
   categories,
   onMaterialSelect,
-  onEditMaterial, 
+  onEditMaterial,
   onDeleteMaterial,
   onCategoryManage,
   selectedMaterials = new Set(),
   onSelectedMaterialsChange,
   onOrderClick,
+  onShipmentClick,
   loading = false,
   error = null,
   onAddMaterial
@@ -21,11 +21,6 @@ export default function MaterialsTable({
   const [activeTab, setActiveTab] = useState('all');
   const [sortField, setSortField] = useState('');
   const [sortDirection, setSortDirection] = useState('asc');
-  
-  // Shipment panel state
-  const [shipmentModalOpen, setShipmentModalOpen] = useState(false);
-  const [shipmentMaterial, setShipmentMaterial] = useState(null);
-  const [shipmentAnchor, setShipmentAnchor] = useState({ top: 0, left: 0 });
 
   // Tümünü seç/bırak
   const handleSelectAll = (checked) => {
@@ -393,16 +388,8 @@ export default function MaterialsTable({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const panelWidth = 340;
-                      const rightMargin = 16; // Sağdan boşluk
-                      const maxLeft = window.innerWidth - panelWidth - rightMargin;
-                      setShipmentAnchor({
-                        top: rect.bottom + 5,
-                        left: Math.min(rect.left, maxLeft)
-                      });
-                      setShipmentMaterial(material);
-                      setShipmentModalOpen(true);
+                      console.log('Shipment button clicked for material:', material.name);
+                      onShipmentClick && onShipmentClick(material, e);
                     }}
                     style={{
                       padding: '2px',
@@ -485,22 +472,6 @@ export default function MaterialsTable({
           </tbody>
         </table>
       </div>
-
-      {/* Shipment Panel - Dropdown style */}
-      <ShipmentModalInStock
-        isOpen={shipmentModalOpen}
-        onClose={() => {
-          setShipmentModalOpen(false);
-          setShipmentMaterial(null);
-        }}
-        material={shipmentMaterial}
-        anchorPosition={shipmentAnchor}
-        onSuccess={(result) => {
-          console.log('✅ Shipment success:', result);
-          // Optionally refresh materials list or show toast
-          window.location.reload(); // Simple refresh for now
-        }}
-      />
     </section>
   )
 }
