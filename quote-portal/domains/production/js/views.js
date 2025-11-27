@@ -2105,6 +2105,9 @@ export async function initWorkPackagesWidget() {
     // Setup auto-refresh listeners
     setupWorkPackagesAutoRefresh();
     
+    // Apply default filters (hide completed on initial load)
+    applyWorkPackagesFilters();
+    
     // Render table
     renderWorkPackagesTable();
     
@@ -2603,6 +2606,50 @@ function renderWorkPackagesTable() {
     return codeHtml + nameHtml;
   };
   
+  // Render canStart flag icon with tooltip
+  const renderCanStartFlag = (pkg) => {
+    const status = normalizeWPStatus(pkg.status);
+    
+    // Already completed or in-progress - show dash
+    if (status === 'completed' || status === 'in-progress') {
+      return '<span class="mes-muted-text" style="font-size: 12px;">—</span>';
+    }
+    
+    const prereqs = pkg.prerequisites || {};
+    const canStart = prereqs.canStart === true;
+    const materialIssue = prereqs.materialsReady === false;
+    
+    // Build tooltip with reasons (only for cannot start case)
+    const reasons = [];
+    if (prereqs.predecessorsDone === false) {
+      const pending = prereqs.pendingPredecessors || [];
+      reasons.push(`Önceki işler tamamlanmadı (${pending.length})`);
+    }
+    if (prereqs.workerAvailable === false) {
+      reasons.push('İşçi başka işte');
+    }
+    if (prereqs.substationAvailable === false) {
+      reasons.push('İstasyon meşgul');
+    }
+    if (prereqs.workerQueueBlocked === true) {
+      reasons.push('Sırada önce başka iş var');
+    }
+    
+    if (canStart) {
+      // Can start - green flag
+      // If material issue, show red M next to green flag
+      const tooltip = materialIssue ? 'Başlatılabilir (Malzeme uyarısı)' : 'Başlatılabilir';
+      const materialWarning = materialIssue 
+        ? '<span style="color: #dc2626; font-weight: 700; font-size: 11px; margin-left: 2px;">M</span>' 
+        : '';
+      return `<span style="display: inline-flex; align-items: center;"><i data-lucide="flag" style="width: 16px; height: 16px; color: #16a34a;" title="${tooltip}"></i>${materialWarning}</span>`;
+    } else {
+      // Cannot start - red flag only (no M needed)
+      const tooltip = reasons.length > 0 ? reasons.join('\\n') : 'Başlatılamaz';
+      return `<i data-lucide="flag" style="width: 16px; height: 16px; color: #dc2626;" title="${tooltip}"></i>`;
+    }
+  };
+  
   const formatTime = (iso) => {
     if (!iso) return '—';
     try {
@@ -2657,6 +2704,9 @@ function renderWorkPackagesTable() {
         <td>
           <div>${renderSubstationDisplay(pkg)}</div>
         </td>
+        <td class="text-center can-start-cell">
+          ${renderCanStartFlag(pkg)}
+        </td>
         <td class="text-center">
           <div>${getStatusBadge(normalizeWPStatus(pkg.status))}</div>
         </td>
@@ -2681,6 +2731,9 @@ function renderWorkPackagesTable() {
       <th style="max-width: 180px; width: 180px; white-space: nowrap;">Operation</th>
       <th style="max-width: 200px; width: 200px; white-space: nowrap;">Worker</th>
       <th>Station</th>
+      <th class="text-center" style="text-align: center; width: 40px;">
+        <span style="display: inline-flex; align-items: center; justify-content: center; width: 100%;"><i data-lucide="flag" style="width: 14px; height: 14px;"></i></span>
+      </th>
       <th class="text-center" style="text-align: center; max-width: 110px; width: 110px;">Status</th>
       <th class="text-center" style="text-align: center; width: 1%; white-space: nowrap;">Priority</th>
       <th class="text-center" style="text-align: center; width: 1%; white-space: nowrap;">M</th>
@@ -2690,7 +2743,7 @@ function renderWorkPackagesTable() {
 
   const emptyRow = `
     <tr class="mes-table-row is-empty">
-      <td colspan="9" class="mes-empty-cell text-center"><em>No work packages found</em></td>
+      <td colspan="10" class="mes-empty-cell text-center"><em>No work packages found</em></td>
     </tr>
   `;
 
@@ -2705,6 +2758,10 @@ function renderWorkPackagesTable() {
     </table>
     ${packages.length > 0 ? `<div class="mes-muted-text" style="margin-top: 12px; text-align: center;">Showing ${packages.length} work package(s)${workPackagesState.allPackages.length !== packages.length ? ` of ${workPackagesState.allPackages.length} total` : ''}</div>` : ''}
   `;
+
+  if (typeof lucide !== 'undefined' && typeof lucide.createIcons === 'function') {
+    try { lucide.createIcons(); } catch {}
+  }
 
   renderWorkPackagesChart();
 }

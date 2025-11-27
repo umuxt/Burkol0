@@ -337,6 +337,20 @@ async function loadLotPreviews() {
 async function startTaskWithLotPreview(assignmentId) {
   console.log(`🚀 Starting task with lot preview: ${assignmentId}`);
   
+  // Check if materials are insufficient - need confirmation first
+  const task = state.tasks.find(t => String(t.assignmentId) === String(assignmentId));
+  const materialsInsufficient = task?.prerequisites?.materialsReady === false || task?.materialStatus === 'insufficient';
+  
+  if (materialsInsufficient) {
+    // Show material confirmation modal before proceeding
+    const confirmed = await showMaterialConfirmationModal(task);
+    if (!confirmed) {
+      console.log('❌ User cancelled due to material shortage');
+      return;
+    }
+    console.log('✅ User confirmed to proceed despite material shortage');
+  }
+  
   // If lot tracking is disabled, start directly without preview modal
   if (!state.systemSettings.lotTracking) {
     console.log('📦 Lot tracking disabled - starting task directly');
@@ -348,6 +362,73 @@ async function startTaskWithLotPreview(assignmentId) {
   await showLotPreviewModal(assignmentId, async (confirmedAssignmentId) => {
     // User confirmed, proceed with starting task
     await startTaskDirectly(confirmedAssignmentId);
+  });
+}
+
+/**
+ * Show confirmation modal when materials are insufficient
+ */
+function showMaterialConfirmationModal(task) {
+  return new Promise((resolve) => {
+    const materialStatus = task?.materialStatus || 'insufficient';
+    const taskName = task?.nodeName || task?.operationName || `Görev #${task?.assignmentId}`;
+    
+    const modalHtml = `
+      <div id="material-confirm-modal" class="modal-overlay" style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999;">
+        <div class="modal-content" style="background: white; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <div style="width: 60px; height: 60px; background: #fef3c7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+              <span style="font-size: 28px;">⚠️</span>
+            </div>
+            <h3 style="margin: 0 0 8px; font-size: 18px; font-weight: 600; color: #1f2937;">Malzeme Uyarısı</h3>
+            <p style="margin: 0; color: #6b7280; font-size: 14px;">
+              <strong>${taskName}</strong> için yeterli malzeme bulunmuyor.
+            </p>
+          </div>
+          <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+            <p style="margin: 0; color: #92400e; font-size: 13px;">
+              Bu göreve başlarsanız, eksik malzeme nedeniyle üretim aksamaları yaşanabilir. Devam etmek istiyor musunuz?
+            </p>
+          </div>
+          <div style="display: flex; gap: 12px;">
+            <button id="material-confirm-cancel" style="flex: 1; padding: 12px; border: 1px solid #d1d5db; background: white; border-radius: 8px; font-weight: 500; cursor: pointer;">
+              İptal
+            </button>
+            <button id="material-confirm-proceed" style="flex: 1; padding: 12px; border: none; background: #f59e0b; color: white; border-radius: 8px; font-weight: 500; cursor: pointer;">
+              Devam Et
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    const modal = document.getElementById('material-confirm-modal');
+    const cancelBtn = document.getElementById('material-confirm-cancel');
+    const proceedBtn = document.getElementById('material-confirm-proceed');
+    
+    const cleanup = () => {
+      modal.remove();
+    };
+    
+    cancelBtn.onclick = () => {
+      cleanup();
+      resolve(false);
+    };
+    
+    proceedBtn.onclick = () => {
+      cleanup();
+      resolve(true);
+    };
+    
+    // Close on overlay click
+    modal.onclick = (e) => {
+      if (e.target === modal) {
+        cleanup();
+        resolve(false);
+      }
+    };
   });
 }
 

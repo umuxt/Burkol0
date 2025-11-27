@@ -3522,6 +3522,54 @@ router.get('/work-packages', withAuth, async (req, res) => {
       return acc;
     }, {});
     
+    // Get all unique predecessor nodeIds to check their completion status
+    const allPredecessorNodeIds = [...new Set(predecessorRelations.map(p => p.predecessorNodeId))];
+    
+    // Get assignment statuses for all predecessor nodes
+    const predecessorStatuses = allPredecessorNodeIds.length > 0
+      ? await db('mes.worker_assignments as wa')
+          .join('mes.production_plan_nodes as n', function() {
+            this.on('n.id', '=', db.raw('wa."nodeId"::integer'));
+          })
+          .whereIn('n.nodeId', allPredecessorNodeIds)
+          .select('n.nodeId as nodeIdString', 'wa.status')
+      : [];
+    
+    // Build a map of nodeIdString -> isCompleted
+    const predecessorCompletionMap = predecessorStatuses.reduce((acc, ps) => {
+      acc[ps.nodeIdString] = ps.status === 'completed';
+      return acc;
+    }, {});
+    
+    // Get worker and substation availability for canStart check
+    const workerIds = [...new Set(tasks.map(t => t.workerId).filter(Boolean))];
+    const substationIds = [...new Set(tasks.map(t => t.substationId).filter(Boolean))];
+    
+    // Get workers with in-progress tasks (not just assigned, actually working)
+    const workersWithActiveTasks = workerIds.length > 0
+      ? await db('mes.worker_assignments')
+          .whereIn('workerId', workerIds)
+          .whereIn('status', ['in_progress', 'in-progress', 'paused'])
+          .select('workerId', 'id as assignmentId')
+      : [];
+    // Map workerId -> active assignmentId
+    const workerActiveAssignment = workersWithActiveTasks.reduce((acc, w) => {
+      acc[w.workerId] = w.assignmentId;
+      return acc;
+    }, {});
+    
+    // Get substations currently in_use (actively being used, not just reserved)
+    const substationsData = substationIds.length > 0
+      ? await db('mes.substations')
+          .whereIn('id', substationIds)
+          .select('id', 'status', 'currentAssignmentId')
+      : [];
+    // Map substationId -> {status, currentAssignmentId}
+    const substationInfo = substationsData.reduce((acc, s) => {
+      acc[s.id] = { status: s.status, currentAssignmentId: s.currentAssignmentId };
+      return acc;
+    }, {});
+    
     // Check stock availability and get names for all materials (PostgreSQL materials.materials table)
     const stockAvailability = {};
     const materialNames = {};
@@ -3568,6 +3616,28 @@ router.get('/work-packages', withAuth, async (req, res) => {
       const quoteSnapshot = woData?.quoteSnapshot || {};
       const customerName = quoteSnapshot.customerName || quoteSnapshot.customerCompany || '';
       
+      // Build prerequisites object for canStart check
+      const preds = predecessorsByNode[t.nodeIdString] || [];
+      const pendingPredecessors = preds.filter(predNodeId => !predecessorCompletionMap[predNodeId]);
+      const predecessorsDone = pendingPredecessors.length === 0;
+      
+      // Worker available: no active (in-progress/paused) task, OR this IS the active task
+      const workerActiveId = workerActiveAssignment[t.workerId];
+      const workerAvailable = !workerActiveId || workerActiveId === t.assignmentId;
+      
+      // Substation available: not in_use by another, OR reserved for this assignment, OR available
+      const subInfo = substationInfo[t.substationId] || { status: 'available', currentAssignmentId: null };
+      const substationAvailable = 
+        subInfo.status === 'available' || 
+        subInfo.currentAssignmentId === t.assignmentId ||
+        (subInfo.status === 'reserved' && subInfo.currentAssignmentId === t.assignmentId);
+      
+      // Materials ready is just a warning, not a blocker
+      const materialsReady = materialStatus === 'sufficient';
+      
+      // canStart = predecessor, worker, substation must be ok. Materials is just a warning!
+      const canStart = predecessorsDone && workerAvailable && substationAvailable;
+      
       return {
       // Assignment IDs (backwards compatibility)
       id: t.assignmentId,
@@ -3580,6 +3650,16 @@ router.get('/work-packages', withAuth, async (req, res) => {
       nodeId: t.nodeId,
       nodeIdString: t.nodeIdString,
       predecessorNodeIds: predecessorsByNode[t.nodeIdString] || [],
+      
+      // Prerequisites for canStart
+      prerequisites: {
+        predecessorsDone,
+        pendingPredecessors,
+        workerAvailable,
+        substationAvailable,
+        materialsReady,
+        canStart
+      },
       
       // Plan info
       planName: t.planName || '',
@@ -3643,6 +3723,47 @@ router.get('/work-packages', withAuth, async (req, res) => {
       priority: t.priority,
       sequenceNumber: t.sequenceNumber
     };
+    });
+
+    // Post-processing: For same worker, only the first (FIFO) pending task can start
+    // Group pending tasks by workerId and mark only the earliest as canStart
+    const pendingByWorker = {};
+    formatted.forEach(task => {
+      if (task.status === 'pending' || task.status === 'queued' || task.status === 'ready') {
+        if (!pendingByWorker[task.workerId]) {
+          pendingByWorker[task.workerId] = [];
+        }
+        pendingByWorker[task.workerId].push(task);
+      }
+    });
+    
+    // For each worker, sort by FIFO (urgent first, then estimatedStartTime)
+    // Only the first task that passes all other checks can truly start
+    Object.values(pendingByWorker).forEach(workerTasks => {
+      // Sort: urgent first, then by estimatedStartTime
+      workerTasks.sort((a, b) => {
+        if (a.isUrgent !== b.isUrgent) return a.isUrgent ? -1 : 1;
+        const aTime = new Date(a.estimatedStartTime || 0).getTime();
+        const bTime = new Date(b.estimatedStartTime || 0).getTime();
+        return aTime - bTime;
+      });
+      
+      // Find the first task that could start (ignoring FIFO)
+      let firstCanStartFound = false;
+      workerTasks.forEach(task => {
+        if (task.prerequisites.canStart) {
+          if (!firstCanStartFound) {
+            // This is the first one - keep canStart: true
+            firstCanStartFound = true;
+            task.prerequisites.isFirstInQueue = true;
+          } else {
+            // Not the first - override canStart to false
+            task.prerequisites.canStart = false;
+            task.prerequisites.isFirstInQueue = false;
+            task.prerequisites.workerQueueBlocked = true;
+          }
+        }
+      });
     });
 
     console.log(`📦 Work Packages Query: Found ${formatted.length} assignments (limit: ${maxResults})`);
