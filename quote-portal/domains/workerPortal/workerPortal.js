@@ -1857,8 +1857,13 @@ function renderTaskList() {
     return aStart - bStart;
   });
   
-  // Identify next task (FIFO Position #1)
-  const nextTask = sortedTasks.find(t => t.status === 'ready' || t.status === 'pending');
+  // Check if there's already an in-progress task
+  const hasInProgressTask = sortedTasks.some(t => t.status === 'in_progress' || t.status === 'in-progress');
+  
+  // Identify next task (FIFO Position #1) - only if no in-progress task exists
+  const nextTask = hasInProgressTask 
+    ? null 
+    : sortedTasks.find(t => t.status === 'ready' || t.status === 'pending');
   
   // Separate current/active tasks from upcoming tasks
   const currentTasks = [];
@@ -1869,7 +1874,7 @@ function renderTaskList() {
     const isNextTask = nextTask && task.assignmentId === nextTask.assignmentId;
     const currentFifoPosition = (task.status === 'ready' || task.status === 'pending') ? fifoPosition++ : null;
     
-    // Current tasks: in-progress, paused, or the next task
+    // Current tasks: in-progress, paused, or the next task (only when no in-progress exists)
     if (task.status === 'in_progress' || task.status === 'in-progress' || task.status === 'paused' || isNextTask) {
       currentTasks.push(renderModernTaskCard(task, isNextTask, currentFifoPosition));
     } 

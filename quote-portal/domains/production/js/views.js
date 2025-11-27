@@ -2588,12 +2588,19 @@ function renderWorkPackagesTable() {
     return `<span class="material-status-dot" role="img" aria-label="${title}" title="${title}" style="display: inline-block; width: 10px; height: 10px; border-radius: 999px; background-color: ${color};"></span>`;
   };
   
-  const formatSubstationDisplay = (pkg) => {
-    const code = pkg.substationCode || pkg.subStationCode || pkg.stationName || '';
-    const name = pkg.substationName || pkg.subStationName || '';
-    if (!code && !name) return '—';
-    if (code && name) return `${code} — ${name}`;
-    return code || name;
+  const renderSubstationDisplay = (pkg) => {
+    const code = pkg.substationCode || pkg.subStationCode || '';
+    const name = pkg.substationName || pkg.subStationName || pkg.stationName || '';
+    if (!code && !name) {
+      return '<span class="mes-muted-text">—</span>';
+    }
+    const codeHtml = code
+      ? `<span class="mes-muted-text" style="font-size: 11px; font-family: monospace;">${esc(code)}</span>`
+      : '';
+    const nameHtml = name
+      ? `<span style="display: block;">${esc(name)}</span>`
+      : '';
+    return codeHtml + nameHtml;
   };
   
   const formatTime = (iso) => {
@@ -2638,16 +2645,16 @@ function renderWorkPackagesTable() {
               ${esc(pkg.workOrderCode)}
             </a>
           </div>
-          <div class="mes-muted-text">${esc(pkg.customer || pkg.company)}</div>
+          <div>${esc(pkg.customer || pkg.company)}</div>
         </td>
         <td>
-          <div>${esc(pkg.nodeName || pkg.operationName || '—')}</div>
+          <div style="max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(pkg.nodeName || pkg.operationName || '—')}</div>
         </td>
         <td>
-          <div>${esc(pkg.workerName)}</div>
+          <div style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(pkg.workerName)}</div>
         </td>
         <td>
-          <div>${esc(formatSubstationDisplay(pkg))}</div>
+          <div>${renderSubstationDisplay(pkg)}</div>
         </td>
         <td class="text-center">
           <div>${getStatusBadge(normalizeWPStatus(pkg.status))}</div>
@@ -2668,12 +2675,12 @@ function renderWorkPackagesTable() {
   
   const headerRow = `
     <tr>
-      <th style="width: 1%; white-space: nowrap;">Work Package ID</th>
+      <th style="width: 1%; white-space: nowrap;">ID</th>
       <th style="width: 1%; white-space: nowrap;">Work Order</th>
-      <th>Operation</th>
-      <th>Worker</th>
+      <th style="max-width: 180px; width: 180px; white-space: nowrap;">Operation</th>
+      <th style="max-width: 200px; width: 200px; white-space: nowrap;">Worker</th>
       <th>Station</th>
-      <th class="text-center" style="text-align: center;">Status</th>
+      <th class="text-center" style="text-align: center; max-width: 110px; width: 110px;">Status</th>
       <th class="text-center" style="text-align: center; width: 1%; white-space: nowrap;">Priority</th>
       <th class="text-center" style="text-align: center; width: 1%; white-space: nowrap;">M</th>
       <th>ETA</th>
