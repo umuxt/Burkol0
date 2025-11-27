@@ -555,8 +555,8 @@ async function batchCreateMaterials(req, res) {
     for (const materialData of materials) {
       try {
         // Validate required fields
-        // Category is optional for finished_product, semi_finished, and scrap
-        const requiresCategory = !['finished_product', 'semi_finished', 'scrap'].includes(materialData.type);
+        // Category is optional for processed and scrap types
+        const requiresCategory = !['processed', 'scrap'].includes(materialData.type);
         
         if (!materialData.code || !materialData.name || (requiresCategory && !materialData.category)) {
           errors.push({

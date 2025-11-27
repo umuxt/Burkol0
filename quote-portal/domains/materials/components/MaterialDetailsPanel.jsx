@@ -578,7 +578,7 @@ export default function MaterialDetailsPanel({
                           width: '100%',
                           fontSize: '14px'
                         }}
-                        required={!['finished_product', 'semi_finished', 'scrap'].includes(formData.type)}
+                        required={!['processed', 'scrap'].includes(formData.type)}
                       >
                         <option value="">Kategori seçin</option>
                         {categories.map(cat => (

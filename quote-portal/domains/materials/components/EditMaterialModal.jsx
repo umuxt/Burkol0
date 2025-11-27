@@ -640,7 +640,7 @@ export default function EditMaterialModal({
                           value={safeRender(formData.category)}
                           onChange={handleCategoryChange}
                           className="detail-input"
-                          required={!['finished_product', 'semi_finished', 'scrap'].includes(formData.type)}
+                          required={!['processed', 'scrap'].includes(formData.type)}
                         >
                           <option value="">Kategori seçin</option>
                           {categories.map(cat => (

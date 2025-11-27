@@ -32,11 +32,10 @@ const PAGE = window.location.pathname.includes('quote-dashboard.html') ? 'admin'
   : window.location.pathname.includes('materials.html') ? 'materials'
   : 'quote';
 
-// Material types - New type system
+// Material types - Simplified type system (raw_material, processed, scrap)
 const materialTypes = [
   { id: 'raw_material', label: 'Ham Madde' },
-  { id: 'semi_finished', label: 'Yarı Mamül' },
-  { id: 'finished_product', label: 'Bitmiş Ürün' },
+  { id: 'processed', label: 'İşlenmiş Ürün' },
   { id: 'scrap', label: 'Hurda' }
 ];
 

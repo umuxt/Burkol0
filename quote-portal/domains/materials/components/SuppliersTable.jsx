@@ -60,8 +60,7 @@ export default function SuppliersTable({
   const categoriesRefreshTimerRef = useRef(null)
   const [materialTypes] = useState([
     { id: 'raw_material', label: 'Ham Madde' },
-    { id: 'semi_finished', label: 'Yarı Mamül' },
-    { id: 'finished_product', label: 'Bitmiş Ürün' },
+    { id: 'processed', label: 'İşlenmiş Ürün' },
     { id: 'scrap', label: 'Hurda' }
   ])
   const [showNewCategory, setShowNewCategory] = useState(false)
