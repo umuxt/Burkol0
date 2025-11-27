@@ -2575,12 +2575,25 @@ function renderWorkPackagesTable() {
   };
   
   const getMaterialBadge = (status) => {
-    if (status === 'sufficient') return '<span class="badge badge-success" style="padding: 1px 8px; font-size: 0.75rem;">Stok Yeterli</span>';
-    if (status === 'insufficient') return '<span class="badge badge-destructive" style="padding: 1px 8px; font-size: 0.75rem;">Stok Yetersiz</span>';
-    if (status === 'ok' || status === 'reserved') return '<span class="badge badge-success" style="padding: 1px 8px; font-size: 0.75rem;">OK</span>';
-    if (status === 'short') return '<span class="badge badge-destructive" style="padding: 1px 8px; font-size: 0.75rem;">Short</span>';
-    if (status === 'pending') return '<span class="badge badge-warning" style="padding: 1px 8px; font-size: 0.75rem;">Pending</span>';
-    return '<span class="badge badge-outline" style="padding: 1px 8px; font-size: 0.75rem;">Unknown</span>';
+    const statusDots = {
+      'sufficient': { color: '#22c55e', label: 'Stok Yeterli' },
+      'ok': { color: '#22c55e', label: 'Stok Hazır' },
+      'reserved': { color: '#22c55e', label: 'Stok Ayrıldı' },
+      'insufficient': { color: '#ef4444', label: 'Stok Yetersiz' },
+      'short': { color: '#ef4444', label: 'Stok Eksik' },
+      'pending': { color: '#fbbf24', label: 'Beklemede' }
+    };
+    const { color, label } = statusDots[status] || { color: '#d1d5db', label: 'Bilinmeyen' };
+    const title = label.replace(/"/g, '&quot;');
+    return `<span class="material-status-dot" role="img" aria-label="${title}" title="${title}" style="display: inline-block; width: 10px; height: 10px; border-radius: 999px; background-color: ${color};"></span>`;
+  };
+  
+  const formatSubstationDisplay = (pkg) => {
+    const code = pkg.substationCode || pkg.subStationCode || pkg.stationName || '';
+    const name = pkg.substationName || pkg.subStationName || '';
+    if (!code && !name) return '—';
+    if (code && name) return `${code} — ${name}`;
+    return code || name;
   };
   
   const formatTime = (iso) => {
@@ -2634,7 +2647,7 @@ function renderWorkPackagesTable() {
           <div>${esc(pkg.workerName)}</div>
         </td>
         <td>
-          <div>${esc(pkg.substationCode || pkg.stationName || '—')}</div>
+          <div>${esc(formatSubstationDisplay(pkg))}</div>
         </td>
         <td class="text-center">
           <div>${getStatusBadge(normalizeWPStatus(pkg.status))}</div>
@@ -2662,7 +2675,7 @@ function renderWorkPackagesTable() {
       <th>Station</th>
       <th class="text-center" style="text-align: center;">Status</th>
       <th class="text-center" style="text-align: center; width: 1%; white-space: nowrap;">Priority</th>
-      <th class="text-center" style="text-align: center; width: 1%; white-space: nowrap;">Materials</th>
+      <th class="text-center" style="text-align: center; width: 1%; white-space: nowrap;">M</th>
       <th>ETA</th>
     </tr>
   `;
