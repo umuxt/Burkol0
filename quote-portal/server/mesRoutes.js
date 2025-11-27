@@ -6508,6 +6508,26 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
     
     const materialUnitMap = new Map(materialsWithUnits.map(m => [m.code, m.unit]));
     
+    // ✅ FIX: Calculate and update unitRatio for each material input
+    // unitRatio = requiredQuantity / outputQty
+    const nodeOutputMap = new Map(nodes.map(n => [n.nodeId, parseFloat(n.outputQty) || 1]));
+    
+    for (const mi of allMaterialInputs) {
+      const outputQty = nodeOutputMap.get(mi.nodeId) || 1;
+      const reqQty = parseFloat(mi.requiredQuantity) || 0;
+      const correctRatio = outputQty > 0 ? reqQty / outputQty : 1.0;
+      
+      // Update if different from stored value
+      if (Math.abs((mi.unitRatio || 1.0) - correctRatio) > 0.0001) {
+        await trx('mes.node_material_inputs')
+          .where('nodeId', mi.nodeId)
+          .where('materialCode', mi.materialCode)
+          .update({ unitRatio: correctRatio });
+        console.log(`📊 [Launch] Updated unitRatio: ${mi.nodeId}/${mi.materialCode} = ${correctRatio.toFixed(4)} (${reqQty}/${outputQty})`);
+      }
+      mi.unitRatio = correctRatio; // Update in-memory too
+    }
+    
     // Attach materialInputs array to each node
     nodes.forEach(node => {
       node.materialInputs = allMaterialInputs
@@ -6515,6 +6535,7 @@ router.post('/production-plans/:id/launch', withAuth, async (req, res) => {
         .map(mi => ({
           materialCode: mi.materialCode,
           requiredQuantity: parseFloat(mi.requiredQuantity) || 0,
+          unitRatio: mi.unitRatio,
           unit: materialUnitMap.get(mi.materialCode) || node.outputUnit || 'adet',
           isDerived: mi.isDerived || false
         }));
