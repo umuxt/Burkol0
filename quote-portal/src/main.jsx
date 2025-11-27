@@ -17,6 +17,7 @@ import CategoryManagementModal from '../domains/materials/components/CategoryMan
 import MaterialDeletionWarningModal from '../domains/materials/components/MaterialDeletionWarningModal.jsx';
 import ErrorBoundary from '../shared/components/ErrorBoundary.jsx';
 import MaterialsHelp from '../domains/materials/components/MaterialsHelp.jsx';
+import ShipmentPanel from '../domains/materials/components/ShipmentPanel.jsx'; // New import
 
 // Backend API hooks
 import { useMaterials, useMaterialActions } from '../domains/materials/hooks/useMaterials.js';
@@ -462,6 +463,9 @@ function MaterialsApp() {
           <React.Suspense fallback={<div style={{padding: '20px', textAlign: 'center'}}>📦 Orders yükleniyor...</div>}>
             <LazyOrdersTabContent />
           </React.Suspense>
+        )}
+        {activeTab === 'shipments' && ( // New conditional rendering for ShipmentPanel
+          <ShipmentPanel />
         )}
       </MaterialsTabs>
       

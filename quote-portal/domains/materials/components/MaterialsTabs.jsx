@@ -13,13 +13,15 @@ export default function MaterialsTabs({ children, activeTab, onTabChange }) {
   const tabs = [
     { id: 'stocks', label: 'Stoklar', icon: Package },
     { id: 'suppliers', label: 'Tedarikçi Listesi', icon: Users },
-    { id: 'orders', label: 'Sipariş Paneli', icon: ShoppingCart }
+    { id: 'orders', 'label': 'Sipariş Paneli', icon: ShoppingCart },
+    { id: 'shipments', label: 'Sevkiyat Paneli', icon: ShoppingCart } // New tab added
   ]
 
   const tabTitles = {
     stocks: 'Stok Yönetimi',
     suppliers: 'Tedarikçi Yönetimi',
-    orders: 'Sipariş Yönetimi'
+    orders: 'Sipariş Yönetimi',
+    shipments: 'Sevkiyat Yönetimi' // New tab title added
   }
 
   return (
@@ -49,7 +51,7 @@ export default function MaterialsTabs({ children, activeTab, onTabChange }) {
       
       <div className="materials-tab-content">
         {React.Children.map(children, (child, index) => {
-          const tabIds = ['stocks', 'suppliers', 'orders']
+          const tabIds = ['stocks', 'suppliers', 'orders', 'shipments']
           const tabId = tabIds[index]
           
           return (
