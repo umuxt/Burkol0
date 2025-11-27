@@ -2698,6 +2698,7 @@ function renderWorkPackagesChart() {
   const minRowHeight = 72;
 
   const activeStatuses = new Set(['pending', 'queued', 'in-progress']);
+  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
   const packages = (workPackagesState.filteredPackages || []).filter(pkg => {
     const normalizedStatus = normalizeWPStatus(pkg.status);
     return activeStatuses.has(normalizedStatus);
@@ -2746,18 +2747,13 @@ function renderWorkPackagesChart() {
       const rawWidth = ((Math.max(item.endMs - item.startMs, 1) / totalRange) * 100);
       const widthPercent = Math.max(Math.min(rawWidth, 100 - offsetPercent), 1);
       const topOffset = (item.lane * laneHeight) + laneBaseOffset;
-      const tooltip = [
-        `Assignment: ${item.assignmentId}`,
-        item.nodeName ? `Node: ${item.nodeName}` : null,
-        `Worker: ${item.workerName}`,
-        `Station/Substation: ${item.substationCode || item.stationName}`,
-        `${formatChartTime(item.startMs)} → ${formatChartTime(item.endMs)}`
-      ].filter(Boolean).join('\n');
+      const tooltipHtml = buildWorkPackageTooltip(item);
+      const tooltipAttr = tooltipHtml.replace(/"/g, '&quot;').replace(/\n/g, '&#10;');
       
       return `
         <div
           class="wp-chart-bar status-${item.status.replace('_', '-')}"
-          title="${tooltip}"
+          data-tooltip="${tooltipAttr}"
           style="left:${offsetPercent}%; width:${widthPercent}%; top:${topOffset}px;"
         >
           <span class="wp-chart-bar-text">${item.assignmentId}</span>
@@ -2814,6 +2810,7 @@ function renderWorkPackagesChart() {
       </div>
     </div>
   `;
+  setupWorkPackagesChartTooltips(chartPanel);
 }
 
 function buildWorkPackagesChartGroups(packages) {
@@ -2860,6 +2857,74 @@ function buildWorkPackagesChartGroups(packages) {
   });
 
   return groups;
+}
+
+function buildWorkPackageTooltip(item) {
+  const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+  const rows = [];
+  rows.push(`<div class="wp-chart-tooltip-title">${esc(item.assignmentId)}</div>`);
+  if (item.nodeName) {
+    rows.push(`<div class="wp-chart-tooltip-row"><span>Operasyon</span><strong>${esc(item.nodeName)}</strong></div>`);
+  }
+  rows.push(`<div class="wp-chart-tooltip-row"><span>İşçi</span><strong>${esc(item.workerName || '—')}</strong></div>`);
+  rows.push(`<div class="wp-chart-tooltip-row"><span>Substation</span><strong>${esc(item.substationCode || item.substationLabel || item.stationName || '—')}</strong></div>`);
+  rows.push(`<div class="wp-chart-tooltip-meta">${formatChartTime(item.startMs)} → ${formatChartTime(item.endMs)}</div>`);
+  return rows.join('');
+}
+
+function setupWorkPackagesChartTooltips(rootEl) {
+  if (!rootEl) return;
+  const bars = rootEl.querySelectorAll('.wp-chart-bar[data-tooltip]');
+  const tooltip = getWorkPackagesTooltipElement();
+  bars.forEach(bar => {
+    const content = bar.getAttribute('data-tooltip');
+    bar.onmouseenter = (event) => {
+      showWorkPackagesTooltip(event, tooltip, content);
+    };
+    bar.onmousemove = (event) => positionWorkPackagesTooltip(event, tooltip);
+    bar.onmouseleave = () => hideWorkPackagesTooltip(tooltip);
+  });
+}
+
+let workPackagesTooltipEl = null;
+
+function getWorkPackagesTooltipElement() {
+  if (workPackagesTooltipEl) return workPackagesTooltipEl;
+  const tooltip = document.createElement('div');
+  tooltip.id = 'wp-chart-tooltip';
+  tooltip.className = 'wp-chart-tooltip';
+  document.body.appendChild(tooltip);
+  workPackagesTooltipEl = tooltip;
+  return tooltip;
+}
+
+function showWorkPackagesTooltip(event, tooltip, content) {
+  if (!tooltip || !content) return;
+  tooltip.innerHTML = content;
+  tooltip.classList.add('is-visible');
+  positionWorkPackagesTooltip(event, tooltip);
+}
+
+function hideWorkPackagesTooltip(tooltip) {
+  if (!tooltip) return;
+  tooltip.classList.remove('is-visible');
+}
+
+function positionWorkPackagesTooltip(event, tooltip) {
+  if (!tooltip) return;
+  const offset = 12;
+  const { clientX, clientY } = event;
+  const tooltipRect = tooltip.getBoundingClientRect();
+  let left = clientX + offset;
+  let top = clientY + offset;
+  if (left + tooltipRect.width > window.innerWidth - 8) {
+    left = window.innerWidth - tooltipRect.width - 8;
+  }
+  if (top + tooltipRect.height > window.innerHeight - 8) {
+    top = clientY - tooltipRect.height - offset;
+  }
+  tooltip.style.left = `${left}px`;
+  tooltip.style.top = `${top}px`;
 }
 
 function ensureWorkPackagesChartStyles() {
@@ -3058,6 +3123,49 @@ function ensureWorkPackagesChartStyles() {
     }
     .wp-chart-legend-dot.status-in-progress {
       background: #3b82f6;
+    }
+    .wp-chart-tooltip {
+      position: fixed;
+      pointer-events: none;
+      background: white;
+      color: #0f172a;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 11px;
+      line-height: 1.4;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity 0.05s ease;
+    }
+    .wp-chart-tooltip.is-visible {
+      opacity: 1;
+    }
+    .wp-chart-tooltip-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 6px;
+    }
+    .wp-chart-tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 11px;
+    }
+    .wp-chart-tooltip-row span {
+      color: #94a3b8;
+    }
+    .wp-chart-tooltip-row strong {
+      color: #0f172a;
+      font-weight: 600;
+    }
+    .wp-chart-tooltip-meta {
+      margin-top: 6px;
+      font-size: 10px;
+      color: #475569;
+      text-align: right;
     }
   `;
   document.head.appendChild(styleEl);
