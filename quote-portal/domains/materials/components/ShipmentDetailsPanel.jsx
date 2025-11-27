@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import { ArrowLeft, Truck, Info, Calendar } from '../../../shared/components/Icons.jsx'
+import React, { useState, useEffect, useRef } from 'react'
+import { ArrowLeft, Truck, Info, Calendar, Edit, Check, X, ChevronDown, Search, Loader2, FileText } from '../../../shared/components/Icons.jsx'
 import { shipmentsService, SHIPMENT_STATUS_LABELS, SHIPMENT_STATUS_COLORS } from '../services/shipments-service.js'
 
 export default function ShipmentDetailsPanel({
@@ -7,14 +7,29 @@ export default function ShipmentDetailsPanel({
   onClose,
   onUpdateStatus,
   onCancel,
+  onRefresh, // New prop to refresh parent list
   loading = false
 }) {
   const [currentShipment, setCurrentShipment] = useState(shipment);
   const [isUpdating, setIsUpdating] = useState(false);
   const [statusNote, setStatusNote] = useState('');
+  
+  // Editing state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState({});
+  const [dataLoading, setDataLoading] = useState(false);
+  const [workOrders, setWorkOrders] = useState([]);
+  const [quotes, setQuotes] = useState([]);
+  const [plans, setPlans] = useState([]);
 
   useEffect(() => {
     setCurrentShipment(shipment);
+    setEditData({
+        workOrderCode: shipment.workOrderCode || '',
+        quoteId: shipment.quoteId || '',
+        planId: shipment.planId || '',
+        description: shipment.description || ''
+    });
   }, [shipment]);
 
   if (!currentShipment) return null;
@@ -28,6 +43,61 @@ export default function ShipmentDetailsPanel({
     }
   };
 
+  const handleEditToggle = async () => {
+    if (!isEditing) {
+      setIsEditing(true);
+      if (workOrders.length === 0 && quotes.length === 0) {
+        setDataLoading(true);
+        try {
+          const [woData, qData, pData] = await Promise.all([
+            shipmentsService.getCompletedWorkOrders(),
+            shipmentsService.getApprovedQuotes(),
+            shipmentsService.getProductionPlans()
+          ]);
+          setWorkOrders(woData || []);
+          setQuotes(qData || []);
+          setPlans(pData || []);
+        } catch (error) {
+          console.error('Failed to load reference data:', error);
+        } finally {
+          setDataLoading(false);
+        }
+      }
+    } else {
+      setIsEditing(false);
+      // Reset edit data to current shipment values
+      setEditData({
+        workOrderCode: currentShipment.workOrderCode || '',
+        quoteId: currentShipment.quoteId || '',
+        planId: currentShipment.planId || '',
+        description: currentShipment.description || ''
+      });
+    }
+  };
+
+  const handleSave = async () => {
+    setIsUpdating(true);
+    try {
+      // Prepare update payload
+      const payload = {
+        workOrderCode: editData.workOrderCode || null,
+        quoteId: editData.quoteId || null,
+        planId: editData.planId || null,
+        description: editData.description || null
+      };
+
+      const updatedShipment = await shipmentsService.updateShipment(currentShipment.id, payload);
+      setCurrentShipment(updatedShipment);
+      setIsEditing(false);
+      if (onRefresh) onRefresh();
+    } catch (error) {
+      console.error('Update failed:', error);
+      alert('Güncelleme başarısız oldu.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleStatusChange = async (newStatus) => {
     if (!onUpdateStatus) return;
     
@@ -37,8 +107,7 @@ export default function ShipmentDetailsPanel({
 
     setIsUpdating(true);
     try {
-      await onUpdateStatus(currentShipment.id, newStatus); // statusNote is not used in updateShipmentStatus currently
-      // Update local state optimistically or wait for parent refresh
+      await onUpdateStatus(currentShipment.id, newStatus);
     } catch (error) {
       console.error('Status update failed:', error);
       alert('Durum güncellenirken bir hata oluştu.');
@@ -57,7 +126,7 @@ export default function ShipmentDetailsPanel({
 
     setIsUpdating(true);
     try {
-      await onCancel(currentShipment.id, statusNote); // Pass statusNote as reason
+      await onCancel(currentShipment.id, statusNote);
     } catch (error) {
       console.error('Cancel shipment failed:', error);
       alert('İptal işlemi sırasında bir hata oluştu.');
@@ -67,6 +136,10 @@ export default function ShipmentDetailsPanel({
     }
   };
 
+  // Helper for inputs
+  const handleInputChange = (field, value) => {
+    setEditData(prev => ({ ...prev, [field]: value }));
+  };
 
   // Status flow logic
   const renderStatusActions = () => {
@@ -207,7 +280,45 @@ export default function ShipmentDetailsPanel({
             </h3>
           </div>
           
-
+          {/* Header Actions */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {!isEditing && currentShipment.status !== 'delivered' ? (
+              <button 
+                onClick={handleEditToggle}
+                style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#6b7280', padding: '4px'
+                }}
+                title="Düzenle"
+              >
+                <Edit size={16} />
+              </button>
+            ) : isEditing ? (
+              <>
+                <button 
+                  onClick={handleSave}
+                  disabled={isUpdating}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#16a34a', padding: '4px'
+                  }}
+                  title="Kaydet"
+                >
+                  <Check size={18} />
+                </button>
+                <button 
+                  onClick={handleEditToggle}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: '#ef4444', padding: '4px'
+                  }}
+                  title="İptal"
+                >
+                  <X size={18} />
+                </button>
+              </>
+            ) : null}
+          </div>
         </div>
 
         {/* Content - Scrollable */}
@@ -241,6 +352,19 @@ export default function ShipmentDetailsPanel({
 
             <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
                 <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+                  Durum:
+                </span>
+                <span className="mes-tag" style={{ 
+                  backgroundColor: `${SHIPMENT_STATUS_COLORS[currentShipment.status]}20`,
+                  color: SHIPMENT_STATUS_COLORS[currentShipment.status],
+                  border: `1px solid ${SHIPMENT_STATUS_COLORS[currentShipment.status]}40`
+                }}>
+                  {SHIPMENT_STATUS_LABELS[currentShipment.status] || currentShipment.status}
+                </span>
+            </div>
+
+            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
                   Oluşturma Tarihi:
                 </span>
                 <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>{formatDate(currentShipment.createdAt)}</span>
@@ -262,29 +386,97 @@ export default function ShipmentDetailsPanel({
             borderRadius: '6px',
             border: '1px solid rgb(229, 231, 235)'
           }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', borderBottom: '1px solid rgb(229, 231, 235)', paddingBottom: '6px' }}>
-              Kaynak & Referans
+            <h3 style={{ margin: '0 0 12px 0', fontSize: '14px', fontWeight: '600', color: 'rgb(17, 24, 39)', borderBottom: '1px solid rgb(229, 231, 235)', paddingBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>Kaynak & Referans</span>
+              {dataLoading && <Loader2 size={14} className="animate-spin" />}
             </h3>
             
-            {currentShipment.workOrderCode ? (
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+            {/* Work Order */}
+            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
                 <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
                   İş Emri Kodu:
                 </span>
-                <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>{currentShipment.workOrderCode}</span>
-              </div>
-            ) : currentShipment.quoteId ? (
-              <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                {isEditing ? (
+                  <select
+                    value={editData.workOrderCode}
+                    onChange={(e) => handleInputChange('workOrderCode', e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: '6px',
+                      borderRadius: '4px',
+                      border: '1px solid #d1d5db',
+                      fontSize: '12px'
+                    }}
+                  >
+                    <option value="">Seçiniz...</option>
+                    {workOrders.map(wo => (
+                      <option key={wo.code} value={wo.code}>{wo.code} {wo.productName ? `- ${wo.productName}` : ''}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>
+                    {currentShipment.workOrderCode || <span style={{color: '#9ca3af', fontStyle: 'italic'}}>-</span>}
+                  </span>
+                )}
+            </div>
+
+            {/* Quote */}
+            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
                 <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
                   Teklif ID:
                 </span>
-                <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>#{currentShipment.quoteId}</span>
-              </div>
-            ) : (
-              <div style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic', padding: '4px' }}>
-                Herhangi bir iş emri veya teklif ile ilişkilendirilmemiş.
-              </div>
-            )}
+                {isEditing ? (
+                  <select
+                    value={editData.quoteId}
+                    onChange={(e) => handleInputChange('quoteId', e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: '6px',
+                      borderRadius: '4px',
+                      border: '1px solid #d1d5db',
+                      fontSize: '12px'
+                    }}
+                  >
+                    <option value="">Seçiniz...</option>
+                    {quotes.map(q => (
+                      <option key={q.id} value={q.id}>#{q.id} - {q.customerName || 'Müşteri'}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>
+                    {currentShipment.quoteId ? `#${currentShipment.quoteId}` : <span style={{color: '#9ca3af', fontStyle: 'italic'}}>-</span>}
+                  </span>
+                )}
+            </div>
+
+            {/* Plan */}
+            <div className="detail-item" style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                <span className="detail-label" style={{ fontWeight: '600', fontSize: '12px', color: 'rgb(55, 65, 81)', minWidth: '120px', marginRight: '8px' }}>
+                  Plan ID:
+                </span>
+                {isEditing ? (
+                  <select
+                    value={editData.planId}
+                    onChange={(e) => handleInputChange('planId', e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: '6px',
+                      borderRadius: '4px',
+                      border: '1px solid #d1d5db',
+                      fontSize: '12px'
+                    }}
+                  >
+                    <option value="">Seçiniz...</option>
+                    {plans.map(p => (
+                      <option key={p.id} value={p.id}>{p.id} - {p.planName || p.name || 'Plan'}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span style={{ fontSize: '12px', color: 'rgb(17, 24, 39)' }}>
+                    {currentShipment.planId || <span style={{color: '#9ca3af', fontStyle: 'italic'}}>-</span>}
+                  </span>
+                )}
+            </div>
           </div>
 
           {/* Açıklama / Not */}
@@ -299,12 +491,31 @@ export default function ShipmentDetailsPanel({
               Açıklama / Not
             </h3>
             <div style={{ 
-              padding: '4px', 
               fontSize: '12px',
               color: 'rgb(17, 24, 39)',
               minHeight: '40px'
             }}>
-              {currentShipment.description || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Not bulunmuyor.</span>}
+              {isEditing ? (
+                <textarea
+                  value={editData.description}
+                  onChange={(e) => handleInputChange('description', e.target.value)}
+                  style={{
+                    width: '100%',
+                    minHeight: '60px',
+                    padding: '8px',
+                    borderRadius: '4px',
+                    border: '1px solid #d1d5db',
+                    fontSize: '12px',
+                    resize: 'vertical',
+                    fontFamily: 'inherit'
+                  }}
+                  placeholder="Açıklama giriniz..."
+                />
+              ) : (
+                <div style={{ whiteSpace: 'pre-wrap' }}>
+                  {currentShipment.description || <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Not bulunmuyor.</span>}
+                </div>
+              )}
             </div>
           </div>
 

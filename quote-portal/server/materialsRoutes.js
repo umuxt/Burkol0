@@ -751,6 +751,49 @@ async function getShipmentById(req, res) {
 }
 
 /**
+ * PUT /api/materials/shipments/:id - Update shipment details (metadata only)
+ * Updates reference fields like workOrderCode, quoteId, planId, description
+ */
+async function updateShipment(req, res) {
+  try {
+    const { id } = req.params
+    const { planId, workOrderCode, quoteId, description } = req.body
+
+    // Get current shipment
+    const shipment = await db('materials.shipments')
+      .where({ id: parseInt(id, 10) })
+      .first()
+
+    if (!shipment) {
+      return res.status(404).json({ error: 'Sevkiyat bulunamadı' })
+    }
+
+    // Update fields
+    const updates = {
+      updatedBy: req.user?.email || 'system',
+      updatedAt: new Date()
+    }
+
+    if (planId !== undefined) updates.planId = planId
+    if (workOrderCode !== undefined) updates.workOrderCode = workOrderCode
+    if (quoteId !== undefined) updates.quoteId = quoteId
+    if (description !== undefined) updates.description = description
+
+    const [updated] = await db('materials.shipments')
+      .where({ id: parseInt(id, 10) })
+      .update(updates)
+      .returning('*')
+
+    console.log(`✅ Shipment ${id} updated:`, updates)
+
+    res.json(updated)
+  } catch (error) {
+    console.error('❌ Error updating shipment:', error)
+    res.status(500).json({ error: 'Sevkiyat güncellenemedi' })
+  }
+}
+
+/**
  * PUT /api/materials/shipments/:id/status - Update shipment status
  * Valid transitions: pending -> shipped -> delivered (or cancelled at any point)
  */
@@ -1101,6 +1144,7 @@ export function setupMaterialsRoutes(app) {
   app.post('/api/materials/shipments', requireAuth, createShipment)
   app.get('/api/materials/shipments', requireAuth, getShipments)
   app.get('/api/materials/shipments/:id', requireAuth, getShipmentById)
+  app.put('/api/materials/shipments/:id', requireAuth, updateShipment)
   app.put('/api/materials/shipments/:id/status', requireAuth, updateShipmentStatus)
   app.put('/api/materials/shipments/:id/cancel', requireAuth, cancelShipment)
 }

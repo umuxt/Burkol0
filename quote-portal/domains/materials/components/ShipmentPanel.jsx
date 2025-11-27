@@ -249,6 +249,7 @@ export default function ShipmentPanel() {
             onClose={() => setSelectedShipment(null)}
             onUpdateStatus={handleUpdateStatus}
             onCancel={handleCancel}
+            onRefresh={loadShipments}
             loading={loading}
           />
         )}

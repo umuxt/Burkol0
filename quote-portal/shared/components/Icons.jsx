@@ -27,6 +27,9 @@ import {
   ShoppingCart,
   Settings as SettingsIcon,
   Truck, // Added Truck
+  Loader2, // Added Loader2
+  ChevronDown, // Added ChevronDown
+  Search, // Added Search
   
   // Production
   Play,
@@ -84,6 +87,9 @@ export const Icons = {
   ShoppingCart,
   Settings: SettingsIcon,
   Truck, // Added Truck
+  Loader2, // Added Loader2
+  ChevronDown, // Added ChevronDown
+  Search, // Added Search
   
   // Production
   Play,
@@ -148,6 +154,9 @@ export {
   ShoppingCart,
   SettingsIcon,
   Truck, // Added Truck
+  Loader2, // Added Loader2
+  ChevronDown, // Added ChevronDown
+  Search, // Added Search
   Play,
   Pause,
   CheckCircle,

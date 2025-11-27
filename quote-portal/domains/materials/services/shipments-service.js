@@ -150,6 +150,58 @@ export const shipmentsService = {
   },
 
   /**
+   * Sevkiyat detaylarını güncelle (metadata)
+   * 
+   * @param {number} shipmentId - Shipment ID
+   * @param {Object} data - Güncellenecek alanlar (workOrderCode, quoteId, planId, description)
+   * @returns {Promise<Object>} Güncellenmiş shipment
+   */
+  updateShipment: async (shipmentId, data) => {
+    try {
+      const response = await fetchWithTimeout(`/api/materials/shipments/${shipmentId}`, {
+        method: 'PUT',
+        headers: withAuth(),
+        body: JSON.stringify(data)
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const result = await response.json()
+      console.log('✅ Shipment updated:', result)
+      return result
+    } catch (error) {
+      console.error('❌ Shipment update error:', error)
+      throw error
+    }
+  },
+
+  /**
+   * Üretim planlarını getir
+   * @returns {Promise<Array>} Plan listesi
+   */
+  getProductionPlans: async () => {
+    try {
+      const response = await fetchWithTimeout('/api/mes/production-plans', {
+        headers: withAuth()
+      })
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const result = await response.json()
+      // Handle different response structures ({ plans: [] } vs [])
+      return result.plans || (Array.isArray(result) ? result : [])
+    } catch (error) {
+      console.warn('❌ Production plans fetch error:', error?.message || error)
+      return []
+    }
+  },
+
+  /**
    * Sevkiyat durumunu güncelle
    * Flow: pending -> shipped -> delivered
    * İptal: Herhangi bir durumdan cancelled'a geçilebilir
