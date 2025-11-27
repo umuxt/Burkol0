@@ -26,6 +26,7 @@ import {
   Users,
   ShoppingCart,
   Settings as SettingsIcon,
+  Truck, // Added Truck
   
   // Production
   Play,
@@ -82,6 +83,7 @@ export const Icons = {
   Users,
   ShoppingCart,
   Settings: SettingsIcon,
+  Truck, // Added Truck
   
   // Production
   Play,
@@ -145,6 +147,7 @@ export {
   Users,
   ShoppingCart,
   SettingsIcon,
+  Truck, // Added Truck
   Play,
   Pause,
   CheckCircle,

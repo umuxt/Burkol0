@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import StockBar from '../../../shared/components/StockBar.jsx'
+import { Truck } from '../../../shared/components/Icons.jsx' // Import Truck icon
 
 export default function MaterialsTable({ 
   materials, 
@@ -170,7 +171,7 @@ export default function MaterialsTable({
                   title="Tümünü seç"
                 />
               </th>
-              <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
+              <th style={{ width: '120px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('code')}
@@ -188,7 +189,7 @@ export default function MaterialsTable({
                   Ad<span className="mes-sort-icon">{getSortIcon('name')}</span>
                 </button>
               </th>
-              <th style={{ minWidth: '140px', whiteSpace: 'nowrap' }}>
+              <th style={{ width: '120px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('type')}
@@ -223,7 +224,7 @@ export default function MaterialsTable({
                   </button>
                 </div>
               </th>
-              <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
+              <th style={{ width: '90px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('unit')}
@@ -232,7 +233,7 @@ export default function MaterialsTable({
                   Birim<span className="mes-sort-icon">{getSortIcon('unit')}</span>
                 </button>
               </th>
-              <th style={{ minWidth: '140px', whiteSpace: 'nowrap' }}>
+              <th style={{ minWidth: '120px', whiteSpace: 'nowrap' }}>
                 <button 
                   type="button"
                   onClick={() => handleSort('stock')}
@@ -241,7 +242,7 @@ export default function MaterialsTable({
                   Stok Durumu<span className="mes-sort-icon">{getSortIcon('stock')}</span>
                 </button>
               </th>
-              <th style={{ width: '40px', textAlign: 'center' }}></th>
+              <th style={{ minWidth: '80px', textAlign: 'center' }}></th>
             </tr>
           </thead>
           <tbody>
@@ -344,7 +345,7 @@ export default function MaterialsTable({
                     available={material.available || material.stock}
                   />
                 </td>
-                <td style={{ textAlign: 'center' }}>
+                <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -382,6 +383,42 @@ export default function MaterialsTable({
                       <circle cx="19" cy="21" r="1"></circle>
                       <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"></path>
                     </svg>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      console.log('Shipment button clicked for material:', material.name);
+                      // onShipmentClick && onShipmentClick(material); // Placeholder for now
+                    }}
+                    style={{
+                      padding: '2px',
+                      border: 'none',
+                      borderRadius: '3px',
+                      background: 'transparent',
+                      color: '#374151',
+                      fontSize: '10px',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '16px',
+                      height: '16px',
+                      lineHeight: 1,
+                      transition: 'all 0.2s ease',
+                      flexShrink: 0,
+                      marginLeft: '5px' // Add some spacing
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.transform = 'scale(1.1)';
+                      e.target.style.background = '#f3f4f6';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.transform = 'scale(1)';
+                      e.target.style.background = 'transparent';
+                    }}
+                    title={`${material.name} için sevkiyat oluştur`}
+                  >
+                    <Truck size={14} />
                   </button>
                 </td>
               </tr>
