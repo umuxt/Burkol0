@@ -3468,6 +3468,22 @@ router.get('/work-packages', withAuth, async (req, res) => {
           .select('nodeId', 'materialCode', 'requiredQuantity')
       : [];
 
+    // Get consumed amounts from assignment_material_reservations
+    const assignmentIds = tasks.map(t => t.assignmentId);
+    const consumedReservations = assignmentIds.length > 0
+      ? await db('mes.assignment_material_reservations')
+          .whereIn('assignmentId', assignmentIds)
+          .select('assignmentId', 'materialCode', 'consumedQty')
+      : [];
+    
+    // Group consumed amounts by assignmentId
+    const consumedByAssignment = consumedReservations.reduce((acc, r) => {
+      if (!acc[r.assignmentId]) acc[r.assignmentId] = {};
+      const prevQty = acc[r.assignmentId][r.materialCode] || 0;
+      acc[r.assignmentId][r.materialCode] = prevQty + (parseFloat(r.consumedQty) || 0);
+      return acc;
+    }, {});
+
     // Group materials by nodeId
     const materialsByNode = materialInputs.reduce((acc, m) => {
       if (!acc[m.nodeId]) acc[m.nodeId] = {};
@@ -3478,15 +3494,17 @@ router.get('/work-packages', withAuth, async (req, res) => {
     // Get all unique material codes needed across all tasks
     const allMaterialCodes = [...new Set(materialInputs.map(m => m.materialCode))];
     
-    // Check stock availability for all materials (PostgreSQL materials.materials table)
+    // Check stock availability and get names for all materials (PostgreSQL materials.materials table)
     const stockAvailability = {};
+    const materialNames = {};
     if (allMaterialCodes.length > 0) {
       const stockLevels = await db('materials.materials')
-        .select('code', 'stock')
+        .select('code', 'stock', 'name')
         .whereIn('code', allMaterialCodes);
       
       stockLevels.forEach(s => {
         stockAvailability[s.code] = parseFloat(s.stock) || 0;
+        materialNames[s.code] = s.name || s.code;
       });
     }
 
@@ -3549,9 +3567,11 @@ router.get('/work-packages', withAuth, async (req, res) => {
       
       // Material inputs (from junction table)
       materialInputs: materialsByNode[t.nodeIdString] || {},
+      materialNames: materialNames,
       preProductionReservedAmount: parseJsonb(t.preProductionReservedAmount),
       plannedOutput: parseJsonb(t.plannedOutput),
       actualReservedAmounts: parseJsonb(t.actualReservedAmounts),
+      actualConsumptionAmounts: consumedByAssignment[t.assignmentId] || {},
       materialReservationStatus: t.materialReservationStatus,
       
       // Timing

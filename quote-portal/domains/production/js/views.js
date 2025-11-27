@@ -3558,6 +3558,7 @@ export function closeWorkPackageDetail() {
  * Generate work package detail content HTML
  */
 function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
+  ensureWorkPackageDetailStyles();
   const esc = (str) => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
   
   const getStatusBadge = (status) => {
@@ -3804,78 +3805,82 @@ function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
       </div>
     </div>
 
-    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: rgb(17, 24, 39); border-bottom: 1px solid var(--border); padding-bottom: 6px;">📦 Malzeme Detayları</h3>
+    <div class="mes-detail-card">
+      <div class="mes-detail-card-header">
+        <div class="mes-detail-card-title">
+          <i data-lucide="package"></i>
+          <span>Malzeme Detayları</span>
+        </div>
+        <span class="mes-detail-card-subtitle">${getMaterialBadge(workPackage.materialStatus)}</span>
+      </div>
       
-      <!-- Material Inputs -->
-      <div style="margin-bottom: 12px; padding: 10px; background: #f9fafb; border-radius: 4px; border-left: 3px solid #3b82f6;">
-        <div style="font-weight: 600; font-size: 11px; color: #1e40af; margin-bottom: 6px;">Giriş Malzemeleri:</div>
-        ${(() => {
-          const inputs = workPackage.preProductionReservedAmount || workPackage.materialInputs || {};
-          const inputEntries = Object.entries(inputs);
-          if (inputEntries.length === 0) {
-            return '<div style="font-size: 11px; color: #6b7280;">Giriş malzemesi yok</div>';
-          }
-          return inputEntries.map(([code, qty]) => `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #e5e7eb; font-size: 11px;">
-              <span style="font-family: monospace; color: #374151;">${esc(code)}</span>
-              <span style="font-weight: 600; color: #1e40af;">${qty} ${workPackage.unit || 'adet'}</span>
+      <div class="mes-detail-card-content">
+        <div class="mes-detail-section">
+          <div class="mes-detail-section-header">
+            <div class="mes-detail-section-icon mes-detail-icon-input">
+              <i data-lucide="download"></i>
             </div>
-          `).join('');
-        })()}
-      </div>
-
-      <!-- Material Outputs -->
-      <div style="margin-bottom: 0; padding: 10px; background: #f0fdf4; border-radius: 4px; border-left: 3px solid #10b981;">
-        <div style="font-weight: 600; font-size: 11px; color: #065f46; margin-bottom: 6px;">Çıkış Ürünleri:</div>
-        ${(() => {
-          const outputs = workPackage.plannedOutput || {};
-          const outputEntries = Object.entries(outputs);
-          
-          // If no plannedOutput but has outputCode, use it
-          if (outputEntries.length === 0 && workPackage.outputCode) {
-            const outputQty = workPackage.outputQty || workPackage.plannedOutputQty || 0;
-            if (outputQty > 0) {
-              return `
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 11px;">
-                  <span style="font-family: monospace; color: #374151;">${esc(workPackage.outputCode)}</span>
-                  <span style="font-weight: 600; color: #065f46;">${outputQty} ${workPackage.unit || 'adet'}</span>
+            <div>
+              <div class="mes-detail-section-title">Giriş Malzemeleri</div>
+              <div class="mes-detail-section-subtitle">Planlanan tüketim</div>
+            </div>
+          </div>
+        <div class="mes-detail-list">
+          ${renderInputMaterialList(workPackage, esc)}
+          </div>
+        </div>
+        
+        <div class="mes-detail-section">
+          <div class="mes-detail-section-header">
+            <div class="mes-detail-section-icon mes-detail-icon-output">
+              <i data-lucide="upload"></i>
+            </div>
+            <div>
+              <div class="mes-detail-section-title">Çıkış Ürünleri</div>
+              <div class="mes-detail-section-subtitle">Beklenen üretim</div>
+            </div>
+          </div>
+          <div class="mes-detail-list">
+            ${renderOutputList(workPackage, esc)}
+          </div>
+        </div>
+        
+        ${(workPackage.actualOutputQuantity || workPackage.defectQuantity) ? `
+          <div class="mes-detail-section">
+            <div class="mes-detail-section-header">
+              <div class="mes-detail-section-icon mes-detail-icon-result">
+                <i data-lucide="activity"></i>
+              </div>
+              <div>
+                <div class="mes-detail-section-title">Üretim Sonuçları</div>
+                <div class="mes-detail-section-subtitle">Gerçekleşen Arşiv</div>
+              </div>
+            </div>
+            <div class="mes-detail-list">
+              ${workPackage.actualOutputQuantity ? `
+                <div class="mes-detail-list-item">
+                  <div>
+                    <div class="mes-detail-list-label">Üretilen</div>
+                  </div>
+                  <div class="mes-detail-list-value text-success">
+                    ${workPackage.actualOutputQuantity} ${workPackage.unit || 'adet'}
+                  </div>
                 </div>
-              `;
-            }
-          }
-          
-          if (outputEntries.length === 0) {
-            return '<div style="font-size: 11px; color: #6b7280;">Çıkış ürünü yok</div>';
-          }
-          
-          return outputEntries.map(([code, qty]) => `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #d1fae5; font-size: 11px;">
-              <span style="font-family: monospace; color: #374151;">${esc(code)}</span>
-              <span style="font-weight: 600; color: #065f46;">${qty} ${workPackage.unit || 'adet'}</span>
+              ` : ''}
+              ${workPackage.defectQuantity ? `
+                <div class="mes-detail-list-item">
+                  <div>
+                    <div class="mes-detail-list-label">Fire</div>
+                  </div>
+                  <div class="mes-detail-list-value text-danger">
+                    ${workPackage.defectQuantity} ${workPackage.unit || 'adet'}
+                  </div>
+                </div>
+              ` : ''}
             </div>
-          `).join('');
-        })()}
-      </div>
-
-      ${workPackage.actualOutputQuantity || workPackage.defectQuantity ? `
-      <!-- Production Results (if completed) -->
-      <div style="margin-top: 12px; padding: 10px; background: #fef3c7; border-radius: 4px; border-left: 3px solid #f59e0b;">
-        <div style="font-weight: 600; font-size: 11px; color: #92400e; margin-bottom: 6px;">Üretim Sonuçları:</div>
-        ${workPackage.actualOutputQuantity ? `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 11px;">
-          <span style="color: #78350f;">✅ Üretilen:</span>
-          <span style="font-weight: 600; color: #92400e;">${workPackage.actualOutputQuantity} ${workPackage.unit || 'adet'}</span>
-        </div>
-        ` : ''}
-        ${workPackage.defectQuantity ? `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 0; font-size: 11px;">
-          <span style="color: #78350f;">❌ Fire:</span>
-          <span style="font-weight: 600; color: #dc2626;">${workPackage.defectQuantity} ${workPackage.unit || 'adet'}</span>
-        </div>
+          </div>
         ` : ''}
       </div>
-      ` : ''}
     </div>
 
     <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 6px; border: 1px solid var(--border);">
@@ -3914,4 +3919,330 @@ function generateWorkPackageDetailContent(workPackage, additionalData = {}) {
       ` : ''}
     </div>
   `;
+}
+
+function renderInputMaterialList(workPackage, escFn = (v) => v) {
+  const plannedMap = getPlannedMaterialConsumption(workPackage);
+  const entries = Object.entries(plannedMap || {});
+  if (!entries.length) {
+    return '<div class="mes-detail-empty">Giriş malzemesi yok</div>';
+  }
+  const reservedMap = workPackage.actualReservedAmounts || {};
+  const consumedMap = workPackage.actualConsumptionAmounts || {};
+  const status = normalizeWPStatus(workPackage.status);
+  const unitLabel = workPackage.unit || 'adet';
+
+  // DEBUG: Log material data
+  console.log('📦 renderInputMaterialList DEBUG:', {
+    status,
+    plannedMap,
+    reservedMap,
+    consumedMap,
+    actualConsumptionAmounts: workPackage.actualConsumptionAmounts,
+    actualReservedAmounts: workPackage.actualReservedAmounts,
+    preProductionReservedAmount: workPackage.preProductionReservedAmount
+  });
+
+  const rows = entries.map(([code, plannedQty]) => {
+    const plannedValueRaw = typeof plannedQty === 'number' ? plannedQty : (plannedQty?.requiredQuantity ?? plannedQty ?? 0);
+    const plannedValue = Number.isFinite(plannedValueRaw) ? plannedValueRaw : parseFloat(plannedValueRaw) || 0;
+    const reservedValue = (status === 'in-progress' || status === 'completed') && typeof reservedMap[code] !== 'undefined'
+      ? formatQuantityValue(reservedMap[code], unitLabel)
+      : '-';
+    const consumedValue = status === 'completed' && typeof consumedMap[code] !== 'undefined'
+      ? formatQuantityValue(consumedMap[code], unitLabel)
+      : '-';
+    return `
+      <tr>
+        <td>${escFn(code || '—')}</td>
+        <td>${escFn(getMaterialNameFromPackage(workPackage, code))}</td>
+        <td class="is-number">${plannedValue ?? 0} ${unitLabel}</td>
+        <td class="is-number">${reservedValue}</td>
+        <td class="is-number">${consumedValue}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="mes-detail-table-wrapper">
+      <table class="mes-detail-table">
+        <thead>
+          <tr>
+            <th>Malzeme Kodu</th>
+            <th>Malzeme Adı</th>
+            <th>Beklenen Tüketim</th>
+            <th>Rezerv Miktarı</th>
+            <th>Sarf</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderMaterialList(materials, type, unitLabel, escFn = (v) => v) {
+  const entries = Object.entries(materials || {});
+  if (!entries.length) {
+    const emptyText = type === 'inputs' ? 'Giriş malzemesi yok' : 'Çıkış ürünü yok';
+    return `<div class="mes-detail-empty">${emptyText}</div>`;
+  }
+  return entries.map(([code, qty]) => `
+    <div class="mes-detail-list-item">
+      <div>
+        <div class="mes-detail-list-code">${escFn(code || '—')}</div>
+      </div>
+      <div class="mes-detail-list-value">${qty} ${unitLabel || ''}</div>
+    </div>
+  `).join('');
+}
+
+function renderOutputList(workPackage, escFn = (v) => v) {
+  const outputs = workPackage.plannedOutput || {};
+  const outputEntries = Object.entries(outputs);
+
+  if (!outputEntries.length && workPackage.outputCode) {
+    const outputQty = workPackage.outputQty || workPackage.plannedOutputQty || 0;
+    if (outputQty > 0) {
+      return `
+        <div class="mes-detail-list-item">
+          <div>
+            <div class="mes-detail-list-code">${escFn(workPackage.outputCode)}</div>
+          </div>
+          <div class="mes-detail-list-value">${outputQty} ${workPackage.unit || 'adet'}</div>
+        </div>
+      `;
+    }
+  }
+
+  if (!outputEntries.length) {
+    return '<div class="mes-detail-empty">Çıkış ürünü yok</div>';
+  }
+
+  return renderMaterialList(outputs, 'outputs', workPackage.unit || 'adet', escFn);
+}
+
+function getPlannedMaterialConsumption(workPackage) {
+  if (Array.isArray(workPackage.materialInputs)) {
+    const map = {};
+    workPackage.materialInputs.forEach(item => {
+      if (!item) return;
+      const code = item.code || item.materialCode;
+      const qty = item.requiredQuantity ?? item.quantity ?? item.qty;
+      if (!code || qty == null) return;
+      map[code] = qty;
+    });
+    if (Object.keys(map).length > 0) return map;
+  } else if (workPackage.materialInputs && typeof workPackage.materialInputs === 'object') {
+    if (Object.keys(workPackage.materialInputs).length > 0) return workPackage.materialInputs;
+  }
+  return workPackage.preProductionReservedAmount || {};
+}
+
+function getMaterialNameFromPackage(workPackage, code) {
+  if (!code) return '—';
+  if (workPackage.materialNames && workPackage.materialNames[code]) return workPackage.materialNames[code];
+  if (workPackage.materialCatalog && workPackage.materialCatalog[code]) {
+    const entry = workPackage.materialCatalog[code];
+    return entry.name || entry.title || entry.label || code;
+  }
+  if (workPackage.materialDetails && workPackage.materialDetails[code]) {
+    return workPackage.materialDetails[code].name || code;
+  }
+  return '—';
+}
+
+function formatQuantityValue(value, unit) {
+  if (value == null || value === '') return '-';
+  const numeric = typeof value === 'number' ? value : parseFloat(value);
+  const formatted = Number.isFinite(numeric) ? numeric : value;
+  return `${formatted} ${unit || ''}`.trim();
+}
+
+function ensureWorkPackageDetailStyles() {
+  if (document.getElementById('work-package-detail-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'work-package-detail-styles';
+  style.textContent = `
+    .mes-detail-card {
+      margin-bottom: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: white;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+    .mes-detail-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .mes-detail-card-title {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      color: rgb(17, 24, 39);
+    }
+    .mes-detail-card-title i {
+      width: 16px;
+      height: 16px;
+      color: #475569;
+    }
+    .mes-detail-card-subtitle {
+      font-size: 12px;
+    }
+    .mes-detail-card-content {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .mes-detail-section {
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+      padding: 12px;
+      background: #fdfdfd;
+    }
+    .mes-detail-section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .mes-detail-section-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .mes-detail-section-icon i {
+      width: 18px;
+      height: 18px;
+    }
+    .mes-detail-icon-input {
+      background: #eef2ff;
+      color: #4338ca;
+    }
+    .mes-detail-icon-output {
+      background: #ecfdf5;
+      color: #047857;
+    }
+    .mes-detail-icon-result {
+      background: #fff7ed;
+      color: #c2410c;
+    }
+    .mes-detail-section-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .mes-detail-section-subtitle {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+    .mes-detail-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .mes-detail-list-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      padding: 6px 0;
+      border-bottom: 1px dashed #e2e8f0;
+    }
+    .mes-detail-list-item.is-composite {
+      align-items: flex-start;
+    }
+    .mes-detail-list-item:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .mes-detail-list-values {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .mes-detail-primary {
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .mes-detail-secondary {
+      font-size: 11px;
+      color: #94a3b8;
+      display: inline-flex;
+      gap: 4px;
+      align-items: baseline;
+    }
+    .mes-detail-secondary strong {
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+    }
+    .mes-detail-list-code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+      color: #1f2937;
+    }
+    .mes-detail-list-label {
+      font-size: 12px;
+      color: #475569;
+      font-weight: 600;
+    }
+    .mes-detail-list-value {
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .mes-detail-empty {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .mes-detail-card-content .text-success {
+      color: #15803d;
+    }
+    .mes-detail-card-content .text-danger {
+      color: #dc2626;
+    }
+    .mes-detail-table-wrapper {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .mes-detail-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .mes-detail-table thead {
+      background: #f9fafb;
+    }
+    .mes-detail-table th,
+    .mes-detail-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .mes-detail-table th {
+      text-align: left;
+      font-weight: 600;
+      color: #374151;
+    }
+    .mes-detail-table td {
+      color: #111827;
+    }
+    .mes-detail-table td.is-number {
+      text-align: right;
+      font-weight: 600;
+    }
+  `;
+  document.head.appendChild(style);
 }
