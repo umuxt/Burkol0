@@ -2613,7 +2613,7 @@ function renderWorkPackagesTable() {
     });
     
     return `
-      <tr class="mes-table-row" onclick="(async () => await showWorkPackageDetail('${esc(pkg.assignmentId || pkg.id)}'))()" style="cursor: pointer;">
+      <tr class="mes-table-row" onclick="showWorkPackageDetail('${esc(pkg.assignmentId || pkg.id)}')" style="cursor: pointer;">
         <td>
           <div class="mes-muted-text" style="font-size: 11px; font-family: monospace;">
             ${esc(pkg.workPackageId || pkg.assignmentId || pkg.id || '—')}
@@ -2621,7 +2621,7 @@ function renderWorkPackagesTable() {
         </td>
         <td>
           <div>
-            <a href="${quoteUrl}" target="_blank" rel="noopener" class="mes-muted-text" style="font-size: 11px; font-family: monospace; text-decoration: none;">
+            <a href="${quoteUrl}" target="_blank" rel="noopener" onclick="event.stopPropagation()" class="mes-muted-text" style="font-size: 11px; font-family: monospace; text-decoration: none;">
               ${esc(pkg.workOrderCode)}
             </a>
           </div>
@@ -3463,16 +3463,31 @@ export async function initDashboardWidgets() {
  * Show work package detail panel
  */
 export async function showWorkPackageDetail(assignmentId) {
-  const workPackage = workPackagesState.allPackages.find(pkg => pkg.assignmentId === assignmentId || pkg.id === assignmentId);
-  if (!workPackage) return;
+  console.log('🔍 showWorkPackageDetail called with:', assignmentId);
+  console.log('🔍 workPackagesState.allPackages count:', workPackagesState.allPackages?.length || 0);
+  
+  // Normalize ID for comparison (handle both string and number)
+  const normalizedId = String(assignmentId);
+  const workPackage = workPackagesState.allPackages.find(pkg => 
+    String(pkg.assignmentId) === normalizedId || String(pkg.id) === normalizedId
+  );
+  
+  if (!workPackage) {
+    console.warn('⚠️ Work package not found for ID:', assignmentId);
+    console.log('Available IDs:', workPackagesState.allPackages?.map(p => p.assignmentId || p.id));
+    return;
+  }
 
   // Debug: Log work package structure to see available fields
-  console.log('Work Package Data:', workPackage);
+  console.log('✅ Work Package Data:', workPackage);
 
   const detailPanel = document.getElementById('work-package-detail-panel');
   const detailContent = document.getElementById('work-package-detail-content');
   
-  if (!detailPanel || !detailContent) return;
+  if (!detailPanel || !detailContent) {
+    console.error('❌ Detail panel elements not found:', { detailPanel: !!detailPanel, detailContent: !!detailContent });
+    return;
+  }
 
   // Show detail panel
   detailPanel.style.display = 'block';
