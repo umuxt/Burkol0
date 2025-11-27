@@ -3433,6 +3433,7 @@ router.get('/work-packages', withAuth, async (req, res) => {
         
         // Substation info  
         'sub.id as substationCode',
+        'sub.name as substationName',
         
         // Plan info
         'pp.planName as planName',
@@ -3605,6 +3606,7 @@ router.get('/work-packages', withAuth, async (req, res) => {
       stationName: t.stationName,
       substationId: t.substationId,
       substationCode: t.substationCode,
+      substationName: t.substationName,
       
       // Material inputs (from junction table)
       materialInputs: materialsByNode[t.nodeIdString] || {},
@@ -7978,4 +7980,3 @@ router.put('/timezone', withAuth, async (req, res) => {
 });
 
 export default router;
-
