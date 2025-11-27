@@ -119,24 +119,8 @@ function wouldCreateCycle(fromId, toId) {
   return dfs(fromId);
 }
 
-/**
- * Detect final nodes in the production plan graph.
- * A node is considered "final" if it is not a predecessor of any other node.
- * Updates _isFinalNode flag for category determination.
- * @param {Array} nodes - Array of plan nodes
- */
-export function detectFinalNodes(nodes) {
-  nodes.forEach(node => {
-    // Check if this node is a predecessor of any other node
-    const isFinalNode = !nodes.some(n => 
-      Array.isArray(n.predecessors) && n.predecessors.includes(node.id)
-    );
-    
-    node._isFinalNode = isFinalNode;
-    
-    // F suffix is no longer managed in MES - will only exist in shipments table
-  });
-}
+// detectFinalNodes removed - all output materials now use 'processed' type
+// Category is determined by fixed PRODUCTION category, not graph position
 
 /**
  * Topological sort - Başlangıçtan sona doğru sıralama
@@ -1403,9 +1387,6 @@ export function deleteConnection(fromNodeId, toNodeId) {
   // Emit graph change event for UI updates
   try { window.dispatchEvent(new CustomEvent('graphChanged')) } catch {}
   
-  // Detect and update final nodes (for category determination)
-  detectFinalNodes(planDesignerState.nodes);
-  
   // Sequence'leri yeniden hesapla
   updateNodeSequences();
   
@@ -1504,9 +1485,6 @@ export function connectNodes(fromId, toId) {
       try { window.dispatchEvent(new CustomEvent('nodeMaterialsChanged', { detail: { nodeId: toId } })) } catch {}
     }
   }
-
-  // Detect and update final nodes (for category determination)
-  detectFinalNodes(planDesignerState.nodes);
 
   // Sequence'leri yeniden hesapla
   updateNodeSequences();
@@ -2479,9 +2457,6 @@ export function deleteNode(nodeId) {
       node.materialInputs = node.materialInputs.filter(m => !(m && m.derivedFrom === nodeId));
     }
     });
-    
-    // Detect and update final nodes (for category determination)
-    detectFinalNodes(planDesignerState.nodes);
     
     // Sequence'leri yeniden hesapla
     updateNodeSequences();

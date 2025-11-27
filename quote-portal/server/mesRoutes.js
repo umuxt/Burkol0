@@ -2072,7 +2072,7 @@ router.get('/output-codes/validate', withAuth, async (req, res) => {
 
 /**
  * GET /api/mes/output-codes/existing?prefix=Be
- * Query existing semi-finished and finished products
+ * Query existing processed materials (output materials from production)
  * Optionally filter by prefix
  */
 router.get('/output-codes/existing', withAuth, async (req, res) => {
@@ -2080,7 +2080,7 @@ router.get('/output-codes/existing', withAuth, async (req, res) => {
     const { prefix } = req.query;
     
     let query = db('materials.materials')
-      .whereIn('type', ['semi_finished', 'finished_product'])
+      .where('type', 'processed')
       .where('status', 'Aktif')
       .orderBy('code', 'asc');
     

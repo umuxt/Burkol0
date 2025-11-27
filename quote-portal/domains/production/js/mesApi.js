@@ -464,10 +464,10 @@ export async function upsertProducedWipFromNode(node, ops = [], stations = []) {
   const body = {
     code: outputCode,
     name: node._outputName || outputCode,
-    type: 'semi_finished',
+    type: 'processed',
     unit: node.outputUnit || '',
     stock: 0, // Initial stock is 0; updated during production
-    category: 'SEMI_FINISHED',
+    category: 'cat_1764276606465', // PRODUCTION category
     description: `Produced via Plan Canvas${station ? ` @ ${station.name || station.id}` : ''}`,
     status: 'Aktif',
     produced: true,
@@ -1215,6 +1215,7 @@ if (typeof window !== 'undefined') {
 /**
  * Create output materials from production plan nodes
  * Called when saving template or production plan (NOT draft)
+ * All output materials use 'processed' type with PRODUCTION category
  * 
  * @param {Array} nodes - Nodes with _isNewOutput flag
  * @returns {Promise<Object>} - { created, failed, materials, errors }
@@ -1225,10 +1226,9 @@ export async function createOutputMaterials(nodes) {
   for (const node of nodes) {
     if (!node._isNewOutput || !node._outputNeedsCreation) continue;
     
-    // Determine category and type based on final node flag
-    const isFinalNode = node._isFinalNode || false;
-    const category = isFinalNode ? 'cat_finished_product' : 'cat_semi_finished';
-    const type = isFinalNode ? 'finished_product' : 'semi_finished';
+    // All output materials use fixed 'processed' type and PRODUCTION category
+    const category = 'cat_1764276606465'; // PRODUCTION category
+    const type = 'processed';
     
     materialsToCreate.push({
       code: node.outputCode,
@@ -1241,7 +1241,7 @@ export async function createOutputMaterials(nodes) {
       reserved: 0,
       wipReserved: 0,
       reorderPoint: 0,
-      description: `Auto-created from production plan${isFinalNode ? ' (Final Product)' : ''}`
+      description: 'Auto-created from production plan'
     });
   }
   

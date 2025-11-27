@@ -810,20 +810,15 @@ export async function saveNodeEditBackend() {
       // Don't block save on validation errors (network issues etc)
     }
     
-    // Detect if this is a final node (no other nodes use it as predecessor)
-    const isFinalNode = !planDesignerState.nodes.some(n => 
-      Array.isArray(n.predecessors) && n.predecessors.includes(node.id)
-    );
-    
     node._outputSelectionMode = 'new';
     node._isNewOutput = true;
     node._outputNeedsCreation = true;
     node._outputName = outputName;
-    node._isFinalNode = isFinalNode; // Set final node flag for category determination
-    node.outputCode = finalCode; // Output code without F suffix
+    // _isFinalNode removed - all output materials use 'processed' type with PRODUCTION category
+    node.outputCode = finalCode; // Output code
     node.outputUnit = outputUnit;
     
-    console.log(`✅ New output to create: ${finalCode} (${outputName}) - ${outputUnit}${isFinalNode ? ' [FINAL NODE]' : ''}`);
+    console.log(`✅ New output to create: ${finalCode} (${outputName}) - ${outputUnit}`);
   }
 
   // Worker assignment based on mode
