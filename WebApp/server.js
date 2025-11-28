@@ -37,6 +37,7 @@ import {
 } from './server/materialCategoriesRoutes.js'
 import { testConnection } from './db/connection.js'
 import dotenv from 'dotenv'
+import mesRoutes from './domains/production/api/index.js'; // Yeni production/api/index.js
 
 // Load environment variables
 dotenv.config()
@@ -73,7 +74,7 @@ app.use(express.json({ limit: '5mb' }))
 app.use((req, res, next) => {
   const allowedOrigins = process.env.NODE_ENV === 'production'
     ? ['https://beeplan.com', 'https://admin.beeplan.com']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001', 'http://127.0.0.1:5173']
+    : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001']
 
   const origin = req.headers.origin
 
@@ -132,45 +133,7 @@ setupMaterialsRoutes(app)
 // Orders routes
 app.use('/api', ordersRoutes)
 
-// MES Routes - lazy bootstrap on first request to speed up startup
-let mesRouterPromise = null
-let mesRouterMiddleware = null
-
-app.use('/api/mes', async (req, res, next) => {
-  try {
-    if (!mesRouterMiddleware) {
-      if (!mesRouterPromise) {
-        console.log('🔄 Importing MES routes...')
-        mesRouterPromise = import('./server/mesRoutes.js')
-          .then(m => {
-            console.log('📦 MES module imported:', Object.keys(m))
-            if (!m.default) {
-              throw new Error('MES routes module has no default export')
-            }
-            console.log('✅ MES routes bootstrapped on-demand')
-            return m.default
-          })
-          .catch(err => {
-            console.error('❌ MES route import failed:', err)
-            console.error('Stack trace:', err.stack)
-            throw err
-          })
-      }
-      const mesRouter = await mesRouterPromise
-      mesRouterMiddleware = mesRouter
-    }
-    return mesRouterMiddleware(req, res, next)
-  } catch (e) {
-    console.error('❌ MES routes initialization error:', e)
-    console.error('Error message:', e?.message)
-    console.error('Error stack:', e?.stack)
-    return res.status(500).json({ 
-      error: 'MES init failed',
-      details: e?.message,
-      stack: process.env.NODE_ENV === 'development' ? e?.stack : undefined
-    })
-  }
-})
+app.use('/api/mes', mesRoutes); // Yeni production/api/index.js
 
 // Settings routes (System config)
 import settingsRoutes from './server/settingsRoutes.js'

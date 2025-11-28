@@ -3,6 +3,13 @@
   "version": "1.0.0",
   "description": "BeePlan MES Web Application",
   "type": "module",
+  "imports": {
+    "#root/*": "./*.js",
+    "#db/*": "./db/*.js",
+    "#server/*": "./server/*.js",
+    "#config/*": "./config/*.js",
+    "#domains/*": "./domains/*.js"
+  },
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
